@@ -2,12 +2,12 @@ import * as React from 'react';
 import { TextStyle } from 'react-native';
 import { useLocalSetting } from '@/sync/storage';
 
-const MIN_CHAT_FONT_SCALE = 0.85;
-const MAX_CHAT_FONT_SCALE = 1.6;
+export const CHAT_FONT_SCALE_MIN = 0.85;
+export const CHAT_FONT_SCALE_MAX = 1.6;
 const ChatFontScaleContext = React.createContext<number | null>(null);
 
 function clampChatFontScale(scale: number): number {
-    return Math.max(MIN_CHAT_FONT_SCALE, Math.min(MAX_CHAT_FONT_SCALE, scale));
+    return Math.max(CHAT_FONT_SCALE_MIN, Math.min(CHAT_FONT_SCALE_MAX, scale));
 }
 
 function scaleMonoFonts<T extends Record<string, TextStyle>>(styles: T, scale: number): T {

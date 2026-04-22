@@ -14,9 +14,7 @@ import * as SystemUI from 'expo-system-ui';
 import { darkTheme, lightTheme } from '@/theme';
 import { t, getLanguageNativeName, SUPPORTED_LANGUAGES } from '@/text';
 import { Typography } from '@/constants/Typography';
-
-const CHAT_TEXT_SCALE_MIN = 0.85;
-const CHAT_TEXT_SCALE_MAX = 1.6;
+import { CHAT_FONT_SCALE_MIN, CHAT_FONT_SCALE_MAX } from '@/hooks/useChatFontScale';
 const CHAT_TEXT_SCALE_STEP = 0.05;
 const CHAT_TEXT_PREVIEW_FONT_SIZE = 18;
 const CHAT_TEXT_PREVIEW_LINE_HEIGHT = 28;
@@ -29,7 +27,7 @@ const isKnownAvatarStyle = (style: string): style is KnownAvatarStyle => {
 };
 
 const clampChatFontScale = (value: number) => {
-    return Math.min(CHAT_TEXT_SCALE_MAX, Math.max(CHAT_TEXT_SCALE_MIN, value));
+    return Math.min(CHAT_FONT_SCALE_MAX, Math.max(CHAT_FONT_SCALE_MIN, value));
 };
 
 export default function AppearanceSettingsScreen() {
@@ -50,7 +48,12 @@ export default function AppearanceSettingsScreen() {
     const [themePreference, setThemePreference] = useLocalSettingMutable('themePreference');
     const [preferredLanguage] = useSettingMutable('preferredLanguage');
     const [previewScale, setPreviewScale] = React.useState(chatFontScale);
-    
+    const [isSliding, setIsSliding] = React.useState(false);
+
+    React.useEffect(() => {
+        if (!isSliding) setPreviewScale(chatFontScale);
+    }, [chatFontScale, isSliding]);
+
     // Ensure we have a valid style for display, defaulting to gradient for unknown values
     const displayStyle: KnownAvatarStyle = isKnownAvatarStyle(avatarStyle) ? avatarStyle : 'gradient';
 
@@ -135,17 +138,19 @@ export default function AppearanceSettingsScreen() {
                     </Text>
                     <Slider
                         value={previewScale}
-                        minimumValue={CHAT_TEXT_SCALE_MIN}
-                        maximumValue={CHAT_TEXT_SCALE_MAX}
+                        minimumValue={CHAT_FONT_SCALE_MIN}
+                        maximumValue={CHAT_FONT_SCALE_MAX}
                         step={CHAT_TEXT_SCALE_STEP}
                         minimumTrackTintColor={theme.colors.status.connecting}
                         maximumTrackTintColor={theme.colors.divider}
                         thumbTintColor={theme.colors.status.connecting}
                         onValueChange={value => setPreviewScale(clampChatFontScale(value))}
+                        onSlidingStart={() => setIsSliding(true)}
                         onSlidingComplete={value => {
                             const nextScale = clampChatFontScale(value);
                             setPreviewScale(nextScale);
                             setChatFontScale(nextScale);
+                            setIsSliding(false);
                         }}
                     />
                 </View>

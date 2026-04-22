@@ -13,10 +13,9 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { runOnJS, useSharedValue } from 'react-native-reanimated';
 import { Gesture, GestureDetector, GestureStateChangeEvent, GestureUpdateEvent, PinchGestureHandlerEventPayload, PinchGesture } from 'react-native-gesture-handler';
 import { ChatScaleLiveContext } from './ChatScaleLiveContext';
+import { CHAT_FONT_SCALE_MIN, CHAT_FONT_SCALE_MAX } from '@/hooks/useChatFontScale';
 
 const SCROLL_THRESHOLD = 300;
-const CHAT_FONT_SCALE_MIN = 0.85;
-const CHAT_FONT_SCALE_MAX = 1.6;
 
 export const ChatList = React.memo((props: { session: Session }) => {
     const { messages } = useSessionMessages(props.session.id);
@@ -182,52 +181,56 @@ const ChatListInternal = React.memo((props: {
         />
     );
 
-    return (
-        <ChatScaleLiveContext.Provider value={liveMultiplier}>
-            <View style={{ flex: 1 }} onLayout={handleLayout}>
-                {pinchToZoomEnabled ? (
-                    <GestureDetector gesture={pinchGesture}>
-                        {list}
-                    </GestureDetector>
-                ) : list}
-                {chatPaginatedScroll && (
-                    <>
-                        <GestureDetector gesture={olderMessagesTapGesture}>
-                            <View
-                                style={[
-                                    styles.pageTurnZone,
-                                    styles.pageTurnZoneTop,
-                                    { height: viewportHeight * 0.15 },
-                                ]}
-                            />
-                        </GestureDetector>
-                        <GestureDetector gesture={newerMessagesTapGesture}>
-                            <View
-                                style={[
-                                    styles.pageTurnZone,
-                                    styles.pageTurnZoneBottom,
-                                    { height: viewportHeight * 0.15 },
-                                ]}
-                            />
-                        </GestureDetector>
-                    </>
-                )}
-                {showScrollButton && !chatPaginatedScroll && (
-                    <View style={styles.scrollButtonContainer}>
-                        <Pressable
-                            style={({ pressed }) => [
-                                styles.scrollButton,
-                                pressed ? styles.scrollButtonPressed : styles.scrollButtonDefault
+    const inner = (
+        <View style={{ flex: 1 }} onLayout={handleLayout}>
+            {pinchToZoomEnabled ? (
+                <GestureDetector gesture={pinchGesture}>
+                    {list}
+                </GestureDetector>
+            ) : list}
+            {chatPaginatedScroll && (
+                <>
+                    <GestureDetector gesture={olderMessagesTapGesture}>
+                        <View
+                            style={[
+                                styles.pageTurnZone,
+                                styles.pageTurnZoneTop,
+                                { height: viewportHeight * 0.15 },
                             ]}
-                            onPress={scrollToBottom}
-                        >
-                            <Octicons name="arrow-down" size={14} color={theme.colors.text} />
-                        </Pressable>
-                    </View>
-                )}
-            </View>
+                        />
+                    </GestureDetector>
+                    <GestureDetector gesture={newerMessagesTapGesture}>
+                        <View
+                            style={[
+                                styles.pageTurnZone,
+                                styles.pageTurnZoneBottom,
+                                { height: viewportHeight * 0.15 },
+                            ]}
+                        />
+                    </GestureDetector>
+                </>
+            )}
+            {showScrollButton && !chatPaginatedScroll && (
+                <View style={styles.scrollButtonContainer}>
+                    <Pressable
+                        style={({ pressed }) => [
+                            styles.scrollButton,
+                            pressed ? styles.scrollButtonPressed : styles.scrollButtonDefault
+                        ]}
+                        onPress={scrollToBottom}
+                    >
+                        <Octicons name="arrow-down" size={14} color={theme.colors.text} />
+                    </Pressable>
+                </View>
+            )}
+        </View>
+    );
+
+    return pinchToZoomEnabled ? (
+        <ChatScaleLiveContext.Provider value={liveMultiplier}>
+            {inner}
         </ChatScaleLiveContext.Provider>
-    )
+    ) : inner;
 });
 
 const styles = StyleSheet.create((theme) => ({

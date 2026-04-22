@@ -21,24 +21,48 @@ export const MessageView = (props: {
   getMessageById?: (id: string) => Message | null;
 }) => {
   const liveMultiplier = React.useContext(ChatScaleLiveContext);
+
+  const content = (
+    <View style={styles.messageContent}>
+      <RenderBlock
+        message={props.message}
+        metadata={props.metadata}
+        sessionId={props.sessionId}
+        getMessageById={props.getMessageById}
+      />
+    </View>
+  );
+
+  if (liveMultiplier === null) {
+    return (
+      <View style={styles.messageContainer}>
+        {content}
+      </View>
+    );
+  }
+
+  return (
+    <AnimatedMessageView liveMultiplier={liveMultiplier}>
+      {content}
+    </AnimatedMessageView>
+  );
+};
+
+function AnimatedMessageView(props: {
+  liveMultiplier: NonNullable<React.ContextType<typeof ChatScaleLiveContext>>;
+  children: React.ReactNode;
+}) {
   const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: liveMultiplier?.value ?? 1 }],
+    transform: [{ scale: props.liveMultiplier.value }],
     transformOrigin: 'center',
   }));
 
   return (
     <Animated.View style={[styles.messageContainer, animatedStyle]} renderToHardwareTextureAndroid={true}>
-      <View style={styles.messageContent}>
-        <RenderBlock
-          message={props.message}
-          metadata={props.metadata}
-          sessionId={props.sessionId}
-          getMessageById={props.getMessageById}
-        />
-      </View>
+      {props.children}
     </Animated.View>
   );
-};
+}
 
 // RenderBlock function that dispatches to the correct component based on message kind
 function RenderBlock(props: {
