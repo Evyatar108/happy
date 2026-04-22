@@ -33,6 +33,17 @@ export default function AppearanceSettingsScreen() {
     const [compactSessionView, setCompactSessionView] = useSettingMutable('compactSessionView');
     const [themePreference, setThemePreference] = useLocalSettingMutable('themePreference');
     const [preferredLanguage] = useSettingMutable('preferredLanguage');
+
+    // Chat font scale (local, not synced) — helps on e-ink / accessibility.
+    const [chatFontScale, setChatFontScale] = useLocalSettingMutable('chatFontScale');
+    const chatFontScaleOptions: number[] = [1.0, 1.1, 1.25, 1.4];
+    const chatFontScaleLabels: string[] = ['Normal', 'Large', 'X-Large', 'XX-Large'];
+    const currentChatFontScaleIndex = chatFontScaleOptions.findIndex(v => Math.abs(v - (chatFontScale ?? 1.0)) < 0.001);
+    const chatFontScaleLabel = currentChatFontScaleIndex >= 0 ? chatFontScaleLabels[currentChatFontScaleIndex] : 'Custom';
+    const cycleChatFontScale = () => {
+        const next = currentChatFontScaleIndex < 0 ? 1 : (currentChatFontScaleIndex + 1) % chatFontScaleOptions.length;
+        setChatFontScale(chatFontScaleOptions[next]);
+    };
     
     // Ensure we have a valid style for display, defaulting to gradient for unknown values
     const displayStyle: KnownAvatarStyle = isKnownAvatarStyle(avatarStyle) ? avatarStyle : 'gradient';
@@ -86,6 +97,17 @@ export default function AppearanceSettingsScreen() {
                             SystemUI.setBackgroundColorAsync(color);
                         }
                     }}
+                />
+            </ItemGroup>
+
+            {/* Chat text size — local setting, not synced. Helpful on e-ink displays. */}
+            <ItemGroup title="Chat text size" footer="Adjust the font size of chat messages (body text, headers, and lists). Applies to this device only.">
+                <Item
+                    title="Text size"
+                    subtitle={`${Math.round((chatFontScale ?? 1.0) * 100)}% of default`}
+                    icon={<Ionicons name="text-outline" size={29} color="#FF9500" />}
+                    detail={chatFontScaleLabel}
+                    onPress={cycleChatFontScale}
                 />
             </ItemGroup>
 

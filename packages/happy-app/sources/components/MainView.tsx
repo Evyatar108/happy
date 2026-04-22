@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { View, ActivityIndicator, Text, Pressable } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
-import { useFriendRequests, useSocketStatus, useRealtimeStatus } from '@/sync/storage';
+import { useFriendRequests, useSocketStatus, useRealtimeStatus, useLocalSetting } from '@/sync/storage';
 import { useVisibleSessionListViewData } from '@/hooks/useVisibleSessionListViewData';
 import { useIsTablet } from '@/utils/responsive';
 import { useRouter } from 'expo-router';
@@ -230,6 +230,8 @@ export const MainView = React.memo(({ variant }: MainViewProps) => {
     const router = useRouter();
     const friendRequests = useFriendRequests();
     const realtimeStatus = useRealtimeStatus();
+    // Must be read before any conditional early return to stay on the stable hook order.
+    const sidebarCollapsed = useLocalSetting('sidebarCollapsed');
 
     // Tab state management
     // NOTE: Zen tab removed - the feature never got to a useful state
@@ -289,10 +291,11 @@ export const MainView = React.memo(({ variant }: MainViewProps) => {
     }
 
     // Phone variant
-    // Tablet in phone mode - special case (when showing index view on tablets, show empty view)
-    if (isTablet) {
-        // Just show an empty view on tablets for the index view
-        // The sessions list is shown in the sidebar, so the main area should be blank
+    // Tablet in phone mode - when the permanent sidebar is visible, the index route is
+    // intentionally blank because the sidebar carries the sessions list. If the user has
+    // collapsed the sidebar, the index route must fall through to the phone layout below
+    // so the user can still reach the sessions list, inbox, and settings.
+    if (isTablet && !sidebarCollapsed) {
         return <View style={styles.emptyStateContentContainer} />;
     }
 
