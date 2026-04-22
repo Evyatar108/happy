@@ -22,31 +22,83 @@ export type Option = {
 };
 
 // Claude Code emits internal metadata tags around slash-commands and
-// bang-commands (`<command-name>`, `<local-command-stdout>`,
-// `<local-command-caveat>`, etc.). Its native CLI hides them; Happy
-// receives the raw text and renders them as literal markup. Strip any
-// tag of the form  <(/)? (local-)? command-* ... >  keeping inner
-// content, so `!ls` output still displays even after its wrapper
-// tag is removed. In __DEV__ we also log any unique tag names seen
-// so new additions from Claude Code surface without us having to
-// enumerate them by hand — check Metro output for
-// "[MarkdownView] stripped tags".
-const CLAUDE_META_TAG_RE = /<\/?(?:local-)?command-[a-z-]+(?:\s[^>]*)?>/gi;
-const loggedTags = __DEV__ ? new Set<string>() : null;
+// bang-commands. Its native CLI hides them; Happy receives the raw
+// message text and must sanitise before rendering. Transform them into
+// readable markdown instead of stripping raw:
+//
+//   <command-name>X</command-name>
+//   <command-message>…</command-message>
+//   <command-args>…</command-args>       →  `/X args`  (inline code)
+//
+//   <local-command-stdout>…</local-command-stdout>   →  ```fenced block```
+//   <local-command-stderr>…</local-command-stderr>   →  ```fenced block``` (stderr-prefixed)
+//
+//   <local-command-caveat>…</local-command-caveat>   →  removed entirely
+//                                                       (directive for Claude only)
+//
+// Interactive <options>/<option> tags (clickable suggestions) are left
+// alone — they're parsed downstream. In __DEV__ we log any previously-
+// unseen <tag-name> so future additions from Claude Code don't render
+// raw before we've added a rule. Look for "[MarkdownView] unknown tag"
+// in Metro.
+const KNOWN_TAG_NAMES = new Set([
+    'command-name', 'command-message', 'command-args',
+    'local-command-stdout', 'local-command-stderr', 'local-command-caveat',
+    'options', 'option',
+]);
+const loggedUnknownTags = __DEV__ ? new Set<string>() : null;
 
-function stripClaudeMetaTags(raw: string): string {
-    if (__DEV__ && loggedTags) {
-        const matches = raw.match(CLAUDE_META_TAG_RE);
-        if (matches) {
-            for (const m of matches) {
-                if (!loggedTags.has(m)) {
-                    loggedTags.add(m);
-                    console.log('[MarkdownView] stripped tag:', m);
-                }
+function processClaudeMetaTags(raw: string): string {
+    // 1) Remove caveat tag + its content entirely.
+    let out = raw.replace(
+        /<local-command-caveat>[\s\S]*?<\/local-command-caveat>\s*/gi,
+        '',
+    );
+
+    // 2) Fold the command-name/message/args triple into a single inline-code token.
+    out = out.replace(
+        /<command-name>([\s\S]*?)<\/command-name>\s*(?:<command-message>[\s\S]*?<\/command-message>\s*)?(?:<command-args>([\s\S]*?)<\/command-args>\s*)?/gi,
+        (_match, name: string, args: string = '') => {
+            const cleanName = name.trim();
+            const cleanArgs = args.trim();
+            return cleanArgs ? `\`${cleanName} ${cleanArgs}\`` : `\`${cleanName}\``;
+        },
+    );
+
+    // 3) local-command-stdout → fenced code block.
+    out = out.replace(
+        /<local-command-stdout>([\s\S]*?)<\/local-command-stdout>/gi,
+        (_m, content: string) => `\n\`\`\`\n${content.trim()}\n\`\`\`\n`,
+    );
+
+    // 4) local-command-stderr → fenced code block with stderr prefix comment.
+    out = out.replace(
+        /<local-command-stderr>([\s\S]*?)<\/local-command-stderr>/gi,
+        (_m, content: string) => `\n\`\`\`\n# stderr\n${content.trim()}\n\`\`\`\n`,
+    );
+
+    // Fallback: strip any remaining command-* tags that escaped the triple
+    // matcher (keeps inner content in place so nothing is silently lost).
+    out = out.replace(/<\/?(?:local-)?command-[a-z-]+(?:\s[^>]*)?>/gi, '');
+
+    // Dev-only: log any tag family we don't know about yet so it can be
+    // added to the list above with a deliberate rule.
+    if (__DEV__ && loggedUnknownTags) {
+        const tagMatches = raw.match(/<\/?([a-z][a-z0-9-]*)(?:\s[^>]*)?\/?>/gi);
+        if (tagMatches) {
+            for (const tag of tagMatches) {
+                const nameMatch = tag.match(/^<\/?([a-z][a-z0-9-]*)/i);
+                if (!nameMatch) continue;
+                const name = nameMatch[1].toLowerCase();
+                if (KNOWN_TAG_NAMES.has(name)) continue;
+                if (loggedUnknownTags.has(name)) continue;
+                loggedUnknownTags.add(name);
+                console.warn(`[MarkdownView] unknown tag <${name}> — add a rule if this should render specially.`);
             }
         }
     }
-    return raw.replace(CLAUDE_META_TAG_RE, '');
+
+    return out;
 }
 
 export const MarkdownView = React.memo((props: {
@@ -55,7 +107,7 @@ export const MarkdownView = React.memo((props: {
     sessionId?: string;
 }) => {
     const blocks = React.useMemo(
-        () => parseMarkdown(stripClaudeMetaTags(props.markdown)),
+        () => parseMarkdown(processClaudeMetaTags(props.markdown)),
         [props.markdown],
     );
     
