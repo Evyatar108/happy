@@ -97,6 +97,8 @@ cloudflared tunnel --url http://localhost:3005
 
 Happy-server runs from `D:\harness-efforts\happy` via `pnpm --filter happy-server standalone:dev` (embedded PGlite, no Docker).
 
+Deferred work lives in `docs/fork-roadmap.md` — prioritised backlog for the fork.
+
 ## Known debt (not yet addressed)
 
 - **i18n:** all new user-facing strings (`"Chat text size"`, `"Normal/Large/X-Large/XX-Large"`, `"Show sidebar"`, `"% of default"`, etc.) are hard-coded English. `CLAUDE.md` requires `t(...)` with entries in all 9 translation files before upstreaming.
