@@ -102,14 +102,75 @@ This is the workflow the 2026-04-22 batch used after the merge: Metro on `/d/h` 
 
 ## Cloudflare tunnel (local server from your phone/tablet)
 
-Tunnel URLs are ephemeral (`*.trycloudflare.com`). If `cloudflared` restarts, the URL changes and every connected client needs the new one.
+Happy-server runs from `D:\harness-efforts\happy` via `pnpm --filter happy-server standalone:dev` (embedded PGlite, no Docker) on `http://localhost:3005`. A named Cloudflare Tunnel fronts it at the stable URL **`https://happy.evyatar.dev`**. The `cloudflared` binary is installed at `C:\Program Files (x86)\cloudflared\cloudflared.exe` (via `winget install Cloudflare.cloudflared`); config lives at `~/.cloudflared/`.
+
+### Current setup (as of 2026-04-22)
+
+- **Tunnel name:** `happy`
+- **Tunnel ID:** `ebd51c79-c883-4850-a9bd-403c1513ed36`
+- **Stable public URL:** `https://happy.evyatar.dev`
+- **Config file:** `~/.cloudflared/config.yml`
+  ```yaml
+  tunnel: ebd51c79-c883-4850-a9bd-403c1513ed36
+  credentials-file: C:\Users\evmitran\.cloudflared\ebd51c79-c883-4850-a9bd-403c1513ed36.json
+
+  ingress:
+    - hostname: happy.evyatar.dev
+      service: http://localhost:3005
+    - service: http_status:404
+  ```
+- **Origin cert:** `~/.cloudflared/cert.pem` (from `cloudflared tunnel login` against the `evyatar.dev` zone)
+- **Credentials JSON:** `~/.cloudflared/ebd51c79-c883-4850-a9bd-403c1513ed36.json` — **treat as secret**; anyone with it can run the tunnel. Not in the repo.
+- **DNS:** CNAME `happy.evyatar.dev` → `ebd51c79-c883-4850-a9bd-403c1513ed36.cfargotunnel.com`, created automatically by `cloudflared tunnel route dns happy happy.evyatar.dev`.
+
+### Operating the tunnel
+
+Start manually (foreground, one-shot):
 
 ```bash
-cloudflared tunnel --url http://localhost:3005
-# copy the printed URL
+"/c/Program Files (x86)/cloudflared/cloudflared.exe" tunnel run happy
 ```
 
-Happy-server runs from `D:\harness-efforts\happy` via `pnpm --filter happy-server standalone:dev` (embedded PGlite, no Docker).
+Persistent across reboots — install as a Windows service (elevated shell required):
+
+```powershell
+# PowerShell as Administrator
+& "C:\Program Files (x86)\cloudflared\cloudflared.exe" service install
+```
+
+The service reads the same `~/.cloudflared/config.yml` and auto-starts on boot. To uninstall: `cloudflared service uninstall`.
+
+Inspect:
+
+```bash
+"/c/Program Files (x86)/cloudflared/cloudflared.exe" tunnel list
+"/c/Program Files (x86)/cloudflared/cloudflared.exe" tunnel info happy
+```
+
+Delete and recreate (if something gets wedged):
+
+```bash
+"/c/Program Files (x86)/cloudflared/cloudflared.exe" tunnel delete happy
+# then: tunnel create happy + edit config.yml with new UUID + route dns happy happy.evyatar.dev
+```
+
+### Backup / recovery
+
+If the laptop dies and you lose `~/.cloudflared/`:
+
+1. `cert.pem` is regenerable with `cloudflared tunnel login`.
+2. The tunnel credentials JSON for a given tunnel is NOT recoverable from Cloudflare — delete the tunnel and create a new one, then re-route DNS.
+3. Back up `~/.cloudflared/ebd51c79-c883-4850-a9bd-403c1513ed36.json` (and optionally `cert.pem` + `config.yml`) to a secure location if you want zero-downtime recovery.
+
+### Client-side (app on the tablet)
+
+- `EXPO_PUBLIC_HAPPY_SERVER_URL` at build time sets the compiled default.
+- Runtime override lives in MMKV (`server-config` instance, key `custom-server-url`) and wins over the compiled default.
+- Toggle via the app's custom-server UI in Settings. Set to `https://happy.evyatar.dev` once per fresh install, then every subsequent reboot/reload picks it up automatically.
+
+### Legacy / fallback: quick tunnel
+
+The old `cloudflared tunnel --url http://localhost:3005` workflow still works and hands back an ephemeral `*.trycloudflare.com` URL per invocation. Only useful now if the named tunnel is broken and you need a one-shot debug path; otherwise always prefer the named tunnel above.
 
 Deferred work lives in `docs/fork-roadmap.md` — prioritised backlog for the fork.
 
