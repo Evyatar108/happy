@@ -3,6 +3,7 @@ import { View, Text, ViewStyle } from 'react-native';
 import { calculateUnifiedDiff, DiffToken } from '@/components/diff/calculateDiff';
 import { Typography } from '@/constants/Typography';
 import { useUnistyles } from 'react-native-unistyles';
+import { useChatScaledStyles } from '@/hooks/useChatFontScale';
 
 
 interface DiffViewProps {
@@ -33,6 +34,17 @@ export const DiffView: React.FC<DiffViewProps> = ({
     // Always use light theme colors
     const { theme } = useUnistyles();
     const colors = theme.colors.diff;
+    const scaledStyles = useChatScaledStyles({
+        hunkHeader: {
+            ...Typography.mono(),
+            fontSize: 12,
+        },
+        lineText: {
+            ...Typography.mono(),
+            fontSize: 13,
+            lineHeight: 20,
+        },
+    });
 
     // Calculate diff with inline highlighting
     const { hunks } = useMemo(() => {
@@ -136,8 +148,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
                         key={`hunk-header-${hunkIndex}`} 
                         numberOfLines={wrapLines ? undefined : 1}
                         style={{
-                            ...Typography.mono(),
-                            fontSize: 12,
+                            ...scaledStyles.hunkHeader,
                             color: colors.hunkHeaderText,
                             backgroundColor: colors.hunkHeaderBg,
                             paddingVertical: 8,
@@ -162,9 +173,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
                         key={`line-${hunkIndex}-${lineIndex}`}
                         numberOfLines={wrapLines ? undefined : 1}
                         style={{
-                            ...Typography.mono(),
-                            fontSize: 13,
-                            lineHeight: 20,
+                            ...scaledStyles.lineText,
                             backgroundColor: bgColor,
                             transform: [{ scaleX: fontScaleX }],
                             paddingLeft: 8,

@@ -21,7 +21,6 @@ export function ToolFullView({ tool, metadata, messages = [] }: ToolFullViewProp
     const SpecializedFullView = getToolFullViewComponent(tool.name);
     const screenWidth = useWindowDimensions().width;
     const devModeEnabled = (useLocalSetting('devModeEnabled') || __DEV__);
-    console.log('ToolFullView', devModeEnabled);
 
     return (
         <ScrollView style={[styles.container, { paddingHorizontal: screenWidth > 700 ? 16 : 0 }]}>
@@ -49,7 +48,7 @@ export function ToolFullView({ tool, metadata, messages = [] }: ToolFullViewProp
                                 <Ionicons name="log-in" size={20} color="#5856D6" />
                                 <Text style={styles.sectionTitle}>{t('tools.fullView.inputParams')}</Text>
                             </View>
-                            <CodeView code={JSON.stringify(tool.input, null, 2)} />
+                            <CodeView code={JSON.stringify(tool.input, null, 2)} scaled />
                         </View>
                     )}
 
@@ -60,9 +59,7 @@ export function ToolFullView({ tool, metadata, messages = [] }: ToolFullViewProp
                                 <Ionicons name="log-out" size={20} color="#34C759" />
                                 <Text style={styles.sectionTitle}>{t('tools.fullView.output')}</Text>
                             </View>
-                            <CodeView
-                                code={typeof tool.result === 'string' ? tool.result : JSON.stringify(tool.result, null, 2)}
-                            />
+                            <CodeView code={typeof tool.result === 'string' ? tool.result : JSON.stringify(tool.result, null, 2)} scaled />
                         </View>
                     )}
 
@@ -113,6 +110,7 @@ export function ToolFullView({ tool, metadata, messages = [] }: ToolFullViewProp
                                 permission: tool.permission,
                                 messages
                             }, null, 2)} 
+                            scaled
                         />
                     </View>
                 )}

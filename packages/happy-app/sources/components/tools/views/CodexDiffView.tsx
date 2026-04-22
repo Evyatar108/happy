@@ -8,6 +8,7 @@ import { Metadata } from '@/sync/storageTypes';
 import { useSetting } from '@/sync/storage';
 import { t } from '@/text';
 import { parseUnifiedDiff } from '@/utils/codexUnifiedDiff';
+import { useChatScaledStyles } from '@/hooks/useChatFontScale';
 
 interface CodexDiffViewProps {
     tool: ToolCall;
@@ -16,6 +17,9 @@ interface CodexDiffViewProps {
 
 export const CodexDiffView = React.memo<CodexDiffViewProps>(({ tool, metadata }) => {
     const { theme } = useUnistyles();
+    const scaledTextStyles = useChatScaledStyles({
+        fileName: styles.fileName,
+    });
     const showLineNumbersInToolViews = useSetting('showLineNumbersInToolViews');
     const { input } = tool;
 
@@ -34,7 +38,7 @@ export const CodexDiffView = React.memo<CodexDiffViewProps>(({ tool, metadata })
     // If we have a filename, show it as a header
     const fileHeader = fileName ? (
         <View style={styles.fileHeader}>
-            <Text style={styles.fileName}>{fileName}</Text>
+            <Text style={scaledTextStyles.fileName}>{fileName}</Text>
         </View>
     ) : null;
 

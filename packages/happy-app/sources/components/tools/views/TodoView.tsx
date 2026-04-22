@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { ToolViewProps } from "./_all";
 import { knownTools } from '../../tools/knownTools';
 import { ToolSectionView } from '../../tools/ToolSectionView';
+import { useChatScaledStyles } from '@/hooks/useChatFontScale';
 
 export interface Todo {
     content: string;
@@ -12,6 +13,9 @@ export interface Todo {
 }
 
 export const TodoView = React.memo<ToolViewProps>(({ tool }) => {
+    const scaledTextStyles = useChatScaledStyles({
+        todoText: styles.todoText,
+    });
     let todosList: Todo[] = [];
     
     // Try to get todos from input first
@@ -36,17 +40,17 @@ export const TodoView = React.memo<ToolViewProps>(({ tool }) => {
                         const isInProgress = todo.status === 'in_progress';
                         const isPending = todo.status === 'pending';
 
-                        let textStyle: any = styles.todoText;
+                        let textStyle: any = scaledTextStyles.todoText;
                         let icon = '☐';
 
                         if (isCompleted) {
-                            textStyle = [styles.todoText, styles.completedText];
+                            textStyle = [scaledTextStyles.todoText, styles.completedText];
                             icon = '☑';
                         } else if (isInProgress) {
-                            textStyle = [styles.todoText, styles.inProgressText];
+                            textStyle = [scaledTextStyles.todoText, styles.inProgressText];
                             icon = '☐';
                         } else if (isPending) {
-                            textStyle = [styles.todoText, styles.pendingText];
+                            textStyle = [scaledTextStyles.todoText, styles.pendingText];
                         }
 
                         return (

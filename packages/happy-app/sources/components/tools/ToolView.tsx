@@ -15,6 +15,7 @@ import { PermissionFooter } from './PermissionFooter';
 import { parseToolUseError } from '@/utils/toolErrorParser';
 import { formatMCPTitle } from './views/MCPToolView';
 import { t } from '@/text';
+import { useChatScaledStyles } from '@/hooks/useChatFontScale';
 
 interface ToolViewProps {
     metadata: Metadata | null;
@@ -29,6 +30,12 @@ export const ToolView = React.memo<ToolViewProps>((props) => {
     const { tool, onPress, sessionId, messageId } = props;
     const router = useRouter();
     const { theme } = useUnistyles();
+    const scaledTextStyles = useChatScaledStyles({
+        elapsedText: styles.elapsedText,
+        toolName: styles.toolName,
+        status: styles.status,
+        toolDescription: styles.toolDescription,
+    });
 
     // Create default onPress handler for navigation
     const handlePress = React.useCallback(() => {
@@ -165,9 +172,9 @@ export const ToolView = React.memo<ToolViewProps>((props) => {
                             {icon}
                         </View>
                         <View style={styles.titleContainer}>
-                            <Text style={styles.toolName} numberOfLines={1}>{toolTitle}{status ? <Text style={styles.status}>{` ${status}`}</Text> : null}</Text>
+                            <Text style={scaledTextStyles.toolName} numberOfLines={1}>{toolTitle}{status ? <Text style={scaledTextStyles.status}>{` ${status}`}</Text> : null}</Text>
                             {description && (
-                                <Text style={styles.toolDescription} numberOfLines={1}>
+                                <Text style={scaledTextStyles.toolDescription} numberOfLines={1}>
                                     {description}
                                 </Text>
                             )}
@@ -187,9 +194,9 @@ export const ToolView = React.memo<ToolViewProps>((props) => {
                             {icon}
                         </View>
                         <View style={styles.titleContainer}>
-                            <Text style={styles.toolName} numberOfLines={1}>{toolTitle}{status ? <Text style={styles.status}>{` ${status}`}</Text> : null}</Text>
+                            <Text style={scaledTextStyles.toolName} numberOfLines={1}>{toolTitle}{status ? <Text style={scaledTextStyles.status}>{` ${status}`}</Text> : null}</Text>
                             {description && (
-                                <Text style={styles.toolDescription} numberOfLines={1}>
+                                <Text style={scaledTextStyles.toolDescription} numberOfLines={1}>
                                     {description}
                                 </Text>
                             )}
@@ -243,7 +250,7 @@ export const ToolView = React.memo<ToolViewProps>((props) => {
                         {/* Default content when no custom view available */}
                         {tool.input && (
                             <ToolSectionView title={t('toolView.input')}>
-                                <CodeView code={JSON.stringify(tool.input, null, 2)} />
+                                <CodeView code={JSON.stringify(tool.input, null, 2)} scaled />
                             </ToolSectionView>
                         )}
 
@@ -251,6 +258,7 @@ export const ToolView = React.memo<ToolViewProps>((props) => {
                             <ToolSectionView title={t('toolView.output')}>
                                 <CodeView
                                     code={typeof tool.result === 'string' ? tool.result : JSON.stringify(tool.result, null, 2)}
+                                    scaled
                                 />
                             </ToolSectionView>
                         )}
@@ -270,7 +278,11 @@ export const ToolView = React.memo<ToolViewProps>((props) => {
 function ElapsedView(props: { from: number }) {
     const { from } = props;
     const elapsed = useElapsedTime(from);
-    return <Text style={styles.elapsedText}>{elapsed.toFixed(1)}s</Text>;
+    const scaledTextStyles = useChatScaledStyles({
+        elapsedText: styles.elapsedText,
+    });
+
+    return <Text style={scaledTextStyles.elapsedText}>{elapsed.toFixed(1)}s</Text>;
 }
 
 const styles = StyleSheet.create((theme) => ({

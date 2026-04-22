@@ -1,11 +1,12 @@
 import * as React from 'react';
 import { ToolViewProps } from './_all';
-import { Text, View, ActivityIndicator, StyleSheet, Platform } from 'react-native';
+import { Text, View, ActivityIndicator, Platform } from 'react-native';
 import { knownTools } from '../../tools/knownTools';
 import { Ionicons } from '@expo/vector-icons';
 import { ToolCall } from '@/sync/typesMessage';
-import { useUnistyles } from 'react-native-unistyles';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { t } from '@/text';
+import { useChatScaledStyles } from '@/hooks/useChatFontScale';
 
 interface FilteredTool {
     tool: ToolCall;
@@ -13,8 +14,47 @@ interface FilteredTool {
     state: 'running' | 'completed' | 'error';
 }
 
+const styles = StyleSheet.create((theme) => ({
+    container: {
+        paddingVertical: 4,
+        paddingBottom: 12,
+    },
+    toolItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 4,
+        paddingLeft: 4,
+        paddingRight: 2,
+    },
+    toolTitle: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: theme.colors.textSecondary,
+        fontFamily: 'monospace',
+        flex: 1,
+    },
+    statusContainer: {
+        marginLeft: 'auto',
+        paddingLeft: 8,
+    },
+    moreToolsItem: {
+        paddingVertical: 4,
+        paddingHorizontal: 4,
+    },
+    moreToolsText: {
+        fontSize: 14,
+        color: theme.colors.textSecondary,
+        fontStyle: 'italic',
+        opacity: 0.7,
+    },
+}));
+
 export const TaskView = React.memo<ToolViewProps>(({ tool, metadata, messages }) => {
     const { theme } = useUnistyles();
+    const scaledTextStyles = useChatScaledStyles({
+        moreToolsText: styles.moreToolsText,
+        toolTitle: styles.toolTitle,
+    });
     const filtered: FilteredTool[] = [];
 
     for (let m of messages) {
@@ -46,52 +86,6 @@ export const TaskView = React.memo<ToolViewProps>(({ tool, metadata, messages })
         }
     }
 
-    const styles = StyleSheet.create({
-        container: {
-            paddingVertical: 4,
-            paddingBottom: 12
-        },
-        toolItem: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            paddingVertical: 4,
-            paddingLeft: 4,
-            paddingRight: 2
-        },
-        toolTitle: {
-            fontSize: 14,
-            fontWeight: '500',
-            color: theme.colors.textSecondary,
-            fontFamily: 'monospace',
-            flex: 1,
-        },
-        statusContainer: {
-            marginLeft: 'auto',
-            paddingLeft: 8,
-        },
-        loadingItem: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            paddingVertical: 8,
-            paddingHorizontal: 4,
-        },
-        loadingText: {
-            marginLeft: 8,
-            fontSize: 14,
-            color: theme.colors.textSecondary,
-        },
-        moreToolsItem: {
-            paddingVertical: 4,
-            paddingHorizontal: 4,
-        },
-        moreToolsText: {
-            fontSize: 14,
-            color: theme.colors.textSecondary,
-            fontStyle: 'italic',
-            opacity: 0.7,
-        },
-    });
-
     if (filtered.length === 0) {
         return null;
     }
@@ -103,7 +97,7 @@ export const TaskView = React.memo<ToolViewProps>(({ tool, metadata, messages })
         <View style={styles.container}>
             {visibleTools.map((item, index) => (
                 <View key={`${item.tool.name}-${index}`} style={styles.toolItem}>
-                    <Text style={styles.toolTitle}>{item.title}</Text>
+                    <Text style={scaledTextStyles.toolTitle}>{item.title}</Text>
                     <View style={styles.statusContainer}>
                         {item.state === 'running' && (
                             <ActivityIndicator size={Platform.OS === 'ios' ? "small" : 14 as any} color={theme.colors.warning} />
@@ -119,7 +113,7 @@ export const TaskView = React.memo<ToolViewProps>(({ tool, metadata, messages })
             ))}
             {remainingCount > 0 && (
                 <View style={styles.moreToolsItem}>
-                    <Text style={styles.moreToolsText}>
+                    <Text style={scaledTextStyles.moreToolsText}>
                         {t('tools.taskView.moreTools', { count: remainingCount })}
                     </Text>
                 </View>

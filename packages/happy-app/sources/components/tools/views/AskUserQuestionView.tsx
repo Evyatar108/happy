@@ -6,6 +6,7 @@ import { ToolSectionView } from '../ToolSectionView';
 import { sessionAllow } from '@/sync/ops';
 import { t } from '@/text';
 import { Ionicons } from '@expo/vector-icons';
+import { useChatScaledStyles } from '@/hooks/useChatFontScale';
 
 interface QuestionOption {
     label: string;
@@ -166,6 +167,15 @@ const styles = StyleSheet.create((theme) => ({
 
 export const AskUserQuestionView = React.memo<ToolViewProps>(({ tool, sessionId }) => {
     const { theme } = useUnistyles();
+    const scaledTextStyles = useChatScaledStyles({
+        headerText: styles.headerText,
+        optionDescription: styles.optionDescription,
+        optionLabel: styles.optionLabel,
+        questionText: styles.questionText,
+        submitButtonText: styles.submitButtonText,
+        submittedHeader: styles.submittedHeader,
+        submittedValue: styles.submittedValue,
+    });
     const [selections, setSelections] = React.useState<Map<number, Set<number>>>(new Map());
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const [isSubmitted, setIsSubmitted] = React.useState(false);
@@ -263,8 +273,8 @@ export const AskUserQuestionView = React.memo<ToolViewProps>(({ tool, sessionId 
                             : '-';
                         return (
                             <View key={qIndex} style={styles.submittedItem}>
-                                <Text style={styles.submittedHeader}>{q.header}:</Text>
-                                <Text style={styles.submittedValue}>{selectedLabels}</Text>
+                                <Text style={scaledTextStyles.submittedHeader}>{q.header}:</Text>
+                                <Text style={scaledTextStyles.submittedValue}>{selectedLabels}</Text>
                             </View>
                         );
                     })}
@@ -282,9 +292,9 @@ export const AskUserQuestionView = React.memo<ToolViewProps>(({ tool, sessionId 
                     return (
                         <View key={qIndex} style={styles.questionSection}>
                             <View style={styles.headerChip}>
-                                <Text style={styles.headerText}>{question.header}</Text>
+                                <Text style={scaledTextStyles.headerText}>{question.header}</Text>
                             </View>
-                            <Text style={styles.questionText}>{question.question}</Text>
+                            <Text style={scaledTextStyles.questionText}>{question.question}</Text>
                             <View style={styles.optionsContainer}>
                                 {question.options.map((option, oIndex) => {
                                     const isSelected = selectedOptions.has(oIndex);
@@ -319,9 +329,9 @@ export const AskUserQuestionView = React.memo<ToolViewProps>(({ tool, sessionId 
                                                 </View>
                                             )}
                                             <View style={styles.optionContent}>
-                                                <Text style={styles.optionLabel}>{option.label}</Text>
+                                                <Text style={scaledTextStyles.optionLabel}>{option.label}</Text>
                                                 {option.description && (
-                                                    <Text style={styles.optionDescription}>{option.description}</Text>
+                                                    <Text style={scaledTextStyles.optionDescription}>{option.description}</Text>
                                                 )}
                                             </View>
                                         </TouchableOpacity>
@@ -346,7 +356,7 @@ export const AskUserQuestionView = React.memo<ToolViewProps>(({ tool, sessionId 
                             {isSubmitting ? (
                                 <ActivityIndicator size="small" color={theme.colors.button.primary.tint} />
                             ) : (
-                                <Text style={styles.submitButtonText}>{t('tools.askUserQuestion.submit')}</Text>
+                                <Text style={scaledTextStyles.submitButtonText}>{t('tools.askUserQuestion.submit')}</Text>
                             )}
                         </TouchableOpacity>
                     </View>

@@ -9,6 +9,7 @@ import { resolvePath } from '@/utils/pathUtils';
 import { ToolDiffView } from '@/components/tools/ToolDiffView';
 import { useSetting } from '@/sync/storage';
 import { parseUnifiedDiff } from '@/utils/codexUnifiedDiff';
+import { useChatScaledStyles } from '@/hooks/useChatFontScale';
 
 interface CodexPatchViewProps {
     tool: ToolCall;
@@ -91,6 +92,11 @@ function getPatchKindLabel(change: CodexPatchEntry): string | null {
 
 export const CodexPatchView = React.memo<CodexPatchViewProps>(({ tool, metadata }) => {
     const { theme } = useUnistyles();
+    const scaledTextStyles = useChatScaledStyles({
+        filePath: styles.filePath,
+        kindLabel: styles.kindLabel,
+        movePath: styles.movePath,
+    });
     const showLineNumbersInToolViews = useSetting('showLineNumbersInToolViews');
     const { input } = tool;
     const changes = getPatchChanges(input);
@@ -116,10 +122,10 @@ export const CodexPatchView = React.memo<CodexPatchViewProps>(({ tool, metadata 
                             <View style={styles.fileHeader}>
                                 <View style={styles.fileHeaderMain}>
                                     <Octicons name="file-diff" size={16} color={theme.colors.textSecondary} />
-                                    <Text style={styles.filePath}>{filePath}</Text>
-                                    {kindLabel ? <Text style={styles.kindLabel}>{kindLabel}</Text> : null}
+                                    <Text style={scaledTextStyles.filePath}>{filePath}</Text>
+                                    {kindLabel ? <Text style={scaledTextStyles.kindLabel}>{kindLabel}</Text> : null}
                                 </View>
-                                {movePath ? <Text style={styles.movePath}>{movePath}</Text> : null}
+                                {movePath ? <Text style={scaledTextStyles.movePath}>{movePath}</Text> : null}
                             </View>
                             {hasDiff ? (
                                 <ToolDiffView

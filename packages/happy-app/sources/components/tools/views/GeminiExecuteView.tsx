@@ -4,6 +4,7 @@ import { StyleSheet } from 'react-native-unistyles';
 import { ToolSectionView } from '../../tools/ToolSectionView';
 import { ToolViewProps } from './_all';
 import { CodeView } from '@/components/CodeView';
+import { useChatScaledStyles } from '@/hooks/useChatFontScale';
 
 /**
  * Extract execute command info from Gemini's nested input format.
@@ -49,6 +50,10 @@ function extractExecuteInfo(input: any): { command: string; description: string;
  */
 export const GeminiExecuteView = React.memo<ToolViewProps>(({ tool }) => {
     const { command, description, cwd } = extractExecuteInfo(tool.input);
+    const scaledTextStyles = useChatScaledStyles({
+        cwdText: styles.cwdText,
+        descriptionText: styles.descriptionText,
+    });
 
     if (!command) {
         return null;
@@ -57,15 +62,15 @@ export const GeminiExecuteView = React.memo<ToolViewProps>(({ tool }) => {
     return (
         <>
             <ToolSectionView fullWidth>
-                <CodeView code={command} />
+                <CodeView code={command} scaled />
             </ToolSectionView>
             {(description || cwd) && (
                 <View style={styles.infoContainer}>
                     {cwd && (
-                        <Text style={styles.cwdText}>📁 {cwd}</Text>
+                        <Text style={scaledTextStyles.cwdText}>📁 {cwd}</Text>
                     )}
                     {description && (
-                        <Text style={styles.descriptionText}>{description}</Text>
+                        <Text style={scaledTextStyles.descriptionText}>{description}</Text>
                     )}
                 </View>
             )}

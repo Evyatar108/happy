@@ -8,6 +8,7 @@ import { DiffView } from '@/components/diff/DiffView';
 import { trimIdent } from '@/utils/trimIdent';
 import { t } from '@/text';
 import { useSetting } from '@/sync/storage';
+import { useChatScaledStyles } from '@/hooks/useChatFontScale';
 
 interface MultiEditViewFullProps {
     tool: ToolCall;
@@ -17,6 +18,10 @@ interface MultiEditViewFullProps {
 export const MultiEditViewFull = React.memo<MultiEditViewFullProps>(({ tool, metadata }) => {
     const { input } = tool;
     const wrapLinesInDiffs = useSetting('wrapLinesInDiffs');
+    const scaledTextStyles = useChatScaledStyles({
+        editNumber: styles.editNumber,
+        replaceAllText: styles.replaceAllText,
+    });
 
     // Parse the input
     let edits: Array<{ old_string: string; new_string: string; replace_all?: boolean }> = [];
@@ -39,12 +44,12 @@ export const MultiEditViewFull = React.memo<MultiEditViewFullProps>(({ tool, met
                 return (
                     <View key={index}>
                         <View style={styles.editHeader}>
-                            <Text style={styles.editNumber}>
+                            <Text style={scaledTextStyles.editNumber}>
                                 {t('tools.multiEdit.editNumber', { index: index + 1, total: edits.length })}
                             </Text>
                             {edit.replace_all && (
                                 <View style={styles.replaceAllBadge}>
-                                    <Text style={styles.replaceAllText}>{t('tools.multiEdit.replaceAll')}</Text>
+                                    <Text style={scaledTextStyles.replaceAllText}>{t('tools.multiEdit.replaceAll')}</Text>
                                 </View>
                             )}
                         </View>

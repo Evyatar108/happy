@@ -9,6 +9,7 @@ import { Metadata } from '@/sync/storageTypes';
 import { resolvePath } from '@/utils/pathUtils';
 import { stringifyToolCommand } from '@/utils/toolCommand';
 import { t } from '@/text';
+import { useChatScaledStyles } from '@/hooks/useChatFontScale';
 
 interface CodexBashViewProps {
     tool: ToolCall;
@@ -17,6 +18,10 @@ interface CodexBashViewProps {
 
 export const CodexBashView = React.memo<CodexBashViewProps>(({ tool, metadata }) => {
     const { theme } = useUnistyles();
+    const scaledTextStyles = useChatScaledStyles({
+        commandText: styles.commandText,
+        operationText: styles.operationText,
+    });
     const { input, result, state } = tool;
 
     // Parse the input structure
@@ -58,10 +63,10 @@ export const CodexBashView = React.memo<CodexBashViewProps>(({ tool, metadata })
                 <View style={styles.readContainer}>
                     <View style={styles.iconRow}>
                         {icon}
-                        <Text style={styles.operationText}>{t('tools.desc.readingFile', { file: resolvedPath })}</Text>
+                        <Text style={scaledTextStyles.operationText}>{t('tools.desc.readingFile', { file: resolvedPath })}</Text>
                     </View>
                     {commandStr && (
-                        <Text style={styles.commandText}>{commandStr}</Text>
+                        <Text style={scaledTextStyles.commandText}>{commandStr}</Text>
                     )}
                 </View>
             </ToolSectionView>
@@ -75,10 +80,10 @@ export const CodexBashView = React.memo<CodexBashViewProps>(({ tool, metadata })
                 <View style={styles.readContainer}>
                     <View style={styles.iconRow}>
                         {icon}
-                        <Text style={styles.operationText}>{t('tools.desc.writingFile', { file: resolvedPath })}</Text>
+                        <Text style={scaledTextStyles.operationText}>{t('tools.desc.writingFile', { file: resolvedPath })}</Text>
                     </View>
                     {commandStr && (
-                        <Text style={styles.commandText}>{commandStr}</Text>
+                        <Text style={scaledTextStyles.commandText}>{commandStr}</Text>
                     )}
                 </View>
             </ToolSectionView>

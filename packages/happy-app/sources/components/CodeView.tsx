@@ -1,19 +1,25 @@
 import * as React from 'react';
 import { Text, View, Platform } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
+import { useChatScaledStyles } from '@/hooks/useChatFontScale';
 
 interface CodeViewProps {
     code: string;
     language?: string;
+    scaled?: boolean;
 }
 
 export const CodeView = React.memo<CodeViewProps>(({ 
     code, 
-    language
+    scaled = false,
 }) => {
+    const scaledTextStyles = useChatScaledStyles({
+        codeText: styles.codeText,
+    });
+
     return (
         <View style={styles.codeBlock}>
-            <Text style={styles.codeText}>{code}</Text>
+            <Text style={scaled ? scaledTextStyles.codeText : styles.codeText}>{code}</Text>
         </View>
     );
 });
