@@ -8,8 +8,9 @@ import { SessionActionsNativeMenu } from '@/components/SessionActionsNativeMenu'
 import { SessionActionsAnchor } from '@/components/SessionActionsPopover';
 import { Typography } from '@/constants/Typography';
 import { Session } from '@/sync/storageTypes';
-import { useHeaderHeight } from '@/utils/responsive';
+import { useHeaderHeight, useIsTablet } from '@/utils/responsive';
 import { layout } from '@/components/layout';
+import { useSidebar } from '@/components/SidebarContext';
 import { useUnistyles } from 'react-native-unistyles';
 
 interface ChatHeaderViewProps {
@@ -49,6 +50,12 @@ export const ChatHeaderView: React.FC<ChatHeaderViewProps> = ({
     const headerHeight = useHeaderHeight();
     const avatarAnchorRef = React.useRef<View | null>(null);
     const suppressAvatarPressUntilRef = React.useRef(0);
+
+    // When the tablet sidebar is fully hidden, the only in-chrome affordance
+    // to restore it lives here — next to the back button.
+    const isTablet = useIsTablet();
+    const { isHidden, showExpanded } = useSidebar();
+    const showSidebarRestore = isTablet && isHidden;
 
     const handleBackPress = () => {
         if (onBackPress) {
@@ -124,6 +131,20 @@ export const ChatHeaderView: React.FC<ChatHeaderViewProps> = ({
                             color={theme.colors.header.tint}
                         />
                     </Pressable>
+                    {showSidebarRestore && (
+                        <Pressable
+                            onPress={showExpanded}
+                            style={styles.restoreButton}
+                            hitSlop={10}
+                            accessibilityLabel="Show sidebar"
+                        >
+                            <Ionicons
+                                name="menu"
+                                size={22}
+                                color={theme.colors.header.tint}
+                            />
+                        </Pressable>
+                    )}
 
                     <View style={styles.titleContainer}>
                         <Text
@@ -219,6 +240,9 @@ const styles = StyleSheet.create({
         maxWidth: layout.headerMaxWidth,
     },
     backButton: {
+        marginRight: 8,
+    },
+    restoreButton: {
         marginRight: 8,
     },
     titleContainer: {

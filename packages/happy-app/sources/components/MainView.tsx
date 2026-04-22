@@ -232,9 +232,16 @@ export const MainView = React.memo(({ variant }: MainViewProps) => {
     const friendRequests = useFriendRequests();
     const realtimeStatus = useRealtimeStatus();
     // Must be read before any conditional early return to stay on the stable hook order.
-    // Fall through to the phone layout when the user has fully hidden the tablet sidebar —
-    // otherwise the index route would be an unreachable blank screen.
-    const { isHidden: sidebarHidden } = useSidebar();
+    // Only the fully-expanded tablet sidebar carries the session list on its own; the
+    // collapsed 72-px rail shows active sessions only (no archive toggle / inactive),
+    // and the hidden mode has no sidebar at all. In both of those cases the index
+    // route must fall through to the phone tab layout so the user can still reach
+    // inactive sessions, inbox, settings. Yes, this produces a visible "double list"
+    // on tablets in collapsed mode (rail on the left + full SessionsList in the main
+    // pane) — intentional: the rail is a quick-switch, the main pane is the rich
+    // view. If the collapsed rail grows inbox/archive/settings icons of its own,
+    // revisit this gate.
+    const { isExpanded: sidebarFullyExpanded } = useSidebar();
 
     // Tab state management
     // NOTE: Zen tab removed - the feature never got to a useful state
@@ -293,12 +300,7 @@ export const MainView = React.memo(({ variant }: MainViewProps) => {
         );
     }
 
-    // Phone variant
-    // Tablet in phone mode - when the permanent sidebar is visible, the index route is
-    // intentionally blank because the sidebar carries the sessions list. If the user has
-    // collapsed the sidebar, the index route must fall through to the phone layout below
-    // so the user can still reach the sessions list, inbox, and settings.
-    if (isTablet && !sidebarHidden) {
+    if (isTablet && sidebarFullyExpanded) {
         return <View style={styles.emptyStateContentContainer} />;
     }
 
