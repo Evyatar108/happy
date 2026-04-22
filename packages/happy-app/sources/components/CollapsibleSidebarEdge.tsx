@@ -17,6 +17,10 @@ export const CollapsibleSidebarEdge = React.memo(() => {
                 onPress={toggleCollapsed}
                 style={({ pressed }) => [styles.container, pressed && styles.containerPressed]}
                 accessibilityLabel={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                // 12 px strip is well below the 44×44 / 48 dp touch target; asymmetric
+                // hitSlop widens tap area outward without colliding with the sidebar's
+                // own content on the left.
+                hitSlop={{ top: 8, bottom: 8, left: 4, right: 20 }}
             >
                 <Ionicons
                     name={isCollapsed ? 'chevron-forward' : 'chevron-back'}
