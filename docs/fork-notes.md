@@ -125,20 +125,13 @@ Happy-server runs from `D:\harness-efforts\happy` via `pnpm --filter happy-serve
 
 ### Operating the tunnel
 
-Start manually (foreground, one-shot):
+**One-shot foreground:**
 
 ```bash
 "/c/Program Files (x86)/cloudflared/cloudflared.exe" tunnel run happy
 ```
 
-Persistent across reboots — install as a Windows service (elevated shell required):
-
-```powershell
-# PowerShell as Administrator
-& "C:\Program Files (x86)\cloudflared\cloudflared.exe" service install
-```
-
-The service reads the same `~/.cloudflared/config.yml` and auto-starts on boot. To uninstall: `cloudflared service uninstall`.
+**Persistent (Windows service, reboot-survivable):** both cloudflared and happy-server are managed as Windows Services via **nssm**. Setup recipe is in `scripts/fork-setup/setup-services.ps1` — run once in elevated PowerShell on a fresh machine. See the detailed walkthrough in the **Windows services** section below.
 
 Inspect:
 
@@ -172,6 +165,64 @@ If the laptop dies and you lose `~/.cloudflared/`:
 
 The old `cloudflared tunnel --url http://localhost:3005` workflow still works and hands back an ephemeral `*.trycloudflare.com` URL per invocation. Only useful now if the named tunnel is broken and you need a one-shot debug path; otherwise always prefer the named tunnel above.
 
+## Windows services (happy-server + cloudflared)
+
+Both happy-server and cloudflared are wrapped as Windows Services by **nssm** so they auto-start on boot. See `.agents/skills/happy-service-manage/SKILL.md` for day-to-day ops (restart, logs, debugging); this section is the one-shot setup reference.
+
+### Why nssm for both
+
+- **`cloudflared service install` is buggy on Windows for locally-created named tunnels.** It registers binPath with no `tunnel run` subcommand, so cloudflared starts, sees no subcommand, prints help, exits. Symptom: Event Viewer (Application log → source `cloudflared`) shows `Cloudflared service arguments: [C:\...\cloudflared.exe]` with no args.
+- **PowerShell 5.1 mangles `sc.exe config binPath=` quoted strings**, so post-hoc fixes to the native service's binPath don't stick. (PowerShell 7+ has `Set-Service -BinaryPathName` which works, but the default admin Terminal on Windows 11 is still 5.1.)
+- **Cloudflared's service runs as LocalSystem**, not your user. LocalSystem reads config from `C:\Windows\System32\config\systemprofile\.cloudflared\`, NOT `~/.cloudflared/`. `cloudflared service install` is *supposed* to copy the files over; on our machine it didn't.
+
+nssm sidesteps all three: owns the arg list cleanly, runs as LocalSystem with explicit config path, and exposes standard `Get-Service` / `Start-Service` / `Stop-Service` / `Restart-Service` operations.
+
+happy-server is also wrapped by nssm for consistent management (same ops, same log-rotation conventions).
+
+### Prereqs
+
+- `winget install Cloudflare.cloudflared`
+- `winget install NSSM.NSSM`
+- `winget install jqlang.jq` (for `ralph-orchestration` workflows)
+- Named tunnel created: `cloudflared tunnel login` → `tunnel create happy` → `tunnel route dns happy happy.evyatar.dev` → `config.yml` written at `~/.cloudflared/config.yml`.
+- Primary clone at `D:\harness-efforts\happy` with `packages/happy-server/.env.dev` in place.
+
+### Setup
+
+Run in **elevated PowerShell** (right-click Terminal → Run as administrator):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File D:\harness-efforts\happy\scripts\fork-setup\setup-services.ps1
+```
+
+The script is idempotent — re-running overwrites the service configs cleanly. It:
+
+1. Verifies prereqs.
+2. Force-stops any running cloudflared / happy-server (handles the `Stop-Service` drain hang with `sc.exe stop` + `Stop-Process -Force`).
+3. Uninstalls any pre-existing native `cloudflared` service or prior nssm install.
+4. Copies `~/.cloudflared/*` into `C:\Windows\System32\config\systemprofile\.cloudflared\` and rewrites `config.yml` paths from the user profile to the system profile.
+5. Registers `HappyServer` via nssm (wraps `pnpm --filter happy-server standalone:dev` with `AppDirectory=D:\harness-efforts\happy`).
+6. Registers `cloudflared` via nssm (wraps `cloudflared.exe --config <sys> tunnel run`).
+7. Starts both. Probes `https://happy.evyatar.dev`. Prints status.
+
+Log files (10 MB rotation) land in `D:\harness-efforts\happy\packages\happy-server\logs\`:
+
+- `service-stdout.log` / `service-stderr.log` — HappyServer
+- `cloudflared-stdout.log` / `cloudflared-stderr.log` — cloudflared
+- `.logs\<MM-DD-HH-MM-SS>.log` — HappyServer pino rich log (per-request detail)
+
+### Reboot test
+
+```powershell
+shutdown /r /t 0
+```
+
+After login, `curl https://happy.evyatar.dev` should return `200` without running anything manually. If not, follow the failure-mode playbook in `.agents/skills/happy-service-manage/SKILL.md`.
+
+### Backup
+
+Back up `C:\Users\evmitran\.cloudflared\<tunnel-UUID>.json` somewhere durable (password manager, personal cloud). Losing it means deleting + recreating the tunnel and re-routing DNS. `cert.pem` is regenerable via `cloudflared tunnel login`.
+
 Deferred work lives in `docs/fork-roadmap.md` — prioritised backlog for the fork.
 
 ## Known debt (not yet addressed)
@@ -200,6 +251,11 @@ Deferred work lives in `docs/fork-roadmap.md` — prioritised backlog for the fo
 - **`CodeView` is reused outside chat.** `app/(app)/session/[id]/info.tsx` renders it in a non-chat context. When PR-A added `useChatScaledStyles` to `CodeView`, the first-cut was unconditional — making `info.tsx` subscribe to `chatFontScale` and re-render on every toggle. Fixed via a `scaled?: boolean` prop (default `false`) + a split into `ScaledCodeBlock` / `UnscaledCodeBlock` so non-chat callers don't pay any subscription cost.
 - **`renderToHardwareTextureAndroid` is expensive at rest.** It allocates a GPU texture per view. Only useful during an active transform animation; at rest it just pins VRAM. Bit us in PR-C round 5 — we had it pinned whenever `pinchToZoomEnabled` was on. Fix: gate it on an `isActive: SharedValue<boolean>` flipped in the pinch gesture's `.onBegin`/`.onFinalize`, bound via `useAnimatedProps`. Hardware texture now only exists during the gesture window.
 - **Rebase-from-stale-main is fine if you fetch first.** The `chat-text-ux-eink` branch was built off local `main @ 9452985e` (Release 1.1.7). Upstream advanced by 10 commits while we worked — all in a new "codium" Electron area that has zero file overlap with `packages/happy-app`. `git rebase origin/main` on the final branch applied all 13 commits cleanly, no conflicts. The lesson: file-overlap check (`git diff --name-only base..upstream | sort` vs `...branch | sort`) before rebasing tells you immediately whether a rebase is risky.
+- **`cloudflared service install` on Windows is buggy for locally-created named tunnels.** It registers the service binPath with only the exe path, no `tunnel run` subcommand. cloudflared then starts, sees no subcommand, prints help, exits. Event Viewer source `cloudflared`, message `Cloudflared service arguments: [C:\...\cloudflared.exe]` is the tell. Fix: use nssm to wrap cloudflared with explicit args. Captured in `scripts/fork-setup/setup-services.ps1`.
+- **`cloudflared` service runs as LocalSystem and reads from `C:\Windows\System32\config\systemprofile\.cloudflared\`**, not `C:\Users\<you>\.cloudflared\`. `service install` is supposed to copy the files over; on our machine it silently didn't. Symptom: tunnel returns Cloudflare error 1033 (no origin connected) even though the service is "Running". Always use the setup script, which copies + rewrites paths into the system profile explicitly.
+- **PowerShell 5.1 mangles `sc.exe config binPath=` quoted strings.** The default admin Terminal on Windows 11 is still PowerShell 5.1, and when you pass a string with embedded double quotes to a native command, the quotes get stripped before sc.exe sees them. Result: your binPath rewrite silently doesn't take effect. Use nssm (owns arg list cleanly), or `Set-Service -BinaryPathName` from PowerShell 7+, or wrap in `cmd.exe /c`. Never trust `sc.exe config binPath= "quoted string"` from PS 5.1.
+- **`Stop-Service cloudflared` can hang in a "Waiting for service to stop" loop.** cloudflared drains active tunnel connections before stopping, and the drain can wedge. Fire-and-forget pattern: `& sc.exe stop cloudflared; Start-Sleep 2; Get-Process cloudflared -EA 0 | Stop-Process -Force`.
+- **PowerShell 5.1 reads .ps1 files as CP-1252 when no BOM is present.** UTF-8 scripts with em-dashes or other multi-byte characters cause `TerminatorExpectedAtEndOfString` parse errors. Keep service scripts ASCII-only (or save with a UTF-8 BOM). The tokenizer chokes on byte sequences like `0xE2 0x80 0x94` (em-dash) and thinks a string literal never closed.
 
 ## Claude Code metadata tags rendered by `MarkdownView`
 
