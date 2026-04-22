@@ -10,6 +10,8 @@ import { ChatFooter } from './ChatFooter';
 import { Message } from '@/sync/typesMessage';
 import { Octicons } from '@expo/vector-icons';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { useSharedValue } from 'react-native-reanimated';
+import { ChatScaleLiveContext } from './ChatScaleLiveContext';
 
 const SCROLL_THRESHOLD = 300;
 
@@ -44,6 +46,7 @@ const ChatListInternal = React.memo((props: {
 }) => {
     const { theme } = useUnistyles();
     const flatListRef = React.useRef<FlatList>(null);
+    const liveMultiplier = useSharedValue(1.0);
     const [showScrollButton, setShowScrollButton] = React.useState(false);
 
     const keyExtractor = useCallback((item: any) => item.id, []);
@@ -63,38 +66,40 @@ const ChatListInternal = React.memo((props: {
     }, []);
 
     return (
-        <View style={{ flex: 1 }}>
-            <FlatList
-                ref={flatListRef}
-                data={props.messages}
-                inverted={true}
-                keyExtractor={keyExtractor}
-                maintainVisibleContentPosition={{
-                    minIndexForVisible: 0,
-                    autoscrollToTopThreshold: 10,
-                }}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'none'}
-                renderItem={renderItem}
-                onScroll={handleScroll}
-                scrollEventThrottle={16}
-                ListHeaderComponent={<ListFooter sessionId={props.sessionId} />}
-                ListFooterComponent={<ListHeader />}
-            />
-            {showScrollButton && (
-                <View style={styles.scrollButtonContainer}>
-                    <Pressable
-                        style={({ pressed }) => [
-                            styles.scrollButton,
-                            pressed ? styles.scrollButtonPressed : styles.scrollButtonDefault
-                        ]}
-                        onPress={scrollToBottom}
-                    >
-                        <Octicons name="arrow-down" size={14} color={theme.colors.text} />
-                    </Pressable>
-                </View>
-            )}
-        </View>
+        <ChatScaleLiveContext.Provider value={liveMultiplier}>
+            <View style={{ flex: 1 }}>
+                <FlatList
+                    ref={flatListRef}
+                    data={props.messages}
+                    inverted={true}
+                    keyExtractor={keyExtractor}
+                    maintainVisibleContentPosition={{
+                        minIndexForVisible: 0,
+                        autoscrollToTopThreshold: 10,
+                    }}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'none'}
+                    renderItem={renderItem}
+                    onScroll={handleScroll}
+                    scrollEventThrottle={16}
+                    ListHeaderComponent={<ListFooter sessionId={props.sessionId} />}
+                    ListFooterComponent={<ListHeader />}
+                />
+                {showScrollButton && (
+                    <View style={styles.scrollButtonContainer}>
+                        <Pressable
+                            style={({ pressed }) => [
+                                styles.scrollButton,
+                                pressed ? styles.scrollButtonPressed : styles.scrollButtonDefault
+                            ]}
+                            onPress={scrollToBottom}
+                        >
+                            <Octicons name="arrow-down" size={14} color={theme.colors.text} />
+                        </Pressable>
+                    </View>
+                )}
+            </View>
+        </ChatScaleLiveContext.Provider>
     )
 });
 

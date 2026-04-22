@@ -10,6 +10,8 @@ import { ToolView } from "./tools/ToolView";
 import { AgentEvent } from "@/sync/typesRaw";
 import { sync } from '@/sync/sync';
 import { Option } from './markdown/MarkdownView';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
+import { ChatScaleLiveContext } from './ChatScaleLiveContext';
 
 
 export const MessageView = (props: {
@@ -18,8 +20,13 @@ export const MessageView = (props: {
   sessionId: string;
   getMessageById?: (id: string) => Message | null;
 }) => {
+  const liveMultiplier = React.useContext(ChatScaleLiveContext);
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: liveMultiplier?.value ?? 1 }],
+  }));
+
   return (
-    <View style={styles.messageContainer} renderToHardwareTextureAndroid={true}>
+    <Animated.View style={[styles.messageContainer, animatedStyle]} renderToHardwareTextureAndroid={true}>
       <View style={styles.messageContent}>
         <RenderBlock
           message={props.message}
@@ -28,7 +35,7 @@ export const MessageView = (props: {
           getMessageById={props.getMessageById}
         />
       </View>
-    </View>
+    </Animated.View>
   );
 };
 
