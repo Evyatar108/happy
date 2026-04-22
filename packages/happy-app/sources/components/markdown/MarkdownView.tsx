@@ -8,6 +8,7 @@ import { Typography } from '@/constants/Typography';
 import { SimpleSyntaxHighlighter } from '../SimpleSyntaxHighlighter';
 import { Modal } from '@/modal';
 import { useLocalSetting } from '@/sync/storage';
+import { useChatFontScaleOverride } from '@/hooks/useChatFontScale';
 import { storeTempText } from '@/sync/persistence';
 import { useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
@@ -209,18 +210,6 @@ type RenderSpanProps = {
     onLinkPress: (url: string) => void;
 };
 
-// Body-text font-scale override. Reads the user's LocalSettings.chatFontScale and
-// multiplies the base fontSize/lineHeight. Kept scoped to text/header/list renderers
-// so code-blocks, tables, and mermaid diagrams are not distorted.
-function useChatFontScaleOverride(baseFontSize: number, baseLineHeight: number) {
-    const scale = useLocalSetting('chatFontScale');
-    const s = scale ?? 1.0;
-    return React.useMemo(() => {
-        if (s === 1.0) return null;
-        return { fontSize: baseFontSize * s, lineHeight: baseLineHeight * s };
-    }, [s, baseFontSize, baseLineHeight]);
-}
-
 function RenderTextBlock(props: { spans: MarkdownSpan[], first: boolean, last: boolean, selectable: boolean, onLinkPress: (url: string) => void }) {
     const scaleOverride = useChatFontScaleOverride(16, 24);
     return <Text selectable={props.selectable} style={[style.text, props.first && style.first, props.last && style.last, scaleOverride]}><RenderSpans spans={props.spans} baseStyle={style.text} selectable={props.selectable} onLinkPress={props.onLinkPress} /></Text>;
@@ -261,6 +250,10 @@ function RenderNumberedListBlock(props: { items: { number: number, spans: Markdo
 
 function RenderCodeBlock(props: { content: string, language: string | null, first: boolean, last: boolean, selectable: boolean }) {
     const [isHovered, setIsHovered] = React.useState(false);
+    // Code block base fontSize is 14 in SimpleSyntaxHighlighter (monospace).
+    // Language label base is 12 per style.codeLanguage below.
+    const codeScale = useChatFontScaleOverride(14, 20);
+    const langScale = useChatFontScaleOverride(12);
 
     const copyCode = React.useCallback(async () => {
         try {
@@ -280,7 +273,7 @@ function RenderCodeBlock(props: { content: string, language: string | null, firs
             // @ts-ignore - Web only events
             onMouseLeave={() => setIsHovered(false)}
         >
-            {props.language && <Text selectable={props.selectable} style={style.codeLanguage}>{props.language}</Text>}
+            {props.language && <Text selectable={props.selectable} style={[style.codeLanguage, langScale]}>{props.language}</Text>}
             <ScrollView
                 style={{ flexGrow: 0, flexShrink: 0 }}
                 horizontal={true}
@@ -291,6 +284,8 @@ function RenderCodeBlock(props: { content: string, language: string | null, firs
                     code={props.content}
                     language={props.language}
                     selectable={props.selectable}
+                    fontSize={codeScale?.fontSize}
+                    lineHeight={codeScale?.lineHeight}
                 />
             </ScrollView>
             <View

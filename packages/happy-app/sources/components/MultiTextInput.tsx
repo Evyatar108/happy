@@ -2,6 +2,7 @@ import * as React from 'react';
 import { Text, TextInput, Platform, View, NativeSyntheticEvent, TextInputKeyPressEventData, TextInputSelectionChangeEventData } from 'react-native';
 import { useUnistyles } from 'react-native-unistyles';
 import { Typography } from '@/constants/Typography';
+import { useChatFontScale } from '@/hooks/useChatFontScale';
 
 export type SupportedKey = 'Enter' | 'Escape' | 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight' | 'Tab';
 
@@ -59,13 +60,16 @@ export const MultiTextInput = React.forwardRef<MultiTextInputHandle, MultiTextIn
     } = props;
 
     const { theme } = useUnistyles();
+    // Composer text scales with the same LocalSettings.chatFontScale as the
+    // rest of the chat so reading what you're typing matches the surroundings.
+    const scale = useChatFontScale();
     // Track latest selection in a ref
     const selectionRef = React.useRef({ start: 0, end: 0 });
     const inputRef = React.useRef<TextInput>(null);
     const textStyle = {
         width: '100%' as const,
-        fontSize: MULTI_TEXT_INPUT_FONT_SIZE,
-        lineHeight,
+        fontSize: MULTI_TEXT_INPUT_FONT_SIZE * scale,
+        lineHeight: lineHeight * scale,
         maxHeight,
         color: theme.colors.input.text,
         textAlignVertical: 'top' as const,

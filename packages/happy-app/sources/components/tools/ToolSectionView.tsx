@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { Text, View } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
+import { useChatFontScaleOverride } from '@/hooks/useChatFontScale';
 
 interface ToolSectionViewProps {
     title?: string;
@@ -9,9 +10,11 @@ interface ToolSectionViewProps {
 }
 
 export const ToolSectionView = React.memo<ToolSectionViewProps>(({ title, children, fullWidth }) => {
+    // sectionTitle fontSize is 13 in the stylesheet below.
+    const titleScale = useChatFontScaleOverride(13);
     return (
         <View style={[styles.section, fullWidth && styles.fullWidthSection]}>
-            {title && <Text style={styles.sectionTitle}>{title}</Text>}
+            {title && <Text style={[styles.sectionTitle, titleScale]}>{title}</Text>}
             <View style={fullWidth ? styles.fullWidthContent : undefined}>
                 {children}
             </View>

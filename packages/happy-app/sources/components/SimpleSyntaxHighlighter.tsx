@@ -7,6 +7,9 @@ interface SimpleSyntaxHighlighterProps {
   code: string;
   language: string | null;
   selectable: boolean;
+  // Optional overrides for the chat font-scale feature. Default 14 / 20.
+  fontSize?: number;
+  lineHeight?: number;
 }
 
 // Get theme-aware colors
@@ -250,7 +253,9 @@ const tokenizeCode = (code: string, language: string | null) => {
 export const SimpleSyntaxHighlighter: React.FC<SimpleSyntaxHighlighterProps> = ({
   code,
   language,
-  selectable
+  selectable,
+  fontSize = 14,
+  lineHeight = 20,
 }) => {
   const { theme } = useUnistyles();
   const colors = getColors(theme);
@@ -297,10 +302,10 @@ export const SimpleSyntaxHighlighter: React.FC<SimpleSyntaxHighlighterProps> = (
     <View>
       <Text 
         selectable={selectable}
-        style={{ 
+        style={{
           fontFamily: Typography.mono().fontFamily,
-          fontSize: 14,
-          lineHeight: 20,
+          fontSize,
+          lineHeight,
         }}
       >
         {tokens.map((token, index) => (

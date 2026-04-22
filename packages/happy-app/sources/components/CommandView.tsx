@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { Text, View, StyleSheet, Platform } from 'react-native';
 import { useUnistyles } from 'react-native-unistyles';
+import { useChatFontScale } from '@/hooks/useChatFontScale';
 
 interface CommandViewProps {
     command: string;
@@ -30,6 +31,10 @@ export const CommandView = React.memo<CommandViewProps>(({
     // Use legacy output if new props aren't provided
     const hasNewProps = stdout !== undefined || stderr !== undefined || error !== undefined;
 
+    // Chat font-scale applied to the whole terminal block. Base sizes are 14/20
+    // for prompt+command and 13/18 for stdout/stderr/error/empty.
+    const scale = useChatFontScale();
+
     const styles = StyleSheet.create({
         container: {
             backgroundColor: theme.colors.terminal.background,
@@ -46,44 +51,44 @@ export const CommandView = React.memo<CommandViewProps>(({
         },
         promptText: {
             fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
-            fontSize: 14,
-            lineHeight: 20,
+            fontSize: 14 * scale,
+            lineHeight: 20 * scale,
             color: theme.colors.terminal.prompt,
             fontWeight: '600',
         },
         commandText: {
             fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
-            fontSize: 14,
+            fontSize: 14 * scale,
             color: theme.colors.terminal.command,
-            lineHeight: 20,
+            lineHeight: 20 * scale,
             flex: 1,
         },
         stdout: {
             fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
-            fontSize: 13,
+            fontSize: 13 * scale,
             color: theme.colors.terminal.stdout,
-            lineHeight: 18,
+            lineHeight: 18 * scale,
             marginTop: 8,
         },
         stderr: {
             fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
-            fontSize: 13,
+            fontSize: 13 * scale,
             color: theme.colors.terminal.stderr,
-            lineHeight: 18,
+            lineHeight: 18 * scale,
             marginTop: 8,
         },
         error: {
             fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
-            fontSize: 13,
+            fontSize: 13 * scale,
             color: theme.colors.terminal.error,
-            lineHeight: 18,
+            lineHeight: 18 * scale,
             marginTop: 8,
         },
         emptyOutput: {
             fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
-            fontSize: 13,
+            fontSize: 13 * scale,
             color: theme.colors.terminal.emptyOutput,
-            lineHeight: 18,
+            lineHeight: 18 * scale,
             marginTop: 8,
             fontStyle: 'italic',
         },

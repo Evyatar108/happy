@@ -10,6 +10,7 @@ import { ToolView } from "./tools/ToolView";
 import { AgentEvent } from "@/sync/typesRaw";
 import { sync } from '@/sync/sync';
 import { Option } from './markdown/MarkdownView';
+import { useChatFontScaleOverride } from '@/hooks/useChatFontScale';
 
 
 export const MessageView = React.memo((props: {
@@ -109,17 +110,19 @@ function AgentEventBlock(props: {
   event: AgentEvent;
   metadata: Metadata | null;
 }) {
+  // Base agentEventText fontSize is 14 per styles below; no explicit lineHeight set.
+  const eventScale = useChatFontScaleOverride(14);
   if (props.event.type === 'switch') {
     return (
       <View style={styles.agentEventContainer}>
-        <Text style={styles.agentEventText}>{t('message.switchedToMode', { mode: props.event.mode })}</Text>
+        <Text style={[styles.agentEventText, eventScale]}>{t('message.switchedToMode', { mode: props.event.mode })}</Text>
       </View>
     );
   }
   if (props.event.type === 'message') {
     return (
       <View style={styles.agentEventContainer}>
-        <Text style={styles.agentEventText}>{props.event.message}</Text>
+        <Text style={[styles.agentEventText, eventScale]}>{props.event.message}</Text>
       </View>
     );
   }
@@ -135,7 +138,7 @@ function AgentEventBlock(props: {
 
     return (
       <View style={styles.agentEventContainer}>
-        <Text style={styles.agentEventText}>
+        <Text style={[styles.agentEventText, eventScale]}>
           {t('message.usageLimitUntil', { time: formatTime(props.event.endsAt) })}
         </Text>
       </View>
@@ -143,7 +146,7 @@ function AgentEventBlock(props: {
   }
   return (
     <View style={styles.agentEventContainer}>
-      <Text style={styles.agentEventText}>{t('message.unknownEvent')}</Text>
+      <Text style={[styles.agentEventText, eventScale]}>{t('message.unknownEvent')}</Text>
     </View>
   );
 }
