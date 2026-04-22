@@ -17,6 +17,8 @@ export const LocalSettingsSchema = z.object({
     markdownCopyV2: z.boolean().describe('Replace native paragraph selection with long-press modal for full markdown copy'),
     consoleLoggingEnabled: z.boolean().describe('Enable console output in production builds'),
     verboseLogging: z.boolean().describe('Log all network requests and responses'),
+    // Tablet UX
+    sidebarCollapsed: z.boolean().describe('Hide the permanent sessions sidebar on tablet layouts'),
     // CLI version acknowledgments - keyed by machineId
     acknowledgedCliVersions: z.record(z.string(), z.string()).describe('Acknowledged CLI versions per machine'),
 });
@@ -46,6 +48,7 @@ export const localSettingsDefaults: LocalSettings = {
     markdownCopyV2: false,
     consoleLoggingEnabled: false,
     verboseLogging: false,
+    sidebarCollapsed: false,
     acknowledgedCliVersions: {},
 };
 Object.freeze(localSettingsDefaults);

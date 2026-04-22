@@ -1,4 +1,4 @@
-import { useSocketStatus, useFriendRequests, useSettings } from '@/sync/storage';
+import { useSocketStatus, useFriendRequests, useSettings, useLocalSettingMutable } from '@/sync/storage';
 import * as React from 'react';
 import { Text, View, Pressable, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -195,6 +195,11 @@ export const SidebarView = React.memo(() => {
         router.navigate('/new');
     }, [router]);
 
+    const [, setSidebarCollapsed] = useLocalSettingMutable('sidebarCollapsed');
+    const collapseSidebar = React.useCallback(() => {
+        setSidebarCollapsed(true);
+    }, [setSidebarCollapsed]);
+
     // Title content used in both centered and left-justified modes (DRY)
     const titleContent = (
         <>
@@ -275,6 +280,13 @@ export const SidebarView = React.memo(() => {
                             hitSlop={15}
                         >
                             <Ionicons name="add-outline" size={28} color={theme.colors.header.tint} />
+                        </Pressable>
+                        <Pressable
+                            onPress={collapseSidebar}
+                            hitSlop={15}
+                            accessibilityLabel="Hide sidebar"
+                        >
+                            <Ionicons name="chevron-back" size={24} color={theme.colors.header.tint} />
                         </Pressable>
                     </View>
 

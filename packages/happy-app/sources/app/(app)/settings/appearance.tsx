@@ -54,6 +54,7 @@ export default function AppearanceSettingsScreen() {
         if (!isSliding) setPreviewScale(chatFontScale);
     }, [chatFontScale, isSliding]);
 
+
     // Ensure we have a valid style for display, defaulting to gradient for unknown values
     const displayStyle: KnownAvatarStyle = isKnownAvatarStyle(avatarStyle) ? avatarStyle : 'gradient';
 
