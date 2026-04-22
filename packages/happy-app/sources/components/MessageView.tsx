@@ -10,7 +10,7 @@ import { ToolView } from "./tools/ToolView";
 import { AgentEvent } from "@/sync/typesRaw";
 import { sync } from '@/sync/sync';
 import { Option } from './markdown/MarkdownView';
-import Animated, { useAnimatedStyle } from 'react-native-reanimated';
+import Animated, { useAnimatedProps, useAnimatedStyle } from 'react-native-reanimated';
 import { ChatScaleLiveContext } from './ChatScaleLiveContext';
 
 
@@ -20,7 +20,7 @@ export const MessageView = (props: {
   sessionId: string;
   getMessageById?: (id: string) => Message | null;
 }) => {
-  const liveMultiplier = React.useContext(ChatScaleLiveContext);
+  const scaleContext = React.useContext(ChatScaleLiveContext);
 
   const content = (
     <View style={styles.messageContent}>
@@ -33,7 +33,7 @@ export const MessageView = (props: {
     </View>
   );
 
-  if (liveMultiplier === null) {
+  if (scaleContext === null) {
     return (
       <View style={styles.messageContainer}>
         {content}
@@ -42,14 +42,15 @@ export const MessageView = (props: {
   }
 
   return (
-    <AnimatedMessageView liveMultiplier={liveMultiplier}>
+    <AnimatedMessageView liveMultiplier={scaleContext.liveMultiplier} isActive={scaleContext.isActive}>
       {content}
     </AnimatedMessageView>
   );
 };
 
 function AnimatedMessageView(props: {
-  liveMultiplier: NonNullable<React.ContextType<typeof ChatScaleLiveContext>>;
+  liveMultiplier: NonNullable<React.ContextType<typeof ChatScaleLiveContext>>['liveMultiplier'];
+  isActive: NonNullable<React.ContextType<typeof ChatScaleLiveContext>>['isActive'];
   children: React.ReactNode;
 }) {
   const animatedStyle = useAnimatedStyle(() => ({
@@ -57,8 +58,12 @@ function AnimatedMessageView(props: {
     transformOrigin: 'center',
   }));
 
+  const animatedProps = useAnimatedProps(() => ({
+    renderToHardwareTextureAndroid: props.isActive.value,
+  }));
+
   return (
-    <Animated.View style={[styles.messageContainer, animatedStyle]} renderToHardwareTextureAndroid={true}>
+    <Animated.View style={[styles.messageContainer, animatedStyle]} animatedProps={animatedProps}>
       {props.children}
     </Animated.View>
   );

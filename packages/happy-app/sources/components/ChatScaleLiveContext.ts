@@ -1,4 +1,9 @@
 import * as React from 'react';
 import type { SharedValue } from 'react-native-reanimated';
 
-export const ChatScaleLiveContext = React.createContext<SharedValue<number> | null>(null);
+export type ChatScaleLiveValue = {
+    liveMultiplier: SharedValue<number>;
+    isActive: SharedValue<boolean>;
+};
+
+export const ChatScaleLiveContext = React.createContext<ChatScaleLiveValue | null>(null);

@@ -52,6 +52,7 @@ const ChatListInternal = React.memo((props: {
     const contentHeightRef = React.useRef(0);
     const previousFirstMessageIdRef = React.useRef(props.messages[0]?.id);
     const liveMultiplier = useSharedValue(1.0);
+    const isActive = useSharedValue(false);
     const [showScrollButton, setShowScrollButton] = React.useState(false);
     const [viewportHeight, setViewportHeight] = React.useState<number>(0);
     const pinchToZoomEnabled = useLocalSetting('pinchToZoomEnabled');
@@ -116,6 +117,9 @@ const ChatListInternal = React.memo((props: {
         const pinchBase = (Gesture.Pinch() as unknown as { minPointers(n: number): { maxPointers(n: number): PinchGesture } })
             .minPointers(2).maxPointers(2);
         return pinchBase
+            .onBegin(() => {
+                isActive.value = true;
+            })
             .onUpdate((event: GestureUpdateEvent<PinchGestureHandlerEventPayload>) => {
                 const nextScale = Math.max(CHAT_FONT_SCALE_MIN, Math.min(CHAT_FONT_SCALE_MAX, chatFontScale * event.scale));
                 liveMultiplier.value = nextScale / chatFontScale;
@@ -126,8 +130,9 @@ const ChatListInternal = React.memo((props: {
             })
             .onFinalize(() => {
                 liveMultiplier.value = 1;
+                isActive.value = false;
             });
-    }, [chatFontScale, liveMultiplier, setChatFontScale]);
+    }, [chatFontScale, isActive, liveMultiplier, setChatFontScale]);
 
     const olderMessagesTapGesture = React.useMemo(() => (
         Gesture.Tap().requireExternalGestureToFail(pinchGesture).onEnd((_, success) => {
@@ -227,7 +232,7 @@ const ChatListInternal = React.memo((props: {
     );
 
     return pinchToZoomEnabled ? (
-        <ChatScaleLiveContext.Provider value={liveMultiplier}>
+        <ChatScaleLiveContext.Provider value={{ liveMultiplier, isActive }}>
             {inner}
         </ChatScaleLiveContext.Provider>
     ) : inner;
