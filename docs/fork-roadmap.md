@@ -6,19 +6,20 @@ Ranking is by **e-ink tablet quality-of-life** (the fork's primary target), then
 
 ## Near-term
 
-### 1. Expand chat font scale to cover all chat text
+### 1. Finish chat font scale for the remaining tool views *(in progress)*
 
-**What:** `Settings → Appearance → Chat text size` currently only scales markdown body text, headers, and lists. The following surfaces are untouched and feel mis-sized when the scale is bumped up:
-- Tool call outputs (Bash `!ls`, Read, Edit, Write, Grep, etc. — rendered by `ToolView` and its subviews, not `MarkdownView`)
-- Agent event notices (e.g. "Switched to mode X", usage-limit banners — raw `<Text>` in `AgentEventBlock`)
-- Code blocks inside markdown (intentionally skipped to preserve monospace alignment — revisit)
-- The composer input (`MultiTextInput`)
+**Status — partially done in `c98bb557`:** the setting now scales markdown (body, headers, lists, code blocks), agent-event notices, tool section titles (`ToolSectionView`), Bash output (the whole `CommandView` terminal block), and the composer (`MultiTextInput`). Shared hook lives at `sources/hooks/useChatFontScale.ts`.
 
-**Why:** User explicitly asked for this; the current narrow scope makes the setting feel broken on long bash outputs and code.
+**Still not scaling:** per-tool views that each have their own typography and don't go through `CommandView`:
+- `EditView`, `WriteView` — file-diff-style blocks
+- `GrepView` — ripgrep results
+- `TaskView`, `TodoView` — agent task tracking
+- `GeminiExecuteView`, `CodexBashView`, `CodexDiffView`, `CodexPatchView` — non-Anthropic adapters
+- `MCPToolView`, `ExitPlanToolView`, `AskUserQuestionView`, `MultiEditView[Full]`
 
-**Approach (from brainstorm):** React Context + a small `<ScaledText>` component swapped in at ~5 boundary components (`MessageView`, `ToolSectionView`, any `CodeBlock` renderer, `AgentEventBlock`, `MultiTextInput`). Preferred over per-leaf `useChatFontScaleOverride` hook calls. A stub hook file exists untracked at `packages/happy-app/sources/hooks/useChatFontScale.ts`.
+Each has a `StyleSheet.create` block with `fontSize` literals. Approach is mechanical: import `useChatFontScale`, multiply every `fontSize`/`lineHeight` literal by `scale` at style-definition time (same pattern used in `CommandView`). A smarter refactor would push this into a shared style-helper (`chatScaledMono({ base, lineHeight })`) so future tool views get it for free.
 
-**Complexity:** medium (~1 day). Touching many files but each site is a small, mechanical substitution.
+**Complexity:** small per view (~15 min each), but ~12 views × 15 min ≈ half a day all-in.
 
 ---
 
@@ -80,9 +81,10 @@ Ranking is by **e-ink tablet quality-of-life** (the fork's primary target), then
 
 - Chat freeze on large chats perf fix (upstream PR [#1154](https://github.com/slopus/happy/pull/1154))
 - Three-state tablet sidebar (expanded / 72-px rail / hidden)
-- `Settings → Appearance → Chat text size` (markdown scope only)
+- `Settings → Appearance → Chat text size` — now covers markdown (body / headers / lists / code blocks), agent events, tool section titles, Bash output, and the composer. Residual per-tool-view typography still not scaling — see item 1 above.
 - In-chrome restore for hidden sidebar (menu glyph in `ChatHeaderView`)
 - Claude Code metadata-tag preprocessor for `MarkdownView` (`<command-*>`, `<local-command-*>`)
+- Shared `useChatFontScale` / `useChatFontScaleOverride` hook at `sources/hooks/useChatFontScale.ts`
 
 ## Process notes
 
