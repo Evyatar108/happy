@@ -54,10 +54,6 @@ export default function AppearanceSettingsScreen() {
     // Ensure we have a valid style for display, defaulting to gradient for unknown values
     const displayStyle: KnownAvatarStyle = isKnownAvatarStyle(avatarStyle) ? avatarStyle : 'gradient';
 
-    React.useEffect(() => {
-        setPreviewScale(chatFontScale);
-    }, [chatFontScale]);
-    
     // Language display
     const getLanguageDisplayText = () => {
         if (preferredLanguage === null) {

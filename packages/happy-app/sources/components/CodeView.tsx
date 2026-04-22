@@ -9,19 +9,28 @@ interface CodeViewProps {
     scaled?: boolean;
 }
 
-export const CodeView = React.memo<CodeViewProps>(({ 
-    code, 
-    scaled = false,
-}) => {
+const ScaledCodeBlock = React.memo<{ code: string }>(({ code }) => {
     const scaledTextStyles = useChatScaledStyles({
         codeText: styles.codeText,
     });
-
     return (
         <View style={styles.codeBlock}>
-            <Text style={scaled ? scaledTextStyles.codeText : styles.codeText}>{code}</Text>
+            <Text style={scaledTextStyles.codeText}>{code}</Text>
         </View>
     );
+});
+
+const UnscaledCodeBlock = React.memo<{ code: string }>(({ code }) => (
+    <View style={styles.codeBlock}>
+        <Text style={styles.codeText}>{code}</Text>
+    </View>
+));
+
+export const CodeView = React.memo<CodeViewProps>(({
+    code,
+    scaled = false,
+}) => {
+    return scaled ? <ScaledCodeBlock code={code} /> : <UnscaledCodeBlock code={code} />;
 });
 
 const styles = StyleSheet.create((theme) => ({

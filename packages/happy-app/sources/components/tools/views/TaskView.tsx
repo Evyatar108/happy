@@ -49,12 +49,14 @@ const styles = StyleSheet.create((theme) => ({
     },
 }));
 
+const scalableStyles = {
+    moreToolsText: styles.moreToolsText,
+    toolTitle: styles.toolTitle,
+};
+
 export const TaskView = React.memo<ToolViewProps>(({ tool, metadata, messages }) => {
     const { theme } = useUnistyles();
-    const scaledTextStyles = useChatScaledStyles({
-        moreToolsText: styles.moreToolsText,
-        toolTitle: styles.toolTitle,
-    });
+    const scaledTextStyles = useChatScaledStyles(scalableStyles);
     const filtered: FilteredTool[] = [];
 
     for (let m of messages) {

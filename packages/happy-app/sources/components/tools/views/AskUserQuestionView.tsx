@@ -24,8 +24,6 @@ interface AskUserQuestionInput {
     questions: Question[];
 }
 
-// Styles MUST be defined outside the component to prevent infinite re-renders
-// with react-native-unistyles. The theme is passed as a function parameter.
 const styles = StyleSheet.create((theme) => ({
     container: {
         gap: 16,
@@ -165,17 +163,19 @@ const styles = StyleSheet.create((theme) => ({
     },
 }));
 
+const scalableStyles = {
+    headerText: styles.headerText,
+    optionDescription: styles.optionDescription,
+    optionLabel: styles.optionLabel,
+    questionText: styles.questionText,
+    submitButtonText: styles.submitButtonText,
+    submittedHeader: styles.submittedHeader,
+    submittedValue: styles.submittedValue,
+};
+
 export const AskUserQuestionView = React.memo<ToolViewProps>(({ tool, sessionId }) => {
     const { theme } = useUnistyles();
-    const scaledTextStyles = useChatScaledStyles({
-        headerText: styles.headerText,
-        optionDescription: styles.optionDescription,
-        optionLabel: styles.optionLabel,
-        questionText: styles.questionText,
-        submitButtonText: styles.submitButtonText,
-        submittedHeader: styles.submittedHeader,
-        submittedValue: styles.submittedValue,
-    });
+    const scaledTextStyles = useChatScaledStyles(scalableStyles);
     const [selections, setSelections] = React.useState<Map<number, Set<number>>>(new Map());
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const [isSubmitted, setIsSubmitted] = React.useState(false);

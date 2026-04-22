@@ -56,5 +56,5 @@ export function useChatFontScaleOverride(baseFontSize: number, baseLineHeight?: 
 
 export function useChatScaledStyles<T extends Record<string, TextStyle>>(styles: T): T {
     const scale = useChatFontScale();
-    return React.useMemo(() => scaleMonoFonts(styles, scale), [scale, styles]);
+    return scaleMonoFonts(styles, scale);
 }

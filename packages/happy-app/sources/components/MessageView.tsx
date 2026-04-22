@@ -23,6 +23,7 @@ export const MessageView = (props: {
   const liveMultiplier = React.useContext(ChatScaleLiveContext);
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: liveMultiplier?.value ?? 1 }],
+    transformOrigin: 'center',
   }));
 
   return (

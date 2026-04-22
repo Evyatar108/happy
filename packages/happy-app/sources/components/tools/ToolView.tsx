@@ -30,12 +30,7 @@ export const ToolView = React.memo<ToolViewProps>((props) => {
     const { tool, onPress, sessionId, messageId } = props;
     const router = useRouter();
     const { theme } = useUnistyles();
-    const scaledTextStyles = useChatScaledStyles({
-        elapsedText: styles.elapsedText,
-        toolName: styles.toolName,
-        status: styles.status,
-        toolDescription: styles.toolDescription,
-    });
+    const scaledTextStyles = useChatScaledStyles(toolViewScalableStyles);
 
     // Create default onPress handler for navigation
     const handlePress = React.useCallback(() => {
@@ -278,9 +273,7 @@ export const ToolView = React.memo<ToolViewProps>((props) => {
 function ElapsedView(props: { from: number }) {
     const { from } = props;
     const elapsed = useElapsedTime(from);
-    const scaledTextStyles = useChatScaledStyles({
-        elapsedText: styles.elapsedText,
-    });
+    const scaledTextStyles = useChatScaledStyles(elapsedViewScalableStyles);
 
     return <Text style={scaledTextStyles.elapsedText}>{elapsed.toFixed(1)}s</Text>;
 }
@@ -343,3 +336,14 @@ const styles = StyleSheet.create((theme) => ({
         overflow: 'visible'
     },
 }));
+
+const toolViewScalableStyles = {
+    elapsedText: styles.elapsedText,
+    toolName: styles.toolName,
+    status: styles.status,
+    toolDescription: styles.toolDescription,
+};
+
+const elapsedViewScalableStyles = {
+    elapsedText: styles.elapsedText,
+};

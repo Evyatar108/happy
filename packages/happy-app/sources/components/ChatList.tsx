@@ -11,7 +11,7 @@ import { Message } from '@/sync/typesMessage';
 import { Octicons } from '@expo/vector-icons';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { runOnJS, useSharedValue } from 'react-native-reanimated';
-import { Gesture, GestureDetector, GestureStateChangeEvent, GestureUpdateEvent, PinchGestureHandlerEventPayload } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, GestureStateChangeEvent, GestureUpdateEvent, PinchGestureHandlerEventPayload, PinchGesture } from 'react-native-gesture-handler';
 import { ChatScaleLiveContext } from './ChatScaleLiveContext';
 
 const SCROLL_THRESHOLD = 300;
@@ -51,7 +51,7 @@ const ChatListInternal = React.memo((props: {
     const flatListRef = React.useRef<FlatList>(null);
     const currentOffsetRef = React.useRef<number>(0);
     const contentHeightRef = React.useRef(0);
-    const previousMessageCountRef = React.useRef(props.messages.length);
+    const previousFirstMessageIdRef = React.useRef(props.messages[0]?.id);
     const liveMultiplier = useSharedValue(1.0);
     const [showScrollButton, setShowScrollButton] = React.useState(false);
     const [viewportHeight, setViewportHeight] = React.useState<number>(0);
@@ -86,7 +86,7 @@ const ChatListInternal = React.memo((props: {
 
     const pageToOlderMessages = React.useCallback(() => {
         const maxOffset = Math.max(0, contentHeightRef.current - viewportHeight);
-        const pageSize = viewportHeight * 0.7;
+        const pageSize = viewportHeight;
         const nextOffset = Math.max(
             0,
             Math.min(maxOffset, currentOffsetRef.current + pageSize),
@@ -98,7 +98,7 @@ const ChatListInternal = React.memo((props: {
 
     const pageToNewerMessages = React.useCallback(() => {
         const maxOffset = Math.max(0, contentHeightRef.current - viewportHeight);
-        const pageSize = viewportHeight * 0.7;
+        const pageSize = viewportHeight;
         const nextOffset = Math.max(
             0,
             Math.min(maxOffset, currentOffsetRef.current - pageSize),
@@ -112,45 +112,45 @@ const ChatListInternal = React.memo((props: {
         storage.getState().applyLocalSettings({ chatFontScale: nextScale });
     }, []);
 
-    const pinchGesture = React.useMemo(() => (
+    const pinchGesture = React.useMemo(() => {
         // The installed RNGH typings do not expose min/max pointer helpers on PinchGesture yet.
-        (Gesture.Pinch() as any)
-            .minPointers(2)
-            .maxPointers(2)
+        const pinchBase = (Gesture.Pinch() as unknown as { minPointers(n: number): { maxPointers(n: number): PinchGesture } })
+            .minPointers(2).maxPointers(2);
+        return pinchBase
             .onUpdate((event: GestureUpdateEvent<PinchGestureHandlerEventPayload>) => {
                 const nextScale = Math.max(CHAT_FONT_SCALE_MIN, Math.min(CHAT_FONT_SCALE_MAX, chatFontScale * event.scale));
                 liveMultiplier.value = nextScale / chatFontScale;
             })
             .onEnd((event: GestureStateChangeEvent<PinchGestureHandlerEventPayload>) => {
-                const nextScale = Math.max(0.85, Math.min(1.6, chatFontScale * event.scale));
+                const nextScale = Math.max(CHAT_FONT_SCALE_MIN, Math.min(CHAT_FONT_SCALE_MAX, chatFontScale * event.scale));
                 runOnJS(setChatFontScale)(nextScale);
-                liveMultiplier.value = 1;
             })
             .onFinalize(() => {
                 liveMultiplier.value = 1;
-            })
-    ), [chatFontScale, liveMultiplier, setChatFontScale]);
+            });
+    }, [chatFontScale, liveMultiplier, setChatFontScale]);
 
     const olderMessagesTapGesture = React.useMemo(() => (
-        Gesture.Tap().onEnd((_, success) => {
+        Gesture.Tap().requireExternalGestureToFail(pinchGesture).onEnd((_, success) => {
             if (success) {
                 runOnJS(pageToOlderMessages)();
             }
         })
-    ), [pageToOlderMessages]);
+    ), [pinchGesture, pageToOlderMessages]);
 
     const newerMessagesTapGesture = React.useMemo(() => (
-        Gesture.Tap().onEnd((_, success) => {
+        Gesture.Tap().requireExternalGestureToFail(pinchGesture).onEnd((_, success) => {
             if (success) {
                 runOnJS(pageToNewerMessages)();
             }
         })
-    ), [pageToNewerMessages]);
+    ), [pinchGesture, pageToNewerMessages]);
 
     React.useEffect(() => {
-        const hasNewMessages = props.messages.length > previousMessageCountRef.current;
-        previousMessageCountRef.current = props.messages.length;
-        if (!chatPaginatedScroll || !hasNewMessages) {
+        const currentFirstId = props.messages[0]?.id;
+        const firstMessageChanged = currentFirstId !== previousFirstMessageIdRef.current;
+        previousFirstMessageIdRef.current = currentFirstId;
+        if (!chatPaginatedScroll || !firstMessageChanged) {
             return;
         }
         if (currentOffsetRef.current < SCROLL_THRESHOLD) {
@@ -158,7 +158,7 @@ const ChatListInternal = React.memo((props: {
             setShowScrollButton(false);
             flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
         }
-    }, [chatPaginatedScroll, props.messages.length]);
+    }, [chatPaginatedScroll, props.messages[0]?.id]);
 
     const list = (
         <FlatList
