@@ -21,12 +21,43 @@ export type Option = {
     title: string;
 };
 
-export const MarkdownView = React.memo((props: { 
+// Claude Code emits internal metadata tags around slash-commands and
+// bang-commands (`<command-name>`, `<local-command-stdout>`,
+// `<local-command-caveat>`, etc.). Its native CLI hides them; Happy
+// receives the raw text and renders them as literal markup. Strip any
+// tag of the form  <(/)? (local-)? command-* ... >  keeping inner
+// content, so `!ls` output still displays even after its wrapper
+// tag is removed. In __DEV__ we also log any unique tag names seen
+// so new additions from Claude Code surface without us having to
+// enumerate them by hand — check Metro output for
+// "[MarkdownView] stripped tags".
+const CLAUDE_META_TAG_RE = /<\/?(?:local-)?command-[a-z-]+(?:\s[^>]*)?>/gi;
+const loggedTags = __DEV__ ? new Set<string>() : null;
+
+function stripClaudeMetaTags(raw: string): string {
+    if (__DEV__ && loggedTags) {
+        const matches = raw.match(CLAUDE_META_TAG_RE);
+        if (matches) {
+            for (const m of matches) {
+                if (!loggedTags.has(m)) {
+                    loggedTags.add(m);
+                    console.log('[MarkdownView] stripped tag:', m);
+                }
+            }
+        }
+    }
+    return raw.replace(CLAUDE_META_TAG_RE, '');
+}
+
+export const MarkdownView = React.memo((props: {
     markdown: string;
     onOptionPress?: (option: Option) => void;
     sessionId?: string;
 }) => {
-    const blocks = React.useMemo(() => parseMarkdown(props.markdown), [props.markdown]);
+    const blocks = React.useMemo(
+        () => parseMarkdown(stripClaudeMetaTags(props.markdown)),
+        [props.markdown],
+    );
     
     // Backwards compatibility: The original version just returned the view, wrapping the list of blocks.
     // It made each of the individual text elements selectable. When we enable the markdownCopyV2 feature,
