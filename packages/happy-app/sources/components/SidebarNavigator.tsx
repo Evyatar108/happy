@@ -17,11 +17,14 @@ export const SidebarNavigator = React.memo(() => {
     const { mode, isHidden, showExpanded } = useSidebar();
     const showPermanentDrawer = auth.isAuthenticated && isTablet && !isHidden;
 
-    // Floating restore button is only safe on routes that don't render a native
-    // React-Navigation header of their own (that would double up the back chevron).
+    // Floating restore button lives only on the index route, where no other
+    // chrome renders. On /session/:id the restore affordance is embedded into
+    // ChatHeaderView instead (avoids overlapping that header's own back button
+    // and any other in-content custom header). Routes with a native
+    // React-Navigation header are reached from / anyway, so users can navigate
+    // back before restoring.
     const pathname = usePathname();
-    const isHandleSafeRoute = pathname === '/' || /^\/session\/[^/]+\/?$/.test(pathname);
-    const showExpandHandle = auth.isAuthenticated && isTablet && isHidden && isHandleSafeRoute;
+    const showExpandHandle = auth.isAuthenticated && isTablet && isHidden && pathname === '/';
 
     const { width: windowWidth } = useWindowDimensions();
     const { theme } = useUnistyles();
