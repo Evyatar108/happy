@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useSession, useSessionMessages } from "@/sync/storage";
+import { storage, useLocalSetting, useSession, useSessionMessages } from "@/sync/storage";
 import { FlatList, NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, View } from 'react-native';
 import { useCallback } from 'react';
 import { useHeaderHeight } from '@/utils/responsive';
@@ -10,10 +10,13 @@ import { ChatFooter } from './ChatFooter';
 import { Message } from '@/sync/typesMessage';
 import { Octicons } from '@expo/vector-icons';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
-import { useSharedValue } from 'react-native-reanimated';
+import { runOnJS, useSharedValue } from 'react-native-reanimated';
+import { Gesture, GestureDetector, GestureStateChangeEvent, GestureUpdateEvent, PinchGestureHandlerEventPayload } from 'react-native-gesture-handler';
 import { ChatScaleLiveContext } from './ChatScaleLiveContext';
 
 const SCROLL_THRESHOLD = 300;
+const CHAT_FONT_SCALE_MIN = 0.85;
+const CHAT_FONT_SCALE_MAX = 1.6;
 
 export const ChatList = React.memo((props: { session: Session }) => {
     const { messages } = useSessionMessages(props.session.id);
@@ -48,6 +51,8 @@ const ChatListInternal = React.memo((props: {
     const flatListRef = React.useRef<FlatList>(null);
     const liveMultiplier = useSharedValue(1.0);
     const [showScrollButton, setShowScrollButton] = React.useState(false);
+    const pinchToZoomEnabled = useLocalSetting('pinchToZoomEnabled');
+    const chatFontScale = useLocalSetting('chatFontScale');
 
     const keyExtractor = useCallback((item: any) => item.id, []);
     const renderItem = useCallback(({ item }: { item: any }) => (
@@ -65,26 +70,57 @@ const ChatListInternal = React.memo((props: {
         flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
     }, []);
 
+    const setChatFontScale = React.useCallback((nextScale: number) => {
+        storage.getState().applyLocalSettings({ chatFontScale: nextScale });
+    }, []);
+
+    const pinchGesture = React.useMemo(() => (
+        // The installed RNGH typings do not expose min/max pointer helpers on PinchGesture yet.
+        (Gesture.Pinch() as any)
+            .minPointers(2)
+            .maxPointers(2)
+            .onUpdate((event: GestureUpdateEvent<PinchGestureHandlerEventPayload>) => {
+                const nextScale = Math.max(CHAT_FONT_SCALE_MIN, Math.min(CHAT_FONT_SCALE_MAX, chatFontScale * event.scale));
+                liveMultiplier.value = nextScale / chatFontScale;
+            })
+            .onEnd((event: GestureStateChangeEvent<PinchGestureHandlerEventPayload>) => {
+                const nextScale = Math.max(0.85, Math.min(1.6, chatFontScale * event.scale));
+                runOnJS(setChatFontScale)(nextScale);
+                liveMultiplier.value = 1;
+            })
+            .onFinalize(() => {
+                liveMultiplier.value = 1;
+            })
+    ), [chatFontScale, liveMultiplier, setChatFontScale]);
+
+    const list = (
+        <FlatList
+            ref={flatListRef}
+            data={props.messages}
+            inverted={true}
+            keyExtractor={keyExtractor}
+            maintainVisibleContentPosition={{
+                minIndexForVisible: 0,
+                autoscrollToTopThreshold: 10,
+            }}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'none'}
+            renderItem={renderItem}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+            ListHeaderComponent={<ListFooter sessionId={props.sessionId} />}
+            ListFooterComponent={<ListHeader />}
+        />
+    );
+
     return (
         <ChatScaleLiveContext.Provider value={liveMultiplier}>
             <View style={{ flex: 1 }}>
-                <FlatList
-                    ref={flatListRef}
-                    data={props.messages}
-                    inverted={true}
-                    keyExtractor={keyExtractor}
-                    maintainVisibleContentPosition={{
-                        minIndexForVisible: 0,
-                        autoscrollToTopThreshold: 10,
-                    }}
-                    keyboardShouldPersistTaps="handled"
-                    keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'none'}
-                    renderItem={renderItem}
-                    onScroll={handleScroll}
-                    scrollEventThrottle={16}
-                    ListHeaderComponent={<ListFooter sessionId={props.sessionId} />}
-                    ListFooterComponent={<ListHeader />}
-                />
+                {pinchToZoomEnabled ? (
+                    <GestureDetector gesture={pinchGesture}>
+                        {list}
+                    </GestureDetector>
+                ) : list}
                 {showScrollButton && (
                     <View style={styles.scrollButtonContainer}>
                         <Pressable

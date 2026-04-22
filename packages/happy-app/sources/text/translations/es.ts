@@ -164,6 +164,8 @@ export const es: TranslationStructure = {
         chatTextSizeTitle: 'Tamaño del texto del chat',
         chatTextSizePreview: 'Vista previa de cómo se verán los mensajes del chat con este tamaño.',
         chatTextSizeFooter: 'Arrastra el control para previsualizar el tamaño del texto del chat. La nueva escala se guarda al soltarlo.',
+        pinchToZoomTitle: 'Pellizcar para ampliar el chat',
+        pinchToZoomDescription: 'Usa un pellizco con dos dedos en el chat para una vista previa en vivo del tamaño del texto que se guarda al soltar.',
         inlineToolCalls: 'Llamadas a herramientas en línea',
         inlineToolCallsDescription: 'Mostrar llamadas a herramientas directamente en mensajes de chat',
         expandTodoLists: 'Expandir listas de tareas',

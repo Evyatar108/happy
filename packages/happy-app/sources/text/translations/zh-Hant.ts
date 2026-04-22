@@ -164,6 +164,8 @@ export const zhHant: TranslationStructure = {
         chatTextSizeTitle: '聊天文字大小',
         chatTextSizePreview: '預覽此大小下聊天訊息的顯示效果。',
         chatTextSizeFooter: '拖動滑桿可預覽聊天文字大小。放開後會儲存新的縮放比例。',
+        pinchToZoomTitle: '雙指縮放聊天',
+        pinchToZoomDescription: '在聊天中使用雙指捏合即可即時預覽文字大小，並在放手時儲存。',
         inlineToolCalls: '內嵌工具呼叫',
         inlineToolCallsDescription: '在聊天訊息中直接顯示工具呼叫',
         expandTodoLists: '展開待辦清單',

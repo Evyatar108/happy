@@ -164,6 +164,8 @@ export const ca: TranslationStructure = {
         chatTextSizeTitle: 'Mida del text del xat',
         chatTextSizePreview: 'Previsualitza com es veuran els missatges del xat amb aquesta mida.',
         chatTextSizeFooter: 'Arrossega el control per previsualitzar la mida del text del xat. La nova escala es desa en deixar-lo anar.',
+        pinchToZoomTitle: 'Pessiga per ampliar el xat',
+        pinchToZoomDescription: 'Fes un gest de pessigar amb dos dits al xat per veure una previsualització en viu de la mida del text que es desa en deixar-lo anar.',
         inlineToolCalls: 'Crides d\'eines en línia',
         inlineToolCallsDescription: 'Mostra les crides d\'eines directament als missatges de xat',
         expandTodoLists: 'Expandeix les llistes de tasques',

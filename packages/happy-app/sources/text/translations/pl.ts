@@ -181,6 +181,8 @@ export const pl: TranslationStructure = {
         chatTextSizeTitle: 'Rozmiar tekstu czatu',
         chatTextSizePreview: 'Podgląd tego, jak będą wyglądać wiadomości czatu w tym rozmiarze.',
         chatTextSizeFooter: 'Przeciągnij suwak, aby podejrzeć rozmiar tekstu czatu. Nowa skala zapisze się po puszczeniu suwaka.',
+        pinchToZoomTitle: 'Szczypanie do powiększania czatu',
+        pinchToZoomDescription: 'Użyj gestu szczypania dwoma palcami w czacie, aby zobaczyć podgląd rozmiaru tekstu na żywo i zapisać go po puszczeniu.',
         inlineToolCalls: 'Wbudowane wywołania narzędzi',
         inlineToolCallsDescription: 'Wyświetlaj wywołania narzędzi bezpośrednio w wiadomościach czatu',
         expandTodoLists: 'Rozwiń listy zadań',

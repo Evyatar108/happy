@@ -45,6 +45,7 @@ export default function AppearanceSettingsScreen() {
     const [showFlavorIcons, setShowFlavorIcons] = useSettingMutable('showFlavorIcons');
     const [compactSessionView, setCompactSessionView] = useSettingMutable('compactSessionView');
     const [chatFontScale, setChatFontScale] = useLocalSettingMutable('chatFontScale');
+    const [pinchToZoomEnabled, setPinchToZoomEnabled] = useLocalSettingMutable('pinchToZoomEnabled');
     const [themePreference, setThemePreference] = useLocalSettingMutable('themePreference');
     const [preferredLanguage] = useSettingMutable('preferredLanguage');
     const [previewScale, setPreviewScale] = React.useState(chatFontScale);
@@ -194,6 +195,17 @@ export default function AppearanceSettingsScreen() {
                         <Switch
                             value={viewInline}
                             onValueChange={setViewInline}
+                        />
+                    }
+                />
+                <Item
+                    title={t('settingsAppearance.pinchToZoomTitle')}
+                    subtitle={t('settingsAppearance.pinchToZoomDescription')}
+                    icon={<Ionicons name="resize-outline" size={29} color="#5856D6" />}
+                    rightElement={
+                        <Switch
+                            value={pinchToZoomEnabled}
+                            onValueChange={setPinchToZoomEnabled}
                         />
                     }
                 />
