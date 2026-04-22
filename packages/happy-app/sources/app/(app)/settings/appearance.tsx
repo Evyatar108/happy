@@ -1,22 +1,35 @@
+import * as React from 'react';
 import { Ionicons } from '@expo/vector-icons';
+import Slider from '@react-native-community/slider';
 import { Item } from '@/components/Item';
 import { ItemGroup } from '@/components/ItemGroup';
 import { ItemList } from '@/components/ItemList';
 import { useSettingMutable, useLocalSettingMutable } from '@/sync/storage';
 import { useRouter } from 'expo-router';
 import * as Localization from 'expo-localization';
-import { useUnistyles, UnistylesRuntime } from 'react-native-unistyles';
+import { Text, View, Appearance } from 'react-native';
+import { StyleSheet, useUnistyles, UnistylesRuntime } from 'react-native-unistyles';
 import { Switch } from '@/components/Switch';
-import { Appearance } from 'react-native';
 import * as SystemUI from 'expo-system-ui';
 import { darkTheme, lightTheme } from '@/theme';
 import { t, getLanguageNativeName, SUPPORTED_LANGUAGES } from '@/text';
+import { Typography } from '@/constants/Typography';
+
+const CHAT_TEXT_SCALE_MIN = 0.85;
+const CHAT_TEXT_SCALE_MAX = 1.6;
+const CHAT_TEXT_SCALE_STEP = 0.05;
+const CHAT_TEXT_PREVIEW_FONT_SIZE = 18;
+const CHAT_TEXT_PREVIEW_LINE_HEIGHT = 28;
 
 // Define known avatar styles for this version of the app
 type KnownAvatarStyle = 'pixelated' | 'gradient' | 'brutalist';
 
 const isKnownAvatarStyle = (style: string): style is KnownAvatarStyle => {
     return style === 'pixelated' || style === 'gradient' || style === 'brutalist';
+};
+
+const clampChatFontScale = (value: number) => {
+    return Math.min(CHAT_TEXT_SCALE_MAX, Math.max(CHAT_TEXT_SCALE_MIN, value));
 };
 
 export default function AppearanceSettingsScreen() {
@@ -31,11 +44,17 @@ export default function AppearanceSettingsScreen() {
     const [avatarStyle, setAvatarStyle] = useSettingMutable('avatarStyle');
     const [showFlavorIcons, setShowFlavorIcons] = useSettingMutable('showFlavorIcons');
     const [compactSessionView, setCompactSessionView] = useSettingMutable('compactSessionView');
+    const [chatFontScale, setChatFontScale] = useLocalSettingMutable('chatFontScale');
     const [themePreference, setThemePreference] = useLocalSettingMutable('themePreference');
     const [preferredLanguage] = useSettingMutable('preferredLanguage');
+    const [previewScale, setPreviewScale] = React.useState(chatFontScale);
     
     // Ensure we have a valid style for display, defaulting to gradient for unknown values
     const displayStyle: KnownAvatarStyle = isKnownAvatarStyle(avatarStyle) ? avatarStyle : 'gradient';
+
+    React.useEffect(() => {
+        setPreviewScale(chatFontScale);
+    }, [chatFontScale]);
     
     // Language display
     const getLanguageDisplayText = () => {
@@ -97,6 +116,41 @@ export default function AppearanceSettingsScreen() {
                     detail={getLanguageDisplayText()}
                     onPress={() => router.push('/settings/language')}
                 />
+            </ItemGroup>
+
+            <ItemGroup
+                title={t('settingsAppearance.chatTextSizeTitle')}
+                footer={t('settingsAppearance.chatTextSizeFooter')}
+            >
+                <View style={styles.chatTextSizeContainer}>
+                    <Text
+                        style={[
+                            styles.chatTextSizePreview,
+                            {
+                                color: theme.colors.text,
+                                fontSize: CHAT_TEXT_PREVIEW_FONT_SIZE * previewScale,
+                                lineHeight: CHAT_TEXT_PREVIEW_LINE_HEIGHT * previewScale,
+                            },
+                        ]}
+                    >
+                        {t('settingsAppearance.chatTextSizePreview')}
+                    </Text>
+                    <Slider
+                        value={previewScale}
+                        minimumValue={CHAT_TEXT_SCALE_MIN}
+                        maximumValue={CHAT_TEXT_SCALE_MAX}
+                        step={CHAT_TEXT_SCALE_STEP}
+                        minimumTrackTintColor={theme.colors.status.connecting}
+                        maximumTrackTintColor={theme.colors.divider}
+                        thumbTintColor={theme.colors.status.connecting}
+                        onValueChange={value => setPreviewScale(clampChatFontScale(value))}
+                        onSlidingComplete={value => {
+                            const nextScale = clampChatFontScale(value);
+                            setPreviewScale(nextScale);
+                            setChatFontScale(nextScale);
+                        }}
+                    />
+                </View>
             </ItemGroup>
 
             {/* Text Settings */}
@@ -261,3 +315,14 @@ export default function AppearanceSettingsScreen() {
         </ItemList>
     );
 }
+
+const styles = StyleSheet.create(() => ({
+    chatTextSizeContainer: {
+        paddingHorizontal: 16,
+        paddingVertical: 18,
+        gap: 16,
+    },
+    chatTextSizePreview: {
+        ...Typography.default('regular'),
+    },
+}));
