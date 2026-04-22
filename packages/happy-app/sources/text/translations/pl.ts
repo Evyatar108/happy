@@ -183,6 +183,8 @@ export const pl: TranslationStructure = {
         chatTextSizeFooter: 'Przeciągnij suwak, aby podejrzeć rozmiar tekstu czatu. Nowa skala zapisze się po puszczeniu suwaka.',
         pinchToZoomTitle: 'Szczypanie do powiększania czatu',
         pinchToZoomDescription: 'Użyj gestu szczypania dwoma palcami w czacie, aby zobaczyć podgląd rozmiaru tekstu na żywo i zapisać go po puszczeniu.',
+        paginatedScrollTitle: 'Nawigacja po czacie stronami',
+        paginatedScrollDescription: 'Używaj wąskich górnych i dolnych stref dotyku w czacie, aby poruszać się stronami zamiast przewijać swobodnie.',
         inlineToolCalls: 'Wbudowane wywołania narzędzi',
         inlineToolCallsDescription: 'Wyświetlaj wywołania narzędzi bezpośrednio w wiadomościach czatu',
         expandTodoLists: 'Rozwiń listy zadań',

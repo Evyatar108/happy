@@ -180,6 +180,8 @@ export const en: TranslationStructure = {
         chatTextSizeFooter: 'Drag to preview chat text size. The new scale is saved when you release the slider.',
         pinchToZoomTitle: 'Pinch to Zoom Chat',
         pinchToZoomDescription: 'Use a two-finger pinch in chat for a live text-size preview that saves on release.',
+        paginatedScrollTitle: 'Page-Turn Chat Navigation',
+        paginatedScrollDescription: 'Use narrow top and bottom tap zones in chat to move by page instead of scrolling freely.',
         inlineToolCalls: 'Inline Tool Calls',
         inlineToolCallsDescription: 'Display tool calls directly in chat messages',
         expandTodoLists: 'Expand Todo Lists',

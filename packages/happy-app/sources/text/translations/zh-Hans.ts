@@ -167,6 +167,8 @@ export const zhHans: TranslationStructure = {
         chatTextSizeFooter: '拖动滑块可预览聊天文字大小。松开后会保存新的缩放比例。',
         pinchToZoomTitle: '双指缩放聊天',
         pinchToZoomDescription: '在聊天中使用双指捏合可实时预览文字大小，并在松手时保存。',
+        paginatedScrollTitle: '分页式聊天导航',
+        paginatedScrollDescription: '在聊天顶部和底部使用狭窄的点击区域按页移动，而不是自由滚动。',
         inlineToolCalls: '内联工具调用',
         inlineToolCallsDescription: '在聊天消息中直接显示工具调用',
         expandTodoLists: '展开待办列表',

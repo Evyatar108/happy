@@ -167,6 +167,8 @@ export const ja: TranslationStructure = {
         chatTextSizeFooter: 'スライダーを動かすとチャット文字サイズをプレビューできます。新しい倍率は指を離したときに保存されます。',
         pinchToZoomTitle: 'チャットをピンチで拡大',
         pinchToZoomDescription: 'チャット内で2本指のピンチ操作を使うと、文字サイズをライブプレビューし、指を離した時に保存できます。',
+        paginatedScrollTitle: 'ページ送りチャット操作',
+        paginatedScrollDescription: 'チャットの上端と下端の細いタップゾーンを使って、自由にスクロールする代わりにページ単位で移動します。',
         inlineToolCalls: 'ツール呼び出しをインライン表示',
         inlineToolCallsDescription: 'チャットメッセージ内にツール呼び出しを直接表示',
         expandTodoLists: 'Todoリストを展開',

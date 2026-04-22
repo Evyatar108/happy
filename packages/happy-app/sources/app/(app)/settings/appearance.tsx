@@ -46,6 +46,7 @@ export default function AppearanceSettingsScreen() {
     const [compactSessionView, setCompactSessionView] = useSettingMutable('compactSessionView');
     const [chatFontScale, setChatFontScale] = useLocalSettingMutable('chatFontScale');
     const [pinchToZoomEnabled, setPinchToZoomEnabled] = useLocalSettingMutable('pinchToZoomEnabled');
+    const [chatPaginatedScroll, setChatPaginatedScroll] = useLocalSettingMutable('chatPaginatedScroll');
     const [themePreference, setThemePreference] = useLocalSettingMutable('themePreference');
     const [preferredLanguage] = useSettingMutable('preferredLanguage');
     const [previewScale, setPreviewScale] = React.useState(chatFontScale);
@@ -206,6 +207,17 @@ export default function AppearanceSettingsScreen() {
                         <Switch
                             value={pinchToZoomEnabled}
                             onValueChange={setPinchToZoomEnabled}
+                        />
+                    }
+                />
+                <Item
+                    title={t('settingsAppearance.paginatedScrollTitle')}
+                    subtitle={t('settingsAppearance.paginatedScrollDescription')}
+                    icon={<Ionicons name="book-outline" size={29} color="#5856D6" />}
+                    rightElement={
+                        <Switch
+                            value={chatPaginatedScroll}
+                            onValueChange={setChatPaginatedScroll}
                         />
                     }
                 />
