@@ -304,7 +304,8 @@ export const SidebarView = React.memo(() => {
                         <Pressable
                             onPress={hide}
                             hitSlop={15}
-                            accessibilityLabel="Hide sidebar (max focus)"
+                            accessibilityLabel="Hide sidebar"
+                            accessibilityHint="Enters max-focus mode; restore via the menu button in the top-left"
                         >
                             <Ionicons name="eye-off-outline" size={24} color={theme.colors.header.tint} />
                         </Pressable>
@@ -321,9 +322,11 @@ export const SidebarView = React.memo(() => {
                     <VoiceAssistantStatusBar variant="sidebar" />
                 )}
                 <MainView variant="sidebar" />
-                <FABWide onPress={handleNewSession} />
             </View>
             <CollapsibleSidebarEdge />
+            {/* FABWide uses position: absolute; rendered as a sibling of the
+                inner container so its anchor matches the pre-refactor layout. */}
+            <FABWide onPress={handleNewSession} />
         </View>
     )
 });

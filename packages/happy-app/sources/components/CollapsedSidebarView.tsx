@@ -62,7 +62,7 @@ export const CollapsedSidebarView = React.memo(({
                 style={[styles.sessionItem, isSelected && styles.sessionItemSelected]}
                 onPress={() => navigateToSession(item.id)}
             >
-                <Avatar id={item.avatarId} size={40} flavor={item.flavor ?? undefined} />
+                <Avatar id={item.avatarId} size={40} flavor={item.flavor} />
             </Pressable>
         );
     }, [pathname, navigateToSession]);
