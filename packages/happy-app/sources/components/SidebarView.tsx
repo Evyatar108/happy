@@ -1,4 +1,4 @@
-import { useSocketStatus, useFriendRequests, useSettings, useLocalSettingMutable } from '@/sync/storage';
+import { useSocketStatus, useFriendRequests, useSettings } from '@/sync/storage';
 import * as React from 'react';
 import { Text, View, Pressable, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,6 +10,9 @@ import { FABWide } from './FABWide';
 import { VoiceAssistantStatusBar } from './VoiceAssistantStatusBar';
 import { useRealtimeStatus } from '@/sync/storage';
 import { MainView } from './MainView';
+import { CollapsedSidebarView } from './CollapsedSidebarView';
+import { CollapsibleSidebarEdge } from './CollapsibleSidebarEdge';
+import { useSidebar } from './SidebarContext';
 import { Image } from 'expo-image';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { t } from '@/text';
@@ -17,12 +20,17 @@ import { useInboxHasContent } from '@/hooks/useInboxHasContent';
 import { Ionicons } from '@expo/vector-icons';
 
 const stylesheet = StyleSheet.create((theme, runtime) => ({
+    outerContainer: {
+        flex: 1,
+        flexDirection: 'row',
+    },
     container: {
         flex: 1,
         borderStyle: 'solid',
         backgroundColor: theme.colors.groupped.background,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: theme.colors.divider,
+        borderRightWidth: 0,
     },
     header: {
         flexDirection: 'row',
@@ -195,10 +203,22 @@ export const SidebarView = React.memo(() => {
         router.navigate('/new');
     }, [router]);
 
-    const [, setSidebarCollapsed] = useLocalSettingMutable('sidebarCollapsed');
-    const collapseSidebar = React.useCallback(() => {
-        setSidebarCollapsed(true);
-    }, [setSidebarCollapsed]);
+    const { isCollapsed, hide } = useSidebar();
+
+    // Render the 72px icon rail when in 'collapsed' mode.
+    if (isCollapsed) {
+        return (
+            <CollapsedSidebarView
+                onNewSession={handleNewSession}
+                connectionStatus={{
+                    color: connectionStatus.color,
+                    isPulsing: connectionStatus.isPulsing,
+                }}
+                friendRequestsCount={friendRequests.length}
+                inboxHasContent={inboxHasContent}
+            />
+        );
+    }
 
     // Title content used in both centered and left-justified modes (DRY)
     const titleContent = (
@@ -221,7 +241,7 @@ export const SidebarView = React.memo(() => {
     );
 
     return (
-        <>
+        <View style={styles.outerContainer}>
             <View style={[styles.container, { paddingTop: safeArea.top }]}>
                 <View style={[styles.header, { height: headerHeight }]}>
                     {/* Logo - always first */}
@@ -282,11 +302,11 @@ export const SidebarView = React.memo(() => {
                             <Ionicons name="add-outline" size={28} color={theme.colors.header.tint} />
                         </Pressable>
                         <Pressable
-                            onPress={collapseSidebar}
+                            onPress={hide}
                             hitSlop={15}
-                            accessibilityLabel="Hide sidebar"
+                            accessibilityLabel="Hide sidebar (max focus)"
                         >
-                            <Ionicons name="chevron-back" size={24} color={theme.colors.header.tint} />
+                            <Ionicons name="eye-off-outline" size={24} color={theme.colors.header.tint} />
                         </Pressable>
                     </View>
 
@@ -301,8 +321,9 @@ export const SidebarView = React.memo(() => {
                     <VoiceAssistantStatusBar variant="sidebar" />
                 )}
                 <MainView variant="sidebar" />
+                <FABWide onPress={handleNewSession} />
             </View>
-            <FABWide onPress={handleNewSession} />
-        </>
+            <CollapsibleSidebarEdge />
+        </View>
     )
 });
