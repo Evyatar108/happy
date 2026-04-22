@@ -9,34 +9,34 @@ import { Ionicons } from '@expo/vector-icons';
 import { useUnistyles } from 'react-native-unistyles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePathname } from 'expo-router';
-import { useLocalSetting, useLocalSettingMutable } from '@/sync/storage';
+import { useSidebar, SIDEBAR_WIDTH_COLLAPSED, SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX } from './SidebarContext';
 
 export const SidebarNavigator = React.memo(() => {
     const auth = useAuth();
     const isTablet = useIsTablet();
-    const sidebarCollapsed = useLocalSetting('sidebarCollapsed');
-    const showPermanentDrawer = auth.isAuthenticated && isTablet && !sidebarCollapsed;
-    // Only show the floating expand handle on routes that don't render their own
-    // native/React-Navigation header. On headered routes (settings, inbox, friends,
-    // session/info, …) the button would sit on top of the native back chevron.
-    // The safe routes are the index `/` and the bare session screen `/session/:id`.
+    const { mode, isHidden, showExpanded } = useSidebar();
+    const showPermanentDrawer = auth.isAuthenticated && isTablet && !isHidden;
+
+    // Floating restore button is only safe on routes that don't render a native
+    // React-Navigation header of their own (that would double up the back chevron).
     const pathname = usePathname();
     const isHandleSafeRoute = pathname === '/' || /^\/session\/[^/]+\/?$/.test(pathname);
-    const showExpandHandle = auth.isAuthenticated && isTablet && sidebarCollapsed && isHandleSafeRoute;
+    const showExpandHandle = auth.isAuthenticated && isTablet && isHidden && isHandleSafeRoute;
+
     const { width: windowWidth } = useWindowDimensions();
     const { theme } = useUnistyles();
     const safeArea = useSafeAreaInsets();
-    const [, setSidebarCollapsed] = useLocalSettingMutable('sidebarCollapsed');
 
-    // Calculate drawer width only when needed
+    // Drawer width depends on mode: 72px icon-rail for 'collapsed', normal for 'expanded'.
     const drawerWidth = React.useMemo(() => {
-        if (!showPermanentDrawer) return 280; // Default width for hidden drawer
-        return Math.min(Math.max(Math.floor(windowWidth * 0.3), 250), 360);
-    }, [windowWidth, showPermanentDrawer]);
+        if (!showPermanentDrawer) return 280;
+        if (mode === 'collapsed') return SIDEBAR_WIDTH_COLLAPSED;
+        return Math.min(Math.max(Math.floor(windowWidth * 0.3), SIDEBAR_WIDTH_MIN), SIDEBAR_WIDTH_MAX);
+    }, [windowWidth, showPermanentDrawer, mode]);
 
     const drawerNavigationOptions = React.useMemo(() => {
         if (!showPermanentDrawer) {
-            // When drawer is hidden, use minimal configuration
+            // Sidebar is hidden (mode === 'hidden' on tablet, or phone layout).
             return {
                 lazy: false,
                 headerShown: false,
@@ -48,8 +48,6 @@ export const SidebarNavigator = React.memo(() => {
                 },
             };
         }
-        
-        // When drawer is permanent
         return {
             lazy: false,
             headerShown: false,
@@ -67,11 +65,7 @@ export const SidebarNavigator = React.memo(() => {
         };
     }, [showPermanentDrawer, drawerWidth]);
 
-    // Always render SidebarView but hide it when not needed
-    const drawerContent = React.useCallback(
-        () => <SidebarView />,
-        []
-    );
+    const drawerContent = React.useCallback(() => <SidebarView />, []);
 
     return (
         <View style={{ flex: 1 }}>
@@ -80,11 +74,8 @@ export const SidebarNavigator = React.memo(() => {
                 drawerContent={showPermanentDrawer ? drawerContent : undefined}
             />
             {showExpandHandle && (
-                // Positioned in the top-left header zone so it does not intercept list scroll
-                // gestures or iOS back-swipe from the left edge. Sits below the status bar and
-                // roughly at the header's vertical center on most tablet configurations.
                 <Pressable
-                    onPress={() => setSidebarCollapsed(false)}
+                    onPress={showExpanded}
                     accessibilityLabel="Show sidebar"
                     hitSlop={12}
                     style={{
@@ -99,7 +90,7 @@ export const SidebarNavigator = React.memo(() => {
                         borderColor: theme.colors.divider,
                         alignItems: 'center',
                         justifyContent: 'center',
-                        // Keep the handle visible on low-contrast (e-ink) displays.
+                        // Visibility on low-contrast (e-ink) displays.
                         elevation: 3,
                         shadowColor: '#000',
                         shadowOffset: { width: 0, height: 1 },
@@ -111,5 +102,5 @@ export const SidebarNavigator = React.memo(() => {
                 </Pressable>
             )}
         </View>
-    )
+    );
 });
