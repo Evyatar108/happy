@@ -38,25 +38,46 @@ Need to pick one:
 
 ---
 
-### Interactive `/plugin`, `/skills`, `/agents` via the remote session
+### Interactive `/plugin`, `/mcp` (+ partial `/agents`, `/skills`, `/memory`) via the remote session
 
-**What:** Today the intercepted slash commands (`usePreSendCommand.ts` → session-scoped catalog screens) are strictly read-only — they show lists/info harvested from SDK init metadata. Claude Code's real `/plugin` TUI is interactive (install, uninstall, enable/disable, browse marketplaces, etc.); the fork currently can't do any of that from mobile.
+**What:** Today's intercepted slash commands (`usePreSendCommand.ts` → session-scoped catalog screens) are strictly read-only — they show lists/info harvested from SDK init metadata. Claude Code's real `/plugin` and `/mcp` TUIs are interactive (install, uninstall, enable/disable, browse marketplaces, add servers, etc.); the fork can't do any of that from mobile.
 
-Bring interaction parity by routing these commands through the session instead of intercepting them:
-- Let the slash command reach the CLI (bypass the app-side intercept for these specific commands, or keep the intercept but add "open in terminal"-style action handoff).
-- In remote mode the SDK can invoke the plugin subsystem directly; surface its prompts/choices back to the app via an existing RPC pattern (mirrors how permission prompts already work — see `packages/happy-cli/src/claude/mcp/startPermissionServer.ts`).
-- In local mode the PTY-attached Claude already handles interactivity; the challenge is mirroring its TUI prompts to the app. Simplest: force-switch to remote mode when an interactive catalog command fires (ties into the "warm-up" option in the item above).
+**Key finding (2026-04-23):** The slash commands themselves are TUI-only and refuse to run in `--print` / SDK non-interactive mode (`/plugin isn't available in this environment`). BUT Claude Code exposes fully non-interactive equivalents as **CLI subcommands** — no TUI round-trip needed, no slash-command plumbing. This drops the estimate from multi-day to ~1 day for the two high-value commands.
 
-Behavioral question to decide upfront: do these become **replacements** for the read-only screens (unified interactive view) or a separate "Manage" action from within today's catalogs? Read-only-first is probably still the right default on e-ink (cheap render, no round-trips); interactive mode would be an explicit affordance.
+**Coverage by command:**
+
+| Command | Non-interactive CLI path | What the app can expose |
+|---|---|---|
+| `/plugin` | `claude plugin install/enable/disable/uninstall/list/update/validate/marketplace` | **Full CRUD** |
+| `/mcp` | `claude mcp add/add-json/add-from-claude-desktop/get/…` | **Full CRUD** |
+| `/agents` | `claude agents` (list only) | Read-only (already covered); create/edit = file ops on `.claude/agents/*.md` |
+| `/skills` | none | File ops on `.claude/skills/<name>/SKILL.md` (or plugin-bundled skills) |
+| `/memory` | none | Edit `CLAUDE.md` at user/project/local scope |
+| `/model` | none | Keep as "run in terminal" hint |
+| `/help` | `claude --help` | Not really a catalog — leave as hint |
+
+**Proposed architecture (shell-out, not TUI round-trip):**
+- **CLI side:** one new RPC handler `runClaudeSubcommand({ args: string[] })` that `execFile`s `claude` with the requested args, streams stdout/stderr back, returns exit code. Reuse `cross-spawn` (already a dep). Strict arg allowlist — only pass-through `plugin <verb> <args>` and `mcp <verb> <args>`; no arbitrary exec.
+- **Wire side:** one new RPC shape in `packages/happy-wire/` for the request/response pair.
+- **App side:** on the existing Plugins/MCP catalog screens, add action rows (enable/disable toggles, Install button with a text input, Uninstall confirm). Bind to the RPC via `useHappyAction` for error handling. On success, trigger a metadata refresh (SDK shadow session fires again on the CLI side, or server pushes new init metadata via the session).
+- **Refresh after mutation:** the CLI should re-run `queryInitMetadata` after a mutating subcommand so the catalog reflects the new state without waiting for the next session start. This is the one piece that isn't free.
+- **Security note:** `claude plugin install` downloads + executes plugin code on the CLI host. The RPC must be gated the same way session RPCs are today (session auth check); no privilege escalation beyond what the user already has in their local `claude`.
+
+**Tiers to pick from:**
+- **(a) Plugin enable/disable toggles only** — tiny slice, 2–3 hrs. Uses `claude plugin enable/disable`. No install UI, no marketplace browsing. Proves out the RPC pattern.
+- **(b) Plugin full CRUD + MCP full CRUD** — ~1 day. Install input field, Uninstall confirm, list refresh, MCP add flow. The natural stopping point for "interactive parity on the things that benefit most from mobile".
+- **(c) + agents/skills/memory file-edit UIs** — +1–2 days. A small file editor per catalog backed by existing CLI file access. Less leverage since these already work via any editor; mobile becomes the only reason to build it.
 
 **Relevant files:**
-- `packages/happy-app/sources/sync/slashCommandIntercept.ts` — intercept table; decide which stay read-only vs. pass-through
-- `packages/happy-app/sources/app/(app)/session/[id]/{plugins,skills,agents}.tsx` — extend with action rows or link to an interactive view
-- `packages/happy-cli/src/claude/claudeRemote.ts` — remote SDK stream; where interactive prompts would surface
-- `packages/happy-cli/src/claude/mcp/startPermissionServer.ts` — existing pattern for CLI-originated prompts → mobile → CLI round-trip
-- `packages/happy-wire/` — any new RPC shapes for plugin actions
+- `packages/happy-app/sources/sync/slashCommandIntercept.ts` — keep `/plugin` and `/mcp` intercepts, but the target catalog screens now do more than read
+- `packages/happy-app/sources/app/(app)/session/[id]/{plugins,agents}.tsx` + new `mcp.tsx` — extend with action rows; MCP screen is new (there's no `/mcp` catalog today)
+- `packages/happy-cli/src/claude/claudeRemote.ts` — RPC registration site
+- `packages/happy-cli/src/api/apiSession.ts` — RPC handler manager pattern
+- `packages/happy-cli/src/claude/utils/queryInitMetadata.ts` — re-run after mutations to refresh catalog state
+- `packages/happy-wire/` — new RPC shape
+- Security reference: `packages/happy-cli/src/claude/mcp/startPermissionServer.ts` — existing session-auth gate pattern
 
-**Complexity:** medium–large. Read-only-plus-select-actions (enable/disable toggles) could ship as a first slice in ~1 day; full install/uninstall/marketplace UI is a multi-day project and should probably be a standalone feature PR.
+**Complexity:** medium. (a) ~3hrs. (b) ~1 day. (c) +1–2 days. Do (a) first as a de-risker, then decide (b) based on how the RPC + refresh UX feels.
 
 ---
 
