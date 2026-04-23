@@ -100,6 +100,14 @@ export default function RootLayout() {
                 }}
             />
             <Stack.Screen
+                name="session/[id]/agents"
+                options={{
+                    headerShown: true,
+                    headerTitle: 'Agents',
+                    headerBackTitle: t('common.back'),
+                }}
+            />
+            <Stack.Screen
                 name="session/[id]/files"
                 options={{
                     headerShown: true,

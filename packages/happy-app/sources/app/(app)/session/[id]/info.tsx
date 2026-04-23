@@ -356,6 +356,12 @@ function SessionInfoContent({ session }: { session: Session }) {
                         icon={<Ionicons name="library-outline" size={29} color="#007AFF" />}
                         onPress={() => router.push(`/session/${session.id}/skills`)}
                     />
+                    <Item
+                        title="Agents"
+                        subtitle="View available subagents for this session"
+                        icon={<Ionicons name="people-outline" size={29} color="#007AFF" />}
+                        onPress={() => router.push(`/session/${session.id}/agents`)}
+                    />
                     {session.metadata?.machineId && (
                         <Item
                             title={t('sessionInfo.viewMachine')}
