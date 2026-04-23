@@ -344,6 +344,12 @@ function SessionInfoContent({ session }: { session: Session }) {
 
                 {/* Quick Actions */}
                 <ItemGroup title={t('sessionInfo.quickActions')}>
+                    <Item
+                        title="Plugins"
+                        subtitle="View loaded plugins for this session"
+                        icon={<Ionicons name="extension-puzzle-outline" size={29} color="#007AFF" />}
+                        onPress={() => router.push(`/session/${session.id}/plugins`)}
+                    />
                     {session.metadata?.machineId && (
                         <Item
                             title={t('sessionInfo.viewMachine')}
