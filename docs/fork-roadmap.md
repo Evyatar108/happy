@@ -6,6 +6,20 @@ Ranking is by **e-ink tablet quality-of-life** (the fork's primary target), then
 
 ## Near-term
 
+### Upcoming — Upstream merge batch (2026-04-22)
+
+**What:** Cherry-pick ~10 curated open PRs from `slopus/happy` into the fork's `main` as a single integration batch. Mix of zero-risk correctness fixes and CLI bug fixes, saved from the 2026-04-22 triage pass.
+
+**Plan:** [`docs/plans/upstream-merge-batch-2026-04-22.md`](plans/upstream-merge-batch-2026-04-22.md) — full per-PR breakdown, execution order, verification gates, rollback plan.
+
+**Headline PRs:** #1061 (filter isMeta — pairs with our #779 fix so plugin skill bodies no longer flood chats), #1145 (reducer text-loss), #633 (tool_result schema crash), #1101 (base64 stack overflow), #1049 (change_title persist), #1157 (permission mode mapping).
+
+**Risk spot:** #690 touches the `--settings` flag path that our #779 fix owns — plan saves it for last with an explicit 30-min abort criterion.
+
+**Complexity:** 1.5–3 hours interactive, partially delegable to a general-purpose agent per PR.
+
+---
+
 ### 5. Hardware page-turn key support
 
 **What:** Capture Android `KeyboardEvent` for `DPAD_UP`/`DPAD_DOWN` (and optionally volume keys) in `ChatList`. Scroll by ~90% of viewport height per press. Opt-in toggle.

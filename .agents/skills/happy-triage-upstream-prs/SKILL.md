@@ -135,10 +135,11 @@ the user has a clear next action.
 ## Reference: recent use of this skill
 
 The first full triage pass on 2026-04-22 produced the ranking
-summarised in `docs/fork-roadmap.md` → "Upstream PR triage" (if that
-section exists; otherwise see the conversation transcript where this
-skill was first exercised). Key outputs from that pass, kept here so the
-next run has a starting benchmark:
+consolidated into an executable plan at
+`docs/plans/upstream-merge-batch-2026-04-22.md` (cross-referenced from
+`docs/fork-roadmap.md` → "Near-term → Upcoming — Upstream merge batch").
+Key outputs from that pass, kept here so the next run has a starting
+benchmark:
 
 - Zero-risk MERGE batch: #1145, #1061, #633, #1101, #1049, #1157
 - CLI correctness batch: #699, #692, #690, #1116
