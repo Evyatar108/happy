@@ -1,7 +1,6 @@
 import * as React from 'react';
 import { useRouter } from 'expo-router';
 import { Modal } from '@/modal';
-import { t } from '@/text';
 import { InterceptMessageKey, maybeIntercept } from '@/sync/slashCommandIntercept';
 
 const ALERT_MESSAGES: Record<InterceptMessageKey, string> = {
@@ -39,7 +38,7 @@ export function usePreSendCommand(sessionId: string | undefined) {
                     return;
                 }
 
-                Modal.alert(t('common.error'), ALERT_MESSAGES[result.messageKey]);
+                Modal.alert('Command hint', ALERT_MESSAGES[result.messageKey]);
             },
         };
     }, [router, sessionId]);
