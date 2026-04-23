@@ -369,7 +369,7 @@ describe('queryInitMetadata', () => {
         );
     });
 
-    it('closes before iterating past the first init message', async () => {
+    it('aborts before returning and closes before iterating past the first init message', async () => {
         let nextCalls = 0;
         const shadowQuery: MockQuery = {
             [Symbol.asyncIterator]() {
@@ -434,6 +434,8 @@ describe('queryInitMetadata', () => {
             settingsPath: '/tmp/settings.json',
         });
 
+        const shadowSignal: AbortSignal = mockQuery.mock.calls[0][0].options.abort;
+        expect(shadowSignal.aborted).toBe(true);
         expect(nextCalls).toBe(1);
         expect(shadowQuery.close).toHaveBeenCalledTimes(1);
         expect(mockLoggerWarn).not.toHaveBeenCalled();

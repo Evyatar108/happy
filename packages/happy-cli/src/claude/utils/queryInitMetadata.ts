@@ -111,6 +111,9 @@ export async function queryInitMetadata(opts: QueryInitMetadataOptions): Promise
                     queryHandle.reloadPlugins().catch(() => EMPTY_RELOAD_RESULT),
                 ]);
 
+                // (1) got system/init, (2) got control RPC results, (3) abort to prevent LLM inference, (4) close as cleanup
+                shadowAbortController.abort('shadow session metadata captured');
+
                 return mergeControlApiResultsIntoInitMetadata(
                     initFromStream,
                     initResult,
