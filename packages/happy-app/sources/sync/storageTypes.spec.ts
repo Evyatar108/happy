@@ -31,7 +31,7 @@ describe('MetadataSchema', () => {
             skills: ['plan', 'ship'],
             agents: ['explorer', 'worker'],
             plugins: [
-                { name: 'ralph-orchestration', path: '/Users/dev/.claude/plugins/ralph' },
+                { name: 'ralph-orchestration', path: '/Users/dev/.claude/plugins/ralph', source: 'marketplace' },
                 { name: 'code-review', path: 'C:\\Users\\dev\\.claude\\plugins\\review' },
             ],
             outputStyle: 'concise',
@@ -52,5 +52,22 @@ describe('MetadataSchema', () => {
         const metadata = await sessionEncryption.decryptMetadata(1, 'AA==');
 
         expect(metadata).toEqual(expectedMetadata);
+    });
+
+    it('parses plugin source when present and leaves it absent when omitted', () => {
+        const metadata = MetadataSchema.parse({
+            path: '/tmp/project',
+            host: 'local-machine',
+            plugins: [
+                { name: 'market-plugin', path: '/plugins/market-plugin', source: 'marketplace' },
+                { name: 'local-plugin', path: '/plugins/local-plugin' },
+            ],
+        });
+
+        expect(metadata.plugins).toEqual([
+            { name: 'market-plugin', path: '/plugins/market-plugin', source: 'marketplace' },
+            { name: 'local-plugin', path: '/plugins/local-plugin' },
+        ]);
+        expect(metadata.plugins?.[1]).not.toHaveProperty('source');
     });
 });

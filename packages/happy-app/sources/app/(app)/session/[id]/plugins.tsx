@@ -10,6 +10,10 @@ const EMPTY_STATE_TITLE = 'No plugins loaded for this session.';
 
 type PluginEntry = NonNullable<NonNullable<Session['metadata']>['plugins']>[number];
 
+function getPluginSubtitle(plugin: PluginEntry): string {
+    return plugin.source ? `${plugin.path}\n${plugin.source}` : plugin.path;
+}
+
 export function PluginsScreenContent({ plugins }: { plugins?: PluginEntry[] }) {
     const items = plugins ?? [];
 
@@ -21,7 +25,7 @@ export function PluginsScreenContent({ plugins }: { plugins?: PluginEntry[] }) {
                         <Item
                             key={`${plugin.name}-${plugin.path}-${index}`}
                             title={plugin.name}
-                            subtitle={plugin.path}
+                            subtitle={getPluginSubtitle(plugin)}
                             showChevron={false}
                         />
                     ))

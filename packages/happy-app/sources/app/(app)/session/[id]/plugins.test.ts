@@ -2,7 +2,9 @@ import * as React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockUseLocalSearchParams = vi.fn<() => { id: string }>();
-const mockUseSession = vi.fn<(id: string) => { metadata?: { plugins?: Array<{ name: string; path: string }> } | null } | null>();
+const mockUseSession = vi.fn<
+    (id: string) => { metadata?: { plugins?: Array<{ name: string; path: string; source?: string }> } | null } | null
+>();
 
 vi.mock('expo-router', () => ({
     useLocalSearchParams: mockUseLocalSearchParams,
@@ -58,7 +60,11 @@ describe('PluginsScreen', () => {
         mockUseSession.mockReturnValue({
             metadata: {
                 plugins: [
-                    { name: 'alpha-plugin', path: '/home/u/.claude/plugins/acme/alpha-plugin' },
+                    {
+                        name: 'alpha-plugin',
+                        path: '/home/u/.claude/plugins/acme/alpha-plugin',
+                        source: 'marketplace',
+                    },
                     { name: 'beta-plugin', path: 'C:\\plugins\\vendor\\beta-plugin' },
                 ],
             },
@@ -71,10 +77,30 @@ describe('PluginsScreen', () => {
         expect(rows).toHaveLength(2);
         expect(rows[0]?.props).toMatchObject({
             title: 'alpha-plugin',
-            subtitle: '/home/u/.claude/plugins/acme/alpha-plugin',
+            subtitle: '/home/u/.claude/plugins/acme/alpha-plugin\nmarketplace',
             showChevron: false,
         });
         expect(rows[1]?.props).toMatchObject({
+            title: 'beta-plugin',
+            subtitle: 'C:\\plugins\\vendor\\beta-plugin',
+            showChevron: false,
+        });
+    });
+
+    it('keeps the path as the only subtitle when source is absent', () => {
+        mockUseSession.mockReturnValue({
+            metadata: {
+                plugins: [
+                    { name: 'beta-plugin', path: 'C:\\plugins\\vendor\\beta-plugin' },
+                ],
+            },
+        });
+
+        const tree = PluginsScreen();
+        const rows = findElementsByType(tree, 'Item');
+
+        expect(rows).toHaveLength(1);
+        expect(rows[0]?.props).toMatchObject({
             title: 'beta-plugin',
             subtitle: 'C:\\plugins\\vendor\\beta-plugin',
             showChevron: false,
