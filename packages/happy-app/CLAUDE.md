@@ -21,6 +21,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Testing
 - `pnpm test` - Run tests in watch mode (Vitest)
 - Keep the Vitest config in `vitest.config.mts`; the `.ts` filename can fail to boot under this Windows/Bash setup with an `ERR_REQUIRE_ESM` startup error.
+- For node-environment sync tests, mock `sources/sync/storage.ts` instead of importing the real store when you only need `storage.getState()`. The real store pulls in `react-native`, which can fail to parse under Vitest's node runner in this harness.
 - No existing tests in the codebase yet
 
 ### Production
