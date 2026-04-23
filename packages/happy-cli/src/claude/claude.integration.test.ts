@@ -14,6 +14,8 @@
  *   - It does not exercise Happy's separate local sandbox wrapper; instead it
  *     asserts the real safety controls available here: tool allow/deny and
  *     interrupting pending tool requests.
+ *   - Narrow per-utility integration tests live next to their helpers:
+ *     src/claude/utils/queryInitMetadata.integration.test.ts
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';

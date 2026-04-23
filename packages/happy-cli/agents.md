@@ -19,6 +19,11 @@
 If an agent has extra integration-style files, only one file is the primary
 acceptance test. The rest are support checks.
 
+Per-utility integration tests may live colocated with the utility
+(e.g., `src/claude/utils/<helper>.integration.test.ts`) when their scope is
+narrow and independent of agent-level integration. These are not primary
+acceptance tests and do not replace the primary files listed above.
+
 ## What Each Primary Test Must Cover
 
 Every primary agent integration file must cover:
