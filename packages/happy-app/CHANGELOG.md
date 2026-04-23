@@ -1,5 +1,12 @@
 # Changelog
 
+## Version 11 - 2026-04-23
+
+The Plugins, Skills, and Agents screens now show their loaded contents for sessions started from the terminal (not just from the mobile app). A visible loading state replaces the old blank "No plugins loaded" flash while the session is warming up.
+
+- The Plugins, Skills, and Agents screens now populate for terminal-launched sessions, matching what app-launched sessions already showed.
+- Added a "Loading…" indicator on each of the three catalog screens during the brief window after opening a session, so the list no longer appears to be empty before it finishes loading.
+
 ## Version 10 - 2026-04-22
 
 Claude Code plugins and skills now have full visibility and navigation inside Happy. The slash-command picker stops hiding most of what your session actually knows about, seven terminal-only commands finally have a useful mobile landing, and three new session screens show you what's loaded.

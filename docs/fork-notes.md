@@ -62,6 +62,27 @@ Merged as commit `019a6109` (20 commits from `feat/native-and-installed-skills-s
 
 See `.ralph/jobs/native-and-installed-skills-support/plan.md` for the full plan and `.ralph/jobs/native-and-installed-skills-support/dsat-report.md` for the post-merge orchestration analysis.
 
+## What's on `main` after the 2026-04-23 local-mode init metadata forwarding merge
+
+Merged as commit `88a18bf6` (squash of 9 stories + 5 code-review fixes from `feat/local-mode-init-metadata`), plus a probe-script fix, two CLI version bumps, and a mobile-app Loading-state polish on top. Job directory at `.ralph/jobs/local-mode-init-metadata/` has the full plan, DSAT, and per-story artifacts.
+
+**Problem this solves:** Before this merge, the session-scoped Plugins/Skills/Agents catalog screens (shipped in the 2026-04-22 merge) only populated for **remote-mode** sessions — those launched from the mobile app. Sessions started from the terminal (`happy` CLI) went through a PTY-attached Claude with no SDK init stream, so the catalog screens stayed empty for the user's most common case.
+
+**Approach — shadow SDK session:** Local-mode spawns a short-lived parallel SDK `query()` against the same cwd/settings, waits for the one `system/init` message (the SDK emits init before any LLM inference fires), calls the control-plane `initializationResult()` + `reloadPlugins()` RPCs to harvest the full metadata set, then aborts the query before any user-facing prompt runs. Structural zero-cost gate validated by the US-000 probe script; the manual dev-account dashboard check is still a user action (see roadmap).
+
+- **Prerequisite refactor (US-001..US-003):** extracted the remote-mode metadata mapping into a pure helper `packages/happy-cli/src/claude/utils/sdkMetadata.ts` (`mapSystemInitToMetadata`, `mergeSDKInitMetadata`). Remote mode refactored to use it — so there's one code path for turning an SDK init message into `Metadata`, regardless of caller.
+- **Three-tier fallback (US-004):** `mergeControlApiResultsIntoInitMetadata` prefers `initializationResult()` data, falls back to `reloadPlugins()` data, falls back to the init-stream message — so the helper degrades gracefully against SDK versions that don't populate every field.
+- **Shadow-session helper (US-005):** `packages/happy-cli/src/claude/utils/queryInitMetadata.ts` owns the SDK query lifecycle (spawn → await `system/init` → harvest via control RPCs → abort → close) with a default 3s timeout. Test coverage is real SDK integration, not mocks (per the package's testing rule).
+- **Cost observability (US-006):** `packages/happy-cli/scripts/probe-shadow-session-cost.mjs` is the gate probe — logs every message type the shadow session sees, so a zero-cost run shows only `system/init` before the abort. Converted from `.cjs` to `.mjs` in follow-up `018c6194` because the SDK is ESM-only.
+- **Local launcher wiring (US-007):** `claudeLocalLauncher.ts` fires the shadow session on SessionStart, with a `Map<sessionId, Promise>` dedupe guard to prevent rapid-re-entry races from double-firing. Failures in the shadow session don't affect the PTY Claude — this is observability-only.
+- **App plugin schema (US-008):** `packages/happy-app/sources/sync/storageTypes.ts` — widened the `plugins` entry schema to include `source?: string` alongside `{name, path}` so the catalog screen can render "where a plugin came from" when present.
+- **Five code-review fixes (F-001..F-005):** probe script creation (F-001); abort-before-return ordering in the helper (F-002); three-tier fallback for `commands`/`agents` specifically (F-003); env-var gate instead of a billable preflight in integration tests (F-004); per-utility integration-test location documented in agents.md (F-005).
+- **CLI releases (`88a243ca`, `34c3cbd5`):** `happy@1.1.8-evy.2` shipped the feature; `happy@1.1.8-evy.3` added diagnostic `logger.warn` calls in `queryInitMetadata.ts` + `claudeLocalLauncher.ts` to make it clear from user logs whether the shadow session fired. Those warns are expected to downgrade to `debug` before the next stable cut — see `docs/fork-roadmap.md`.
+- **App-side polish (`41514e3c`):** added a `Loading…` Item with spinner to `session/[id]/{plugins,skills,agents}.tsx` while `session.metadata.tools === undefined`. Covers the 1–2s shadow-session window so users no longer see a flicker from "No plugins loaded" → real list.
+- **Deferred, not shipped** (tracked in `docs/fork-roadmap.md`): US-000 manual dashboard cost check; handling intercepted slash commands before session metadata arrives; interactive `/plugin` etc. via the remote session; lazy-load long chats.
+
+**On-device verification:** tablet session on 2026-04-23. Catalog screens populate after `~`1–2s once the first real message is sent (which triggers local→remote mode switch and exercises the shadow session path). Loading… state visible during the gap.
+
 ## What's in `feature/tablet-sidebar-toggle` (historical, in commit order)
 
 The initial batch, before the PR-A..PR-D work. Tip `c98bb557`. Content:
