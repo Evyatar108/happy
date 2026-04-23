@@ -38,6 +38,14 @@ function isInitMessage(message: SDKMessage): message is SDKSystemMessage {
     return message.type === 'system' && message.subtype === 'init';
 }
 
+function describeShadowMessage(message: SDKMessage): string {
+    const subtype = 'subtype' in message && typeof message.subtype === 'string'
+        ? `/${message.subtype}`
+        : '';
+
+    return `${message.type}${subtype}`;
+}
+
 export async function queryInitMetadata(opts: QueryInitMetadataOptions): Promise<SDKInitMetadata> {
     const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const shadowAbortController = new AbortController();
@@ -89,6 +97,9 @@ export async function queryInitMetadata(opts: QueryInitMetadataOptions): Promise
 
         for await (const message of queryHandle) {
             if (!isInitMessage(message)) {
+                logger.warn(
+                    `[queryInitMetadata] Unexpected shadow-session message: ${describeShadowMessage(message)}`,
+                );
                 continue;
             }
 

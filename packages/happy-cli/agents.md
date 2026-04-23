@@ -42,3 +42,7 @@ Keep it simple:
 - real interruption
 
 No mocks as the main proof.
+
+## Release Checklist
+
+- Before each `cli-v` release, manually verify shadow-session behavior against a dev account and confirm zero tokens were consumed in the usage dashboard during a local-mode happy session.

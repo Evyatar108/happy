@@ -9,9 +9,11 @@ import type {
 const {
     mockQuery,
     mockLoggerDebug,
+    mockLoggerWarn,
 } = vi.hoisted(() => ({
     mockQuery: vi.fn(),
     mockLoggerDebug: vi.fn(),
+    mockLoggerWarn: vi.fn(),
 }));
 
 vi.mock('@/claude/sdk', () => ({
@@ -21,6 +23,7 @@ vi.mock('@/claude/sdk', () => ({
 vi.mock('@/ui/logger', () => ({
     logger: {
         debug: mockLoggerDebug,
+        warn: mockLoggerWarn,
     },
 }));
 
@@ -133,6 +136,7 @@ describe('queryInitMetadata', () => {
             mcpServers: [{ name: 'reloaded-mcp', status: 'connected' }],
         });
         expect(shadowQuery.close).toHaveBeenCalledTimes(1);
+        expect(mockLoggerWarn).not.toHaveBeenCalled();
     });
 
     it('returns stream-only metadata when control APIs do not provide data', async () => {
@@ -314,6 +318,57 @@ describe('queryInitMetadata', () => {
         expect(receivedSignal?.aborted).toBe(true);
     });
 
+    it('warns when a non-init shadow-session message is observed before init', async () => {
+        const shadowQuery = createMockQuery([
+            {
+                type: 'result',
+                subtype: 'success',
+                duration_ms: 1,
+                duration_api_ms: 1,
+                is_error: false,
+                num_turns: 1,
+                result: 'unexpected result',
+                stop_reason: null,
+                session_id: 'session-123',
+                total_cost_usd: 0,
+                usage: {
+                    cache_creation: {
+                        ephemeral_1h_input_tokens: 0,
+                        ephemeral_5m_input_tokens: 0,
+                    },
+                    input_tokens: 0,
+                    output_tokens: 0,
+                    cache_creation_input_tokens: 0,
+                    cache_read_input_tokens: 0,
+                    inference_geo: 'us',
+                    iterations: [],
+                    server_tool_use: {
+                        web_search_requests: 0,
+                        web_fetch_requests: 0,
+                    },
+                    service_tier: 'standard',
+                    speed: 'standard',
+                },
+                modelUsage: {},
+                permission_denials: [],
+                uuid: '00000000-0000-0000-0000-000000000012',
+            },
+            createInitMessage(),
+        ]);
+        mockQuery.mockReturnValue(shadowQuery);
+
+        const { queryInitMetadata } = await import('./queryInitMetadata');
+
+        await queryInitMetadata({
+            cwd: '/tmp/project',
+            settingsPath: '/tmp/settings.json',
+        });
+
+        expect(mockLoggerWarn).toHaveBeenCalledWith(
+            '[queryInitMetadata] Unexpected shadow-session message: result/success',
+        );
+    });
+
     it('closes before iterating past the first init message', async () => {
         let nextCalls = 0;
         const shadowQuery: MockQuery = {
@@ -381,5 +436,6 @@ describe('queryInitMetadata', () => {
 
         expect(nextCalls).toBe(1);
         expect(shadowQuery.close).toHaveBeenCalledTimes(1);
+        expect(mockLoggerWarn).not.toHaveBeenCalled();
     });
 });
