@@ -3,10 +3,14 @@ import { claudeLocal, ExitCodeError } from "./claudeLocal";
 import { Session } from "./session";
 import { Future } from "@/utils/future";
 import { createSessionScanner } from "./utils/sessionScanner";
+import { mergeSDKInitMetadata } from "./utils/sdkMetadata";
+import { queryInitMetadata } from "./utils/queryInitMetadata";
 
 export type LauncherResult = { type: 'switch' } | { type: 'exit', code: number };
+const shadowMetadataQueriedSessionIds = new Set<string>();
 
 export async function claudeLocalLauncher(session: Session): Promise<LauncherResult> {
+    const shadowMetadataSessionIdsOwnedByLauncher = new Set<string>();
 
     // Create scanner
     const scanner = await createSessionScanner({
@@ -92,6 +96,32 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
         const handleSessionStart = (sessionId: string) => {
             session.onSessionFound(sessionId);
             scanner.onNewSession(sessionId);
+
+            if (shadowMetadataQueriedSessionIds.has(sessionId)) {
+                return;
+            }
+
+            shadowMetadataQueriedSessionIds.add(sessionId);
+            shadowMetadataSessionIdsOwnedByLauncher.add(sessionId);
+
+            void (async () => {
+                const metadata = await queryInitMetadata({
+                    cwd: session.path,
+                    settingsPath: session.hookSettingsPath,
+                    mcpServers: session.mcpServers,
+                    allowedTools: session.allowedTools,
+                    claudeEnvVars: session.claudeEnvVars,
+                    abort: processAbortController.signal,
+                });
+
+                if (Object.keys(metadata).length === 0) {
+                    return;
+                }
+
+                session.client.updateMetadata((currentMetadata) =>
+                    mergeSDKInitMetadata(currentMetadata, metadata),
+                );
+            })();
         }
 
         // Run local mode
@@ -160,6 +190,10 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
         
         // Remove session found callback
         session.removeSessionFoundCallback(scannerSessionCallback);
+
+        for (const sessionId of shadowMetadataSessionIdsOwnedByLauncher) {
+            shadowMetadataQueriedSessionIds.delete(sessionId);
+        }
 
         // Cleanup
         await scanner.cleanup();
