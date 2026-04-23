@@ -101,16 +101,19 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
 
         // Handle session start
         const handleSessionStart = (sessionId: string) => {
+            logger.warn(`[claudeLocalLauncher] handleSessionStart sessionId=${sessionId} path=${session.path} hookSettingsPath=${session.hookSettingsPath ?? '(none)'}`);
             session.onSessionFound(sessionId);
             scanner.onNewSession(sessionId);
 
             if (shadowMetadataInFlight.has(sessionId)) {
+                logger.warn(`[claudeLocalLauncher] shadow already in flight for sessionId=${sessionId} — skipping dedupe`);
                 return;
             }
 
             shadowMetadataSessionIdsOwnedByLauncher.add(sessionId);
 
             const promise = (async () => {
+                logger.warn(`[claudeLocalLauncher] firing queryInitMetadata for sessionId=${sessionId}`);
                 const metadata = await queryInitMetadata({
                     cwd: session.path,
                     settingsPath: session.hookSettingsPath,
@@ -120,10 +123,15 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
                     abort: processAbortController.signal,
                 });
 
+                const definedKeys = Object.entries(metadata).filter(([, v]) => v !== undefined).map(([k]) => k);
+                logger.warn(`[claudeLocalLauncher] queryInitMetadata returned for sessionId=${sessionId}; defined fields = [${definedKeys.join(', ')}]`);
+
                 if (!Object.values(metadata).some(v => v !== undefined)) {
+                    logger.warn(`[claudeLocalLauncher] metadata empty — skipping updateMetadata for sessionId=${sessionId}`);
                     return;
                 }
 
+                logger.warn(`[claudeLocalLauncher] pushing updateMetadata for sessionId=${sessionId}`);
                 session.client.updateMetadata((currentMetadata) =>
                     mergeSDKInitMetadata(currentMetadata, metadata),
                 );

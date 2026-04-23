@@ -83,6 +83,9 @@ export async function queryInitMetadata(opts: QueryInitMetadataOptions): Promise
     }, timeoutMs);
 
     try {
+        logger.warn(
+            `[queryInitMetadata] starting shadow session cwd=${opts.cwd} settingsPath=${opts.settingsPath ?? '(none)'} timeoutMs=${timeoutMs}`,
+        );
         queryHandle = query({
             prompt: '.',
             options: {
@@ -104,30 +107,49 @@ export async function queryInitMetadata(opts: QueryInitMetadataOptions): Promise
             }
 
             const initFromStream = mapSystemInitToMetadata(message);
+            logger.warn(
+                `[queryInitMetadata] got system/init stream; tools=${initFromStream.tools?.length ?? 'nil'} skills=${initFromStream.skills?.length ?? 'nil'} plugins=${initFromStream.plugins?.length ?? 'nil'} agents=${initFromStream.agents?.length ?? 'nil'} slashCommands=${initFromStream.slashCommands?.length ?? 'nil'}`,
+            );
 
             try {
                 const [initResult, reloadResult] = await Promise.all([
-                    queryHandle.initializationResult().catch(() => EMPTY_INITIALIZE_RESULT),
-                    queryHandle.reloadPlugins().catch(() => EMPTY_RELOAD_RESULT),
+                    queryHandle.initializationResult().catch((err) => {
+                        logger.warn(`[queryInitMetadata] initializationResult() threw: ${errorMessage(err)} — falling back to empty`);
+                        return EMPTY_INITIALIZE_RESULT;
+                    }),
+                    queryHandle.reloadPlugins().catch((err) => {
+                        logger.warn(`[queryInitMetadata] reloadPlugins() threw: ${errorMessage(err)} — falling back to empty`);
+                        return EMPTY_RELOAD_RESULT;
+                    }),
                 ]);
+
+                logger.warn(
+                    `[queryInitMetadata] control RPCs resolved; initResult.commands=${initResult.commands?.length ?? 'nil'} initResult.agents=${initResult.agents?.length ?? 'nil'} reloadResult.plugins=${reloadResult.plugins?.length ?? 'nil'} reloadResult.mcpServers=${reloadResult.mcpServers?.length ?? 'nil'} reloadResult.commands=${reloadResult.commands?.length ?? 'nil'}`,
+                );
 
                 // (1) got system/init, (2) got control RPC results, (3) abort to prevent LLM inference, (4) close as cleanup
                 shadowAbortController.abort('shadow session metadata captured');
 
-                return mergeControlApiResultsIntoInitMetadata(
+                const merged = mergeControlApiResultsIntoInitMetadata(
                     initFromStream,
                     initResult,
                     reloadResult,
                 );
+                const definedKeys = Object.entries(merged).filter(([, v]) => v !== undefined).map(([k]) => k);
+                logger.warn(
+                    `[queryInitMetadata] returning merged metadata; defined fields = [${definedKeys.join(', ')}]`,
+                );
+                return merged;
             } finally {
                 await closeQuery();
             }
         }
 
+        logger.warn(`[queryInitMetadata] stream ended without system/init — returning empty {}`);
         return {};
     } catch (error) {
         const failureKind = hardTimedOut ? 'Timed out' : 'Failed to query';
-        logger.debug(`[queryInitMetadata] ${failureKind} init metadata: ${errorMessage(error)}`);
+        logger.warn(`[queryInitMetadata] ${failureKind} init metadata: ${errorMessage(error)}`);
         return {};
     } finally {
         clearTimeout(timeoutHandle);
