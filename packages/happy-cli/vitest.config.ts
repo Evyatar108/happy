@@ -41,6 +41,23 @@ export default defineConfig({
             {
                 extends: true,
                 test: {
+                    name: 'integration-claude-utils',
+                    fileParallelism: false,
+                    hookTimeout: 60_000,
+                    maxWorkers: 1,
+                    minWorkers: 1,
+                    testTimeout: 60_000,
+                    include: [
+                        'src/claude/utils/queryInitMetadata.integration.test.ts',
+                    ],
+                    sequence: {
+                        groupOrder: 2,
+                    },
+                },
+            },
+            {
+                extends: true,
+                test: {
                     name: 'integration-plan-mode',
                     fileParallelism: false,
                     hookTimeout: 120_000,
@@ -51,7 +68,7 @@ export default defineConfig({
                         'src/claude/planMode.integration.test.ts',
                     ],
                     sequence: {
-                        groupOrder: 1,
+                        groupOrder: 2,
                     },
                 },
             },
@@ -70,7 +87,7 @@ export default defineConfig({
                     ],
                     setupFiles: ['./src/testing/integration.setup.authenticated.ts'],
                     sequence: {
-                        groupOrder: 2,
+                        groupOrder: 3,
                     },
                 },
             },
