@@ -44,6 +44,14 @@ export function query(params: { prompt: QueryPrompt; options?: QueryOptions }): 
         sessionId: undefined,
     }
 
+    let env: Record<string, string> | undefined
+    if (opts?.env) {
+        env = {
+            ...process.env,
+            ...opts.env,
+        } as Record<string, string>
+    }
+
     // Map abort signal -> AbortController
     if (opts?.abort) {
         const controller = new AbortController()
@@ -53,9 +61,12 @@ export function query(params: { prompt: QueryPrompt; options?: QueryOptions }): 
 
     // Ensure local MCP servers bypass HTTP proxy
     if (opts?.mcpServers && Object.keys(opts.mcpServers).length > 0) {
-        const env = { ...process.env }
+        env ??= { ...process.env } as Record<string, string>
         ensureLocalProxyBypass(env)
-        sdkOptions.env = env as Record<string, string>
+    }
+
+    if (env) {
+        sdkOptions.env = env
     }
 
     // Map canCallTool -> canUseTool

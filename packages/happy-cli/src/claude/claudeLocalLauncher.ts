@@ -3,10 +3,21 @@ import { claudeLocal, ExitCodeError } from "./claudeLocal";
 import { Session } from "./session";
 import { Future } from "@/utils/future";
 import { createSessionScanner } from "./utils/sessionScanner";
+import { mergeSDKInitMetadata } from "./utils/sdkMetadata";
+import { queryInitMetadata } from "./utils/queryInitMetadata";
 
 export type LauncherResult = { type: 'switch' } | { type: 'exit', code: number };
 
+// Maps sessionId -> in-flight shadow-query promise.
+// Presence in the map is the dedupe guard: once a sessionId is inserted, no
+// subsequent handleSessionStart call will re-fire the query — even if the
+// original promise is still pending (avoiding a rapid-re-entry race that a
+// plain Set cleared in the outer finally could not prevent).
+// Each entry is removed only after its own promise settles.
+const shadowMetadataInFlight = new Map<string, Promise<void>>();
+
 export async function claudeLocalLauncher(session: Session): Promise<LauncherResult> {
+    const shadowMetadataSessionIdsOwnedByLauncher = new Set<string>();
 
     // Create scanner
     const scanner = await createSessionScanner({
@@ -92,6 +103,36 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
         const handleSessionStart = (sessionId: string) => {
             session.onSessionFound(sessionId);
             scanner.onNewSession(sessionId);
+
+            if (shadowMetadataInFlight.has(sessionId)) {
+                return;
+            }
+
+            shadowMetadataSessionIdsOwnedByLauncher.add(sessionId);
+
+            const promise = (async () => {
+                const metadata = await queryInitMetadata({
+                    cwd: session.path,
+                    settingsPath: session.hookSettingsPath,
+                    mcpServers: session.mcpServers,
+                    allowedTools: session.allowedTools,
+                    claudeEnvVars: session.claudeEnvVars,
+                    abort: processAbortController.signal,
+                });
+
+                if (!Object.values(metadata).some(v => v !== undefined)) {
+                    return;
+                }
+
+                session.client.updateMetadata((currentMetadata) =>
+                    mergeSDKInitMetadata(currentMetadata, metadata),
+                );
+            })().finally(() => {
+                shadowMetadataInFlight.delete(sessionId);
+                shadowMetadataSessionIdsOwnedByLauncher.delete(sessionId);
+            });
+
+            shadowMetadataInFlight.set(sessionId, promise);
         }
 
         // Run local mode

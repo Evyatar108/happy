@@ -3,13 +3,13 @@ import * as path from "path";
 import * as net from "net";
 import * as crypto from "crypto";
 import { execSync, spawn, spawnSync } from "child_process";
-import { pathToFileURL } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 
 // ============================================================================
 // Configuration
 // ============================================================================
 
-const REPO_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+const REPO_ROOT = path.resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 const ENVIRONMENTS_ROOT = path.join(REPO_ROOT, "environments");
 const ENVIRONMENTS_DATA_DIR = path.join(ENVIRONMENTS_ROOT, "data");
 const ENVIRONMENTS_DIR = path.join(ENVIRONMENTS_DATA_DIR, "envs");

@@ -13,6 +13,8 @@ export type {
     SDKAssistantMessage,
     SDKSystemMessage,
     SDKResultMessage,
+    SDKControlInitializeResponse,
+    SDKControlReloadPluginsResponse,
     CanCallToolCallback,
     PermissionResult
 } from './types'

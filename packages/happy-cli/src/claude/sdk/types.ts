@@ -10,6 +10,8 @@ export type {
     SDKAssistantMessage,
     SDKSystemMessage,
     SDKResultMessage,
+    SDKControlInitializeResponse,
+    SDKControlReloadPluginsResponse,
     PermissionResult,
     CanUseTool,
 } from '@anthropic-ai/claude-agent-sdk'
@@ -33,6 +35,7 @@ export interface QueryOptions {
     customSystemPrompt?: string
     cwd?: string
     disallowedTools?: string[]
+    env?: Record<string, string>
     maxTurns?: number
     mcpServers?: Record<string, unknown>
     permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan'

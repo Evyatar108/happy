@@ -15,6 +15,7 @@ import { RawJSONLines } from "@/claude/types";
 import { OutgoingMessageQueue } from "./utils/OutgoingMessageQueue";
 import { getToolName } from "./utils/getToolName";
 import { getAskUserQuestionToolCallIds } from "./utils/questionNotification";
+import { mergeSDKInitMetadata } from "./utils/sdkMetadata";
 
 interface PermissionsField {
     date: number;
@@ -343,16 +344,7 @@ export async function claudeRemoteLauncher(session: Session): Promise<'switch' |
                     },
                     onSDKMetadata: (metadata) => {
                         logger.debug('[remote] SDK metadata received, updating session:', metadata);
-                        session.client.updateMetadata((currentMetadata) => ({
-                            ...currentMetadata,
-                            tools: metadata.tools,
-                            slashCommands: metadata.slashCommands,
-                            skills: metadata.skills,
-                            agents: metadata.agents,
-                            plugins: metadata.plugins,
-                            outputStyle: metadata.outputStyle,
-                            mcpServers: metadata.mcpServers,
-                        }));
+                        session.client.updateMetadata((currentMetadata) => mergeSDKInitMetadata(currentMetadata, metadata));
                     },
                     onQueryReady: (q) => {
                         permissionHandler.setPermissionModeUpdater(async (mode) => {

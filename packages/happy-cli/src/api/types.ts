@@ -273,7 +273,11 @@ export type Metadata = {
   slashCommands?: string[],
   skills?: SDKSystemMessage['skills'],
   agents?: SDKSystemMessage['agents'],
-  plugins?: SDKSystemMessage['plugins'],
+  plugins?: Array<{
+    name: string,
+    path: string,
+    source?: string
+  }>,
   outputStyle?: SDKSystemMessage['output_style'],
   mcpServers?: SDKSystemMessage['mcp_servers'],
   homeDir: string,
