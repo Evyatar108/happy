@@ -34,6 +34,8 @@ const TERMINAL_ONLY_COMMANDS = {
     help: 'helpTerminalOnly',
 } as const;
 
+const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
+
 function getSlashCommandName(command: string): string | null {
     const trimmed = command.trim();
     if (!trimmed.startsWith('/')) {
@@ -52,7 +54,7 @@ export function maybeIntercept(command: string, sessionId: string | undefined): 
 
     const routeCommand = SESSION_ROUTE_COMMANDS[slashCommand as keyof typeof SESSION_ROUTE_COMMANDS];
     if (routeCommand) {
-        if (!sessionId) {
+        if (!sessionId || !SESSION_ID_PATTERN.test(sessionId)) {
             return { type: 'alert', messageKey: routeCommand.fallback };
         }
 

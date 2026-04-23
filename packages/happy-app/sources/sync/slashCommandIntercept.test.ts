@@ -46,6 +46,19 @@ describe('maybeIntercept', () => {
         }
     });
 
+    it('falls back to alerts when the sessionId contains routing control characters', () => {
+        for (const [command, , messageKey] of SESSION_ROUTE_CASES) {
+            expect(maybeIntercept(`/${command}`, 'abc/../evil')).toEqual({
+                type: 'alert',
+                messageKey,
+            });
+            expect(maybeIntercept(`/${command}`, '')).toEqual({
+                type: 'alert',
+                messageKey,
+            });
+        }
+    });
+
     it('parses slash commands even when the user includes trailing arguments', () => {
         expect(maybeIntercept('/help routing details', 'abc')).toEqual({
             type: 'alert',
