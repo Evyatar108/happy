@@ -113,10 +113,12 @@ const ChatListInternal = React.memo((props: {
     }, []);
 
     const pinchGesture = React.useMemo(() => {
-        // The installed RNGH typings do not expose min/max pointer helpers on PinchGesture yet.
-        const pinchBase = (Gesture.Pinch() as unknown as { minPointers(n: number): { maxPointers(n: number): PinchGesture } })
-            .minPointers(2).maxPointers(2);
-        return pinchBase
+        // Pinch gesture inherently requires 2 pointers in RNGH — the previous
+        // `.minPointers(2).maxPointers(2)` cast-and-call pattern crashed at
+        // runtime on RNGH 2.30.0 ("minPointers is not a function") because
+        // those helpers do NOT exist on PinchGesture (they live on BaseGesture
+        // for tap/longPress, not pinch). Default behavior is correct.
+        return Gesture.Pinch()
             .onBegin(() => {
                 isActive.value = true;
             })
