@@ -11,6 +11,7 @@ import { awaitFileExist } from "@/modules/watcher/awaitFileExist";
 import { systemPrompt } from "./utils/systemPrompt";
 import { PermissionResult } from "./sdk/types";
 import type { JsRuntime } from "./runClaude";
+import { mapSystemInitToMetadata, type SDKInitMetadata } from "./utils/sdkMetadata";
 
 export async function claudeRemote(opts: {
 
@@ -41,15 +42,7 @@ export async function claudeRemote(opts: {
     onMessage: (message: SDKMessage) => void,
     onCompletionEvent?: (message: string) => void,
     onSessionReset?: () => void,
-    onSDKMetadata?: (metadata: {
-        tools?: string[];
-        slashCommands?: string[];
-        skills?: SDKSystemMessage['skills'];
-        agents?: SDKSystemMessage['agents'];
-        plugins?: SDKSystemMessage['plugins'];
-        outputStyle?: SDKSystemMessage['output_style'];
-        mcpServers?: SDKSystemMessage['mcp_servers'];
-    }) => void
+    onSDKMetadata?: (metadata: SDKInitMetadata) => void
 }) {
 
     // Check if session is valid
@@ -196,15 +189,7 @@ export async function claudeRemote(opts: {
                 // Start a watcher for to detect the session id
                 // Emit SDK metadata (tools, slash commands) from init message
                 if (opts.onSDKMetadata) {
-                    opts.onSDKMetadata({
-                        tools: systemInit.tools,
-                        slashCommands: systemInit.slash_commands,
-                        skills: systemInit.skills,
-                        agents: systemInit.agents,
-                        plugins: systemInit.plugins,
-                        outputStyle: systemInit.output_style,
-                        mcpServers: systemInit.mcp_servers,
-                    });
+                    opts.onSDKMetadata(mapSystemInitToMetadata(systemInit));
                 }
 
                 // Session id is still in memory, wait until session file is written to disk
