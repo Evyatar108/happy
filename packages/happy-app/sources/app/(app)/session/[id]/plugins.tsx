@@ -10,16 +10,6 @@ const EMPTY_STATE_TITLE = 'No plugins loaded for this session.';
 
 type PluginEntry = NonNullable<NonNullable<Session['metadata']>['plugins']>[number];
 
-export function truncatePluginPath(path: string): string {
-    const segments = path.split(/[\\/]+/).filter(Boolean);
-
-    if (segments.length === 0) {
-        return path;
-    }
-
-    return segments.slice(-2).join('/');
-}
-
 export function PluginsScreenContent({ plugins }: { plugins?: PluginEntry[] }) {
     const items = plugins ?? [];
 
@@ -31,7 +21,7 @@ export function PluginsScreenContent({ plugins }: { plugins?: PluginEntry[] }) {
                         <Item
                             key={`${plugin.name}-${plugin.path}-${index}`}
                             title={plugin.name}
-                            subtitle={truncatePluginPath(plugin.path)}
+                            subtitle={plugin.path}
                             showChevron={false}
                         />
                     ))

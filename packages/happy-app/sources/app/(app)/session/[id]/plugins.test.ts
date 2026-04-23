@@ -24,7 +24,7 @@ vi.mock('@/components/ItemList', () => ({
     ItemList: 'ItemList',
 }));
 
-const { PluginsScreen, truncatePluginPath, EMPTY_STATE_TITLE } = await import('./plugins');
+const { PluginsScreen, EMPTY_STATE_TITLE } = await import('./plugins');
 
 function findElementsByType(node: React.ReactNode, type: string): React.ReactElement[] {
     if (Array.isArray(node)) {
@@ -47,14 +47,6 @@ function findElementsByType(node: React.ReactNode, type: string): React.ReactEle
     const matches: React.ReactElement[] = element.type === type ? [element] : [];
     return [...matches, ...findElementsByType(element.props.children, type)];
 }
-
-describe('truncatePluginPath', () => {
-    it('returns the last two path segments across Windows and Unix-style paths', () => {
-        expect(truncatePluginPath('C:\\plugins\\foocache\\bar')).toBe('foocache/bar');
-        expect(truncatePluginPath('/home/u/.claude/plugins/x/y')).toBe('x/y');
-        expect(truncatePluginPath('vendor/acme-plugin/cache')).toBe('acme-plugin/cache');
-    });
-});
 
 describe('PluginsScreen', () => {
     beforeEach(() => {
@@ -79,12 +71,12 @@ describe('PluginsScreen', () => {
         expect(rows).toHaveLength(2);
         expect(rows[0]?.props).toMatchObject({
             title: 'alpha-plugin',
-            subtitle: 'acme/alpha-plugin',
+            subtitle: '/home/u/.claude/plugins/acme/alpha-plugin',
             showChevron: false,
         });
         expect(rows[1]?.props).toMatchObject({
             title: 'beta-plugin',
-            subtitle: 'vendor/beta-plugin',
+            subtitle: 'C:\\plugins\\vendor\\beta-plugin',
             showChevron: false,
         });
     });
