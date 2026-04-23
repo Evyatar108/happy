@@ -3,6 +3,8 @@ import * as React from 'react';
 import { searchFiles, FileItem } from '@/sync/suggestionFile';
 import { searchCommands, CommandItem } from '@/sync/suggestionCommands';
 
+export const MAX_COMMAND_SUGGESTIONS = 15;
+
 export async function getCommandSuggestions(sessionId: string, query: string): Promise<{
     key: string;
     text: string;
@@ -13,7 +15,7 @@ export async function getCommandSuggestions(sessionId: string, query: string): P
 
     try {
         // Use the command search cache with fuzzy matching
-        const commands = await searchCommands(sessionId, searchTerm, { limit: 15 });
+        const commands = await searchCommands(sessionId, searchTerm, { limit: MAX_COMMAND_SUGGESTIONS });
 
         // Convert CommandItem to suggestion format
         return commands.map((cmd: CommandItem) => ({

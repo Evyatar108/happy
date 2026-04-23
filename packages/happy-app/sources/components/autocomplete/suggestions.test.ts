@@ -19,7 +19,7 @@ vi.mock('@/sync/suggestionFile', () => ({
     searchFiles: vi.fn(),
 }));
 
-const { getCommandSuggestions } = await import('./suggestions');
+const { getCommandSuggestions, MAX_COMMAND_SUGGESTIONS } = await import('./suggestions');
 
 afterEach(() => {
     mockSearchCommands.mockReset();
@@ -39,7 +39,7 @@ describe('getCommandSuggestions', () => {
 
         const suggestions = await getCommandSuggestions('session-id', '/');
 
-        expect(mockSearchCommands).toHaveBeenCalledWith('session-id', '', { limit: 5 });
+        expect(mockSearchCommands).toHaveBeenCalledWith('session-id', '', { limit: MAX_COMMAND_SUGGESTIONS });
         expect(suggestions).toHaveLength(commands.length);
 
         for (const [index, suggestion] of suggestions.entries()) {
