@@ -458,6 +458,7 @@ const MyComponent = () => {
 - Always use "Avatar" for avatars
 - No backward compatibliity ever
 - When non-trivial hook is needed - create a dedicated one in hooks folder, add a comment explaining it's logic
+- Local-only slash commands should be modeled in `sources/sync/slashCommandIntercept.ts` and executed through `sources/hooks/usePreSendCommand.ts` so both the live-session composer and the new-session composer intercept them before `sync.sendMessage()` or `machineSpawnNewSession()`.
 - Always put styles in the very end of the component or page file
 - Always wrap pages in memo
 - For hotkeys use "useGlobalKeyboard", do not change it, it works only on Web

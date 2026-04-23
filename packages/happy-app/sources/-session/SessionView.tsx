@@ -19,6 +19,7 @@ import { EmptyMessages } from '@/components/EmptyMessages';
 import { SessionActionsAnchor, SessionActionsPopover } from '@/components/SessionActionsPopover';
 import { VoiceAssistantStatusBar } from '@/components/VoiceAssistantStatusBar';
 import { useDraft } from '@/hooks/useDraft';
+import { usePreSendCommand } from '@/hooks/usePreSendCommand';
 import { Modal } from '@/modal';
 import { voiceHooks } from '@/realtime/hooks/voiceHooks';
 import { getCurrentVoiceConversationId, getCurrentVoiceSessionDurationSeconds, startRealtimeSession, stopRealtimeSession } from '@/realtime/RealtimeSession';
@@ -204,6 +205,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
     const { messages, isLoaded } = useSessionMessages(sessionId);
     const acknowledgedCliVersions = useLocalSetting('acknowledgedCliVersions');
     const sessionInputHorizontalPadding = Platform.OS === 'web' || isRunningOnMac() || isTablet ? 12 : 8;
+    const preSendCommand = usePreSendCommand(sessionId);
 
     // Check if CLI version is outdated and not already acknowledged
     const cliVersion = session.metadata?.version;
@@ -399,9 +401,16 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
             }}
             blockSend={false}
             onSend={() => {
-                if (message.trim()) {
+                const trimmedMessage = message.trim();
+                if (trimmedMessage) {
+                    const intercept = preSendCommand(trimmedMessage);
                     setMessage('');
                     clearDraft();
+                    if (intercept.intercepted) {
+                        intercept.execute();
+                        return;
+                    }
+
                     sync.sendMessage(sessionId, message, { source: 'chat' });
                 }
             }}
