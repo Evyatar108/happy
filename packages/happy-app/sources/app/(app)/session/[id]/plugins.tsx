@@ -7,6 +7,7 @@ import { useSession } from '@/sync/storage';
 import type { Session } from '@/sync/storageTypes';
 
 const EMPTY_STATE_TITLE = 'No plugins loaded for this session.';
+const LOADING_TITLE = 'Loading plugins…';
 
 type PluginEntry = NonNullable<NonNullable<Session['metadata']>['plugins']>[number];
 
@@ -14,13 +15,15 @@ function getPluginSubtitle(plugin: PluginEntry): string {
     return plugin.source ? `${plugin.path}\n${plugin.source}` : plugin.path;
 }
 
-export function PluginsScreenContent({ plugins }: { plugins?: PluginEntry[] }) {
+export function PluginsScreenContent({ plugins, isLoading }: { plugins?: PluginEntry[]; isLoading?: boolean }) {
     const items = plugins ?? [];
 
     return (
         <ItemList>
             <ItemGroup>
-                {items.length > 0 ? (
+                {isLoading ? (
+                    <Item title={LOADING_TITLE} loading showChevron={false} />
+                ) : items.length > 0 ? (
                     items.map((plugin, index) => (
                         <Item
                             key={`${plugin.name}-${plugin.path}-${index}`}
@@ -43,10 +46,11 @@ export function PluginsScreenContent({ plugins }: { plugins?: PluginEntry[] }) {
 export function PluginsScreen() {
     const { id: sessionId } = useLocalSearchParams<{ id: string }>();
     const session = useSession(sessionId!);
+    const isLoading = !!session && session.metadata?.tools === undefined;
 
-    return <PluginsScreenContent plugins={session?.metadata?.plugins} />;
+    return <PluginsScreenContent plugins={session?.metadata?.plugins} isLoading={isLoading} />;
 }
 
-export { EMPTY_STATE_TITLE };
+export { EMPTY_STATE_TITLE, LOADING_TITLE };
 
 export default React.memo(PluginsScreen);

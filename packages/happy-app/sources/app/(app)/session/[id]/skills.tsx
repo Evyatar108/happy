@@ -7,16 +7,19 @@ import { useSession } from '@/sync/storage';
 import type { Session } from '@/sync/storageTypes';
 
 const EMPTY_STATE_TITLE = 'No skills loaded for this session.';
+const LOADING_TITLE = 'Loading skills…';
 
 type SkillEntry = NonNullable<NonNullable<Session['metadata']>['skills']>[number];
 
-export function SkillsScreenContent({ skills }: { skills?: SkillEntry[] }) {
+export function SkillsScreenContent({ skills, isLoading }: { skills?: SkillEntry[]; isLoading?: boolean }) {
     const items = skills ?? [];
 
     return (
         <ItemList>
             <ItemGroup>
-                {items.length > 0 ? (
+                {isLoading ? (
+                    <Item title={LOADING_TITLE} loading showChevron={false} />
+                ) : items.length > 0 ? (
                     items.map((skill, index) => (
                         <Item
                             key={`${skill}-${index}`}
@@ -38,10 +41,11 @@ export function SkillsScreenContent({ skills }: { skills?: SkillEntry[] }) {
 export function SkillsScreen() {
     const { id: sessionId } = useLocalSearchParams<{ id: string }>();
     const session = useSession(sessionId!);
+    const isLoading = !!session && session.metadata?.tools === undefined;
 
-    return <SkillsScreenContent skills={session?.metadata?.skills} />;
+    return <SkillsScreenContent skills={session?.metadata?.skills} isLoading={isLoading} />;
 }
 
-export { EMPTY_STATE_TITLE };
+export { EMPTY_STATE_TITLE, LOADING_TITLE };
 
 export default React.memo(SkillsScreen);

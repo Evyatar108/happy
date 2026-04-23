@@ -20,6 +20,71 @@ Ranking is by **e-ink tablet quality-of-life** (the fork's primary target), then
 
 ---
 
+### Handle intercepted slash commands before session metadata arrives
+
+**What:** Client-side slash-command intercepts (`/plugin`, `/skills`, `/agents`, etc. in `sources/hooks/usePreSendCommand.ts`) short-circuit into catalog screens without ever reaching the CLI. In a freshly-spawned local-mode session that hasn't produced metadata yet (shadow SDK session hasn't settled, or the user hasn't sent a real message to trigger the local→remote switch), tapping `/plugin` lands on a permanently-looking empty catalog. Today's band-aid: the catalog screens show `Loading…` while `session.metadata.tools === undefined`, but that's open-ended if metadata never arrives.
+
+Need to pick one:
+- **Explanatory nudge** — when an intercepted catalog command fires on a session with no metadata yet, surface a toast/banner ("Session hasn't loaded yet — send any message first") instead of (or alongside) the Loading… state. Low-risk, pure app-side.
+- **Auto-trigger session warm-up** — on intercept, send a no-op/ping to the CLI (or prompt the user to) so the local-mode session exercises its shadow SDK query path and produces metadata. More work; risks sending unintended messages.
+
+**Relevant files:**
+- `packages/happy-app/sources/hooks/usePreSendCommand.ts` — intercept site
+- `packages/happy-app/sources/sync/slashCommandIntercept.ts` — intercept table
+- `packages/happy-app/sources/app/(app)/session/[id]/{plugins,skills,agents}.tsx` — Loading… UI today
+- `packages/happy-cli/src/claude/claudeLocalLauncher.ts` — where a warm-up would land
+
+**Complexity:** small for option A (~30 min), medium for option B (touches CLI + wire + app).
+
+---
+
+### Interactive `/plugin`, `/skills`, `/agents` via the remote session
+
+**What:** Today the intercepted slash commands (`usePreSendCommand.ts` → session-scoped catalog screens) are strictly read-only — they show lists/info harvested from SDK init metadata. Claude Code's real `/plugin` TUI is interactive (install, uninstall, enable/disable, browse marketplaces, etc.); the fork currently can't do any of that from mobile.
+
+Bring interaction parity by routing these commands through the session instead of intercepting them:
+- Let the slash command reach the CLI (bypass the app-side intercept for these specific commands, or keep the intercept but add "open in terminal"-style action handoff).
+- In remote mode the SDK can invoke the plugin subsystem directly; surface its prompts/choices back to the app via an existing RPC pattern (mirrors how permission prompts already work — see `packages/happy-cli/src/claude/mcp/startPermissionServer.ts`).
+- In local mode the PTY-attached Claude already handles interactivity; the challenge is mirroring its TUI prompts to the app. Simplest: force-switch to remote mode when an interactive catalog command fires (ties into the "warm-up" option in the item above).
+
+Behavioral question to decide upfront: do these become **replacements** for the read-only screens (unified interactive view) or a separate "Manage" action from within today's catalogs? Read-only-first is probably still the right default on e-ink (cheap render, no round-trips); interactive mode would be an explicit affordance.
+
+**Relevant files:**
+- `packages/happy-app/sources/sync/slashCommandIntercept.ts` — intercept table; decide which stay read-only vs. pass-through
+- `packages/happy-app/sources/app/(app)/session/[id]/{plugins,skills,agents}.tsx` — extend with action rows or link to an interactive view
+- `packages/happy-cli/src/claude/claudeRemote.ts` — remote SDK stream; where interactive prompts would surface
+- `packages/happy-cli/src/claude/mcp/startPermissionServer.ts` — existing pattern for CLI-originated prompts → mobile → CLI round-trip
+- `packages/happy-wire/` — any new RPC shapes for plugin actions
+
+**Complexity:** medium–large. Read-only-plus-select-actions (enable/disable toggles) could ship as a first slice in ~1 day; full install/uninstall/marketplace UI is a multi-day project and should probably be a standalone feature PR.
+
+---
+
+### Lazy-load long chats + cap initial message fetch
+
+**What:** Opening a long chat today is slow because the sync layer fetches **every** historical message up-front before the `ChatList` even mounts. `packages/happy-app/sources/sync/sync.ts:1649` loops `while (hasMore)` over `/v3/sessions/:id/messages?after_seq=...&limit=100`, pulling, decrypting, and normalizing the entire history before the first render. `ChatList` uses vanilla `FlatList` (`packages/happy-app/sources/components/ChatList.tsx:170`) with no virtualization tuning — it does virtualize rendering by default, but every message is in memory + normalized. On e-ink CPUs (see `devices.md`) this is the dominant cost.
+
+Two-part fix:
+1. **Cap the initial fetch** to the N most recent messages (inverted FlatList means "most recent" = what the user sees first). Expose a `loadOlder()` entry point triggered by `onEndReached` (which, in an inverted list, fires when scrolling toward older messages). Server already supports seq-based pagination; app side needs a "stop at N, remember oldest seq, resume from there" state machine. Touch points: `sources/sync/sync.ts` (`fetchMessages` loop — add a `maxInitial` guard + lazy-fetch method), `sources/sync/storage.ts` (per-session "hasOlder" flag), `sources/components/ChatList.tsx` (`onEndReached` + throttle). Keep tail-follow behavior intact via the existing `maintainVisibleContentPosition`.
+2. **Tune FlatList virtualization knobs for e-ink** — set `initialNumToRender`, `maxToRenderPerBatch`, `windowSize`, and (conditionally) `removeClippedSubviews` to smaller values than FlatList's defaults. These numbers trade render quality during fling for lower steady-state memory; e-ink doesn't fling, so we can be aggressive. Optionally swap `FlatList` → `@shopify/flash-list` if the gain is meaningful (risk: maintenance churn + extra dep; measure first).
+
+**Clarification on "don't render all messages in the remote":** The app already virtualizes view rendering via FlatList — only messages near the viewport mount. The real bottleneck is **state/sync**: every message is decrypted, normalized, and held in the store regardless of whether it will ever render. The fix above addresses that at the fetch boundary.
+
+**Why this matters for e-ink:** slow decrypt + slow normalize + large JS heap → multi-second time-to-first-render on cold chat open → user sees a blank white screen long enough to assume the app hung.
+
+**Relevant files:**
+- `packages/happy-app/sources/sync/sync.ts:1630–1690` — `fetchMessages` loop to refactor
+- `packages/happy-app/sources/sync/storage.ts` — per-session pagination state
+- `packages/happy-app/sources/sync/apiFeed.ts`, `packages/happy-app/sources/sync/apiTypes.ts` — wire shapes (server already supports seq cursors)
+- `packages/happy-app/sources/components/ChatList.tsx` — FlatList props + `onEndReached`
+- `packages/happy-app/sources/sync/reducer/messageToEvent.ts` — confirm reducer tolerates out-of-order arrivals when older batches land after newer state
+
+**Complexity:** medium. (1) is a ~1-day job with careful testing on the tail-sync / in-flight-streaming edge cases. (2) is ~1 hour of tuning + measurement. Do (2) first — it may buy enough perf to make (1) lower priority.
+
+**Verification:** time-to-interactive on a session with >1000 messages, on the Onyx tablet (per `devices.md`).
+
+---
+
 ### 5. Hardware page-turn key support
 
 **What:** Capture Android `KeyboardEvent` for `DPAD_UP`/`DPAD_DOWN` (and optionally volume keys) in `ChatList`. Scroll by ~90% of viewport height per press. Opt-in toggle.
