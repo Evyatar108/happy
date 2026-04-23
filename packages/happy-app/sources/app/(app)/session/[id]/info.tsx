@@ -350,6 +350,12 @@ function SessionInfoContent({ session }: { session: Session }) {
                         icon={<Ionicons name="extension-puzzle-outline" size={29} color="#007AFF" />}
                         onPress={() => router.push(`/session/${session.id}/plugins`)}
                     />
+                    <Item
+                        title="Skills"
+                        subtitle="View loaded skills for this session"
+                        icon={<Ionicons name="library-outline" size={29} color="#007AFF" />}
+                        onPress={() => router.push(`/session/${session.id}/skills`)}
+                    />
                     {session.metadata?.machineId && (
                         <Item
                             title={t('sessionInfo.viewMachine')}
