@@ -3,7 +3,7 @@
  * US-000 cost probe — manual dashboard gate
  *
  * Usage:
- *   node scripts/probe-shadow-session-cost.cjs
+ *   node scripts/probe-shadow-session-cost.mjs
  * from packages/happy-cli/. Optionally set HAPPY_SETTINGS_PATH to point at a
  * specific claude settings file (defaults to undefined, letting the SDK use its
  * own default).
@@ -19,9 +19,7 @@
  * passes:true — it requires a code fix first.
  */
 
-'use strict';
-
-const { query } = require('@anthropic-ai/claude-agent-sdk');
+import { query } from '@anthropic-ai/claude-agent-sdk';
 
 const settingsPath = process.env.HAPPY_SETTINGS_PATH || undefined;
 const cwd = process.cwd();
@@ -65,14 +63,26 @@ async function main() {
       }
     }
   } finally {
-    await queryHandle.close().catch((err) => {
+    try {
+      await queryHandle.close();
+    } catch (err) {
       console.log(`[${ts()}] close error (expected after abort): ${err && err.message}`);
-    });
+    }
     console.log(`[${ts()}] probe complete`);
   }
 }
 
+function isExpectedAbortError(err) {
+  if (!err) return false;
+  const msg = err.message || String(err);
+  return /abort/i.test(msg);
+}
+
 main().catch((err) => {
+  if (isExpectedAbortError(err)) {
+    console.log(`[${ts()}] expected abort error after shadow-session teardown: ${err.message}`);
+    process.exit(0);
+  }
   console.error(`[${ts()}] fatal:`, err);
   process.exit(1);
 });
