@@ -31,6 +31,8 @@ export const NATIVE_PROMPT_COMMANDS = new Set([
     'review',
     'security-review',
     'team-onboarding',
+    'commit',
+    'commit-push-pr',
 ]);
 
 const DEFAULT_COMMANDS: CommandItem[] = [
@@ -56,6 +58,8 @@ export const COMMAND_DESCRIPTIONS: Record<string, string> = {
     'security-review': 'Review changes for security risks.',
     skills: 'Open the session skills catalog.',
     'team-onboarding': 'Generate onboarding guidance for this codebase.',
+    'commit': 'Generate a git commit for the current changes.',
+    'commit-push-pr': 'Commit, push, and open a pull request.',
 };
 
 const APP_SYNTHETIC_COMMANDS: CommandItem[] = [

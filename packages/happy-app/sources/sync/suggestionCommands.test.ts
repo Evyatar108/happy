@@ -115,6 +115,25 @@ describe('suggestionCommands', () => {
         ]));
     });
 
+    it('classifies commit and commit-push-pr as native-prompt', () => {
+        setSessionMetadata({
+            path: '/repo',
+            host: 'workstation',
+            slashCommands: ['commit', 'commit-push-pr'],
+        });
+
+        const commands = getAllCommands(TEST_SESSION_ID);
+
+        expect(commands).toContainEqual(expect.objectContaining({
+            command: 'commit',
+            source: 'native-prompt',
+        }));
+        expect(commands).toContainEqual(expect.objectContaining({
+            command: 'commit-push-pr',
+            source: 'native-prompt',
+        }));
+    });
+
     it('falls back to defaults plus synthetic app commands when session metadata is missing', async () => {
         state.sessions = {};
 
