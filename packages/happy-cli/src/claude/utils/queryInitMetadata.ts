@@ -1,3 +1,16 @@
+/**
+ * Shadow SDK session — harvests init metadata (tools / skills / plugins /
+ * agents / slashCommands / mcpServers / outputStyle) without running any
+ * LLM inference, then aborts.
+ *
+ * Log-level convention: happy-path trace lines are `logger.debug` — they
+ * still land in the per-session file under the configured logs dir, so the
+ * existing grep workflow keeps working. `logger.warn` is reserved for
+ * genuine anomalies (RPC threw, unexpected message type, stream ended
+ * without system/init, timeout) so those stand out in user-facing console
+ * output.
+ */
+
 import { logger } from '@/ui/logger';
 import {
     query,
@@ -83,7 +96,7 @@ export async function queryInitMetadata(opts: QueryInitMetadataOptions): Promise
     }, timeoutMs);
 
     try {
-        logger.warn(
+        logger.debug(
             `[queryInitMetadata] starting shadow session cwd=${opts.cwd} settingsPath=${opts.settingsPath ?? '(none)'} timeoutMs=${timeoutMs}`,
         );
         queryHandle = query({
@@ -107,7 +120,7 @@ export async function queryInitMetadata(opts: QueryInitMetadataOptions): Promise
             }
 
             const initFromStream = mapSystemInitToMetadata(message);
-            logger.warn(
+            logger.debug(
                 `[queryInitMetadata] got system/init stream; tools=${initFromStream.tools?.length ?? 'nil'} skills=${initFromStream.skills?.length ?? 'nil'} plugins=${initFromStream.plugins?.length ?? 'nil'} agents=${initFromStream.agents?.length ?? 'nil'} slashCommands=${initFromStream.slashCommands?.length ?? 'nil'}`,
             );
 
@@ -123,7 +136,7 @@ export async function queryInitMetadata(opts: QueryInitMetadataOptions): Promise
                     }),
                 ]);
 
-                logger.warn(
+                logger.debug(
                     `[queryInitMetadata] control RPCs resolved; initResult.commands=${initResult.commands?.length ?? 'nil'} initResult.agents=${initResult.agents?.length ?? 'nil'} reloadResult.plugins=${reloadResult.plugins?.length ?? 'nil'} reloadResult.mcpServers=${reloadResult.mcpServers?.length ?? 'nil'} reloadResult.commands=${reloadResult.commands?.length ?? 'nil'}`,
                 );
 
@@ -136,7 +149,7 @@ export async function queryInitMetadata(opts: QueryInitMetadataOptions): Promise
                     reloadResult,
                 );
                 const definedKeys = Object.entries(merged).filter(([, v]) => v !== undefined).map(([k]) => k);
-                logger.warn(
+                logger.debug(
                     `[queryInitMetadata] returning merged metadata; defined fields = [${definedKeys.join(', ')}]`,
                 );
                 return merged;
