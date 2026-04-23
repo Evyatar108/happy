@@ -372,6 +372,12 @@ export const pt: TranslationStructure = {
         worktreeCleanupMessage: 'O Worktree não tem alterações não confirmadas. Deseja excluir os arquivos do Worktree?',
         worktreeCleanupDelete: 'Excluir Worktree',
         worktreeCleanupKeep: 'Manter arquivos',
+        plugins: 'Plugins',
+        pluginsSubtitle: 'Ver plugins carregados nesta sessão',
+        skills: 'Habilidades',
+        skillsSubtitle: 'Ver habilidades carregadas nesta sessão',
+        agents: 'Agentes',
+        agentsSubtitle: 'Ver subagentes disponíveis para esta sessão',
 
     },
 

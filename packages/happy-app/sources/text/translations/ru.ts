@@ -351,6 +351,12 @@ export const ru: TranslationStructure = {
         worktreeCleanupMessage: 'В Worktree нет незафиксированных изменений. Хотите удалить файлы Worktree?',
         worktreeCleanupDelete: 'Удалить Worktree',
         worktreeCleanupKeep: 'Сохранить файлы',
+        plugins: 'Плагины',
+        pluginsSubtitle: 'Просмотр плагинов, загруженных в этой сессии',
+        skills: 'Навыки',
+        skillsSubtitle: 'Просмотр навыков, загруженных в этой сессии',
+        agents: 'Агенты',
+        agentsSubtitle: 'Просмотр доступных субагентов для этой сессии',
     },
 
     components: {

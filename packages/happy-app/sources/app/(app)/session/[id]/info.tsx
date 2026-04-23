@@ -344,6 +344,24 @@ function SessionInfoContent({ session }: { session: Session }) {
 
                 {/* Quick Actions */}
                 <ItemGroup title={t('sessionInfo.quickActions')}>
+                    <Item
+                        title={t('sessionInfo.plugins')}
+                        subtitle={t('sessionInfo.pluginsSubtitle')}
+                        icon={<Ionicons name="extension-puzzle-outline" size={29} color="#007AFF" />}
+                        onPress={() => router.push(`/session/${session.id}/plugins`)}
+                    />
+                    <Item
+                        title={t('sessionInfo.skills')}
+                        subtitle={t('sessionInfo.skillsSubtitle')}
+                        icon={<Ionicons name="library-outline" size={29} color="#007AFF" />}
+                        onPress={() => router.push(`/session/${session.id}/skills`)}
+                    />
+                    <Item
+                        title={t('sessionInfo.agents')}
+                        subtitle={t('sessionInfo.agentsSubtitle')}
+                        icon={<Ionicons name="people-outline" size={29} color="#007AFF" />}
+                        onPress={() => router.push(`/session/${session.id}/agents`)}
+                    />
                     {session.metadata?.machineId && (
                         <Item
                             title={t('sessionInfo.viewMachine')}

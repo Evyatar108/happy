@@ -5,10 +5,19 @@
 
 import Fuse from 'fuse.js';
 import { storage } from './storage';
+import type { Metadata } from './storageTypes';
+
+export type CommandSource =
+    | 'native-prompt'
+    | 'native-local'
+    | 'skill'
+    | 'plugin'
+    | 'app-synthetic';
 
 export interface CommandItem {
-    command: string;        // The command without slash (e.g., "compact")
-    description?: string;   // Optional description of what the command does
+    command: string;
+    description?: string;
+    source: CommandSource;
 }
 
 interface SearchOptions {
@@ -16,133 +25,144 @@ interface SearchOptions {
     threshold?: number;
 }
 
-// Commands to ignore/filter out
-export const IGNORED_COMMANDS = [
-    "add-dir",
-    "agents",
-    "config",
-    "statusline",
-    "bashes",
-    "settings",
-    "cost",
-    "doctor",
-    "exit",
-    "help",
-    "ide",
-    "init",
-    "install-github-app",
-    "mcp",
-    "memory",
-    "migrate-installer",
-    "model",
-    "pr-comments",
-    "release-notes",
-    "resume",
-    "status",
-    "bug",
-    "review",
-    "security-review",
-    "terminal-setup",
-    "upgrade",
-    "vim",
-    "permissions",
-    "hooks",
-    "export",
-    "logout",
-    "login"
-];
+export const NATIVE_PROMPT_COMMANDS = new Set([
+    'init',
+    'insights',
+    'review',
+    'security-review',
+    'team-onboarding',
+    'commit',
+    'commit-push-pr',
+]);
 
-// Default commands always available
 const DEFAULT_COMMANDS: CommandItem[] = [
-    { command: 'compact', description: 'Compact the conversation history' },
-    { command: 'clear', description: 'Clear the conversation' }
+    { command: 'clear', description: 'Clear the conversation.', source: 'native-local' },
+    { command: 'compact', description: 'Compact the conversation history.', source: 'native-local' },
 ];
 
-// Command descriptions for known tools/commands
-const COMMAND_DESCRIPTIONS: Record<string, string> = {
-    // Default commands
-    compact: 'Compact the conversation history',
-    
-    // Common tool commands
-    help: 'Show available commands',
-    clear: 'Clear the conversation',
-    reset: 'Reset the session',
-    export: 'Export conversation',
-    debug: 'Show debug information',
-    status: 'Show connection status',
-    stop: 'Stop current operation',
-    abort: 'Abort current operation',
-    cancel: 'Cancel current operation',
-    
-    // Add more descriptions as needed
+export const COMMAND_DESCRIPTIONS: Record<string, string> = {
+    agents: 'Open the session agents catalog.',
+    clear: 'Clear the conversation.',
+    compact: 'Compact the conversation history.',
+    context: 'Show project and session context.',
+    cost: 'Show token and usage cost details.',
+    heapdump: 'Capture a diagnostic heap dump.',
+    help: 'Show command help and guidance.',
+    init: 'Initialize Claude Code in this project.',
+    insights: 'Show workspace insights and suggestions.',
+    mcp: 'Explain how to manage MCP servers from the terminal.',
+    memory: 'Explain how to use Claude Code memory from the terminal.',
+    model: 'Explain how to switch models from the terminal.',
+    plugin: 'Open the session plugin catalog.',
+    review: 'Review recent changes for issues.',
+    'security-review': 'Review changes for security risks.',
+    skills: 'Open the session skills catalog.',
+    'team-onboarding': 'Generate onboarding guidance for this codebase.',
+    'commit': 'Generate a git commit for the current changes.',
+    'commit-push-pr': 'Commit, push, and open a pull request.',
 };
 
-// Get commands from session metadata
-function getCommandsFromSession(sessionId: string): CommandItem[] {
-    const state = storage.getState();
-    const session = state.sessions[sessionId];
-    if (!session || !session.metadata) {
-        return DEFAULT_COMMANDS;
-    }
+const APP_SYNTHETIC_COMMANDS: CommandItem[] = [
+    { command: 'plugin', description: COMMAND_DESCRIPTIONS.plugin, source: 'app-synthetic' },
+    { command: 'skills', description: COMMAND_DESCRIPTIONS.skills, source: 'app-synthetic' },
+    { command: 'agents', description: COMMAND_DESCRIPTIONS.agents, source: 'app-synthetic' },
+    { command: 'memory', description: COMMAND_DESCRIPTIONS.memory, source: 'app-synthetic' },
+    { command: 'model', description: COMMAND_DESCRIPTIONS.model, source: 'app-synthetic' },
+    { command: 'mcp', description: COMMAND_DESCRIPTIONS.mcp, source: 'app-synthetic' },
+    { command: 'help', description: COMMAND_DESCRIPTIONS.help, source: 'app-synthetic' },
+];
 
-    const commands: CommandItem[] = [...DEFAULT_COMMANDS];
-    
-    // Add commands from metadata.slashCommands (filter with ignore list)
-    if (session.metadata.slashCommands) {
-        for (const cmd of session.metadata.slashCommands) {
-            // Skip if in ignore list
-            if (IGNORED_COMMANDS.includes(cmd)) continue;
-            
-            // Check if it's already in default commands
-            if (!commands.find(c => c.command === cmd)) {
-                commands.push({
-                    command: cmd,
-                    description: COMMAND_DESCRIPTIONS[cmd]  // Optional description
-                });
-            }
-        }
-    }
-    
-    return commands;
+function getMetadata(sessionId: string): Metadata | null {
+    const session = storage.getState().sessions[sessionId];
+    return session?.metadata ?? null;
 }
 
-// Main export: search commands with fuzzy matching
+function classifyCommand(
+    command: string,
+    pluginNames: Set<string>,
+    skills: Set<string>,
+): CommandSource {
+    if (command.includes(':')) {
+        const prefix = command.split(':', 1)[0];
+        if (pluginNames.has(prefix)) {
+            return 'plugin';
+        }
+    }
+
+    if (skills.has(command)) {
+        return 'skill';
+    }
+
+    if (NATIVE_PROMPT_COMMANDS.has(command)) {
+        return 'native-prompt';
+    }
+
+    return 'native-local';
+}
+
+function buildCommandItem(
+    command: string,
+    pluginNames: Set<string>,
+    skills: Set<string>,
+): CommandItem {
+    return {
+        command,
+        description: COMMAND_DESCRIPTIONS[command],
+        source: classifyCommand(command, pluginNames, skills),
+    };
+}
+
+function getCommandsFromSession(sessionId: string): CommandItem[] {
+    const metadata = getMetadata(sessionId);
+    const commands = new Map<string, CommandItem>();
+    const pluginNames = new Set((metadata?.plugins ?? []).map((plugin) => plugin.name));
+    const skills = new Set(metadata?.skills ?? []);
+
+    for (const command of DEFAULT_COMMANDS) {
+        commands.set(command.command, command);
+    }
+
+    for (const command of APP_SYNTHETIC_COMMANDS) {
+        commands.set(command.command, command);
+    }
+
+    for (const command of metadata?.slashCommands ?? []) {
+        if (!commands.has(command)) {
+            commands.set(command, buildCommandItem(command, pluginNames, skills));
+        }
+    }
+
+    return Array.from(commands.values());
+}
+
 export async function searchCommands(
     sessionId: string,
     query: string,
-    options: SearchOptions = {}
+    options: SearchOptions = {},
 ): Promise<CommandItem[]> {
-    const { limit = 10, threshold = 0.3 } = options;
-    
-    // Get commands from session metadata (no caching)
+    const { limit, threshold = 0.3 } = options;
     const commands = getCommandsFromSession(sessionId);
-    
-    // If query is empty, return all commands
+
     if (!query || query.trim().length === 0) {
-        return commands.slice(0, limit);
+        return typeof limit === 'number' ? commands.slice(0, limit) : commands;
     }
-    
-    // Setup Fuse for fuzzy search
-    const fuseOptions = {
+
+    const fuse = new Fuse(commands, {
         keys: [
             { name: 'command', weight: 0.7 },
-            { name: 'description', weight: 0.3 }
+            { name: 'description', weight: 0.3 },
         ],
         threshold,
         includeScore: true,
         shouldSort: true,
         minMatchCharLength: 1,
         ignoreLocation: true,
-        useExtendedSearch: true
-    };
-    
-    const fuse = new Fuse(commands, fuseOptions);
-    const results = fuse.search(query, { limit });
-    
-    return results.map(result => result.item);
+        useExtendedSearch: true,
+    });
+
+    return fuse.search(query, { limit: limit ?? 15 }).map((result) => result.item);
 }
 
-// Get all available commands for a session
 export function getAllCommands(sessionId: string): CommandItem[] {
     return getCommandsFromSession(sessionId);
 }

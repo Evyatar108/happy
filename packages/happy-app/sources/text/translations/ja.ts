@@ -374,6 +374,12 @@ export const ja: TranslationStructure = {
         worktreeCleanupMessage: 'Worktreeにコミットされていない変更はありません。Worktreeのファイルを削除しますか？',
         worktreeCleanupDelete: 'Worktreeを削除',
         worktreeCleanupKeep: 'ファイルを保持',
+        plugins: 'プラグイン',
+        pluginsSubtitle: 'このセッションで読み込まれたプラグインを表示',
+        skills: 'スキル',
+        skillsSubtitle: 'このセッションで読み込まれたスキルを表示',
+        agents: 'エージェント',
+        agentsSubtitle: 'このセッションで利用可能なサブエージェントを表示',
 
     },
 

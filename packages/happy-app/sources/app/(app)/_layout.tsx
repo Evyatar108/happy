@@ -84,6 +84,30 @@ export default function RootLayout() {
                 }}
             />
             <Stack.Screen
+                name="session/[id]/plugins"
+                options={{
+                    headerShown: true,
+                    headerTitle: t('sessionInfo.plugins'),
+                    headerBackTitle: t('common.back'),
+                }}
+            />
+            <Stack.Screen
+                name="session/[id]/skills"
+                options={{
+                    headerShown: true,
+                    headerTitle: t('sessionInfo.skills'),
+                    headerBackTitle: t('common.back'),
+                }}
+            />
+            <Stack.Screen
+                name="session/[id]/agents"
+                options={{
+                    headerShown: true,
+                    headerTitle: t('sessionInfo.agents'),
+                    headerBackTitle: t('common.back'),
+                }}
+            />
+            <Stack.Screen
                 name="session/[id]/files"
                 options={{
                     headerShown: true,

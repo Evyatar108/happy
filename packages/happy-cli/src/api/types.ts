@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { Update, UpdateMachineBody } from '@slopus/happy-wire';
 import { UsageSchema } from '@/claude/types'
+import type { SDKSystemMessage } from '@/claude/sdk'
 import type { SandboxConfig } from '@/persistence'
 
 export {
@@ -270,6 +271,11 @@ export type Metadata = {
   codexThreadId?: string, // Codex app-server thread ID
   tools?: string[],
   slashCommands?: string[],
+  skills?: SDKSystemMessage['skills'],
+  agents?: SDKSystemMessage['agents'],
+  plugins?: SDKSystemMessage['plugins'],
+  outputStyle?: SDKSystemMessage['output_style'],
+  mcpServers?: SDKSystemMessage['mcp_servers'],
   homeDir: string,
   happyHomeDir: string,
   happyLibDir: string,

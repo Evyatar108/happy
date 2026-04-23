@@ -390,6 +390,12 @@ export const pl: TranslationStructure = {
         worktreeCleanupMessage: 'Worktree nie ma niezatwierdzonych zmian. Czy chcesz usunąć pliki Worktree?',
         worktreeCleanupDelete: 'Usuń Worktree',
         worktreeCleanupKeep: 'Zachowaj pliki',
+        plugins: 'Wtyczki',
+        pluginsSubtitle: 'Wyświetl wtyczki załadowane w tej sesji',
+        skills: 'Umiejętności',
+        skillsSubtitle: 'Wyświetl umiejętności załadowane w tej sesji',
+        agents: 'Agenci',
+        agentsSubtitle: 'Wyświetl dostępnych subagentów dla tej sesji',
     },
 
     components: {

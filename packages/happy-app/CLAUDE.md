@@ -20,6 +20,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Testing
 - `pnpm test` - Run tests in watch mode (Vitest)
+- Keep the Vitest config in `vitest.config.mts`; the `.ts` filename can fail to boot under this Windows/Bash setup with an `ERR_REQUIRE_ESM` startup error.
+- For node-environment sync tests, mock `sources/sync/storage.ts` instead of importing the real store when you only need `storage.getState()`. The real store pulls in `react-native`, which can fail to parse under Vitest's node runner in this harness.
 - No existing tests in the codebase yet
 
 ### Production
@@ -456,6 +458,8 @@ const MyComponent = () => {
 - Always use "Avatar" for avatars
 - No backward compatibliity ever
 - When non-trivial hook is needed - create a dedicated one in hooks folder, add a comment explaining it's logic
+- Local-only slash commands should be modeled in `sources/sync/slashCommandIntercept.ts` and executed through `sources/hooks/usePreSendCommand.ts` so both the live-session composer and the new-session composer intercept them before `sync.sendMessage()` or `machineSpawnNewSession()`.
+- App-only picker commands belong in `sources/sync/suggestionCommands.ts` with `source: 'app-synthetic'`; do not inject them through session metadata, which should stay reserved for SDK-emitted commands and classification inputs.
 - Always put styles in the very end of the component or page file
 - Always wrap pages in memo
 - For hotkeys use "useGlobalKeyboard", do not change it, it works only on Web

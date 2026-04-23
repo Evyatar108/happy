@@ -387,7 +387,12 @@ export const en: TranslationStructure = {
         worktreeCleanupMessage: 'The worktree has no uncommitted changes. Would you like to delete the worktree files?',
         worktreeCleanupDelete: 'Delete Worktree',
         worktreeCleanupKeep: 'Keep Files',
-
+        plugins: 'Plugins',
+        pluginsSubtitle: 'View plugins loaded in this session',
+        skills: 'Skills',
+        skillsSubtitle: 'View skills loaded in this session',
+        agents: 'Agents',
+        agentsSubtitle: 'View available subagents for this session',
     },
 
     components: {

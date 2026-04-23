@@ -41,6 +41,7 @@ import { resolveAbsolutePath } from '@/utils/pathUtils';
 import { formatPathRelativeToHome, formatLastSeen } from '@/utils/sessionUtils';
 import { useNavigateToSession } from '@/hooks/useNavigateToSession';
 import { useNewSessionDraft } from '@/hooks/useNewSessionDraft';
+import { usePreSendCommand } from '@/hooks/usePreSendCommand';
 import { Modal } from '@/modal';
 import type { Machine, Session } from '@/sync/storageTypes';
 import {
@@ -472,6 +473,7 @@ function NewSessionScreen() {
     const headerHeight = useHeaderHeight();
     const router = useRouter();
     const navigateToSession = useNavigateToSession();
+    const preSendCommand = usePreSendCommand(undefined);
 
     // Real data sources
     const allMachines = useAllMachines({ includeOffline: true });
@@ -790,6 +792,16 @@ function NewSessionScreen() {
 
     // Spawn session handler
     const handleSend = React.useCallback(async (approvedNewDirectoryCreation: boolean = false) => {
+        const trimmedPrompt = prompt.trim();
+        if (trimmedPrompt) {
+            const intercept = preSendCommand(trimmedPrompt);
+            if (intercept.intercepted) {
+                setPrompt('');
+                intercept.execute();
+                return;
+            }
+        }
+
         if (!selectedMachineId || !selectedMachine) {
             Modal.alert(t('common.error'), 'Please select a machine');
             return;
@@ -844,8 +856,8 @@ function NewSessionScreen() {
                     setPrompt('');
 
                     // Send initial message if provided
-                    if (prompt.trim()) {
-                        await sync.sendMessage(result.sessionId, prompt.trim(), { source: 'new_session' });
+                    if (trimmedPrompt) {
+                        await sync.sendMessage(result.sessionId, trimmedPrompt, { source: 'new_session' });
                     }
 
                     router.back();
@@ -874,7 +886,7 @@ function NewSessionScreen() {
         } finally {
             setIsSpawning(false);
         }
-    }, [selectedMachineId, selectedMachine, selectedPath, selectedAgent, prompt, router, navigateToSession, currentPermission.key, currentModelKey, worktreeKey]);
+    }, [selectedMachineId, selectedMachine, selectedPath, selectedAgent, prompt, preSendCommand, router, navigateToSession, currentPermission.key, currentModelKey, worktreeKey, setPrompt]);
 
     const canSend = selectedMachineId && selectedMachine && isMachineOnline(selectedMachine) && !isSpawning;
 

@@ -374,6 +374,12 @@ export const zhHans: TranslationStructure = {
         worktreeCleanupMessage: 'Worktree 没有未提交的更改。是否要删除 Worktree 文件？',
         worktreeCleanupDelete: '删除 Worktree',
         worktreeCleanupKeep: '保留文件',
+        plugins: '插件',
+        pluginsSubtitle: '查看此会话中加载的插件',
+        skills: '技能',
+        skillsSubtitle: '查看此会话中加载的技能',
+        agents: '代理',
+        agentsSubtitle: '查看此会话的可用子代理',
 
     },
 

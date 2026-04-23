@@ -37,6 +37,23 @@ export const MetadataSchema = z.object({
     codexThreadId: z.string().optional(), // Codex app-server thread ID
     tools: z.array(z.string()).optional(),
     slashCommands: z.array(z.string()).optional(),
+    skills: z.array(z.string()).optional(),
+    agents: z.array(z.string()).optional(),
+    plugins: z.array(z.object({
+        name: z.string(),
+        path: z.string(),
+    })).optional(),
+    outputStyle: z.string().optional(),
+    mcpServers: z.union([
+        z.record(z.object({
+            command: z.string().optional(),
+            args: z.array(z.string()).optional(),
+            url: z.string().optional(),
+        }).passthrough()),
+        z.array(z.object({
+            name: z.string(),
+        }).passthrough()),
+    ]).optional(),
     homeDir: z.string().optional(), // User's home directory on the machine
     happyHomeDir: z.string().optional(), // Happy configuration directory 
     startedFromDaemon: z.boolean().optional(),
