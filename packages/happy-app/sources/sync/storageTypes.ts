@@ -44,7 +44,16 @@ export const MetadataSchema = z.object({
         path: z.string(),
     })).optional(),
     outputStyle: z.string().optional(),
-    mcpServers: z.any().optional(),
+    mcpServers: z.union([
+        z.record(z.object({
+            command: z.string().optional(),
+            args: z.array(z.string()).optional(),
+            url: z.string().optional(),
+        }).passthrough()),
+        z.array(z.object({
+            name: z.string(),
+        }).passthrough()),
+    ]).optional(),
     homeDir: z.string().optional(), // User's home directory on the machine
     happyHomeDir: z.string().optional(), // Happy configuration directory 
     startedFromDaemon: z.boolean().optional(),
