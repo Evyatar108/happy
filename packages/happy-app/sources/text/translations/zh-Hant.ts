@@ -366,6 +366,12 @@ export const zhHant: TranslationStructure = {
         worktreeCleanupMessage: 'Worktree 沒有未提交的變更。是否要刪除 Worktree 檔案？',
         worktreeCleanupDelete: '刪除 Worktree',
         worktreeCleanupKeep: '保留檔案',
+        plugins: '插件',
+        pluginsSubtitle: '查看此工作階段中載入的插件',
+        skills: '技能',
+        skillsSubtitle: '查看此工作階段中載入的技能',
+        agents: '代理程式',
+        agentsSubtitle: '查看此工作階段的可用子代理程式',
 
     },
 

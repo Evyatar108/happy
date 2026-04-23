@@ -87,7 +87,7 @@ export default function RootLayout() {
                 name="session/[id]/plugins"
                 options={{
                     headerShown: true,
-                    headerTitle: 'Plugins',
+                    headerTitle: t('sessionInfo.plugins'),
                     headerBackTitle: t('common.back'),
                 }}
             />
@@ -95,7 +95,7 @@ export default function RootLayout() {
                 name="session/[id]/skills"
                 options={{
                     headerShown: true,
-                    headerTitle: 'Skills',
+                    headerTitle: t('sessionInfo.skills'),
                     headerBackTitle: t('common.back'),
                 }}
             />
@@ -103,7 +103,7 @@ export default function RootLayout() {
                 name="session/[id]/agents"
                 options={{
                     headerShown: true,
-                    headerTitle: 'Agents',
+                    headerTitle: t('sessionInfo.agents'),
                     headerBackTitle: t('common.back'),
                 }}
             />

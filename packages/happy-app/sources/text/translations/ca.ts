@@ -366,6 +366,12 @@ export const ca: TranslationStructure = {
         worktreeCleanupMessage: 'El Worktree no té canvis sense confirmar. Vols eliminar els fitxers del Worktree?',
         worktreeCleanupDelete: 'Eliminar Worktree',
         worktreeCleanupKeep: 'Conservar fitxers',
+        plugins: 'Connectors',
+        pluginsSubtitle: 'Veure els connectors carregats en aquesta sessió',
+        skills: 'Habilitats',
+        skillsSubtitle: 'Veure les habilitats carregades en aquesta sessió',
+        agents: 'Agents',
+        agentsSubtitle: 'Veure els subagents disponibles per a aquesta sessió',
 
     },
 
