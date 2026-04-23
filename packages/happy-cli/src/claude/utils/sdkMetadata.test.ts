@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import type { Metadata } from '@/api/types';
-import type { SDKSystemMessage } from '@/claude/sdk';
-import { mapSystemInitToMetadata, mergeSDKInitMetadata } from './sdkMetadata';
+import type {
+    SDKControlInitializeResponse,
+    SDKControlReloadPluginsResponse,
+    SDKSystemMessage,
+} from '@/claude/sdk';
+import {
+    mapSystemInitToMetadata,
+    mergeControlApiResultsIntoInitMetadata,
+    mergeSDKInitMetadata,
+} from './sdkMetadata';
 
 function createMetadata(overrides: Partial<Metadata> = {}): Metadata {
     return {
@@ -28,6 +36,33 @@ function createSystemInit(overrides: Partial<SDKSystemMessage> = {}): SDKSystemM
         uuid: '00000000-0000-0000-0000-000000000001',
         ...overrides,
     } as SDKSystemMessage;
+}
+
+function createControlInitializeResponse(
+    overrides: Partial<SDKControlInitializeResponse> = {},
+): SDKControlInitializeResponse {
+    return {
+        commands: [],
+        agents: [],
+        output_style: 'concise',
+        available_output_styles: ['concise'],
+        models: [],
+        account: {} as SDKControlInitializeResponse['account'],
+        ...overrides,
+    };
+}
+
+function createReloadPluginsResponse(
+    overrides: Partial<SDKControlReloadPluginsResponse> = {},
+): SDKControlReloadPluginsResponse {
+    return {
+        commands: [],
+        agents: [],
+        plugins: [],
+        mcpServers: [],
+        error_count: 0,
+        ...overrides,
+    };
 }
 
 describe('sdkMetadata', () => {
@@ -137,6 +172,112 @@ describe('sdkMetadata', () => {
             plugins: [{ name: 'new-plugin', path: '/tmp/new-plugin' }],
             outputStyle: 'verbose',
             mcpServers: [{ name: 'new', status: 'connected' }],
+        });
+    });
+
+    it('preserves stream-only tools, skills, and slash commands when control APIs omit them', () => {
+        const merged = mergeControlApiResultsIntoInitMetadata(
+            {
+                tools: ['Read'],
+                slashCommands: ['stream:command'],
+                skills: ['review'],
+                agents: ['stream-agent'],
+                plugins: [{ name: 'stream-plugin', path: '/tmp/stream-plugin' }],
+                outputStyle: 'stream-style',
+                mcpServers: [{ name: 'stream', status: 'connected' }],
+            },
+            {} as SDKControlInitializeResponse,
+            {} as SDKControlReloadPluginsResponse,
+        );
+
+        expect(merged).toEqual({
+            tools: ['Read'],
+            slashCommands: ['stream:command'],
+            skills: ['review'],
+            agents: ['stream-agent'],
+            plugins: [{ name: 'stream-plugin', path: '/tmp/stream-plugin' }],
+            outputStyle: 'stream-style',
+            mcpServers: [{ name: 'stream', status: 'connected' }],
+        });
+    });
+
+    it('preserves control-only metadata when the stream init is empty', () => {
+        const merged = mergeControlApiResultsIntoInitMetadata(
+            {},
+            createControlInitializeResponse({
+                commands: [
+                    { name: 'plugin:run', description: 'Run plugin', argumentHint: '<id>' },
+                ],
+                agents: [{ name: 'worker', description: 'Does work' }],
+                output_style: 'verbose',
+            }),
+            createReloadPluginsResponse({
+                plugins: [{ name: 'plugin', path: '/tmp/plugin', source: 'marketplace' }],
+                mcpServers: [{ name: 'happy', status: 'connected' }],
+            }),
+        );
+
+        expect(merged).toEqual({
+            tools: undefined,
+            slashCommands: ['plugin:run'],
+            skills: undefined,
+            agents: ['worker'],
+            plugins: [{ name: 'plugin', path: '/tmp/plugin', source: 'marketplace' }],
+            outputStyle: 'verbose',
+            mcpServers: [{ name: 'happy', status: 'connected' }],
+        });
+    });
+
+    it('prefers fresher control results while keeping streamed tools and skills', () => {
+        const merged = mergeControlApiResultsIntoInitMetadata(
+            {
+                tools: ['Read'],
+                slashCommands: ['stream:command'],
+                skills: ['review'],
+                agents: ['stream-agent'],
+                plugins: [{ name: 'stream-plugin', path: '/tmp/stream-plugin' }],
+                outputStyle: 'stream-style',
+                mcpServers: [{ name: 'stream', status: 'connected' }],
+            },
+            createControlInitializeResponse({
+                commands: [
+                    { name: 'fresh:command', description: 'Fresh command', argumentHint: '' },
+                ],
+                agents: [{ name: 'fresh-agent', description: 'Fresh agent' }],
+                output_style: 'verbose',
+            }),
+            createReloadPluginsResponse({
+                plugins: [{ name: 'fresh-plugin', path: '/tmp/fresh-plugin', source: 'builtin' }],
+                mcpServers: [{ name: 'fresh', status: 'connected' }],
+            }),
+        );
+
+        expect(merged).toEqual({
+            tools: ['Read'],
+            slashCommands: ['fresh:command'],
+            skills: ['review'],
+            agents: ['fresh-agent'],
+            plugins: [{ name: 'fresh-plugin', path: '/tmp/fresh-plugin', source: 'builtin' }],
+            outputStyle: 'verbose',
+            mcpServers: [{ name: 'fresh', status: 'connected' }],
+        });
+    });
+
+    it('returns empty metadata when both stream and control inputs are empty', () => {
+        expect(
+            mergeControlApiResultsIntoInitMetadata(
+                {},
+                {} as SDKControlInitializeResponse,
+                {} as SDKControlReloadPluginsResponse,
+            ),
+        ).toEqual({
+            tools: undefined,
+            slashCommands: undefined,
+            skills: undefined,
+            agents: undefined,
+            plugins: undefined,
+            outputStyle: undefined,
+            mcpServers: undefined,
         });
     });
 });
