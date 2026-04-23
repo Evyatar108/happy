@@ -31,13 +31,15 @@ export function mapSystemInitToMetadata(init: SDKSystemMessage): SDKInitMetadata
 function mapControlCommandsToSlashCommands(
     commands: SDKControlInitializeResponse['commands'] | undefined,
 ): SDKInitMetadata['slashCommands'] {
-    return commands?.map(command => command.name);
+    const mapped = commands?.map(command => command.name);
+    return mapped?.length ? mapped : undefined;
 }
 
 function mapControlAgentsToMetadata(
     agents: SDKControlInitializeResponse['agents'] | undefined,
 ): SDKInitMetadata['agents'] {
-    return agents?.map(agent => agent.name);
+    const mapped = agents?.map(agent => agent.name);
+    return mapped?.length ? mapped : undefined;
 }
 
 export function mergeControlApiResultsIntoInitMetadata(
@@ -48,9 +50,14 @@ export function mergeControlApiResultsIntoInitMetadata(
     return {
         tools: initFromStream.tools,
         slashCommands:
-            mapControlCommandsToSlashCommands(initResult.commands) ?? initFromStream.slashCommands,
+            mapControlCommandsToSlashCommands(initResult.commands)
+            ?? mapControlCommandsToSlashCommands(reloadResult.commands)
+            ?? initFromStream.slashCommands,
         skills: initFromStream.skills,
-        agents: mapControlAgentsToMetadata(initResult.agents) ?? initFromStream.agents,
+        agents:
+            mapControlAgentsToMetadata(initResult.agents)
+            ?? mapControlAgentsToMetadata(reloadResult.agents)
+            ?? initFromStream.agents,
         plugins: reloadResult.plugins ?? initFromStream.plugins,
         outputStyle: initResult.output_style ?? initFromStream.outputStyle,
         mcpServers: reloadResult.mcpServers ?? initFromStream.mcpServers,

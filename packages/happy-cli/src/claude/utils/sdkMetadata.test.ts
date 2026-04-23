@@ -263,6 +263,43 @@ describe('sdkMetadata', () => {
         });
     });
 
+    it('falls back to reloadResult commands/agents when initResult returns empty arrays', () => {
+        const merged = mergeControlApiResultsIntoInitMetadata(
+            {
+                tools: ['Read'],
+                slashCommands: ['stream:command'],
+                skills: ['review'],
+                agents: ['stream-agent'],
+                plugins: [],
+                outputStyle: 'stream-style',
+                mcpServers: [],
+            },
+            createControlInitializeResponse({
+                commands: [],
+                agents: [],
+                output_style: 'verbose',
+            }),
+            createReloadPluginsResponse({
+                commands: [
+                    { name: 'reload:command', description: 'Reload command', argumentHint: '' },
+                ],
+                agents: [{ name: 'reload-agent', description: 'Reload agent' }],
+                plugins: [{ name: 'reload-plugin', path: '/tmp/reload-plugin', source: 'builtin' }],
+                mcpServers: [{ name: 'reload', status: 'connected' }],
+            }),
+        );
+
+        expect(merged).toEqual({
+            tools: ['Read'],
+            slashCommands: ['reload:command'],
+            skills: ['review'],
+            agents: ['reload-agent'],
+            plugins: [{ name: 'reload-plugin', path: '/tmp/reload-plugin', source: 'builtin' }],
+            outputStyle: 'verbose',
+            mcpServers: [{ name: 'reload', status: 'connected' }],
+        });
+    });
+
     it('returns empty metadata when both stream and control inputs are empty', () => {
         expect(
             mergeControlApiResultsIntoInitMetadata(
