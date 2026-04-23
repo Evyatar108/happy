@@ -58,6 +58,16 @@ export const COMMAND_DESCRIPTIONS: Record<string, string> = {
     'team-onboarding': 'Generate onboarding guidance for this codebase.',
 };
 
+const APP_SYNTHETIC_COMMANDS: CommandItem[] = [
+    { command: 'plugin', description: COMMAND_DESCRIPTIONS.plugin, source: 'app-synthetic' },
+    { command: 'skills', description: COMMAND_DESCRIPTIONS.skills, source: 'app-synthetic' },
+    { command: 'agents', description: COMMAND_DESCRIPTIONS.agents, source: 'app-synthetic' },
+    { command: 'memory', description: COMMAND_DESCRIPTIONS.memory, source: 'app-synthetic' },
+    { command: 'model', description: COMMAND_DESCRIPTIONS.model, source: 'app-synthetic' },
+    { command: 'mcp', description: COMMAND_DESCRIPTIONS.mcp, source: 'app-synthetic' },
+    { command: 'help', description: COMMAND_DESCRIPTIONS.help, source: 'app-synthetic' },
+];
+
 function getMetadata(sessionId: string): Metadata | null {
     const session = storage.getState().sessions[sessionId];
     return session?.metadata ?? null;
@@ -105,6 +115,10 @@ function getCommandsFromSession(sessionId: string): CommandItem[] {
     const skills = new Set(metadata?.skills ?? []);
 
     for (const command of DEFAULT_COMMANDS) {
+        commands.set(command.command, command);
+    }
+
+    for (const command of APP_SYNTHETIC_COMMANDS) {
         commands.set(command.command, command);
     }
 

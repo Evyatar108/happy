@@ -45,7 +45,7 @@ afterEach(() => {
 });
 
 describe('suggestionCommands', () => {
-    it('returns defaults plus all slashCommands for an empty query and classifies each source', async () => {
+    it('returns defaults, synthetic app commands, and all slashCommands for an empty query', async () => {
         setSessionMetadata({
             path: '/repo',
             host: 'workstation',
@@ -60,6 +60,13 @@ describe('suggestionCommands', () => {
         expect(commands).toEqual([
             expect.objectContaining({ command: 'clear', source: 'native-local' }),
             expect.objectContaining({ command: 'compact', source: 'native-local' }),
+            expect.objectContaining({ command: 'plugin', source: 'app-synthetic' }),
+            expect.objectContaining({ command: 'skills', source: 'app-synthetic' }),
+            expect.objectContaining({ command: 'agents', source: 'app-synthetic' }),
+            expect.objectContaining({ command: 'memory', source: 'app-synthetic' }),
+            expect.objectContaining({ command: 'model', source: 'app-synthetic' }),
+            expect.objectContaining({ command: 'mcp', source: 'app-synthetic' }),
+            expect.objectContaining({ command: 'help', source: 'app-synthetic' }),
             expect.objectContaining({ command: 'init', source: 'native-prompt' }),
             expect.objectContaining({ command: 'context', source: 'native-local' }),
             expect.objectContaining({ command: 'custom-skill', source: 'skill' }),
@@ -108,12 +115,19 @@ describe('suggestionCommands', () => {
         ]));
     });
 
-    it('falls back to default commands when session metadata is missing', async () => {
+    it('falls back to defaults plus synthetic app commands when session metadata is missing', async () => {
         state.sessions = {};
 
         await expect(searchCommands('missing-session', '')).resolves.toEqual([
             expect.objectContaining({ command: 'clear', source: 'native-local' }),
             expect.objectContaining({ command: 'compact', source: 'native-local' }),
+            expect.objectContaining({ command: 'plugin', source: 'app-synthetic' }),
+            expect.objectContaining({ command: 'skills', source: 'app-synthetic' }),
+            expect.objectContaining({ command: 'agents', source: 'app-synthetic' }),
+            expect.objectContaining({ command: 'memory', source: 'app-synthetic' }),
+            expect.objectContaining({ command: 'model', source: 'app-synthetic' }),
+            expect.objectContaining({ command: 'mcp', source: 'app-synthetic' }),
+            expect.objectContaining({ command: 'help', source: 'app-synthetic' }),
         ]);
     });
 });
