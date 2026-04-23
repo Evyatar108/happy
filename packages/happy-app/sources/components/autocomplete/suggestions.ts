@@ -21,7 +21,8 @@ export async function getCommandSuggestions(sessionId: string, query: string): P
             text: `/${cmd.command}`,
             component: () => React.createElement(CommandSuggestion, {
                 command: cmd.command,
-                description: cmd.description
+                description: cmd.description,
+                source: cmd.source,
             })
         }));
     } catch (error) {

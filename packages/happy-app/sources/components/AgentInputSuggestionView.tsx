@@ -4,15 +4,37 @@ import { StyleSheet } from 'react-native-unistyles';
 import { Ionicons } from '@expo/vector-icons';
 import { Typography } from '@/constants/Typography';
 import { t } from '@/text';
+import type { CommandSource } from '@/sync/suggestionCommands';
 
 interface CommandSuggestionProps {
     command: string;
     description?: string;
+    source: CommandSource;
 }
 
-export const CommandSuggestion = React.memo(({ command, description }: CommandSuggestionProps) => {
+const SOURCE_BADGE_ICONS: Partial<Record<CommandSource, React.ComponentProps<typeof Ionicons>['name']>> = {
+    plugin: 'extension-puzzle-outline',
+    skill: 'flash-outline',
+};
+
+export const CommandSuggestion = React.memo(({ command, description, source }: CommandSuggestionProps) => {
+    const badgeIcon = SOURCE_BADGE_ICONS[source];
+
     return (
         <View style={styles.suggestionContainer}>
+            {badgeIcon ? (
+                <View
+                    style={styles.commandBadge}
+                    testID="command-source-badge"
+                >
+                    <Ionicons
+                        testID={`command-source-icon-${source}`}
+                        name={badgeIcon}
+                        size={14}
+                        color={styles.commandBadgeIconColor.color}
+                    />
+                </View>
+            ) : null}
             <Text 
                 style={[styles.commandText, { marginRight: description ? 12 : 0 }]}
             >
@@ -66,6 +88,18 @@ const styles = StyleSheet.create((theme) => ({
         paddingHorizontal: 16,
         paddingVertical: 12,
         height: 48,
+    },
+    commandBadge: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: theme.colors.surfaceHigh,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 10,
+    },
+    commandBadgeIconColor: {
+        color: theme.colors.textSecondary,
     },
     commandText: {
         fontSize: 14,

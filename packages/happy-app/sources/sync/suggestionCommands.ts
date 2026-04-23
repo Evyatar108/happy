@@ -34,19 +34,28 @@ export const NATIVE_PROMPT_COMMANDS = new Set([
 ]);
 
 const DEFAULT_COMMANDS: CommandItem[] = [
-    { command: 'clear', description: 'Clear the conversation', source: 'native-local' },
-    { command: 'compact', description: 'Compact the conversation history', source: 'native-local' },
+    { command: 'clear', description: 'Clear the conversation.', source: 'native-local' },
+    { command: 'compact', description: 'Compact the conversation history.', source: 'native-local' },
 ];
 
-const COMMAND_DESCRIPTIONS: Record<string, string> = {
-    clear: 'Clear the conversation',
-    compact: 'Compact the conversation history',
-    debug: 'Show debug information',
-    export: 'Export conversation',
-    help: 'Show available commands',
-    reset: 'Reset the session',
-    status: 'Show connection status',
-    stop: 'Stop current operation',
+export const COMMAND_DESCRIPTIONS: Record<string, string> = {
+    agents: 'Open the session agents catalog.',
+    clear: 'Clear the conversation.',
+    compact: 'Compact the conversation history.',
+    context: 'Show project and session context.',
+    cost: 'Show token and usage cost details.',
+    heapdump: 'Capture a diagnostic heap dump.',
+    help: 'Show command help and guidance.',
+    init: 'Initialize Claude Code in this project.',
+    insights: 'Show workspace insights and suggestions.',
+    mcp: 'Explain how to manage MCP servers from the terminal.',
+    memory: 'Explain how to use Claude Code memory from the terminal.',
+    model: 'Explain how to switch models from the terminal.',
+    plugin: 'Open the session plugin catalog.',
+    review: 'Review recent changes for issues.',
+    'security-review': 'Review changes for security risks.',
+    skills: 'Open the session skills catalog.',
+    'team-onboarding': 'Generate onboarding guidance for this codebase.',
 };
 
 function getMetadata(sessionId: string): Metadata | null {
