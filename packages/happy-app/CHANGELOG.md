@@ -1,5 +1,14 @@
 # Changelog
 
+## Version 10 - 2026-04-22
+
+Claude Code plugins and skills now have full visibility and navigation inside Happy. The slash-command picker stops hiding most of what your session actually knows about, seven terminal-only commands finally have a useful mobile landing, and three new session screens show you what's loaded.
+
+- Added plugin-provided slash commands and skills to the `/` picker — up to 15 suggestions at once instead of the old two.
+- Added seven built-in TUI commands (`/plugin`, `/skills`, `/agents`, `/memory`, `/model`, `/mcp`, `/help`) to the picker — the three session-scoped ones open a catalog screen, the others show a "run in terminal" hint.
+- Added "Plugins", "Skills", and "Agents" screens reachable from the session info screen, showing exactly what's loaded in the current session.
+- Fixed `enabledPlugins` silently disappearing when Happy launched Claude Code — the root cause of plugin skills being invisible in prior versions.
+
 ## Version 9 - 2026-04-15
 
 Clean up stale machines cluttering your settings and session picker. Offline machines are now hidden by default with a one-tap reveal, and you can permanently remove machines you no longer use.

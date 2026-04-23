@@ -27,10 +27,12 @@ When you edit code in `D:\harness-efforts\happy`, either commit + push to fork a
 
 | Branch | Status | What's in it |
 | --- | --- | --- |
-| `main` | **ahead of upstream by 13 commits** as of 2026-04-22; mirrors `fork/main` | The PR-A..PR-D chat text UX batch (merged from `chat-text-ux-eink`) on top of upstream `f6083b48`. |
+| `main` | **ahead of upstream by 39 commits** as of 2026-04-22; mirrors `fork/main` | The PR-A..PR-D chat text UX batch (merged from `chat-text-ux-eink`) on top of upstream `f6083b48`, + the 2026-04-22 native & installed Claude Code skills support merge (20 commits from `feat/native-and-installed-skills-support`, which was stacked on `fix/preserve-user-settings-for-plugin-skills` — both now on main). |
 | `fix/chat-list-perf-inverted-flatlist` | **shipped upstream as PR [#1154](https://github.com/slopus/happy/pull/1154)** | The chat-freeze perf fix. Two commits: (a) drops `maintainVisibleContentPosition` and adds conservative virtualization props + memoizes `MessageView`; (b) restores `maintainVisibleContentPosition` after a second review round flagged that without it new messages prepending at `data[0]` shift the viewport for users scrolled up reading history. |
+| `fix/preserve-user-settings-for-plugin-skills` | **merged to `fork/main` on 2026-04-22** (stacked under native skills merge); upstream PR still TBD for slopus/happy#779 | One commit (`317fce8a`) in happy-cli that preserves `enabledPlugins` + MCP fields when passing `--settings` to Claude Code. Without it, plugin-provided skills never reach the SDK's `slash_commands` emission and are invisible to happy. Prerequisite for the native-skills merge. |
 | `feature/tablet-sidebar-toggle` | **personal — not for upstream** | 3-state tablet sidebar (expanded / 72-px rail / fully hidden) and the initial "Chat text size" local setting (partial coverage — the remaining tool-view typography was finished in the 2026-04-22 PR-A..PR-D batch on `main`). Has known i18n + style-convention debt that would block upstreaming as-is. Not superseded by the `main` merge — its other content (sidebar state machine) is not yet upstreamed. |
 | `chat-text-ux-eink` | **merged to `fork/main`** | The 2026-04-22 PR-A..PR-D batch. 13 commits: 4 `feat` + 4 `docs: mark item #N shipped` + 3 `refactor(chat)` review-fix commits + 1 hardware-texture gating fix. Branch kept for history; the code lives on `main` now. |
+| `feat/native-and-installed-skills-support` | **merged to `fork/main` on 2026-04-22** | The native & installed Claude Code skills batch. 20 commits (9 `feat: US-00N` stories + 7 code-review `fix: [F-00N]` commits + 1 docs fix + 2 security fixes + 1 cleanup), stacked on `fix/preserve-user-settings-for-plugin-skills`. Branch kept for history; the code lives on `main` now. |
 
 ## What's on `main` after the 2026-04-22 PR-A..PR-D merge
 
@@ -45,6 +47,20 @@ In commit order (new → old):
 7. **PR-A: `feat(chat): finish chat font scale coverage (roadmap item #1)` + `docs: mark roadmap item #1 shipped`** — new `useChatScaledStyles<T extends Record<string, TextStyle>>(styles: T): T` helper on top of the existing `useChatFontScale` + `useChatFontScaleOverride`. Scales: `DiffView` (catches `Edit`/`Write`/`MultiEdit`/`EditViewFull`/`MultiEditViewFull` via delegation), `CodeView` (gated by new `scaled?: boolean` prop, default `false`), `ToolView` header row. Per-view scaling: `TaskView` (hoisted `StyleSheet.create` to module scope to keep the memo key stable), `TodoView`, `GeminiExecuteView`, `CodexBashView` metadata labels, `CodexDiffView`, `CodexPatchView`, `AskUserQuestionView`, `MultiEditViewFull`. Chat-call-sites pass `scaled` to `CodeView` (`ToolView`, `ToolFullView`, `GeminiExecuteView`); `app/(app)/session/[id]/info.tsx` left untouched so non-chat CodeView renders don't scale. Known gaps are tracked as follow-ups #6 and #7 in `docs/fork-roadmap.md`.
 
 The job directory at `.ralph/jobs/chat-text-ux-eink/` contains the plan, stories outline, research briefs, every review-round findings manifest, and commit log. It persists after merge as the audit trail for the 4 PRs.
+
+## What's on `main` after the 2026-04-22 native & installed skills merge
+
+Merged as commit `019a6109` (20 commits from `feat/native-and-installed-skills-support`), with one-commit follow-up cleanup `f68dadbf`. High-signal summary — the job directory at `.ralph/jobs/native-and-installed-skills-support/` carries the full plan, DSAT report, and per-story artifacts; this section is a pointer, not a duplicate.
+
+- **Prerequisite fix (`317fce8a`):** `fix(cli): preserve enabledPlugins + MCP fields when passing --settings`. Root cause of plugin skills being invisible pre-merge — see slopus/happy#779. Upstream PR still TBD.
+- **9 stories (US-001..US-009):** widen the CLI→app metadata pipeline (forward `skills`, `agents`, `plugins`, `outputStyle`, `mcpServers` from the SDK init); flip `IGNORED_COMMANDS` blocklist → classification-based allowlist in `suggestionCommands.ts`; raise picker cap 5→15; add seven synthetic TUI commands (`/plugin`, `/skills`, `/agents`, `/memory`, `/model`, `/mcp`, `/help`) with a shared pre-send intercept hook covering both composer paths; ship three session-scoped catalog screens at `app/(app)/session/[id]/{plugins,skills,agents}.tsx`.
+- **7 code-review fixes (F-001..F-007):** picker limit alignment + test; alert title copy; plugin path rendering; i18n for the three nav-chrome screens (accepted exception to the fork's English-only debt); integration tests for intercept short-circuit at both composer paths; `commit`/`commit-push-pr` added to `NATIVE_PROMPT_COMMANDS`; shared limit constant.
+- **1 docs fix (`756dd773`):** `docs/encryption.md` updated to reflect the new optional `Metadata` fields.
+- **2 security fixes (SEC-F-001/F-002):** runtime validation of `mcpServers` shape in decrypted metadata; stricter `sessionId` shape check in `maybeIntercept`.
+- **1 post-merge cleanup (`f68dadbf`):** deleted stale `useAutocompleteSession.ts` (Codex had flagged it as dead code during plan review).
+- **Deferred, not shipped** (tracked in `docs/fork-roadmap.md`): `/help` full intercept coordination with upstream PR #543; ACP provider command-shape normalization; a global (non-session-scoped) catalog entry point; on-device tablet verification for US-004/006/007/008/009.
+
+See `.ralph/jobs/native-and-installed-skills-support/plan.md` for the full plan and `.ralph/jobs/native-and-installed-skills-support/dsat-report.md` for the post-merge orchestration analysis.
 
 ## What's in `feature/tablet-sidebar-toggle` (historical, in commit order)
 

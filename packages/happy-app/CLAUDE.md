@@ -142,7 +142,7 @@ t('errors.fieldError', { field: 'Email', reason: 'Invalid format' })
 
 1. **Check existing keys first** - Always check if the string already exists in the `common` object or other sections before adding new keys
 2. **Think about context** - Consider the screen/component context when choosing the appropriate section (e.g., `settings.*`, `session.*`, `errors.*`)
-3. **Add to ALL languages** - When adding new strings, you MUST add them to all language files in `sources/text/translations/` (currently: `en`, `ru`, `pl`, `es`, `ca`, `it`, `pt`, `ja`, `zh-Hans`)
+3. **Add to ALL languages** - When adding new strings, you MUST add them to all language files in `sources/text/translations/` (currently: `en`, `ru`, `pl`, `es`, `ca`, `it`, `pt`, `ja`, `zh-Hans`, `zh-Hant`)
 4. **Use descriptive key names** - Use clear, hierarchical keys like `newSession.machineOffline` rather than generic names
 5. **Language metadata** - All supported languages and their metadata are centralized in `sources/text/_all.ts`
 
