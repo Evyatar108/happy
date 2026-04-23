@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useRouter } from 'expo-router';
+import { Href, useRouter } from 'expo-router';
 import { Modal } from '@/modal';
 import { InterceptMessageKey, maybeIntercept } from '@/sync/slashCommandIntercept';
 
@@ -34,7 +34,12 @@ export function usePreSendCommand(sessionId: string | undefined) {
             intercepted: true,
             execute: () => {
                 if (result.type === 'route') {
-                    router.push(result.path);
+                    // Path is constructed in slashCommandIntercept from a closed
+                    // allowlist of catalog screens (plugins/skills/agents) with a
+                    // regex-validated sessionId. Cast to Href to satisfy Expo
+                    // Router's typed-routes (enforced once .expo/types/router.d.ts
+                    // exists; silently absent on clones that haven't run Metro).
+                    router.push(result.path as Href);
                     return;
                 }
 
