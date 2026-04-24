@@ -91,6 +91,8 @@ Merged as commit `88a18bf6` (squash of 9 stories + 5 code-review fixes from `fea
 | --- | --- | --- | --- | --- |
 | Onyx Boox model pending | session name + message count pending | Tier 0 | pending human measurement | pending commit |
 | Onyx Boox model pending | session name + message count pending | Tier 1 | pending human measurement | pending commit |
+| Onyx Boox model pending | session name + message count pending | Tier 2 (finger-scroll) | pending human measurement | pending commit |
+| Onyx Boox model pending | session name + message count pending | Tier 2 (page-turn) | pending human measurement | pending commit |
 
 ## What's in `feature/tablet-sidebar-toggle` (historical, in commit order)
 

@@ -50,7 +50,7 @@ import { fetchFeed } from './apiFeed';
 import { FeedItem } from './feedTypes';
 import { UserProfile } from './friendTypes';
 import { resolveMessageModeMeta } from './messageMeta';
-import { computeInitialAfterSeq } from './paginationMath';
+import { computeInitialAfterSeq, computeOlderPageAfterSeq } from './paginationMath';
 
 type V3GetSessionMessagesResponse = {
     messages: ApiMessage[];
@@ -78,6 +78,7 @@ type SendMessageOptions = {
 };
 
 const INITIAL_MESSAGES_WINDOW_SIZE = 80;
+const OLDER_MESSAGES_PAGE_SIZE = 80;
 
 class Sync {
     private static readonly BACKGROUND_SEND_TIMEOUT_MS = 30_000;
@@ -253,6 +254,66 @@ class Sync {
         if (session) {
             voiceHooks.onSessionFocus(sessionId, session.metadata || undefined);
         }
+    }
+
+    loadOlder = async (sessionId: string): Promise<void> => {
+        const lock = this.getSessionMessageLock(sessionId);
+        await lock.inLock(async () => {
+            const sessionMessages = storage.getState().sessionMessages[sessionId];
+            if (!sessionMessages || !sessionMessages.hasOlder || sessionMessages.loadingOlder) {
+                return;
+            }
+
+            const encryption = this.encryption.getSessionEncryption(sessionId);
+            if (!encryption) {
+                throw new Error(`Session encryption not ready for ${sessionId}`);
+            }
+
+            const pagination = computeOlderPageAfterSeq(
+                sessionMessages.oldestLoadedSeq,
+                OLDER_MESSAGES_PAGE_SIZE
+            );
+
+            storage.getState().setLoadingOlder(sessionId, true);
+            try {
+                const response = await apiSocket.request(
+                    `/v3/sessions/${sessionId}/messages?after_seq=${pagination.afterSeq}&limit=${OLDER_MESSAGES_PAGE_SIZE}`
+                );
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch older messages for ${sessionId}: ${response.status}`);
+                }
+
+                const data = await response.json() as V3GetSessionMessagesResponse;
+                const messages = Array.isArray(data.messages) ? data.messages : [];
+                const decryptedMessages = await encryption.decryptMessages(messages);
+                const normalizedMessages: NormalizedMessage[] = [];
+
+                for (let i = 0; i < decryptedMessages.length; i++) {
+                    const decrypted = decryptedMessages[i];
+                    if (!decrypted) {
+                        continue;
+                    }
+
+                    const normalized = normalizeRawMessage(
+                        decrypted.id,
+                        decrypted.localId,
+                        decrypted.createdAt,
+                        decrypted.content
+                    );
+                    if (normalized) {
+                        normalizedMessages.push(normalized);
+                    }
+                }
+
+                storage.getState().applyOlderMessages(sessionId, normalizedMessages, {
+                    newOldestLoadedSeq: pagination.afterSeq + 1,
+                    hasOlder: pagination.hasOlder,
+                });
+            } catch (error) {
+                storage.getState().setLoadingOlder(sessionId, false);
+                throw error;
+            }
+        });
     }
 
     private getMessagesSync(sessionId: string): InvalidateSync {

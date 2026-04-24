@@ -181,6 +181,15 @@ interface StorageState {
             oldestLoadedSeq: number;
         }
     ) => void;
+    setLoadingOlder: (sessionId: string, value: boolean) => void;
+    applyOlderMessages: (
+        sessionId: string,
+        messages: NormalizedMessage[],
+        pagination: {
+            newOldestLoadedSeq: number;
+            hasOlder: boolean;
+        }
+    ) => void;
     applySettings: (settings: Settings, version: number) => void;
     applySettingsLocal: (settings: Partial<Settings>) => void;
     applyLocalSettings: (settings: Partial<LocalSettings>) => void;
@@ -755,6 +764,73 @@ export const storage = create<StorageState>()((set, get) => {
             }
 
             return result;
+        }),
+        setLoadingOlder: (sessionId: string, value: boolean) => set((state) => {
+            const existingSession = state.sessionMessages[sessionId];
+            if (!existingSession) {
+                return state;
+            }
+
+            return {
+                ...state,
+                sessionMessages: {
+                    ...state.sessionMessages,
+                    [sessionId]: {
+                        ...existingSession,
+                        loadingOlder: value,
+                    } satisfies SessionMessages
+                }
+            };
+        }),
+        applyOlderMessages: (sessionId: string, messages: NormalizedMessage[], pagination) => set((state) => {
+            const existingSession = state.sessionMessages[sessionId];
+            if (!existingSession) {
+                return state;
+            }
+
+            const session = state.sessions[sessionId];
+            const agentState = session?.agentState;
+            const reducerResult = reducer(existingSession.reducerState, messages, agentState);
+            const processedMessages = reducerResult.messages;
+
+            const mergedMessagesMap = { ...existingSession.messagesMap };
+            processedMessages.forEach(message => {
+                mergedMessagesMap[message.id] = message;
+            });
+
+            const messagesArray = Object.values(mergedMessagesMap)
+                .sort((a, b) => b.createdAt - a.createdAt);
+
+            let updatedSessions = state.sessions;
+            if ((reducerResult.todos !== undefined || existingSession.reducerState.latestUsage) && session) {
+                updatedSessions = {
+                    ...state.sessions,
+                    [sessionId]: {
+                        ...session,
+                        ...(reducerResult.todos !== undefined && { todos: reducerResult.todos }),
+                        latestUsage: existingSession.reducerState.latestUsage
+                            ? { ...existingSession.reducerState.latestUsage }
+                            : session.latestUsage,
+                    }
+                };
+            }
+
+            return {
+                ...state,
+                sessions: updatedSessions,
+                sessionMessages: {
+                    ...state.sessionMessages,
+                    [sessionId]: {
+                        ...existingSession,
+                        messages: messagesArray,
+                        messagesMap: mergedMessagesMap,
+                        reducerState: existingSession.reducerState,
+                        hasOlder: pagination.hasOlder,
+                        oldestLoadedSeq: pagination.newOldestLoadedSeq,
+                        loadingOlder: false,
+                    } satisfies SessionMessages
+                }
+            };
         }),
         applySettingsLocal: (settings: Partial<Settings>) => set((state) => {
             saveSettings(applySettings(state.settings, settings), state.settingsVersion ?? 0);

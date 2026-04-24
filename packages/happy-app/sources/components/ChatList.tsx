@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { storage, useLocalSetting, useSession, useSessionMessages } from "@/sync/storage";
+import { sync } from '@/sync/sync';
 import { FlatList, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, View } from 'react-native';
 import { useCallback } from 'react';
 import { useHeaderHeight } from '@/utils/responsive';
@@ -84,6 +85,15 @@ const ChatListInternal = React.memo((props: {
         contentHeightRef.current = height;
     }, []);
 
+    const handleEndReached = React.useCallback(() => {
+        const sessionMessages = storage.getState().sessionMessages[props.sessionId];
+        if (!sessionMessages?.hasOlder || sessionMessages.loadingOlder) {
+            return;
+        }
+
+        void sync.loadOlder(props.sessionId);
+    }, [props.sessionId]);
+
     const pageToOlderMessages = React.useCallback(() => {
         const maxOffset = Math.max(0, contentHeightRef.current - viewportHeight);
         const pageSize = viewportHeight;
@@ -91,10 +101,16 @@ const ChatListInternal = React.memo((props: {
             0,
             Math.min(maxOffset, currentOffsetRef.current + pageSize),
         );
+        if (maxOffset > 0 && nextOffset >= maxOffset * 0.9) {
+            const sessionMessages = storage.getState().sessionMessages[props.sessionId];
+            if (sessionMessages?.hasOlder && !sessionMessages.loadingOlder) {
+                void sync.loadOlder(props.sessionId);
+            }
+        }
         currentOffsetRef.current = nextOffset;
         setShowScrollButton(nextOffset > SCROLL_THRESHOLD);
         flatListRef.current?.scrollToOffset({ offset: nextOffset, animated: false });
-    }, [viewportHeight]);
+    }, [props.sessionId, viewportHeight]);
 
     const pageToNewerMessages = React.useCallback(() => {
         const maxOffset = Math.max(0, contentHeightRef.current - viewportHeight);
@@ -184,6 +200,8 @@ const ChatListInternal = React.memo((props: {
             keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'none'}
             renderItem={renderItem}
             onScroll={handleScroll}
+            onEndReached={handleEndReached}
+            onEndReachedThreshold={0.1}
             onContentSizeChange={handleContentSizeChange}
             scrollEventThrottle={32}
             scrollEnabled={!chatPaginatedScroll}
