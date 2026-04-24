@@ -977,11 +977,41 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
 
                     // Map sidechain tool separately to avoid overwriting permission mapping
                     state.sidechainToolIdToMessageId.set(c.id, mid);
+
+                    // Drain any pending result that arrived before this tool-call (lazy-load out-of-order)
+                    const pendingSidechainResult = state.pendingToolResults.get(c.id);
+                    if (pendingSidechainResult) {
+                        const sidechainToolMsg = state.messages.get(mid);
+                        if (sidechainToolMsg && sidechainToolMsg.tool && sidechainToolMsg.tool.state === 'running') {
+                            sidechainToolMsg.tool.state = pendingSidechainResult.isError ? 'error' : 'completed';
+                            sidechainToolMsg.tool.result = pendingSidechainResult.content;
+                            sidechainToolMsg.tool.completedAt = pendingSidechainResult.createdAt;
+                            if (pendingSidechainResult.permissions) {
+                                sidechainToolMsg.tool.permission = {
+                                    id: c.id,
+                                    status: pendingSidechainResult.permissions.result === 'approved' ? 'approved' : 'denied',
+                                    date: pendingSidechainResult.permissions.date,
+                                    mode: pendingSidechainResult.permissions.mode,
+                                    allowedTools: pendingSidechainResult.permissions.allowedTools,
+                                    decision: pendingSidechainResult.permissions.decision,
+                                };
+                            }
+                        }
+                        state.pendingToolResults.delete(c.id);
+                    }
                 } else if (c.type === 'tool-result') {
                     // Process tool result in sidechain - update BOTH messages
 
                     // Update the sidechain tool message
                     let sidechainMessageId = state.sidechainToolIdToMessageId.get(c.tool_use_id);
+                    if (!sidechainMessageId && !state.pendingToolResults.has(c.tool_use_id)) {
+                        state.pendingToolResults.set(c.tool_use_id, {
+                            content: c.content,
+                            isError: c.is_error,
+                            createdAt: msg.createdAt,
+                            permissions: c.permissions,
+                        });
+                    }
                     if (sidechainMessageId) {
                         let sidechainMessage = state.messages.get(sidechainMessageId);
                         if (sidechainMessage && sidechainMessage.tool && sidechainMessage.tool.state === 'running') {

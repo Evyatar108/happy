@@ -3469,5 +3469,98 @@ describe('reducer', () => {
 
             expect(snapshotReducerState(paginatedState)).toEqual(snapshotReducerState(allAtOnceState));
         });
+
+        it('resolves sidechain tool stuck in running when its tool-result arrives before its tool-call via lazy-load', () => {
+            // Scenario: a Task sidechain contains a Bash tool-call (older page) and its
+            // tool-result (newer page). The newer page arrives first, so the sidechain
+            // tool-result must be buffered and applied once the tool-call page arrives.
+            const parentToolCallMsg: NormalizedMessage = {
+                id: 'parent-msg',
+                localId: null,
+                createdAt: 1000,
+                role: 'agent',
+                isSidechain: false,
+                content: [{
+                    type: 'tool-call',
+                    id: 'tool-task',
+                    name: 'Task',
+                    input: { prompt: 'Check git status' },
+                    description: null,
+                    uuid: 'parent-uuid',
+                    parentUUID: null
+                }],
+            };
+
+            // Older batch: sidechain prompt + sidechain tool-call
+            const olderBatch: NormalizedMessage[] = [
+                {
+                    id: 'sc-prompt-msg',
+                    localId: null,
+                    createdAt: 1100,
+                    role: 'agent',
+                    isSidechain: true,
+                    content: [{
+                        type: 'sidechain',
+                        prompt: 'Check git status',
+                        uuid: 'sc-prompt-uuid',
+                    }],
+                },
+                {
+                    id: 'sc-bash-call-msg',
+                    localId: null,
+                    createdAt: 1200,
+                    role: 'agent',
+                    isSidechain: true,
+                    content: [{
+                        type: 'tool-call',
+                        id: 'tool-sc-bash',
+                        name: 'Bash',
+                        input: { command: 'git status --short' },
+                        description: null,
+                        uuid: 'sc-bash-uuid',
+                        parentUUID: 'sc-prompt-uuid',
+                    }],
+                },
+            ];
+
+            // Newer batch: sidechain tool-result for the Bash call above
+            const newerBatch: NormalizedMessage[] = [
+                {
+                    id: 'sc-bash-result-msg',
+                    localId: null,
+                    createdAt: 1300,
+                    role: 'agent',
+                    isSidechain: true,
+                    content: [{
+                        type: 'tool-result',
+                        tool_use_id: 'tool-sc-bash',
+                        content: 'M  src/foo.ts',
+                        is_error: false,
+                        uuid: 'sc-bash-result-uuid',
+                        parentUUID: 'sc-prompt-uuid',
+                    }],
+                },
+            ];
+
+            // All-at-once: reference state
+            const allAtOnceState = createReducer();
+            reducer(allAtOnceState, [parentToolCallMsg, ...olderBatch, ...newerBatch]);
+
+            // Out-of-order: newer (with tool-result) arrives before older (with tool-call)
+            const paginatedState = createReducer();
+            reducer(paginatedState, [parentToolCallMsg, ...newerBatch]);
+            reducer(paginatedState, olderBatch);
+
+            // The sidechain Bash tool must be 'completed', not stuck in 'running'
+            const sidechains = Array.from(paginatedState.sidechains.values());
+            expect(sidechains).toHaveLength(1);
+            const bashToolMsg = sidechains[0].find(m => m.tool?.name === 'Bash');
+            expect(bashToolMsg).toBeDefined();
+            expect(bashToolMsg!.tool!.state).toBe('completed');
+            expect(bashToolMsg!.tool!.result).toBe('M  src/foo.ts');
+
+            // Full state must match all-at-once
+            expect(snapshotReducerState(paginatedState)).toEqual(snapshotReducerState(allAtOnceState));
+        });
     });
 });
