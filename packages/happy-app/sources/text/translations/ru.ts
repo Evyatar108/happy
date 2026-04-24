@@ -403,6 +403,7 @@ export const ru: TranslationStructure = {
         inputPlaceholder: 'Введите сообщение...',
         inactiveArchived: 'Эта сессия неактивна.',
         resumeFromTerminal: 'Чтобы возобновить её из терминала:',
+        catalogNotReadyBanner: 'Сессия ещё не загружена — отправьте сначала любое сообщение, чтобы заполнить этот список.',
     },
 
     commandPalette: {

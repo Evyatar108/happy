@@ -5,6 +5,7 @@ import { ItemGroup } from '@/components/ItemGroup';
 import { ItemList } from '@/components/ItemList';
 import { useSession } from '@/sync/storage';
 import type { Session } from '@/sync/storageTypes';
+import { t } from '@/text';
 
 const EMPTY_STATE_TITLE = 'No agents available for this session.';
 const LOADING_TITLE = 'Loading agents…';
@@ -18,7 +19,12 @@ export function AgentsScreenContent({ agents, isLoading }: { agents?: AgentEntry
         <ItemList>
             <ItemGroup>
                 {isLoading ? (
-                    <Item title={LOADING_TITLE} loading showChevron={false} />
+                    <Item
+                        title={LOADING_TITLE}
+                        subtitle={t('session.catalogNotReadyBanner')}
+                        loading
+                        showChevron={false}
+                    />
                 ) : items.length > 0 ? (
                     items.map((agent, index) => (
                         <Item

@@ -284,6 +284,7 @@ export const es: TranslationStructure = {
         inputPlaceholder: 'Escriba un mensaje ...',
         inactiveArchived: 'Esta sesión está inactiva.',
         resumeFromTerminal: 'Para reanudarla desde la terminal:',
+        catalogNotReadyBanner: 'La sesión aún no se ha cargado — envía cualquier mensaje primero para rellenar esta lista.',
     },
 
     commandPalette: {

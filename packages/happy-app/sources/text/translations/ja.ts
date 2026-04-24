@@ -285,6 +285,7 @@ export const ja: TranslationStructure = {
         inputPlaceholder: 'メッセージを入力...',
         inactiveArchived: 'このセッションは非アクティブです。',
         resumeFromTerminal: 'ターミナルから再開するには:',
+        catalogNotReadyBanner: 'セッションがまだ読み込まれていません — 先にメッセージを送信してこのリストを生成してください。',
     },
 
     commandPalette: {

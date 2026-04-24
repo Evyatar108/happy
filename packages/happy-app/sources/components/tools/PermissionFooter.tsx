@@ -5,6 +5,7 @@ import { sessionAllow, sessionDeny } from '@/sync/ops';
 import { useUnistyles } from 'react-native-unistyles';
 import { storage } from '@/sync/storage';
 import { t } from '@/text';
+import { useChatFontScaleOverride } from '@/hooks/useChatFontScale';
 
 interface PermissionFooterProps {
     permission: {
@@ -23,6 +24,7 @@ interface PermissionFooterProps {
 
 export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, sessionId, toolName, toolInput, metadata }) => {
     const { theme } = useUnistyles();
+    const buttonTextScaleOverride = useChatFontScaleOverride(14);
     const [loadingButton, setLoadingButton] = useState<'allow' | 'deny' | 'abort' | null>(null);
     const [loadingAllEdits, setLoadingAllEdits] = useState(false);
     const [loadingBypass, setLoadingBypass] = useState(false);
@@ -298,6 +300,7 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, 
                             <View style={styles.buttonContent}>
                                 <Text style={[
                                     styles.buttonText,
+                                    buttonTextScaleOverride,
                                     isPending && styles.buttonTextAllow,
                                     isCodexApproved && styles.buttonTextSelected
                                 ]} numberOfLines={1} ellipsizeMode="tail">
@@ -327,6 +330,7 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, 
                             <View style={styles.buttonContent}>
                                 <Text style={[
                                     styles.buttonText,
+                                    buttonTextScaleOverride,
                                     isPending && styles.buttonTextForSession,
                                     isCodexApprovedForSession && styles.buttonTextSelected
                                 ]} numberOfLines={1} ellipsizeMode="tail">
@@ -356,6 +360,7 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, 
                             <View style={styles.buttonContent}>
                                 <Text style={[
                                     styles.buttonText,
+                                    buttonTextScaleOverride,
                                     isPending && styles.buttonTextDeny,
                                     isCodexAborted && styles.buttonTextSelected
                                 ]} numberOfLines={1} ellipsizeMode="tail">
@@ -422,6 +427,7 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, 
                             <View style={styles.buttonContent}>
                                 <Text style={[
                                     styles.buttonText,
+                                    buttonTextScaleOverride,
                                     isPending && styles.buttonTextAllowAll,
                                     isApprovedViaAllEdits && styles.buttonTextSelected
                                 ]} numberOfLines={1} ellipsizeMode="tail">
@@ -453,6 +459,7 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, 
                             <View style={styles.buttonContent}>
                                 <Text style={[
                                     styles.buttonText,
+                                    buttonTextScaleOverride,
                                     isPending && styles.buttonTextForSession,
                                     isApprovedViaBypass && styles.buttonTextSelected
                                 ]} numberOfLines={1} ellipsizeMode="tail">
@@ -484,6 +491,7 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, 
                             <View style={styles.buttonContent}>
                                 <Text style={[
                                     styles.buttonText,
+                                    buttonTextScaleOverride,
                                     isPending && styles.buttonTextForSession,
                                     isApprovedForSession && styles.buttonTextSelected
                                 ]} numberOfLines={1} ellipsizeMode="tail">

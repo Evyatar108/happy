@@ -282,6 +282,7 @@ export const it: TranslationStructure = {
         inputPlaceholder: 'Scrivi un messaggio ...',
         inactiveArchived: 'Questa sessione è inattiva.',
         resumeFromTerminal: 'Per riprenderla dal terminale:',
+        catalogNotReadyBanner: 'La sessione non è ancora stata caricata — invia prima un messaggio per popolare questo elenco.',
     },
 
     commandPalette: {

@@ -301,6 +301,7 @@ export const pl: TranslationStructure = {
         inputPlaceholder: 'Wpisz wiadomość...',
         inactiveArchived: 'Ta sesja jest nieaktywna.',
         resumeFromTerminal: 'Aby wznowić ją z terminala:',
+        catalogNotReadyBanner: 'Sesja jeszcze się nie załadowała — wyślij najpierw wiadomość, aby wypełnić tę listę.',
     },
 
     commandPalette: {

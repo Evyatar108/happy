@@ -282,6 +282,7 @@ export const en = {
         inputPlaceholder: 'Type a message ...',
         inactiveArchived: 'This session is inactive.',
         resumeFromTerminal: 'To resume it from the terminal:',
+        catalogNotReadyBanner: "Session hasn't loaded yet — send any message first to populate this list.",
     },
 
     commandPalette: {

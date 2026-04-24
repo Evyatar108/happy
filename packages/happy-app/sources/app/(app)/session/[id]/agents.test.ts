@@ -2,7 +2,7 @@ import * as React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockUseLocalSearchParams = vi.fn<() => { id: string }>();
-const mockUseSession = vi.fn<(id: string) => { metadata?: { agents?: string[] } | null } | null>();
+const mockUseSession = vi.fn<(id: string) => { metadata?: { tools?: unknown; agents?: string[] } | null } | null>();
 
 vi.mock('expo-router', () => ({
     useLocalSearchParams: mockUseLocalSearchParams,
@@ -24,7 +24,11 @@ vi.mock('@/components/ItemList', () => ({
     ItemList: 'ItemList',
 }));
 
-const { AgentsScreen, EMPTY_STATE_TITLE } = await import('./agents');
+vi.mock('@/text', () => ({
+    t: (key: string) => key,
+}));
+
+const { AgentsScreen, EMPTY_STATE_TITLE, LOADING_TITLE } = await import('./agents');
 
 function findElementsByType(node: React.ReactNode, type: string): React.ReactElement[] {
     if (Array.isArray(node)) {
@@ -57,6 +61,7 @@ describe('AgentsScreen', () => {
     it('renders one row per agent using the route session metadata', () => {
         mockUseSession.mockReturnValue({
             metadata: {
+                tools: [],
                 agents: ['default', 'explorer', 'worker'],
             },
         });
@@ -80,9 +85,9 @@ describe('AgentsScreen', () => {
         });
     });
 
-    it('renders the empty state when the session has no agents metadata', () => {
+    it('renders the empty state when tools metadata is present but agents are missing', () => {
         mockUseSession.mockReturnValue({
-            metadata: {},
+            metadata: { tools: [] },
         });
 
         const tree = AgentsScreen();
@@ -95,9 +100,27 @@ describe('AgentsScreen', () => {
         });
     });
 
+    it('renders the loading state with the catalog-not-ready banner when session metadata tools is undefined', () => {
+        mockUseSession.mockReturnValue({
+            metadata: {},
+        });
+
+        const tree = AgentsScreen();
+        const rows = findElementsByType(tree, 'Item');
+
+        expect(rows).toHaveLength(1);
+        expect(rows[0]?.props).toMatchObject({
+            title: LOADING_TITLE,
+            subtitle: 'session.catalogNotReadyBanner',
+            loading: true,
+            showChevron: false,
+        });
+    });
+
     it('renders the empty state when the session agents list is empty', () => {
         mockUseSession.mockReturnValue({
             metadata: {
+                tools: [],
                 agents: [],
             },
         });

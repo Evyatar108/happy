@@ -285,6 +285,7 @@ export const zhHans: TranslationStructure = {
         inputPlaceholder: '输入消息...',
         inactiveArchived: '此会话处于非活动状态。',
         resumeFromTerminal: '要从终端恢复它：',
+        catalogNotReadyBanner: '会话尚未加载 — 请先发送任意消息以填充此列表。',
     },
 
     commandPalette: {

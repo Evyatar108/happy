@@ -9,6 +9,7 @@ import { layout } from '../layout';
 import { useLocalSetting } from '@/sync/storage';
 import { StyleSheet } from 'react-native-unistyles';
 import { t } from '@/text';
+import { useChatScaledStyles } from '@/hooks/useChatFontScale';
 
 interface ToolFullViewProps {
     tool: ToolCall;
@@ -21,6 +22,7 @@ export function ToolFullView({ tool, metadata, messages = [] }: ToolFullViewProp
     const SpecializedFullView = getToolFullViewComponent(tool.name);
     const screenWidth = useWindowDimensions().width;
     const devModeEnabled = (useLocalSetting('devModeEnabled') || __DEV__);
+    const scaled = useChatScaledStyles(scalableChromeStyles);
 
     return (
         <ScrollView style={[styles.container, { paddingHorizontal: screenWidth > 700 ? 16 : 0 }]}>
@@ -36,9 +38,9 @@ export function ToolFullView({ tool, metadata, messages = [] }: ToolFullViewProp
                         <View style={styles.section}>
                             <View style={styles.sectionHeader}>
                                 <Ionicons name="information-circle" size={20} color="#5856D6" />
-                                <Text style={styles.sectionTitle}>{t('tools.fullView.description')}</Text>
+                                <Text style={[styles.sectionTitle, scaled.sectionTitle]}>{t('tools.fullView.description')}</Text>
                             </View>
-                            <Text style={styles.description}>{tool.description}</Text>
+                            <Text style={[styles.description, scaled.description]}>{tool.description}</Text>
                         </View>
                     )}
                     {/* Input Parameters */}
@@ -46,7 +48,7 @@ export function ToolFullView({ tool, metadata, messages = [] }: ToolFullViewProp
                         <View style={styles.section}>
                             <View style={styles.sectionHeader}>
                                 <Ionicons name="log-in" size={20} color="#5856D6" />
-                                <Text style={styles.sectionTitle}>{t('tools.fullView.inputParams')}</Text>
+                                <Text style={[styles.sectionTitle, scaled.sectionTitle]}>{t('tools.fullView.inputParams')}</Text>
                             </View>
                             <CodeView code={JSON.stringify(tool.input, null, 2)} scaled />
                         </View>
@@ -57,7 +59,7 @@ export function ToolFullView({ tool, metadata, messages = [] }: ToolFullViewProp
                         <View style={styles.section}>
                             <View style={styles.sectionHeader}>
                                 <Ionicons name="log-out" size={20} color="#34C759" />
-                                <Text style={styles.sectionTitle}>{t('tools.fullView.output')}</Text>
+                                <Text style={[styles.sectionTitle, scaled.sectionTitle]}>{t('tools.fullView.output')}</Text>
                             </View>
                             <CodeView code={typeof tool.result === 'string' ? tool.result : JSON.stringify(tool.result, null, 2)} scaled />
                         </View>
@@ -68,10 +70,10 @@ export function ToolFullView({ tool, metadata, messages = [] }: ToolFullViewProp
                         <View style={styles.section}>
                             <View style={styles.sectionHeader}>
                                 <Ionicons name="close-circle" size={20} color="#FF3B30" />
-                                <Text style={styles.sectionTitle}>{t('tools.fullView.error')}</Text>
+                                <Text style={[styles.sectionTitle, scaled.sectionTitle]}>{t('tools.fullView.error')}</Text>
                             </View>
                             <View style={styles.errorContainer}>
-                                <Text style={styles.errorText}>{String(tool.result)}</Text>
+                                <Text style={[styles.errorText, scaled.errorText]}>{String(tool.result)}</Text>
                             </View>
                         </View>
                     )}
@@ -81,8 +83,8 @@ export function ToolFullView({ tool, metadata, messages = [] }: ToolFullViewProp
                         <View style={styles.section}>
                             <View style={styles.emptyOutputContainer}>
                                 <Ionicons name="checkmark-circle-outline" size={48} color="#34C759" />
-                                <Text style={styles.emptyOutputText}>{t('tools.fullView.completed')}</Text>
-                                <Text style={styles.emptyOutputSubtext}>{t('tools.fullView.noOutput')}</Text>
+                                <Text style={[styles.emptyOutputText, scaled.emptyOutputText]}>{t('tools.fullView.completed')}</Text>
+                                <Text style={[styles.emptyOutputSubtext, scaled.emptyOutputSubtext]}>{t('tools.fullView.noOutput')}</Text>
                             </View>
                         </View>
                     )}
@@ -189,3 +191,11 @@ const styles = StyleSheet.create((theme) => ({
 
 // Export styles for use in specialized views
 export const toolFullViewStyles = styles;
+
+const scalableChromeStyles = {
+    sectionTitle: { fontSize: 17 },
+    description: { fontSize: 14, lineHeight: 20 },
+    errorText: { fontSize: 14, lineHeight: 20 },
+    emptyOutputText: { fontSize: 16 },
+    emptyOutputSubtext: { fontSize: 14 },
+};
