@@ -101,7 +101,7 @@ const ChatListInternal = React.memo((props: {
             0,
             Math.min(maxOffset, currentOffsetRef.current + pageSize),
         );
-        if (maxOffset > 0 && nextOffset >= maxOffset * 0.9) {
+        if (maxOffset > 0 && nextOffset >= maxOffset - viewportHeight * 0.1) {
             const sessionMessages = storage.getState().sessionMessages[props.sessionId];
             if (sessionMessages?.hasOlder && !sessionMessages.loadingOlder) {
                 void sync.loadOlder(props.sessionId);
