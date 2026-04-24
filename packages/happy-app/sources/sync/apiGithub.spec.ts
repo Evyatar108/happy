@@ -12,6 +12,12 @@ vi.mock('@/utils/time', () => ({
     backoff: vi.fn((fn) => fn())
 }));
 
+// Mock apiSocket to avoid pulling expo-constants and the storage module graph
+// (which depends on React Native / Expo native modules) into this node-runner spec.
+vi.mock('./apiSocket', () => ({
+    getHappyClientId: () => 'web/0.0.0-test',
+}));
+
 describe('apiGithub', () => {
     const mockCredentials: AuthCredentials = {
         token: 'test-token',
@@ -45,7 +51,8 @@ describe('apiGithub', () => {
                 {
                     method: 'DELETE',
                     headers: {
-                        'Authorization': 'Bearer test-token'
+                        'Authorization': 'Bearer test-token',
+                        'X-Happy-Client': 'web/0.0.0-test',
                     }
                 }
             );

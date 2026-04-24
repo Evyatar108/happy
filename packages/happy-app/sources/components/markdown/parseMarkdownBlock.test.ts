@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { parseMarkdown } from './parseMarkdown';
+import { parseMarkdown, type MarkdownSpan } from './parseMarkdown';
+
+// Helper to build the span shape the parser emits for plain, unstyled text
+// cells. Production now returns MarkdownSpan[] for every table cell (to
+// support inline markdown / links inside cells), so the tests assert the
+// structured representation rather than the raw strings.
+function plainCell(text: string): MarkdownSpan[] {
+    if (text === '') return [];
+    return [{ styles: [], text, url: null }];
+}
 
 describe('parseMarkdownBlock - table parsing', () => {
 
@@ -14,8 +23,8 @@ describe('parseMarkdownBlock - table parsing', () => {
         expect(blocks).toHaveLength(1);
         expect(blocks[0]).toEqual({
             type: 'table',
-            headers: ['A', 'B'],
-            rows: [['1', '2']],
+            headers: [plainCell('A'), plainCell('B')],
+            rows: [[plainCell('1'), plainCell('2')]],
         });
     });
 
@@ -36,8 +45,11 @@ describe('parseMarkdownBlock - table parsing', () => {
         expect(tableBlocks).toHaveLength(1);
         expect(tableBlocks[0]).toEqual({
             type: 'table',
-            headers: ['A', 'B'],
-            rows: [['1', '2'], ['3', '4']],
+            headers: [plainCell('A'), plainCell('B')],
+            rows: [
+                [plainCell('1'), plainCell('2')],
+                [plainCell('3'), plainCell('4')],
+            ],
         });
     });
 
@@ -52,8 +64,8 @@ describe('parseMarkdownBlock - table parsing', () => {
         expect(blocks).toHaveLength(1);
         expect(blocks[0]).toEqual({
             type: 'table',
-            headers: ['', 'Header1', 'Header2'],
-            rows: [['Row1', 'a', 'b']],
+            headers: [plainCell(''), plainCell('Header1'), plainCell('Header2')],
+            rows: [[plainCell('Row1'), plainCell('a'), plainCell('b')]],
         });
     });
 
@@ -79,12 +91,13 @@ describe('parseMarkdownBlock - table parsing', () => {
         const table = tableBlocks[0];
         if (table.type !== 'table') throw new Error('not a table');
 
-        // Empty first cell should be preserved
+        // Empty first cell should be preserved (as an empty span list)
         expect(table.headers).toHaveLength(3);
-        expect(table.headers[0]).toBe('');
+        expect(table.headers[0]).toEqual([]);
 
         expect(table.rows).toHaveLength(3);
-        expect(table.rows[0][0]).toBe('Price');
+        // First cell of first data row should contain a single "Price" span
+        expect(table.rows[0][0]).toEqual(plainCell('Price'));
     });
 
     it('stops table collection at non-blank, non-pipe lines', () => {
