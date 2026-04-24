@@ -257,10 +257,16 @@ class Sync {
     }
 
     loadOlder = async (sessionId: string): Promise<void> => {
+        const sessionMessages = storage.getState().sessionMessages[sessionId];
+        if (!sessionMessages || !sessionMessages.hasOlder || sessionMessages.loadingOlder) {
+            return;
+        }
+        storage.getState().setLoadingOlder(sessionId, true);
+
         const lock = this.getSessionMessageLock(sessionId);
         await lock.inLock(async () => {
-            const sessionMessages = storage.getState().sessionMessages[sessionId];
-            if (!sessionMessages || !sessionMessages.hasOlder || sessionMessages.loadingOlder) {
+            const current = storage.getState().sessionMessages[sessionId];
+            if (!current || !current.hasOlder) {
                 return;
             }
 
@@ -270,11 +276,10 @@ class Sync {
             }
 
             const pagination = computeOlderPageAfterSeq(
-                sessionMessages.oldestLoadedSeq,
+                current.oldestLoadedSeq,
                 OLDER_MESSAGES_PAGE_SIZE
             );
 
-            storage.getState().setLoadingOlder(sessionId, true);
             try {
                 const response = await apiSocket.request(
                     `/v3/sessions/${sessionId}/messages?after_seq=${pagination.afterSeq}&limit=${OLDER_MESSAGES_PAGE_SIZE}`
