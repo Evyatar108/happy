@@ -10,7 +10,7 @@
 
 export const Platform = {
     OS: 'web' as 'web' | 'ios' | 'android' | 'macos' | 'windows',
-    select: <T,>(specifics: { [key: string]: T; default?: T }): T | undefined =>
+    select: <T,>(specifics: Record<string, T | undefined> & { default?: T }): T | undefined =>
         specifics.web ?? specifics.default,
 };
 

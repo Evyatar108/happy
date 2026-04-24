@@ -14,7 +14,7 @@ import Animated, { useAnimatedProps, useAnimatedStyle } from 'react-native-reani
 import { ChatScaleLiveContext } from './ChatScaleLiveContext';
 
 
-export const MessageView = (props: {
+export const MessageView = React.memo((props: {
   message: Message;
   metadata: Metadata | null;
   sessionId: string;
@@ -46,7 +46,7 @@ export const MessageView = (props: {
       {content}
     </AnimatedMessageView>
   );
-};
+});
 
 function AnimatedMessageView(props: {
   liveMultiplier: NonNullable<React.ContextType<typeof ChatScaleLiveContext>>['liveMultiplier'];

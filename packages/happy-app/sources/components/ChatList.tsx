@@ -172,6 +172,10 @@ const ChatListInternal = React.memo((props: {
             data={props.messages}
             inverted={true}
             keyExtractor={keyExtractor}
+            initialNumToRender={8}
+            maxToRenderPerBatch={4}
+            windowSize={5}
+            removeClippedSubviews={true}
             maintainVisibleContentPosition={{
                 minIndexForVisible: 0,
                 autoscrollToTopThreshold: 10,
@@ -181,7 +185,7 @@ const ChatListInternal = React.memo((props: {
             renderItem={renderItem}
             onScroll={handleScroll}
             onContentSizeChange={handleContentSizeChange}
-            scrollEventThrottle={16}
+            scrollEventThrottle={32}
             scrollEnabled={!chatPaginatedScroll}
             ListHeaderComponent={<ListFooter sessionId={props.sessionId} />}
             ListFooterComponent={<ListHeader />}

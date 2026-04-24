@@ -83,6 +83,14 @@ Merged as commit `88a18bf6` (squash of 9 stories + 5 code-review fixes from `fea
 
 **On-device verification:** tablet session on 2026-04-23. Catalog screens populate after `~`1–2s once the first real message is sent (which triggers local→remote mode switch and exercises the shadow session path). Loading… state visible during the gap.
 
+## Pending ship notes
+
+### Lazy-load long chats
+
+| Device | Session | Tier | Median of 3 cold-open timings | Commit |
+| --- | --- | --- | --- | --- |
+| Onyx Boox model pending | session name + message count pending | Tier 0 | pending human measurement | pending commit |
+
 ## What's in `feature/tablet-sidebar-toggle` (historical, in commit order)
 
 The initial batch, before the PR-A..PR-D work. Tip `c98bb557`. Content:
