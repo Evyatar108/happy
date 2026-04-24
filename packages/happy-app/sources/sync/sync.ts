@@ -50,6 +50,7 @@ import { fetchFeed } from './apiFeed';
 import { FeedItem } from './feedTypes';
 import { UserProfile } from './friendTypes';
 import { resolveMessageModeMeta } from './messageMeta';
+import { computeInitialAfterSeq } from './paginationMath';
 
 type V3GetSessionMessagesResponse = {
     messages: ApiMessage[];
@@ -75,6 +76,8 @@ type SendMessageOptions = {
     displayText?: string;
     source?: MessageSentSource;
 };
+
+const INITIAL_MESSAGES_WINDOW_SIZE = 80;
 
 class Sync {
     private static readonly BACKGROUND_SEND_TIMEOUT_MS = 30_000;
@@ -1642,7 +1645,25 @@ class Sync {
                 throw new Error(`Session encryption not ready for ${sessionId}`);
             }
 
+            const isColdStart = !this.sessionLastSeq.has(sessionId);
             let afterSeq = this.sessionLastSeq.get(sessionId) ?? 0;
+            let hasOlder = false;
+            let boundedSessionSeq: number | null = null;
+            let oldestLoadedSeq = 0;
+
+            if (isColdStart) {
+                const sessionSeq = storage.getState().sessions[sessionId]?.seq;
+                if (sessionSeq !== undefined) {
+                    const boundedWindow = computeInitialAfterSeq(sessionSeq, INITIAL_MESSAGES_WINDOW_SIZE);
+                    afterSeq = boundedWindow.afterSeq;
+                    hasOlder = boundedWindow.hasOlder;
+                    if (boundedWindow.hasOlder) {
+                        boundedSessionSeq = sessionSeq;
+                        oldestLoadedSeq = boundedWindow.afterSeq + 1;
+                    }
+                }
+            }
+
             let hasMore = true;
             let totalNormalized = 0;
 
@@ -1681,6 +1702,9 @@ class Sync {
 
                 this.sessionLastSeq.set(sessionId, maxSeq);
                 hasMore = !!data.hasMore;
+                if (hasOlder && boundedSessionSeq !== null && maxSeq >= boundedSessionSeq) {
+                    hasMore = false;
+                }
                 if (hasMore && maxSeq === afterSeq) {
                     log.log(`💬 fetchMessages: pagination stalled for ${sessionId}, stopping to avoid infinite loop`);
                     break;
@@ -1688,7 +1712,15 @@ class Sync {
                 afterSeq = maxSeq;
             }
 
-            storage.getState().applyMessagesLoaded(sessionId);
+            storage.getState().applyMessagesLoaded(
+                sessionId,
+                hasOlder
+                    ? {
+                        hasOlder,
+                        oldestLoadedSeq,
+                    }
+                    : undefined
+            );
             log.log(`💬 fetchMessages completed for session ${sessionId} - processed ${totalNormalized} messages`);
         });
     }
