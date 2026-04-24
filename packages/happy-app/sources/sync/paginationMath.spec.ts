@@ -39,5 +39,16 @@ describe('paginationMath', () => {
                 hasOlder: false,
             });
         });
+
+        it('reports hasOlder=false when oldestLoadedSeq > 1 but <= pageSize + 1', () => {
+            expect(computeOlderPageAfterSeq(2, 80)).toEqual({
+                afterSeq: 0,
+                hasOlder: false,
+            });
+            expect(computeOlderPageAfterSeq(81, 80)).toEqual({
+                afterSeq: 0,
+                hasOlder: false,
+            });
+        });
     });
 });

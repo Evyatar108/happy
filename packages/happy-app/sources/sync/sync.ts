@@ -280,6 +280,14 @@ class Sync {
                 OLDER_MESSAGES_PAGE_SIZE
             );
 
+            if (!pagination.hasOlder) {
+                storage.getState().applyOlderMessages(sessionId, [], {
+                    newOldestLoadedSeq: current.oldestLoadedSeq,
+                    hasOlder: false,
+                });
+                return;
+            }
+
             try {
                 const response = await apiSocket.request(
                     `/v3/sessions/${sessionId}/messages?after_seq=${pagination.afterSeq}&limit=${OLDER_MESSAGES_PAGE_SIZE}`
