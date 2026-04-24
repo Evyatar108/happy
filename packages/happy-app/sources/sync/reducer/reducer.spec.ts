@@ -4,6 +4,285 @@ import { createReducer } from './reducer';
 import { reducer } from './reducer';
 import { AgentState } from '../storageTypes';
 
+type ReducerMessageSnapshot = ReturnType<typeof createReducer>['messages'] extends Map<string, infer TValue>
+    ? TValue
+    : never;
+
+function stableSort<T>(values: T[]): T[] {
+    return [...values].sort((left, right) =>
+        JSON.stringify(left).localeCompare(JSON.stringify(right))
+    );
+}
+
+function serializeReducerMessage(message: ReducerMessageSnapshot | null) {
+    if (!message) {
+        return null;
+    }
+
+    return {
+        createdAt: message.createdAt,
+        realID: message.realID,
+        role: message.role,
+        text: message.text,
+        isThinking: message.isThinking ?? false,
+        event: message.event,
+        tool: message.tool
+            ? {
+                name: message.tool.name,
+                state: message.tool.state,
+                input: message.tool.input,
+                createdAt: message.tool.createdAt,
+                startedAt: message.tool.startedAt,
+                completedAt: message.tool.completedAt,
+                description: message.tool.description,
+                result: message.tool.result ?? null,
+                permission: message.tool.permission ?? null,
+            }
+            : null,
+        meta: message.meta ?? null,
+    };
+}
+
+function snapshotReducerState(state: ReturnType<typeof createReducer>) {
+    return {
+        localIds: Array.from(state.localIds.keys()).sort(),
+        messageIds: Array.from(state.messageIds.keys()).sort(),
+        latestTodos: state.latestTodos
+            ? {
+                todos: state.latestTodos.todos,
+                timestamp: state.latestTodos.timestamp,
+            }
+            : null,
+        latestUsage: state.latestUsage
+            ? {
+                ...state.latestUsage,
+            }
+            : null,
+        messages: stableSort(
+            Array.from(state.messages.values()).map((message) => serializeReducerMessage(message))
+        ),
+        sidechains: stableSort(
+            Array.from(state.sidechains.entries()).map(([sidechainId, messages]) => ({
+                sidechainId,
+                messages: stableSort(messages.map((message) => serializeReducerMessage(message))),
+            }))
+        ),
+        toolLinks: Array.from(state.toolIdToMessageId.entries())
+            .sort(([left], [right]) => left.localeCompare(right))
+            .map(([toolId, messageId]) => ({
+                toolId,
+                message: serializeReducerMessage(state.messages.get(messageId) ?? null),
+            })),
+        pendingToolResults: Array.from(state.pendingToolResults.entries())
+            .sort(([left], [right]) => left.localeCompare(right))
+            .map(([toolId, result]) => ({
+                toolId,
+                result,
+            })),
+    };
+}
+
+function createUserTextMessage(id: string, createdAt: number, text: string): NormalizedMessage {
+    return {
+        id,
+        localId: null,
+        createdAt,
+        role: 'user',
+        isSidechain: false,
+        content: {
+            type: 'text',
+            text,
+        },
+    };
+}
+
+function createAgentTextMessage(
+    id: string,
+    createdAt: number,
+    text: string,
+    usage?: NormalizedMessage['usage'],
+): NormalizedMessage {
+    return {
+        id,
+        localId: null,
+        createdAt,
+        role: 'agent',
+        isSidechain: false,
+        content: [{
+            type: 'text',
+            text,
+            uuid: `${id}-uuid`,
+            parentUUID: null,
+        }],
+        ...(usage ? { usage } : {}),
+    };
+}
+
+function createToolCallMessage(
+    id: string,
+    createdAt: number,
+    toolId: string,
+    name: string,
+    input: unknown,
+): NormalizedMessage {
+    return {
+        id,
+        localId: null,
+        createdAt,
+        role: 'agent',
+        isSidechain: false,
+        content: [{
+            type: 'tool-call',
+            id: toolId,
+            name,
+            input,
+            description: null,
+            uuid: `${toolId}-uuid`,
+            parentUUID: null,
+        }],
+    };
+}
+
+function createToolResultMessage(
+    id: string,
+    createdAt: number,
+    toolId: string,
+    content: unknown,
+    usage?: NormalizedMessage['usage'],
+): NormalizedMessage {
+    return {
+        id,
+        localId: null,
+        createdAt,
+        role: 'agent',
+        isSidechain: false,
+        content: [{
+            type: 'tool-result',
+            tool_use_id: toolId,
+            content,
+            is_error: false,
+            uuid: `${toolId}-uuid`,
+            parentUUID: null,
+        }],
+        ...(usage ? { usage } : {}),
+    };
+}
+
+function createOutOfOrderHistoryMessage(index: number): NormalizedMessage {
+    const createdAt = index * 10;
+
+    switch (index) {
+        case 10:
+            return createToolCallMessage(
+                'msg-010-plan-enter',
+                createdAt,
+                'tool-plan-enter',
+                'EnterPlanMode',
+                { reason: 'Investigate large chat cold-open perf' },
+            );
+        case 20:
+            return createToolCallMessage(
+                'msg-020-todo-call',
+                createdAt,
+                'tool-todo',
+                'TodoWrite',
+                {
+                    todos: [{
+                        content: 'Measure large chat cold-open on tablet',
+                        status: 'pending',
+                    }],
+                },
+            );
+        case 30:
+            return createToolCallMessage(
+                'msg-030-bash-call',
+                createdAt,
+                'tool-bash',
+                'Bash',
+                { command: 'git status --short' },
+            );
+        case 70:
+            return createToolResultMessage(
+                'msg-070-todo-result',
+                createdAt,
+                'tool-todo',
+                {
+                    oldTodos: [],
+                    newTodos: [{
+                        content: 'Measure large chat cold-open on tablet',
+                        status: 'completed',
+                    }],
+                },
+            );
+        case 80:
+            return createToolResultMessage(
+                'msg-080-bash-result',
+                createdAt,
+                'tool-bash',
+                'working tree clean',
+            );
+        case 90:
+            return createToolCallMessage(
+                'msg-090-plan-exit',
+                createdAt,
+                'tool-plan-exit',
+                'ExitPlanMode',
+                {},
+            );
+        case 100:
+            return createAgentTextMessage(
+                'msg-100-usage',
+                createdAt,
+                'Tail message carrying the newest usage sample.',
+                {
+                    input_tokens: 120,
+                    output_tokens: 45,
+                    cache_creation_input_tokens: 12,
+                    cache_read_input_tokens: 34,
+                },
+            );
+        default:
+            return index % 2 === 0
+                ? createUserTextMessage(
+                    `msg-${String(index).padStart(3, '0')}-user`,
+                    createdAt,
+                    `User message ${index}`,
+                )
+                : createAgentTextMessage(
+                    `msg-${String(index).padStart(3, '0')}-agent`,
+                    createdAt,
+                    `Agent message ${index}`,
+                );
+    }
+}
+
+function createOutOfOrderHistoryScenario() {
+    const allMessages = Array.from({ length: 100 }, (_, offset) =>
+        createOutOfOrderHistoryMessage(offset + 1)
+    );
+    const olderBatch = allMessages.slice(0, 50);
+    const newerBatch = allMessages.slice(50);
+    const interleavedStreamingMessage = createAgentTextMessage(
+        'msg-110-stream',
+        1100,
+        'Streaming message after the initial newer batch.',
+        {
+            input_tokens: 140,
+            output_tokens: 60,
+            cache_creation_input_tokens: 20,
+            cache_read_input_tokens: 10,
+        },
+    );
+
+    return {
+        olderBatch,
+        newerBatch,
+        interleavedStreamingMessage,
+        allAtOnce: allMessages,
+        allAtOnceWithStreaming: [...allMessages, interleavedStreamingMessage],
+    };
+}
+
 describe('reducer', () => {
     // it('should process golden cases', () => {
     //     for (let i = 0; i <= 3; i++) {
@@ -1337,8 +1616,9 @@ describe('reducer', () => {
             const result2 = reducer(state, toolMessages);
             expect(result2.messages).toHaveLength(1);
             if (result2.messages[0].kind === 'tool-call') {
-                expect(result2.messages[0].tool.state).toBe('running'); // Result was ignored
-                expect(result2.messages[0].tool.result).toBeUndefined();
+                expect(result2.messages[0].tool.state).toBe('completed');
+                expect(result2.messages[0].tool.result).toBe('Success');
+                expect(result2.messages[0].tool.completedAt).toBe(1000);
             }
             
             // Result arrives again (with different message ID since it's a new message)
@@ -1361,17 +1641,9 @@ describe('reducer', () => {
             ];
             
             const result3 = reducer(state, resultMessages2, null);
-            
-            // Debug: Check if tool was properly registered
-            const toolId = 'tool-1';
-            const msgId = state.toolIdToMessageId.get(toolId);
-            const message = msgId ? state.messages.get(msgId) : null;
-            
-            expect(result3.messages).toHaveLength(1);
-            if (result3.messages[0].kind === 'tool-call') {
-                expect(result3.messages[0].tool.state).toBe('completed');
-                expect(result3.messages[0].tool.result).toBe('Success');
-            }
+
+            expect(result3.messages).toHaveLength(0);
+            expect(state.pendingToolResults.size).toBe(0);
         });
 
         it('should handle interleaved messages from multiple sources correctly', () => {
@@ -3164,6 +3436,38 @@ describe('reducer', () => {
             ]);
 
             expect(result.todos).toBeUndefined();
+        });
+    });
+
+    describe('out-of-order history arrival', () => {
+        it('matches the all-at-once reducer state when a newer batch of 50 arrives before an older batch of 50', () => {
+            const scenario = createOutOfOrderHistoryScenario();
+
+            expect(scenario.olderBatch).toHaveLength(50);
+            expect(scenario.newerBatch).toHaveLength(50);
+
+            const allAtOnceState = createReducer();
+            reducer(allAtOnceState, scenario.allAtOnce);
+
+            const paginatedState = createReducer();
+            reducer(paginatedState, scenario.newerBatch);
+            reducer(paginatedState, scenario.olderBatch);
+
+            expect(snapshotReducerState(paginatedState)).toEqual(snapshotReducerState(allAtOnceState));
+        });
+
+        it('matches the all-at-once reducer state when a streaming message lands between the newer and older batches', () => {
+            const scenario = createOutOfOrderHistoryScenario();
+
+            const allAtOnceState = createReducer();
+            reducer(allAtOnceState, scenario.allAtOnceWithStreaming);
+
+            const paginatedState = createReducer();
+            reducer(paginatedState, scenario.newerBatch);
+            reducer(paginatedState, [scenario.interleavedStreamingMessage]);
+            reducer(paginatedState, scenario.olderBatch);
+
+            expect(snapshotReducerState(paginatedState)).toEqual(snapshotReducerState(allAtOnceState));
         });
     });
 });

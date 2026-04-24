@@ -617,7 +617,9 @@ export const storage = create<StorageState>()((set, get) => {
                 const agentState = session?.agentState;
 
                 // Messages are already normalized, no need to process them again
-                const normalizedMessages = messages;
+                // Reducer phases assume oldest-to-newest within each batch so tool calls,
+                // results, and latestUsage/todo updates replay deterministically.
+                const normalizedMessages = [...messages].sort((left, right) => left.createdAt - right.createdAt);
 
                 // Run reducer with agentState
                 const reducerResult = reducer(existingSession.reducerState, normalizedMessages, agentState);
@@ -790,7 +792,10 @@ export const storage = create<StorageState>()((set, get) => {
 
             const session = state.sessions[sessionId];
             const agentState = session?.agentState;
-            const reducerResult = reducer(existingSession.reducerState, messages, agentState);
+            // Older-page batches must replay oldest-to-newest for the same reducer invariants
+            // as initial loads, even when pagination arrives in a different transport order.
+            const normalizedMessages = [...messages].sort((left, right) => left.createdAt - right.createdAt);
+            const reducerResult = reducer(existingSession.reducerState, normalizedMessages, agentState);
             const processedMessages = reducerResult.messages;
 
             const mergedMessagesMap = { ...existingSession.messagesMap };
