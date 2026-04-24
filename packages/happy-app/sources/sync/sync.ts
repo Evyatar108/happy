@@ -265,30 +265,32 @@ class Sync {
 
         const lock = this.getSessionMessageLock(sessionId);
         await lock.inLock(async () => {
-            const current = storage.getState().sessionMessages[sessionId];
-            if (!current || !current.hasOlder) {
-                return;
-            }
-
-            const encryption = this.encryption.getSessionEncryption(sessionId);
-            if (!encryption) {
-                throw new Error(`Session encryption not ready for ${sessionId}`);
-            }
-
-            const pagination = computeOlderPageAfterSeq(
-                current.oldestLoadedSeq,
-                OLDER_MESSAGES_PAGE_SIZE
-            );
-
-            if (!pagination.hasOlder) {
-                storage.getState().applyOlderMessages(sessionId, [], {
-                    newOldestLoadedSeq: current.oldestLoadedSeq,
-                    hasOlder: false,
-                });
-                return;
-            }
-
+            let applied = false;
             try {
+                const current = storage.getState().sessionMessages[sessionId];
+                if (!current || !current.hasOlder) {
+                    return;
+                }
+
+                const encryption = this.encryption.getSessionEncryption(sessionId);
+                if (!encryption) {
+                    throw new Error(`Session encryption not ready for ${sessionId}`);
+                }
+
+                const pagination = computeOlderPageAfterSeq(
+                    current.oldestLoadedSeq,
+                    OLDER_MESSAGES_PAGE_SIZE
+                );
+
+                if (!pagination.hasOlder) {
+                    applied = true;
+                    storage.getState().applyOlderMessages(sessionId, [], {
+                        newOldestLoadedSeq: current.oldestLoadedSeq,
+                        hasOlder: false,
+                    });
+                    return;
+                }
+
                 const response = await apiSocket.request(
                     `/v3/sessions/${sessionId}/messages?after_seq=${pagination.afterSeq}&limit=${OLDER_MESSAGES_PAGE_SIZE}`
                 );
@@ -318,13 +320,15 @@ class Sync {
                     }
                 }
 
+                applied = true;
                 storage.getState().applyOlderMessages(sessionId, normalizedMessages, {
                     newOldestLoadedSeq: pagination.afterSeq + 1,
                     hasOlder: pagination.hasOlder,
                 });
-            } catch (error) {
-                storage.getState().setLoadingOlder(sessionId, false);
-                throw error;
+            } finally {
+                if (!applied) {
+                    storage.getState().setLoadingOlder(sessionId, false);
+                }
             }
         });
     }
