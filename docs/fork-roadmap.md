@@ -81,31 +81,6 @@ Need to pick one:
 
 ---
 
-### Lazy-load long chats + cap initial message fetch
-
-**What:** Opening a long chat today is slow because the sync layer fetches **every** historical message up-front before the `ChatList` even mounts. `packages/happy-app/sources/sync/sync.ts:1649` loops `while (hasMore)` over `/v3/sessions/:id/messages?after_seq=...&limit=100`, pulling, decrypting, and normalizing the entire history before the first render. `ChatList` uses vanilla `FlatList` (`packages/happy-app/sources/components/ChatList.tsx:170`) with no virtualization tuning — it does virtualize rendering by default, but every message is in memory + normalized. On e-ink CPUs (see `devices.md`) this is the dominant cost.
-
-Two-part fix:
-1. **Cap the initial fetch** to the N most recent messages (inverted FlatList means "most recent" = what the user sees first). Expose a `loadOlder()` entry point triggered by `onEndReached` (which, in an inverted list, fires when scrolling toward older messages). Server already supports seq-based pagination; app side needs a "stop at N, remember oldest seq, resume from there" state machine. Touch points: `sources/sync/sync.ts` (`fetchMessages` loop — add a `maxInitial` guard + lazy-fetch method), `sources/sync/storage.ts` (per-session "hasOlder" flag), `sources/components/ChatList.tsx` (`onEndReached` + throttle). Keep tail-follow behavior intact via the existing `maintainVisibleContentPosition`.
-2. **Tune FlatList virtualization knobs for e-ink** — set `initialNumToRender`, `maxToRenderPerBatch`, `windowSize`, and (conditionally) `removeClippedSubviews` to smaller values than FlatList's defaults. These numbers trade render quality during fling for lower steady-state memory; e-ink doesn't fling, so we can be aggressive. Optionally swap `FlatList` → `@shopify/flash-list` if the gain is meaningful (risk: maintenance churn + extra dep; measure first).
-
-**Clarification on "don't render all messages in the remote":** The app already virtualizes view rendering via FlatList — only messages near the viewport mount. The real bottleneck is **state/sync**: every message is decrypted, normalized, and held in the store regardless of whether it will ever render. The fix above addresses that at the fetch boundary.
-
-**Why this matters for e-ink:** slow decrypt + slow normalize + large JS heap → multi-second time-to-first-render on cold chat open → user sees a blank white screen long enough to assume the app hung.
-
-**Relevant files:**
-- `packages/happy-app/sources/sync/sync.ts:1630–1690` — `fetchMessages` loop to refactor
-- `packages/happy-app/sources/sync/storage.ts` — per-session pagination state
-- `packages/happy-app/sources/sync/apiFeed.ts`, `packages/happy-app/sources/sync/apiTypes.ts` — wire shapes (server already supports seq cursors)
-- `packages/happy-app/sources/components/ChatList.tsx` — FlatList props + `onEndReached`
-- `packages/happy-app/sources/sync/reducer/messageToEvent.ts` — confirm reducer tolerates out-of-order arrivals when older batches land after newer state
-
-**Complexity:** medium. (1) is a ~1-day job with careful testing on the tail-sync / in-flight-streaming edge cases. (2) is ~1 hour of tuning + measurement. Do (2) first — it may buy enough perf to make (1) lower priority.
-
-**Verification:** time-to-interactive on a session with >1000 messages, on the Onyx tablet (per `devices.md`).
-
----
-
 ### 5. Hardware page-turn key support
 
 **What:** Capture Android `KeyboardEvent` for `DPAD_UP`/`DPAD_DOWN` (and optionally volume keys) in `ChatList`. Scroll by ~90% of viewport height per press. Opt-in toggle.
@@ -187,6 +162,14 @@ Merge commit `019a6109`; 20 commits stacked on the `fix/preserve-user-settings-f
 2. **PR-B: slider + live preview for chat text size** — replaces the tap-to-cycle Appearance item with a `@react-native-community/slider` (0.85–1.6, step 0.05) and a sample text rendered at the current preview scale. Fixes the `appearance.tsx` i18n debt along the way (three new `settingsAppearance.chatTextSize*` keys in `_default.ts` + all 10 locale files). Commit: `feat: [US-004] - [Slider UX + i18n debt fix (PR-B)]`.
 3. **PR-C: pinch-to-zoom on chat (opt-in)** — `LocalSettings.pinchToZoomEnabled` (default `false`). Two-finger pinch on `ChatList` with live transform preview (`Animated.View` wrapping `MessageView` with `transform: [{ scale }]` and `transformOrigin: 'center'`); single persisted `chatFontScale` write on `.onEnd`; `renderToHardwareTextureAndroid` gated to the active-gesture window only. Zero cost at rest when toggle is off. Commit: `feat: [US-006] - [Pinch gesture + Appearance toggle (PR-C part 2)]`.
 4. **PR-D: page-turn scroll mode (opt-in)** — `LocalSettings.chatPaginatedScroll` (default `false`). 15%-edge-strip tap zones (top/bottom); middle 70% stays pass-through so message long-press / link taps / `AskUserQuestionView` buttons keep working. Full-viewport paging via `scrollToOffset({ animated: false })`; tail-snap on new message keyed off `messages[0]?.id`. Hides the floating scroll-to-bottom button when paginated mode is on. Commit: `feat: [US-008] - [Page-turn Appearance toggle + docs (PR-D part 2)]`.
+
+### 2026-04-24 — Lazy-load long chats + cap initial message fetch on `main`
+
+Three-tier client-side perf batch for the Onyx tablet cold-open freeze on long sessions.
+
+1. **Tier 0 (`ddb0057d`)** — restored the regressed `FlatList` virtualization props in `ChatList`, kept `maintainVisibleContentPosition`, bumped `scrollEventThrottle` to 32, and re-wrapped `MessageView` in `React.memo`.
+2. **Tier 1 (`1da743db`)** — bounded cold-start history fetches to the newest 80 messages, persisted pagination metadata in `SessionMessages`, and kept reconnect / gap-repair on the existing unbounded resume path.
+3. **Tier 2 (`734dd960`)** — added `sync.loadOlder()` on the shared per-session lock plus `ChatList` triggers for both finger-scroll (`onEndReached`) and page-turn mode.
 
 ### Earlier (pre-2026-04-22)
 

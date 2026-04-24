@@ -89,10 +89,11 @@ Merged as commit `88a18bf6` (squash of 9 stories + 5 code-review fixes from `fea
 
 | Device | Session | Tier | Median of 3 cold-open timings | Commit |
 | --- | --- | --- | --- | --- |
-| Onyx Boox model pending | session name + message count pending | Tier 0 | pending human measurement | pending commit |
-| Onyx Boox model pending | session name + message count pending | Tier 1 | pending human measurement | pending commit |
-| Onyx Boox model pending | session name + message count pending | Tier 2 (finger-scroll) | pending human measurement | pending commit |
-| Onyx Boox model pending | session name + message count pending | Tier 2 (page-turn) | pending human measurement | pending commit |
+| Onyx Boox model pending | session name + message count pending | Tier 0 | pending human measurement | `ddb0057d` |
+| Onyx Boox model pending | session name + message count pending | Tier 1 | pending human measurement | `1da743db` |
+| Onyx Boox model pending | session name + message count pending | Tier 2 | pending human measurement | `734dd960` |
+
+Manual tablet verification still needs to record both Tier 2 interaction paths against `734dd960`: finger-scroll `onEndReached` loading and paginated page-turn loading.
 
 ## What's in `feature/tablet-sidebar-toggle` (historical, in commit order)
 
