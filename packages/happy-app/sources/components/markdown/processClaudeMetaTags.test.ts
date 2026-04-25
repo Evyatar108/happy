@@ -47,6 +47,10 @@ describe('processClaudeMetaTags', () => {
         ).toBe('`/run --fast`');
     });
 
+    it('renders standalone command-message as an inline code pill', () => {
+        expect(processClaudeMetaTags('<command-message>/exit</command-message>')).toBe('`/exit`');
+    });
+
     it('renders stdout tags as fenced code blocks', () => {
         expect(processClaudeMetaTags('<local-command-stdout>line1\nline2</local-command-stdout>')).toBe(
             '```\nline1\nline2\n```'
