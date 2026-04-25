@@ -1,5 +1,14 @@
 # Changelog
 
+## Version 19 - 2026-04-25
+
+Claude Code metadata no longer leaks raw XML-like tags into chat bubbles. Slash commands now read like commands again, command output shows up as clean code blocks, and the options UI keeps working instead of being flattened into plain text.
+
+- Added slash-command rendering so Claude Code command tags like `/exit` and `/run --fast` show up as inline command pills instead of raw markup.
+- Added clean fenced blocks for local command output, including labeled stderr blocks when a command reports an error.
+- Removed hidden command caveat lines from rendered messages and copied text so chat stays readable.
+- Preserved interactive `<options>` blocks while cleaning the surrounding metadata tags, so option pickers still render normally.
+
 ## Version 18 - 2026-04-25
 
 A quicker way to change chat text size: a numbered picker now lives next to the settings gear under the chat input. Tap a number from 1 to 9 to jump straight to that size — no more digging into Settings or wrestling with pinch gestures on e-ink.
@@ -31,7 +40,6 @@ The chat text-size slider now scales the remaining fixed-size text surfaces, so 
 - Fixed markdown image captions, clickable option buttons, and table text so those body elements now follow the same chat text-size setting as paragraphs.
 - Fixed command blocks, tool section titles, and agent event lines so tool output and system status text resize at the same proportional rate as regular chat messages.
 - Kept the shared file viewer on its original sizing path, so changing chat text size does not alter the standalone file screen.
-
 ## Version 14 - 2026-04-24
 
 Tablet users can now reshape the sidebar to match how they read. Three modes — full sessions list, a 72-pixel icon rail, or fully hidden for distraction-free reading — replace the previous fixed-width sidebar. Especially helpful on e-ink tablets where every pixel of chat real estate counts.

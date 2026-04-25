@@ -1,6 +1,18 @@
 {
   "entries": [
     {
+      "version": 19,
+      "date": "2026-04-25",
+      "summary": "Claude Code metadata no longer leaks raw XML-like tags into chat bubbles. Slash commands now read like commands again, command output shows up as clean code blocks, and the options UI keeps working instead of being flattened into plain text.",
+      "changes": [
+        "Added slash-command rendering so Claude Code command tags like `/exit` and `/run --fast` show up as inline command pills instead of raw markup.",
+        "Added clean fenced blocks for local command output, including labeled stderr blocks when a command reports an error.",
+        "Removed hidden command caveat lines from rendered messages and copied text so chat stays readable.",
+        "Preserved interactive `<options>` blocks while cleaning the surrounding metadata tags, so option pickers still render normally."
+      ],
+      "rawMarkdown": "## Version 19 - 2026-04-25\n\n\nClaude Code metadata no longer leaks raw XML-like tags into chat bubbles. Slash commands now read like commands again, command output shows up as clean code blocks, and the options UI keeps working instead of being flattened into plain text.\n\n- Added slash-command rendering so Claude Code command tags like `/exit` and `/run --fast` show up as inline command pills instead of raw markup.\n- Added clean fenced blocks for local command output, including labeled stderr blocks when a command reports an error.\n- Removed hidden command caveat lines from rendered messages and copied text so chat stays readable.\n- Preserved interactive `<options>` blocks while cleaning the surrounding metadata tags, so option pickers still render normally."
+    },
+    {
       "version": 18,
       "date": "2026-04-25",
       "summary": "A quicker way to change chat text size: a numbered picker now lives next to the settings gear under the chat input. Tap a number from 1 to 9 to jump straight to that size — no more digging into Settings or wrestling with pinch gestures on e-ink.",
@@ -219,5 +231,5 @@
       "rawMarkdown": "## Version 1 - 2025-05-12\n\n\nWelcome to Happy - your secure, encrypted mobile companion for Claude Code. This inaugural release establishes the foundation for private, powerful AI interactions on the go.\n\n- Implemented end-to-end encrypted session management ensuring complete privacy\n- Integrated intelligent voice assistant with natural conversation capabilities\n- Added experimental file manager with syntax highlighting and tree navigation\n- Built seamless real-time synchronization across all your devices\n- Established native support for iOS, Android, and responsive web interfaces"
     }
   ],
-  "latestVersion": 18
+  "latestVersion": 19
 }
