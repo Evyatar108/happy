@@ -61,7 +61,7 @@ function parseChangelog(): ChangelogData {
             date: dateStr.trim(),
             summary: summary.trim(),
             changes,
-            rawMarkdown: `## Version ${version} - ${dateStr}\n${changesContent}`.trim()
+            rawMarkdown: `## Version ${version} - ${dateStr}\n${changesContent}`.trim().replace(/\r\n/g, '\n')
         });
     }
     
