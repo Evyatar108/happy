@@ -470,7 +470,7 @@ export const it: TranslationStructure = {
         hideArchived: 'Nascondi archiviate',
         show: 'Mostra barra laterale',
         hide: 'Nascondi barra laterale',
-        hideHint: 'Entra in modalità massima concentrazione; ripristina dal pulsante menu in alto a sinistra',
+        hideHint: 'Entra in modalità massima concentrazione; un pulsante menu ripristina la barra laterale',
         expand: 'Espandi barra laterale',
         collapse: 'Comprimi barra laterale',
     },

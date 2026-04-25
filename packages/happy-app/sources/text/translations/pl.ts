@@ -488,7 +488,7 @@ export const pl: TranslationStructure = {
         hideArchived: 'Ukryj zarchiwizowane',
         show: 'Pokaż pasek boczny',
         hide: 'Ukryj pasek boczny',
-        hideHint: 'Włącza tryb maksymalnego skupienia; przywróć przyciskiem menu w lewym górnym rogu',
+        hideHint: 'Włącza tryb maksymalnego skupienia; przycisk menu przywraca pasek boczny',
         expand: 'Rozwiń pasek boczny',
         collapse: 'Zwiń pasek boczny',
     },

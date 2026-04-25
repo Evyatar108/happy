@@ -471,7 +471,7 @@ export const pt: TranslationStructure = {
         hideArchived: 'Ocultar arquivadas',
         show: 'Mostrar barra lateral',
         hide: 'Ocultar barra lateral',
-        hideHint: 'Entra no modo de foco máximo; restaure pelo botão de menu no canto superior esquerdo',
+        hideHint: 'Entra no modo de foco máximo; um botão de menu restaura a barra lateral',
         expand: 'Expandir barra lateral',
         collapse: 'Recolher barra lateral',
     },

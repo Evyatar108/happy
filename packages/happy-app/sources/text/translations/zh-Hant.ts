@@ -472,7 +472,7 @@ export const zhHant: TranslationStructure = {
         hideArchived: '隱藏已封存',
         show: '顯示側邊欄',
         hide: '隱藏側邊欄',
-        hideHint: '進入專注模式；點擊左上角的選單按鈕可還原',
+        hideHint: '進入專注模式；選單按鈕可還原側邊欄',
         expand: '展開側邊欄',
         collapse: '折疊側邊欄',
     },

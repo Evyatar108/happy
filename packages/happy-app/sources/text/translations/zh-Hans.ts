@@ -473,7 +473,7 @@ export const zhHans: TranslationStructure = {
         hideArchived: '隐藏已归档',
         show: '显示侧边栏',
         hide: '隐藏侧边栏',
-        hideHint: '进入专注模式；点击左上角的菜单按钮可恢复',
+        hideHint: '进入专注模式；菜单按钮可恢复侧边栏',
         expand: '展开侧边栏',
         collapse: '折叠侧边栏',
     },

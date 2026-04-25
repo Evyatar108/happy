@@ -469,7 +469,7 @@ export const en = {
         hideArchived: 'Hide archived',
         show: 'Show sidebar',
         hide: 'Hide sidebar',
-        hideHint: 'Enters max-focus mode; restore via the menu button in the top-left',
+        hideHint: 'Enters max-focus mode; a menu button restores the sidebar',
         expand: 'Expand sidebar',
         collapse: 'Collapse sidebar',
     },

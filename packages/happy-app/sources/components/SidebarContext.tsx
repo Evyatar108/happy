@@ -71,6 +71,11 @@ export function useSidebar(): SidebarContextValue {
 }
 
 // Width constants (shared between navigator, sidebar view, and collapsed view).
+// SIDEBAR_WIDTH_* are the *inner* content widths (the area SidebarView /
+// CollapsedSidebarView fills, excluding the right-edge chevron strip).
+// SIDEBAR_EDGE_WIDTH is the toggle strip — added to drawer widths in
+// SidebarNavigator so the inner content keeps its full intended width.
 export const SIDEBAR_WIDTH_COLLAPSED = 72;
 export const SIDEBAR_WIDTH_MIN = 250;
 export const SIDEBAR_WIDTH_MAX = 360;
+export const SIDEBAR_EDGE_WIDTH = 24;

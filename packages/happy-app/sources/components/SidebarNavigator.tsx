@@ -3,13 +3,12 @@ import * as React from 'react';
 import { Drawer } from 'expo-router/drawer';
 import { useIsTablet } from '@/utils/responsive';
 import { SidebarView } from './SidebarView';
-import { Slot } from 'expo-router';
 import { Pressable, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePathname } from 'expo-router';
-import { useSidebar, SIDEBAR_WIDTH_COLLAPSED, SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX } from './SidebarContext';
+import { useSidebar, SIDEBAR_WIDTH_COLLAPSED, SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX, SIDEBAR_EDGE_WIDTH } from './SidebarContext';
 import { t } from '@/text';
 
 export const SidebarNavigator = React.memo(() => {
@@ -18,23 +17,31 @@ export const SidebarNavigator = React.memo(() => {
     const { mode, isHidden, showExpanded } = useSidebar();
     const showPermanentDrawer = auth.isAuthenticated && isTablet && !isHidden;
 
-    // Floating restore button shows on every tablet route where the sidebar is
-    // hidden, EXCEPT on /session/:id where ChatHeaderView embeds its own
-    // restore glyph (avoids overlapping the chat back button). Without this,
-    // hiding the sidebar from /inbox or /settings would strand the user.
+    // Floating restore button only shows on routes that render no native
+    // React-Navigation header — anywhere with `headerShown: true`, the 36×36
+    // handle at top-left would land on the back chevron and intercept the
+    // back tap. The two no-header tablet destinations are `/` and `/inbox`.
+    // On `/session/:id` ChatHeaderView embeds its own restore glyph; on every
+    // other route the user navigates back to `/` or `/inbox` to restore.
     const pathname = usePathname();
-    const isSessionRoute = /^\/session\/[^/]+\/?$/.test(pathname);
-    const showExpandHandle = auth.isAuthenticated && isTablet && isHidden && !isSessionRoute;
+    const isNoHeaderRoute = pathname === '/' || pathname === '/inbox';
+    const showExpandHandle = auth.isAuthenticated && isTablet && isHidden && isNoHeaderRoute;
 
     const { width: windowWidth } = useWindowDimensions();
     const { theme } = useUnistyles();
     const safeArea = useSafeAreaInsets();
 
-    // Drawer width depends on mode: 72px icon-rail for 'collapsed', normal for 'expanded'.
+    // Drawer width = inner content width + chevron-strip width. Inner content
+    // is 72px in 'collapsed' mode (icon rail) or clamp(windowWidth*0.3) in
+    // 'expanded'. The chevron strip lives inside the drawer alongside the
+    // inner content, so the drawer must be widened to keep the inner area
+    // at its intended size.
     const drawerWidth = React.useMemo(() => {
         if (!showPermanentDrawer) return 280;
-        if (mode === 'collapsed') return SIDEBAR_WIDTH_COLLAPSED;
-        return Math.min(Math.max(Math.floor(windowWidth * 0.3), SIDEBAR_WIDTH_MIN), SIDEBAR_WIDTH_MAX);
+        const innerWidth = mode === 'collapsed'
+            ? SIDEBAR_WIDTH_COLLAPSED
+            : Math.min(Math.max(Math.floor(windowWidth * 0.3), SIDEBAR_WIDTH_MIN), SIDEBAR_WIDTH_MAX);
+        return innerWidth + SIDEBAR_EDGE_WIDTH;
     }, [windowWidth, showPermanentDrawer, mode]);
 
     const drawerNavigationOptions = React.useMemo(() => {

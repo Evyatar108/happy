@@ -2,7 +2,7 @@ import * as React from 'react';
 import { Pressable } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Ionicons } from '@expo/vector-icons';
-import { useSidebar } from './SidebarContext';
+import { useSidebar, SIDEBAR_EDGE_WIDTH } from './SidebarContext';
 import { t } from '@/text';
 
 // Thin clickable strip on the right edge of the sidebar that toggles between
@@ -28,12 +28,12 @@ export const CollapsibleSidebarEdge = React.memo(() => {
 });
 
 const styles = StyleSheet.create((theme) => ({
-    // 24-px wrapper gives a real tap target (RN clips `hitSlop` to parent
-    // bounds, so a 12-px wrapper with hitSlop was effectively still 12-px
-    // wide — too small for e-ink users). 24-px is still narrow enough to
-    // read as a thin chevron strip.
+    // SIDEBAR_EDGE_WIDTH (24-px) wrapper gives a real tap target (RN clips
+    // `hitSlop` to parent bounds, so a 12-px wrapper with hitSlop was
+    // effectively still 12-px wide — too small for e-ink users). 24-px is
+    // still narrow enough to read as a thin chevron strip.
     wrapper: {
-        width: 24,
+        width: SIDEBAR_EDGE_WIDTH,
         backgroundColor: theme.colors.groupped.background,
         borderRightWidth: StyleSheet.hairlineWidth,
         borderRightColor: theme.colors.divider,

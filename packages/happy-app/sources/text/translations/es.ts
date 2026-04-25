@@ -472,7 +472,7 @@ export const es: TranslationStructure = {
         hideArchived: 'Ocultar archivadas',
         show: 'Mostrar barra lateral',
         hide: 'Ocultar barra lateral',
-        hideHint: 'Entra en modo de máximo enfoque; restáurala con el botón de menú en la esquina superior izquierda',
+        hideHint: 'Entra en modo de máximo enfoque; un botón de menú restaura la barra lateral',
         expand: 'Expandir barra lateral',
         collapse: 'Contraer barra lateral',
     },
