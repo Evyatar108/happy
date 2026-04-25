@@ -22,6 +22,7 @@ export const KNOWN_TAG_NAMES = new Set([
     'local-command-stderr',
     'local-command-caveat',
     'options',
+    'option',
 ]);
 
 export const warnedTagNames = new Set<string>();
