@@ -1,6 +1,6 @@
 import * as React from "react";
 import { View, Text } from "react-native";
-import { StyleSheet } from 'react-native-unistyles';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { MarkdownView } from "./markdown/MarkdownView";
 import { t } from '@/text';
 import { Message, UserTextMessage, AgentTextMessage, ToolCallMessage } from "@/sync/typesMessage";
@@ -12,6 +12,7 @@ import { sync } from '@/sync/sync';
 import { Option } from './markdown/MarkdownView';
 import Animated, { useAnimatedProps, useAnimatedStyle } from 'react-native-reanimated';
 import { ChatScaleLiveContext } from './ChatScaleLiveContext';
+import { useChatScaledStyles } from '@/hooks/useChatFontScale';
 
 
 export const MessageView = React.memo((props: {
@@ -146,17 +147,25 @@ function AgentEventBlock(props: {
   event: AgentEvent;
   metadata: Metadata | null;
 }) {
+  const { theme } = useUnistyles();
+  const scaledTextStyles = useChatScaledStyles({
+    agentEventText: {
+      color: theme.colors.agentEventText,
+      fontSize: 14,
+    },
+  });
+
   if (props.event.type === 'switch') {
     return (
       <View style={styles.agentEventContainer}>
-        <Text style={styles.agentEventText}>{t('message.switchedToMode', { mode: props.event.mode })}</Text>
+        <Text style={scaledTextStyles.agentEventText}>{t('message.switchedToMode', { mode: props.event.mode })}</Text>
       </View>
     );
   }
   if (props.event.type === 'message') {
     return (
       <View style={styles.agentEventContainer}>
-        <Text style={styles.agentEventText}>{props.event.message}</Text>
+        <Text style={scaledTextStyles.agentEventText}>{props.event.message}</Text>
       </View>
     );
   }
@@ -172,7 +181,7 @@ function AgentEventBlock(props: {
 
     return (
       <View style={styles.agentEventContainer}>
-        <Text style={styles.agentEventText}>
+        <Text style={scaledTextStyles.agentEventText}>
           {t('message.usageLimitUntil', { time: formatTime(props.event.endsAt) })}
         </Text>
       </View>
@@ -180,7 +189,7 @@ function AgentEventBlock(props: {
   }
   return (
     <View style={styles.agentEventContainer}>
-      <Text style={styles.agentEventText}>{t('message.unknownEvent')}</Text>
+      <Text style={scaledTextStyles.agentEventText}>{t('message.unknownEvent')}</Text>
     </View>
   );
 }
@@ -244,10 +253,6 @@ const styles = StyleSheet.create((theme) => ({
     marginHorizontal: 8,
     alignItems: 'center',
     paddingVertical: 8,
-  },
-  agentEventText: {
-    color: theme.colors.agentEventText,
-    fontSize: 14,
   },
   toolContainer: {
     marginHorizontal: 8,
