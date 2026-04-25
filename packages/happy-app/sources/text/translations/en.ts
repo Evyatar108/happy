@@ -77,6 +77,12 @@ export const en: TranslationStructure = {
         optional: 'optional',
     },
 
+    chat: {
+        commandOutput: {
+            stderrLabel: 'stderr',
+        },
+    },
+
     profile: {
         userProfile: 'User Profile',
         details: 'Details',

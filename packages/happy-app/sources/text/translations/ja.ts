@@ -65,6 +65,12 @@ export const ja: TranslationStructure = {
         saveAs: '名前を付けて保存',
     },
 
+    chat: {
+        commandOutput: {
+            stderrLabel: '標準エラー',
+        },
+    },
+
     profile: {
         userProfile: 'ユーザープロフィール',
         details: '詳細',

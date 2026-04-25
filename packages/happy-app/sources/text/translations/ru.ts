@@ -73,6 +73,12 @@ export const ru: TranslationStructure = {
         optional: 'необязательно',
     },
 
+    chat: {
+        commandOutput: {
+            stderrLabel: 'stderr',
+        },
+    },
+
     connect: {
         restoreAccount: 'Восстановить аккаунт',
         enterSecretKey: 'Пожалуйста, введите секретный ключ',

@@ -64,6 +64,12 @@ export const zhHant: TranslationStructure = {
         optional: '選填',
     },
 
+    chat: {
+        commandOutput: {
+            stderrLabel: '標準錯誤',
+        },
+    },
+
     profile: {
         userProfile: '使用者資料',
         details: '詳情',

@@ -62,6 +62,12 @@ export const pt: TranslationStructure = {
         optional: 'Opcional',
     },
 
+    chat: {
+        commandOutput: {
+            stderrLabel: 'saída de erro',
+        },
+    },
+
     profile: {
         userProfile: 'Perfil do usuário',
         details: 'Detalhes',

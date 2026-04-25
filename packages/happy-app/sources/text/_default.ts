@@ -62,6 +62,12 @@ export const en = {
         optional: 'optional',
     },
 
+    chat: {
+        commandOutput: {
+            stderrLabel: 'stderr',
+        },
+    },
+
     profile: {
         userProfile: 'User Profile',
         details: 'Details',

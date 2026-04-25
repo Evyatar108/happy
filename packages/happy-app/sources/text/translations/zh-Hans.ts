@@ -64,6 +64,12 @@ export const zhHans: TranslationStructure = {
         optional: '可选的',
     },
 
+    chat: {
+        commandOutput: {
+            stderrLabel: '标准错误',
+        },
+    },
+
     profile: {
         userProfile: '用户资料',
         details: '详情',

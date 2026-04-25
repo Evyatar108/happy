@@ -62,6 +62,12 @@ export const it: TranslationStructure = {
         saveAs: 'Salva con nome',
     },
 
+    chat: {
+        commandOutput: {
+            stderrLabel: 'output di errore',
+        },
+    },
+
     profile: {
         userProfile: 'Profilo utente',
         details: 'Dettagli',

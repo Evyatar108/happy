@@ -191,6 +191,7 @@ The app uses a centralized language configuration system:
 - **Update all languages** - New strings must be added to every language file
 - **Use centralized language names** - Import language names from `_all.ts` instead of translation keys
 - **Always re-read translations** - When new strings are added, always re-read the translation files to understand the existing structure and patterns before adding new keys
+- **Update `_default.ts` too** - `sources/text/_default.ts` is the canonical translation shape used to derive `TranslationStructure`, so every new i18n key must be added there as well as in every file under `sources/text/translations/`
 - **Use translations for common strings** - Always use the translation function `t()` for any user-visible string that is translatable, especially common UI elements like buttons, labels, and messages
 - **Use the i18n-translator agent** - When adding new translatable strings or verifying existing translations, use the i18n-translator agent to ensure consistency across all language files
 - **Beware of technical terms** - When translating technical terms, consider:
