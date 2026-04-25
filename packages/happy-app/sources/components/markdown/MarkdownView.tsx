@@ -15,7 +15,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { MermaidRenderer } from './MermaidRenderer';
 import { t } from '@/text';
 import { isHttpMarkdownLink } from './linkUtils';
-import { useChatFontScaleOverride } from '@/hooks/useChatFontScale';
+import { useChatFontScaleOverride, useChatScaledStyles } from '@/hooks/useChatFontScale';
 
 // Option type for callback
 export type Option = {
@@ -167,6 +167,13 @@ function RenderNumberedListBlock(props: { items: { number: number, spans: Markdo
 
 function RenderCodeBlock(props: { content: string, language: string | null, first: boolean, last: boolean, selectable: boolean }) {
     const [isHovered, setIsHovered] = React.useState(false);
+    const scaledTextStyles = useChatScaledStyles({
+        codeLanguage: style.codeLanguage,
+        syntaxHighlighterText: {
+            fontSize: 14,
+            lineHeight: 20,
+        },
+    });
 
     const copyCode = React.useCallback(async () => {
         try {
@@ -186,7 +193,7 @@ function RenderCodeBlock(props: { content: string, language: string | null, firs
             // @ts-ignore - Web only events
             onMouseLeave={() => setIsHovered(false)}
         >
-            {props.language && <Text selectable={props.selectable} style={style.codeLanguage}>{props.language}</Text>}
+            {props.language && <Text selectable={props.selectable} style={scaledTextStyles.codeLanguage}>{props.language}</Text>}
             <ScrollView
                 style={{ flexGrow: 0, flexShrink: 0 }}
                 horizontal={true}
@@ -197,6 +204,7 @@ function RenderCodeBlock(props: { content: string, language: string | null, firs
                     code={props.content}
                     language={props.language}
                     selectable={props.selectable}
+                    textStyle={scaledTextStyles.syntaxHighlighterText}
                 />
             </ScrollView>
             <View
@@ -486,12 +494,6 @@ const style = StyleSheet.create((theme) => ({
         marginTop: 8,
         paddingHorizontal: 16,
         marginBottom: 0,
-    },
-    codeText: {
-        ...Typography.mono(),
-        color: theme.colors.text,
-        fontSize: 14,
-        lineHeight: 20,
     },
     horizontalRule: {
         height: 1,
