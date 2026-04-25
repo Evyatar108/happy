@@ -33,6 +33,20 @@ describe('processClaudeMetaTags', () => {
         ).toBe('`/run --fast`');
     });
 
+    it('drops command-message when it duplicates command-name', () => {
+        expect(
+            processClaudeMetaTags('<command-name>/run</command-name><command-message>/run</command-message>')
+        ).toBe('`/run`');
+    });
+
+    it('drops duplicate command-message but keeps command-args', () => {
+        expect(
+            processClaudeMetaTags(
+                '<command-name>/run</command-name><command-message>/run</command-message><command-args>--fast</command-args>'
+            )
+        ).toBe('`/run --fast`');
+    });
+
     it('renders stdout tags as fenced code blocks', () => {
         expect(processClaudeMetaTags('<local-command-stdout>line1\nline2</local-command-stdout>')).toBe(
             '```\nline1\nline2\n```'

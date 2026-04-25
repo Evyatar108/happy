@@ -78,10 +78,22 @@ function restoreOptions(raw: string, protectedBlocks: string[]) {
 function collapseCommandTriplets(raw: string) {
     return raw.replace(COMMAND_TAG_SEQUENCE_RE, (match) => {
         const parts: string[] = [];
+        let commandNameValue: string | null = null;
 
         for (const tagMatch of match.matchAll(COMMAND_TAG_RE)) {
+            const tagName = tagMatch[1];
             const value = tagMatch[2].trim();
-            if (value.length > 0) {
+
+            if (value.length === 0) {
+                continue;
+            }
+
+            if (tagName === 'command-name') {
+                commandNameValue = value;
+                parts.push(value);
+            } else if (tagName === 'command-message' && value === commandNameValue) {
+                // skip: duplicate of command-name
+            } else {
                 parts.push(value);
             }
         }
