@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "version": 16,
+      "date": "2026-04-25",
+      "summary": "This follow-up closes the last chat text-size coverage gap left by the previous scaling update. Inline `code` inside regular chat messages now grows and shrinks with the same slider as the surrounding text, so mixed-format sentences no longer break visual consistency.",
+      "changes": [
+        "Fixed inline `code` text inside markdown chat messages so it now follows the chat text-size slider instead of staying at a fixed size.",
+        "Closed the remaining coverage gap from the earlier uniform chat font-scaling pass, so inline code now matches the surrounding body text and fenced code blocks at every chat text size."
+      ],
+      "rawMarkdown": "## Version 16 - 2026-04-25\n\n\nThis follow-up closes the last chat text-size coverage gap left by the previous scaling update. Inline `code` inside regular chat messages now grows and shrinks with the same slider as the surrounding text, so mixed-format sentences no longer break visual consistency.\n\n- Fixed inline `code` text inside markdown chat messages so it now follows the chat text-size slider instead of staying at a fixed size.\n- Closed the remaining coverage gap from the earlier uniform chat font-scaling pass, so inline code now matches the surrounding body text and fenced code blocks at every chat text size."
+    },
+    {
       "version": 15,
       "date": "2026-04-25",
       "summary": "The chat text-size slider now scales the remaining fixed-size text surfaces, so code blocks, markdown extras, tool chrome, and system event lines all grow and shrink together instead of mixing sizes inside one conversation.",
@@ -187,5 +197,5 @@
       "rawMarkdown": "## Version 1 - 2025-05-12\n\n\nWelcome to Happy - your secure, encrypted mobile companion for Claude Code. This inaugural release establishes the foundation for private, powerful AI interactions on the go.\n\n- Implemented end-to-end encrypted session management ensuring complete privacy\n- Integrated intelligent voice assistant with natural conversation capabilities\n- Added experimental file manager with syntax highlighting and tree navigation\n- Built seamless real-time synchronization across all your devices\n- Established native support for iOS, Android, and responsive web interfaces"
     }
   ],
-  "latestVersion": 15
+  "latestVersion": 16
 }
