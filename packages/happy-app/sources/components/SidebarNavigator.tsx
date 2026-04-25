@@ -4,23 +4,42 @@ import { Drawer } from 'expo-router/drawer';
 import { useIsTablet } from '@/utils/responsive';
 import { SidebarView } from './SidebarView';
 import { Slot } from 'expo-router';
-import { useWindowDimensions } from 'react-native';
+import { Pressable, View, useWindowDimensions } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { usePathname } from 'expo-router';
+import { useSidebar, SIDEBAR_WIDTH_COLLAPSED, SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX } from './SidebarContext';
+import { t } from '@/text';
 
 export const SidebarNavigator = React.memo(() => {
     const auth = useAuth();
     const isTablet = useIsTablet();
-    const showPermanentDrawer = auth.isAuthenticated && isTablet;
-    const { width: windowWidth } = useWindowDimensions();
+    const { mode, isHidden, showExpanded } = useSidebar();
+    const showPermanentDrawer = auth.isAuthenticated && isTablet && !isHidden;
 
-    // Calculate drawer width only when needed
+    // Floating restore button shows on every tablet route where the sidebar is
+    // hidden, EXCEPT on /session/:id where ChatHeaderView embeds its own
+    // restore glyph (avoids overlapping the chat back button). Without this,
+    // hiding the sidebar from /inbox or /settings would strand the user.
+    const pathname = usePathname();
+    const isSessionRoute = /^\/session\/[^/]+\/?$/.test(pathname);
+    const showExpandHandle = auth.isAuthenticated && isTablet && isHidden && !isSessionRoute;
+
+    const { width: windowWidth } = useWindowDimensions();
+    const { theme } = useUnistyles();
+    const safeArea = useSafeAreaInsets();
+
+    // Drawer width depends on mode: 72px icon-rail for 'collapsed', normal for 'expanded'.
     const drawerWidth = React.useMemo(() => {
-        if (!showPermanentDrawer) return 280; // Default width for hidden drawer
-        return Math.min(Math.max(Math.floor(windowWidth * 0.3), 250), 360);
-    }, [windowWidth, showPermanentDrawer]);
+        if (!showPermanentDrawer) return 280;
+        if (mode === 'collapsed') return SIDEBAR_WIDTH_COLLAPSED;
+        return Math.min(Math.max(Math.floor(windowWidth * 0.3), SIDEBAR_WIDTH_MIN), SIDEBAR_WIDTH_MAX);
+    }, [windowWidth, showPermanentDrawer, mode]);
 
     const drawerNavigationOptions = React.useMemo(() => {
         if (!showPermanentDrawer) {
-            // When drawer is hidden, use minimal configuration
+            // Sidebar is hidden (mode === 'hidden' on tablet, or phone layout).
             return {
                 lazy: false,
                 headerShown: false,
@@ -32,8 +51,6 @@ export const SidebarNavigator = React.memo(() => {
                 },
             };
         }
-        
-        // When drawer is permanent
         return {
             lazy: false,
             headerShown: false,
@@ -51,16 +68,51 @@ export const SidebarNavigator = React.memo(() => {
         };
     }, [showPermanentDrawer, drawerWidth]);
 
-    // Always render SidebarView but hide it when not needed
-    const drawerContent = React.useCallback(
-        () => <SidebarView />,
-        []
-    );
+    const drawerContent = React.useCallback(() => <SidebarView />, []);
 
     return (
-        <Drawer
-            screenOptions={drawerNavigationOptions}
-            drawerContent={showPermanentDrawer ? drawerContent : undefined}
-        />
-    )
+        <View style={styles.wrapper}>
+            <Drawer
+                screenOptions={drawerNavigationOptions}
+                drawerContent={showPermanentDrawer ? drawerContent : undefined}
+            />
+            {showExpandHandle && (
+                <Pressable
+                    onPress={showExpanded}
+                    accessibilityLabel={t('sidebar.show')}
+                    hitSlop={12}
+                    style={[styles.restoreHandle, { top: safeArea.top + 8 }]}
+                >
+                    <Ionicons name="menu" size={20} color={theme.colors.text} />
+                </Pressable>
+            )}
+        </View>
+    );
 });
+
+const styles = StyleSheet.create((theme) => ({
+    wrapper: {
+        flex: 1,
+    },
+    // Floating affordance to bring back the sidebar from `hidden` mode on
+    // any tablet route except `/session/:id` (which has its own restore in
+    // ChatHeaderView). Sized for finger-tap, with a low-opacity shadow so
+    // it stays visible on low-contrast (e-ink) displays.
+    restoreHandle: {
+        position: 'absolute',
+        left: 8,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: theme.colors.surface,
+        borderWidth: 1,
+        borderColor: theme.colors.divider,
+        alignItems: 'center',
+        justifyContent: 'center',
+        elevation: 3,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.15,
+        shadowRadius: 2,
+    },
+}));

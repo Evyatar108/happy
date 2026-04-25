@@ -10,6 +10,9 @@ import { FABWide } from './FABWide';
 import { VoiceAssistantStatusBar } from './VoiceAssistantStatusBar';
 import { useRealtimeStatus } from '@/sync/storage';
 import { MainView } from './MainView';
+import { CollapsedSidebarView } from './CollapsedSidebarView';
+import { CollapsibleSidebarEdge } from './CollapsibleSidebarEdge';
+import { useSidebar, SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX } from './SidebarContext';
 import { Image } from 'expo-image';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { t } from '@/text';
@@ -17,12 +20,17 @@ import { useInboxHasContent } from '@/hooks/useInboxHasContent';
 import { Ionicons } from '@expo/vector-icons';
 
 const stylesheet = StyleSheet.create((theme, runtime) => ({
+    outerContainer: {
+        flex: 1,
+        flexDirection: 'row',
+    },
     container: {
         flex: 1,
         borderStyle: 'solid',
         backgroundColor: theme.colors.groupped.background,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: theme.colors.divider,
+        borderRightWidth: 0,
     },
     header: {
         flexDirection: 'row',
@@ -184,9 +192,9 @@ export const SidebarView = React.memo(() => {
     })();
 
     // Calculate sidebar width and determine title positioning
-    // Uses same formula as SidebarNavigator.tsx:18 for consistency
+    // Uses same formula as SidebarNavigator.tsx for consistency
     const { width: windowWidth } = useWindowDimensions();
-    const sidebarWidth = Math.min(Math.max(Math.floor(windowWidth * 0.3), 250), 360);
+    const sidebarWidth = Math.min(Math.max(Math.floor(windowWidth * 0.3), SIDEBAR_WIDTH_MIN), SIDEBAR_WIDTH_MAX);
     // With experiments: 4 icons (148px total), threshold 408px > max 360px → always left-justify
     // Without experiments: 3 icons (108px total), threshold 328px → left-justify below ~340px
     const shouldLeftJustify = settings.experiments || sidebarWidth < 340;
@@ -194,6 +202,23 @@ export const SidebarView = React.memo(() => {
     const handleNewSession = React.useCallback(() => {
         router.navigate('/new');
     }, [router]);
+
+    const { isCollapsed, hide } = useSidebar();
+
+    // Render the 72px icon rail when in 'collapsed' mode.
+    if (isCollapsed) {
+        return (
+            <CollapsedSidebarView
+                onNewSession={handleNewSession}
+                connectionStatus={{
+                    color: connectionStatus.color,
+                    isPulsing: connectionStatus.isPulsing,
+                }}
+                friendRequestsCount={friendRequests.length}
+                inboxHasContent={inboxHasContent}
+            />
+        );
+    }
 
     // Title content used in both centered and left-justified modes (DRY)
     const titleContent = (
@@ -216,7 +241,7 @@ export const SidebarView = React.memo(() => {
     );
 
     return (
-        <>
+        <View style={styles.outerContainer}>
             <View style={[styles.container, { paddingTop: safeArea.top }]}>
                 <View style={[styles.header, { height: headerHeight }]}>
                     {/* Logo - always first */}
@@ -276,6 +301,14 @@ export const SidebarView = React.memo(() => {
                         >
                             <Ionicons name="add-outline" size={28} color={theme.colors.header.tint} />
                         </Pressable>
+                        <Pressable
+                            onPress={hide}
+                            hitSlop={15}
+                            accessibilityLabel={t('sidebar.hide')}
+                            accessibilityHint={t('sidebar.hideHint')}
+                        >
+                            <Ionicons name="eye-off-outline" size={24} color={theme.colors.header.tint} />
+                        </Pressable>
                     </View>
 
                     {/* Centered title - absolute positioned over full header */}
@@ -290,7 +323,10 @@ export const SidebarView = React.memo(() => {
                 )}
                 <MainView variant="sidebar" />
             </View>
+            <CollapsibleSidebarEdge />
+            {/* FABWide uses position: absolute; rendered as a sibling of the
+                inner container so its anchor matches the pre-refactor layout. */}
             <FABWide onPress={handleNewSession} />
-        </>
+        </View>
     )
 });

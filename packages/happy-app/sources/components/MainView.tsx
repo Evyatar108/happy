@@ -2,6 +2,7 @@ import * as React from 'react';
 import { View, ActivityIndicator, Text, Pressable } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useFriendRequests, useSocketStatus, useRealtimeStatus } from '@/sync/storage';
+import { useSidebar } from './SidebarContext';
 import { useVisibleSessionListViewData } from '@/hooks/useVisibleSessionListViewData';
 import { useIsTablet } from '@/utils/responsive';
 import { useRouter } from 'expo-router';
@@ -230,6 +231,17 @@ export const MainView = React.memo(({ variant }: MainViewProps) => {
     const router = useRouter();
     const friendRequests = useFriendRequests();
     const realtimeStatus = useRealtimeStatus();
+    // Must be read before any conditional early return to stay on the stable hook order.
+    // Only the fully-expanded tablet sidebar carries the session list on its own; the
+    // collapsed 72-px rail shows active sessions only (no archive toggle / inactive),
+    // and the hidden mode has no sidebar at all. In both of those cases the index
+    // route must fall through to the phone tab layout so the user can still reach
+    // inactive sessions, inbox, settings. Yes, this produces a visible "double list"
+    // on tablets in collapsed mode (rail on the left + full SessionsList in the main
+    // pane) — intentional: the rail is a quick-switch, the main pane is the rich
+    // view. If the collapsed rail grows inbox/archive/settings icons of its own,
+    // revisit this gate.
+    const { isExpanded: sidebarFullyExpanded } = useSidebar();
 
     // Tab state management
     // NOTE: Zen tab removed - the feature never got to a useful state
@@ -288,11 +300,7 @@ export const MainView = React.memo(({ variant }: MainViewProps) => {
         );
     }
 
-    // Phone variant
-    // Tablet in phone mode - special case (when showing index view on tablets, show empty view)
-    if (isTablet) {
-        // Just show an empty view on tablets for the index view
-        // The sessions list is shown in the sidebar, so the main area should be blank
+    if (isTablet && sidebarFullyExpanded) {
         return <View style={styles.emptyStateContentContainer} />;
     }
 

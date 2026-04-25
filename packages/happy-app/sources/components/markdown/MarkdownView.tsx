@@ -15,6 +15,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { MermaidRenderer } from './MermaidRenderer';
 import { t } from '@/text';
 import { isHttpMarkdownLink } from './linkUtils';
+import { useChatFontScaleOverride } from '@/hooks/useChatFontScale';
 
 // Option type for callback
 export type Option = {
@@ -127,17 +128,22 @@ type RenderSpanProps = {
 };
 
 function RenderTextBlock(props: { spans: MarkdownSpan[], first: boolean, last: boolean, selectable: boolean, onLinkPress: (url: string) => void }) {
-    return <Text selectable={props.selectable} style={[style.text, props.first && style.first, props.last && style.last]}><RenderSpans spans={props.spans} baseStyle={style.text} selectable={props.selectable} onLinkPress={props.onLinkPress} /></Text>;
+    const scaleOverride = useChatFontScaleOverride(16, 24);
+    return <Text selectable={props.selectable} style={[style.text, props.first && style.first, props.last && style.last, scaleOverride]}><RenderSpans spans={props.spans} baseStyle={style.text} selectable={props.selectable} onLinkPress={props.onLinkPress} /></Text>;
 }
 
 function RenderHeaderBlock(props: { level: 1 | 2 | 3 | 4 | 5 | 6, spans: MarkdownSpan[], first: boolean, last: boolean, selectable: boolean, onLinkPress: (url: string) => void }) {
     const s = (style as any)[`header${props.level}`];
-    const headerStyle = [style.header, s, props.first && style.first, props.last && style.last];
+    const baseFontSize = props.level === 2 ? 20 : 16;
+    const baseLineHeight = props.level === 3 ? 28 : 24;
+    const scaleOverride = useChatFontScaleOverride(baseFontSize, baseLineHeight);
+    const headerStyle = [style.header, s, props.first && style.first, props.last && style.last, scaleOverride];
     return <Text selectable={props.selectable} style={headerStyle}><RenderSpans spans={props.spans} baseStyle={headerStyle} selectable={props.selectable} onLinkPress={props.onLinkPress} /></Text>;
 }
 
 function RenderListBlock(props: { items: MarkdownSpan[][], first: boolean, last: boolean, selectable: boolean, onLinkPress: (url: string) => void }) {
-    const listStyle = [style.text, style.list];
+    const scaleOverride = useChatFontScaleOverride(16, 24);
+    const listStyle = [style.text, style.list, scaleOverride];
     return (
         <View style={{ flexDirection: 'column', marginBottom: 8, gap: 1 }}>
             {props.items.map((item, index) => (
@@ -148,7 +154,8 @@ function RenderListBlock(props: { items: MarkdownSpan[][], first: boolean, last:
 }
 
 function RenderNumberedListBlock(props: { items: { number: number, spans: MarkdownSpan[] }[], first: boolean, last: boolean, selectable: boolean, onLinkPress: (url: string) => void }) {
-    const listStyle = [style.text, style.list];
+    const scaleOverride = useChatFontScaleOverride(16, 24);
+    const listStyle = [style.text, style.list, scaleOverride];
     return (
         <View style={{ flexDirection: 'column', marginBottom: 8, gap: 1 }}>
             {props.items.map((item, index) => (

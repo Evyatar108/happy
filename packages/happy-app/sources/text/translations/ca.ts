@@ -470,6 +470,11 @@ export const ca: TranslationStructure = {
         sessionsTitle: 'Happy',
         showArchived: 'Mostra arxivades',
         hideArchived: 'Amaga arxivades',
+        show: 'Mostra la barra lateral',
+        hide: 'Amaga la barra lateral',
+        hideHint: 'Entra al mode de màxim enfocament; restaura-la amb el botó de menú a la part superior esquerra',
+        expand: 'Expandeix la barra lateral',
+        collapse: 'Replega la barra lateral',
     },
 
     toolView: {

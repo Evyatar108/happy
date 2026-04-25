@@ -26,6 +26,7 @@ import { getCurrentVoiceConversationId, getCurrentVoiceSessionDurationSeconds, s
 import { gitStatusSync } from '@/sync/gitStatusSync';
 import { sessionAbort } from '@/sync/ops';
 import { storage, useIsDataReady, useLocalSetting, useRealtimeStatus, useSessionMessages, useSessionUsage, useSetting } from '@/sync/storage';
+import { useSidebar } from '@/components/SidebarContext';
 import { useSession } from '@/sync/storage';
 import { Session } from '@/sync/storageTypes';
 import { sync } from '@/sync/sync';
@@ -58,6 +59,10 @@ export const SessionView = React.memo((props: { id: string }) => {
     const headerHeight = useHeaderHeight();
     const realtimeStatus = useRealtimeStatus();
     const isTablet = useIsTablet();
+    // Voice bar normally lives in the tablet sidebar. It needs to appear here
+    // when the sidebar is anything other than fully expanded.
+    const { isExpanded: sidebarExpanded } = useSidebar();
+    const showVoiceInSession = !isTablet || !sidebarExpanded;
     const [sessionActionsAnchor, setSessionActionsAnchor] = React.useState<SessionActionsAnchor | null>(null);
 
     // Compute header props based on session state
@@ -146,15 +151,17 @@ export const SessionView = React.memo((props: { id: string }) => {
                         }}
                         onAvatarMenuRequest={Platform.OS === 'web' && session ? setSessionActionsAnchor : undefined}
                     />
-                    {/* Voice status bar below header - not on tablet (shown in sidebar) */}
-                    {!isTablet && realtimeStatus !== 'disconnected' && (
+                    {/* Voice status bar below header — shown here when the sidebar is not visible
+                        (phone, or tablet with the user-hidden sidebar). When the tablet sidebar is
+                        visible, the status bar lives in SidebarView instead. */}
+                    {showVoiceInSession && realtimeStatus !== 'disconnected' && (
                         <VoiceAssistantStatusBar variant="full" />
                     )}
                 </View>
             )}
 
             {/* Content based on state */}
-            <View style={{ flex: 1, paddingTop: !(isLandscape && deviceType === 'phone' && Platform.OS !== 'web') ? safeArea.top + headerHeight + (!isTablet && realtimeStatus !== 'disconnected' ? 32 : 0) : 0 }}>
+            <View style={{ flex: 1, paddingTop: !(isLandscape && deviceType === 'phone' && Platform.OS !== 'web') ? safeArea.top + headerHeight + (showVoiceInSession && realtimeStatus !== 'disconnected' ? 32 : 0) : 0 }}>
                 {!isDataReady ? (
                     // Loading state
                     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>

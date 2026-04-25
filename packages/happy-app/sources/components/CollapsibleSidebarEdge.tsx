@@ -1,0 +1,46 @@
+import * as React from 'react';
+import { Pressable } from 'react-native';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { Ionicons } from '@expo/vector-icons';
+import { useSidebar } from './SidebarContext';
+import { t } from '@/text';
+
+// Thin clickable strip on the right edge of the sidebar that toggles between
+// expanded and collapsed modes. Visible in both expanded and collapsed modes;
+// hidden (alongside the whole sidebar) when mode === 'hidden'.
+export const CollapsibleSidebarEdge = React.memo(() => {
+    const { theme } = useUnistyles();
+    const { isCollapsed, toggleCollapsed } = useSidebar();
+
+    return (
+        <Pressable
+            onPress={toggleCollapsed}
+            style={({ pressed }) => [styles.wrapper, pressed && styles.wrapperPressed]}
+            accessibilityLabel={isCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+        >
+            <Ionicons
+                name={isCollapsed ? 'chevron-forward' : 'chevron-back'}
+                size={16}
+                color={theme.colors.textSecondary}
+            />
+        </Pressable>
+    );
+});
+
+const styles = StyleSheet.create((theme) => ({
+    // 24-px wrapper gives a real tap target (RN clips `hitSlop` to parent
+    // bounds, so a 12-px wrapper with hitSlop was effectively still 12-px
+    // wide — too small for e-ink users). 24-px is still narrow enough to
+    // read as a thin chevron strip.
+    wrapper: {
+        width: 24,
+        backgroundColor: theme.colors.groupped.background,
+        borderRightWidth: StyleSheet.hairlineWidth,
+        borderRightColor: theme.colors.divider,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    wrapperPressed: {
+        backgroundColor: theme.colors.divider,
+    },
+}));
