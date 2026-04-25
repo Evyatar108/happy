@@ -1,5 +1,14 @@
 # Changelog
 
+## Version 14 - 2026-04-24
+
+Tablet users can now reshape the sidebar to match how they read. Three modes — full sessions list, a 72-pixel icon rail, or fully hidden for distraction-free reading — replace the previous fixed-width sidebar. Especially helpful on e-ink tablets where every pixel of chat real estate counts.
+
+- Added a three-state tablet sidebar: tap the chevron on the sidebar's right edge to toggle between expanded (full list) and collapsed (icon rail with avatars), or use the eye-off button in the sidebar header to hide it entirely.
+- Added a small floating menu button on the home screen for restoring the sidebar from the fully-hidden state. On a chat screen, the same restore button lives next to the back button so it never overlaps native chrome.
+- Added avatars, an inbox shortcut, a settings shortcut, and a compact "+" button to the new icon-rail mode so the most common actions are still one tap away.
+- All sidebar controls now show proper labels in your language (English, Spanish, Catalan, Italian, Japanese, Polish, Portuguese, Russian, Simplified Chinese, Traditional Chinese).
+
 ## Version 13 - 2026-04-24
 
 Long chats now open faster on slower devices like e-ink tablets. Instead of waiting for the entire message history to download before the chat appears, the most recent messages load first and older history loads on demand as you scroll back.

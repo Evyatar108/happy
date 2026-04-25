@@ -120,6 +120,16 @@ Merge commit `019a6109`; 20 commits stacked on the `fix/preserve-user-settings-f
 3. **PR-C: pinch-to-zoom on chat (opt-in)** — `LocalSettings.pinchToZoomEnabled` (default `false`). Two-finger pinch on `ChatList` with live transform preview (`Animated.View` wrapping `MessageView` with `transform: [{ scale }]` and `transformOrigin: 'center'`); single persisted `chatFontScale` write on `.onEnd`; `renderToHardwareTextureAndroid` gated to the active-gesture window only. Zero cost at rest when toggle is off. Commit: `feat: [US-006] - [Pinch gesture + Appearance toggle (PR-C part 2)]`.
 4. **PR-D: page-turn scroll mode (opt-in)** — `LocalSettings.chatPaginatedScroll` (default `false`). 15%-edge-strip tap zones (top/bottom); middle 70% stays pass-through so message long-press / link taps / `AskUserQuestionView` buttons keep working. Full-viewport paging via `scrollToOffset({ animated: false })`; tail-snap on new message keyed off `messages[0]?.id`. Hides the floating scroll-to-bottom button when paginated mode is on. Commit: `feat: [US-008] - [Page-turn Appearance toggle + docs (PR-D part 2)]`.
 
+### 2026-04-24 — Three-state tablet sidebar landed on `main` (cherry-picked from `feature/tablet-sidebar-toggle`)
+
+Cherry-picked the four sidebar commits onto a `merge/tablet-sidebar-toggle` integration branch off main, leaving the perf-freeze and Markdown metadata-tag commits behind (Tier 0/1 lazy-load already absorbed both perf fixes).
+
+1. **Sidebar toggle + initial chat font-scale wiring (`9b4fa6ed`)** — `LocalSettings.sidebarCollapsed` (later replaced by `sidebarMode`), MarkdownView pulled the shared `useChatFontScaleOverride` from `@/hooks/useChatFontScale` instead of its inline one.
+2. **Three-state core (`4e02270d`)** — `sidebarMode: 'expanded' | 'collapsed' | 'hidden'`, `SidebarContext`/`SidebarProvider`, `CollapsedSidebarView` (72-px rail), `CollapsibleSidebarEdge` (12-px chevron strip), `FABCompact`.
+3. **Review-round fixups (`bded3b2e`)** — FABWide sibling, chevron hitSlop, a11y hint, avatar flavor.
+4. **In-chrome restore (`f7baa660`)** — restore affordance moved into `ChatHeaderView`; `MainView` gate flipped from `!sidebarHidden` to `isExpanded`.
+5. **i18n + Unistyles cleanup (`8ab002e7`)** — closes the two debt items that previously kept the branch out of `fork/main`. `sidebar.{show,hide,hideHint,expand,collapse}` keys added across `_default.ts` + 10 locales; restore-handle inline styles moved into `StyleSheet.create`.
+
 ### 2026-04-24 — Lazy-load long chats + cap initial message fetch on `main`
 
 Three-tier client-side perf batch for the Onyx tablet cold-open freeze on long sessions.
