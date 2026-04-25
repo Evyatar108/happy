@@ -62,6 +62,7 @@ export const CollapsedSidebarView = React.memo(({
             <Pressable
                 style={[styles.sessionItem, isSelected && styles.sessionItemSelected]}
                 onPress={() => navigateToSession(item.id)}
+                accessibilityLabel={item.name}
             >
                 <Avatar id={item.avatarId} size={40} flavor={item.flavor} />
             </Pressable>
@@ -79,7 +80,7 @@ export const CollapsedSidebarView = React.memo(({
                         <Image
                             source={theme.dark ? require('@/assets/images/logo-white.png') : require('@/assets/images/logo-black.png')}
                             contentFit="contain"
-                            style={[styles.logo, { height: 24, width: 24 }]}
+                            style={{ height: 24, width: 24 }}
                         />
                     </View>
 
@@ -177,10 +178,6 @@ const styles = StyleSheet.create((theme) => ({
         alignItems: 'center',
         justifyContent: 'center',
         position: 'relative',
-    },
-    logo: {
-        height: 24,
-        width: 24,
     },
     statusDotContainer: {
         marginTop: 4,

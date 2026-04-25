@@ -18,14 +18,13 @@ export const SidebarNavigator = React.memo(() => {
     const { mode, isHidden, showExpanded } = useSidebar();
     const showPermanentDrawer = auth.isAuthenticated && isTablet && !isHidden;
 
-    // Floating restore button lives only on the index route, where no other
-    // chrome renders. On /session/:id the restore affordance is embedded into
-    // ChatHeaderView instead (avoids overlapping that header's own back button
-    // and any other in-content custom header). Routes with a native
-    // React-Navigation header are reached from / anyway, so users can navigate
-    // back before restoring.
+    // Floating restore button shows on every tablet route where the sidebar is
+    // hidden, EXCEPT on /session/:id where ChatHeaderView embeds its own
+    // restore glyph (avoids overlapping the chat back button). Without this,
+    // hiding the sidebar from /inbox or /settings would strand the user.
     const pathname = usePathname();
-    const showExpandHandle = auth.isAuthenticated && isTablet && isHidden && pathname === '/';
+    const isSessionRoute = /^\/session\/[^/]+\/?$/.test(pathname);
+    const showExpandHandle = auth.isAuthenticated && isTablet && isHidden && !isSessionRoute;
 
     const { width: windowWidth } = useWindowDimensions();
     const { theme } = useUnistyles();
@@ -72,7 +71,7 @@ export const SidebarNavigator = React.memo(() => {
     const drawerContent = React.useCallback(() => <SidebarView />, []);
 
     return (
-        <View style={{ flex: 1 }}>
+        <View style={styles.wrapper}>
             <Drawer
                 screenOptions={drawerNavigationOptions}
                 drawerContent={showPermanentDrawer ? drawerContent : undefined}
@@ -92,9 +91,13 @@ export const SidebarNavigator = React.memo(() => {
 });
 
 const styles = StyleSheet.create((theme) => ({
-    // Floating affordance to bring back the sidebar from `hidden` mode on the
-    // index route. Sized for finger-tap, with a low-opacity shadow so it stays
-    // visible on low-contrast (e-ink) displays.
+    wrapper: {
+        flex: 1,
+    },
+    // Floating affordance to bring back the sidebar from `hidden` mode on
+    // any tablet route except `/session/:id` (which has its own restore in
+    // ChatHeaderView). Sized for finger-tap, with a low-opacity shadow so
+    // it stays visible on low-contrast (e-ink) displays.
     restoreHandle: {
         position: 'absolute',
         left: 8,

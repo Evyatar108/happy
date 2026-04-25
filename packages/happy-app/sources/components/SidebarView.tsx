@@ -12,7 +12,7 @@ import { useRealtimeStatus } from '@/sync/storage';
 import { MainView } from './MainView';
 import { CollapsedSidebarView } from './CollapsedSidebarView';
 import { CollapsibleSidebarEdge } from './CollapsibleSidebarEdge';
-import { useSidebar } from './SidebarContext';
+import { useSidebar, SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX } from './SidebarContext';
 import { Image } from 'expo-image';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { t } from '@/text';
@@ -192,9 +192,9 @@ export const SidebarView = React.memo(() => {
     })();
 
     // Calculate sidebar width and determine title positioning
-    // Uses same formula as SidebarNavigator.tsx:18 for consistency
+    // Uses same formula as SidebarNavigator.tsx for consistency
     const { width: windowWidth } = useWindowDimensions();
-    const sidebarWidth = Math.min(Math.max(Math.floor(windowWidth * 0.3), 250), 360);
+    const sidebarWidth = Math.min(Math.max(Math.floor(windowWidth * 0.3), SIDEBAR_WIDTH_MIN), SIDEBAR_WIDTH_MAX);
     // With experiments: 4 icons (148px total), threshold 408px > max 360px → always left-justify
     // Without experiments: 3 icons (108px total), threshold 328px → left-justify below ~340px
     const shouldLeftJustify = settings.experiments || sidebarWidth < 340;

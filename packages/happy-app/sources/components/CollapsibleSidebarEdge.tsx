@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { View, Pressable } from 'react-native';
+import { Pressable } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Ionicons } from '@expo/vector-icons';
 import { useSidebar } from './SidebarContext';
@@ -13,39 +13,34 @@ export const CollapsibleSidebarEdge = React.memo(() => {
     const { isCollapsed, toggleCollapsed } = useSidebar();
 
     return (
-        <View style={styles.wrapper}>
-            <Pressable
-                onPress={toggleCollapsed}
-                style={({ pressed }) => [styles.container, pressed && styles.containerPressed]}
-                accessibilityLabel={isCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
-                // 12 px strip is well below the 44×44 / 48 dp touch target; asymmetric
-                // hitSlop widens tap area outward without colliding with the sidebar's
-                // own content on the left.
-                hitSlop={{ top: 8, bottom: 8, left: 4, right: 20 }}
-            >
-                <Ionicons
-                    name={isCollapsed ? 'chevron-forward' : 'chevron-back'}
-                    size={16}
-                    color={theme.colors.textSecondary}
-                />
-            </Pressable>
-        </View>
+        <Pressable
+            onPress={toggleCollapsed}
+            style={({ pressed }) => [styles.wrapper, pressed && styles.wrapperPressed]}
+            accessibilityLabel={isCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+        >
+            <Ionicons
+                name={isCollapsed ? 'chevron-forward' : 'chevron-back'}
+                size={16}
+                color={theme.colors.textSecondary}
+            />
+        </Pressable>
     );
 });
 
 const styles = StyleSheet.create((theme) => ({
+    // 24-px wrapper gives a real tap target (RN clips `hitSlop` to parent
+    // bounds, so a 12-px wrapper with hitSlop was effectively still 12-px
+    // wide — too small for e-ink users). 24-px is still narrow enough to
+    // read as a thin chevron strip.
     wrapper: {
-        width: 12,
+        width: 24,
         backgroundColor: theme.colors.groupped.background,
         borderRightWidth: StyleSheet.hairlineWidth,
         borderRightColor: theme.colors.divider,
-    },
-    container: {
-        flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
     },
-    containerPressed: {
+    wrapperPressed: {
         backgroundColor: theme.colors.divider,
     },
 }));
