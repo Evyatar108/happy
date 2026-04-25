@@ -67,6 +67,15 @@ describe('processClaudeMetaTags', () => {
         expect(output).not.toContain('hidden');
     });
 
+    it('does not leave a blank paragraph when caveat sits on its own line', () => {
+        const input = 'First paragraph\n\n<local-command-caveat>note</local-command-caveat>\n\nSecond paragraph';
+        const output = processClaudeMetaTags(input);
+
+        expect(output).not.toContain('hidden');
+        expect(output).not.toMatch(/\n{3,}/);
+        expect(output.trim()).toBe('First paragraph\n\nSecond paragraph');
+    });
+
     it('round-trips options blocks byte-for-byte', () => {
         const input = '<options><option>A</option><option>B</option></options>';
 

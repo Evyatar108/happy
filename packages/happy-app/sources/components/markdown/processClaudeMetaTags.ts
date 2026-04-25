@@ -129,7 +129,7 @@ export default function processClaudeMetaTags(raw: string): string {
         return raw;
     }
 
-    let out = raw.replace(CAVEAT_TAG_RE, '');
+    let out = raw.replace(CAVEAT_TAG_RE, '').replace(/\n{3,}/g, '\n\n');
     const { out: optionsProtected, protectedBlocks } = protectOptions(out);
     out = optionsProtected;
     out = collapseCommandTriplets(out);
