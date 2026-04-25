@@ -283,6 +283,13 @@ function RenderOptionsBlock(props: {
 }
 
 function RenderSpans(props: RenderSpanProps) {
+    const scaledTextStyles = useChatScaledStyles({
+        code: style.code,
+    });
+    const resolveSpanStyle = (spanStyle: MarkdownSpan['styles'][number]) => spanStyle === 'code'
+        ? scaledTextStyles.code
+        : style[spanStyle];
+
     return (<>
         {props.spans.map((span, index) => {
             if (span.url) {
@@ -292,7 +299,7 @@ function RenderSpans(props: RenderSpanProps) {
                         key={index}
                         selectable={props.selectable}
                         accessibilityRole={isExternalLink ? 'link' : undefined}
-                        style={[props.baseStyle, isExternalLink && style.link, span.styles.map(s => style[s])]}
+                        style={[props.baseStyle, isExternalLink && style.link, span.styles.map(resolveSpanStyle)]}
                         {...(isExternalLink && Platform.OS === 'web' ? { onClick: () => { if (typeof window !== 'undefined') window.open(span.url!, '_blank', 'noopener,noreferrer'); } } as any : {})}
                         onPress={isExternalLink && Platform.OS !== 'web'
                             ? () => props.onLinkPress(span.url!)
@@ -302,7 +309,7 @@ function RenderSpans(props: RenderSpanProps) {
                     </Text>
                 );
             } else {
-                return <Text key={index} selectable={props.selectable} style={[props.baseStyle, span.styles.map(s => style[s])]}>{span.text}</Text>
+                return <Text key={index} selectable={props.selectable} style={[props.baseStyle, span.styles.map(resolveSpanStyle)]}>{span.text}</Text>
             }
         })}
     </>)
