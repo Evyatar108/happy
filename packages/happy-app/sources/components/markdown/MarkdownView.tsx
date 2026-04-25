@@ -224,6 +224,9 @@ function RenderCodeBlock(props: { content: string, language: string | null, firs
 
 function RenderImageBlock(props: { url: string, alt: string, first: boolean, last: boolean }) {
     const accessibleLabel = props.alt || 'Markdown image';
+    const scaledTextStyles = useChatScaledStyles({
+        imageCaption: style.imageCaption,
+    });
 
     return (
         <View style={[style.imageBlock, props.first && style.first, props.last && style.last]}>
@@ -234,7 +237,7 @@ function RenderImageBlock(props: { url: string, alt: string, first: boolean, las
                 resizeMode="contain"
             />
             {props.alt ? (
-                <Text style={style.imageCaption}>{props.alt}</Text>
+                <Text style={scaledTextStyles.imageCaption}>{props.alt}</Text>
             ) : null}
         </View>
     );
@@ -247,6 +250,10 @@ function RenderOptionsBlock(props: {
     selectable: boolean,
     onOptionPress?: (option: Option) => void 
 }) {
+    const scaledTextStyles = useChatScaledStyles({
+        optionText: style.optionText,
+    });
+
     return (
         <View style={[style.optionsContainer, props.first && style.first, props.last && style.last]}>
             {props.items.map((item, index) => {
@@ -260,13 +267,13 @@ function RenderOptionsBlock(props: {
                             ]}
                             onPress={() => props.onOptionPress?.({ title: item })}
                         >
-                            <Text selectable={props.selectable} style={style.optionText}>{item}</Text>
+                            <Text selectable={props.selectable} style={scaledTextStyles.optionText}>{item}</Text>
                         </Pressable>
                     );
                 } else {
                     return (
                         <View key={index} style={style.optionItem}>
-                            <Text selectable={props.selectable} style={style.optionText}>{item}</Text>
+                            <Text selectable={props.selectable} style={scaledTextStyles.optionText}>{item}</Text>
                         </View>
                     );
                 }
@@ -315,6 +322,10 @@ function RenderTableBlock(props: {
     const columnCount = props.headers.length;
     const rowCount = props.rows.length;
     const isLastRow = (rowIndex: number) => rowIndex === rowCount - 1;
+    const scaledTextStyles = useChatScaledStyles({
+        tableHeaderText: style.tableHeaderText,
+        tableCellText: style.tableCellText,
+    });
 
     return (
         <View style={[style.tableContainer, props.first && style.first, props.last && style.last]}>
@@ -336,7 +347,7 @@ function RenderTableBlock(props: {
                         >
                             {/* Header cell for this column */}
                             <View style={[style.tableCell, style.tableHeaderCell, style.tableCellFirst]}>
-                                <Text style={style.tableHeaderText}><RenderSpans spans={header} baseStyle={style.tableHeaderText} onLinkPress={props.onLinkPress} selectable={props.selectable} /></Text>
+                                <Text style={scaledTextStyles.tableHeaderText}><RenderSpans spans={header} baseStyle={scaledTextStyles.tableHeaderText} onLinkPress={props.onLinkPress} selectable={props.selectable} /></Text>
                             </View>
                             {/* Data cells for this column */}
                             {props.rows.map((row, rowIndex) => (
@@ -347,7 +358,7 @@ function RenderTableBlock(props: {
                                         isLastRow(rowIndex) && style.tableCellLast
                                     ]}
                                 >
-                                    <Text style={style.tableCellText}><RenderSpans spans={row[colIndex] ?? []} baseStyle={style.tableCellText} onLinkPress={props.onLinkPress} selectable={props.selectable} /></Text>
+                                    <Text style={scaledTextStyles.tableCellText}><RenderSpans spans={row[colIndex] ?? []} baseStyle={scaledTextStyles.tableCellText} onLinkPress={props.onLinkPress} selectable={props.selectable} /></Text>
                                 </View>
                             ))}
                         </View>
