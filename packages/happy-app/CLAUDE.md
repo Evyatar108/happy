@@ -217,6 +217,7 @@ The agent should be called whenever new user-facing text is introduced to the co
 - `sources/sync/reducer.ts` - State management logic for sync operations
 - `sources/auth/AuthContext.tsx` - Authentication state management
 - `sources/app/_layout.tsx` - Root navigation structure
+- `sources/components/markdown/processClaudeMetaTags.ts` - Claude Code metadata-tag preprocessor. Keep `<options>...</options>` byte-identical for downstream option rendering, and escape inner triple-backticks instead of switching to longer fence markers because `parseMarkdownBlock.ts` only recognizes triple-backtick fences.
 
 ### Custom Header Component
 
