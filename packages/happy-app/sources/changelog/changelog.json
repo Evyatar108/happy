@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "version": 13,
+      "date": "2026-04-24",
+      "summary": "Long chats now open faster on slower devices like e-ink tablets. Instead of waiting for the entire message history to download before the chat appears, the most recent messages load first and older history loads on demand as you scroll back.",
+      "changes": [
+        "Improved cold-open speed for long chats — the chat appears as soon as the most recent messages arrive, instead of waiting for the full history to finish loading.",
+        "Added lazy-loading for older messages — scroll up or use page-turn mode to fetch older history a page at a time, only when needed.",
+        "Fixed a sync bug where a tool result from a newer batch could get dropped if its matching tool call hadn't loaded yet from older history; tool results now wait for their call to arrive before attaching."
+      ],
+      "rawMarkdown": "## Version 13 - 2026-04-24\n\r\n\r\nLong chats now open faster on slower devices like e-ink tablets. Instead of waiting for the entire message history to download before the chat appears, the most recent messages load first and older history loads on demand as you scroll back.\r\n\r\n- Improved cold-open speed for long chats — the chat appears as soon as the most recent messages arrive, instead of waiting for the full history to finish loading.\r\n- Added lazy-loading for older messages — scroll up or use page-turn mode to fetch older history a page at a time, only when needed.\r\n- Fixed a sync bug where a tool result from a newer batch could get dropped if its matching tool call hadn't loaded yet from older history; tool results now wait for their call to arrive before attaching."
+    },
+    {
       "version": 12,
       "date": "2026-04-24",
       "summary": "Hygiene update that closes two gaps in the chat text-size feature and makes the Plugins/Skills/Agents catalog screens self-explanatory while a fresh session is warming up.",
@@ -152,5 +163,5 @@
       "rawMarkdown": "## Version 1 - 2025-05-12\n\r\n\r\nWelcome to Happy - your secure, encrypted mobile companion for Claude Code. This inaugural release establishes the foundation for private, powerful AI interactions on the go.\r\n\r\n- Implemented end-to-end encrypted session management ensuring complete privacy\r\n- Integrated intelligent voice assistant with natural conversation capabilities\r\n- Added experimental file manager with syntax highlighting and tree navigation\r\n- Built seamless real-time synchronization across all your devices\r\n- Established native support for iOS, Android, and responsive web interfaces"
     }
   ],
-  "latestVersion": 12
+  "latestVersion": 13
 }

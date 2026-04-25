@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 13 - 2026-04-24
+
+Long chats now open faster on slower devices like e-ink tablets. Instead of waiting for the entire message history to download before the chat appears, the most recent messages load first and older history loads on demand as you scroll back.
+
+- Improved cold-open speed for long chats — the chat appears as soon as the most recent messages arrive, instead of waiting for the full history to finish loading.
+- Added lazy-loading for older messages — scroll up or use page-turn mode to fetch older history a page at a time, only when needed.
+- Fixed a sync bug where a tool result from a newer batch could get dropped if its matching tool call hadn't loaded yet from older history; tool results now wait for their call to arrive before attaching.
+
 ## Version 12 - 2026-04-24
 
 Hygiene update that closes two gaps in the chat text-size feature and makes the Plugins/Skills/Agents catalog screens self-explanatory while a fresh session is warming up.
