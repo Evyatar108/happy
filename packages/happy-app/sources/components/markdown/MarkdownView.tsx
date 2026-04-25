@@ -16,6 +16,7 @@ import { MermaidRenderer } from './MermaidRenderer';
 import { t } from '@/text';
 import { isHttpMarkdownLink } from './linkUtils';
 import { useChatScaleAnimatedTextStyle, useChatScaledStyles } from '@/hooks/useChatFontScale';
+import processClaudeMetaTags from './processClaudeMetaTags';
 
 // Option type for callback
 export type Option = {
@@ -27,7 +28,8 @@ export const MarkdownView = React.memo((props: {
     onOptionPress?: (option: Option) => void;
     sessionId?: string;
 }) => {
-    const blocks = React.useMemo(() => parseMarkdown(props.markdown), [props.markdown]);
+    const processedMarkdown = React.useMemo(() => processClaudeMetaTags(props.markdown), [props.markdown]);
+    const blocks = React.useMemo(() => parseMarkdown(processedMarkdown), [processedMarkdown]);
     
     // Backwards compatibility: The original version just returned the view, wrapping the list of blocks.
     // It made each of the individual text elements selectable. When we enable the markdownCopyV2 feature,
@@ -55,13 +57,13 @@ export const MarkdownView = React.memo((props: {
 
     const handleLongPress = React.useCallback(() => {
         try {
-            const textId = storeTempText(props.markdown);
+            const textId = storeTempText(processedMarkdown);
             router.push(`/text-selection?textId=${textId}`);
         } catch (error) {
             console.error('Error storing text for selection:', error);
             Modal.alert('Error', 'Failed to open text selection. Please try again.');
         }
-    }, [props.markdown, router]);
+    }, [processedMarkdown, router]);
     const renderContent = () => {
         return (
             <View style={{ width: '100%' }}>

@@ -219,6 +219,7 @@ The agent should be called whenever new user-facing text is introduced to the co
 - `sources/auth/AuthContext.tsx` - Authentication state management
 - `sources/app/_layout.tsx` - Root navigation structure
 - `sources/components/markdown/processClaudeMetaTags.ts` - Claude Code metadata-tag preprocessor. Keep `<options>...</options>` byte-identical for downstream option rendering, and escape inner triple-backticks instead of switching to longer fence markers because `parseMarkdownBlock.ts` only recognizes triple-backtick fences.
+- `sources/components/markdown/MarkdownView.tsx` - Preprocess markdown once with `processClaudeMetaTags(...)` and reuse that same string for both `parseMarkdown(...)` and `storeTempText(...)`; render and long-press copy must stay in sync.
 
 ### Custom Header Component
 
