@@ -486,6 +486,11 @@ export const pl: TranslationStructure = {
         sessionsTitle: 'Happy',
         showArchived: 'Pokaż zarchiwizowane',
         hideArchived: 'Ukryj zarchiwizowane',
+        show: 'Pokaż pasek boczny',
+        hide: 'Ukryj pasek boczny',
+        hideHint: 'Włącza tryb maksymalnego skupienia; przywróć przyciskiem menu w lewym górnym rogu',
+        expand: 'Rozwiń pasek boczny',
+        collapse: 'Zwiń pasek boczny',
     },
 
     toolView: {

@@ -469,6 +469,11 @@ export const pt: TranslationStructure = {
         sessionsTitle: 'Happy',
         showArchived: 'Mostrar arquivadas',
         hideArchived: 'Ocultar arquivadas',
+        show: 'Mostrar barra lateral',
+        hide: 'Ocultar barra lateral',
+        hideHint: 'Entra no modo de foco máximo; restaure pelo botão de menu no canto superior esquerdo',
+        expand: 'Expandir barra lateral',
+        collapse: 'Recolher barra lateral',
     },
 
     toolView: {

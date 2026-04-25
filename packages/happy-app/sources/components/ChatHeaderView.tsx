@@ -12,6 +12,7 @@ import { useHeaderHeight, useIsTablet } from '@/utils/responsive';
 import { layout } from '@/components/layout';
 import { useSidebar } from '@/components/SidebarContext';
 import { useUnistyles } from 'react-native-unistyles';
+import { t } from '@/text';
 
 interface ChatHeaderViewProps {
     title: string;
@@ -136,7 +137,7 @@ export const ChatHeaderView: React.FC<ChatHeaderViewProps> = ({
                             onPress={showExpanded}
                             style={styles.restoreButton}
                             hitSlop={10}
-                            accessibilityLabel="Show sidebar"
+                            accessibilityLabel={t('sidebar.show')}
                         >
                             <Ionicons
                                 name="menu"

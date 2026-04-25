@@ -13,6 +13,7 @@ import { useVisibleSessionListViewData } from '@/hooks/useVisibleSessionListView
 import { useNavigateToSession } from '@/hooks/useNavigateToSession';
 import { SessionRowData } from '@/sync/storage';
 import { Typography } from '@/constants/Typography';
+import { t } from '@/text';
 
 // 72px icon rail with logo, connection status, top-level nav, and a vertical
 // scrollable list of session avatars. Adapted from upstream PR #316.
@@ -98,7 +99,7 @@ export const CollapsedSidebarView = React.memo(({
                         style={styles.iconButton}
                         onPress={() => router.push('/(app)/inbox')}
                         hitSlop={10}
-                        accessibilityLabel="Inbox"
+                        accessibilityLabel={t('tabs.inbox')}
                     >
                         <Image
                             source={require('@/assets/images/brutalist/Brutalism-27.png')}
@@ -123,7 +124,7 @@ export const CollapsedSidebarView = React.memo(({
                         style={styles.iconButton}
                         onPress={() => router.push('/settings')}
                         hitSlop={10}
-                        accessibilityLabel="Settings"
+                        accessibilityLabel={t('tabs.settings')}
                     >
                         <Image
                             source={require('@/assets/images/brutalist/Brutalism-9.png')}

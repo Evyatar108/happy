@@ -486,6 +486,11 @@ export const ru: TranslationStructure = {
         sessionsTitle: 'Happy',
         showArchived: 'Показать архив',
         hideArchived: 'Скрыть архив',
+        show: 'Показать боковую панель',
+        hide: 'Скрыть боковую панель',
+        hideHint: 'Включает режим максимальной концентрации; верните кнопкой меню в левом верхнем углу',
+        expand: 'Развернуть боковую панель',
+        collapse: 'Свернуть боковую панель',
     },
 
     toolView: {

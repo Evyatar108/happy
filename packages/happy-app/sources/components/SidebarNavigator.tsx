@@ -6,10 +6,11 @@ import { SidebarView } from './SidebarView';
 import { Slot } from 'expo-router';
 import { Pressable, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useUnistyles } from 'react-native-unistyles';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePathname } from 'expo-router';
 import { useSidebar, SIDEBAR_WIDTH_COLLAPSED, SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX } from './SidebarContext';
+import { t } from '@/text';
 
 export const SidebarNavigator = React.memo(() => {
     const auth = useAuth();
@@ -79,27 +80,9 @@ export const SidebarNavigator = React.memo(() => {
             {showExpandHandle && (
                 <Pressable
                     onPress={showExpanded}
-                    accessibilityLabel="Show sidebar"
+                    accessibilityLabel={t('sidebar.show')}
                     hitSlop={12}
-                    style={{
-                        position: 'absolute',
-                        left: 8,
-                        top: safeArea.top + 8,
-                        width: 36,
-                        height: 36,
-                        borderRadius: 18,
-                        backgroundColor: theme.colors.surface,
-                        borderWidth: 1,
-                        borderColor: theme.colors.divider,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        // Visibility on low-contrast (e-ink) displays.
-                        elevation: 3,
-                        shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 1 },
-                        shadowOpacity: 0.15,
-                        shadowRadius: 2,
-                    }}
+                    style={[styles.restoreHandle, { top: safeArea.top + 8 }]}
                 >
                     <Ionicons name="menu" size={20} color={theme.colors.text} />
                 </Pressable>
@@ -107,3 +90,26 @@ export const SidebarNavigator = React.memo(() => {
         </View>
     );
 });
+
+const styles = StyleSheet.create((theme) => ({
+    // Floating affordance to bring back the sidebar from `hidden` mode on the
+    // index route. Sized for finger-tap, with a low-opacity shadow so it stays
+    // visible on low-contrast (e-ink) displays.
+    restoreHandle: {
+        position: 'absolute',
+        left: 8,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: theme.colors.surface,
+        borderWidth: 1,
+        borderColor: theme.colors.divider,
+        alignItems: 'center',
+        justifyContent: 'center',
+        elevation: 3,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.15,
+        shadowRadius: 2,
+    },
+}));

@@ -3,6 +3,7 @@ import { View, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Ionicons } from '@expo/vector-icons';
+import { t } from '@/text';
 
 // Small centred floating action button used in the collapsed sidebar rail.
 export const FABCompact = React.memo(({ onPress }: { onPress: () => void }) => {
@@ -13,7 +14,7 @@ export const FABCompact = React.memo(({ onPress }: { onPress: () => void }) => {
             <Pressable
                 style={({ pressed }) => [styles.button, pressed ? styles.buttonPressed : styles.buttonDefault]}
                 onPress={onPress}
-                accessibilityLabel="New session"
+                accessibilityLabel={t('newSession.title')}
             >
                 <Ionicons name="add" size={28} color={theme.colors.fab.icon} />
             </Pressable>

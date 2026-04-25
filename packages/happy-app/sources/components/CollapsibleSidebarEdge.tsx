@@ -3,6 +3,7 @@ import { View, Pressable } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Ionicons } from '@expo/vector-icons';
 import { useSidebar } from './SidebarContext';
+import { t } from '@/text';
 
 // Thin clickable strip on the right edge of the sidebar that toggles between
 // expanded and collapsed modes. Visible in both expanded and collapsed modes;
@@ -16,7 +17,7 @@ export const CollapsibleSidebarEdge = React.memo(() => {
             <Pressable
                 onPress={toggleCollapsed}
                 style={({ pressed }) => [styles.container, pressed && styles.containerPressed]}
-                accessibilityLabel={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                accessibilityLabel={isCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
                 // 12 px strip is well below the 44×44 / 48 dp touch target; asymmetric
                 // hitSlop widens tap area outward without colliding with the sidebar's
                 // own content on the left.

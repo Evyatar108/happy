@@ -304,8 +304,8 @@ export const SidebarView = React.memo(() => {
                         <Pressable
                             onPress={hide}
                             hitSlop={15}
-                            accessibilityLabel="Hide sidebar"
-                            accessibilityHint="Enters max-focus mode; restore via the menu button in the top-left"
+                            accessibilityLabel={t('sidebar.hide')}
+                            accessibilityHint={t('sidebar.hideHint')}
                         >
                             <Ionicons name="eye-off-outline" size={24} color={theme.colors.header.tint} />
                         </Pressable>

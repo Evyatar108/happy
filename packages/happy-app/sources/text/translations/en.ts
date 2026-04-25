@@ -483,6 +483,11 @@ export const en: TranslationStructure = {
         sessionsTitle: 'Happy',
         showArchived: 'Show archived',
         hideArchived: 'Hide archived',
+        show: 'Show sidebar',
+        hide: 'Hide sidebar',
+        hideHint: 'Enters max-focus mode; restore via the menu button in the top-left',
+        expand: 'Expand sidebar',
+        collapse: 'Collapse sidebar',
     },
 
     toolView: {

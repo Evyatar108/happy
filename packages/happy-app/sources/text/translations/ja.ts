@@ -471,6 +471,11 @@ export const ja: TranslationStructure = {
         sessionsTitle: 'Happy',
         showArchived: 'アーカイブを表示',
         hideArchived: 'アーカイブを非表示',
+        show: 'サイドバーを表示',
+        hide: 'サイドバーを非表示',
+        hideHint: '集中モードに入ります。左上のメニューボタンで戻せます',
+        expand: 'サイドバーを展開',
+        collapse: 'サイドバーを折りたたむ',
     },
 
     toolView: {

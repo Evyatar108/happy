@@ -471,6 +471,11 @@ export const zhHans: TranslationStructure = {
         sessionsTitle: 'Happy',
         showArchived: '显示已归档',
         hideArchived: '隐藏已归档',
+        show: '显示侧边栏',
+        hide: '隐藏侧边栏',
+        hideHint: '进入专注模式；点击左上角的菜单按钮可恢复',
+        expand: '展开侧边栏',
+        collapse: '折叠侧边栏',
     },
 
     toolView: {

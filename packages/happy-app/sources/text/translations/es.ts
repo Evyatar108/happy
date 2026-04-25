@@ -470,6 +470,11 @@ export const es: TranslationStructure = {
         sessionsTitle: 'Happy',
         showArchived: 'Mostrar archivadas',
         hideArchived: 'Ocultar archivadas',
+        show: 'Mostrar barra lateral',
+        hide: 'Ocultar barra lateral',
+        hideHint: 'Entra en modo de máximo enfoque; restáurala con el botón de menú en la esquina superior izquierda',
+        expand: 'Expandir barra lateral',
+        collapse: 'Contraer barra lateral',
     },
 
     toolView: {
