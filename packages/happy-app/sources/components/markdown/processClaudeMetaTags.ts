@@ -113,7 +113,7 @@ function renderStdoutFences(raw: string) {
 function renderStderrFences(raw: string) {
     return raw.replace(STDERR_TAG_RE, (_, content: string) => {
         const label = t('chat.commandOutput.stderrLabel');
-        return wrapFence(`${label}\n${escapeFenceCollisions(content)}`);
+        return wrapFence(`# ${label}\n${escapeFenceCollisions(content)}`);
     });
 }
 

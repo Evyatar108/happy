@@ -56,8 +56,8 @@ describe('processClaudeMetaTags', () => {
     it('renders stderr tags as fenced code blocks prefixed with the translated stderr label', () => {
         const output = processClaudeMetaTags('<local-command-stderr>oops</local-command-stderr>');
 
-        expect(output).toBe('```\nstderr\noops\n```');
-        expect(output.split('\n').slice(1, 3)).toEqual(['stderr', 'oops']);
+        expect(output).toBe('```\n# stderr\noops\n```');
+        expect(output.split('\n').slice(1, 3)).toEqual(['# stderr', 'oops']);
     });
 
     it('strips local-command-caveat content entirely', () => {
