@@ -1,6 +1,18 @@
 {
   "entries": [
     {
+      "version": 15,
+      "date": "2026-04-25",
+      "summary": "The chat text-size slider now scales the remaining fixed-size text surfaces, so code blocks, markdown extras, tool chrome, and system event lines all grow and shrink together instead of mixing sizes inside one conversation.",
+      "changes": [
+        "Fixed fenced code blocks and their language labels so they now scale together with the rest of the chat text.",
+        "Fixed markdown image captions, clickable option buttons, and table text so those body elements now follow the same chat text-size setting as paragraphs.",
+        "Fixed command blocks, tool section titles, and agent event lines so tool output and system status text resize at the same proportional rate as regular chat messages.",
+        "Kept the shared file viewer on its original sizing path, so changing chat text size does not alter the standalone file screen."
+      ],
+      "rawMarkdown": "## Version 15 - 2026-04-25\n\n\nThe chat text-size slider now scales the remaining fixed-size text surfaces, so code blocks, markdown extras, tool chrome, and system event lines all grow and shrink together instead of mixing sizes inside one conversation.\n\n- Fixed fenced code blocks and their language labels so they now scale together with the rest of the chat text.\n- Fixed markdown image captions, clickable option buttons, and table text so those body elements now follow the same chat text-size setting as paragraphs.\n- Fixed command blocks, tool section titles, and agent event lines so tool output and system status text resize at the same proportional rate as regular chat messages.\n- Kept the shared file viewer on its original sizing path, so changing chat text size does not alter the standalone file screen."
+    },
+    {
       "version": 14,
       "date": "2026-04-24",
       "summary": "Tablet users can now reshape the sidebar to match how they read. Three modes — full sessions list, a 72-pixel icon rail, or fully hidden for distraction-free reading — replace the previous fixed-width sidebar. Especially helpful on e-ink tablets where every pixel of chat real estate counts.",
@@ -10,7 +22,7 @@
         "Added avatars, an inbox shortcut, a settings shortcut, and a compact \"+\" button to the new icon-rail mode so the most common actions are still one tap away.",
         "All sidebar controls now show proper labels in your language (English, Spanish, Catalan, Italian, Japanese, Polish, Portuguese, Russian, Simplified Chinese, Traditional Chinese)."
       ],
-      "rawMarkdown": "## Version 14 - 2026-04-24\n\r\n\r\nTablet users can now reshape the sidebar to match how they read. Three modes — full sessions list, a 72-pixel icon rail, or fully hidden for distraction-free reading — replace the previous fixed-width sidebar. Especially helpful on e-ink tablets where every pixel of chat real estate counts.\r\n\r\n- Added a three-state tablet sidebar: tap the chevron on the sidebar's right edge to toggle between expanded (full list) and collapsed (icon rail with avatars), or use the eye-off button in the sidebar header to hide it entirely.\r\n- Added a small floating menu button on the home screen for restoring the sidebar from the fully-hidden state. On a chat screen, the same restore button lives next to the back button so it never overlaps native chrome.\r\n- Added avatars, an inbox shortcut, a settings shortcut, and a compact \"+\" button to the new icon-rail mode so the most common actions are still one tap away.\r\n- All sidebar controls now show proper labels in your language (English, Spanish, Catalan, Italian, Japanese, Polish, Portuguese, Russian, Simplified Chinese, Traditional Chinese)."
+      "rawMarkdown": "## Version 14 - 2026-04-24\n\n\nTablet users can now reshape the sidebar to match how they read. Three modes — full sessions list, a 72-pixel icon rail, or fully hidden for distraction-free reading — replace the previous fixed-width sidebar. Especially helpful on e-ink tablets where every pixel of chat real estate counts.\n\r\n- Added a three-state tablet sidebar: tap the chevron on the sidebar's right edge to toggle between expanded (full list) and collapsed (icon rail with avatars), or use the eye-off button in the sidebar header to hide it entirely.\r\n- Added a small floating menu button on the home screen for restoring the sidebar from the fully-hidden state. On a chat screen, the same restore button lives next to the back button so it never overlaps native chrome.\r\n- Added avatars, an inbox shortcut, a settings shortcut, and a compact \"+\" button to the new icon-rail mode so the most common actions are still one tap away.\r\n- All sidebar controls now show proper labels in your language (English, Spanish, Catalan, Italian, Japanese, Polish, Portuguese, Russian, Simplified Chinese, Traditional Chinese)."
     },
     {
       "version": 13,
@@ -175,5 +187,5 @@
       "rawMarkdown": "## Version 1 - 2025-05-12\n\r\n\r\nWelcome to Happy - your secure, encrypted mobile companion for Claude Code. This inaugural release establishes the foundation for private, powerful AI interactions on the go.\r\n\r\n- Implemented end-to-end encrypted session management ensuring complete privacy\r\n- Integrated intelligent voice assistant with natural conversation capabilities\r\n- Added experimental file manager with syntax highlighting and tree navigation\r\n- Built seamless real-time synchronization across all your devices\r\n- Established native support for iOS, Android, and responsive web interfaces"
     }
   ],
-  "latestVersion": 14
+  "latestVersion": 15
 }
