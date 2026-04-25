@@ -15,8 +15,9 @@ Claude Code periodically adds XML-ish internal metadata tags (like `<command-nam
 
 ## Where things live
 
-- Tag handler: `packages/happy-app/sources/components/markdown/MarkdownView.tsx` → `processClaudeMetaTags()` + `KNOWN_TAG_NAMES` set
-- Current taxonomy + rationale: `docs/fork-notes.md` → "Claude Code metadata tags rendered by MarkdownView"
+- Tag handler: `packages/happy-app/sources/components/markdown/processClaudeMetaTags.ts` → `processClaudeMetaTags()` + `KNOWN_TAG_NAMES` set
+- MarkdownView wiring: `packages/happy-app/sources/components/markdown/MarkdownView.tsx`
+- Current taxonomy + rationale: `docs/fork-notes.md` → "Claude Code metadata tags rendered by processClaudeMetaTags"
 - Metro log file (when Metro is running as a background task in this session): look under `C:\Users\evmitran\AppData\Local\Temp\claude\*\tasks\*.output` (grep for `pnpm start` invocations)
 
 ## Golden rules before you touch anything
@@ -86,7 +87,7 @@ Extend `processClaudeMetaTags` with a targeted `replace()` pass producing readab
 - `<name>content</name>` → fenced block for multi-line output
 - `<name>content</name>` → empty string for hidden directives
 
-Add the tag name to `KNOWN_TAG_NAMES` so the unknown-tag logger stops flagging it. Then update `docs/fork-notes.md` → "Claude Code metadata tags rendered by MarkdownView" with the new row.
+Add the tag name to `KNOWN_TAG_NAMES` so the unknown-tag logger stops flagging it. Then update `docs/fork-notes.md` → "Claude Code metadata tags rendered by processClaudeMetaTags" with the new row.
 
 ### 5. Verify + commit
 

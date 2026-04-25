@@ -128,7 +128,7 @@ The initial batch, before the PR-A..PR-D work. Tip `c98bb557`. Content:
 4. **`feat(app): three-state tablet sidebar (expanded / collapsed / hidden)`** — `sidebarMode: 'expanded' | 'collapsed' | 'hidden'`, new `SidebarContext` + `SidebarProvider`, `CollapsedSidebarView` (72-px rail), `CollapsibleSidebarEdge` (12-px chevron strip), `FABCompact`.
 5. **`fixup: review round fixes`** — post-review polish.
 6. **`fix(chrome): integrate sidebar restore into ChatHeaderView; MainView falls through in collapsed too`** — moved the restore affordance into `ChatHeaderView` as a menu glyph; `MainView` gate flipped from `!sidebarHidden` to `isExpanded`.
-7. **`feat(markdown): strip Claude Code command-metadata tags (self-discovering)`** + **`feat(markdown): render Claude Code metadata tags instead of showing raw`** — the `processClaudeMetaTags` preprocessor in `MarkdownView`.
+7. **`feat(markdown): strip Claude Code command-metadata tags (self-discovering)`** + **`feat(markdown): render Claude Code metadata tags instead of showing raw`** — the `processClaudeMetaTags` preprocessor module in `packages/happy-app/sources/components/markdown/processClaudeMetaTags.ts`, wired through `MarkdownView`.
 8. **`feat(chat): expand chatFontScale beyond markdown to cover the whole chat`** — extended the initial Appearance setting to cover code blocks, agent events, tool section titles, Bash output, composer. Per-tool-view typography finished later in the PR-A batch on `main`.
 
 ## Build / iterate workflow
@@ -329,9 +329,9 @@ Deferred work lives in `docs/fork-roadmap.md` — prioritised backlog for the fo
 - **`Stop-Service cloudflared` can hang in a "Waiting for service to stop" loop.** cloudflared drains active tunnel connections before stopping, and the drain can wedge. Fire-and-forget pattern: `& sc.exe stop cloudflared; Start-Sleep 2; Get-Process cloudflared -EA 0 | Stop-Process -Force`.
 - **PowerShell 5.1 reads .ps1 files as CP-1252 when no BOM is present.** UTF-8 scripts with em-dashes or other multi-byte characters cause `TerminatorExpectedAtEndOfString` parse errors. Keep service scripts ASCII-only (or save with a UTF-8 BOM). The tokenizer chokes on byte sequences like `0xE2 0x80 0x94` (em-dash) and thinks a string literal never closed.
 
-## Claude Code metadata tags rendered by `MarkdownView`
+## Claude Code metadata tags rendered by `processClaudeMetaTags`
 
-Claude Code wraps internal state in XML-ish tags inside message text. Its native CLI hides them; Happy (which receives raw text) used to render them as literal markup. Preprocessor lives in `packages/happy-app/sources/components/markdown/MarkdownView.tsx` (`processClaudeMetaTags`). Current rules:
+Claude Code wraps internal state in XML-ish tags inside message text. Its native CLI hides them; Happy (which receives raw text) used to render them as literal markup. The normalization boundary now lives in `packages/happy-app/sources/components/markdown/processClaudeMetaTags.ts`, and `MarkdownView.tsx` feeds message text through it before parsing or copying. Current rules:
 
 | Tag | Origin | Treatment | Rationale |
 |---|---|---|---|

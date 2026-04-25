@@ -46,10 +46,12 @@ fork's own change:
   conflict.
 - **Sidebar rendering** — we carry a three-state tablet sidebar on
   `feature/tablet-sidebar-toggle`. PR #316 and successors conflict.
-- **`MarkdownView` metadata-tag parsing** — `processClaudeMetaTags` in
-  `packages/happy-app/sources/components/markdown/MarkdownView.tsx` is
-  fork-specific. PRs touching MarkdownView (#823, #990, others) need
-  hand-cherry-picking of only the non-MarkdownView parts.
+- **`MarkdownView` metadata-tag parsing** — the fork-specific
+  `processClaudeMetaTags` module lives in
+  `packages/happy-app/sources/components/markdown/processClaudeMetaTags.ts`
+  and is wired through `MarkdownView.tsx`. PRs touching that module or
+  `MarkdownView` (#823, #990, others) need hand-cherry-picking of only
+  the non-markdown-metadata parts.
 - **`chatFontScale`** — `sources/hooks/useChatFontScale.ts` + every
   per-tool-view `StyleSheet`. Rival typography-scaling PRs conflict.
 - **Claude Code `--settings` tmpfile generation** — we carry
