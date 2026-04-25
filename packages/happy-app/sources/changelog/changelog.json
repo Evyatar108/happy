@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "version": 12,
+      "date": "2026-04-24",
+      "summary": "Hygiene update that closes two gaps in the chat text-size feature and makes the Plugins/Skills/Agents catalog screens self-explanatory while a fresh session is warming up.",
+      "changes": [
+        "Fixed the chat text-size slider not scaling the inline tool-error line and the permission prompt buttons; everything in a tool call now resizes together.",
+        "Fixed the full-screen tool detail view leaving its section titles, descriptions, and empty-state text at fixed size instead of following the chat text size.",
+        "Added a short explanation to the Plugins, Skills, and Agents screens so when the list hasn't loaded yet the loader says \"Session hasn't loaded yet — send any message first\" instead of leaving you guessing."
+      ],
+      "rawMarkdown": "## Version 12 - 2026-04-24\n\r\n\r\nHygiene update that closes two gaps in the chat text-size feature and makes the Plugins/Skills/Agents catalog screens self-explanatory while a fresh session is warming up.\r\n\r\n- Fixed the chat text-size slider not scaling the inline tool-error line and the permission prompt buttons; everything in a tool call now resizes together.\r\n- Fixed the full-screen tool detail view leaving its section titles, descriptions, and empty-state text at fixed size instead of following the chat text size.\r\n- Added a short explanation to the Plugins, Skills, and Agents screens so when the list hasn't loaded yet the loader says \"Session hasn't loaded yet — send any message first\" instead of leaving you guessing."
+    },
+    {
       "version": 11,
       "date": "2026-04-23",
       "summary": "The Plugins, Skills, and Agents screens now show their loaded contents for sessions started from the terminal (not just from the mobile app). A visible loading state replaces the old blank \"No plugins loaded\" flash while the session is warming up.",
@@ -141,5 +152,5 @@
       "rawMarkdown": "## Version 1 - 2025-05-12\n\r\n\r\nWelcome to Happy - your secure, encrypted mobile companion for Claude Code. This inaugural release establishes the foundation for private, powerful AI interactions on the go.\r\n\r\n- Implemented end-to-end encrypted session management ensuring complete privacy\r\n- Integrated intelligent voice assistant with natural conversation capabilities\r\n- Added experimental file manager with syntax highlighting and tree navigation\r\n- Built seamless real-time synchronization across all your devices\r\n- Established native support for iOS, Android, and responsive web interfaces"
     }
   ],
-  "latestVersion": 11
+  "latestVersion": 12
 }

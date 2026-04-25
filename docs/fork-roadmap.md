@@ -20,24 +20,6 @@ Ranking is by **e-ink tablet quality-of-life** (the fork's primary target), then
 
 ---
 
-### Handle intercepted slash commands before session metadata arrives
-
-**What:** Client-side slash-command intercepts (`/plugin`, `/skills`, `/agents`, etc. in `sources/hooks/usePreSendCommand.ts`) short-circuit into catalog screens without ever reaching the CLI. In a freshly-spawned local-mode session that hasn't produced metadata yet (shadow SDK session hasn't settled, or the user hasn't sent a real message to trigger the local→remote switch), tapping `/plugin` lands on a permanently-looking empty catalog. Today's band-aid: the catalog screens show `Loading…` while `session.metadata.tools === undefined`, but that's open-ended if metadata never arrives.
-
-Need to pick one:
-- **Explanatory nudge** — when an intercepted catalog command fires on a session with no metadata yet, surface a toast/banner ("Session hasn't loaded yet — send any message first") instead of (or alongside) the Loading… state. Low-risk, pure app-side.
-- **Auto-trigger session warm-up** — on intercept, send a no-op/ping to the CLI (or prompt the user to) so the local-mode session exercises its shadow SDK query path and produces metadata. More work; risks sending unintended messages.
-
-**Relevant files:**
-- `packages/happy-app/sources/hooks/usePreSendCommand.ts` — intercept site
-- `packages/happy-app/sources/sync/slashCommandIntercept.ts` — intercept table
-- `packages/happy-app/sources/app/(app)/session/[id]/{plugins,skills,agents}.tsx` — Loading… UI today
-- `packages/happy-cli/src/claude/claudeLocalLauncher.ts` — where a warm-up would land
-
-**Complexity:** small for option A (~30 min), medium for option B (touches CLI + wire + app).
-
----
-
 ### Interactive `/plugin`, `/mcp` (+ partial `/agents`, `/skills`, `/memory`) via the remote session
 
 **What:** Today's intercepted slash commands (`usePreSendCommand.ts` → session-scoped catalog screens) are strictly read-only — they show lists/info harvested from SDK init metadata. Claude Code's real `/plugin` and `/mcp` TUIs are interactive (install, uninstall, enable/disable, browse marketplaces, add servers, etc.); the fork can't do any of that from mobile.
@@ -93,53 +75,28 @@ Need to pick one:
 
 ---
 
-## Known follow-ups from the 2026-04-22 PR-A..PR-D ship
-
-Code-review findings that were intentionally deferred (documented in
-`.ralph/jobs/chat-text-ux-eink/code-review-findings.json`):
-
-### 6. Scale `ToolError.tsx` + `PermissionFooter.tsx` typography *(F-020)*
-
-**What:** `sources/components/tools/ToolError.tsx` (error line) and
-`sources/components/tools/PermissionFooter.tsx` (permission buttons, hint copy)
-still use fixed-size text that doesn't go through `useChatScaledStyles` /
-`useChatFontScaleOverride`. These render inline in every tool call, so they
-visibly lag behind the rest of the chat when `chatFontScale > 1.0`.
-
-**Why not in PR-A:** these components were outside PR-A's declared scope
-(the plan's story list named specific per-tool views only). The "every
-piece of chat typography" goal implicitly includes them though.
-
-**Complexity:** small (~30 min). Follows the same pattern as
-`TaskView` / `TodoView` — import `useChatFontScaleOverride` or
-`useChatScaledStyles`, apply to the text styles, done.
-
-### 7. Scale `ToolFullView.tsx` non-code chrome *(F-021)*
-
-**What:** `sources/components/tools/ToolFullView.tsx` — the full-screen
-tool-detail route — wires `scaled` through to its embedded `CodeView`
-blocks but leaves its own non-code chrome (section titles, descriptions,
-error text, empty-state strings) at fixed sizes. Opening a generic tool's
-full view snaps typography back to base.
-
-**Why not in PR-A:** explicitly deferred in the plan's Open Questions to
-keep PR-A focused ("Deliberately out of scope for PR-A to keep the PR
-focused. Filed as a small follow-up.").
-
-**Complexity:** small (~45 min). Same pattern; touches ~5 style entries
-in one file.
-
----
-
 ## Further out (mentioned in brainstorm, not planned yet)
 
-- **Stream throttle / "quiet mode"** during agent streaming — coalesce token-by-token updates into 1–2 Hz redraws on e-ink. Biggest latent e-ink win but touches the message reducer, not just presentation.
+- **Stream throttle / "quiet mode"** during agent streaming — coalesce token-by-token updates into 1–2 Hz redraws on e-ink. Biggest latent e-ink win but touches the message reducer, not just presentation. *Flagged for promotion to Near-term by the 2026-04-24 multi-model brainstorm (Claude × 2 + Codex + Copilot); two reviewers independently argued it outweighs cold-open latency on felt impact during active sessions.*
 - **E-ink display profile** (single switch bundling: no animations, Skia fallbacks for `VoiceBars`/`ShimmerView`/`AvatarSkia`, monochrome theme, `animationEnabled: false` on navigation). Builds on top of the above.
 - **"Collapse noise" defaults** — default-collapse tool-call views, default-hide thinking, cap long bash output.
 
 ---
 
 ## Shipped (see `docs/fork-notes.md` for details)
+
+### 2026-04-24 — Hygiene PR: chat font scale coverage + catalog loading banner
+
+Single-commit hygiene bundle (`f3e92b2e`) that closes the two 2026-04-22 code-review follow-ups and the intercept-before-metadata option A, plus a test-suite repair.
+
+1. **F-020 — `ToolError.tsx` + `PermissionFooter.tsx` typography.** Both now run their text through `useChatScaledStyles` / `useChatFontScaleOverride(14)`. The inline error line and all 8 permission-button labels (Claude + Codex variants) track `chatFontScale` along with the rest of the chat.
+2. **F-021 — `ToolFullView.tsx` non-code chrome.** `sectionTitle`, `description`, `errorText`, `emptyOutputText`, `emptyOutputSubtext` now scale via `useChatScaledStyles`. Embedded `CodeView` blocks were already scaled via their `scaled` prop.
+3. **Intercept banner (option A from the intercept-before-metadata backlog item).** On `/plugin`, `/skills`, and `/agents` the Loading Item now carries a self-explanatory subtitle (`session.catalogNotReadyBanner`: "Session hasn't loaded yet — send any message first to populate this list.") while `session.metadata.tools === undefined`. New i18n key added to `_default.ts` + all 10 locale files.
+4. **Catalog test repair.** The three catalog screen tests pre-dated the `isLoading = metadata?.tools === undefined` condition and were asserting `EMPTY_STATE_TITLE` against `metadata: {}` (which actually triggers loading now). Fixed: pass `tools: []` to force the empty-state branch, added `@/text` mock, and added a new test case per screen asserting the loading-banner state.
+
+**Deferred / killed:**
+- Option B (auto-trigger session warm-up on intercept) dropped. The banner + `Loading…` state is now enough self-explanation for the 1–2s shadow-session gap; B's risk of sending unintended messages outweighs the remaining wait.
+- The wider multi-model roadmap brainstorm (Claude × 2 + Codex + Copilot, 2026-04-24) flagged **stream throttle / "quiet mode"** as mis-categorized under "Further out" — two reviewers independently argued token-by-token redraws during active agent streaming are a larger latent e-ink cost than cold-open fetch. Treat as a near-term candidate next round.
 
 ### 2026-04-22 — Native & installed Claude Code skills support on `main` (merged from `feat/native-and-installed-skills-support`)
 

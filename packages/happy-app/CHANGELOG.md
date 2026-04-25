@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 12 - 2026-04-24
+
+Hygiene update that closes two gaps in the chat text-size feature and makes the Plugins/Skills/Agents catalog screens self-explanatory while a fresh session is warming up.
+
+- Fixed the chat text-size slider not scaling the inline tool-error line and the permission prompt buttons; everything in a tool call now resizes together.
+- Fixed the full-screen tool detail view leaving its section titles, descriptions, and empty-state text at fixed size instead of following the chat text size.
+- Added a short explanation to the Plugins, Skills, and Agents screens so when the list hasn't loaded yet the loader says "Session hasn't loaded yet — send any message first" instead of leaving you guessing.
+
 ## Version 11 - 2026-04-23
 
 The Plugins, Skills, and Agents screens now show their loaded contents for sessions started from the terminal (not just from the mobile app). A visible loading state replaces the old blank "No plugins loaded" flash while the session is warming up.
