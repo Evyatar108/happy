@@ -128,7 +128,7 @@ type RenderSpanProps = {
 };
 
 function AnimatedMarkdownText(props: React.ComponentProps<typeof AnimatedText> & { baseStyle?: StyleProp<TextStyle> }) {
-    const flattenedBaseStyle = React.useMemo(() => RNStyleSheet.flatten(props.baseStyle) ?? {}, [props.baseStyle]);
+    const flattenedBaseStyle = RNStyleSheet.flatten(props.baseStyle) ?? {};
     const animatedTextStyle = useChatScaleAnimatedTextStyle(flattenedBaseStyle.fontSize ?? 0, flattenedBaseStyle.lineHeight);
 
     return <AnimatedText {...props} style={[props.baseStyle, props.style, animatedTextStyle]} />;
@@ -169,7 +169,6 @@ function RenderNumberedListBlock(props: { items: { number: number, spans: Markdo
 function RenderCodeBlock(props: { content: string, language: string | null, first: boolean, last: boolean, selectable: boolean }) {
     const [isHovered, setIsHovered] = React.useState(false);
     const scaledTextStyles = useChatScaledStyles({
-        codeLanguage: style.codeLanguage,
         syntaxHighlighterText: {
             fontSize: 14,
             lineHeight: 20,
