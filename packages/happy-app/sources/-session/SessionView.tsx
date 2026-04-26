@@ -1,6 +1,5 @@
 import { AgentContentView } from '@/components/AgentContentView';
 import { AgentInput } from '@/components/AgentInput';
-import { layout } from '@/components/layout';
 import {
     getAvailableModels,
     getAvailablePermissionModes,
@@ -18,6 +17,7 @@ import { Deferred } from '@/components/Deferred';
 import { EmptyMessages } from '@/components/EmptyMessages';
 import { SessionActionsAnchor, SessionActionsPopover } from '@/components/SessionActionsPopover';
 import { VoiceAssistantStatusBar } from '@/components/VoiceAssistantStatusBar';
+import { useChatWidth } from '@/hooks/useChatWidth';
 import { useDraft } from '@/hooks/useDraft';
 import { usePreSendCommand } from '@/hooks/usePreSendCommand';
 import { Modal } from '@/modal';
@@ -665,16 +665,16 @@ function CenteredInputWidth(props: {
     children: React.ReactNode;
     horizontalPadding: number;
 }) {
+    const { body: bodyMaxWidth } = useChatWidth();
+    const contentWidthStyle = React.useMemo(() => ({ width: '100%' as const, maxWidth: bodyMaxWidth }), [bodyMaxWidth]);
+
     return (
         <View style={{
             width: '100%',
             paddingHorizontal: props.horizontalPadding,
             alignItems: 'center',
         }}>
-            <View style={{
-                width: '100%',
-                maxWidth: layout.maxWidth,
-            }}>
+            <View style={contentWidthStyle}>
                 {props.children}
             </View>
         </View>

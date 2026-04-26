@@ -9,10 +9,10 @@ import { SessionActionsAnchor } from '@/components/SessionActionsPopover';
 import { Typography } from '@/constants/Typography';
 import { Session } from '@/sync/storageTypes';
 import { useHeaderHeight, useIsTablet } from '@/utils/responsive';
-import { layout } from '@/components/layout';
 import { useSidebar } from '@/components/SidebarContext';
 import { useUnistyles } from 'react-native-unistyles';
 import { t } from '@/text';
+import { useChatWidth } from '@/hooks/useChatWidth';
 
 interface ChatHeaderViewProps {
     title: string;
@@ -49,8 +49,12 @@ export const ChatHeaderView: React.FC<ChatHeaderViewProps> = ({
     const navigation = useNavigation();
     const insets = useSafeAreaInsets();
     const headerHeight = useHeaderHeight();
+    const { header: headerMaxWidth } = useChatWidth();
     const avatarAnchorRef = React.useRef<View | null>(null);
     const suppressAvatarPressUntilRef = React.useRef(0);
+    // maxWidth must NOT be re-added to styles.content above; this inline override depends on its absence
+    // so that 'full' mode (headerMaxWidth === undefined) correctly clears the constraint.
+    const contentWidthStyle = React.useMemo(() => ({ maxWidth: headerMaxWidth }), [headerMaxWidth]);
 
     // When the tablet sidebar is fully hidden, the only in-chrome affordance
     // to restore it lives here — next to the back button.
@@ -124,7 +128,7 @@ export const ChatHeaderView: React.FC<ChatHeaderViewProps> = ({
     return (
         <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.colors.header.background }]}>
             <View style={styles.contentWrapper}>
-                <View style={[styles.content, { height: headerHeight }]}>
+                <View style={[styles.content, { height: headerHeight }, contentWidthStyle]}>
                     <Pressable onPress={handleBackPress} style={styles.backButton} hitSlop={15}>
                         <Ionicons
                             name={Platform.OS === 'ios' ? 'chevron-back' : 'arrow-back'}
@@ -234,11 +238,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     content: {
+        // maxWidth removed; applied inline via contentWidthStyle to support 'full' mode
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: Platform.OS === 'ios' ? 8 : 16,
         width: '100%',
-        maxWidth: layout.headerMaxWidth,
     },
     backButton: {
         marginRight: 8,

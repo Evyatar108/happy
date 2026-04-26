@@ -413,6 +413,12 @@ export const it: TranslationStructure = {
         textSize: {
             title: 'DIMENSIONE TESTO',
         },
+        chatWidth: {
+            title: 'Larghezza chat',
+            default: 'Predefinita',
+            wide: 'Ampia',
+            full: 'Completa',
+        },
         agent: {
             claude: 'Claude',
             codex: 'Codex',

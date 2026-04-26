@@ -2,7 +2,6 @@ import { Ionicons, Octicons } from '@expo/vector-icons';
 import * as React from 'react';
 import { View, Platform, useWindowDimensions, ViewStyle, Text, ActivityIndicator, TouchableWithoutFeedback, Image as RNImage, Pressable } from 'react-native';
 import { Image } from 'expo-image';
-import { layout } from './layout';
 import { MultiTextInput, KeyPressEvent } from './MultiTextInput';
 import { Typography } from '@/constants/Typography';
 import { PermissionMode, ModelMode } from './PermissionModeSelector';
@@ -23,6 +22,8 @@ import { hackMode, hackModes } from '@/sync/modeHacks';
 import { Theme } from '@/theme';
 import { t } from '@/text';
 import { Metadata } from '@/sync/storageTypes';
+import { useChatWidth } from '@/hooks/useChatWidth';
+import { useIsTablet } from '@/utils/responsive';
 
 interface AgentInputProps {
     value: string;
@@ -88,6 +89,7 @@ const MAX_CONTEXT_SIZE = 190000;
 // Chip 4 = 1.00 (default scale). 0.05 spacing below 1.0 for fine accessibility tuning,
 // 0.10 spacing above 1.0 for clear visual jumps.
 const CHAT_FONT_SCALE_STEPS = [0.85, 0.9, 0.95, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5] as const;
+const CHAT_WIDTH_MODES = ['default', 'wide', 'full'] as const;
 
 const stylesheet = StyleSheet.create((theme, runtime) => ({
     container: {
@@ -338,7 +340,10 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
     const styles = stylesheet;
     const { theme } = useUnistyles();
     const screenWidth = useWindowDimensions().width;
+    const { body: bodyMaxWidth } = useChatWidth(screenWidth);
+    const isTablet = useIsTablet();
     const isSendBlocked = props.blockSend ?? false;
+    const innerContainerWidthStyle = React.useMemo(() => ({ maxWidth: bodyMaxWidth }), [bodyMaxWidth]);
 
     const hasText = props.value.trim().length > 0;
     const canPressSendButton = !props.isSending
@@ -460,19 +465,36 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
     // Settings modal state
     const [showSettings, setShowSettings] = React.useState(false);
     const [showTextSize, setShowTextSize] = React.useState(false);
+    const [showChatWidth, setShowChatWidth] = React.useState(false);
     const [chatFontScale, setChatFontScale] = useLocalSettingMutable('chatFontScale');
+    const [chatWidthMode, setChatWidthMode] = useLocalSettingMutable('chatWidthMode');
+
+    React.useEffect(() => {
+        if (!isTablet && showChatWidth) {
+            setShowChatWidth(false);
+        }
+    }, [isTablet, showChatWidth]);
 
     // Handle settings button press
     const handleSettingsPress = React.useCallback(() => {
         hapticsLight();
         setShowSettings(prev => !prev);
         setShowTextSize(false);
+        setShowChatWidth(false);
     }, []);
 
     // Handle text-size button press
     const handleTextSizePress = React.useCallback(() => {
         hapticsLight();
         setShowTextSize(prev => !prev);
+        setShowSettings(false);
+        setShowChatWidth(false);
+    }, []);
+
+    const handleChatWidthPress = React.useCallback(() => {
+        hapticsLight();
+        setShowChatWidth(prev => !prev);
+        setShowTextSize(false);
         setShowSettings(false);
     }, []);
 
@@ -481,6 +503,11 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
         hapticsLight();
         setChatFontScale(value);
     }, [setChatFontScale]);
+
+    const handleChatWidthSelect = React.useCallback((value: typeof CHAT_WIDTH_MODES[number]) => {
+        hapticsLight();
+        setChatWidthMode(value);
+    }, [setChatWidthMode]);
 
     // Handle settings selection
     const handleSettingsSelect = React.useCallback((mode: PermissionMode) => {
@@ -610,7 +637,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
         ]}>
             <View style={[
                 styles.innerContainer,
-                { maxWidth: layout.maxWidth }
+                innerContainerWidthStyle
             ]}>
                 {/* Autocomplete suggestions overlay */}
                 {suggestions.length > 0 && (
@@ -928,6 +955,53 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                     </>
                 )}
 
+                {/* Chat-width overlay */}
+                {isTablet && showChatWidth && (
+                    <>
+                        <TouchableWithoutFeedback onPress={() => setShowChatWidth(false)}>
+                            <View style={styles.overlayBackdrop} />
+                        </TouchableWithoutFeedback>
+                        <View style={[
+                            styles.textSizeOverlay,
+                            { paddingHorizontal: screenWidth > 700 ? 0 : 8 }
+                        ]}>
+                            <FloatingOverlay maxHeight={140} keyboardShouldPersistTaps="always">
+                                <View style={styles.overlaySection}>
+                                    <Text style={styles.overlaySectionTitle}>
+                                        {t('agentInput.chatWidth.title')}
+                                    </Text>
+                                    <View style={styles.textSizeChipsRow}>
+                                        {CHAT_WIDTH_MODES.map((mode) => {
+                                            const isActive = mode === chatWidthMode;
+                                            return (
+                                                <Pressable
+                                                    key={mode}
+                                                    onPress={() => handleChatWidthSelect(mode)}
+                                                    hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                                                    style={({ pressed }) => ({
+                                                        ...styles.textSizeChip,
+                                                        backgroundColor: isActive ? theme.colors.button.primary.background : 'transparent',
+                                                        borderColor: isActive ? theme.colors.button.primary.background : theme.colors.divider,
+                                                        opacity: pressed ? 0.7 : 1,
+                                                    })}
+                                                >
+                                                    <Text style={{
+                                                        fontSize: 14,
+                                                        color: isActive ? theme.colors.button.primary.tint : theme.colors.text,
+                                                        ...Typography.default('semiBold'),
+                                                    }}>
+                                                        {t(`agentInput.chatWidth.${mode}`)}
+                                                    </Text>
+                                                </Pressable>
+                                            );
+                                        })}
+                                    </View>
+                                </View>
+                            </FloatingOverlay>
+                        </View>
+                    </>
+                )}
+
                 {/* Connection status, context warning, and permission mode */}
                 {(props.connectionStatus || contextWarning || (displayPermissionMode && permissionModeKey !== 'default')) && (
                     <View style={{
@@ -1216,6 +1290,30 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                         color={theme.colors.button.secondary.tint}
                                     />
                                 </Pressable>
+
+                                {isTablet && (
+                                    <Pressable
+                                        onPress={handleChatWidthPress}
+                                        hitSlop={{ top: 5, bottom: 10, left: 0, right: 0 }}
+                                        accessibilityLabel={t('agentInput.chatWidth.title')}
+                                        style={(p) => ({
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            borderRadius: Platform.select({ default: 16, android: 20 }),
+                                            paddingHorizontal: 8,
+                                            paddingVertical: 6,
+                                            justifyContent: 'center',
+                                            height: 32,
+                                            opacity: p.pressed ? 0.7 : 1,
+                                        })}
+                                    >
+                                        <Ionicons
+                                            name={'resize-outline'}
+                                            size={16}
+                                            color={theme.colors.button.secondary.tint}
+                                        />
+                                    </Pressable>
+                                )}
 
                                 {/* Agent selector button */}
                                 {props.agentType && props.onAgentClick && (

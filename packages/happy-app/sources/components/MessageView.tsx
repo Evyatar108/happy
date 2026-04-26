@@ -5,23 +5,26 @@ import { MarkdownView } from "./markdown/MarkdownView";
 import { t } from '@/text';
 import { Message, UserTextMessage, AgentTextMessage, ToolCallMessage } from "@/sync/typesMessage";
 import { Metadata } from "@/sync/storageTypes";
-import { layout } from "./layout";
 import { ToolView } from "./tools/ToolView";
 import { AgentEvent } from "@/sync/typesRaw";
 import { sync } from '@/sync/sync';
 import { Option } from './markdown/MarkdownView';
 import { AnimatedText } from './StyledText';
 import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
+import { layout } from './layout';
 
 
 export const MessageView = React.memo((props: {
   message: Message;
   metadata: Metadata | null;
   sessionId: string;
+  chatBodyWidth?: number;
   getMessageById?: (id: string) => Message | null;
 }) => {
+  const messageContentWidthStyle = React.useMemo(() => ({ maxWidth: props.chatBodyWidth ?? layout.maxWidth }), [props.chatBodyWidth]);
+
   const content = (
-    <View style={styles.messageContent}>
+    <View style={[styles.messageContent, messageContentWidthStyle]}>
       <RenderBlock
         message={props.message}
         metadata={props.metadata}
@@ -195,7 +198,6 @@ const styles = StyleSheet.create((theme) => ({
     flexGrow: 1,
     flexBasis: 0,
     minWidth: 0,
-    maxWidth: layout.maxWidth,
     overflow: 'hidden',
   },
   userMessageContainer: {
