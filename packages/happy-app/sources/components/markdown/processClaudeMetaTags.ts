@@ -259,12 +259,12 @@ export default function processClaudeMetaTags(raw: string): ProcessedClaudeMetaT
     let out = raw;
     const { out: optionsProtected, protectedBlocks } = protectOptions(out);
     out = optionsProtected;
+    const { out: taskNotificationsProtected, taskNotifications } = protectTaskNotifications(out);
+    out = taskNotificationsProtected;
     out = stripLocalCommandCaveats(out);
     out = stripSystemReminders(out);
     out = stripForkBoilerplate(out);
     out = out.replace(/\n{3,}/g, '\n\n');
-    const { out: taskNotificationsProtected, taskNotifications } = protectTaskNotifications(out);
-    out = taskNotificationsProtected;
     const masked = out
         .replace(STDOUT_TAG_RE, '')
         .replace(STDERR_TAG_RE, '');

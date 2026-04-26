@@ -238,6 +238,24 @@ describe('processClaudeMetaTags', () => {
         expect(output.copyMarkdown).toBe(`${options}\nReview finished successfully`);
     });
 
+    it('preserves a summary containing a literal system-reminder wrapper verbatim in copyMarkdown', () => {
+        const summaryText = 'Done <system-reminder>injected</system-reminder> successfully';
+        const input = [
+            '<task-notification>',
+            '<task-id>task-123</task-id>',
+            '<task-type>review</task-type>',
+            '<output-file>/tmp/task-123.output</output-file>',
+            '<status>completed</status>',
+            `<summary>${summaryText}</summary>`,
+            '</task-notification>',
+        ].join('\n');
+        const output = processClaudeMetaTags(input);
+
+        expect(output.renderMarkdown).toBe('__HAPPY_TASK_NOTIFICATION_0__');
+        expect(output.copyMarkdown).toBe(summaryText);
+        expect(output.taskNotifications[0]?.summary).toBe(summaryText);
+    });
+
     it('does not warn for well-formed task-notification tags or their inner tags', () => {
         const logger = vi.fn();
         _setLogger(logger);
