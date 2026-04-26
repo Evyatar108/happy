@@ -1,9 +1,9 @@
 import { MarkdownSpan, parseMarkdown } from './parseMarkdown';
 import * as React from 'react';
-import { Image, Pressable, ScrollView, View, Platform } from 'react-native';
+import { Image, Pressable, ScrollView, View, Platform, StyleSheet as RNStyleSheet, type StyleProp, type TextStyle } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { StyleSheet } from 'react-native-unistyles';
-import { Text } from '../StyledText';
+import { AnimatedText, Text } from '../StyledText';
 import { Typography } from '@/constants/Typography';
 import { SimpleSyntaxHighlighter } from '../SimpleSyntaxHighlighter';
 import { Modal } from '@/modal';
@@ -15,7 +15,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { MermaidRenderer } from './MermaidRenderer';
 import { t } from '@/text';
 import { isHttpMarkdownLink } from './linkUtils';
-import { useChatScaledStyles } from '@/hooks/useChatFontScale';
+import { useChatScaleAnimatedTextStyle, useChatScaledStyles } from '@/hooks/useChatFontScale';
 
 // Option type for callback
 export type Option = {
@@ -122,41 +122,45 @@ export const MarkdownView = React.memo((props: {
 
 type RenderSpanProps = {
     spans: MarkdownSpan[];
-    baseStyle?: any;
+    baseStyle?: StyleProp<TextStyle>;
     selectable: boolean;
     onLinkPress: (url: string) => void;
 };
 
+function AnimatedMarkdownText(props: React.ComponentProps<typeof AnimatedText> & { baseStyle?: StyleProp<TextStyle> }) {
+    const flattenedBaseStyle = React.useMemo(() => RNStyleSheet.flatten(props.baseStyle) ?? {}, [props.baseStyle]);
+    const animatedTextStyle = useChatScaleAnimatedTextStyle(flattenedBaseStyle.fontSize ?? 0, flattenedBaseStyle.lineHeight);
+
+    return <AnimatedText {...props} style={[props.baseStyle, props.style, animatedTextStyle]} />;
+}
+
 function RenderTextBlock(props: { spans: MarkdownSpan[], first: boolean, last: boolean, selectable: boolean, onLinkPress: (url: string) => void }) {
-    const scaledTextStyles = useChatScaledStyles({ text: style.text });
-    return <Text selectable={props.selectable} style={[scaledTextStyles.text, props.first && style.first, props.last && style.last]}><RenderSpans spans={props.spans} baseStyle={scaledTextStyles.text} selectable={props.selectable} onLinkPress={props.onLinkPress} /></Text>;
+    const textStyle = [style.text, props.first && style.first, props.last && style.last];
+    return <AnimatedMarkdownText selectable={props.selectable} baseStyle={textStyle}><RenderSpans spans={props.spans} baseStyle={textStyle} selectable={props.selectable} onLinkPress={props.onLinkPress} /></AnimatedMarkdownText>;
 }
 
 function RenderHeaderBlock(props: { level: 1 | 2 | 3 | 4 | 5 | 6, spans: MarkdownSpan[], first: boolean, last: boolean, selectable: boolean, onLinkPress: (url: string) => void }) {
-    const scaledTextStyles = useChatScaledStyles({ headerLevel: (style as any)[`header${props.level}`] });
-    const headerStyle = [style.header, scaledTextStyles.headerLevel, props.first && style.first, props.last && style.last];
-    return <Text selectable={props.selectable} style={headerStyle}><RenderSpans spans={props.spans} baseStyle={headerStyle} selectable={props.selectable} onLinkPress={props.onLinkPress} /></Text>;
+    const headerStyle = [style.header, (style as any)[`header${props.level}`], props.first && style.first, props.last && style.last];
+    return <AnimatedMarkdownText selectable={props.selectable} baseStyle={headerStyle}><RenderSpans spans={props.spans} baseStyle={headerStyle} selectable={props.selectable} onLinkPress={props.onLinkPress} /></AnimatedMarkdownText>;
 }
 
 function RenderListBlock(props: { items: MarkdownSpan[][], first: boolean, last: boolean, selectable: boolean, onLinkPress: (url: string) => void }) {
-    const scaledTextStyles = useChatScaledStyles({ text: style.text });
-    const listStyle = [scaledTextStyles.text, style.list];
+    const listStyle = [style.text, style.list];
     return (
         <View style={{ flexDirection: 'column', marginBottom: 8, gap: 1 }}>
             {props.items.map((item, index) => (
-                <Text selectable={props.selectable} style={listStyle} key={index}>- <RenderSpans spans={item} baseStyle={listStyle} selectable={props.selectable} onLinkPress={props.onLinkPress} /></Text>
+                <AnimatedMarkdownText selectable={props.selectable} baseStyle={listStyle} key={index}>- <RenderSpans spans={item} baseStyle={listStyle} selectable={props.selectable} onLinkPress={props.onLinkPress} /></AnimatedMarkdownText>
             ))}
         </View>
     );
 }
 
 function RenderNumberedListBlock(props: { items: { number: number, spans: MarkdownSpan[] }[], first: boolean, last: boolean, selectable: boolean, onLinkPress: (url: string) => void }) {
-    const scaledTextStyles = useChatScaledStyles({ text: style.text });
-    const listStyle = [scaledTextStyles.text, style.list];
+    const listStyle = [style.text, style.list];
     return (
         <View style={{ flexDirection: 'column', marginBottom: 8, gap: 1 }}>
             {props.items.map((item, index) => (
-                <Text selectable={props.selectable} style={listStyle} key={index}>{item.number.toString()}. <RenderSpans spans={item.spans} baseStyle={listStyle} selectable={props.selectable} onLinkPress={props.onLinkPress} /></Text>
+                <AnimatedMarkdownText selectable={props.selectable} baseStyle={listStyle} key={index}>{item.number.toString()}. <RenderSpans spans={item.spans} baseStyle={listStyle} selectable={props.selectable} onLinkPress={props.onLinkPress} /></AnimatedMarkdownText>
             ))}
         </View>
     );
@@ -190,7 +194,7 @@ function RenderCodeBlock(props: { content: string, language: string | null, firs
             // @ts-ignore - Web only events
             onMouseLeave={() => setIsHovered(false)}
         >
-            {props.language && <Text selectable={props.selectable} style={scaledTextStyles.codeLanguage}>{props.language}</Text>}
+            {props.language && <AnimatedMarkdownText selectable={props.selectable} baseStyle={style.codeLanguage}>{props.language}</AnimatedMarkdownText>}
             <ScrollView
                 style={{ flexGrow: 0, flexShrink: 0 }}
                 horizontal={true}
@@ -221,9 +225,6 @@ function RenderCodeBlock(props: { content: string, language: string | null, firs
 
 function RenderImageBlock(props: { url: string, alt: string, first: boolean, last: boolean }) {
     const accessibleLabel = props.alt || 'Markdown image';
-    const scaledTextStyles = useChatScaledStyles({
-        imageCaption: style.imageCaption,
-    });
 
     return (
         <View style={[style.imageBlock, props.first && style.first, props.last && style.last]}>
@@ -234,7 +235,7 @@ function RenderImageBlock(props: { url: string, alt: string, first: boolean, las
                 resizeMode="contain"
             />
             {props.alt ? (
-                <Text style={scaledTextStyles.imageCaption}>{props.alt}</Text>
+                <AnimatedMarkdownText baseStyle={style.imageCaption}>{props.alt}</AnimatedMarkdownText>
             ) : null}
         </View>
     );
@@ -247,10 +248,6 @@ function RenderOptionsBlock(props: {
     selectable: boolean,
     onOptionPress?: (option: Option) => void 
 }) {
-    const scaledTextStyles = useChatScaledStyles({
-        optionText: style.optionText,
-    });
-
     return (
         <View style={[style.optionsContainer, props.first && style.first, props.last && style.last]}>
             {props.items.map((item, index) => {
@@ -264,13 +261,13 @@ function RenderOptionsBlock(props: {
                             ]}
                             onPress={() => props.onOptionPress?.({ title: item })}
                         >
-                            <Text selectable={props.selectable} style={scaledTextStyles.optionText}>{item}</Text>
+                            <AnimatedMarkdownText selectable={props.selectable} baseStyle={style.optionText}>{item}</AnimatedMarkdownText>
                         </Pressable>
                     );
                 } else {
                     return (
                         <View key={index} style={style.optionItem}>
-                            <Text selectable={props.selectable} style={scaledTextStyles.optionText}>{item}</Text>
+                            <AnimatedMarkdownText selectable={props.selectable} baseStyle={style.optionText}>{item}</AnimatedMarkdownText>
                         </View>
                     );
                 }
@@ -280,11 +277,8 @@ function RenderOptionsBlock(props: {
 }
 
 function RenderSpans(props: RenderSpanProps) {
-    const scaledTextStyles = useChatScaledStyles({
-        code: style.code,
-    });
     const resolveSpanStyle = (spanStyle: MarkdownSpan['styles'][number]) => spanStyle === 'code'
-        ? scaledTextStyles.code
+        ? style.code
         : style[spanStyle];
 
     return (<>
@@ -292,21 +286,22 @@ function RenderSpans(props: RenderSpanProps) {
             if (span.url) {
                 const isExternalLink = isHttpMarkdownLink(span.url);
                 return (
-                    <Text
+                    <AnimatedMarkdownText
                         key={index}
+                        baseStyle={props.baseStyle}
                         selectable={props.selectable}
                         accessibilityRole={isExternalLink ? 'link' : undefined}
-                        style={[props.baseStyle, isExternalLink && style.link, span.styles.map(resolveSpanStyle)]}
+                        style={[isExternalLink && style.link, span.styles.map(resolveSpanStyle)]}
                         {...(isExternalLink && Platform.OS === 'web' ? { onClick: () => { if (typeof window !== 'undefined') window.open(span.url!, '_blank', 'noopener,noreferrer'); } } as any : {})}
                         onPress={isExternalLink && Platform.OS !== 'web'
                             ? () => props.onLinkPress(span.url!)
                             : undefined}
                     >
                         {span.text}
-                    </Text>
+                    </AnimatedMarkdownText>
                 );
             } else {
-                return <Text key={index} selectable={props.selectable} style={[props.baseStyle, span.styles.map(resolveSpanStyle)]}>{span.text}</Text>
+                return <AnimatedMarkdownText key={index} baseStyle={props.baseStyle} selectable={props.selectable} style={span.styles.map(resolveSpanStyle)}>{span.text}</AnimatedMarkdownText>
             }
         })}
     </>)
@@ -326,10 +321,6 @@ function RenderTableBlock(props: {
     const columnCount = props.headers.length;
     const rowCount = props.rows.length;
     const isLastRow = (rowIndex: number) => rowIndex === rowCount - 1;
-    const scaledTextStyles = useChatScaledStyles({
-        tableHeaderText: style.tableHeaderText,
-        tableCellText: style.tableCellText,
-    });
 
     return (
         <View style={[style.tableContainer, props.first && style.first, props.last && style.last]}>
@@ -351,7 +342,7 @@ function RenderTableBlock(props: {
                         >
                             {/* Header cell for this column */}
                             <View style={[style.tableCell, style.tableHeaderCell, style.tableCellFirst]}>
-                                <Text style={scaledTextStyles.tableHeaderText}><RenderSpans spans={header} baseStyle={scaledTextStyles.tableHeaderText} onLinkPress={props.onLinkPress} selectable={props.selectable} /></Text>
+                                <AnimatedMarkdownText baseStyle={style.tableHeaderText}><RenderSpans spans={header} baseStyle={style.tableHeaderText} onLinkPress={props.onLinkPress} selectable={props.selectable} /></AnimatedMarkdownText>
                             </View>
                             {/* Data cells for this column */}
                             {props.rows.map((row, rowIndex) => (
@@ -362,7 +353,7 @@ function RenderTableBlock(props: {
                                         isLastRow(rowIndex) && style.tableCellLast
                                     ]}
                                 >
-                                    <Text style={scaledTextStyles.tableCellText}><RenderSpans spans={row[colIndex] ?? []} baseStyle={scaledTextStyles.tableCellText} onLinkPress={props.onLinkPress} selectable={props.selectable} /></Text>
+                                    <AnimatedMarkdownText baseStyle={style.tableCellText}><RenderSpans spans={row[colIndex] ?? []} baseStyle={style.tableCellText} onLinkPress={props.onLinkPress} selectable={props.selectable} /></AnimatedMarkdownText>
                                 </View>
                             ))}
                         </View>
@@ -399,8 +390,6 @@ const style = StyleSheet.create((theme) => ({
     },
     code: {
         ...Typography.mono(),
-        fontSize: 16,
-        lineHeight: 24,
         color: theme.colors.text,
     },
     link: {

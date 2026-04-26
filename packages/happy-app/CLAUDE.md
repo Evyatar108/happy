@@ -463,6 +463,7 @@ const MyComponent = () => {
 - Local-only slash commands should be modeled in `sources/sync/slashCommandIntercept.ts` and executed through `sources/hooks/usePreSendCommand.ts` so both the live-session composer and the new-session composer intercept them before `sync.sendMessage()` or `machineSpawnNewSession()`.
 - App-only picker commands belong in `sources/sync/suggestionCommands.ts` with `source: 'app-synthetic'`; do not inject them through session metadata, which should stay reserved for SDK-emitted commands and classification inputs.
 - Animated text consumers should import `AnimatedText` from `sources/components/StyledText.tsx`; do not create local `Animated.createAnimatedComponent(Text|RNText)` wrappers outside the documented dev spike artifact.
+- `useChatScaleAnimatedTextStyle` expects raw, unscaled `fontSize`/`lineHeight` inputs from the local style definition; do not feed it `useChatScaledStyles(...)` output or persisted chat scale will be applied twice.
 - Always put styles in the very end of the component or page file
 - Always wrap pages in memo
 - For hotkeys use "useGlobalKeyboard", do not change it, it works only on Web
