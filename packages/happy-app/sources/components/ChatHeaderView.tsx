@@ -52,6 +52,8 @@ export const ChatHeaderView: React.FC<ChatHeaderViewProps> = ({
     const { header: headerMaxWidth } = useChatWidth();
     const avatarAnchorRef = React.useRef<View | null>(null);
     const suppressAvatarPressUntilRef = React.useRef(0);
+    // maxWidth must NOT be re-added to styles.content above; this inline override depends on its absence
+    // so that 'full' mode (headerMaxWidth === undefined) correctly clears the constraint.
     const contentWidthStyle = React.useMemo(() => ({ maxWidth: headerMaxWidth }), [headerMaxWidth]);
 
     // When the tablet sidebar is fully hidden, the only in-chrome affordance
@@ -236,6 +238,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     content: {
+        // maxWidth removed; applied inline via contentWidthStyle to support 'full' mode
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: Platform.OS === 'ios' ? 8 : 16,
