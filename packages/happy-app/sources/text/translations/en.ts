@@ -419,6 +419,9 @@ export const en: TranslationStructure = {
             badgeBypassAllPermissions: 'yolo',
             badgePlanMode: 'plan mode',
         },
+        textSize: {
+            title: 'TEXT SIZE',
+        },
         agent: {
             claude: 'Claude',
             codex: 'Codex',

@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "version": 18,
+      "date": "2026-04-25",
+      "summary": "A quicker way to change chat text size: a numbered picker now lives next to the settings gear under the chat input. Tap a number from 1 to 9 to jump straight to that size — no more digging into Settings or wrestling with pinch gestures on e-ink.",
+      "changes": [
+        "Added a Text Size picker (numbered 1 through 9) next to the chat input settings gear. Each chip is a discrete size step from 0.85× up to 1.5×, with chip 4 set to the default 1.0×.",
+        "Settings → Appearance and pinch-to-zoom (when enabled) remain alternative controls — the picker shares the same chat font-scale store so all three stay in sync.",
+        "Translated the new \"TEXT SIZE\" header into all 10 supported languages (en, ru, pl, es, ca, it, pt, ja, zh-Hans, zh-Hant)."
+      ],
+      "rawMarkdown": "## Version 18 - 2026-04-25\n\n\nA quicker way to change chat text size: a numbered picker now lives next to the settings gear under the chat input. Tap a number from 1 to 9 to jump straight to that size — no more digging into Settings or wrestling with pinch gestures on e-ink.\n\n- Added a Text Size picker (numbered 1 through 9) next to the chat input settings gear. Each chip is a discrete size step from 0.85× up to 1.5×, with chip 4 set to the default 1.0×.\n- Settings → Appearance and pinch-to-zoom (when enabled) remain alternative controls — the picker shares the same chat font-scale store so all three stay in sync.\n- Translated the new \"TEXT SIZE\" header into all 10 supported languages (en, ru, pl, es, ca, it, pt, ja, zh-Hans, zh-Hant)."
+    },
+    {
       "version": 17,
       "date": "2026-04-25",
       "summary": "Pinch-to-zoom now behaves like live text growth instead of scaling whole message bubbles. While you hold the gesture, every visible chat glyph grows together across markdown, code, diffs, tool output, and agent events, while the surrounding chrome stays fixed.",
@@ -208,5 +219,5 @@
       "rawMarkdown": "## Version 1 - 2025-05-12\n\n\nWelcome to Happy - your secure, encrypted mobile companion for Claude Code. This inaugural release establishes the foundation for private, powerful AI interactions on the go.\n\n- Implemented end-to-end encrypted session management ensuring complete privacy\n- Integrated intelligent voice assistant with natural conversation capabilities\n- Added experimental file manager with syntax highlighting and tree navigation\n- Built seamless real-time synchronization across all your devices\n- Established native support for iOS, Android, and responsive web interfaces"
     }
   ],
-  "latestVersion": 17
+  "latestVersion": 18
 }

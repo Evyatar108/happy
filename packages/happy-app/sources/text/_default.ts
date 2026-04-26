@@ -403,6 +403,9 @@ export const en = {
             badgeBypassAllPermissions: 'yolo',
             badgePlanMode: 'plan mode',
         },
+        textSize: {
+            title: 'TEXT SIZE',
+        },
         agent: {
             claude: 'Claude',
             codex: 'Codex',

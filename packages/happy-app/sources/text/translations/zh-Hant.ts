@@ -406,6 +406,9 @@ export const zhHant: TranslationStructure = {
             badgeBypassAllPermissions: '繞過所有權限',
             badgePlanMode: '計畫模式',
         },
+        textSize: {
+            title: '文字大小',
+        },
         agent: {
             claude: 'Claude',
             codex: 'Codex',

@@ -404,6 +404,9 @@ export const it: TranslationStructure = {
             badgeBypassAllPermissions: 'Bypassa tutti i permessi',
             badgePlanMode: 'Modalità piano',
         },
+        textSize: {
+            title: 'DIMENSIONE TESTO',
+        },
         agent: {
             claude: 'Claude',
             codex: 'Codex',

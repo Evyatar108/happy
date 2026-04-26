@@ -422,6 +422,9 @@ export const ru: TranslationStructure = {
             badgeBypassAllPermissions: 'Обход всех разрешений',
             badgePlanMode: 'Режим планирования',
         },
+        textSize: {
+            title: 'РАЗМЕР ТЕКСТА',
+        },
         agent: {
             claude: 'Claude',
             codex: 'Codex',

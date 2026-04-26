@@ -406,6 +406,9 @@ export const ca: TranslationStructure = {
             badgeBypassAllPermissions: 'Omet tots els permisos',
             badgePlanMode: 'Mode de planificació',
         },
+        textSize: {
+            title: 'MIDA DEL TEXT',
+        },
         agent: {
             claude: 'Claude',
             codex: 'Codex',

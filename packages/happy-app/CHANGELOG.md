@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 18 - 2026-04-25
+
+A quicker way to change chat text size: a numbered picker now lives next to the settings gear under the chat input. Tap a number from 1 to 9 to jump straight to that size — no more digging into Settings or wrestling with pinch gestures on e-ink.
+
+- Added a Text Size picker (numbered 1 through 9) next to the chat input settings gear. Each chip is a discrete size step from 0.85× up to 1.5×, with chip 4 set to the default 1.0×.
+- Settings → Appearance and pinch-to-zoom (when enabled) remain alternative controls — the picker shares the same chat font-scale store so all three stay in sync.
+- Translated the new "TEXT SIZE" header into all 10 supported languages (en, ru, pl, es, ca, it, pt, ja, zh-Hans, zh-Hant).
+
 ## Version 17 - 2026-04-25
 
 Pinch-to-zoom now behaves like live text growth instead of scaling whole message bubbles. While you hold the gesture, every visible chat glyph grows together across markdown, code, diffs, tool output, and agent events, while the surrounding chrome stays fixed.

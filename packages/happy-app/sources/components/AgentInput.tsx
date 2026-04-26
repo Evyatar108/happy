@@ -18,7 +18,7 @@ import { TextInputState, MultiTextInputHandle } from './MultiTextInput';
 import { applySuggestion } from './autocomplete/applySuggestion';
 import { GitStatusBadge, useHasMeaningfulGitStatus } from './GitStatusBadge';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
-import { useSetting } from '@/sync/storage';
+import { useSetting, useLocalSettingMutable } from '@/sync/storage';
 import { hackMode, hackModes } from '@/sync/modeHacks';
 import { Theme } from '@/theme';
 import { t } from '@/text';
@@ -80,6 +80,14 @@ interface AgentInputProps {
 }
 
 const MAX_CONTEXT_SIZE = 190000;
+
+// Discrete chat-font-scale steps for the in-input text-size picker.
+// 9 values spanning 0.85..1.5 (CHAT_FONT_SCALE_MAX in the hook is 1.6 and remains
+// reachable via pinch-to-zoom and the Settings → Appearance slider; the picker tops
+// out at 1.5 because anything above feels excessive on the BOOX).
+// Chip 4 = 1.00 (default scale). 0.05 spacing below 1.0 for fine accessibility tuning,
+// 0.10 spacing above 1.0 for clear visual jumps.
+const CHAT_FONT_SCALE_STEPS = [0.85, 0.9, 0.95, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5] as const;
 
 const stylesheet = StyleSheet.create((theme, runtime) => ({
     container: {
@@ -149,6 +157,31 @@ const stylesheet = StyleSheet.create((theme, runtime) => ({
         height: 1,
         backgroundColor: theme.colors.divider,
         marginHorizontal: 16,
+    },
+    textSizeOverlay: {
+        position: 'absolute',
+        bottom: '100%',
+        left: 0,
+        right: 0,
+        marginBottom: 8,
+        zIndex: 1000,
+    },
+    textSizeChipsRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        paddingHorizontal: 16,
+        paddingTop: 4,
+        paddingBottom: 8,
+    },
+    textSizeChip: {
+        minWidth: 44,
+        height: 40,
+        paddingHorizontal: 12,
+        borderRadius: 12,
+        borderWidth: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
 
     // Selection styles
@@ -426,12 +459,28 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
 
     // Settings modal state
     const [showSettings, setShowSettings] = React.useState(false);
+    const [showTextSize, setShowTextSize] = React.useState(false);
+    const [chatFontScale, setChatFontScale] = useLocalSettingMutable('chatFontScale');
 
     // Handle settings button press
     const handleSettingsPress = React.useCallback(() => {
         hapticsLight();
         setShowSettings(prev => !prev);
+        setShowTextSize(false);
     }, []);
+
+    // Handle text-size button press
+    const handleTextSizePress = React.useCallback(() => {
+        hapticsLight();
+        setShowTextSize(prev => !prev);
+        setShowSettings(false);
+    }, []);
+
+    // Handle text-size selection
+    const handleTextSizeSelect = React.useCallback((value: number) => {
+        hapticsLight();
+        setChatFontScale(value);
+    }, [setChatFontScale]);
 
     // Handle settings selection
     const handleSettingsSelect = React.useCallback((mode: PermissionMode) => {
@@ -832,6 +881,53 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                     </>
                 )}
 
+                {/* Text-size overlay */}
+                {showTextSize && (
+                    <>
+                        <TouchableWithoutFeedback onPress={() => setShowTextSize(false)}>
+                            <View style={styles.overlayBackdrop} />
+                        </TouchableWithoutFeedback>
+                        <View style={[
+                            styles.textSizeOverlay,
+                            { paddingHorizontal: screenWidth > 700 ? 0 : 8 }
+                        ]}>
+                            <FloatingOverlay maxHeight={140} keyboardShouldPersistTaps="always">
+                                <View style={styles.overlaySection}>
+                                    <Text style={styles.overlaySectionTitle}>
+                                        {t('agentInput.textSize.title')}
+                                    </Text>
+                                    <View style={styles.textSizeChipsRow}>
+                                        {CHAT_FONT_SCALE_STEPS.map((step, idx) => {
+                                            const isActive = Math.abs(step - chatFontScale) < 0.0001;
+                                            return (
+                                                <Pressable
+                                                    key={step}
+                                                    onPress={() => handleTextSizeSelect(step)}
+                                                    hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                                                    style={({ pressed }) => ({
+                                                        ...styles.textSizeChip,
+                                                        backgroundColor: isActive ? theme.colors.button.primary.background : 'transparent',
+                                                        borderColor: isActive ? theme.colors.button.primary.background : theme.colors.divider,
+                                                        opacity: pressed ? 0.7 : 1,
+                                                    })}
+                                                >
+                                                    <Text style={{
+                                                        fontSize: 16,
+                                                        color: isActive ? theme.colors.button.primary.tint : theme.colors.text,
+                                                        ...Typography.default('semiBold'),
+                                                    }}>
+                                                        {idx + 1}
+                                                    </Text>
+                                                </Pressable>
+                                            );
+                                        })}
+                                    </View>
+                                </View>
+                            </FloatingOverlay>
+                        </View>
+                    </>
+                )}
+
                 {/* Connection status, context warning, and permission mode */}
                 {(props.connectionStatus || contextWarning || (displayPermissionMode && permissionModeKey !== 'default')) && (
                     <View style={{
@@ -1097,6 +1193,29 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                         />
                                     </Pressable>
                                 )}
+
+                                {/* Text-size button (discrete chat font-scale picker; complements pinch-to-zoom) */}
+                                <Pressable
+                                    onPress={handleTextSizePress}
+                                    hitSlop={{ top: 5, bottom: 10, left: 0, right: 0 }}
+                                    accessibilityLabel={t('agentInput.textSize.title')}
+                                    style={(p) => ({
+                                        flexDirection: 'row',
+                                        alignItems: 'center',
+                                        borderRadius: Platform.select({ default: 16, android: 20 }),
+                                        paddingHorizontal: 8,
+                                        paddingVertical: 6,
+                                        justifyContent: 'center',
+                                        height: 32,
+                                        opacity: p.pressed ? 0.7 : 1,
+                                    })}
+                                >
+                                    <Ionicons
+                                        name={'text'}
+                                        size={16}
+                                        color={theme.colors.button.secondary.tint}
+                                    />
+                                </Pressable>
 
                                 {/* Agent selector button */}
                                 {props.agentType && props.onAgentClick && (

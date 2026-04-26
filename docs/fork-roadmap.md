@@ -89,6 +89,8 @@ Ranking is by **e-ink tablet quality-of-life** (the fork's primary target), then
 
 The chat pinch path now animates text leaves directly instead of scaling whole message bubbles. The shipped surface includes markdown, fenced code, diffs, tool output, permission/todo/codex views, and agent event text, while bubble chrome stays fixed. BOOX validation still runs as the separate manual hard gate documented in `docs/fork-notes.md`.
 
+A discrete in-input Text Size picker (9 numbered chips spanning 0.85× to 1.5×, with chip 4 = default 1.0×) shipped alongside the worklet upgrade as a tap-friendlier alternative to pinch — especially useful on e-ink where pinch gestures are awkward. The picker writes the same `chatFontScale` MMKV key as the Settings → Appearance slider, so all three controls stay in sync. Pinch-to-zoom is still gated on `pinchToZoomEnabled` (default `false`) and remains opt-in.
+
 ### 2026-04-24 — Hygiene PR: chat font scale coverage + catalog loading banner
 
 Single-commit hygiene bundle (`f3e92b2e`) that closes the two 2026-04-22 code-review follow-ups and the intercept-before-metadata option A, plus a test-suite repair.

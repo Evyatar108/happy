@@ -407,6 +407,9 @@ export const ja: TranslationStructure = {
             badgeBypassAllPermissions: 'すべての権限をバイパス',
             badgePlanMode: 'プランモード',
         },
+        textSize: {
+            title: 'テキストサイズ',
+        },
         agent: {
             claude: 'Claude',
             codex: 'Codex',

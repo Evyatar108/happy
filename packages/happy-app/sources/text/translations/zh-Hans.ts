@@ -407,6 +407,9 @@ export const zhHans: TranslationStructure = {
             badgeBypassAllPermissions: '绕过所有权限',
             badgePlanMode: '计划模式',
         },
+        textSize: {
+            title: '文字大小',
+        },
         agent: {
             claude: 'Claude',
             codex: 'Codex',
