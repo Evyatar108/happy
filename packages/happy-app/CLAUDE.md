@@ -237,7 +237,7 @@ So output like `Goodbye!` from `/exit` shows as an inset rounded grey rectangle 
 - `sources/auth/AuthContext.tsx` - Authentication state management
 - `sources/app/_layout.tsx` - Root navigation structure
 - `sources/components/markdown/processClaudeMetaTags.ts` - Claude Code metadata-tag preprocessor. Keep `<options>...</options>` byte-identical for downstream option rendering, and escape inner triple-backticks instead of switching to longer fence markers because `parseMarkdownBlock.ts` only recognizes triple-backtick fences.
-- `sources/components/markdown/MarkdownView.tsx` - Preprocess markdown once with `processClaudeMetaTags(...)` and reuse that same string for both `parseMarkdown(...)` and `storeTempText(...)`; render and long-press copy must stay in sync.
+- `sources/components/markdown/MarkdownView.tsx` - Preprocess markdown once with `processClaudeMetaTags(...)`, keep the single `useMemo`, and then split the structured result by surface: feed `renderMarkdown` plus `taskNotifications` into `parseMarkdown(...)`, and feed `copyMarkdown` into `storeTempText(...)`. Render/copy still stay in sync because they come from the same preprocessor pass, but they are allowed to diverge when sentinel-backed tags such as `<task-notification>` need clean copy text.
 
 ### Custom Header Component
 

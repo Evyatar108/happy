@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 21 - 2026-04-26
+
+Claude Code metadata inside chat bubbles is cleaner and more readable. Background task updates now show up as compact status pills you can tap for details, while model-only scaffolding tags no longer leak into the conversation text.
+
+- Added clickable task notification pills for Claude Code background-task updates, with a detail sheet that shows status, task identifiers, output file, and the full summary.
+- Improved long-press text copy for task notifications so the text-selection screen gets the human-readable summary instead of raw XML metadata.
+- Removed leaked `<system-reminder>` and `<fork-boilerplate>` blocks from rendered chat bubbles and copied text.
+
 ## Version 20 - 2026-04-26
 
 Tablet chats now have a faster way to reclaim horizontal space. A new width picker lives next to the existing Aa control, so you can dial the side margin in one tap.
