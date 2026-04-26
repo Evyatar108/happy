@@ -15,7 +15,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { MermaidRenderer } from './MermaidRenderer';
 import { t } from '@/text';
 import { isHttpMarkdownLink } from './linkUtils';
-import { useChatFontScaleOverride } from '@/hooks/useChatFontScale';
+import { useChatScaledStyles } from '@/hooks/useChatFontScale';
 
 // Option type for callback
 export type Option = {
@@ -128,22 +128,19 @@ type RenderSpanProps = {
 };
 
 function RenderTextBlock(props: { spans: MarkdownSpan[], first: boolean, last: boolean, selectable: boolean, onLinkPress: (url: string) => void }) {
-    const scaleOverride = useChatFontScaleOverride(16, 24);
-    return <Text selectable={props.selectable} style={[style.text, props.first && style.first, props.last && style.last, scaleOverride]}><RenderSpans spans={props.spans} baseStyle={style.text} selectable={props.selectable} onLinkPress={props.onLinkPress} /></Text>;
+    const scaledTextStyles = useChatScaledStyles({ text: style.text });
+    return <Text selectable={props.selectable} style={[scaledTextStyles.text, props.first && style.first, props.last && style.last]}><RenderSpans spans={props.spans} baseStyle={scaledTextStyles.text} selectable={props.selectable} onLinkPress={props.onLinkPress} /></Text>;
 }
 
 function RenderHeaderBlock(props: { level: 1 | 2 | 3 | 4 | 5 | 6, spans: MarkdownSpan[], first: boolean, last: boolean, selectable: boolean, onLinkPress: (url: string) => void }) {
-    const s = (style as any)[`header${props.level}`];
-    const baseFontSize = props.level === 2 ? 20 : 16;
-    const baseLineHeight = props.level === 3 ? 28 : 24;
-    const scaleOverride = useChatFontScaleOverride(baseFontSize, baseLineHeight);
-    const headerStyle = [style.header, s, props.first && style.first, props.last && style.last, scaleOverride];
+    const scaledTextStyles = useChatScaledStyles({ headerLevel: (style as any)[`header${props.level}`] });
+    const headerStyle = [style.header, scaledTextStyles.headerLevel, props.first && style.first, props.last && style.last];
     return <Text selectable={props.selectable} style={headerStyle}><RenderSpans spans={props.spans} baseStyle={headerStyle} selectable={props.selectable} onLinkPress={props.onLinkPress} /></Text>;
 }
 
 function RenderListBlock(props: { items: MarkdownSpan[][], first: boolean, last: boolean, selectable: boolean, onLinkPress: (url: string) => void }) {
-    const scaleOverride = useChatFontScaleOverride(16, 24);
-    const listStyle = [style.text, style.list, scaleOverride];
+    const scaledTextStyles = useChatScaledStyles({ text: style.text });
+    const listStyle = [scaledTextStyles.text, style.list];
     return (
         <View style={{ flexDirection: 'column', marginBottom: 8, gap: 1 }}>
             {props.items.map((item, index) => (
@@ -154,8 +151,8 @@ function RenderListBlock(props: { items: MarkdownSpan[][], first: boolean, last:
 }
 
 function RenderNumberedListBlock(props: { items: { number: number, spans: MarkdownSpan[] }[], first: boolean, last: boolean, selectable: boolean, onLinkPress: (url: string) => void }) {
-    const scaleOverride = useChatFontScaleOverride(16, 24);
-    const listStyle = [style.text, style.list, scaleOverride];
+    const scaledTextStyles = useChatScaledStyles({ text: style.text });
+    const listStyle = [scaledTextStyles.text, style.list];
     return (
         <View style={{ flexDirection: 'column', marginBottom: 8, gap: 1 }}>
             {props.items.map((item, index) => (
@@ -167,6 +164,13 @@ function RenderNumberedListBlock(props: { items: { number: number, spans: Markdo
 
 function RenderCodeBlock(props: { content: string, language: string | null, first: boolean, last: boolean, selectable: boolean }) {
     const [isHovered, setIsHovered] = React.useState(false);
+    const scaledTextStyles = useChatScaledStyles({
+        codeLanguage: style.codeLanguage,
+        syntaxHighlighterText: {
+            fontSize: 14,
+            lineHeight: 20,
+        },
+    });
 
     const copyCode = React.useCallback(async () => {
         try {
@@ -186,7 +190,7 @@ function RenderCodeBlock(props: { content: string, language: string | null, firs
             // @ts-ignore - Web only events
             onMouseLeave={() => setIsHovered(false)}
         >
-            {props.language && <Text selectable={props.selectable} style={style.codeLanguage}>{props.language}</Text>}
+            {props.language && <Text selectable={props.selectable} style={scaledTextStyles.codeLanguage}>{props.language}</Text>}
             <ScrollView
                 style={{ flexGrow: 0, flexShrink: 0 }}
                 horizontal={true}
@@ -197,6 +201,7 @@ function RenderCodeBlock(props: { content: string, language: string | null, firs
                     code={props.content}
                     language={props.language}
                     selectable={props.selectable}
+                    textStyle={scaledTextStyles.syntaxHighlighterText}
                 />
             </ScrollView>
             <View
@@ -216,6 +221,9 @@ function RenderCodeBlock(props: { content: string, language: string | null, firs
 
 function RenderImageBlock(props: { url: string, alt: string, first: boolean, last: boolean }) {
     const accessibleLabel = props.alt || 'Markdown image';
+    const scaledTextStyles = useChatScaledStyles({
+        imageCaption: style.imageCaption,
+    });
 
     return (
         <View style={[style.imageBlock, props.first && style.first, props.last && style.last]}>
@@ -226,7 +234,7 @@ function RenderImageBlock(props: { url: string, alt: string, first: boolean, las
                 resizeMode="contain"
             />
             {props.alt ? (
-                <Text style={style.imageCaption}>{props.alt}</Text>
+                <Text style={scaledTextStyles.imageCaption}>{props.alt}</Text>
             ) : null}
         </View>
     );
@@ -239,6 +247,10 @@ function RenderOptionsBlock(props: {
     selectable: boolean,
     onOptionPress?: (option: Option) => void 
 }) {
+    const scaledTextStyles = useChatScaledStyles({
+        optionText: style.optionText,
+    });
+
     return (
         <View style={[style.optionsContainer, props.first && style.first, props.last && style.last]}>
             {props.items.map((item, index) => {
@@ -252,13 +264,13 @@ function RenderOptionsBlock(props: {
                             ]}
                             onPress={() => props.onOptionPress?.({ title: item })}
                         >
-                            <Text selectable={props.selectable} style={style.optionText}>{item}</Text>
+                            <Text selectable={props.selectable} style={scaledTextStyles.optionText}>{item}</Text>
                         </Pressable>
                     );
                 } else {
                     return (
                         <View key={index} style={style.optionItem}>
-                            <Text selectable={props.selectable} style={style.optionText}>{item}</Text>
+                            <Text selectable={props.selectable} style={scaledTextStyles.optionText}>{item}</Text>
                         </View>
                     );
                 }
@@ -268,6 +280,13 @@ function RenderOptionsBlock(props: {
 }
 
 function RenderSpans(props: RenderSpanProps) {
+    const scaledTextStyles = useChatScaledStyles({
+        code: style.code,
+    });
+    const resolveSpanStyle = (spanStyle: MarkdownSpan['styles'][number]) => spanStyle === 'code'
+        ? scaledTextStyles.code
+        : style[spanStyle];
+
     return (<>
         {props.spans.map((span, index) => {
             if (span.url) {
@@ -277,7 +296,7 @@ function RenderSpans(props: RenderSpanProps) {
                         key={index}
                         selectable={props.selectable}
                         accessibilityRole={isExternalLink ? 'link' : undefined}
-                        style={[props.baseStyle, isExternalLink && style.link, span.styles.map(s => style[s])]}
+                        style={[props.baseStyle, isExternalLink && style.link, span.styles.map(resolveSpanStyle)]}
                         {...(isExternalLink && Platform.OS === 'web' ? { onClick: () => { if (typeof window !== 'undefined') window.open(span.url!, '_blank', 'noopener,noreferrer'); } } as any : {})}
                         onPress={isExternalLink && Platform.OS !== 'web'
                             ? () => props.onLinkPress(span.url!)
@@ -287,7 +306,7 @@ function RenderSpans(props: RenderSpanProps) {
                     </Text>
                 );
             } else {
-                return <Text key={index} selectable={props.selectable} style={[props.baseStyle, span.styles.map(s => style[s])]}>{span.text}</Text>
+                return <Text key={index} selectable={props.selectable} style={[props.baseStyle, span.styles.map(resolveSpanStyle)]}>{span.text}</Text>
             }
         })}
     </>)
@@ -307,6 +326,10 @@ function RenderTableBlock(props: {
     const columnCount = props.headers.length;
     const rowCount = props.rows.length;
     const isLastRow = (rowIndex: number) => rowIndex === rowCount - 1;
+    const scaledTextStyles = useChatScaledStyles({
+        tableHeaderText: style.tableHeaderText,
+        tableCellText: style.tableCellText,
+    });
 
     return (
         <View style={[style.tableContainer, props.first && style.first, props.last && style.last]}>
@@ -328,7 +351,7 @@ function RenderTableBlock(props: {
                         >
                             {/* Header cell for this column */}
                             <View style={[style.tableCell, style.tableHeaderCell, style.tableCellFirst]}>
-                                <Text style={style.tableHeaderText}><RenderSpans spans={header} baseStyle={style.tableHeaderText} onLinkPress={props.onLinkPress} selectable={props.selectable} /></Text>
+                                <Text style={scaledTextStyles.tableHeaderText}><RenderSpans spans={header} baseStyle={scaledTextStyles.tableHeaderText} onLinkPress={props.onLinkPress} selectable={props.selectable} /></Text>
                             </View>
                             {/* Data cells for this column */}
                             {props.rows.map((row, rowIndex) => (
@@ -339,7 +362,7 @@ function RenderTableBlock(props: {
                                         isLastRow(rowIndex) && style.tableCellLast
                                     ]}
                                 >
-                                    <Text style={style.tableCellText}><RenderSpans spans={row[colIndex] ?? []} baseStyle={style.tableCellText} onLinkPress={props.onLinkPress} selectable={props.selectable} /></Text>
+                                    <Text style={scaledTextStyles.tableCellText}><RenderSpans spans={row[colIndex] ?? []} baseStyle={scaledTextStyles.tableCellText} onLinkPress={props.onLinkPress} selectable={props.selectable} /></Text>
                                 </View>
                             ))}
                         </View>
@@ -486,12 +509,6 @@ const style = StyleSheet.create((theme) => ({
         marginTop: 8,
         paddingHorizontal: 16,
         marginBottom: 0,
-    },
-    codeText: {
-        ...Typography.mono(),
-        color: theme.colors.text,
-        fontSize: 14,
-        lineHeight: 20,
     },
     horizontalRule: {
         height: 1,

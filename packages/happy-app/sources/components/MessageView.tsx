@@ -1,6 +1,6 @@
 import * as React from "react";
 import { View, Text } from "react-native";
-import { StyleSheet } from 'react-native-unistyles';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { MarkdownView } from "./markdown/MarkdownView";
 import { t } from '@/text';
 import { Message, UserTextMessage, AgentTextMessage, ToolCallMessage } from "@/sync/typesMessage";
@@ -10,8 +10,7 @@ import { ToolView } from "./tools/ToolView";
 import { AgentEvent } from "@/sync/typesRaw";
 import { sync } from '@/sync/sync';
 import { Option } from './markdown/MarkdownView';
-import Animated, { useAnimatedProps, useAnimatedStyle } from 'react-native-reanimated';
-import { ChatScaleLiveContext } from './ChatScaleLiveContext';
+import { useChatScaledStyles } from '@/hooks/useChatFontScale';
 
 
 export const MessageView = React.memo((props: {
@@ -20,8 +19,6 @@ export const MessageView = React.memo((props: {
   sessionId: string;
   getMessageById?: (id: string) => Message | null;
 }) => {
-  const scaleContext = React.useContext(ChatScaleLiveContext);
-
   const content = (
     <View style={styles.messageContent}>
       <RenderBlock
@@ -33,41 +30,13 @@ export const MessageView = React.memo((props: {
     </View>
   );
 
-  if (scaleContext === null) {
-    return (
-      <View style={styles.messageContainer}>
-        {content}
-      </View>
-    );
-  }
-
+  // Whole-message scaling was rejected for this branch: later per-leaf animation must be the only live text scaling path.
   return (
-    <AnimatedMessageView liveMultiplier={scaleContext.liveMultiplier} isActive={scaleContext.isActive}>
+    <View style={styles.messageContainer}>
       {content}
-    </AnimatedMessageView>
+    </View>
   );
 });
-
-function AnimatedMessageView(props: {
-  liveMultiplier: NonNullable<React.ContextType<typeof ChatScaleLiveContext>>['liveMultiplier'];
-  isActive: NonNullable<React.ContextType<typeof ChatScaleLiveContext>>['isActive'];
-  children: React.ReactNode;
-}) {
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: props.liveMultiplier.value }],
-    transformOrigin: 'center',
-  }));
-
-  const animatedProps = useAnimatedProps(() => ({
-    renderToHardwareTextureAndroid: props.isActive.value,
-  }));
-
-  return (
-    <Animated.View style={[styles.messageContainer, animatedStyle]} animatedProps={animatedProps}>
-      {props.children}
-    </Animated.View>
-  );
-}
 
 // RenderBlock function that dispatches to the correct component based on message kind
 function RenderBlock(props: {
@@ -146,17 +115,25 @@ function AgentEventBlock(props: {
   event: AgentEvent;
   metadata: Metadata | null;
 }) {
+  const { theme } = useUnistyles();
+  const scaledTextStyles = useChatScaledStyles({
+    agentEventText: {
+      color: theme.colors.agentEventText,
+      fontSize: 14,
+    },
+  });
+
   if (props.event.type === 'switch') {
     return (
       <View style={styles.agentEventContainer}>
-        <Text style={styles.agentEventText}>{t('message.switchedToMode', { mode: props.event.mode })}</Text>
+        <Text style={scaledTextStyles.agentEventText}>{t('message.switchedToMode', { mode: props.event.mode })}</Text>
       </View>
     );
   }
   if (props.event.type === 'message') {
     return (
       <View style={styles.agentEventContainer}>
-        <Text style={styles.agentEventText}>{props.event.message}</Text>
+        <Text style={scaledTextStyles.agentEventText}>{props.event.message}</Text>
       </View>
     );
   }
@@ -172,7 +149,7 @@ function AgentEventBlock(props: {
 
     return (
       <View style={styles.agentEventContainer}>
-        <Text style={styles.agentEventText}>
+        <Text style={scaledTextStyles.agentEventText}>
           {t('message.usageLimitUntil', { time: formatTime(props.event.endsAt) })}
         </Text>
       </View>
@@ -180,7 +157,7 @@ function AgentEventBlock(props: {
   }
   return (
     <View style={styles.agentEventContainer}>
-      <Text style={styles.agentEventText}>{t('message.unknownEvent')}</Text>
+      <Text style={scaledTextStyles.agentEventText}>{t('message.unknownEvent')}</Text>
     </View>
   );
 }
@@ -244,10 +221,6 @@ const styles = StyleSheet.create((theme) => ({
     marginHorizontal: 8,
     alignItems: 'center',
     paddingVertical: 8,
-  },
-  agentEventText: {
-    color: theme.colors.agentEventText,
-    fontSize: 14,
   },
   toolContainer: {
     marginHorizontal: 8,

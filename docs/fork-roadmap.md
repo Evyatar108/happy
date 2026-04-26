@@ -142,7 +142,7 @@ Three-tier client-side perf batch for the Onyx tablet cold-open freeze on long s
 
 - Chat freeze on large chats perf fix (upstream PR [#1154](https://github.com/slopus/happy/pull/1154))
 - Three-state tablet sidebar (expanded / 72-px rail / hidden)
-- `Settings → Appearance → Chat text size` — initial integration (markdown / agent events / tool section titles / Bash output / composer). Full per-tool-view coverage completed in the 2026-04-22 batch above.
+- `Settings → Appearance → Chat text size` — scale wiring landed across the chat in stages: initial integration (markdown body / composer), tool views (PR-A 2026-04-22 batch), `ToolError` / `PermissionFooter` / `ToolFullView` chrome (2026-04-24 hygiene PR), and the remaining fixed-size surfaces — fenced code via `SimpleSyntaxHighlighter`, code language label, markdown image captions, option buttons, table cells, `CommandView`, `ToolSectionView` title, and `agentEventText` (2026-04-25 uniform-chat-font-scaling job).
 - In-chrome restore for hidden sidebar (menu glyph in `ChatHeaderView`)
 - Claude Code metadata-tag preprocessor for `MarkdownView` (`<command-*>`, `<local-command-*>`)
 - Shared `useChatFontScale` / `useChatFontScaleOverride` hook at `sources/hooks/useChatFontScale.ts` (extended with `useChatScaledStyles` in PR-A)

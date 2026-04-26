@@ -24,7 +24,7 @@ function parseChangelog(): ChangelogData {
         return { entries: [], latestVersion: 0 };
     }
 
-    const content = fs.readFileSync(changelogPath, 'utf-8');
+    const content = fs.readFileSync(changelogPath, 'utf-8').replace(/\r\n/g, '\n');
     const entries: ChangelogEntry[] = [];
     
     // Split by version headers (## Version X - Date)

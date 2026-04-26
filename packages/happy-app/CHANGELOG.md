@@ -1,5 +1,21 @@
 # Changelog
 
+## Version 16 - 2026-04-25
+
+This follow-up closes the last chat text-size coverage gap left by the previous scaling update. Inline `code` inside regular chat messages now grows and shrinks with the same slider as the surrounding text, so mixed-format sentences no longer break visual consistency.
+
+- Fixed inline `code` text inside markdown chat messages so it now follows the chat text-size slider instead of staying at a fixed size.
+- Closed the remaining coverage gap from the earlier uniform chat font-scaling pass, so inline code now matches the surrounding body text and fenced code blocks at every chat text size.
+
+## Version 15 - 2026-04-25
+
+The chat text-size slider now scales the remaining fixed-size text surfaces, so code blocks, markdown extras, tool chrome, and system event lines all grow and shrink together instead of mixing sizes inside one conversation.
+
+- Fixed fenced code blocks and their language labels so they now scale together with the rest of the chat text.
+- Fixed markdown image captions, clickable option buttons, and table text so those body elements now follow the same chat text-size setting as paragraphs.
+- Fixed command blocks, tool section titles, and agent event lines so tool output and system status text resize at the same proportional rate as regular chat messages.
+- Kept the shared file viewer on its original sizing path, so changing chat text size does not alter the standalone file screen.
+
 ## Version 14 - 2026-04-24
 
 Tablet users can now reshape the sidebar to match how they read. Three modes — full sessions list, a 72-pixel icon rail, or fully hidden for distraction-free reading — replace the previous fixed-width sidebar. Especially helpful on e-ink tablets where every pixel of chat real estate counts.

@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { Text, View } from 'react-native';
-import { StyleSheet } from 'react-native-unistyles';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { useChatScaledStyles } from '@/hooks/useChatFontScale';
 
 interface ToolSectionViewProps {
     title?: string;
@@ -9,9 +10,21 @@ interface ToolSectionViewProps {
 }
 
 export const ToolSectionView = React.memo<ToolSectionViewProps>(({ title, children, fullWidth }) => {
+    const { theme } = useUnistyles();
+    const scaledTextStyles = useChatScaledStyles({
+        sectionTitle: {
+            fontSize: 13,
+            fontWeight: '600',
+            color: theme.colors.textSecondary,
+            marginBottom: 6,
+            marginHorizontal: 12,
+            textTransform: 'uppercase',
+        },
+    });
+
     return (
         <View style={[styles.section, fullWidth && styles.fullWidthSection]}>
-            {title && <Text style={styles.sectionTitle}>{title}</Text>}
+            {title && <Text style={scaledTextStyles.sectionTitle}>{title}</Text>}
             <View style={fullWidth ? styles.fullWidthContent : undefined}>
                 {children}
             </View>
@@ -19,7 +32,7 @@ export const ToolSectionView = React.memo<ToolSectionViewProps>(({ title, childr
     );
 });
 
-const styles = StyleSheet.create((theme) => ({
+const styles = StyleSheet.create(() => ({
     section: {
         marginBottom: 12,
         overflow: 'visible',
@@ -29,13 +42,5 @@ const styles = StyleSheet.create((theme) => ({
     },
     fullWidthContent: {
         // No negative margins needed since we're moving the whole section
-    },
-    sectionTitle: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: theme.colors.textSecondary,
-        marginBottom: 6,
-        marginHorizontal: 12, // Add padding back for title when full width
-        textTransform: 'uppercase',
     },
 }));
