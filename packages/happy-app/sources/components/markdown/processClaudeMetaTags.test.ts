@@ -201,6 +201,24 @@ describe('processClaudeMetaTags', () => {
         expect(logger).not.toHaveBeenCalled();
     });
 
+    it('still produces a valid pill when summary mentions other inner closing tags as plain text', () => {
+        const summaryText = 'Saw </status> and </task-id> in stderr output';
+        const input = [
+            '<task-notification>',
+            '<task-id>task-123</task-id>',
+            '<task-type>review</task-type>',
+            '<output-file>/tmp/task-123.output</output-file>',
+            '<status>completed</status>',
+            `<summary>${summaryText}</summary>`,
+            '</task-notification>',
+        ].join('\n');
+        const output = processClaudeMetaTags(input);
+
+        expect(output.renderMarkdown).toBe('__HAPPY_TASK_NOTIFICATION_0__');
+        expect(output.copyMarkdown).toBe(summaryText);
+        expect(output.taskNotifications[0]?.summary).toBe(summaryText);
+    });
+
     it('falls back to plain text when a required task-notification tag is missing', () => {
         const logger = vi.fn();
         _setLogger(logger);

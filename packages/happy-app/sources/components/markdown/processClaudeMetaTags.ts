@@ -110,10 +110,6 @@ function restoreOptions(raw: string, protectedBlocks: string[]) {
     });
 }
 
-function containsLiteralInnerClosingTag(value: string) {
-    return /<\/(?:task-id|tool-use-id|task-type|output-file|status|summary)>/i.test(value);
-}
-
 function parseTaskNotification(block: string): TaskNotificationData | null {
     const match = block.match(TASK_NOTIFICATION_PATTERN);
 
@@ -128,7 +124,7 @@ function parseTaskNotification(block: string): TaskNotificationData | null {
     const status = match[5].trim();
     const summary = match[6].trim();
 
-    if ([taskId, toolUseId, taskType, outputFile, status, summary].some(value => value && containsLiteralInnerClosingTag(value))) {
+    if (summary && /<\/summary>/i.test(summary)) {
         return null;
     }
 
