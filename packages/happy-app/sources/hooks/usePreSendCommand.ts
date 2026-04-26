@@ -2,8 +2,9 @@ import * as React from 'react';
 import { Href, useRouter } from 'expo-router';
 import { Modal } from '@/modal';
 import { InterceptMessageKey, maybeIntercept } from '@/sync/slashCommandIntercept';
+import { t } from '@/text';
 
-const ALERT_MESSAGES: Record<InterceptMessageKey, string> = {
+const ALERT_MESSAGES = {
     pluginRequiresSession: 'Open /plugin from an existing session so Happy knows which plugins to show.',
     skillsRequiresSession: 'Open /skills from an existing session so Happy knows which skills are loaded.',
     agentsRequiresSession: 'Open /agents from an existing session so Happy knows which agents are available.',
@@ -11,7 +12,7 @@ const ALERT_MESSAGES: Record<InterceptMessageKey, string> = {
     modelTerminalOnly: 'Command runs only in the terminal. Use /model from your Claude Code CLI.',
     mcpTerminalOnly: 'Command runs only in the terminal. Use /mcp from your Claude Code CLI.',
     helpTerminalOnly: 'Command runs only in the terminal. Use /help from your Claude Code CLI.',
-};
+} satisfies Record<Exclude<InterceptMessageKey, 'renameEmptyName'>, string>;
 
 const NOOP = () => {};
 
@@ -40,6 +41,15 @@ export function usePreSendCommand(sessionId: string | undefined) {
                     // Router's typed-routes (enforced once .expo/types/router.d.ts
                     // exists; silently absent on clones that haven't run Metro).
                     router.push(result.path as Href);
+                    return;
+                }
+
+                if (result.type === 'rename') {
+                    return;
+                }
+
+                if (result.messageKey === 'renameEmptyName') {
+                    Modal.alert(t('common.rename'), t('commands.rename.emptyName'));
                     return;
                 }
 

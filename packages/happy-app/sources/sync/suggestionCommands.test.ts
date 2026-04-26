@@ -67,6 +67,7 @@ describe('suggestionCommands', () => {
             expect.objectContaining({ command: 'model', source: 'app-synthetic' }),
             expect.objectContaining({ command: 'mcp', source: 'app-synthetic' }),
             expect.objectContaining({ command: 'help', source: 'app-synthetic' }),
+            expect.objectContaining({ command: 'rename', source: 'app-synthetic' }),
             expect.objectContaining({ command: 'init', source: 'native-prompt' }),
             expect.objectContaining({ command: 'context', source: 'native-local' }),
             expect.objectContaining({ command: 'custom-skill', source: 'skill' }),
@@ -147,6 +148,7 @@ describe('suggestionCommands', () => {
             expect.objectContaining({ command: 'model', source: 'app-synthetic' }),
             expect.objectContaining({ command: 'mcp', source: 'app-synthetic' }),
             expect.objectContaining({ command: 'help', source: 'app-synthetic' }),
+            expect.objectContaining({ command: 'rename', source: 'app-synthetic' }),
         ]);
     });
 });

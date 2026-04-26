@@ -118,6 +118,7 @@ sources/
 - Follow existing component patterns when creating new UI components
 - Real-time sync operations are handled through SyncSocket and SyncSession classes
 - Session metadata writes should go through `sources/sync/ops.ts` `sessionUpdateMetadata(...)`, which encrypts metadata client-side, emits the existing session socket event `update-metadata`, and retries version mismatches locally.
+- App-local slash commands need four coordinated touchpoints: parse them in `sources/sync/slashCommandIntercept.ts`, handle the result in `sources/hooks/usePreSendCommand.ts`, surface them in `sources/sync/suggestionCommands.ts`, and cover both composers with `sources/-session/SessionView.intercept.test.ts` plus `sources/app/(app)/new/index.intercept.test.ts` (for example `/rename` intercepts only in live sessions, but must fall through before session creation).
 - Sync reducer batches must replay oldest-to-newest by `createdAt`; `storage.applyMessages()` and `applyOlderMessages()` sort normalized batches before calling the reducer, and the reducer preserves pending tool results so older lazy-loaded tool calls can still attach newer results that arrived earlier.
 - Store all temporary scripts and any test outside of unit tests in sources/trash folder
 - When setting screen parameters ALWAYS set them in _layout.tsx if possible this avoids layout shifts

@@ -54,6 +54,7 @@ export const COMMAND_DESCRIPTIONS: Record<string, string> = {
     memory: 'Explain how to use Claude Code memory from the terminal.',
     model: 'Explain how to switch models from the terminal.',
     plugin: 'Open the session plugin catalog.',
+    rename: 'Rename the current chat.',
     review: 'Review recent changes for issues.',
     'security-review': 'Review changes for security risks.',
     skills: 'Open the session skills catalog.',
@@ -70,6 +71,7 @@ const APP_SYNTHETIC_COMMANDS: CommandItem[] = [
     { command: 'model', description: COMMAND_DESCRIPTIONS.model, source: 'app-synthetic' },
     { command: 'mcp', description: COMMAND_DESCRIPTIONS.mcp, source: 'app-synthetic' },
     { command: 'help', description: COMMAND_DESCRIPTIONS.help, source: 'app-synthetic' },
+    { command: 'rename', description: COMMAND_DESCRIPTIONS.rename, source: 'app-synthetic' },
 ];
 
 function getMetadata(sessionId: string): Metadata | null {

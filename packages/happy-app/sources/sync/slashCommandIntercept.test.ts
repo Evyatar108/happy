@@ -66,6 +66,31 @@ describe('maybeIntercept', () => {
         });
     });
 
+    it('returns a rename action for /rename with a non-empty name in a live session', () => {
+        expect(maybeIntercept('/rename   Foo Bar  ', 'abc')).toEqual({
+            type: 'rename',
+            name: 'Foo Bar',
+        });
+    });
+
+    it('returns an alert for /rename with no argument in a live session', () => {
+        expect(maybeIntercept('/rename', 'abc')).toEqual({
+            type: 'alert',
+            messageKey: 'renameEmptyName',
+        });
+    });
+
+    it('returns an alert for /rename with a whitespace-only argument in a live session', () => {
+        expect(maybeIntercept('/rename    ', 'abc')).toEqual({
+            type: 'alert',
+            messageKey: 'renameEmptyName',
+        });
+    });
+
+    it('does not intercept /rename before a session exists', () => {
+        expect(maybeIntercept('/rename Foo', undefined)).toBeNull();
+    });
+
     it('passes through non-intercepted commands', () => {
         expect(maybeIntercept('/clear', 'abc')).toBeNull();
         expect(maybeIntercept('write a test', 'abc')).toBeNull();

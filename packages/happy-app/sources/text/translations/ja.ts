@@ -65,6 +65,13 @@ export const ja: TranslationStructure = {
         saveAs: '名前を付けて保存',
     },
 
+    commands: {
+        rename: {
+            emptyName: '/rename の後にチャット名を入力してください。',
+            failure: 'このチャットの名前を変更できませんでした。もう一度お試しください。',
+        },
+    },
+
     chat: {
         commandOutput: {
             stderrLabel: '標準エラー',
