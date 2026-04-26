@@ -75,7 +75,7 @@ export function useSidebar(): SidebarContextValue {
 // CollapsedSidebarView fills, excluding the right-edge chevron strip).
 // SIDEBAR_EDGE_WIDTH is the toggle strip — added to drawer widths in
 // SidebarNavigator so the inner content keeps its full intended width.
-export const SIDEBAR_WIDTH_COLLAPSED = 72;
+export const SIDEBAR_WIDTH_COLLAPSED = 56;
 export const SIDEBAR_WIDTH_MIN = 250;
 export const SIDEBAR_WIDTH_MAX = 360;
 export const SIDEBAR_EDGE_WIDTH = 18;
