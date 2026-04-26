@@ -1,12 +1,14 @@
 import * as React from 'react';
 import { useLocalSearchParams, Stack, useRouter } from "expo-router";
 import { Text, View, ActivityIndicator } from "react-native";
+import { useSharedValue } from 'react-native-reanimated';
 import { useMessage, useSession, useSessionMessages } from "@/sync/storage";
 import { sync } from '@/sync/sync';
 import { Deferred } from "@/components/Deferred";
 import { ToolFullView } from '@/components/tools/ToolFullView';
 import { ToolHeader } from '@/components/tools/ToolHeader';
 import { ToolStatusIndicator } from '@/components/tools/ToolStatusIndicator';
+import { ChatScaleLiveContext } from '@/components/ChatScaleLiveContext';
 import { Message } from '@/sync/typesMessage';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Typography } from '@/constants/Typography';
@@ -103,9 +105,15 @@ export default React.memo(() => {
 function FullView(props: { message: Message }) {
     const { theme } = useUnistyles();
     const styles = stylesheet;
-    
+    const frozenMultiplier = useSharedValue(1);
+    const frozenIsActive = useSharedValue(false);
+
     if (props.message.kind === 'tool-call') {
-        return <ToolFullView tool={props.message.tool} messages={props.message.children} />
+        return (
+            <ChatScaleLiveContext.Provider value={{ liveMultiplier: frozenMultiplier, isActive: frozenIsActive }}>
+                <ToolFullView tool={props.message.tool} messages={props.message.children} />
+            </ChatScaleLiveContext.Provider>
+        );
     }
     if (props.message.kind === 'agent-text') {
         return (
