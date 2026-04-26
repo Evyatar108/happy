@@ -16,7 +16,7 @@ type TaskNotificationPillProps = {
 
 type TaskNotificationStatusAppearance =
     | { type: 'spinner'; color: string }
-    | { type: 'icon'; name: string; color: string };
+    | { type: 'icon'; name: keyof typeof Ionicons.glyphMap; color: string };
 
 export function getTaskNotificationStatusAppearance(status: string): TaskNotificationStatusAppearance {
     switch (status.trim().toLowerCase()) {
@@ -51,13 +51,13 @@ export function TaskNotificationPill({ data }: TaskNotificationPillProps) {
                 {statusAppearance.type === 'spinner' ? (
                     <ActivityIndicator
                         testID="task-notification-status-spinner"
-                        size={Platform.OS === 'ios' ? 'small' : 14 as any}
+                        size={Platform.OS === 'ios' ? 'small' : 14}
                         color={statusAppearance.color}
                     />
                 ) : (
                     <Ionicons
                         testID="task-notification-status-icon"
-                        name={statusAppearance.name as any}
+                        name={statusAppearance.name}
                         size={16}
                         color={statusAppearance.color}
                     />
