@@ -2,7 +2,6 @@ import { Ionicons, Octicons } from '@expo/vector-icons';
 import * as React from 'react';
 import { View, Platform, useWindowDimensions, ViewStyle, Text, ActivityIndicator, TouchableWithoutFeedback, Image as RNImage, Pressable } from 'react-native';
 import { Image } from 'expo-image';
-import { layout } from './layout';
 import { MultiTextInput, KeyPressEvent } from './MultiTextInput';
 import { Typography } from '@/constants/Typography';
 import { PermissionMode, ModelMode } from './PermissionModeSelector';
@@ -23,6 +22,7 @@ import { hackMode, hackModes } from '@/sync/modeHacks';
 import { Theme } from '@/theme';
 import { t } from '@/text';
 import { Metadata } from '@/sync/storageTypes';
+import { useChatWidth } from '@/hooks/useChatWidth';
 
 interface AgentInputProps {
     value: string;
@@ -338,7 +338,9 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
     const styles = stylesheet;
     const { theme } = useUnistyles();
     const screenWidth = useWindowDimensions().width;
+    const { body: bodyMaxWidth } = useChatWidth();
     const isSendBlocked = props.blockSend ?? false;
+    const innerContainerWidthStyle = React.useMemo(() => ({ maxWidth: bodyMaxWidth }), [bodyMaxWidth]);
 
     const hasText = props.value.trim().length > 0;
     const canPressSendButton = !props.isSending
@@ -610,7 +612,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
         ]}>
             <View style={[
                 styles.innerContainer,
-                { maxWidth: layout.maxWidth }
+                innerContainerWidthStyle
             ]}>
                 {/* Autocomplete suggestions overlay */}
                 {suggestions.length > 0 && (
