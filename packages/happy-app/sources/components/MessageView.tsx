@@ -1,5 +1,5 @@
 import * as React from "react";
-import { View, Text } from "react-native";
+import { View } from "react-native";
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { MarkdownView } from "./markdown/MarkdownView";
 import { t } from '@/text';
@@ -10,7 +10,8 @@ import { ToolView } from "./tools/ToolView";
 import { AgentEvent } from "@/sync/typesRaw";
 import { sync } from '@/sync/sync';
 import { Option } from './markdown/MarkdownView';
-import { useChatScaledStyles } from '@/hooks/useChatFontScale';
+import { AnimatedText } from './StyledText';
+import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
 
 
 export const MessageView = React.memo((props: {
@@ -115,25 +116,17 @@ function AgentEventBlock(props: {
   event: AgentEvent;
   metadata: Metadata | null;
 }) {
-  const { theme } = useUnistyles();
-  const scaledTextStyles = useChatScaledStyles({
-    agentEventText: {
-      color: theme.colors.agentEventText,
-      fontSize: 14,
-    },
-  });
-
   if (props.event.type === 'switch') {
     return (
       <View style={styles.agentEventContainer}>
-        <Text style={scaledTextStyles.agentEventText}>{t('message.switchedToMode', { mode: props.event.mode })}</Text>
+        <AgentEventText>{t('message.switchedToMode', { mode: props.event.mode })}</AgentEventText>
       </View>
     );
   }
   if (props.event.type === 'message') {
     return (
       <View style={styles.agentEventContainer}>
-        <Text style={scaledTextStyles.agentEventText}>{props.event.message}</Text>
+        <AgentEventText>{props.event.message}</AgentEventText>
       </View>
     );
   }
@@ -149,17 +142,26 @@ function AgentEventBlock(props: {
 
     return (
       <View style={styles.agentEventContainer}>
-        <Text style={scaledTextStyles.agentEventText}>
+        <AgentEventText>
           {t('message.usageLimitUntil', { time: formatTime(props.event.endsAt) })}
-        </Text>
+        </AgentEventText>
       </View>
     );
   }
   return (
     <View style={styles.agentEventContainer}>
-      <Text style={scaledTextStyles.agentEventText}>{t('message.unknownEvent')}</Text>
+      <AgentEventText>{t('message.unknownEvent')}</AgentEventText>
     </View>
   );
+}
+
+function AgentEventText(props: {
+  children: React.ReactNode;
+}) {
+  useUnistyles();
+  const animatedTextStyle = useChatScaleAnimatedTextStyle(14);
+
+  return <AnimatedText style={[styles.agentEventText, animatedTextStyle]}>{props.children}</AnimatedText>;
 }
 
 function ToolCallBlock(props: {
@@ -224,6 +226,10 @@ const styles = StyleSheet.create((theme) => ({
   },
   toolContainer: {
     marginHorizontal: 8,
+  },
+  agentEventText: {
+    color: theme.colors.agentEventText,
+    fontSize: 14,
   },
   debugText: {
     color: theme.colors.agentEventText,
