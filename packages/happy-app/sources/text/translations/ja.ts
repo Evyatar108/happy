@@ -69,6 +69,22 @@ export const ja: TranslationStructure = {
         commandOutput: {
             stderrLabel: '標準エラー',
         },
+        taskNotification: {
+            title: 'タスク通知',
+            taskId: 'タスク ID',
+            toolUseId: 'ツール使用 ID',
+            taskType: 'タスク種別',
+            outputFile: '出力ファイル',
+            summary: '概要',
+            status: {
+                completed: '完了',
+                failed: '失敗',
+                killed: '停止',
+                running: '実行中',
+                pending: '保留中',
+                unknown: '不明',
+            },
+        },
     },
 
     profile: {

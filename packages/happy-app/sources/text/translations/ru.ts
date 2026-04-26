@@ -77,6 +77,22 @@ export const ru: TranslationStructure = {
         commandOutput: {
             stderrLabel: 'stderr',
         },
+        taskNotification: {
+            title: 'Уведомление о задаче',
+            taskId: 'ID задачи',
+            toolUseId: 'ID вызова инструмента',
+            taskType: 'Тип задачи',
+            outputFile: 'Выходной файл',
+            summary: 'Сводка',
+            status: {
+                completed: 'Завершено',
+                failed: 'Не удалось',
+                killed: 'Остановлено',
+                running: 'Выполняется',
+                pending: 'В ожидании',
+                unknown: 'Неизвестно',
+            },
+        },
     },
 
     connect: {

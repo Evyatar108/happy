@@ -20,6 +20,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Testing
 - `pnpm test` - Run tests in watch mode (Vitest)
+- Vitest auto-discovers both `sources/**/*.test.ts` and `sources/**/*.test.tsx`; prefer `.tsx` for component tests so JSX-bearing specs are exercised by the full suite without one-off wrappers.
 - Keep the Vitest config in `vitest.config.mts`; the `.ts` filename can fail to boot under this Windows/Bash setup with an `ERR_REQUIRE_ESM` startup error.
 - For node-environment sync tests, mock `sources/sync/storage.ts` instead of importing the real store when you only need `storage.getState()`. The real store pulls in `react-native`, which can fail to parse under Vitest's node runner in this harness.
 - For hook tests that only need synchronous context/memo evaluation (for example `useChatFontScale` worklet math), mock `react`'s `useContext`/`useMemo` and `react-native-reanimated`'s `useAnimatedStyle` so the hook can be called directly without a renderer.
@@ -193,6 +194,7 @@ The app uses a centralized language configuration system:
 - **Use centralized language names** - Import language names from `_all.ts` instead of translation keys
 - **Always re-read translations** - When new strings are added, always re-read the translation files to understand the existing structure and patterns before adding new keys
 - **Update `_default.ts` too** - `sources/text/_default.ts` is the canonical translation shape used to derive `TranslationStructure`, so every new i18n key must be added there as well as in every file under `sources/text/translations/`
+- **Keep `TranslationStructure` recursive** - If you add a nested translation object deeper than two levels (for example `chat.taskNotification.status.*`), keep the mapper in `sources/text/_default.ts` recursive so locale files can use non-English string literals without type errors.
 - **Use translations for common strings** - Always use the translation function `t()` for any user-visible string that is translatable, especially common UI elements like buttons, labels, and messages
 - **Use the i18n-translator agent** - When adding new translatable strings or verifying existing translations, use the i18n-translator agent to ensure consistency across all language files
 - **Beware of technical terms** - When translating technical terms, consider:
@@ -235,7 +237,7 @@ So output like `Goodbye!` from `/exit` shows as an inset rounded grey rectangle 
 - `sources/auth/AuthContext.tsx` - Authentication state management
 - `sources/app/_layout.tsx` - Root navigation structure
 - `sources/components/markdown/processClaudeMetaTags.ts` - Claude Code metadata-tag preprocessor. Keep `<options>...</options>` byte-identical for downstream option rendering, and escape inner triple-backticks instead of switching to longer fence markers because `parseMarkdownBlock.ts` only recognizes triple-backtick fences.
-- `sources/components/markdown/MarkdownView.tsx` - Preprocess markdown once with `processClaudeMetaTags(...)` and reuse that same string for both `parseMarkdown(...)` and `storeTempText(...)`; render and long-press copy must stay in sync.
+- `sources/components/markdown/MarkdownView.tsx` - Preprocess markdown once with `processClaudeMetaTags(...)`, keep the single `useMemo`, and then split the structured result by surface: feed `renderMarkdown` plus `taskNotifications` into `parseMarkdown(...)`, and feed `copyMarkdown` into `storeTempText(...)`. Render/copy still stay in sync because they come from the same preprocessor pass, but they are allowed to diverge when sentinel-backed tags such as `<task-notification>` need clean copy text.
 
 ### Custom Header Component
 

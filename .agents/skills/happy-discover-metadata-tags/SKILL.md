@@ -34,7 +34,7 @@ Claude Code periodically adds XML-ish internal metadata tags (like `<command-nam
 
 ### 1. Catalog the tags that appear in real chats
 
-The preprocessor already logs `[MarkdownView] unknown tag <name>` once per unseen tag name. If you need *richer* info (content sample, exact tag attributes), temporarily swap in the richer logger -- pattern to paste into `processClaudeMetaTags` before the `return out`:
+The preprocessor already logs `[MarkdownView] unknown tag <name>` once per unseen tag name. If you need *richer* info (content sample, exact tag attributes), temporarily swap in the richer logger -- pattern to paste into `processClaudeMetaTags` immediately before the final `return { renderMarkdown, copyMarkdown, taskNotifications };`:
 
 ```ts
 if (__DEV__) {

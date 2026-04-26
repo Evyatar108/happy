@@ -66,6 +66,22 @@ export const pt: TranslationStructure = {
         commandOutput: {
             stderrLabel: 'saída de erro',
         },
+        taskNotification: {
+            title: 'Notificação de tarefa',
+            taskId: 'ID da tarefa',
+            toolUseId: 'ID de uso da ferramenta',
+            taskType: 'Tipo de tarefa',
+            outputFile: 'Arquivo de saída',
+            summary: 'Resumo',
+            status: {
+                completed: 'Concluída',
+                failed: 'Falhou',
+                killed: 'Interrompida',
+                running: 'Em execução',
+                pending: 'Pendente',
+                unknown: 'Desconhecido',
+            },
+        },
     },
 
     profile: {

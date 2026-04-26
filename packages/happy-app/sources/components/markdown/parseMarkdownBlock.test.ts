@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseMarkdown, type MarkdownSpan } from './parseMarkdown';
+import { parseMarkdownBlock } from './parseMarkdownBlock';
+import type { TaskNotificationData } from './processClaudeMetaTags';
 
 // Helper to build the span shape the parser emits for plain, unstyled text
 // cells. Production now returns MarkdownSpan[] for every table cell (to
@@ -115,5 +117,34 @@ describe('parseMarkdownBlock - table parsing', () => {
 
         expect(tableBlocks).toHaveLength(1);
         expect(textBlocks).toHaveLength(1);
+    });
+});
+
+describe('parseMarkdownBlock - task notification sentinel parsing', () => {
+    it('emits a task-notification block when the sentinel index resolves', () => {
+        const taskNotification: TaskNotificationData = {
+            taskId: 'task-123',
+            toolUseId: 'toolu_456',
+            taskType: 'review',
+            outputFile: '/tmp/task-123.output',
+            status: 'completed',
+            summary: 'Task finished successfully.',
+        };
+
+        expect(parseMarkdownBlock('__HAPPY_TASK_NOTIFICATION_0__', [taskNotification])).toEqual([
+            {
+                type: 'task-notification',
+                data: taskNotification,
+            },
+        ]);
+    });
+
+    it('falls back to a text block when the sentinel index cannot resolve', () => {
+        expect(parseMarkdownBlock('__HAPPY_TASK_NOTIFICATION_0__')).toEqual([
+            {
+                type: 'text',
+                content: plainCell('__HAPPY_TASK_NOTIFICATION_0__'),
+            },
+        ]);
     });
 });
