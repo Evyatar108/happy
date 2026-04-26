@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, StyleSheet as RNStyleSheet, StyleProp, TextStyle } from 'react-native';
 import { ToolCall } from '@/sync/typesMessage';
 import { Metadata } from '@/sync/storageTypes';
 import { knownTools } from '@/components/tools/knownTools';
@@ -8,20 +8,24 @@ import { DiffView } from '@/components/diff/DiffView';
 import { trimIdent } from '@/utils/trimIdent';
 import { t } from '@/text';
 import { useSetting } from '@/sync/storage';
-import { useChatScaledStyles } from '@/hooks/useChatFontScale';
+import { AnimatedText } from '@/components/StyledText';
+import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
 
 interface MultiEditViewFullProps {
     tool: ToolCall;
     metadata: Metadata | null;
 }
 
+function AnimatedMultiEditText(props: React.ComponentProps<typeof AnimatedText> & { baseStyle: StyleProp<TextStyle> }) {
+    const flattenedBaseStyle = React.useMemo(() => RNStyleSheet.flatten(props.baseStyle) ?? {}, [props.baseStyle]);
+    const animatedTextStyle = useChatScaleAnimatedTextStyle(flattenedBaseStyle.fontSize ?? 0, flattenedBaseStyle.lineHeight);
+
+    return <AnimatedText {...props} style={[props.baseStyle, props.style, animatedTextStyle]} />;
+}
+
 export const MultiEditViewFull = React.memo<MultiEditViewFullProps>(({ tool, metadata }) => {
     const { input } = tool;
     const wrapLinesInDiffs = useSetting('wrapLinesInDiffs');
-    const scaledTextStyles = useChatScaledStyles({
-        editNumber: styles.editNumber,
-        replaceAllText: styles.replaceAllText,
-    });
 
     // Parse the input
     let edits: Array<{ old_string: string; new_string: string; replace_all?: boolean }> = [];
@@ -44,12 +48,12 @@ export const MultiEditViewFull = React.memo<MultiEditViewFullProps>(({ tool, met
                 return (
                     <View key={index}>
                         <View style={styles.editHeader}>
-                            <Text style={scaledTextStyles.editNumber}>
+                            <AnimatedMultiEditText baseStyle={styles.editNumber}>
                                 {t('tools.multiEdit.editNumber', { index: index + 1, total: edits.length })}
-                            </Text>
+                            </AnimatedMultiEditText>
                             {edit.replace_all && (
                                 <View style={styles.replaceAllBadge}>
-                                    <Text style={scaledTextStyles.replaceAllText}>{t('tools.multiEdit.replaceAll')}</Text>
+                                    <AnimatedMultiEditText baseStyle={styles.replaceAllText}>{t('tools.multiEdit.replaceAll')}</AnimatedMultiEditText>
                                 </View>
                             )}
                         </View>

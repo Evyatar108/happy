@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { View, Text } from 'react-native';
+import { View } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Octicons } from '@expo/vector-icons';
 import { ToolCall } from '@/sync/typesMessage';
@@ -9,7 +9,8 @@ import { resolvePath } from '@/utils/pathUtils';
 import { ToolDiffView } from '@/components/tools/ToolDiffView';
 import { useSetting } from '@/sync/storage';
 import { parseUnifiedDiff } from '@/utils/codexUnifiedDiff';
-import { useChatScaledStyles } from '@/hooks/useChatFontScale';
+import { AnimatedText } from '@/components/StyledText';
+import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
 
 interface CodexPatchViewProps {
     tool: ToolCall;
@@ -92,11 +93,9 @@ function getPatchKindLabel(change: CodexPatchEntry): string | null {
 
 export const CodexPatchView = React.memo<CodexPatchViewProps>(({ tool, metadata }) => {
     const { theme } = useUnistyles();
-    const scaledTextStyles = useChatScaledStyles({
-        filePath: styles.filePath,
-        kindLabel: styles.kindLabel,
-        movePath: styles.movePath,
-    });
+    const animatedFilePathStyle = useChatScaleAnimatedTextStyle(styles.filePath.fontSize);
+    const animatedKindLabelStyle = useChatScaleAnimatedTextStyle(styles.kindLabel.fontSize);
+    const animatedMovePathStyle = useChatScaleAnimatedTextStyle(styles.movePath.fontSize);
     const showLineNumbersInToolViews = useSetting('showLineNumbersInToolViews');
     const { input } = tool;
     const changes = getPatchChanges(input);
@@ -122,10 +121,10 @@ export const CodexPatchView = React.memo<CodexPatchViewProps>(({ tool, metadata 
                             <View style={styles.fileHeader}>
                                 <View style={styles.fileHeaderMain}>
                                     <Octicons name="file-diff" size={16} color={theme.colors.textSecondary} />
-                                    <Text style={scaledTextStyles.filePath}>{filePath}</Text>
-                                    {kindLabel ? <Text style={scaledTextStyles.kindLabel}>{kindLabel}</Text> : null}
+                                    <AnimatedText style={[styles.filePath, animatedFilePathStyle]}>{filePath}</AnimatedText>
+                                    {kindLabel ? <AnimatedText style={[styles.kindLabel, animatedKindLabelStyle]}>{kindLabel}</AnimatedText> : null}
                                 </View>
-                                {movePath ? <Text style={scaledTextStyles.movePath}>{movePath}</Text> : null}
+                                {movePath ? <AnimatedText style={[styles.movePath, animatedMovePathStyle]}>{movePath}</AnimatedText> : null}
                             </View>
                             {hasDiff ? (
                                 <ToolDiffView

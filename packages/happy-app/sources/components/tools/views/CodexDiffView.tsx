@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { View, Text } from 'react-native';
+import { View } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { ToolCall } from '@/sync/typesMessage';
 import { ToolSectionView } from '../ToolSectionView';
@@ -8,7 +8,8 @@ import { Metadata } from '@/sync/storageTypes';
 import { useSetting } from '@/sync/storage';
 import { t } from '@/text';
 import { parseUnifiedDiff } from '@/utils/codexUnifiedDiff';
-import { useChatScaledStyles } from '@/hooks/useChatFontScale';
+import { AnimatedText } from '@/components/StyledText';
+import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
 
 interface CodexDiffViewProps {
     tool: ToolCall;
@@ -17,9 +18,7 @@ interface CodexDiffViewProps {
 
 export const CodexDiffView = React.memo<CodexDiffViewProps>(({ tool, metadata }) => {
     const { theme } = useUnistyles();
-    const scaledTextStyles = useChatScaledStyles({
-        fileName: styles.fileName,
-    });
+    const animatedFileNameStyle = useChatScaleAnimatedTextStyle(styles.fileName.fontSize);
     const showLineNumbersInToolViews = useSetting('showLineNumbersInToolViews');
     const { input } = tool;
 
@@ -38,7 +37,7 @@ export const CodexDiffView = React.memo<CodexDiffViewProps>(({ tool, metadata })
     // If we have a filename, show it as a header
     const fileHeader = fileName ? (
         <View style={styles.fileHeader}>
-            <Text style={scaledTextStyles.fileName}>{fileName}</Text>
+            <AnimatedText style={[styles.fileName, animatedFileNameStyle]}>{fileName}</AnimatedText>
         </View>
     ) : null;
 

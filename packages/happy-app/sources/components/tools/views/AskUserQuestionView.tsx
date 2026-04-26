@@ -1,12 +1,13 @@
 import * as React from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, TouchableOpacity, ActivityIndicator, StyleSheet as RNStyleSheet, StyleProp, TextStyle } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { ToolViewProps } from './_all';
 import { ToolSectionView } from '../ToolSectionView';
 import { sessionAllow } from '@/sync/ops';
 import { t } from '@/text';
 import { Ionicons } from '@expo/vector-icons';
-import { useChatScaledStyles } from '@/hooks/useChatFontScale';
+import { AnimatedText } from '@/components/StyledText';
+import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
 
 interface QuestionOption {
     label: string;
@@ -163,19 +164,15 @@ const styles = StyleSheet.create((theme) => ({
     },
 }));
 
-const scalableStyles = {
-    headerText: styles.headerText,
-    optionDescription: styles.optionDescription,
-    optionLabel: styles.optionLabel,
-    questionText: styles.questionText,
-    submitButtonText: styles.submitButtonText,
-    submittedHeader: styles.submittedHeader,
-    submittedValue: styles.submittedValue,
-};
+function AnimatedQuestionText(props: React.ComponentProps<typeof AnimatedText> & { baseStyle: StyleProp<TextStyle> }) {
+    const flattenedBaseStyle = React.useMemo(() => RNStyleSheet.flatten(props.baseStyle) ?? {}, [props.baseStyle]);
+    const animatedTextStyle = useChatScaleAnimatedTextStyle(flattenedBaseStyle.fontSize ?? 0, flattenedBaseStyle.lineHeight);
+
+    return <AnimatedText {...props} style={[props.baseStyle, props.style, animatedTextStyle]} />;
+}
 
 export const AskUserQuestionView = React.memo<ToolViewProps>(({ tool, sessionId }) => {
     const { theme } = useUnistyles();
-    const scaledTextStyles = useChatScaledStyles(scalableStyles);
     const [selections, setSelections] = React.useState<Map<number, Set<number>>>(new Map());
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const [isSubmitted, setIsSubmitted] = React.useState(false);
@@ -273,8 +270,8 @@ export const AskUserQuestionView = React.memo<ToolViewProps>(({ tool, sessionId 
                             : '-';
                         return (
                             <View key={qIndex} style={styles.submittedItem}>
-                                <Text style={scaledTextStyles.submittedHeader}>{q.header}:</Text>
-                                <Text style={scaledTextStyles.submittedValue}>{selectedLabels}</Text>
+                                <AnimatedQuestionText baseStyle={styles.submittedHeader}>{q.header}:</AnimatedQuestionText>
+                                <AnimatedQuestionText baseStyle={styles.submittedValue}>{selectedLabels}</AnimatedQuestionText>
                             </View>
                         );
                     })}
@@ -292,9 +289,9 @@ export const AskUserQuestionView = React.memo<ToolViewProps>(({ tool, sessionId 
                     return (
                         <View key={qIndex} style={styles.questionSection}>
                             <View style={styles.headerChip}>
-                                <Text style={scaledTextStyles.headerText}>{question.header}</Text>
+                                <AnimatedQuestionText baseStyle={styles.headerText}>{question.header}</AnimatedQuestionText>
                             </View>
-                            <Text style={scaledTextStyles.questionText}>{question.question}</Text>
+                            <AnimatedQuestionText baseStyle={styles.questionText}>{question.question}</AnimatedQuestionText>
                             <View style={styles.optionsContainer}>
                                 {question.options.map((option, oIndex) => {
                                     const isSelected = selectedOptions.has(oIndex);
@@ -329,9 +326,9 @@ export const AskUserQuestionView = React.memo<ToolViewProps>(({ tool, sessionId 
                                                 </View>
                                             )}
                                             <View style={styles.optionContent}>
-                                                <Text style={scaledTextStyles.optionLabel}>{option.label}</Text>
+                                                <AnimatedQuestionText baseStyle={styles.optionLabel}>{option.label}</AnimatedQuestionText>
                                                 {option.description && (
-                                                    <Text style={scaledTextStyles.optionDescription}>{option.description}</Text>
+                                                    <AnimatedQuestionText baseStyle={styles.optionDescription}>{option.description}</AnimatedQuestionText>
                                                 )}
                                             </View>
                                         </TouchableOpacity>
@@ -356,7 +353,7 @@ export const AskUserQuestionView = React.memo<ToolViewProps>(({ tool, sessionId 
                             {isSubmitting ? (
                                 <ActivityIndicator size="small" color={theme.colors.button.primary.tint} />
                             ) : (
-                                <Text style={scaledTextStyles.submitButtonText}>{t('tools.askUserQuestion.submit')}</Text>
+                                <AnimatedQuestionText baseStyle={styles.submitButtonText}>{t('tools.askUserQuestion.submit')}</AnimatedQuestionText>
                             )}
                         </TouchableOpacity>
                     </View>

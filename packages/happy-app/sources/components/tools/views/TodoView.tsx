@@ -1,9 +1,10 @@
 import * as React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { ToolViewProps } from "./_all";
 import { knownTools } from '../../tools/knownTools';
 import { ToolSectionView } from '../../tools/ToolSectionView';
-import { useChatScaledStyles } from '@/hooks/useChatFontScale';
+import { AnimatedText } from '@/components/StyledText';
+import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
 
 export interface Todo {
     content: string;
@@ -13,9 +14,7 @@ export interface Todo {
 }
 
 export const TodoView = React.memo<ToolViewProps>(({ tool }) => {
-    const scaledTextStyles = useChatScaledStyles({
-        todoText: styles.todoText,
-    });
+    const animatedTodoTextStyle = useChatScaleAnimatedTextStyle(styles.todoText.fontSize);
     let todosList: Todo[] = [];
     
     // Try to get todos from input first
@@ -40,24 +39,24 @@ export const TodoView = React.memo<ToolViewProps>(({ tool }) => {
                         const isInProgress = todo.status === 'in_progress';
                         const isPending = todo.status === 'pending';
 
-                        let textStyle: any = scaledTextStyles.todoText;
+                        let textStyle: any = styles.todoText;
                         let icon = '☐';
 
                         if (isCompleted) {
-                            textStyle = [scaledTextStyles.todoText, styles.completedText];
+                            textStyle = [styles.todoText, styles.completedText];
                             icon = '☑';
                         } else if (isInProgress) {
-                            textStyle = [scaledTextStyles.todoText, styles.inProgressText];
+                            textStyle = [styles.todoText, styles.inProgressText];
                             icon = '☐';
                         } else if (isPending) {
-                            textStyle = [scaledTextStyles.todoText, styles.pendingText];
+                            textStyle = [styles.todoText, styles.pendingText];
                         }
 
                         return (
                             <View key={todo.id || `todo-${index}`} style={styles.todoItem}>
-                                <Text style={textStyle}>
+                                <AnimatedText style={[textStyle, animatedTodoTextStyle]}>
                                     {icon} {todo.content}
-                                </Text>
+                                </AnimatedText>
                             </View>
                         );
                     })}

@@ -1,8 +1,9 @@
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Ionicons } from '@expo/vector-icons';
 import { parseToolUseError } from '@/utils/toolErrorParser';
-import { useChatScaledStyles } from '@/hooks/useChatFontScale';
+import { AnimatedText } from '@/components/StyledText';
+import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
 
 const scalableStyleKeys = { errorText: { fontSize: 13 } };
 
@@ -10,16 +11,16 @@ export function ToolError(props: { message: string }) {
     const { theme } = useUnistyles();
     const { isToolUseError, errorMessage } = parseToolUseError(props.message);
     const displayMessage = isToolUseError && errorMessage ? errorMessage : props.message;
-    const scaled = useChatScaledStyles(scalableStyleKeys);
+    const animatedErrorTextStyle = useChatScaleAnimatedTextStyle(scalableStyleKeys.errorText.fontSize);
 
     return (
         <View style={[styles.errorContainer, isToolUseError && styles.toolUseErrorContainer]}>
             {isToolUseError && (
                 <Ionicons name="warning" size={16} color={theme.colors.box.warning.text} />
             )}
-            <Text style={[styles.errorText, scaled.errorText, isToolUseError && styles.toolUseErrorText]}>
+            <AnimatedText style={[styles.errorText, isToolUseError && styles.toolUseErrorText, animatedErrorTextStyle]}>
                 {displayMessage}
-            </Text>
+            </AnimatedText>
         </View>
     )
 }

@@ -1,10 +1,11 @@
 import * as React from 'react';
-import { View, Text } from 'react-native';
+import { View } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 import { ToolSectionView } from '../../tools/ToolSectionView';
 import { ToolViewProps } from './_all';
 import { CodeView } from '@/components/CodeView';
-import { useChatScaledStyles } from '@/hooks/useChatFontScale';
+import { AnimatedText } from '@/components/StyledText';
+import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
 
 /**
  * Extract execute command info from Gemini's nested input format.
@@ -50,10 +51,8 @@ function extractExecuteInfo(input: any): { command: string; description: string;
  */
 export const GeminiExecuteView = React.memo<ToolViewProps>(({ tool }) => {
     const { command, description, cwd } = extractExecuteInfo(tool.input);
-    const scaledTextStyles = useChatScaledStyles({
-        cwdText: styles.cwdText,
-        descriptionText: styles.descriptionText,
-    });
+    const animatedCwdTextStyle = useChatScaleAnimatedTextStyle(styles.cwdText.fontSize);
+    const animatedDescriptionTextStyle = useChatScaleAnimatedTextStyle(styles.descriptionText.fontSize);
 
     if (!command) {
         return null;
@@ -67,10 +66,10 @@ export const GeminiExecuteView = React.memo<ToolViewProps>(({ tool }) => {
             {(description || cwd) && (
                 <View style={styles.infoContainer}>
                     {cwd && (
-                        <Text style={scaledTextStyles.cwdText}>📁 {cwd}</Text>
+                        <AnimatedText style={[styles.cwdText, animatedCwdTextStyle]}>📁 {cwd}</AnimatedText>
                     )}
                     {description && (
-                        <Text style={scaledTextStyles.descriptionText}>{description}</Text>
+                        <AnimatedText style={[styles.descriptionText, animatedDescriptionTextStyle]}>{description}</AnimatedText>
                     )}
                 </View>
             )}

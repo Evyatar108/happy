@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { View, Text } from 'react-native';
+import { View } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Octicons } from '@expo/vector-icons';
 import { ToolCall } from '@/sync/typesMessage';
@@ -9,7 +9,8 @@ import { Metadata } from '@/sync/storageTypes';
 import { resolvePath } from '@/utils/pathUtils';
 import { stringifyToolCommand } from '@/utils/toolCommand';
 import { t } from '@/text';
-import { useChatScaledStyles } from '@/hooks/useChatFontScale';
+import { AnimatedText } from '@/components/StyledText';
+import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
 
 interface CodexBashViewProps {
     tool: ToolCall;
@@ -18,10 +19,8 @@ interface CodexBashViewProps {
 
 export const CodexBashView = React.memo<CodexBashViewProps>(({ tool, metadata }) => {
     const { theme } = useUnistyles();
-    const scaledTextStyles = useChatScaledStyles({
-        commandText: styles.commandText,
-        operationText: styles.operationText,
-    });
+    const animatedCommandTextStyle = useChatScaleAnimatedTextStyle(styles.commandText.fontSize);
+    const animatedOperationTextStyle = useChatScaleAnimatedTextStyle(styles.operationText.fontSize);
     const { input, result, state } = tool;
 
     // Parse the input structure
@@ -63,10 +62,10 @@ export const CodexBashView = React.memo<CodexBashViewProps>(({ tool, metadata })
                 <View style={styles.readContainer}>
                     <View style={styles.iconRow}>
                         {icon}
-                        <Text style={scaledTextStyles.operationText}>{t('tools.desc.readingFile', { file: resolvedPath })}</Text>
+                        <AnimatedText style={[styles.operationText, animatedOperationTextStyle]}>{t('tools.desc.readingFile', { file: resolvedPath })}</AnimatedText>
                     </View>
                     {commandStr && (
-                        <Text style={scaledTextStyles.commandText}>{commandStr}</Text>
+                        <AnimatedText style={[styles.commandText, animatedCommandTextStyle]}>{commandStr}</AnimatedText>
                     )}
                 </View>
             </ToolSectionView>
@@ -80,10 +79,10 @@ export const CodexBashView = React.memo<CodexBashViewProps>(({ tool, metadata })
                 <View style={styles.readContainer}>
                     <View style={styles.iconRow}>
                         {icon}
-                        <Text style={scaledTextStyles.operationText}>{t('tools.desc.writingFile', { file: resolvedPath })}</Text>
+                        <AnimatedText style={[styles.operationText, animatedOperationTextStyle]}>{t('tools.desc.writingFile', { file: resolvedPath })}</AnimatedText>
                     </View>
                     {commandStr && (
-                        <Text style={scaledTextStyles.commandText}>{commandStr}</Text>
+                        <AnimatedText style={[styles.commandText, animatedCommandTextStyle]}>{commandStr}</AnimatedText>
                     )}
                 </View>
             </ToolSectionView>

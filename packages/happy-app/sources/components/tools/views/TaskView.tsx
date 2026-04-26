@@ -1,12 +1,13 @@
 import * as React from 'react';
 import { ToolViewProps } from './_all';
-import { Text, View, ActivityIndicator, Platform } from 'react-native';
+import { View, ActivityIndicator, Platform } from 'react-native';
 import { knownTools } from '../../tools/knownTools';
 import { Ionicons } from '@expo/vector-icons';
 import { ToolCall } from '@/sync/typesMessage';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { t } from '@/text';
-import { useChatScaledStyles } from '@/hooks/useChatFontScale';
+import { AnimatedText } from '@/components/StyledText';
+import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
 
 interface FilteredTool {
     tool: ToolCall;
@@ -49,14 +50,10 @@ const styles = StyleSheet.create((theme) => ({
     },
 }));
 
-const scalableStyles = {
-    moreToolsText: styles.moreToolsText,
-    toolTitle: styles.toolTitle,
-};
-
 export const TaskView = React.memo<ToolViewProps>(({ tool, metadata, messages }) => {
     const { theme } = useUnistyles();
-    const scaledTextStyles = useChatScaledStyles(scalableStyles);
+    const animatedMoreToolsTextStyle = useChatScaleAnimatedTextStyle(styles.moreToolsText.fontSize);
+    const animatedToolTitleStyle = useChatScaleAnimatedTextStyle(styles.toolTitle.fontSize);
     const filtered: FilteredTool[] = [];
 
     for (let m of messages) {
@@ -99,7 +96,7 @@ export const TaskView = React.memo<ToolViewProps>(({ tool, metadata, messages })
         <View style={styles.container}>
             {visibleTools.map((item, index) => (
                 <View key={`${item.tool.name}-${index}`} style={styles.toolItem}>
-                    <Text style={scaledTextStyles.toolTitle}>{item.title}</Text>
+                    <AnimatedText style={[styles.toolTitle, animatedToolTitleStyle]}>{item.title}</AnimatedText>
                     <View style={styles.statusContainer}>
                         {item.state === 'running' && (
                             <ActivityIndicator size={Platform.OS === 'ios' ? "small" : 14 as any} color={theme.colors.warning} />
@@ -115,9 +112,9 @@ export const TaskView = React.memo<ToolViewProps>(({ tool, metadata, messages })
             ))}
             {remainingCount > 0 && (
                 <View style={styles.moreToolsItem}>
-                    <Text style={scaledTextStyles.moreToolsText}>
+                    <AnimatedText style={[styles.moreToolsText, animatedMoreToolsTextStyle]}>
                         {t('tools.taskView.moreTools', { count: remainingCount })}
-                    </Text>
+                    </AnimatedText>
                 </View>
             )}
         </View>

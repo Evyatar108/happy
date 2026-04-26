@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Platform } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, TouchableOpacity, ActivityIndicator, StyleSheet, Platform } from 'react-native';
 import { sessionAllow, sessionDeny } from '@/sync/ops';
 import { useUnistyles } from 'react-native-unistyles';
 import { storage } from '@/sync/storage';
 import { t } from '@/text';
-import { useChatFontScaleOverride } from '@/hooks/useChatFontScale';
+import { AnimatedText } from '@/components/StyledText';
+import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
 
 interface PermissionFooterProps {
     permission: {
@@ -24,7 +24,7 @@ interface PermissionFooterProps {
 
 export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, sessionId, toolName, toolInput, metadata }) => {
     const { theme } = useUnistyles();
-    const buttonTextScaleOverride = useChatFontScaleOverride(14);
+    const animatedButtonTextStyle = useChatScaleAnimatedTextStyle(14);
     const [loadingButton, setLoadingButton] = useState<'allow' | 'deny' | 'abort' | null>(null);
     const [loadingAllEdits, setLoadingAllEdits] = useState(false);
     const [loadingBypass, setLoadingBypass] = useState(false);
@@ -298,14 +298,14 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, 
                             </View>
                         ) : (
                             <View style={styles.buttonContent}>
-                                <Text style={[
+                                <AnimatedText style={[
                                     styles.buttonText,
-                                    buttonTextScaleOverride,
                                     isPending && styles.buttonTextAllow,
-                                    isCodexApproved && styles.buttonTextSelected
+                                    isCodexApproved && styles.buttonTextSelected,
+                                    animatedButtonTextStyle,
                                 ]} numberOfLines={1} ellipsizeMode="tail">
                                     {t('common.yes')}
-                                </Text>
+                                </AnimatedText>
                             </View>
                         )}
                     </TouchableOpacity>
@@ -328,14 +328,14 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, 
                             </View>
                         ) : (
                             <View style={styles.buttonContent}>
-                                <Text style={[
+                                <AnimatedText style={[
                                     styles.buttonText,
-                                    buttonTextScaleOverride,
                                     isPending && styles.buttonTextForSession,
-                                    isCodexApprovedForSession && styles.buttonTextSelected
+                                    isCodexApprovedForSession && styles.buttonTextSelected,
+                                    animatedButtonTextStyle,
                                 ]} numberOfLines={1} ellipsizeMode="tail">
                                     {t('codex.permissions.yesForSession')}
-                                </Text>
+                                </AnimatedText>
                             </View>
                         )}
                     </TouchableOpacity>
@@ -358,14 +358,14 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, 
                             </View>
                         ) : (
                             <View style={styles.buttonContent}>
-                                <Text style={[
+                                <AnimatedText style={[
                                     styles.buttonText,
-                                    buttonTextScaleOverride,
                                     isPending && styles.buttonTextDeny,
-                                    isCodexAborted && styles.buttonTextSelected
+                                    isCodexAborted && styles.buttonTextSelected,
+                                    animatedButtonTextStyle,
                                 ]} numberOfLines={1} ellipsizeMode="tail">
                                     {t('codex.permissions.stopAndExplain')}
-                                </Text>
+                                </AnimatedText>
                             </View>
                         )}
                     </TouchableOpacity>
@@ -395,13 +395,14 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, 
                         </View>
                     ) : (
                         <View style={styles.buttonContent}>
-                            <Text style={[
+                            <AnimatedText style={[
                                 styles.buttonText,
                                 isPending && styles.buttonTextAllow,
-                                isApprovedViaAllow && styles.buttonTextSelected
+                                isApprovedViaAllow && styles.buttonTextSelected,
+                                animatedButtonTextStyle,
                             ]} numberOfLines={1} ellipsizeMode="tail">
                                 {t('common.yes')}
-                            </Text>
+                            </AnimatedText>
                         </View>
                     )}
                 </TouchableOpacity>
@@ -425,14 +426,14 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, 
                             </View>
                         ) : (
                             <View style={styles.buttonContent}>
-                                <Text style={[
+                                <AnimatedText style={[
                                     styles.buttonText,
-                                    buttonTextScaleOverride,
                                     isPending && styles.buttonTextAllowAll,
-                                    isApprovedViaAllEdits && styles.buttonTextSelected
+                                    isApprovedViaAllEdits && styles.buttonTextSelected,
+                                    animatedButtonTextStyle,
                                 ]} numberOfLines={1} ellipsizeMode="tail">
                                     {t('claude.permissions.yesAllowAllEdits')}
-                                </Text>
+                                </AnimatedText>
                             </View>
                         )}
                     </TouchableOpacity>
@@ -457,14 +458,14 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, 
                             </View>
                         ) : (
                             <View style={styles.buttonContent}>
-                                <Text style={[
+                                <AnimatedText style={[
                                     styles.buttonText,
-                                    buttonTextScaleOverride,
                                     isPending && styles.buttonTextForSession,
-                                    isApprovedViaBypass && styles.buttonTextSelected
+                                    isApprovedViaBypass && styles.buttonTextSelected,
+                                    animatedButtonTextStyle,
                                 ]} numberOfLines={1} ellipsizeMode="tail">
                                     {t('claude.permissions.yesAllowEverything')}
-                                </Text>
+                                </AnimatedText>
                             </View>
                         )}
                     </TouchableOpacity>
@@ -489,14 +490,14 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, 
                             </View>
                         ) : (
                             <View style={styles.buttonContent}>
-                                <Text style={[
+                                <AnimatedText style={[
                                     styles.buttonText,
-                                    buttonTextScaleOverride,
                                     isPending && styles.buttonTextForSession,
-                                    isApprovedForSession && styles.buttonTextSelected
+                                    isApprovedForSession && styles.buttonTextSelected,
+                                    animatedButtonTextStyle,
                                 ]} numberOfLines={1} ellipsizeMode="tail">
                                     {t('claude.permissions.yesForTool')}
-                                </Text>
+                                </AnimatedText>
                             </View>
                         )}
                     </TouchableOpacity>
@@ -519,13 +520,14 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, 
                         </View>
                     ) : (
                         <View style={styles.buttonContent}>
-                            <Text style={[
+                            <AnimatedText style={[
                                 styles.buttonText,
                                 isPending && styles.buttonTextDeny,
-                                isDenied && styles.buttonTextSelected
+                                isDenied && styles.buttonTextSelected,
+                                animatedButtonTextStyle,
                             ]} numberOfLines={1} ellipsizeMode="tail">
                                 {t('claude.permissions.noTellClaude')}
-                            </Text>
+                            </AnimatedText>
                         </View>
                     )}
                 </TouchableOpacity>
