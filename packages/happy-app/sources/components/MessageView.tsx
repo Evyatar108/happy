@@ -1,6 +1,6 @@
 import * as React from "react";
 import { View } from "react-native";
-import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { StyleSheet } from 'react-native-unistyles';
 import { MarkdownView } from "./markdown/MarkdownView";
 import { t } from '@/text';
 import { Message, UserTextMessage, AgentTextMessage, ToolCallMessage } from "@/sync/typesMessage";
@@ -158,7 +158,6 @@ function AgentEventBlock(props: {
 function AgentEventText(props: {
   children: React.ReactNode;
 }) {
-  useUnistyles();
   const animatedTextStyle = useChatScaleAnimatedTextStyle(14);
 
   return <AnimatedText style={[styles.agentEventText, animatedTextStyle]}>{props.children}</AnimatedText>;
