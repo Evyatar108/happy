@@ -24,12 +24,14 @@ const FENCE_COLLISION_ESCAPE = '``\u200B`';
 
 const TASK_NOTIFICATION_PATTERN = /^<task-notification(?:\s[^>]*)?>\s*<task-id(?:\s[^>]*)?>([\s\S]*?)<\/task-id>\s*(?:<tool-use-id(?:\s[^>]*)?>([\s\S]*?)<\/tool-use-id>\s*)?<task-type(?:\s[^>]*)?>([\s\S]*?)<\/task-type>\s*<output-file(?:\s[^>]*)?>([\s\S]*?)<\/output-file>\s*<status(?:\s[^>]*)?>([\s\S]*?)<\/status>\s*<summary(?:\s[^>]*)?>([\s\S]*?)<\/summary>\s*<\/task-notification>$/i;
 
+export type TaskNotificationStatus = 'pending' | 'running' | 'completed' | 'failed' | 'killed' | (string & {});
+
 export type TaskNotificationData = {
     taskId: string;
     toolUseId?: string;
     taskType: string;
     outputFile: string;
-    status: string;
+    status: TaskNotificationStatus;
     summary: string;
 };
 
