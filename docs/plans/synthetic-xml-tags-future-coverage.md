@@ -107,4 +107,4 @@ The Claude Code harness emits several synthetic XML tag families into the conver
 | `<remote-review>`, `<remote-review-progress>`, `<ultraplan>` | No | Never reach transcript |
 | `<channel-message>`, `<cross-session-message>` | No | Dead code |
 
-The two new strips ride along on top of the architecture this PR introduces (structured preprocessor return + `KNOWN_TAG_NAMES` widening) at marginal cost — each is a `removeBlock` step in `processClaudeMetaTags` similar to the existing `<local-command-caveat>` strip at `processClaudeMetaTags.ts:134`.
+The two new strips ride along on top of the architecture this PR introduces (structured preprocessor return + `KNOWN_TAG_NAMES` widening) at marginal cost — each is a thin wrapper over `stripWellFormedWrapper(...)` alongside `stripLocalCommandCaveats`, `stripSystemReminders`, `stripForkBoilerplate` in `processClaudeMetaTags.ts`.
