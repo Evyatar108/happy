@@ -274,6 +274,30 @@ rename `app.config.js` → `app.config.cjs` to force CJS treatment — but
 this dirties the worktree diff and Node 22 may have other regressions
 in this repo's stack. Prefer 20.19.x.
 
+## Mode 8 — Stuck adb client ghost (automation harness specific)
+
+**Symptom.** Every `adb` command (`adb devices`, `adb kill-server`, `adb reverse --list`) hangs indefinitely with no output. Hits the Claude Code harness, CI runners, or any automation that spawns adb without a TTY. The skill's preflight checklist appears to "freeze" on the first line.
+
+**Why.** There's a stale adb client process (NOT the server) holding a connection to the adb-server, blocking new clients on the same socket. The server at `D:\Android\Sdk\platform-tools\adb.exe` listens on port 5037 (legitimate). A second adb binary at a different path — commonly `D:\bin\platform-tools\adb.exe` or anywhere else on `PATH` — has been spawned hours ago by a previous automation session, has an established connection to 5037, and never exited cleanly. New `adb devices` calls then queue behind the ghost's connection.
+
+**Diagnostic.** List every running adb and its source path:
+```bash
+powershell -NoProfile -Command "Get-Process adb -ErrorAction SilentlyContinue | Select-Object Id, StartTime, Path | Format-List"
+netstat.exe -ano | grep ':5037'
+```
+The legitimate **server** is the one whose `Path` is `D:\Android\Sdk\platform-tools\adb.exe` AND whose port-5037 line shows `LISTENING`. The **ghost client** is any other adb process — typically a different binary path AND/OR an old `StartTime` AND with port-5037 `ESTABLISHED` rather than `LISTENING`.
+
+**Fix.**
+```bash
+taskkill.exe //F //PID <ghost-pid>
+# verify:
+/d/Android/Sdk/platform-tools/adb.exe devices
+# should return immediately with the device list.
+```
+**Do not** kill the server PID (the one with `LISTENING`) — that just makes adb spawn a new server on the next call. Only the ghost client needs to die.
+
+This was the root cause when iteration agents reported `"adb.exe device probes hung in this harness"` — symptom is identical to a network failure but the fix is process-table cleanup, not network debug.
+
 ## Wake + screenshot pattern (e-ink specific)
 
 The Onyx DreamActivity (screensaver) takes over aggressively, so a

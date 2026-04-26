@@ -44,6 +44,14 @@ description: >
      -d 'happy://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081'
    ```
    The app relaunches, reconnects to Metro over `adb reverse tcp:8081`, fetches the fresh JS bundle. Verify with `adb shell "dumpsys activity activities | grep topResumedActivity"` — should show `com.slopus.happy.dev/.MainActivity` (NOT `DevLauncherErrorActivity`, NOT `com.onyx.android.dream.DreamActivity`).
+
+   **If `topResumedActivity` shows `com.onyx/...DreamActivity`** the BOOX is in screensaver mode and your deep link landed under the dream. Wake it then re-fire the deep link:
+   ```bash
+   /d/Android/Sdk/platform-tools/adb.exe shell input keyevent KEYCODE_WAKEUP
+   /d/Android/Sdk/platform-tools/adb.exe shell input keyevent KEYCODE_HOME
+   # then re-run the force-stop + am start deep-link block above
+   ```
+   `KEYCODE_WAKEUP` alone is not enough — the dream activity stays on top until something else is launched, so a `HOME` keyevent (or another `am start`) is needed to dismiss it.
 5. **Observe.** Arm a Monitor on Metro's log:
    ```
    tail -f <metro-output-file> | grep -E --line-buffered "your-filter"
@@ -60,6 +68,15 @@ description: >
   (~10 min first time, ~1-2 min after).
 - **If the app shows a red/yellow error overlay on the tablet**, the screen is painful to read on e-ink; tail Metro instead to get the readable error.
 - **If `adb devices` shows `unauthorized`**, unplug + replug the USB cable, accept the "Allow USB debugging?" prompt on the tablet (tick "Always allow from this computer").
+- **If `adb` commands hang indefinitely with no output** (this hits the Claude Code harness specifically — and any other automation that spawns adb without a TTY), there is almost certainly a stale adb client process holding a connection to the adb-server. The legitimate server lives at `D:\Android\Sdk\platform-tools\adb.exe`; a second adb binary at `D:\bin\platform-tools\adb.exe` (or any other location on PATH) can have been spawned hours ago by a previous session and never exited. Diagnose and kill:
+  ```bash
+  # find every running adb.exe and its source path:
+  powershell -NoProfile -Command "Get-Process adb -ErrorAction SilentlyContinue | Select-Object Id, StartTime, Path | Format-List"
+  # the one whose StartTime is from a previous session AND whose Path is NOT D:\Android\Sdk\platform-tools\adb.exe is the ghost:
+  taskkill.exe //F //PID <ghost-pid>
+  # then retry adb devices — should return immediately.
+  ```
+  Symptom: even `adb kill-server` hangs because the server is fine; the client is the one stuck. Do not blindly kill PID on port 5037 — that's the legitimate server.
 - **Metro stale from a branch switch.** If you switched branches in `D:\h` while Metro was running, the file watcher sometimes misses the change set. Kill Metro (`taskkill //PID <node-pid> //F`) and restart. Typecheck clean + no change visible = restart Metro.
 
 ## When to stop using this loop
