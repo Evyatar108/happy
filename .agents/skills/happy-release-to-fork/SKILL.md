@@ -251,6 +251,30 @@ the release asset, bump `-evy.N+1`, re-pack, re-tag.
 
 ## Gotchas
 
+- **Use `pnpm pack`, NEVER `npm pack`.** `npm pack` does not resolve
+  the `workspace:*` protocol — it leaves the literal string in the
+  packaged `package.json`, and the tarball then fails on install with:
+  ```
+  npm ERR! code EUNSUPPORTEDPROTOCOL
+  npm ERR! Unsupported URL Type "workspace:": workspace:*
+  ```
+  `pnpm pack` (and `pnpm publish`) substitute concrete versions. This
+  burned `-evy.5`, which had to be re-cut as `-evy.6`. Step 4's
+  `pnpm pack --pack-destination=...` is the only correct command —
+  do not "simplify" it to `npm pack`.
+- **`gh release create` fails with "workflow scope may be required" — the real cause is the wrong active gh account.**
+  If `gh auth status` shows multiple accounts and the active one is your
+  Microsoft enterprise account (`evmitran_microsoft` or similar with SSO),
+  the API call to `Evyatar108/happy` is silently rejected and gh
+  surfaces a misleading "workflow scope" error. Both accounts already
+  have `repo` scope — that is not the issue. Fix:
+  ```bash
+  gh auth switch --user Evyatar108     # before `gh release create`
+  gh release create ...                  # now succeeds
+  gh auth switch --user evmitran_microsoft   # restore default
+  ```
+  Do NOT run `gh auth refresh -h github.com -s workflow` — it's a
+  red herring and adds a scope you don't need.
 - **`pnpm --filter happy-cli ...` is silently a no-op.** Package name
   is `happy`. Use `pnpm --filter happy` or `cd packages/happy-cli`.
   Same trap as the merge-to-main skill.
