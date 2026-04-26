@@ -1,5 +1,8 @@
 import { TextStyle } from 'react-native';
 
+// Permanent dev artifact for the BOOX hold-at-peak verification route.
+// Keep this shared worklet factory aligned with the in-chat animated text math.
+
 export const ANIMATED_TEXT_SPIKE_PROBES = ['A', 'B1', 'B2', 'C'] as const;
 
 export type AnimatedTextSpikeProbe = (typeof ANIMATED_TEXT_SPIKE_PROBES)[number];

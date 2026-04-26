@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 17 - 2026-04-25
+
+Pinch-to-zoom now behaves like live text growth instead of scaling whole message bubbles. While you hold the gesture, every visible chat glyph grows together across markdown, code, diffs, tool output, and agent events, while the surrounding chrome stays fixed.
+
+- Replaced the old whole-message pinch transform with per-text worklet animation so markdown, code blocks, diffs, tool output, and agent event lines all grow together while you hold the pinch.
+- Kept bubble chrome, icons, padding, borders, and image surfaces on their original size path so the gesture feels like text resizing instead of page zoom.
+- Promoted the animated-text BOOX probe into a permanent dev artifact and regenerated the in-app changelog data for the new release entry.
+
 ## Version 16 - 2026-04-25
 
 This follow-up closes the last chat text-size coverage gap left by the previous scaling update. Inline `code` inside regular chat messages now grows and shrinks with the same slider as the surrounding text, so mixed-format sentences no longer break visual consistency.

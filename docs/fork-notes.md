@@ -95,6 +95,16 @@ Single commit `f3e92b2e` (`feat(app): hygiene PR — chat font scale coverage + 
 
 Not merged to a separate branch — shipped straight onto `fork/main`. Commit parents: `a17cb918` (2026-04-22 roadmap doc rewrite) → `f3e92b2e`.
 
+## What's on `main` after the 2026-04-25 worklet pinch-text upgrade
+
+This follow-up replaces the earlier whole-message preview path with per-leaf animated text sizing. The chat now drives live pinch feedback through `useChatScaleAnimatedTextStyle(...)` plus the shared `AnimatedText` export, so markdown, code, diffs, tool output, permission/todo/codex views, and agent-event text all grow together while the surrounding bubble chrome stays fixed.
+
+- `AnimatedMessageView` stays rejected. The final shipped path animates text leaves only, which avoids double-scaling once the live worklet hook is active.
+- `ToolView` keeps one intentional static exception: the small inline status suffix (`styles.status`, `fontSize: 15`) stays on the persisted-scale path while the elapsed-time text still animates.
+- `ToolFullView` stays on static `useChatScaledStyles` because it renders outside `ChatScaleLiveContext.Provider` on the message-detail screen.
+- The dev route at `packages/happy-app/sources/app/(app)/dev/animated-text-spike.{tsx,shared.ts,test.ts}` is now a permanent dev artifact. Use it for BOOX verification before shipping future text-animation changes.
+- BOOX manual check protocol: open the spike route or a long real chat, pinch to the target size, and hold at peak long enough to confirm the text growth is visible, bubble chrome stays fixed, and release/cancel both snap cleanly back to the persisted scale.
+
 ## Pending ship notes
 
 ### Lazy-load long chats

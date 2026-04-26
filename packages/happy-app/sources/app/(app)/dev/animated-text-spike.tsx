@@ -238,6 +238,7 @@ function ProbeCard({
     );
 }
 
+// Permanent dev artifact for BOOX pinch verification and hold-at-peak checks.
 const AnimatedTextSpikeScreen = React.memo(() => {
     const multiplier = useSharedValue(ANIMATED_TEXT_SPIKE_MULTIPLIER_MIN);
     const [runCount, setRunCount] = React.useState(0);
@@ -295,7 +296,7 @@ const AnimatedTextSpikeScreen = React.memo(() => {
             <View style={styles.hero}>
                 <Text style={styles.heroTitle}>Animated.Text Spike</Text>
                 <Text style={styles.heroBody}>
-                    Dev-only BOOX gate for Plan C. Every probe reads one shared multiplier and one tap on
+                    Permanent dev artifact for the BOOX hold-at-peak gate. Every probe reads one shared multiplier and one tap on
                     {' '}<Text style={styles.inlineCode}>Run 1x</Text>{' '}
                     executes exactly one 1.0 -&gt; 1.5 -&gt; 1.0 cycle.
                 </Text>

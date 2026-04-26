@@ -85,6 +85,10 @@ Ranking is by **e-ink tablet quality-of-life** (the fork's primary target), then
 
 ## Shipped (see `docs/fork-notes.md` for details)
 
+### 2026-04-25 - Worklet pinch-to-zoom text animation shipped on `main`
+
+The chat pinch path now animates text leaves directly instead of scaling whole message bubbles. The shipped surface includes markdown, fenced code, diffs, tool output, permission/todo/codex views, and agent event text, while bubble chrome stays fixed. BOOX validation still runs as the separate manual hard gate documented in `docs/fork-notes.md`.
+
 ### 2026-04-24 — Hygiene PR: chat font scale coverage + catalog loading banner
 
 Single-commit hygiene bundle (`f3e92b2e`) that closes the two 2026-04-22 code-review follow-ups and the intercept-before-metadata option A, plus a test-suite repair.
@@ -142,7 +146,7 @@ Three-tier client-side perf batch for the Onyx tablet cold-open freeze on long s
 
 - Chat freeze on large chats perf fix (upstream PR [#1154](https://github.com/slopus/happy/pull/1154))
 - Three-state tablet sidebar (expanded / 72-px rail / hidden)
-- `Settings → Appearance → Chat text size` — scale wiring landed across the chat in stages: initial integration (markdown body / composer), tool views (PR-A 2026-04-22 batch), `ToolError` / `PermissionFooter` / `ToolFullView` chrome (2026-04-24 hygiene PR), and the remaining fixed-size surfaces — fenced code via `SimpleSyntaxHighlighter`, code language label, markdown image captions, option buttons, table cells, `CommandView`, `ToolSectionView` title, and `agentEventText` (2026-04-25 uniform-chat-font-scaling job).
+- `Settings → Appearance → Chat text size` — scale wiring landed across the chat in stages: initial integration (markdown body / composer), tool views (PR-A 2026-04-22 batch), `ToolError` / `PermissionFooter` / `ToolFullView` chrome (2026-04-24 hygiene PR), and the 2026-04-25 worklet pinch upgrade that animates the remaining text leaves in place across markdown, code, diffs, tool surfaces, and agent events.
 - In-chrome restore for hidden sidebar (menu glyph in `ChatHeaderView`)
 - Claude Code metadata-tag preprocessor for `MarkdownView` (`<command-*>`, `<local-command-*>`)
 - Shared `useChatFontScale` / `useChatFontScaleOverride` hook at `sources/hooks/useChatFontScale.ts` (extended with `useChatScaledStyles` in PR-A)
