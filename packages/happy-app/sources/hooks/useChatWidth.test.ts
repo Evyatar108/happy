@@ -47,9 +47,9 @@ describe('getChatBodyWidth', () => {
         }
     });
 
-    it('returns 85% of screen width in wide mode', () => {
+    it('returns 95% of screen width in wide mode', () => {
         for (const screenWidth of screenWidths) {
-            expect(getChatBodyWidth('wide', screenWidth)).toBe(Math.floor(screenWidth * 0.85));
+            expect(getChatBodyWidth('wide', screenWidth)).toBe(Math.floor(screenWidth * 0.95));
         }
     });
 
@@ -67,9 +67,9 @@ describe('getChatHeaderWidth', () => {
         }
     });
 
-    it('returns 85% of screen width in wide mode', () => {
+    it('returns 95% of screen width in wide mode', () => {
         for (const screenWidth of screenWidths) {
-            expect(getChatHeaderWidth('wide', screenWidth)).toBe(Math.floor(screenWidth * 0.85));
+            expect(getChatHeaderWidth('wide', screenWidth)).toBe(Math.floor(screenWidth * 0.95));
         }
     });
 
@@ -157,7 +157,7 @@ describe('useChatWidth - native phone default branch', () => {
         storageMock.chatWidthMode = 'wide';
 
         const result = useChatWidth();
-        expect(result.body).toBe(Math.floor(390 * 0.85));
-        expect(result.header).toBe(Math.floor(390 * 0.85));
+        expect(result.body).toBe(Math.floor(390 * 0.95));
+        expect(result.header).toBe(Math.floor(390 * 0.95));
     });
 });
