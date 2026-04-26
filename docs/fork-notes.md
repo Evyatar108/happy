@@ -104,6 +104,7 @@ This follow-up replaces the earlier whole-message preview path with per-leaf ani
 - `ToolFullView` stays on static `useChatScaledStyles` because it renders outside `ChatScaleLiveContext.Provider` on the message-detail screen.
 - The dev route at `packages/happy-app/sources/app/(app)/dev/animated-text-spike.{tsx,shared.ts,test.ts}` is now a permanent dev artifact. Use it for BOOX verification before shipping future text-animation changes.
 - BOOX manual check protocol: open the spike route or a long real chat, pinch to the target size, and hold at peak long enough to confirm the text growth is visible, bubble chrome stays fixed, and release/cancel both snap cleanly back to the persisted scale.
+- A discrete in-input Text Size picker (`AgentInput.tsx`, "Aa" `Pressable` next to the settings gear in `actionButtonsLeft`) ships alongside the worklet. It opens a `FloatingOverlay` with 9 numbered chips spanning 0.85× to 1.5× — chip 4 is the default 1.0×. The picker writes `chatFontScale` via `useLocalSettingMutable`, the same MMKV key the Settings → Appearance slider and pinch gesture use, so all three controls stay in sync. Pinch-to-zoom remains gated on `pinchToZoomEnabled` (default `false` in `localSettings.ts`), so on a fresh install the picker is the primary control — the chip row was added because pinch gestures are awkward on the BOOX e-ink panel.
 
 ## Pending ship notes
 
