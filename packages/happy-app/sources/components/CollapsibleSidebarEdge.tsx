@@ -28,10 +28,10 @@ export const CollapsibleSidebarEdge = React.memo(() => {
 });
 
 const styles = StyleSheet.create((theme) => ({
-    // SIDEBAR_EDGE_WIDTH (24-px) wrapper gives a real tap target (RN clips
+    // SIDEBAR_EDGE_WIDTH (18-px) wrapper gives a real tap target (RN clips
     // `hitSlop` to parent bounds, so a 12-px wrapper with hitSlop was
-    // effectively still 12-px wide — too small for e-ink users). 24-px is
-    // still narrow enough to read as a thin chevron strip.
+    // effectively still 12-px wide — too small for e-ink users). The 16-px
+    // chevron icon is centered so visible padding is 1-px each side.
     wrapper: {
         width: SIDEBAR_EDGE_WIDTH,
         backgroundColor: theme.colors.groupped.background,

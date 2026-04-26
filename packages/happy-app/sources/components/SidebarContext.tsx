@@ -78,4 +78,4 @@ export function useSidebar(): SidebarContextValue {
 export const SIDEBAR_WIDTH_COLLAPSED = 72;
 export const SIDEBAR_WIDTH_MIN = 250;
 export const SIDEBAR_WIDTH_MAX = 360;
-export const SIDEBAR_EDGE_WIDTH = 24;
+export const SIDEBAR_EDGE_WIDTH = 18;
