@@ -17,7 +17,7 @@ interface MultiEditViewFullProps {
 }
 
 function AnimatedMultiEditText(props: React.ComponentProps<typeof AnimatedText> & { baseStyle: StyleProp<TextStyle> }) {
-    const flattenedBaseStyle = React.useMemo(() => RNStyleSheet.flatten(props.baseStyle) ?? {}, [props.baseStyle]);
+    const flattenedBaseStyle = RNStyleSheet.flatten(props.baseStyle) ?? {};
     const animatedTextStyle = useChatScaleAnimatedTextStyle(flattenedBaseStyle.fontSize ?? 0, flattenedBaseStyle.lineHeight);
 
     return <AnimatedText {...props} style={[props.baseStyle, props.style, animatedTextStyle]} />;
