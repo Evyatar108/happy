@@ -29,9 +29,10 @@ export function getChatHeaderWidth(mode: ChatWidthMode, screenWidth: number): nu
     }
 }
 
-export function useChatWidth(): { body: number | undefined; header: number | undefined } {
+export function useChatWidth(precomputedWidth?: number): { body: number | undefined; header: number | undefined } {
     const mode = useLocalSetting('chatWidthMode');
-    const { width, height } = useWindowDimensions();
+    const { width: dimensionsWidth, height } = useWindowDimensions();
+    const width = precomputedWidth ?? dimensionsWidth;
     const deviceType = useDeviceType();
 
     return React.useMemo(() => {

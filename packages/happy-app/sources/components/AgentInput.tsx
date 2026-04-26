@@ -340,7 +340,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
     const styles = stylesheet;
     const { theme } = useUnistyles();
     const screenWidth = useWindowDimensions().width;
-    const { body: bodyMaxWidth } = useChatWidth();
+    const { body: bodyMaxWidth } = useChatWidth(screenWidth);
     const isTablet = useIsTablet();
     const isSendBlocked = props.blockSend ?? false;
     const innerContainerWidthStyle = React.useMemo(() => ({ maxWidth: bodyMaxWidth }), [bodyMaxWidth]);
