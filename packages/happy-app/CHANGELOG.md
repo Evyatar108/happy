@@ -1,12 +1,11 @@
 # Changelog
 
-## Version 20 - 2026-04-25
+## Version 20 - 2026-04-26
 
-Tablet chats now have a faster way to reclaim horizontal space. A new width picker lives next to the existing Aa control, so you can switch between the original cap, a roomier reading width, or edge-to-edge chat without digging through Settings.
+Tablet chats now have a faster way to reclaim horizontal space. A new width picker lives next to the existing Aa control, so you can dial the side margin in one tap.
 
-- Added a Chat Width picker next to the chat input's Aa button on tablet layouts, with three presets: Default, Wide, and Full.
-- Default keeps the existing chat cap, Wide expands the chat body and header to 95% of the screen width, and Full removes the width cap entirely.
-- Saved the selection in the persisted `chatWidthMode` setting, so the message column, header, and composer stay aligned after app reloads.
+- Added a Chat Width picker next to the chat input's Aa button on tablet layouts. The chips show the side-margin percentage directly: `0` (full width), `3`, `5`, `10`, `15`.
+- The selection persists in `chatWidthMode` so message column, header, and composer stay aligned across reloads.
 
 ## Version 19 - 2026-04-25
 

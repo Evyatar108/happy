@@ -9,155 +9,96 @@ vi.mock('react', async (importActual) => {
 });
 
 const rnMock = {
-    platformOS: 'web' as string,
     width: 1024,
     height: 768,
 };
 
 vi.mock('react-native', () => ({
-    get Platform() { return { OS: rnMock.platformOS }; },
     useWindowDimensions: () => ({ width: rnMock.width, height: rnMock.height }),
 }));
 
-vi.mock('@/components/layout', () => ({
-    layout: {
-        maxWidth: 800,
-        headerMaxWidth: 800,
-    },
-}));
-
-const storageMock = { chatWidthMode: 'default' as string };
+const storageMock = { chatWidthMode: 5 as number };
 vi.mock('@/sync/storage', () => ({
     useLocalSetting: () => storageMock.chatWidthMode,
 }));
 
-const responsiveMock = { deviceType: 'tablet' as string };
-vi.mock('@/utils/responsive', () => ({
-    useDeviceType: () => responsiveMock.deviceType,
-}));
-
-import { getChatBodyWidth, getChatHeaderWidth, useChatWidth } from './useChatWidth';
+import { CHAT_WIDTH_MARGIN_OPTIONS, getChatBodyWidth, getChatHeaderWidth, useChatWidth } from './useChatWidth';
 
 const screenWidths = [390, 1024, 1920] as const;
 
+describe('CHAT_WIDTH_MARGIN_OPTIONS', () => {
+    it('exposes the picker values 0/3/5/10/15', () => {
+        expect(CHAT_WIDTH_MARGIN_OPTIONS).toEqual([0, 3, 5, 10, 15]);
+    });
+});
+
 describe('getChatBodyWidth', () => {
-    it('returns layout.maxWidth in default mode', () => {
+    it('returns undefined when margin is 0 (full width)', () => {
         for (const screenWidth of screenWidths) {
-            expect(getChatBodyWidth('default', screenWidth)).toBe(800);
+            expect(getChatBodyWidth(0, screenWidth)).toBeUndefined();
         }
     });
 
-    it('returns 95% of screen width in wide mode', () => {
+    it('returns floor(screenWidth * (1 - margin/100)) for positive margins', () => {
         for (const screenWidth of screenWidths) {
-            expect(getChatBodyWidth('wide', screenWidth)).toBe(Math.floor(screenWidth * 0.95));
-        }
-    });
-
-    it('returns undefined in full mode regardless of width', () => {
-        for (const screenWidth of screenWidths) {
-            expect(getChatBodyWidth('full', screenWidth)).toBeUndefined();
+            for (const margin of [3, 5, 10, 15]) {
+                expect(getChatBodyWidth(margin, screenWidth)).toBe(
+                    Math.floor(screenWidth * (1 - margin / 100)),
+                );
+            }
         }
     });
 });
 
 describe('getChatHeaderWidth', () => {
-    it('returns layout.headerMaxWidth in default mode', () => {
+    it('returns undefined when margin is 0', () => {
         for (const screenWidth of screenWidths) {
-            expect(getChatHeaderWidth('default', screenWidth)).toBe(800);
+            expect(getChatHeaderWidth(0, screenWidth)).toBeUndefined();
         }
     });
 
-    it('returns 95% of screen width in wide mode', () => {
+    it('matches body-width math for positive margins', () => {
         for (const screenWidth of screenWidths) {
-            expect(getChatHeaderWidth('wide', screenWidth)).toBe(Math.floor(screenWidth * 0.95));
-        }
-    });
-
-    it('returns undefined in full mode regardless of width', () => {
-        for (const screenWidth of screenWidths) {
-            expect(getChatHeaderWidth('full', screenWidth)).toBeUndefined();
+            for (const margin of [3, 5, 10, 15]) {
+                expect(getChatHeaderWidth(margin, screenWidth)).toBe(
+                    Math.floor(screenWidth * (1 - margin / 100)),
+                );
+            }
         }
     });
 });
 
-describe('useChatWidth - native phone default branch', () => {
+describe('useChatWidth', () => {
     afterEach(() => {
-        rnMock.platformOS = 'web';
         rnMock.width = 1024;
         rnMock.height = 768;
-        storageMock.chatWidthMode = 'default';
-        responsiveMock.deviceType = 'tablet';
+        storageMock.chatWidthMode = 5;
     });
 
-    it('uses Math.max(width, height) for body and header on native phone in default mode (portrait 390x844)', () => {
-        rnMock.platformOS = 'ios';
-        rnMock.width = 390;
-        rnMock.height = 844;
-        responsiveMock.deviceType = 'phone';
-        storageMock.chatWidthMode = 'default';
+    it('reads chatWidthMode and returns body+header for the active margin', () => {
+        rnMock.width = 1322;
+        storageMock.chatWidthMode = 10;
 
         const result = useChatWidth();
-        expect(result.body).toBe(844);
-        expect(result.header).toBe(844);
+        expect(result.body).toBe(Math.floor(1322 * 0.9));
+        expect(result.header).toBe(Math.floor(1322 * 0.9));
     });
 
-    it('uses Math.max(width, height) for body and header on native phone in default mode (landscape 844x390)', () => {
-        rnMock.platformOS = 'android';
-        rnMock.width = 844;
-        rnMock.height = 390;
-        responsiveMock.deviceType = 'phone';
-        storageMock.chatWidthMode = 'default';
+    it('returns undefined body+header when margin is 0', () => {
+        rnMock.width = 1322;
+        storageMock.chatWidthMode = 0;
 
         const result = useChatWidth();
-        expect(result.body).toBe(844);
-        expect(result.header).toBe(844);
+        expect(result.body).toBeUndefined();
+        expect(result.header).toBeUndefined();
     });
 
-    it('uses Math.max(width, height) for body and header on native phone in default mode (1920x1080)', () => {
-        rnMock.platformOS = 'ios';
-        rnMock.width = 1920;
-        rnMock.height = 1080;
-        responsiveMock.deviceType = 'phone';
-        storageMock.chatWidthMode = 'default';
-
-        const result = useChatWidth();
-        expect(result.body).toBe(1920);
-        expect(result.header).toBe(1920);
-    });
-
-    it('does NOT apply phone override on web platform even if deviceType is phone', () => {
-        rnMock.platformOS = 'web';
-        rnMock.width = 390;
-        rnMock.height = 844;
-        responsiveMock.deviceType = 'phone';
-        storageMock.chatWidthMode = 'default';
-
-        const result = useChatWidth();
-        expect(result.body).toBe(800);
-        expect(result.header).toBe(800);
-    });
-
-    it('does NOT apply phone override on native tablet in default mode', () => {
-        rnMock.platformOS = 'android';
+    it('uses precomputedWidth when caller provides one (avoids second useWindowDimensions subscription)', () => {
         rnMock.width = 1024;
-        rnMock.height = 768;
-        responsiveMock.deviceType = 'tablet';
-        storageMock.chatWidthMode = 'default';
+        storageMock.chatWidthMode = 15;
 
-        const result = useChatWidth();
-        expect(result.body).toBe(800);
-        expect(result.header).toBe(800);
-    });
-
-    it('does NOT apply phone override in wide mode on native phone', () => {
-        rnMock.platformOS = 'ios';
-        rnMock.width = 390;
-        rnMock.height = 844;
-        responsiveMock.deviceType = 'phone';
-        storageMock.chatWidthMode = 'wide';
-
-        const result = useChatWidth();
-        expect(result.body).toBe(Math.floor(390 * 0.95));
-        expect(result.header).toBe(Math.floor(390 * 0.95));
+        const result = useChatWidth(1500);
+        expect(result.body).toBe(Math.floor(1500 * 0.85));
+        expect(result.header).toBe(Math.floor(1500 * 0.85));
     });
 });

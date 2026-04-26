@@ -22,7 +22,7 @@ import { hackMode, hackModes } from '@/sync/modeHacks';
 import { Theme } from '@/theme';
 import { t } from '@/text';
 import { Metadata } from '@/sync/storageTypes';
-import { useChatWidth } from '@/hooks/useChatWidth';
+import { useChatWidth, CHAT_WIDTH_MARGIN_OPTIONS } from '@/hooks/useChatWidth';
 import { useIsTablet } from '@/utils/responsive';
 
 interface AgentInputProps {
@@ -89,7 +89,6 @@ const MAX_CONTEXT_SIZE = 190000;
 // Chip 4 = 1.00 (default scale). 0.05 spacing below 1.0 for fine accessibility tuning,
 // 0.10 spacing above 1.0 for clear visual jumps.
 const CHAT_FONT_SCALE_STEPS = [0.85, 0.9, 0.95, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5] as const;
-const CHAT_WIDTH_MODES = ['default', 'wide', 'full'] as const;
 
 const stylesheet = StyleSheet.create((theme, runtime) => ({
     container: {
@@ -504,7 +503,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
         setChatFontScale(value);
     }, [setChatFontScale]);
 
-    const handleChatWidthSelect = React.useCallback((value: typeof CHAT_WIDTH_MODES[number]) => {
+    const handleChatWidthSelect = React.useCallback((value: number) => {
         hapticsLight();
         setChatWidthMode(value);
     }, [setChatWidthMode]);
@@ -971,12 +970,12 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                         {t('agentInput.chatWidth.title')}
                                     </Text>
                                     <View style={styles.textSizeChipsRow}>
-                                        {CHAT_WIDTH_MODES.map((mode) => {
-                                            const isActive = mode === chatWidthMode;
+                                        {CHAT_WIDTH_MARGIN_OPTIONS.map((margin) => {
+                                            const isActive = margin === chatWidthMode;
                                             return (
                                                 <Pressable
-                                                    key={mode}
-                                                    onPress={() => handleChatWidthSelect(mode)}
+                                                    key={margin}
+                                                    onPress={() => handleChatWidthSelect(margin)}
                                                     hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
                                                     style={({ pressed }) => ({
                                                         ...styles.textSizeChip,
@@ -990,7 +989,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                                         color: isActive ? theme.colors.button.primary.tint : theme.colors.text,
                                                         ...Typography.default('semiBold'),
                                                     }}>
-                                                        {t(`agentInput.chatWidth.${mode}`)}
+                                                        {String(margin)}
                                                     </Text>
                                                 </Pressable>
                                             );

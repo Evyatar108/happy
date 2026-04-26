@@ -417,9 +417,6 @@ export const zhHant: TranslationStructure = {
         },
         chatWidth: {
             title: '聊天寬度',
-            default: '預設',
-            wide: '寬',
-            full: '全寬',
         },
         agent: {
             claude: 'Claude',

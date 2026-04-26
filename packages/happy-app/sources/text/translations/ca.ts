@@ -417,9 +417,6 @@ export const ca: TranslationStructure = {
         },
         chatWidth: {
             title: 'Amplada del xat',
-            default: 'Per defecte',
-            wide: 'Ample',
-            full: 'Complet',
         },
         agent: {
             claude: 'Claude',

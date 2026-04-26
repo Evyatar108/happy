@@ -418,9 +418,6 @@ export const ja: TranslationStructure = {
         },
         chatWidth: {
             title: 'チャット幅',
-            default: 'デフォルト',
-            wide: 'ワイド',
-            full: 'フル',
         },
         agent: {
             claude: 'Claude',

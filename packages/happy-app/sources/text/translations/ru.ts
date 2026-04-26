@@ -433,9 +433,6 @@ export const ru: TranslationStructure = {
         },
         chatWidth: {
             title: 'Ширина чата',
-            default: 'По умолчанию',
-            wide: 'Широкий',
-            full: 'Полный',
         },
         agent: {
             claude: 'Claude',

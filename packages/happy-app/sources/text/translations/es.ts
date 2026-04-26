@@ -417,9 +417,6 @@ export const es: TranslationStructure = {
         },
         chatWidth: {
             title: 'Ancho del chat',
-            default: 'Predeterminado',
-            wide: 'Amplio',
-            full: 'Completo',
         },
         agent: {
             claude: 'Claude',
