@@ -86,6 +86,50 @@ describe('processClaudeMetaTags', () => {
         expect(output.trim()).toBe('First paragraph\n\nSecond paragraph');
     });
 
+    it('strips system-reminder blocks from render and copy markdown', () => {
+        const input = 'Before\n<system-reminder>hide me</system-reminder>\nAfter';
+        const output = processClaudeMetaTags(input);
+
+        expect(output.renderMarkdown).toBe('Before\nAfter');
+        expect(output.copyMarkdown).toBe('Before\nAfter');
+    });
+
+    it('strips multiple consecutive fork-boilerplate blocks from render and copy markdown', () => {
+        const input = [
+            'Before',
+            '<fork-boilerplate>first</fork-boilerplate>',
+            '<fork-boilerplate>second</fork-boilerplate>',
+            'After',
+        ].join('\n');
+        const output = processClaudeMetaTags(input);
+
+        expect(output.renderMarkdown).toBe('Before\n\nAfter');
+        expect(output.copyMarkdown).toBe('Before\n\nAfter');
+        expect(output.renderMarkdown).not.toContain('fork-boilerplate');
+        expect(output.copyMarkdown).not.toContain('fork-boilerplate');
+    });
+
+    it('preserves malformed system-reminder wrappers instead of swallowing the rest of the message', () => {
+        const logger = vi.fn();
+        _setLogger(logger);
+
+        const input = 'Before\n<system-reminder>hide me\nAfter';
+        const output = processClaudeMetaTags(input);
+
+        expect(output.renderMarkdown).toBe(input);
+        expect(output.copyMarkdown).toBe(input);
+        expect(logger).not.toHaveBeenCalled();
+    });
+
+    it('preserves options byte-for-byte when adjacent to strip-only wrappers', () => {
+        const options = '<options><option>A</option><option>B</option></options>';
+        const input = `${options}\n<system-reminder>hide me</system-reminder>\n<fork-boilerplate>also hide me</fork-boilerplate>`;
+        const output = processClaudeMetaTags(input);
+
+        expect(output.renderMarkdown).toBe(options);
+        expect(output.copyMarkdown).toBe(options);
+    });
+
     it('round-trips options blocks byte-for-byte', () => {
         const input = '<options><option>A</option><option>B</option></options>';
         const output = processClaudeMetaTags(input);
@@ -207,6 +251,19 @@ describe('processClaudeMetaTags', () => {
             '<status>completed</status>',
             '<summary>Review finished successfully</summary>',
             '</task-notification>',
+        ].join('\n'));
+
+        expect(logger).not.toHaveBeenCalled();
+    });
+
+    it('does not warn for system-reminder or fork-boilerplate tags', () => {
+        const logger = vi.fn();
+        _setLogger(logger);
+
+        processClaudeMetaTags([
+            '<system-reminder>hide me</system-reminder>',
+            '<fork-boilerplate>also hide me</fork-boilerplate>',
+            '<system-reminder>missing closer',
         ].join('\n'));
 
         expect(logger).not.toHaveBeenCalled();
