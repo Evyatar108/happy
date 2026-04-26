@@ -1,5 +1,7 @@
 import * as React from 'react';
-import { TextStyle } from 'react-native';
+import type { TextStyle } from 'react-native';
+import { useAnimatedStyle } from 'react-native-reanimated';
+import { ChatScaleLiveContext } from '@/components/ChatScaleLiveContext';
 import { useLocalSetting } from '@/sync/storage';
 
 export const CHAT_FONT_SCALE_MIN = 0.85;
@@ -52,6 +54,21 @@ export function useChatFontScaleOverride(baseFontSize: number, baseLineHeight?: 
             ...(typeof baseLineHeight === 'number' ? { lineHeight: baseLineHeight * scale } : {}),
         };
     }, [baseFontSize, baseLineHeight, scale]);
+}
+
+export function useChatScaleAnimatedTextStyle(baseFontSize: number, baseLineHeight?: number) {
+    const persistedScale = useChatFontScale();
+    const liveScale = React.useContext(ChatScaleLiveContext);
+    const liveMultiplier = liveScale?.liveMultiplier;
+
+    return useAnimatedStyle(() => {
+        const scale = persistedScale * (liveMultiplier?.value ?? 1);
+
+        return {
+            fontSize: baseFontSize * scale,
+            ...(typeof baseLineHeight === 'number' ? { lineHeight: baseLineHeight * scale } : {}),
+        };
+    }, [baseFontSize, baseLineHeight, persistedScale, liveMultiplier]);
 }
 
 export function useChatScaledStyles<T extends Record<string, TextStyle>>(styles: T): T {
