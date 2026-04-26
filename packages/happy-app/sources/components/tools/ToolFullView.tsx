@@ -97,7 +97,7 @@ export function ToolFullView({ tool, metadata, messages = [] }: ToolFullViewProp
                     <View style={styles.section}>
                         <View style={styles.sectionHeader}>
                             <Ionicons name="code-slash" size={20} color="#FF9500" />
-                            <Text style={styles.sectionTitle}>{t('tools.fullView.rawJsonDevMode')}</Text>
+                            <Text style={[styles.sectionTitle, scaled.sectionTitle]}>{t('tools.fullView.rawJsonDevMode')}</Text>
                         </View>
                         <CodeView 
                             code={JSON.stringify({
