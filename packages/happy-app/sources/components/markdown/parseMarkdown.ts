@@ -1,3 +1,4 @@
+import type { TaskNotificationData } from './processClaudeMetaTags'
 import { parseMarkdownBlock } from "./parseMarkdownBlock"
 
 export type MarkdownBlock = {
@@ -33,6 +34,9 @@ export type MarkdownBlock = {
     type: 'image',
     alt: string,
     url: string
+} | {
+    type: 'task-notification'
+    data: TaskNotificationData
 }
 
 export type MarkdownSpan = {
@@ -41,6 +45,6 @@ export type MarkdownSpan = {
     url: string | null
 }
 
-export function parseMarkdown(markdown: string) {
-    return parseMarkdownBlock(markdown);
+export function parseMarkdown(markdown: string, taskNotifications?: TaskNotificationData[]) {
+    return parseMarkdownBlock(markdown, taskNotifications);
 }

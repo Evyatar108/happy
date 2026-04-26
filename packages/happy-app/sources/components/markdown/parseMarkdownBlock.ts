@@ -1,5 +1,8 @@
+import type { TaskNotificationData } from './processClaudeMetaTags';
 import type { MarkdownBlock, MarkdownSpan } from "./parseMarkdown";
 import { parseMarkdownSpans } from "./parseMarkdownSpans";
+
+const TASK_NOTIFICATION_SENTINEL_RE = /^__HAPPY_TASK_NOTIFICATION_(\d+)__$/;
 
 // Split a pipe-delimited table row into cells, stripping only the leading/trailing
 // empty strings caused by outer pipes while preserving interior empty cells.
@@ -65,8 +68,9 @@ function parseTable(lines: string[], startIndex: number): { table: MarkdownBlock
     return { table, nextIndex: index };
 }
 
-export function parseMarkdownBlock(markdown: string) {
+export function parseMarkdownBlock(markdown: string, taskNotifications?: TaskNotificationData[]) {
     const blocks: MarkdownBlock[] = [];
+    const resolvedTaskNotifications = taskNotifications ?? [];
     const lines = markdown.split('\n');
     let index = 0;
     outer: while (index < lines.length) {
@@ -83,6 +87,16 @@ export function parseMarkdownBlock(markdown: string) {
 
         // Trim
         let trimmed = line.trim();
+
+        const taskNotificationMatch = trimmed.match(TASK_NOTIFICATION_SENTINEL_RE);
+        if (taskNotificationMatch) {
+            const taskNotification = resolvedTaskNotifications[Number(taskNotificationMatch[1])];
+
+            if (taskNotification) {
+                blocks.push({ type: 'task-notification', data: taskNotification });
+                continue;
+            }
+        }
 
         // Code block
         if (trimmed.startsWith('```')) {
