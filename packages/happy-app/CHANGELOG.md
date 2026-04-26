@@ -1,5 +1,12 @@
 # Changelog
 
+## Version 22 - 2026-04-26
+
+Tappable option cards in chat are now visible on color e-ink tablets. Both the `<options>` picker blocks and the AskUserQuestion tool prompts had near-white backgrounds and faint borders that quantized to pure white on BOOX-style panels, making the cards disappear into the page.
+
+- Restyled `<options>` markdown blocks with a higher-contrast card fill, a thicker dark border, and a leading accent bar so each option reads as a clearly tappable target on e-ink.
+- Restyled the AskUserQuestion option buttons the same way, including a stronger selected-state fill and a leading accent bar that marks the chosen item without relying on a faint background tint.
+
 ## Version 21 - 2026-04-26
 
 Claude Code metadata inside chat bubbles is cleaner and more readable. Background task updates now show up as compact status pills you can tap for details, while model-only scaffolding tags no longer leak into the conversation text.

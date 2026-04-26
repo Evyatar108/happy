@@ -260,20 +260,22 @@ function RenderOptionsBlock(props: {
             {props.items.map((item, index) => {
                 if (props.onOptionPress) {
                     return (
-                        <Pressable 
-                            key={index} 
+                        <Pressable
+                            key={index}
                             style={({ pressed }) => [
                                 style.optionItem,
                                 pressed && style.optionItemPressed
                             ]}
                             onPress={() => props.onOptionPress?.({ title: item })}
                         >
+                            <View style={style.optionItemAccent} />
                             <AnimatedMarkdownText selectable={props.selectable} baseStyle={style.optionText}>{item}</AnimatedMarkdownText>
                         </Pressable>
                     );
                 } else {
                     return (
                         <View key={index} style={style.optionItem}>
+                            <View style={style.optionItemAccent} />
                             <AnimatedMarkdownText selectable={props.selectable} baseStyle={style.optionText}>{item}</AnimatedMarkdownText>
                         </View>
                     );
@@ -577,12 +579,29 @@ const style = StyleSheet.create((theme) => ({
         marginVertical: 8,
     },
     optionItem: {
-        backgroundColor: theme.colors.surfaceHighest,
+        // E-ink visibility: surfaceHighest (#f0f0f0) and divider (#eaeaea) both
+        // quantize to pure white on color e-ink panels, making the options card
+        // disappear into the page background. userMessageBackground (#d4d4d4)
+        // is the proven-visible value documented in packages/happy-app/CLAUDE.md;
+        // 2px textSecondary border survives quantization where 1px divider does not.
+        position: 'relative',
+        overflow: 'hidden',
+        backgroundColor: theme.colors.userMessageBackground,
         borderRadius: 8,
         paddingHorizontal: 16,
         paddingVertical: 12,
-        borderWidth: 1,
-        borderColor: theme.colors.divider,
+        borderWidth: 2,
+        borderColor: theme.colors.textSecondary,
+    },
+    optionItemAccent: {
+        // Hard-edged left bar — strong "tap me" cue on e-ink, where shadow /
+        // elevation / opacity-pressed states all fail to render.
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        bottom: 0,
+        width: 4,
+        backgroundColor: theme.colors.text,
     },
     optionItemPressed: {
         opacity: 0.7,

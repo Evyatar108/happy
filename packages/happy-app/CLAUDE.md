@@ -230,6 +230,22 @@ Claude Code emits slash-command output wrapped in `<local-command-stdout>...</lo
 
 So output like `Goodbye!` from `/exit` shows as an inset rounded grey rectangle inside whatever message contains it — that's the code-block container, not a user-message bubble. On e-ink it quantizes to white and is effectively invisible; in screencaps it's visible. If the inset rectangle ever needs to disappear or blend with the user-message row, change the code-block background or special-case single-line stdout — don't try to "fix" it via `userMessageBackground`.
 
+### Tappable Options on Color E-Ink
+
+There are **two separate tappable-options surfaces** in the chat. Both started life styled with `surfaceHighest` / `surfaceHigh` fills and `divider` borders — those values quantize to pure white on color e-ink panels (BOOX-style), so the cards became invisible against the page background.
+
+- `<options>` markdown blocks → `RenderOptionsBlock` in `sources/components/markdown/MarkdownView.tsx` (uses `style.optionItem` + `style.optionItemAccent`)
+- `AskUserQuestion` tool prompts → `sources/components/tools/views/AskUserQuestionView.tsx` (uses `optionButton` + `optionButtonSelected` + `selectedAccent`)
+
+**E-ink-safe option pattern** (currently applied to both):
+
+- Card fill: `theme.colors.userMessageBackground` (`#d4d4d4` light / `#2C2C2E` dark) — proven visible on the BOOX panel.
+- Border: `theme.colors.textSecondary`, `borderWidth: 2`. A 1px `divider` border is invisible after quantization; thicker, darker edges survive.
+- Left accent: a 4px-wide bar in `theme.colors.text`, absolutely positioned with `position: 'absolute'; left: 0; top: 0; bottom: 0`. Requires `position: 'relative'; overflow: 'hidden'` on the parent so it clips to the rounded corners. Hard 1D edges render crisply on e-ink even when fills wash out, so the bar is the strongest "this is tappable" cue available.
+- Pressed/opacity feedback is effectively invisible on e-ink — don't rely on it as the primary state cue.
+
+If you add a third tappable-options surface, reuse the same three tokens (`userMessageBackground` + `textSecondary` 2px + `text` 4px accent) instead of `surfaceHigh*` / `divider`. When debugging contrast: `adb exec-out screencap -p` shows the full-color framebuffer, *not* what the e-ink controller renders after quantization — barely-visible in a screencap means definitely-invisible on device.
+
 ### Important Files
 
 - `sources/sync/types.ts` - Core type definitions for the sync protocol

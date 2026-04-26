@@ -56,20 +56,37 @@ const styles = StyleSheet.create((theme) => ({
         gap: 4,
     },
     optionButton: {
+        position: 'relative',
+        overflow: 'hidden',
         flexDirection: 'row',
         alignItems: 'flex-start',
         paddingVertical: 12,
         paddingHorizontal: 12,
         borderRadius: 8,
         backgroundColor: 'transparent',
-        borderWidth: 1,
-        borderColor: theme.colors.divider,
+        // 2px border + textSecondary color: e-ink panels quantize light borders
+        // (e.g. theme.colors.divider #eaeaea) to pure white. Darker, thicker
+        // edges survive quantization.
+        borderWidth: 2,
+        borderColor: theme.colors.textSecondary,
         gap: 10,
         minHeight: 44, // Minimum touch target for mobile
     },
     optionButtonSelected: {
-        backgroundColor: theme.colors.surfaceHigh,
-        borderColor: theme.colors.radio.active,
+        // Reuse userMessageBackground (#d4d4d4 light / #2C2C2E dark) — proven
+        // visible on color e-ink. surfaceHigh (#F8F8F8) quantizes to white.
+        backgroundColor: theme.colors.userMessageBackground,
+        borderColor: theme.colors.text,
+    },
+    selectedAccent: {
+        // Hard-edged left bar: e-ink renders sharp 1D edges crisply, giving a
+        // strong "this one" cue from across the screen even after quantization.
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        bottom: 0,
+        width: 4,
+        backgroundColor: theme.colors.text,
     },
     optionButtonDisabled: {
         opacity: 0.6,
@@ -308,6 +325,7 @@ export const AskUserQuestionView = React.memo<ToolViewProps>(({ tool, sessionId 
                                             disabled={!canInteract}
                                             activeOpacity={0.7}
                                         >
+                                            {isSelected && <View style={styles.selectedAccent} />}
                                             {question.multiSelect ? (
                                                 <View style={[
                                                     styles.checkboxOuter,
