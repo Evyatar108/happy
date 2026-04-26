@@ -2,6 +2,7 @@ import * as React from 'react';
 import { FlatList, View } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 import { MessageView } from '@/components/MessageView';
+import { layout } from '@/components/layout';
 import { debugMessages } from './messages-demo-data';
 import { Message } from '@/sync/typesMessage';
 import { useDemoMessages } from '@/hooks/useDemoMessages';
@@ -24,6 +25,7 @@ export default React.memo(function MessagesDemoScreen() {
                             message={item}
                             metadata={null}
                             sessionId={sessionId}
+                            chatBodyWidth={layout.maxWidth}
                             getMessageById={(id: string): Message | null => {
                                 return allMessages.find((m)=>m.id === id) || null;
                             }}
