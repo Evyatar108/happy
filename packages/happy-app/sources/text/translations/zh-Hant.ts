@@ -68,6 +68,22 @@ export const zhHant: TranslationStructure = {
         commandOutput: {
             stderrLabel: '標準錯誤',
         },
+        taskNotification: {
+            title: '任務通知',
+            taskId: '任務 ID',
+            toolUseId: '工具呼叫 ID',
+            taskType: '任務類型',
+            outputFile: '輸出檔案',
+            summary: '摘要',
+            status: {
+                completed: '已完成',
+                failed: '失敗',
+                killed: '已停止',
+                running: '執行中',
+                pending: '等待中',
+                unknown: '未知',
+            },
+        },
     },
 
     profile: {

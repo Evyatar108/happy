@@ -81,6 +81,22 @@ export const en: TranslationStructure = {
         commandOutput: {
             stderrLabel: 'stderr',
         },
+        taskNotification: {
+            title: 'Task notification',
+            taskId: 'Task ID',
+            toolUseId: 'Tool Use ID',
+            taskType: 'Task Type',
+            outputFile: 'Output File',
+            summary: 'Summary',
+            status: {
+                completed: 'Completed',
+                failed: 'Failed',
+                killed: 'Stopped',
+                running: 'Running',
+                pending: 'Pending',
+                unknown: 'Unknown',
+            },
+        },
     },
 
     profile: {

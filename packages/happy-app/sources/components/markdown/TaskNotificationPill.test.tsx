@@ -41,6 +41,23 @@ vi.mock('@/components/StyledText', () => ({
     Text: 'Text',
 }));
 
+vi.mock('@/text', () => ({
+    t: (key: string) => ({
+        'chat.taskNotification.title': 'Task notification',
+        'chat.taskNotification.taskId': 'Task ID',
+        'chat.taskNotification.toolUseId': 'Tool Use ID',
+        'chat.taskNotification.taskType': 'Task Type',
+        'chat.taskNotification.outputFile': 'Output File',
+        'chat.taskNotification.summary': 'Summary',
+        'chat.taskNotification.status.completed': 'Completed',
+        'chat.taskNotification.status.failed': 'Failed',
+        'chat.taskNotification.status.killed': 'Stopped',
+        'chat.taskNotification.status.running': 'Running',
+        'chat.taskNotification.status.pending': 'Pending',
+        'chat.taskNotification.status.unknown': 'Unknown',
+    }[key] ?? key),
+}));
+
 vi.mock('@/constants/Typography', () => ({
     Typography: {
         default: () => ({}),

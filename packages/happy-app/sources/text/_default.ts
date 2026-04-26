@@ -66,6 +66,22 @@ export const en = {
         commandOutput: {
             stderrLabel: 'stderr',
         },
+        taskNotification: {
+            title: 'Task notification',
+            taskId: 'Task ID',
+            toolUseId: 'Tool Use ID',
+            taskType: 'Task Type',
+            outputFile: 'Output File',
+            summary: 'Summary',
+            status: {
+                completed: 'Completed',
+                failed: 'Failed',
+                killed: 'Stopped',
+                running: 'Running',
+                pending: 'Pending',
+                unknown: 'Unknown',
+            },
+        },
     },
 
     profile: {
@@ -947,22 +963,16 @@ export const en = {
 
 export type Translations = typeof en;
 
+type TranslationValue<T> = T extends string
+    ? string
+    : T extends (...args: any[]) => string
+    ? T
+    : T extends object
+    ? { readonly [K in keyof T]: TranslationValue<T[K]> }
+    : T;
+
 /**
  * Generic translation type that matches the structure of Translations
  * but allows different string values (for other languages)
  */
-export type TranslationStructure = {
-    readonly [K in keyof Translations]: {
-        readonly [P in keyof Translations[K]]: Translations[K][P] extends string 
-            ? string 
-            : Translations[K][P] extends (...args: any[]) => string 
-                ? Translations[K][P] 
-                : Translations[K][P] extends object
-                    ? {
-                        readonly [Q in keyof Translations[K][P]]: Translations[K][P][Q] extends string
-                            ? string
-                            : Translations[K][P][Q]
-                      }
-                    : Translations[K][P]
-    }
-};
+export type TranslationStructure = TranslationValue<Translations>;

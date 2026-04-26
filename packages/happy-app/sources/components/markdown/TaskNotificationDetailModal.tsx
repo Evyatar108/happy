@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native-unistyles';
 import { Item } from '@/components/Item';
 import { Text } from '@/components/StyledText';
 import { Typography } from '@/constants/Typography';
+import { t } from '@/text';
 
 import type { TaskNotificationData } from './processClaudeMetaTags';
 
@@ -19,47 +20,32 @@ type TaskNotificationDetailRow = {
     value: string;
 };
 
-const DETAIL_LABELS = {
-    title: 'Task notification',
-    taskId: 'Task ID',
-    toolUseId: 'Tool Use ID',
-    taskType: 'Task Type',
-    outputFile: 'Output File',
-    summary: 'Summary',
-    completed: 'Completed',
-    failed: 'Failed',
-    killed: 'Stopped',
-    running: 'Running',
-    pending: 'Pending',
-    unknown: 'Unknown',
-} as const;
-
 export function getTaskNotificationStatusLabel(status: string) {
     switch (status.trim().toLowerCase()) {
         case 'completed':
-            return DETAIL_LABELS.completed;
+            return t('chat.taskNotification.status.completed');
         case 'failed':
-            return DETAIL_LABELS.failed;
+            return t('chat.taskNotification.status.failed');
         case 'killed':
-            return DETAIL_LABELS.killed;
+            return t('chat.taskNotification.status.killed');
         case 'running':
-            return DETAIL_LABELS.running;
+            return t('chat.taskNotification.status.running');
         case 'pending':
-            return DETAIL_LABELS.pending;
+            return t('chat.taskNotification.status.pending');
         default:
-            return DETAIL_LABELS.unknown;
+            return t('chat.taskNotification.status.unknown');
     }
 }
 
 export function getTaskNotificationDetailRows(data: TaskNotificationData): TaskNotificationDetailRow[] {
     const rows: TaskNotificationDetailRow[] = [
-        { key: 'task-id', title: DETAIL_LABELS.taskId, value: data.taskId },
-        { key: 'task-type', title: DETAIL_LABELS.taskType, value: data.taskType },
-        { key: 'output-file', title: DETAIL_LABELS.outputFile, value: data.outputFile },
+        { key: 'task-id', title: t('chat.taskNotification.taskId'), value: data.taskId },
+        { key: 'task-type', title: t('chat.taskNotification.taskType'), value: data.taskType },
+        { key: 'output-file', title: t('chat.taskNotification.outputFile'), value: data.outputFile },
     ];
 
     if (data.toolUseId) {
-        rows.splice(1, 0, { key: 'tool-use-id', title: DETAIL_LABELS.toolUseId, value: data.toolUseId });
+        rows.splice(1, 0, { key: 'tool-use-id', title: t('chat.taskNotification.toolUseId'), value: data.toolUseId });
     }
 
     return rows;
@@ -72,7 +58,7 @@ export function TaskNotificationDetailModal({ data }: TaskNotificationDetailModa
         <View style={styles.modal}>
             <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
                 <View style={styles.header}>
-                    <Text style={styles.title}>{DETAIL_LABELS.title}</Text>
+                    <Text style={styles.title}>{t('chat.taskNotification.title')}</Text>
                     <Text style={styles.status}>{getTaskNotificationStatusLabel(data.status)}</Text>
                 </View>
 
@@ -91,7 +77,7 @@ export function TaskNotificationDetailModal({ data }: TaskNotificationDetailModa
                 </View>
 
                 <View style={styles.summarySection}>
-                    <Text style={styles.summaryLabel}>{DETAIL_LABELS.summary}</Text>
+                    <Text style={styles.summaryLabel}>{t('chat.taskNotification.summary')}</Text>
                     <Text style={styles.summaryText}>{data.summary}</Text>
                 </View>
             </ScrollView>

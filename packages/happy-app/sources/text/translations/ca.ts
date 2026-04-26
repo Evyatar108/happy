@@ -66,6 +66,22 @@ export const ca: TranslationStructure = {
         commandOutput: {
             stderrLabel: 'sortida d\'error',
         },
+        taskNotification: {
+            title: 'Notificació de tasca',
+            taskId: 'ID de la tasca',
+            toolUseId: 'ID d\'ús de l\'eina',
+            taskType: 'Tipus de tasca',
+            outputFile: 'Fitxer de sortida',
+            summary: 'Resum',
+            status: {
+                completed: 'Completada',
+                failed: 'Fallida',
+                killed: 'Aturada',
+                running: 'En execució',
+                pending: 'Pendent',
+                unknown: 'Desconegut',
+            },
+        },
     },
 
     profile: {
