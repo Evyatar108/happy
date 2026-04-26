@@ -415,6 +415,12 @@ export const ca: TranslationStructure = {
         textSize: {
             title: 'MIDA DEL TEXT',
         },
+        chatWidth: {
+            title: 'Amplada del xat',
+            default: 'Per defecte',
+            wide: 'Ample',
+            full: 'Complet',
+        },
         agent: {
             claude: 'Claude',
             codex: 'Codex',

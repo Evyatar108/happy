@@ -412,6 +412,12 @@ export const en = {
         textSize: {
             title: 'TEXT SIZE',
         },
+        chatWidth: {
+            title: 'Chat Width',
+            default: 'Default',
+            wide: 'Wide',
+            full: 'Full',
+        },
         agent: {
             claude: 'Claude',
             codex: 'Codex',
