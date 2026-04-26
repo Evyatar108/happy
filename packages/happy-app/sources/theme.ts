@@ -199,7 +199,7 @@ export const lightTheme = {
         },
 
         // Message View colors
-        userMessageBackground: '#f0eee6',
+        userMessageBackground: '#d4d4d4',
         userMessageText: '#000000',
         agentMessageText: '#000000',
         agentEventText: '#666666',

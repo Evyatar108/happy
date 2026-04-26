@@ -212,6 +212,22 @@ When working with translations, use the **i18n-translator** agent for:
 
 The agent should be called whenever new user-facing text is introduced to the codebase or when translation verification is needed.
 
+### User Message Styling (Chat View)
+
+User messages render as **left-aligned, full-row light grey bands** (not right-aligned bubbles). See `sources/components/MessageView.tsx` (`userMessageContainer` + `userMessageBubble`) and the `userMessageBackground` token in `sources/theme.ts`.
+
+E-ink visibility constraints to keep in mind:
+
+- The light-theme `userMessageBackground` is `#d4d4d4`. We deliberately avoid `#f0f0f0` / `surfaceHigh` / `surfaceHighest` because BOOX-style e-ink panels quantize values that light all the way to pure white, making the band invisible on device.
+- Do **not** put `paddingVertical` on `userMessageBubble`. `MarkdownView` already adds vertical paragraph margins; adding bubble padding produces a visible grey strip *above* the first line of text (the "phantom row" before the user message). Horizontal padding (`paddingHorizontal: 16`) is fine and matches the agent-message inset.
+- `adb exec-out screencap -p` captures the **full-color framebuffer**, not what the e-ink controller renders after quantization. A screencap can show light grey shading (e.g., `#f0f0f0` code-block backgrounds) that is invisible on the actual e-ink display. Use this when iterating on contrast: if it's barely visible in the screencap, it's definitely invisible on e-ink.
+
+### `<local-command-stdout>` Renders as a Code Block (Why "Goodbye!" looks inset)
+
+Claude Code emits slash-command output wrapped in `<local-command-stdout>...</local-command-stdout>`. `processClaudeMetaTags` (`sources/components/markdown/processClaudeMetaTags.ts`) converts that to a fenced code block, which `MarkdownView` renders with `codeBlock` styling backed by `theme.colors.surfaceHighest` (`#f0f0f0`).
+
+So output like `Goodbye!` from `/exit` shows as an inset rounded grey rectangle inside whatever message contains it — that's the code-block container, not a user-message bubble. On e-ink it quantizes to white and is effectively invisible; in screencaps it's visible. If the inset rectangle ever needs to disappear or blend with the user-message row, change the code-block background or special-case single-line stdout — don't try to "fix" it via `userMessageBackground`.
+
 ### Important Files
 
 - `sources/sync/types.ts` - Core type definitions for the sync protocol

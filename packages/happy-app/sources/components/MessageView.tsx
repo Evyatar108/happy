@@ -200,19 +200,12 @@ const styles = StyleSheet.create((theme) => ({
     overflow: 'hidden',
   },
   userMessageContainer: {
-    maxWidth: '100%',
     flexDirection: 'column',
-    alignItems: 'flex-end',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 16,
+    backgroundColor: theme.colors.userMessageBackground,
+    marginBottom: 12,
   },
   userMessageBubble: {
-    backgroundColor: theme.colors.userMessageBackground,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 12,
-    maxWidth: '100%',
+    paddingHorizontal: 16,
   },
   agentMessageContainer: {
     marginHorizontal: 16,
