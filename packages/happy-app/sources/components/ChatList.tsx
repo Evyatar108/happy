@@ -146,6 +146,7 @@ const ChatListInternal = React.memo((props: {
                 const nextScale = Math.max(CHAT_FONT_SCALE_MIN, Math.min(CHAT_FONT_SCALE_MAX, chatFontScale * event.scale));
                 runOnJS(setChatFontScale)(nextScale);
             })
+            // This onFinalize reset IS the cancelled-pinch fallback (formerly tracked as `pendingScale` in plans). Do not remove without on-device re-verification on BOOX.
             .onFinalize(() => {
                 liveMultiplier.value = 1;
                 isActive.value = false;
