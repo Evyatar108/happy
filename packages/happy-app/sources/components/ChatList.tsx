@@ -9,6 +9,7 @@ import { MessageView } from './MessageView';
 import { Metadata, Session } from '@/sync/storageTypes';
 import { ChatFooter } from './ChatFooter';
 import { Message } from '@/sync/typesMessage';
+import { useChatWidth } from '@/hooks/useChatWidth';
 import { Octicons } from '@expo/vector-icons';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { runOnJS, useSharedValue } from 'react-native-reanimated';
@@ -59,11 +60,12 @@ const ChatListInternal = React.memo((props: {
     const pinchToZoomEnabled = useLocalSetting('pinchToZoomEnabled');
     const chatPaginatedScroll = useLocalSetting('chatPaginatedScroll');
     const chatFontScale = useLocalSetting('chatFontScale');
+    const { body: chatBodyWidth } = useChatWidth();
 
     const keyExtractor = useCallback((item: any) => item.id, []);
     const renderItem = useCallback(({ item }: { item: any }) => (
-        <MessageView message={item} metadata={props.metadata} sessionId={props.sessionId} />
-    ), [props.metadata, props.sessionId]);
+        <MessageView message={item} metadata={props.metadata} sessionId={props.sessionId} chatBodyWidth={chatBodyWidth} />
+    ), [props.metadata, props.sessionId, chatBodyWidth]);
 
     // In inverted FlatList, offset 0 = latest messages (visual bottom).
     // Offset increases as user scrolls up to see older messages.

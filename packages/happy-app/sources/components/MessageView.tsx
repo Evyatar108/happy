@@ -11,17 +11,16 @@ import { sync } from '@/sync/sync';
 import { Option } from './markdown/MarkdownView';
 import { AnimatedText } from './StyledText';
 import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
-import { useChatWidth } from '@/hooks/useChatWidth';
 
 
 export const MessageView = React.memo((props: {
   message: Message;
   metadata: Metadata | null;
   sessionId: string;
+  chatBodyWidth?: number;
   getMessageById?: (id: string) => Message | null;
 }) => {
-  const { body: bodyMaxWidth } = useChatWidth();
-  const messageContentWidthStyle = React.useMemo(() => ({ maxWidth: bodyMaxWidth }), [bodyMaxWidth]);
+  const messageContentWidthStyle = React.useMemo(() => ({ maxWidth: props.chatBodyWidth }), [props.chatBodyWidth]);
 
   const content = (
     <View style={[styles.messageContent, messageContentWidthStyle]}>
