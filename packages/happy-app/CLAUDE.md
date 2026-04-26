@@ -117,6 +117,7 @@ sources/
 - TypeScript strict mode is enabled - ensure all code is properly typed
 - Follow existing component patterns when creating new UI components
 - Real-time sync operations are handled through SyncSocket and SyncSession classes
+- Session metadata writes should go through `sources/sync/ops.ts` `sessionUpdateMetadata(...)`, which encrypts metadata client-side, emits the existing session socket event `update-metadata`, and retries version mismatches locally.
 - Sync reducer batches must replay oldest-to-newest by `createdAt`; `storage.applyMessages()` and `applyOlderMessages()` sort normalized batches before calling the reducer, and the reducer preserves pending tool results so older lazy-loaded tool calls can still attach newer results that arrived earlier.
 - Store all temporary scripts and any test outside of unit tests in sources/trash folder
 - When setting screen parameters ALWAYS set them in _layout.tsx if possible this avoids layout shifts
