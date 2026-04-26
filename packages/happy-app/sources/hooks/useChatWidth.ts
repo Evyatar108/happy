@@ -10,7 +10,7 @@ export type ChatWidthMode = LocalSettings['chatWidthMode'];
 export function getChatBodyWidth(mode: ChatWidthMode, screenWidth: number): number | undefined {
     switch (mode) {
         case 'wide':
-            return Math.floor(screenWidth * 0.95);
+            return Math.floor(screenWidth * 0.85);
         case 'full':
             return undefined;
         default:
@@ -21,7 +21,7 @@ export function getChatBodyWidth(mode: ChatWidthMode, screenWidth: number): numb
 export function getChatHeaderWidth(mode: ChatWidthMode, screenWidth: number): number | undefined {
     switch (mode) {
         case 'wide':
-            return Math.floor(screenWidth * 0.95);
+            return Math.floor(screenWidth * 0.85);
         case 'full':
             return undefined;
         default:
