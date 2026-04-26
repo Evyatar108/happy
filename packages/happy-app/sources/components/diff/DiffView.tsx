@@ -1,9 +1,10 @@
 import React, { useMemo } from 'react';
 import { View, Text, ViewStyle } from 'react-native';
 import { calculateUnifiedDiff, DiffToken } from '@/components/diff/calculateDiff';
+import { AnimatedText } from '@/components/StyledText';
 import { Typography } from '@/constants/Typography';
 import { useUnistyles } from 'react-native-unistyles';
-import { useChatScaledStyles } from '@/hooks/useChatFontScale';
+import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
 
 
 interface DiffViewProps {
@@ -21,6 +22,25 @@ interface DiffViewProps {
     fontScaleX?: number;
 }
 
+const diffTextStyles = {
+    hunkHeader: {
+        ...Typography.mono(),
+        fontSize: 12,
+    },
+    lineText: {
+        ...Typography.mono(),
+        fontSize: 13,
+        lineHeight: 20,
+    },
+};
+
+function AnimatedDiffText(props: React.ComponentProps<typeof AnimatedText> & { baseFontSize: number; baseLineHeight?: number }) {
+    const { baseFontSize, baseLineHeight, style, ...rest } = props;
+    const animatedTextStyle = useChatScaleAnimatedTextStyle(baseFontSize, baseLineHeight);
+
+    return <AnimatedText {...rest} style={[style, animatedTextStyle]} />;
+}
+
 export const DiffView: React.FC<DiffViewProps> = ({
     oldText,
     newText,
@@ -34,18 +54,6 @@ export const DiffView: React.FC<DiffViewProps> = ({
     // Always use light theme colors
     const { theme } = useUnistyles();
     const colors = theme.colors.diff;
-    const scaledStyles = useChatScaledStyles({
-        hunkHeader: {
-            ...Typography.mono(),
-            fontSize: 12,
-        },
-        lineText: {
-            ...Typography.mono(),
-            fontSize: 13,
-            lineHeight: 20,
-        },
-    });
-
     // Calculate diff with inline highlighting
     const { hunks } = useMemo(() => {
         return calculateUnifiedDiff(oldText, newText, contextLines);
@@ -85,22 +93,22 @@ export const DiffView: React.FC<DiffViewProps> = ({
 
                         if (token.added || token.removed) {
                             return (
-                                <Text key={idx}>
-                                    <Text style={{ color: colors.leadingSpaceDot }}>{leadingDots}</Text>
-                                    <Text style={{
+                                <AnimatedDiffText key={idx} baseFontSize={diffTextStyles.lineText.fontSize} baseLineHeight={diffTextStyles.lineText.lineHeight}>
+                                    <AnimatedDiffText baseFontSize={diffTextStyles.lineText.fontSize} baseLineHeight={diffTextStyles.lineText.lineHeight} style={{ color: colors.leadingSpaceDot }}>{leadingDots}</AnimatedDiffText>
+                                    <AnimatedDiffText baseFontSize={diffTextStyles.lineText.fontSize} baseLineHeight={diffTextStyles.lineText.lineHeight} style={{
                                         backgroundColor: token.added ? colors.inlineAddedBg : colors.inlineRemovedBg,
                                         color: token.added ? colors.inlineAddedText : colors.inlineRemovedText,
                                     }}>
                                         {restOfToken}
-                                    </Text>
-                                </Text>
+                                    </AnimatedDiffText>
+                                </AnimatedDiffText>
                             );
                         }
                         return (
-                            <Text key={idx}>
-                                <Text style={{ color: colors.leadingSpaceDot }}>{leadingDots}</Text>
-                                <Text style={{ color: baseColor }}>{restOfToken}</Text>
-                            </Text>
+                            <AnimatedDiffText key={idx} baseFontSize={diffTextStyles.lineText.fontSize} baseLineHeight={diffTextStyles.lineText.lineHeight}>
+                                <AnimatedDiffText baseFontSize={diffTextStyles.lineText.fontSize} baseLineHeight={diffTextStyles.lineText.lineHeight} style={{ color: colors.leadingSpaceDot }}>{leadingDots}</AnimatedDiffText>
+                                <AnimatedDiffText baseFontSize={diffTextStyles.lineText.fontSize} baseLineHeight={diffTextStyles.lineText.lineHeight} style={{ color: baseColor }}>{restOfToken}</AnimatedDiffText>
+                            </AnimatedDiffText>
                         );
                     }
                     processedLeadingSpaces = true;
@@ -108,18 +116,20 @@ export const DiffView: React.FC<DiffViewProps> = ({
 
                 if (token.added || token.removed) {
                     return (
-                        <Text
+                        <AnimatedDiffText
                             key={idx}
+                            baseFontSize={diffTextStyles.lineText.fontSize}
+                            baseLineHeight={diffTextStyles.lineText.lineHeight}
                             style={{
                                 backgroundColor: token.added ? colors.inlineAddedBg : colors.inlineRemovedBg,
                                 color: token.added ? colors.inlineAddedText : colors.inlineRemovedText,
                             }}
                         >
                             {token.value}
-                        </Text>
+                        </AnimatedDiffText>
                     );
                 }
-                return <Text key={idx} style={{ color: baseColor }}>{token.value}</Text>;
+                return <AnimatedDiffText key={idx} baseFontSize={diffTextStyles.lineText.fontSize} baseLineHeight={diffTextStyles.lineText.lineHeight} style={{ color: baseColor }}>{token.value}</AnimatedDiffText>;
             });
         }
 
@@ -130,8 +140,8 @@ export const DiffView: React.FC<DiffViewProps> = ({
 
         return (
             <>
-                {leadingDots && <Text style={{ color: colors.leadingSpaceDot }}>{leadingDots}</Text>}
-                <Text style={{ color: baseColor }}>{mainContent}</Text>
+                {leadingDots && <AnimatedDiffText baseFontSize={diffTextStyles.lineText.fontSize} baseLineHeight={diffTextStyles.lineText.lineHeight} style={{ color: colors.leadingSpaceDot }}>{leadingDots}</AnimatedDiffText>}
+                <AnimatedDiffText baseFontSize={diffTextStyles.lineText.fontSize} baseLineHeight={diffTextStyles.lineText.lineHeight} style={{ color: baseColor }}>{mainContent}</AnimatedDiffText>
             </>
         );
     };
@@ -144,11 +154,12 @@ export const DiffView: React.FC<DiffViewProps> = ({
             // Add hunk header for non-first hunks
             if (hunkIndex > 0) {
                 lines.push(
-                    <Text 
+                    <AnimatedDiffText
                         key={`hunk-header-${hunkIndex}`} 
+                        baseFontSize={diffTextStyles.hunkHeader.fontSize}
                         numberOfLines={wrapLines ? undefined : 1}
                         style={{
-                            ...scaledStyles.hunkHeader,
+                            ...diffTextStyles.hunkHeader,
                             color: colors.hunkHeaderText,
                             backgroundColor: colors.hunkHeaderBg,
                             paddingVertical: 8,
@@ -157,7 +168,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
                         }}
                     >
                         {`@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`}
-                    </Text>
+                    </AnimatedDiffText>
                 );
             }
 
@@ -169,11 +180,13 @@ export const DiffView: React.FC<DiffViewProps> = ({
                 
                 // Render complete line in a single Text element
                 lines.push(
-                    <Text
+                    <AnimatedDiffText
                         key={`line-${hunkIndex}-${lineIndex}`}
+                        baseFontSize={diffTextStyles.lineText.fontSize}
+                        baseLineHeight={diffTextStyles.lineText.lineHeight}
                         numberOfLines={wrapLines ? undefined : 1}
                         style={{
-                            ...scaledStyles.lineText,
+                            ...diffTextStyles.lineText,
                             backgroundColor: bgColor,
                             transform: [{ scaleX: fontScaleX }],
                             paddingLeft: 8,
@@ -196,7 +209,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
                             </Text>
                         )}
                         {renderLineContent(line.content, textColor, line.tokens)}
-                    </Text>
+                    </AnimatedDiffText>
                 );
             });
         });

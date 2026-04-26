@@ -1,7 +1,8 @@
 import * as React from 'react';
 import { Text, View, Platform } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
-import { useChatScaledStyles } from '@/hooks/useChatFontScale';
+import { AnimatedText } from '@/components/StyledText';
+import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
 
 interface CodeViewProps {
     code: string;
@@ -10,12 +11,11 @@ interface CodeViewProps {
 }
 
 const ScaledCodeBlock = React.memo<{ code: string }>(({ code }) => {
-    const scaledTextStyles = useChatScaledStyles({
-        codeText: styles.codeText,
-    });
+    const animatedTextStyle = useChatScaleAnimatedTextStyle(styles.codeText.fontSize, styles.codeText.lineHeight);
+
     return (
         <View style={styles.codeBlock}>
-            <Text style={scaledTextStyles.codeText}>{code}</Text>
+            <AnimatedText style={[styles.codeText, animatedTextStyle]}>{code}</AnimatedText>
         </View>
     );
 });

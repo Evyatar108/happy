@@ -1,7 +1,9 @@
 import React from 'react';
 import { StyleProp, Text, TextStyle, View } from 'react-native';
 import { useUnistyles } from 'react-native-unistyles';
+import { AnimatedText } from '@/components/StyledText';
 import { Typography } from '@/constants/Typography';
+import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
 
 interface SimpleSyntaxHighlighterProps {
   code: string;
@@ -9,6 +11,18 @@ interface SimpleSyntaxHighlighterProps {
   selectable: boolean;
   // Opt-in caller override so chat surfaces can scale without coupling the shared file viewer to chatFontScale.
   textStyle?: StyleProp<TextStyle>;
+}
+
+const baseTextStyle = {
+  fontFamily: Typography.mono().fontFamily,
+  fontSize: 14,
+  lineHeight: 20,
+} satisfies TextStyle;
+
+function AnimatedSyntaxText(props: React.ComponentProps<typeof AnimatedText>) {
+  const animatedTextStyle = useChatScaleAnimatedTextStyle(baseTextStyle.fontSize!, baseTextStyle.lineHeight);
+
+  return <AnimatedText {...props} style={[props.style, animatedTextStyle]} />;
 }
 
 // Get theme-aware colors
@@ -298,31 +312,45 @@ export const SimpleSyntaxHighlighter: React.FC<SimpleSyntaxHighlighterProps> = (
 
   return (
     <View>
-      <Text 
-        selectable={selectable}
-        style={[
-          {
-            fontFamily: Typography.mono().fontFamily,
-            fontSize: 14,
-            lineHeight: 20,
-          },
-          textStyle,
-        ]}
-      >
-        {tokens.map((token, index) => (
-          <Text
-            key={index}
-            selectable={selectable}
-            style={{
-              color: getColorForType(token.type, token.nestLevel),
-              fontFamily: Typography.mono().fontFamily,
-              fontWeight: ['keyword', 'controlFlow', 'type', 'function'].includes(token.type) ? '600' : '400',
-            }}
-          >
-            {token.text}
-          </Text>
-        ))}
-      </Text>
+      {textStyle ? (
+        <AnimatedSyntaxText
+          selectable={selectable}
+          style={[baseTextStyle, textStyle]}
+        >
+          {tokens.map((token, index) => (
+            <AnimatedSyntaxText
+              key={index}
+              selectable={selectable}
+              style={{
+                color: getColorForType(token.type, token.nestLevel),
+                fontFamily: Typography.mono().fontFamily,
+                fontWeight: ['keyword', 'controlFlow', 'type', 'function'].includes(token.type) ? '600' : '400',
+              }}
+            >
+              {token.text}
+            </AnimatedSyntaxText>
+          ))}
+        </AnimatedSyntaxText>
+      ) : (
+        <Text 
+          selectable={selectable}
+          style={[baseTextStyle, textStyle]}
+        >
+          {tokens.map((token, index) => (
+            <Text
+              key={index}
+              selectable={selectable}
+              style={{
+                color: getColorForType(token.type, token.nestLevel),
+                fontFamily: Typography.mono().fontFamily,
+                fontWeight: ['keyword', 'controlFlow', 'type', 'function'].includes(token.type) ? '600' : '400',
+              }}
+            >
+              {token.text}
+            </Text>
+          ))}
+        </Text>
+      )}
     </View>
   );
-}; 
+};
