@@ -1,5 +1,6 @@
 import React from 'react';
 import { Text as RNText, TextProps as RNTextProps, StyleProp, TextStyle } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { Typography } from '@/constants/Typography';
 
 interface StyledTextProps extends RNTextProps {
@@ -31,5 +32,7 @@ export const Text: React.FC<StyledTextProps> = ({
   );
 };
 
+export const AnimatedText = Animated.createAnimatedComponent(RNText);
+
 // Export the original RNText as well, in case it's needed
-export { Text as RNText } from 'react-native'; 
+export { Text as RNText } from 'react-native';
