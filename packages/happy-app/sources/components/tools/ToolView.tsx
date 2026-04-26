@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Text, View, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
+import { Text, View, TouchableOpacity, ActivityIndicator, Platform, StyleSheet as RNStyleSheet, StyleProp, TextStyle } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Ionicons, Octicons } from '@expo/vector-icons';
 import { getToolViewComponent } from './views/_all';
@@ -15,7 +15,8 @@ import { PermissionFooter } from './PermissionFooter';
 import { parseToolUseError } from '@/utils/toolErrorParser';
 import { formatMCPTitle } from './views/MCPToolView';
 import { t } from '@/text';
-import { useChatScaledStyles } from '@/hooks/useChatFontScale';
+import { AnimatedText } from '@/components/StyledText';
+import { useChatScaleAnimatedTextStyle, useChatScaledStyles } from '@/hooks/useChatFontScale';
 
 interface ToolViewProps {
     metadata: Metadata | null;
@@ -26,11 +27,18 @@ interface ToolViewProps {
     messageId?: string;
 }
 
+function AnimatedToolText(props: React.ComponentProps<typeof AnimatedText> & { baseStyle: StyleProp<TextStyle> }) {
+    const flattenedBaseStyle = React.useMemo(() => RNStyleSheet.flatten(props.baseStyle) ?? {}, [props.baseStyle]);
+    const animatedTextStyle = useChatScaleAnimatedTextStyle(flattenedBaseStyle.fontSize ?? 0, flattenedBaseStyle.lineHeight);
+
+    return <AnimatedText {...props} style={[props.baseStyle, props.style, animatedTextStyle]} />;
+}
+
 export const ToolView = React.memo<ToolViewProps>((props) => {
     const { tool, onPress, sessionId, messageId } = props;
     const router = useRouter();
     const { theme } = useUnistyles();
-    const scaledTextStyles = useChatScaledStyles(toolViewScalableStyles);
+    const scaledTextStyles = useChatScaledStyles({ status: styles.status });
 
     // Create default onPress handler for navigation
     const handlePress = React.useCallback(() => {
@@ -167,11 +175,11 @@ export const ToolView = React.memo<ToolViewProps>((props) => {
                             {icon}
                         </View>
                         <View style={styles.titleContainer}>
-                            <Text style={scaledTextStyles.toolName} numberOfLines={1}>{toolTitle}{status ? <Text style={scaledTextStyles.status}>{` ${status}`}</Text> : null}</Text>
+                            <AnimatedToolText baseStyle={styles.toolName} numberOfLines={1}>{toolTitle}{status ? <Text style={scaledTextStyles.status}>{` ${status}`}</Text> : null}</AnimatedToolText>
                             {description && (
-                                <Text style={scaledTextStyles.toolDescription} numberOfLines={1}>
+                                <AnimatedToolText baseStyle={styles.toolDescription} numberOfLines={1}>
                                     {description}
-                                </Text>
+                                </AnimatedToolText>
                             )}
                         </View>
                         {tool.state === 'running' && (
@@ -189,11 +197,11 @@ export const ToolView = React.memo<ToolViewProps>((props) => {
                             {icon}
                         </View>
                         <View style={styles.titleContainer}>
-                            <Text style={scaledTextStyles.toolName} numberOfLines={1}>{toolTitle}{status ? <Text style={scaledTextStyles.status}>{` ${status}`}</Text> : null}</Text>
+                            <AnimatedToolText baseStyle={styles.toolName} numberOfLines={1}>{toolTitle}{status ? <Text style={scaledTextStyles.status}>{` ${status}`}</Text> : null}</AnimatedToolText>
                             {description && (
-                                <Text style={scaledTextStyles.toolDescription} numberOfLines={1}>
+                                <AnimatedToolText baseStyle={styles.toolDescription} numberOfLines={1}>
                                     {description}
-                                </Text>
+                                </AnimatedToolText>
                             )}
                         </View>
                         {tool.state === 'running' && (
@@ -273,9 +281,8 @@ export const ToolView = React.memo<ToolViewProps>((props) => {
 function ElapsedView(props: { from: number }) {
     const { from } = props;
     const elapsed = useElapsedTime(from);
-    const scaledTextStyles = useChatScaledStyles(elapsedViewScalableStyles);
 
-    return <Text style={scaledTextStyles.elapsedText}>{elapsed.toFixed(1)}s</Text>;
+    return <AnimatedToolText baseStyle={styles.elapsedText}>{elapsed.toFixed(1)}s</AnimatedToolText>;
 }
 
 const styles = StyleSheet.create((theme) => ({
@@ -337,13 +344,3 @@ const styles = StyleSheet.create((theme) => ({
     },
 }));
 
-const toolViewScalableStyles = {
-    elapsedText: styles.elapsedText,
-    toolName: styles.toolName,
-    status: styles.status,
-    toolDescription: styles.toolDescription,
-};
-
-const elapsedViewScalableStyles = {
-    elapsedText: styles.elapsedText,
-};
