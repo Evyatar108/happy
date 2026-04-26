@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import * as WebBrowser from 'expo-web-browser';
 import { MermaidRenderer } from './MermaidRenderer';
+import { TaskNotificationPill } from './TaskNotificationPill';
 import { t } from '@/text';
 import { isHttpMarkdownLink } from './linkUtils';
 import { useChatScaleAnimatedTextStyle, useChatScaledStyles } from '@/hooks/useChatFontScale';
@@ -29,7 +30,10 @@ export const MarkdownView = React.memo((props: {
     sessionId?: string;
 }) => {
     const processed = React.useMemo(() => processClaudeMetaTags(props.markdown), [props.markdown]);
-    const blocks = React.useMemo(() => parseMarkdown(processed.renderMarkdown), [processed.renderMarkdown]);
+    const blocks = React.useMemo(
+        () => parseMarkdown(processed.renderMarkdown, processed.taskNotifications),
+        [processed.renderMarkdown, processed.taskNotifications]
+    );
     
     // Backwards compatibility: The original version just returned the view, wrapping the list of blocks.
     // It made each of the individual text elements selectable. When we enable the markdownCopyV2 feature,
@@ -57,13 +61,13 @@ export const MarkdownView = React.memo((props: {
 
     const handleLongPress = React.useCallback(() => {
         try {
-            const textId = storeTempText(processed.renderMarkdown);
+            const textId = storeTempText(processed.copyMarkdown);
             router.push(`/text-selection?textId=${textId}`);
         } catch (error) {
             console.error('Error storing text for selection:', error);
             Modal.alert('Error', 'Failed to open text selection. Please try again.');
         }
-    }, [processed.renderMarkdown, router]);
+    }, [processed.copyMarkdown, router]);
     const renderContent = () => {
         return (
             <View style={{ width: '100%' }}>
@@ -88,6 +92,8 @@ export const MarkdownView = React.memo((props: {
                         return <RenderTableBlock headers={block.headers} rows={block.rows} onLinkPress={handleLinkPress} selectable={selectable} key={index} first={index === 0} last={index === blocks.length - 1} />;
                     } else if (block.type === 'image') {
                         return <RenderImageBlock url={block.url} alt={block.alt} key={index} first={index === 0} last={index === blocks.length - 1} />;
+                    } else if (block.type === 'task-notification') {
+                        return <TaskNotificationPill data={block.data} key={index} />;
                     } else {
                         return null;
                     }
