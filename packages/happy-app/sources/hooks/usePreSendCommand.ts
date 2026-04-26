@@ -1,8 +1,12 @@
 import * as React from 'react';
 import { Href, useRouter } from 'expo-router';
+import { useHappyAction } from '@/hooks/useHappyAction';
 import { Modal } from '@/modal';
+import { sessionUpdateMetadata } from '@/sync/ops';
+import { storage } from '@/sync/storage';
 import { InterceptMessageKey, maybeIntercept } from '@/sync/slashCommandIntercept';
 import { t } from '@/text';
+import { HappyError } from '@/utils/errors';
 
 const ALERT_MESSAGES = {
     pluginRequiresSession: 'Open /plugin from an existing session so Happy knows which plugins to show.',
@@ -24,6 +28,36 @@ export interface PreSendCommandResult {
 // Centralize local-only slash commands so both composers short-circuit before sending.
 export function usePreSendCommand(sessionId: string | undefined) {
     const router = useRouter();
+    const renameRequestRef = React.useRef<{ sessionId: string; name: string } | null>(null);
+    const [, performRename] = useHappyAction(async () => {
+        const renameRequest = renameRequestRef.current;
+        if (!renameRequest) {
+            return;
+        }
+
+        try {
+            const session = storage.getState().sessions[renameRequest.sessionId];
+            if (!session || !session.metadata) {
+                throw new Error('Session metadata unavailable for rename');
+            }
+
+            await sessionUpdateMetadata(
+                renameRequest.sessionId,
+                {
+                    ...session.metadata,
+                    summary: {
+                        text: renameRequest.name,
+                        updatedAt: Date.now(),
+                    },
+                },
+                session.metadataVersion,
+            );
+        } catch {
+            throw new HappyError(t('commands.rename.failure'), false);
+        } finally {
+            renameRequestRef.current = null;
+        }
+    });
 
     return React.useCallback((command: string): PreSendCommandResult => {
         const result = maybeIntercept(command, sessionId);
@@ -45,6 +79,8 @@ export function usePreSendCommand(sessionId: string | undefined) {
                 }
 
                 if (result.type === 'rename') {
+                    renameRequestRef.current = { sessionId: sessionId!, name: result.name };
+                    performRename();
                     return;
                 }
 
@@ -56,5 +92,5 @@ export function usePreSendCommand(sessionId: string | undefined) {
                 Modal.alert('Command hint', ALERT_MESSAGES[result.messageKey]);
             },
         };
-    }, [router, sessionId]);
+    }, [performRename, router, sessionId]);
 }
