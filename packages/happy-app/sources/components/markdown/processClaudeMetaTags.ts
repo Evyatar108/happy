@@ -92,8 +92,9 @@ function collapseCommandTriplets(raw: string) {
             if (tagName === 'command-name') {
                 commandNameValue = value;
                 parts.push(value);
-            } else if (tagName === 'command-message' && value === commandNameValue) {
-                // skip: duplicate of command-name
+            } else if (tagName === 'command-message' && commandNameValue !== null
+                && value.replace(/^\//, '') === commandNameValue.replace(/^\//, '')) {
+                // skip: duplicate of command-name (Claude often emits command-message without the leading slash)
             } else {
                 parts.push(value);
             }

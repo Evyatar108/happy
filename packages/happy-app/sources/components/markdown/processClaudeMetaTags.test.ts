@@ -51,6 +51,12 @@ describe('processClaudeMetaTags', () => {
         expect(processClaudeMetaTags('<command-message>/exit</command-message>')).toBe('`/exit`');
     });
 
+    it('drops command-message duplicate even when it omits the leading slash', () => {
+        expect(
+            processClaudeMetaTags('<command-name>/exit</command-name><command-message>exit</command-message>')
+        ).toBe('`/exit`');
+    });
+
     it('renders stdout tags as fenced code blocks', () => {
         expect(processClaudeMetaTags('<local-command-stdout>line1\nline2</local-command-stdout>')).toBe(
             '```\nline1\nline2\n```'
