@@ -5,6 +5,9 @@ type Logger = (message: string) => void;
 const OPTIONS_SENTINEL_PREFIX = '__HAPPY_OPTIONS_BLOCK_';
 const OPTIONS_SENTINEL_RE = /__HAPPY_OPTIONS_BLOCK_(\d+)__/g;
 const OPTIONS_BLOCK_RE = /<options(?:\s[^>]*)?>[\s\S]*?<\/options>/gi;
+const TASK_NOTIFICATION_SENTINEL_PREFIX = '__HAPPY_TASK_NOTIFICATION_';
+const TASK_NOTIFICATION_SENTINEL_RE = /__HAPPY_TASK_NOTIFICATION_(\d+)__/g;
+const TASK_NOTIFICATION_BLOCK_RE = /<task-notification(?:\s[^>]*)?>[\s\S]*?<\/task-notification>/gi;
 const COMMAND_TAG_SEQUENCE_RE = /(?:<(?:command-name|command-message|command-args)(?:\s[^>]*)?>[\s\S]*?<\/(?:command-name|command-message|command-args)>\s*)+/gi;
 const COMMAND_TAG_RE = /<(command-name|command-message|command-args)(?:\s[^>]*)?>([\s\S]*?)<\/\1>/gi;
 const STDOUT_TAG_RE = /<local-command-stdout(?:\s[^>]*)?>([\s\S]*?)<\/local-command-stdout>/gi;
@@ -13,6 +16,23 @@ const CAVEAT_TAG_RE = /<local-command-caveat(?:\s[^>]*)?>[\s\S]*?<\/local-comman
 const ANY_TAG_RE = /<\/?([a-z][a-z0-9-]*)(?:\s[^>]*)?>/gi;
 const FENCE_COLLISION_RE = /```/g;
 const FENCE_COLLISION_ESCAPE = '``\u200B`';
+
+const TASK_NOTIFICATION_PATTERN = /^<task-notification(?:\s[^>]*)?>\s*<task-id(?:\s[^>]*)?>([\s\S]*?)<\/task-id>\s*(?:<tool-use-id(?:\s[^>]*)?>([\s\S]*?)<\/tool-use-id>\s*)?<task-type(?:\s[^>]*)?>([\s\S]*?)<\/task-type>\s*<output-file(?:\s[^>]*)?>([\s\S]*?)<\/output-file>\s*<status(?:\s[^>]*)?>([\s\S]*?)<\/status>\s*<summary(?:\s[^>]*)?>([\s\S]*?)<\/summary>\s*<\/task-notification>$/i;
+
+export type TaskNotificationData = {
+    taskId: string;
+    toolUseId?: string;
+    taskType: string;
+    outputFile: string;
+    status: string;
+    summary: string;
+};
+
+export type ProcessedClaudeMetaTags = {
+    renderMarkdown: string;
+    copyMarkdown: string;
+    taskNotifications: TaskNotificationData[];
+};
 
 export const KNOWN_TAG_NAMES = new Set([
     'command-name',
@@ -23,6 +43,13 @@ export const KNOWN_TAG_NAMES = new Set([
     'local-command-caveat',
     'options',
     'option',
+    'task-notification',
+    'task-id',
+    'tool-use-id',
+    'task-type',
+    'output-file',
+    'status',
+    'summary',
 ]);
 
 export const warnedTagNames = new Set<string>();
@@ -76,6 +103,69 @@ function restoreOptions(raw: string, protectedBlocks: string[]) {
     });
 }
 
+function containsLiteralInnerClosingTag(value: string) {
+    return /<\/(?:task-id|tool-use-id|task-type|output-file|status|summary)>/i.test(value);
+}
+
+function parseTaskNotification(block: string): TaskNotificationData | null {
+    const match = block.match(TASK_NOTIFICATION_PATTERN);
+
+    if (!match) {
+        return null;
+    }
+
+    const taskId = match[1].trim();
+    const toolUseId = match[2]?.trim();
+    const taskType = match[3].trim();
+    const outputFile = match[4].trim();
+    const status = match[5].trim();
+    const summary = match[6].trim();
+
+    if ([taskId, toolUseId, taskType, outputFile, status, summary].some(value => value && containsLiteralInnerClosingTag(value))) {
+        return null;
+    }
+
+    if (!taskId || !taskType || !outputFile || !status || !summary) {
+        return null;
+    }
+
+    return {
+        taskId,
+        ...(toolUseId ? { toolUseId } : {}),
+        taskType,
+        outputFile,
+        status,
+        summary,
+    };
+}
+
+function protectTaskNotifications(raw: string) {
+    const taskNotifications: TaskNotificationData[] = [];
+    const out = raw.replace(TASK_NOTIFICATION_BLOCK_RE, (match, offset, fullString) => {
+        const taskNotification = parseTaskNotification(match);
+
+        if (!taskNotification) {
+            return match;
+        }
+
+        const sentinel = `${TASK_NOTIFICATION_SENTINEL_PREFIX}${taskNotifications.length}__`;
+        const startsOnOwnLine = offset === 0 || fullString[offset - 1] === '\n';
+        const endsOnOwnLine = offset + match.length === fullString.length || fullString[offset + match.length] === '\n';
+
+        taskNotifications.push(taskNotification);
+        return `${startsOnOwnLine ? '' : '\n'}${sentinel}${endsOnOwnLine ? '' : '\n'}`;
+    });
+
+    return { out, taskNotifications };
+}
+
+function restoreTaskNotificationsForCopy(raw: string, taskNotifications: TaskNotificationData[]) {
+    return raw.replace(TASK_NOTIFICATION_SENTINEL_RE, (match, indexText) => {
+        const index = Number(indexText);
+        return taskNotifications[index]?.summary ?? match;
+    });
+}
+
 function collapseCommandTriplets(raw: string) {
     return raw.replace(COMMAND_TAG_SEQUENCE_RE, (match) => {
         const parts: string[] = [];
@@ -126,14 +216,20 @@ function scanUnknownTags(raw: string) {
     }
 }
 
-export default function processClaudeMetaTags(raw: string): string {
+export default function processClaudeMetaTags(raw: string): ProcessedClaudeMetaTags {
     if (!raw.includes('<')) {
-        return raw;
+        return {
+            renderMarkdown: raw,
+            copyMarkdown: raw,
+            taskNotifications: [],
+        };
     }
 
     let out = raw.replace(CAVEAT_TAG_RE, '').replace(/\n{3,}/g, '\n\n');
     const { out: optionsProtected, protectedBlocks } = protectOptions(out);
     out = optionsProtected;
+    const { out: taskNotificationsProtected, taskNotifications } = protectTaskNotifications(out);
+    out = taskNotificationsProtected;
     const masked = out
         .replace(STDOUT_TAG_RE, '')
         .replace(STDERR_TAG_RE, '');
@@ -141,7 +237,12 @@ export default function processClaudeMetaTags(raw: string): string {
     out = collapseCommandTriplets(out);
     out = renderStdoutFences(out);
     out = renderStderrFences(out);
-    out = restoreOptions(out, protectedBlocks);
+    const renderMarkdown = restoreOptions(out, protectedBlocks).replace(/\n{3,}/g, '\n\n');
+    const copyMarkdown = restoreTaskNotificationsForCopy(renderMarkdown, taskNotifications).replace(/\n{3,}/g, '\n\n');
 
-    return out;
+    return {
+        renderMarkdown,
+        copyMarkdown,
+        taskNotifications,
+    };
 }

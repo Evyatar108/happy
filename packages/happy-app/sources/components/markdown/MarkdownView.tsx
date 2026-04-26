@@ -28,8 +28,8 @@ export const MarkdownView = React.memo((props: {
     onOptionPress?: (option: Option) => void;
     sessionId?: string;
 }) => {
-    const processedMarkdown = React.useMemo(() => processClaudeMetaTags(props.markdown), [props.markdown]);
-    const blocks = React.useMemo(() => parseMarkdown(processedMarkdown), [processedMarkdown]);
+    const processed = React.useMemo(() => processClaudeMetaTags(props.markdown), [props.markdown]);
+    const blocks = React.useMemo(() => parseMarkdown(processed.renderMarkdown), [processed.renderMarkdown]);
     
     // Backwards compatibility: The original version just returned the view, wrapping the list of blocks.
     // It made each of the individual text elements selectable. When we enable the markdownCopyV2 feature,
@@ -57,13 +57,13 @@ export const MarkdownView = React.memo((props: {
 
     const handleLongPress = React.useCallback(() => {
         try {
-            const textId = storeTempText(processedMarkdown);
+            const textId = storeTempText(processed.renderMarkdown);
             router.push(`/text-selection?textId=${textId}`);
         } catch (error) {
             console.error('Error storing text for selection:', error);
             Modal.alert('Error', 'Failed to open text selection. Please try again.');
         }
-    }, [processedMarkdown, router]);
+    }, [processed.renderMarkdown, router]);
     const renderContent = () => {
         return (
             <View style={{ width: '100%' }}>
