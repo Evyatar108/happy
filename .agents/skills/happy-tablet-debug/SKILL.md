@@ -14,8 +14,10 @@ description: >
 
 `/happy-tablet-iterate` assumes everything's wired up. This skill is
 for when it isn't: the edit-reload loop's happy path is silent, so when
-it breaks you can burn an hour blaming the wrong layer. Five failure
-modes account for 90% of what we've seen — check them in order.
+it breaks you can burn an hour blaming the wrong layer. Seven failure
+modes account for what we've seen — check them in order. Modes 1–5
+are launch-time failures from a working Metro; modes 6–7 are
+"can't start Metro / Metro is wrong" failures.
 
 ## Preflight checklist (do all at once)
 
@@ -194,6 +196,83 @@ Then use the Read tool on the PNG — Claude reads screenshots natively
 and the on-screen message (including SocketTimeoutException stacks,
 Hermes compile errors, update-URL problems) is fully legible. This
 maps you straight back to modes 1–4.
+
+## Mode 6 — Stale Metro from a different worktree on port 8081
+
+**Symptom.** `pnpm exec expo start --dev-client --clear` from your
+intended worktree fails with "port 8081 already in use, use 8083?"
+or, if you accept the new port, the dev-client APK still hits the
+default 8081 (because `adb reverse tcp:8081 tcp:8081` and the deep
+link both point at 8081) and loads JS from the wrong worktree. The
+chat may even render correctly — just from the wrong tip.
+
+**Why.** Multiple worktrees on the same machine can each have started
+Metro at some point. The first one to bind 8081 wins. Without
+checking who owns 8081 first, you can't tell which worktree is actually
+serving JS.
+
+**Diagnostic.** Trace 8081 to its working directory:
+
+```bash
+netstat.exe -ano | grep ':8081.*LISTEN'
+# read the PID from the last column, then:
+powershell -NoProfile -Command \
+  "Get-CimInstance Win32_Process -Filter 'ProcessId=<PID>' | Select-Object CommandLine | Format-List"
+```
+
+The `CommandLine` reveals the path — look for `<some-worktree>/node_modules/.bin/../expo/bin/cli`. If that's not the worktree you think you're testing, you've found the leak.
+
+**Fix.** Kill the stale Metro and start a fresh one in the correct worktree:
+
+```bash
+taskkill.exe //F //PID <PID>
+cd <intended-worktree>/packages/happy-app && pnpm exec expo start --dev-client --clear
+```
+
+Then re-deep-link the BOOX (golden rule 4). The dev-client APK is
+naive — it has no idea which worktree's JS it's getting. You're the
+gatekeeper.
+
+## Mode 7 — Node version mismatch (too old, or Node 22 `app.config.js` ESM regression)
+
+**Symptom A (too old).** `pnpm exec expo start ...` exits immediately
+with `Node.js (v20.x.x) is outdated and unsupported. Please update to
+a newer Node.js LTS version (required: >=20.19.4)`.
+
+**Symptom B (Node 22).** Metro starts on 20.x fine but on Node 22.x
+fails with:
+```
+file:///.../packages/happy-app/app.config.js:90
+        plugins: [
+                 ^
+ReferenceError: require is not defined
+    at ModuleJobSync.runSync (node:internal/modules/esm/module_job:...)
+    at ModuleLoader.importSyncForRequire ...
+```
+The `file://` URL prefix and `importSyncForRequire` in the trace are
+the giveaway: Node 22.12 added a new sync-import-of-ESM path, and
+expo's `require('./app.config.js')` is being routed through it as
+ESM despite the file being plain CJS (no top-level `import`, no
+`"type": "module"` in package.json).
+
+**Why.** Expo's CLI requires Node ≥ 20.19.4. Node 22.x introduced a
+behavior change in the CJS↔ESM loader that breaks expo's config
+loading. The sweet spot is **20.19.x** — high enough for expo, low
+enough to avoid the 22 regression.
+
+**Fix.**
+```bash
+nvm list                       # see what's installed
+nvm install 20.19.6            # if not yet installed
+nvm use 20.19.6
+node --version                 # verify v20.19.x
+cd <worktree>/packages/happy-app && pnpm exec expo start --dev-client --clear
+```
+
+If you must run on Node 22 for some other reason, the workaround is to
+rename `app.config.js` → `app.config.cjs` to force CJS treatment — but
+this dirties the worktree diff and Node 22 may have other regressions
+in this repo's stack. Prefer 20.19.x.
 
 ## Wake + screenshot pattern (e-ink specific)
 

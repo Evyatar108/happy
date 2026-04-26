@@ -12,12 +12,22 @@ description: >
 
 ## Preconditions (check these before starting)
 
-1. The short-path build clone lives at `D:\h`. Its checked-out branch is the source of truth for code you want loaded. If you've been editing in `D:\harness-efforts\happy`, commit and push to fork, then `git fetch` + fast-forward `main` (or the feature branch you're iterating) in `D:\h` first.
-2. Metro is running as a background task from `D:\h`. If not, start it:
-   `cd /d/h/packages/happy-app && pnpm start` (in the background).
-3. `/d/Android/Sdk/platform-tools/adb.exe devices` shows the tablet as `device` (not `unauthorized`, not empty).
-4. `adb reverse --list` shows `tcp:8081 tcp:8081`. If not: `adb reverse tcp:8081 tcp:8081`.
-5. The HappyServer Windows service is running (`Get-Service HappyServer` → `Running`), and the named cloudflared tunnel is up (`curl -s -m 5 https://happy.evyatar.dev` → `200`). The tablet dev client reads MMKV `custom-server-url` = `https://happy.evyatar.dev`, so if either is down the app will fail to reach the server. See `.agents/skills/happy-service-manage/SKILL.md` for service ops.
+1. **Choose the right working tree.** The short-path build clone lives at `D:\h` and is the conventional Metro source. You may also drive Metro from any other worktree (e.g. `.ralph/jobs/<job>/worktree`) — both work as long as the tip you're testing is checked out there. If you're editing in `D:\harness-efforts\happy` directly, either commit + push + fast-forward `D:\h`, or just run Metro from the active worktree. Mixing is the trap — pick one.
+2. **Identify any Metro already on port 8081 BEFORE starting.** Multiple worktrees on the same machine = multiple potential Metros, and a stale one from a different worktree silently serves the wrong JS.
+   ```bash
+   netstat.exe -ano | grep ':8081.*LISTEN'   # PID column = the metro
+   powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter 'ProcessId=<PID>' | Select-Object CommandLine | Format-List"
+   ```
+   The `CommandLine` will reveal the working directory (look for `<worktree>\node_modules\.bin\..\expo\bin\cli`). If it's not the worktree you intend, kill it: `taskkill.exe //F //PID <PID>`. Only THEN start a new Metro.
+3. **Node version**: ≥ 20.19.4 required by Expo, but **avoid Node 22.x** (as of 2026-04 the 22.12 `importSyncForRequire` change loads `app.config.js` as ESM and `require()` blows up on it). Use 20.19.x: `nvm use 20.19.6` or similar. Verify with `node --version` before starting.
+4. **Start Metro with the correct flags** (both `--dev-client` and `--clear` are load-bearing — without `--dev-client` Metro advertises the wrong manifest endpoint and the dev-client APK lands on `DevLauncherErrorActivity`):
+   ```bash
+   cd <worktree>/packages/happy-app && pnpm exec expo start --dev-client --clear
+   ```
+   Run as a background task. **Do not use** `pnpm start` / `pnpm --filter happy-app start` — those resolve to `expo start` without `--dev-client`.
+5. `/d/Android/Sdk/platform-tools/adb.exe devices` shows the tablet as `device` (not `unauthorized`, not empty).
+6. `adb reverse --list` shows `tcp:8081 tcp:8081`. If not: `adb reverse tcp:8081 tcp:8081`.
+7. The HappyServer Windows service is running (`Get-Service HappyServer` → `Running`), and the named cloudflared tunnel is up (`curl -s -m 5 https://happy.evyatar.dev` → `200`). The tablet dev client reads MMKV `custom-server-url` = `https://happy.evyatar.dev`, so if either is down the app will fail to reach the server. See `.agents/skills/happy-service-manage/SKILL.md` for service ops.
 
 ## The loop
 
@@ -27,13 +37,13 @@ description: >
    cd /d/h && pnpm --filter happy-app typecheck
    ```
 3. **Commit** (small, focused commits -- one concern per commit). Even for throwaway diagnostics, a separate commit lets you `git revert` it cleanly when done.
-4. **Force-reload the app** (most reliable; `shake to reload` is painful on e-ink):
+4. **Force-reload the app** via deep link (most reliable; `shake to reload` is painful on e-ink). **Use the deep link, NOT `monkey -p ...LAUNCHER` — `monkey` opens the dev launcher's home screen, not your project, so you end up debugging the launcher.** See `happy-tablet-debug/SKILL.md` golden rule 4.
    ```bash
    /d/Android/Sdk/platform-tools/adb.exe shell am force-stop com.slopus.happy.dev
-   /d/Android/Sdk/platform-tools/adb.exe shell monkey -p com.slopus.happy.dev \
-     -c android.intent.category.LAUNCHER 1
+   /d/Android/Sdk/platform-tools/adb.exe shell am start -a android.intent.action.VIEW \
+     -d 'happy://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081'
    ```
-   The app relaunches, reconnects to Metro over `adb reverse tcp:8081`, fetches the fresh JS bundle.
+   The app relaunches, reconnects to Metro over `adb reverse tcp:8081`, fetches the fresh JS bundle. Verify with `adb shell "dumpsys activity activities | grep topResumedActivity"` — should show `com.slopus.happy.dev/.MainActivity` (NOT `DevLauncherErrorActivity`, NOT `com.onyx.android.dream.DreamActivity`).
 5. **Observe.** Arm a Monitor on Metro's log:
    ```
    tail -f <metro-output-file> | grep -E --line-buffered "your-filter"
