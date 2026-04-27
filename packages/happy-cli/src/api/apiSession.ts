@@ -414,7 +414,9 @@ export class ApiSessionClient extends EventEmitter {
                     text: normalized.summary,
                     updatedAt: Date.now()
                 }
-            })).finally(() => {
+            })).catch((err: unknown) => {
+                logger.debug('[SOCKET] Failed to update summary metadata:', err);
+            }).finally(() => {
                 if (this.pendingSummaryText === normalized.summary) {
                     this.pendingSummaryText = null;
                 }
