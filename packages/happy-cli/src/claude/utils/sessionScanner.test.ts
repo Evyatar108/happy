@@ -210,6 +210,28 @@ describe('sessionScanner', () => {
     // }
   })
 
+  it('feeds raw custom-title JSONL through createSessionScanner and emits a synthetic summary', async () => {
+    const sessionId = 'integration-custom-title-session'
+    const sessionFile = join(projectDir, `${sessionId}.jsonl`)
+    const rawRecord = { type: 'custom-title', customTitle: 'My Renamed Chat', sessionId }
+    await writeFile(sessionFile, JSON.stringify(rawRecord) + '\n')
+
+    scanner = await createSessionScanner({
+      sessionId: null,
+      workingDirectory: testDir,
+      onMessage: (msg) => collectedMessages.push(msg)
+    })
+    scanner.onNewSession(sessionId)
+    await new Promise(resolve => setTimeout(resolve, 200))
+
+    expect(collectedMessages).toHaveLength(1)
+    expect(collectedMessages[0]).toEqual({
+      type: 'summary',
+      summary: 'My Renamed Chat',
+      leafUuid: `custom-title:${sessionId}`,
+    })
+  })
+
   it('normalizes custom-title and ai-title records into stable summary messages', () => {
     const customTitleRecord = {
       type: 'custom-title',
