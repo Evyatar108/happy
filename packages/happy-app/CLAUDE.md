@@ -126,6 +126,11 @@ sources/
 - **Always apply layout width constraints** from `@/components/layout` to full-screen ScrollViews and content containers for responsive design across device sizes
 - Always run `pnpm typecheck` after all changes to ensure type safety
 
+### Slash Commands
+
+- For app-local slash commands, use `sources/sync/slashCommandIntercept.ts` for parsing, `sources/hooks/usePreSendCommand.ts` for execution and error surfacing, and `sources/sync/suggestionCommands.ts` for picker discoverability.
+- Use `/rename` as the worked example: it only intercepts in live sessions, runs its async metadata update through `useHappyAction(...)` inside `usePreSendCommand.ts`, and is listed in `suggestionCommands.ts` as an app-synthetic picker command.
+
 ### Internationalization (i18n) Guidelines
 
 **CRITICAL: Always use the `t(...)` function for ALL user-visible strings**
