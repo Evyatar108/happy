@@ -47,10 +47,10 @@ minutes instead of bisecting happy's pipeline by hand.
   2. Name is in `metadata.skills` → `skill`
   3. Name is in the hardcoded `NATIVE_PROMPT_COMMANDS` set (`init`, `review`, `security-review`, `insights`, `team-onboarding`, `commit`, `commit-push-pr`) → `native-prompt`
   4. Otherwise → `native-local`
-  5. The seven synthetic TUI entries (`/plugin`, `/skills`, `/agents`, `/memory`, `/model`, `/mcp`, `/help`) are hardcoded and tagged `app-synthetic`.
+  5. The eight synthetic TUI entries (`/plugin`, `/skills`, `/agents`, `/memory`, `/model`, `/mcp`, `/help`, `/rename`) are hardcoded and tagged `app-synthetic`.
   The picker shows every source; Fuse ranking + a `limit: 15` cap is
   the only filter.
-- Pre-send intercept (happy-app): `sources/sync/slashCommandIntercept.ts` + `sources/hooks/usePreSendCommand.ts`. Invoked from both composer paths before `sync.sendMessage()` / `machineSpawnNewSession()`. Routes `/plugin`, `/skills`, `/agents` to `app/(app)/session/[id]/{plugins,skills,agents}.tsx`; alerts for the other four.
+- Pre-send intercept (happy-app): `sources/sync/slashCommandIntercept.ts` + `sources/hooks/usePreSendCommand.ts`. Invoked from both composer paths before `sync.sendMessage()` / `machineSpawnNewSession()`. Routes `/plugin`, `/skills`, `/agents` to `app/(app)/session/[id]/{plugins,skills,agents}.tsx`; `/rename <name>` is a mutating action that calls `sessionUpdateMetadata` to write `metadata.summary.text` (empty name returns an alert via `renameEmptyName`); alerts for the remaining four (`/memory`, `/model`, `/mcp`, `/help`).
 - Local Claude Code install on this Windows machine:
   `C:/Users/evmitran/AppData/Roaming/npm/node_modules/@anthropic-ai/claude-code/cli.js`
 
@@ -112,7 +112,10 @@ never appear in `slash_commands` and can't flow through happy over the
 wire — but as of the 2026-04-22 merge, happy-app synthesizes seven of
 them client-side (`plugin`, `skills`, `agents`, `memory`, `model`,
 `mcp`, `help`) so they at least appear in the picker and land somewhere
-useful. Extract the full registry from the bundled cli.js to spot
+useful. An eighth app-synthetic entry, `/rename`, was added later as a
+chat-rename mutating action (writes `metadata.summary.text` via
+`sessionUpdateMetadata`) — it is not a `local-jsx` mirror but lives in
+the same `APP_SYNTHETIC_COMMANDS` table for picker discoverability. Extract the full registry from the bundled cli.js to spot
 additions after a version bump:
 
 ```bash
