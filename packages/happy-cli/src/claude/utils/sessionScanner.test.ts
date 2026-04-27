@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { existsSync } from 'node:fs'
 import { getProjectPath } from './path'
+import { getSessionLogMessageKey, normalizeSessionLogMessage } from './normalizeSessionLogMessage'
 
 describe('sessionScanner', () => {
   let testDir: string
@@ -207,5 +208,41 @@ describe('sessionScanner', () => {
     //   expect((lastAssistantMsg.message.content as any)[0].text).toBe('kekr')
     //   expect(lastAssistantMsg.message.id).toBe('msg_01KWeuP88pkzRtXmggJRnQmV')
     // }
+  })
+
+  it('normalizes custom-title and ai-title records into stable summary messages', () => {
+    const customTitleRecord = {
+      type: 'custom-title',
+      customTitle: 'Renamed From Claude',
+      sessionId: 'session-custom'
+    }
+    const aiTitleRecord = {
+      type: 'ai-title',
+      aiTitle: 'Suggested By Claude',
+      sessionId: 'session-ai'
+    }
+
+    const normalizedCustomTitle = normalizeSessionLogMessage(customTitleRecord)
+    const normalizedAiTitle = normalizeSessionLogMessage(aiTitleRecord)
+    const repeatedCustomTitle = normalizeSessionLogMessage({ ...customTitleRecord })
+    const repeatedAiTitle = normalizeSessionLogMessage({ ...aiTitleRecord })
+
+    expect(normalizedCustomTitle).toEqual({
+      type: 'summary',
+      summary: 'Renamed From Claude',
+      leafUuid: 'custom-title:session-custom'
+    })
+    expect(normalizedAiTitle).toEqual({
+      type: 'summary',
+      summary: 'Suggested By Claude',
+      leafUuid: 'ai-title:session-ai'
+    })
+
+    expect(getSessionLogMessageKey(normalizedCustomTitle!)).toBe(
+      getSessionLogMessageKey(repeatedCustomTitle!),
+    )
+    expect(getSessionLogMessageKey(normalizedAiTitle!)).toBe(
+      getSessionLogMessageKey(repeatedAiTitle!),
+    )
   })
 })

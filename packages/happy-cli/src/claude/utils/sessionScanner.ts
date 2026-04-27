@@ -1,10 +1,11 @@
 import { InvalidateSync } from "@/utils/sync";
-import { RawJSONLines, RawJSONLinesSchema } from "../types";
+import { RawJSONLines } from "../types";
 import { join } from "node:path";
 import { readFile } from "node:fs/promises";
 import { logger } from "@/ui/logger";
 import { startFileWatcher } from "@/modules/watcher/startFileWatcher";
 import { getProjectPath } from "./path";
+import { getSessionLogMessageKey, normalizeSessionLogMessage } from "./normalizeSessionLogMessage";
 
 /**
  * Known internal Claude Code event types that should be silently skipped.
@@ -38,7 +39,7 @@ export async function createSessionScanner(opts: {
         let messages = await readSessionLog(projectDir, opts.sessionId);
         logger.debug(`[SESSION_SCANNER] Marking ${messages.length} existing messages as processed from session ${opts.sessionId}`);
         for (let m of messages) {
-            processedMessageKeys.add(messageKey(m));
+            processedMessageKeys.add(getSessionLogMessageKey(m));
         }
         // IMPORTANT: Also start watching the initial session file because Claude Code
         // may continue writing to it even after creating a new session with --resume
@@ -71,7 +72,7 @@ export async function createSessionScanner(opts: {
             let skipped = 0;
             let sent = 0;
             for (let file of sessionMessages) {
-                let key = messageKey(file);
+                let key = getSessionLogMessageKey(file);
                 if (processedMessageKeys.has(key)) {
                     skipped++;
                     continue;
@@ -143,25 +144,6 @@ export async function createSessionScanner(opts: {
 
 export type SessionScanner = ReturnType<typeof createSessionScanner>;
 
-
-//
-// Helpers
-//
-
-function messageKey(message: RawJSONLines): string {
-    if (message.type === 'user') {
-        return message.uuid;
-    } else if (message.type === 'assistant') {
-        return message.uuid;
-    } else if (message.type === 'summary') {
-        return 'summary: ' + message.leafUuid + ': ' + message.summary;
-    } else if (message.type === 'system') {
-        return message.uuid;
-    } else {
-        throw Error() // Impossible
-    }
-}
-
 /**
  * Read and parse session log file
  * Returns only valid conversation messages, silently skipping internal events
@@ -190,14 +172,14 @@ async function readSessionLog(projectDir: string, sessionId: string): Promise<Ra
             if (message.type && INTERNAL_CLAUDE_EVENT_TYPES.has(message.type)) {
                 continue;
             }
-            
-            let parsed = RawJSONLinesSchema.safeParse(message);
-            if (!parsed.success) {
+
+            const parsed = normalizeSessionLogMessage(message);
+            if (!parsed) {
                 // Unknown message types are silently skipped
                 // They will be tracked by processedMessageKeys to avoid reprocessing
                 continue;
             }
-            messages.push(parsed.data);
+            messages.push(parsed);
         } catch (e) {
             logger.debug(`[SESSION_SCANNER] Error processing message: ${e}`);
             continue;

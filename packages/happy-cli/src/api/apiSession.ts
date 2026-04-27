@@ -18,6 +18,7 @@ import {
     mapClaudeLogMessageToSessionEnvelopes,
     type ClaudeSessionProtocolState,
 } from '@/claude/utils/sessionProtocolMapper';
+import { normalizeSessionLogMessage } from '@/claude/utils/normalizeSessionLogMessage';
 import { InvalidateSync } from '@/utils/sync';
 import axios from 'axios';
 
@@ -47,6 +48,10 @@ export type ACPMessageData =
     | { type: 'token_count';[key: string]: unknown };
 
 export type ACPProvider = 'gemini' | 'codex' | 'claude' | 'opencode';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
 
 type V3SessionMessage = {
     id: string;
@@ -101,6 +106,7 @@ export class ApiSessionClient extends EventEmitter {
     };
     private lastSeq = 0;
     private pendingOutbox: Array<{ content: string; localId: string }> = [];
+    private pendingSummaryText: string | null = null;
     private readonly sendSync: InvalidateSync;
     private readonly receiveSync: InvalidateSync;
 
@@ -365,30 +371,50 @@ export class ApiSessionClient extends EventEmitter {
      * Send message to session
      * @param body - Message body (can be MessageContent or raw content for agent messages)
      */
-    sendClaudeSessionMessage(body: RawJSONLines) {
-        const mapped = mapClaudeLogMessageToSessionEnvelopes(body, this.claudeSessionProtocolState);
+    sendClaudeSessionMessage(body: RawJSONLines | unknown) {
+        const isSyntheticTitleEvent = isRecord(body)
+            && (body.type === 'custom-title' || body.type === 'ai-title');
+        const normalizedTitleEvent = isSyntheticTitleEvent
+            ? normalizeSessionLogMessage(body)
+            : null;
+        if (isSyntheticTitleEvent && !normalizedTitleEvent) {
+            return;
+        }
+        const normalized = normalizedTitleEvent ?? body as RawJSONLines;
+
+        const mapped = mapClaudeLogMessageToSessionEnvelopes(normalized, this.claudeSessionProtocolState);
         this.claudeSessionProtocolState.currentTurnId = mapped.currentTurnId;
         for (const envelope of mapped.envelopes) {
             this.sendSessionProtocolMessage(envelope);
         }
         // Track usage from assistant messages
-        if (body.type === 'assistant' && body.message?.usage) {
+        if (normalized.type === 'assistant' && normalized.message?.usage) {
             try {
-                this.sendUsageData(body.message.usage, body.message.model);
+                this.sendUsageData(normalized.message.usage, normalized.message.model);
             } catch (error) {
                 logger.debug('[SOCKET] Failed to send usage data:', error);
             }
         }
 
         // Update metadata with summary if this is a summary message
-        if (body.type === 'summary' && 'summary' in body && 'leafUuid' in body) {
-            this.updateMetadata((metadata) => ({
+        if (normalized.type === 'summary' && 'summary' in normalized && 'leafUuid' in normalized) {
+            const currentSummary = this.metadata?.summary?.text;
+            if (currentSummary === normalized.summary || this.pendingSummaryText === normalized.summary) {
+                return;
+            }
+
+            this.pendingSummaryText = normalized.summary;
+            void this.updateMetadata((metadata) => ({
                 ...metadata,
                 summary: {
-                    text: body.summary,
+                    text: normalized.summary,
                     updatedAt: Date.now()
                 }
-            }));
+            })).finally(() => {
+                if (this.pendingSummaryText === normalized.summary) {
+                    this.pendingSummaryText = null;
+                }
+            });
         }
     }
 
@@ -548,8 +574,8 @@ export class ApiSessionClient extends EventEmitter {
      * Update session metadata
      * @param handler - Handler function that returns the updated metadata
      */
-    updateMetadata(handler: (metadata: Metadata) => Metadata) {
-        this.metadataLock.inLock(async () => {
+    updateMetadata(handler: (metadata: Metadata) => Metadata): Promise<void> {
+        return this.metadataLock.inLock(async () => {
             await backoff(async () => {
                 let updated = handler(this.metadata!); // Weird state if metadata is null - should never happen but here we are
                 const answer = await this.socket.emitWithAck('update-metadata', { sid: this.sessionId, expectedVersion: this.metadataVersion, metadata: encodeBase64(encrypt(this.encryptionKey, this.encryptionVariant, updated)) });
