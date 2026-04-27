@@ -76,6 +76,26 @@ describe('SessionView onSend intercept guard', () => {
         }
     });
 
+    it('does NOT call sync.sendMessage when /rename is entered in a live session', () => {
+        const sendMessage = vi.fn();
+        const preSendCommand = makePreSendCommand('session-1');
+
+        const onSend = buildOnSend('/rename Foo', preSendCommand, sendMessage, 'session-1');
+        onSend();
+
+        expect(sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('does NOT call sync.sendMessage when /rename is entered without a name', () => {
+        const sendMessage = vi.fn();
+        const preSendCommand = makePreSendCommand('session-1');
+
+        const onSend = buildOnSend('/rename   ', preSendCommand, sendMessage, 'session-1');
+        onSend();
+
+        expect(sendMessage).not.toHaveBeenCalled();
+    });
+
     it('does NOT call sync.sendMessage for terminal-only synthetic commands', () => {
         for (const cmd of ['/memory', '/model', '/mcp', '/help']) {
             const sendMessage = vi.fn();

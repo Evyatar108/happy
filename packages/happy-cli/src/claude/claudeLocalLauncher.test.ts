@@ -50,6 +50,45 @@ describe('claudeLocalLauncher shadow metadata wiring', () => {
         });
     });
 
+    function createSessionMock() {
+        const sendClaudeSessionMessage = vi.fn();
+        const updateMetadata = vi.fn();
+
+        return {
+            sendClaudeSessionMessage,
+            updateMetadata,
+            session: {
+                sessionId: null,
+                path: '/workspace/project',
+                client: {
+                    sendClaudeSessionMessage,
+                    closeClaudeSessionTurn: vi.fn(),
+                    sendSessionEvent: vi.fn(),
+                    updateMetadata,
+                    rpcHandlerManager: {
+                        registerHandler: vi.fn(),
+                    },
+                },
+                queue: {
+                    setOnMessage: vi.fn(),
+                    size: vi.fn(() => 0),
+                    reset: vi.fn(),
+                },
+                onSessionFound: vi.fn(),
+                onThinkingChange: vi.fn(),
+                claudeEnvVars: { CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' },
+                claudeArgs: ['--debug'],
+                mcpServers: { happy: { command: 'happy-mcp' } },
+                allowedTools: ['Read', 'Write'],
+                hookSettingsPath: '/tmp/hook-settings.json',
+                sandboxConfig: null,
+                addSessionFoundCallback: vi.fn(),
+                removeSessionFoundCallback: vi.fn(),
+                consumeOneTimeFlags: vi.fn(),
+            },
+        };
+    }
+
     it('queries init metadata once per unique session and merges non-empty results into session metadata', async () => {
         const startingMetadata: Metadata = {
             path: '/workspace/project',
@@ -144,5 +183,77 @@ describe('claudeLocalLauncher shadow metadata wiring', () => {
             slashCommands: ['plugin:run'],
             plugins: [{ name: 'plugin', path: '/plugins/plugin' }],
         }));
+    });
+
+    it('forwards summary messages from the local session scanner', async () => {
+        let scannerOnMessage: ((message: unknown) => void) | null = null;
+        mockCreateSessionScanner.mockImplementation(async (opts: { onMessage: (message: unknown) => void }) => {
+            scannerOnMessage = opts.onMessage;
+            return {
+                onNewSession: vi.fn(),
+                cleanup: vi.fn().mockResolvedValue(undefined),
+            };
+        });
+        mockClaudeLocal.mockImplementation(async () => {
+            scannerOnMessage?.({
+                type: 'summary',
+                summary: 'Local Summary',
+                leafUuid: 'summary-leaf',
+            });
+        });
+
+        const { session, sendClaudeSessionMessage } = createSessionMock();
+        const { claudeLocalLauncher } = await import('./claudeLocalLauncher');
+
+        const result = await claudeLocalLauncher(session as any);
+
+        expect(result).toEqual({ type: 'exit', code: 0 });
+        expect(sendClaudeSessionMessage).toHaveBeenCalledTimes(1);
+        expect(sendClaudeSessionMessage).toHaveBeenCalledWith({
+            type: 'summary',
+            summary: 'Local Summary',
+            leafUuid: 'summary-leaf',
+        });
+    });
+
+    it('forwards scanner-normalized title summaries for custom-title and ai-title events', async () => {
+        let scannerOnMessage: ((message: unknown) => void) | null = null;
+        mockCreateSessionScanner.mockImplementation(async (opts: { onMessage: (message: unknown) => void }) => {
+            scannerOnMessage = opts.onMessage;
+            return {
+                onNewSession: vi.fn(),
+                cleanup: vi.fn().mockResolvedValue(undefined),
+            };
+        });
+        mockClaudeLocal.mockImplementation(async () => {
+            scannerOnMessage?.({
+                type: 'summary',
+                summary: 'Renamed From Claude',
+                leafUuid: 'custom-title:session-1',
+            });
+            scannerOnMessage?.({
+                type: 'summary',
+                summary: 'Suggested By Claude',
+                leafUuid: 'ai-title:session-1',
+            });
+        });
+
+        const { session, sendClaudeSessionMessage } = createSessionMock();
+        const { claudeLocalLauncher } = await import('./claudeLocalLauncher');
+
+        const result = await claudeLocalLauncher(session as any);
+
+        expect(result).toEqual({ type: 'exit', code: 0 });
+        expect(sendClaudeSessionMessage).toHaveBeenCalledTimes(2);
+        expect(sendClaudeSessionMessage).toHaveBeenNthCalledWith(1, {
+            type: 'summary',
+            summary: 'Renamed From Claude',
+            leafUuid: 'custom-title:session-1',
+        });
+        expect(sendClaudeSessionMessage).toHaveBeenNthCalledWith(2, {
+            type: 'summary',
+            summary: 'Suggested By Claude',
+            leafUuid: 'ai-title:session-1',
+        });
     });
 });

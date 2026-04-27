@@ -71,6 +71,15 @@ describe('new/index.tsx handleSend intercept guard', () => {
         }
     });
 
+    it('falls through to machineSpawnNewSession when /rename is entered before a session exists', async () => {
+        const spawnSession = vi.fn().mockResolvedValue(undefined);
+        const preSendCommand = makePreSendCommand(undefined);
+
+        await buildHandleSend('/rename Foo', preSendCommand, spawnSession);
+
+        expect(spawnSession).toHaveBeenCalledOnce();
+    });
+
     it('does NOT call machineSpawnNewSession for terminal-only synthetic commands', async () => {
         for (const cmd of ['/memory', '/model', '/mcp', '/help']) {
             const spawnSession = vi.fn();

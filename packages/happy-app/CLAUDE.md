@@ -117,12 +117,19 @@ sources/
 - TypeScript strict mode is enabled - ensure all code is properly typed
 - Follow existing component patterns when creating new UI components
 - Real-time sync operations are handled through SyncSocket and SyncSession classes
+- Session metadata writes should go through `sources/sync/ops.ts` `sessionUpdateMetadata(...)`, which encrypts metadata client-side, emits the existing session socket event `update-metadata`, and retries version mismatches locally.
+- App-local slash commands need four coordinated touchpoints: parse them in `sources/sync/slashCommandIntercept.ts`, handle the result in `sources/hooks/usePreSendCommand.ts`, surface them in `sources/sync/suggestionCommands.ts`, and cover both composers with `sources/-session/SessionView.intercept.test.ts` plus `sources/app/(app)/new/index.intercept.test.ts` (for example `/rename` intercepts only in live sessions, but must fall through before session creation).
 - Sync reducer batches must replay oldest-to-newest by `createdAt`; `storage.applyMessages()` and `applyOlderMessages()` sort normalized batches before calling the reducer, and the reducer preserves pending tool results so older lazy-loaded tool calls can still attach newer results that arrived earlier.
 - Store all temporary scripts and any test outside of unit tests in sources/trash folder
 - When setting screen parameters ALWAYS set them in _layout.tsx if possible this avoids layout shifts
 - **Never use Alert module from React Native, always use @sources/modal/index.ts instead**
 - **Always apply layout width constraints** from `@/components/layout` to full-screen ScrollViews and content containers for responsive design across device sizes
 - Always run `pnpm typecheck` after all changes to ensure type safety
+
+### Slash Commands
+
+- For app-local slash commands, use `sources/sync/slashCommandIntercept.ts` for parsing, `sources/hooks/usePreSendCommand.ts` for execution and error surfacing, and `sources/sync/suggestionCommands.ts` for picker discoverability.
+- Use `/rename` as the worked example: it only intercepts in live sessions, runs its async metadata update through `useHappyAction(...)` inside `usePreSendCommand.ts`, and is listed in `suggestionCommands.ts` as an app-synthetic picker command.
 
 ### Internationalization (i18n) Guidelines
 
@@ -499,6 +506,7 @@ const MyComponent = () => {
 - No backward compatibliity ever
 - When non-trivial hook is needed - create a dedicated one in hooks folder, add a comment explaining it's logic
 - Local-only slash commands should be modeled in `sources/sync/slashCommandIntercept.ts` and executed through `sources/hooks/usePreSendCommand.ts` so both the live-session composer and the new-session composer intercept them before `sync.sendMessage()` or `machineSpawnNewSession()`.
+- If a local-only slash command needs async side effects (for example `/rename` updating session metadata), keep `PreSendCommandResult.execute()` synchronous for the composer call sites and trigger the async body through `useHappyAction(...)` inside `usePreSendCommand.ts` so `HappyError` handling and modal surfacing stay consistent.
 - App-only picker commands belong in `sources/sync/suggestionCommands.ts` with `source: 'app-synthetic'`; do not inject them through session metadata, which should stay reserved for SDK-emitted commands and classification inputs.
 - Animated text consumers should import `AnimatedText` from `sources/components/StyledText.tsx`; do not create local `Animated.createAnimatedComponent(Text|RNText)` wrappers outside the documented dev spike artifact.
 - `useChatScaleAnimatedTextStyle` expects raw, unscaled `fontSize`/`lineHeight` inputs from the local style definition; do not feed it `useChatScaledStyles(...)` output or persisted chat scale will be applied twice.

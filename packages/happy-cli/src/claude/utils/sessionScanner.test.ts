@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { existsSync } from 'node:fs'
 import { getProjectPath } from './path'
+import { getSessionLogMessageKey, normalizeSessionLogMessage } from './normalizeSessionLogMessage'
 
 describe('sessionScanner', () => {
   let testDir: string
@@ -207,5 +208,63 @@ describe('sessionScanner', () => {
     //   expect((lastAssistantMsg.message.content as any)[0].text).toBe('kekr')
     //   expect(lastAssistantMsg.message.id).toBe('msg_01KWeuP88pkzRtXmggJRnQmV')
     // }
+  })
+
+  it('feeds raw custom-title JSONL through createSessionScanner and emits a synthetic summary', async () => {
+    const sessionId = 'integration-custom-title-session'
+    const sessionFile = join(projectDir, `${sessionId}.jsonl`)
+    const rawRecord = { type: 'custom-title', customTitle: 'My Renamed Chat', sessionId }
+    await writeFile(sessionFile, JSON.stringify(rawRecord) + '\n')
+
+    scanner = await createSessionScanner({
+      sessionId: null,
+      workingDirectory: testDir,
+      onMessage: (msg) => collectedMessages.push(msg)
+    })
+    scanner.onNewSession(sessionId)
+    await new Promise(resolve => setTimeout(resolve, 200))
+
+    expect(collectedMessages).toHaveLength(1)
+    expect(collectedMessages[0]).toEqual({
+      type: 'summary',
+      summary: 'My Renamed Chat',
+      leafUuid: `custom-title:${sessionId}`,
+    })
+  })
+
+  it('normalizes custom-title and ai-title records into stable summary messages', () => {
+    const customTitleRecord = {
+      type: 'custom-title',
+      customTitle: 'Renamed From Claude',
+      sessionId: 'session-custom'
+    }
+    const aiTitleRecord = {
+      type: 'ai-title',
+      aiTitle: 'Suggested By Claude',
+      sessionId: 'session-ai'
+    }
+
+    const normalizedCustomTitle = normalizeSessionLogMessage(customTitleRecord)
+    const normalizedAiTitle = normalizeSessionLogMessage(aiTitleRecord)
+    const repeatedCustomTitle = normalizeSessionLogMessage({ ...customTitleRecord })
+    const repeatedAiTitle = normalizeSessionLogMessage({ ...aiTitleRecord })
+
+    expect(normalizedCustomTitle).toEqual({
+      type: 'summary',
+      summary: 'Renamed From Claude',
+      leafUuid: 'custom-title:session-custom'
+    })
+    expect(normalizedAiTitle).toEqual({
+      type: 'summary',
+      summary: 'Suggested By Claude',
+      leafUuid: 'ai-title:session-ai'
+    })
+
+    expect(getSessionLogMessageKey(normalizedCustomTitle!)).toBe(
+      getSessionLogMessageKey(repeatedCustomTitle!),
+    )
+    expect(getSessionLogMessageKey(normalizedAiTitle!)).toBe(
+      getSessionLogMessageKey(repeatedAiTitle!),
+    )
   })
 })

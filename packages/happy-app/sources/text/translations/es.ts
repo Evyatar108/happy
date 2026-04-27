@@ -62,6 +62,13 @@ export const es: TranslationStructure = {
         optional: 'opcional',
     },
 
+    commands: {
+        rename: {
+            emptyName: 'Añade un nombre al chat después de /rename.',
+            failure: 'No se pudo cambiar el nombre de este chat. Inténtalo de nuevo.',
+        },
+    },
+
     chat: {
         commandOutput: {
             stderrLabel: 'salida de error',

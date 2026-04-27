@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 23 - 2026-04-27
+
+Chat titles now stay in sync wherever you rename them. Renaming a live chat from Happy updates the title immediately, and titles chosen by Claude itself now flow back into the app instead of getting lost or showing different names in different places.
+
+- Added `/rename` to the live-session composer flow and slash-command picker so you can rename an active chat without leaving the conversation.
+- Synced Claude-native rename events and auto-generated titles back into Happy so they update the same chat-name field as in-app renames.
+- Fixed the remaining title mismatch points so renamed chats show the same name in the command palette and in local-mode Claude sessions.
+
 ## Version 22 - 2026-04-26
 
 Tappable option cards in chat are now visible on color e-ink tablets. Both the `<options>` picker blocks and the AskUserQuestion tool prompts had near-white backgrounds and faint borders that quantized to pure white on BOOX-style panels, making the cards disappear into the page.

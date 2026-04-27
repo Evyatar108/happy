@@ -22,7 +22,7 @@ Ranking is by **e-ink tablet quality-of-life** (the fork's primary target), then
 
 ### Interactive `/plugin`, `/mcp` (+ partial `/agents`, `/skills`, `/memory`) via the remote session
 
-**What:** Today's intercepted slash commands (`usePreSendCommand.ts` → session-scoped catalog screens) are strictly read-only — they show lists/info harvested from SDK init metadata. Claude Code's real `/plugin` and `/mcp` TUIs are interactive (install, uninstall, enable/disable, browse marketplaces, add servers, etc.); the fork can't do any of that from mobile.
+**What:** Today's intercepted slash commands (`usePreSendCommand.ts` → session-scoped catalog screens) are mostly read-only catalog routers — they show lists/info harvested from SDK init metadata. The one mutating intercept today is `/rename`, which writes `metadata.summary.text` via `sessionUpdateMetadata` (`packages/happy-app/sources/sync/ops.ts`). Claude Code's real `/plugin` and `/mcp` TUIs are interactive (install, uninstall, enable/disable, browse marketplaces, add servers, etc.); the fork can't do any of that from mobile.
 
 **Key finding (2026-04-23):** The slash commands themselves are TUI-only and refuse to run in `--print` / SDK non-interactive mode (`/plugin isn't available in this environment`). BUT Claude Code exposes fully non-interactive equivalents as **CLI subcommands** — no TUI round-trip needed, no slash-command plumbing. This drops the estimate from multi-day to ~1 day for the two high-value commands.
 

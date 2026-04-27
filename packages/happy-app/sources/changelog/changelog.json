@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "version": 23,
+      "date": "2026-04-27",
+      "summary": "Chat titles now stay in sync wherever you rename them. Renaming a live chat from Happy updates the title immediately, and titles chosen by Claude itself now flow back into the app instead of getting lost or showing different names in different places.",
+      "changes": [
+        "Added `/rename` to the live-session composer flow and slash-command picker so you can rename an active chat without leaving the conversation.",
+        "Synced Claude-native rename events and auto-generated titles back into Happy so they update the same chat-name field as in-app renames.",
+        "Fixed the remaining title mismatch points so renamed chats show the same name in the command palette and in local-mode Claude sessions."
+      ],
+      "rawMarkdown": "## Version 23 - 2026-04-27\n\n\nChat titles now stay in sync wherever you rename them. Renaming a live chat from Happy updates the title immediately, and titles chosen by Claude itself now flow back into the app instead of getting lost or showing different names in different places.\n\n- Added `/rename` to the live-session composer flow and slash-command picker so you can rename an active chat without leaving the conversation.\n- Synced Claude-native rename events and auto-generated titles back into Happy so they update the same chat-name field as in-app renames.\n- Fixed the remaining title mismatch points so renamed chats show the same name in the command palette and in local-mode Claude sessions."
+    },
+    {
       "version": 22,
       "date": "2026-04-26",
       "summary": "Tappable option cards in chat are now visible on color e-ink tablets. Both the `<options>` picker blocks and the AskUserQuestion tool prompts had near-white backgrounds and faint borders that quantized to pure white on BOOX-style panels, making the cards disappear into the page.",
@@ -262,5 +273,5 @@
       "rawMarkdown": "## Version 1 - 2025-05-12\n\n\nWelcome to Happy - your secure, encrypted mobile companion for Claude Code. This inaugural release establishes the foundation for private, powerful AI interactions on the go.\n\n- Implemented end-to-end encrypted session management ensuring complete privacy\n- Integrated intelligent voice assistant with natural conversation capabilities\n- Added experimental file manager with syntax highlighting and tree navigation\n- Built seamless real-time synchronization across all your devices\n- Established native support for iOS, Android, and responsive web interfaces"
     }
   ],
-  "latestVersion": 22
+  "latestVersion": 23
 }

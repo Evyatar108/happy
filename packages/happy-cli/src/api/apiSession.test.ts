@@ -532,6 +532,79 @@ describe('ApiSessionClient v3 messages API migration', () => {
         });
     });
 
+    it('normalizes custom-title records into one metadata update per rename event', () => {
+        const client = new ApiSessionClient('fake-token', session);
+        const updateMetadata = vi.spyOn(client, 'updateMetadata').mockImplementation(async (handler) => {
+            (client as any).metadata = handler((client as any).metadata);
+        });
+
+        client.sendClaudeSessionMessage({
+            type: 'custom-title',
+            customTitle: 'Renamed From Claude',
+            sessionId: session.id,
+        } as any);
+
+        expect(updateMetadata).toHaveBeenCalledTimes(1);
+        expect((client as any).metadata.summary.text).toBe('Renamed From Claude');
+
+        client.sendClaudeSessionMessage({
+            type: 'custom-title',
+            customTitle: 'Renamed From Claude',
+            sessionId: session.id,
+        } as any);
+        client.sendClaudeSessionMessage({
+            type: 'summary',
+            summary: 'Renamed From Claude',
+            leafUuid: 'mcp-echo-1',
+        } as any);
+
+        expect(updateMetadata).toHaveBeenCalledTimes(2);
+    });
+
+    it('native summary (no title prefix) always writes updateMetadata even when text equals current title', () => {
+        const client = new ApiSessionClient('fake-token', session);
+        const updateMetadata = vi.spyOn(client, 'updateMetadata').mockImplementation(async (handler) => {
+            (client as any).metadata = handler((client as any).metadata);
+        });
+
+        (client as any).metadata = {
+            ...(client as any).metadata,
+            summary: { text: 'Existing Title', updatedAt: 1 }
+        };
+
+        client.sendClaudeSessionMessage({
+            type: 'summary',
+            summary: 'Existing Title',
+            leafUuid: 'some-native-uuid',
+        } as any);
+
+        expect(updateMetadata).toHaveBeenCalledTimes(1);
+    });
+
+    it('normalizes ai-title records into one metadata update per rename event', () => {
+        const client = new ApiSessionClient('fake-token', session);
+        const updateMetadata = vi.spyOn(client, 'updateMetadata').mockImplementation(async (handler) => {
+            (client as any).metadata = handler((client as any).metadata);
+        });
+
+        client.sendClaudeSessionMessage({
+            type: 'ai-title',
+            aiTitle: 'Suggested By Claude',
+            sessionId: session.id,
+        } as any);
+
+        expect(updateMetadata).toHaveBeenCalledTimes(1);
+        expect((client as any).metadata.summary.text).toBe('Suggested By Claude');
+
+        client.sendClaudeSessionMessage({
+            type: 'ai-title',
+            aiTitle: 'Suggested By Claude',
+            sessionId: session.id,
+        } as any);
+
+        expect(updateMetadata).toHaveBeenCalledTimes(1);
+    });
+
     it('fetchMessages uses after_seq=0 initially and routes user messages to callback', async () => {
         const client = new ApiSessionClient('fake-token', session);
         const onUserMessage = vi.fn();

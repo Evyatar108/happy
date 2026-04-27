@@ -64,6 +64,13 @@ export const zhHant: TranslationStructure = {
         optional: '選填',
     },
 
+    commands: {
+        rename: {
+            emptyName: '請在 /rename 後輸入聊天名稱。',
+            failure: '無法重新命名此聊天。請再試一次。',
+        },
+    },
+
     chat: {
         commandOutput: {
             stderrLabel: '標準錯誤',

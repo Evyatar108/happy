@@ -5,11 +5,13 @@ export type InterceptMessageKey =
     | 'memoryTerminalOnly'
     | 'modelTerminalOnly'
     | 'mcpTerminalOnly'
-    | 'helpTerminalOnly';
+    | 'helpTerminalOnly'
+    | 'renameEmptyName';
 
 export type InterceptResult =
     | { type: 'route'; path: string }
     | { type: 'alert'; messageKey: InterceptMessageKey }
+    | { type: 'rename'; name: string }
     | null;
 
 const SESSION_ROUTE_COMMANDS = {
@@ -50,6 +52,19 @@ export function maybeIntercept(command: string, sessionId: string | undefined): 
     const slashCommand = getSlashCommandName(command);
     if (!slashCommand) {
         return null;
+    }
+
+    if (slashCommand === 'rename') {
+        if (!sessionId) {
+            return null;
+        }
+
+        const name = command.trim().slice('/rename'.length).trim();
+        if (!name) {
+            return { type: 'alert', messageKey: 'renameEmptyName' };
+        }
+
+        return { type: 'rename', name };
     }
 
     const routeCommand = SESSION_ROUTE_COMMANDS[slashCommand as keyof typeof SESSION_ROUTE_COMMANDS];

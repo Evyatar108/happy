@@ -1,9 +1,14 @@
 import * as React from 'react';
 import { Href, useRouter } from 'expo-router';
+import { useHappyAction } from '@/hooks/useHappyAction';
 import { Modal } from '@/modal';
+import { sessionUpdateMetadata } from '@/sync/ops';
+import { storage } from '@/sync/storage';
 import { InterceptMessageKey, maybeIntercept } from '@/sync/slashCommandIntercept';
+import { t } from '@/text';
+import { HappyError } from '@/utils/errors';
 
-const ALERT_MESSAGES: Record<InterceptMessageKey, string> = {
+const ALERT_MESSAGES = {
     pluginRequiresSession: 'Open /plugin from an existing session so Happy knows which plugins to show.',
     skillsRequiresSession: 'Open /skills from an existing session so Happy knows which skills are loaded.',
     agentsRequiresSession: 'Open /agents from an existing session so Happy knows which agents are available.',
@@ -11,7 +16,7 @@ const ALERT_MESSAGES: Record<InterceptMessageKey, string> = {
     modelTerminalOnly: 'Command runs only in the terminal. Use /model from your Claude Code CLI.',
     mcpTerminalOnly: 'Command runs only in the terminal. Use /mcp from your Claude Code CLI.',
     helpTerminalOnly: 'Command runs only in the terminal. Use /help from your Claude Code CLI.',
-};
+} satisfies Record<Exclude<InterceptMessageKey, 'renameEmptyName'>, string>;
 
 const NOOP = () => {};
 
@@ -23,6 +28,34 @@ export interface PreSendCommandResult {
 // Centralize local-only slash commands so both composers short-circuit before sending.
 export function usePreSendCommand(sessionId: string | undefined) {
     const router = useRouter();
+    const renameQueueRef = React.useRef<Array<{ sessionId: string; name: string }>>([]);
+    const [, performRename] = useHappyAction(async () => {
+        while (renameQueueRef.current.length > 0) {
+            const renameRequest = renameQueueRef.current.shift()!;
+
+            try {
+                const session = storage.getState().sessions[renameRequest.sessionId];
+                if (!session || !session.metadata) {
+                    throw new Error('Session metadata unavailable for rename');
+                }
+
+                await sessionUpdateMetadata(
+                    renameRequest.sessionId,
+                    {
+                        ...session.metadata,
+                        summary: {
+                            text: renameRequest.name,
+                            updatedAt: Date.now(),
+                        },
+                    },
+                    session.metadataVersion,
+                );
+            } catch {
+                renameQueueRef.current = [];
+                throw new HappyError(t('commands.rename.failure'), false);
+            }
+        }
+    });
 
     return React.useCallback((command: string): PreSendCommandResult => {
         const result = maybeIntercept(command, sessionId);
@@ -43,8 +76,19 @@ export function usePreSendCommand(sessionId: string | undefined) {
                     return;
                 }
 
+                if (result.type === 'rename') {
+                    renameQueueRef.current.push({ sessionId: sessionId!, name: result.name });
+                    performRename();
+                    return;
+                }
+
+                if (result.messageKey === 'renameEmptyName') {
+                    Modal.alert(t('common.rename'), t('commands.rename.emptyName'));
+                    return;
+                }
+
                 Modal.alert('Command hint', ALERT_MESSAGES[result.messageKey]);
             },
         };
-    }, [router, sessionId]);
+    }, [performRename, router, sessionId]);
 }

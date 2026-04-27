@@ -77,6 +77,10 @@ Core Claude Code integration layer.
 - Real-time message streaming
 - Permission intercepting via MCP [Permission checking not implemented yet]
 
+**Title-event normalization:** Claude JSONL `custom-title` and `ai-title` records do not carry `uuid`/`leafUuid`/`timestamp`. Normalize them into synthetic `summary` messages before mapper/API handling, and use deterministic `leafUuid` values derived from `sessionId` (for example `custom-title:${sessionId}`) so scanner dedup and metadata writes stay idempotent.
+
+**Launcher parity:** `claudeLocalLauncher.ts` should forward the session scanner output verbatim, including `summary` messages. Remote mode already forwards everything, and local-only summary filtering breaks chat-title updates from SDK summaries and normalized `/rename` title events.
+
 ### 3. UI Module (`/src/ui/`)
 User interface components.
 

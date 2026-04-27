@@ -77,6 +77,13 @@ export const en: TranslationStructure = {
         optional: 'optional',
     },
 
+    commands: {
+        rename: {
+            emptyName: 'Add a chat name after /rename.',
+            failure: 'Could not rename this chat. Please try again.',
+        },
+    },
+
     chat: {
         commandOutput: {
             stderrLabel: 'stderr',

@@ -62,6 +62,13 @@ export const ca: TranslationStructure = {
         optional: 'Opcional',
     },
 
+    commands: {
+        rename: {
+            emptyName: 'Afegeix un nom al xat després de /rename.',
+            failure: 'No s\'ha pogut canviar el nom d\'aquest xat. Torna-ho a provar.',
+        },
+    },
+
     chat: {
         commandOutput: {
             stderrLabel: 'sortida d\'error',
