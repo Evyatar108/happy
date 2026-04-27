@@ -81,7 +81,10 @@ const styles = StyleSheet.create((theme) => ({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderRadius: 12,
-        backgroundColor: theme.colors.surfaceHighest,
+        // Use the base `surface` so the pill stands out against the
+        // `userMessageBackground` (#d4d4d4 light / #2C2C2E dark) it sits inside.
+        // `surfaceHighest` was too close to the bubble color on e-ink panels.
+        backgroundColor: theme.colors.surface,
     },
     containerPressed: {
         backgroundColor: theme.colors.surfacePressed,
