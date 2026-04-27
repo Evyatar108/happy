@@ -380,7 +380,7 @@ export async function sessionUpdateMetadata(
 
             currentMetadata = {
                 ...latestMetadata,
-                ...currentMetadata
+                summary: metadata.summary
             };
 
             retryCount++;
