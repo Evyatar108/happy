@@ -535,6 +535,7 @@ export const en = {
         },
         names: {
             task: 'Task',
+            agent: 'Agent',
             terminal: 'Terminal',
             searchFiles: 'Search Files',
             search: 'Search',

@@ -3,12 +3,12 @@ import { ToolCall, Message } from '@/sync/typesMessage';
 import { resolvePath } from '@/utils/pathUtils';
 import { stringifyToolCommand } from '@/utils/toolCommand';
 import * as z from 'zod';
-import { Ionicons, Octicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons, Octicons } from '@expo/vector-icons';
 import React from 'react';
 import { t } from '@/text';
 
 // Icon factory functions
-const ICON_TASK = (size: number = 24, color: string = '#000') => <Octicons name="rocket" size={size} color={color} />;
+const ICON_TASK = (size: number = 24, color: string = '#000') => <MaterialCommunityIcons name="robot-outline" size={size} color={color} />;
 const ICON_TERMINAL = (size: number = 24, color: string = '#000') => <Octicons name="terminal" size={size} color={color} />;
 const ICON_SEARCH = (size: number = 24, color: string = '#000') => <Octicons name="search" size={size} color={color} />;
 const ICON_READ = (size: number = 24, color: string = '#000') => <Octicons name="eye" size={size} color={color} />;
@@ -31,10 +31,13 @@ function getPatchFiles(input: any): string[] {
 
 const taskLikeTool = {
     title: (opts: { metadata: Metadata | null, tool: ToolCall }) => {
-        if (opts.tool.input && opts.tool.input.description && typeof opts.tool.input.description === 'string') {
-            return opts.tool.input.description;
-        }
-        return t('tools.names.task');
+        const input = opts.tool.input ?? {};
+        const subagentType = typeof (input as any).subagent_type === 'string' ? (input as any).subagent_type as string : undefined;
+        const description = typeof (input as any).description === 'string' ? (input as any).description as string : undefined;
+
+        const agentLabel = t('tools.names.agent');
+        const prefix = subagentType ? `${agentLabel} (${subagentType})` : agentLabel;
+        return description ? `${prefix}: ${description}` : prefix;
     },
     icon: ICON_TASK,
     isMutable: true,

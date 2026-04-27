@@ -539,6 +539,7 @@ export const zhHans: TranslationStructure = {
         },
         names: {
             task: '任务',
+            agent: '代理',
             terminal: '终端',
             searchFiles: '搜索文件',
             search: '搜索',

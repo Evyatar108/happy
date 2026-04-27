@@ -546,6 +546,7 @@ export const ja: TranslationStructure = {
         },
         names: {
             task: 'タスク',
+            agent: 'エージェント',
             terminal: 'ターミナル',
             searchFiles: 'ファイル検索',
             search: '検索',

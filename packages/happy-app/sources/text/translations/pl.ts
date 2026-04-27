@@ -554,6 +554,7 @@ export const pl: TranslationStructure = {
         },
         names: {
             task: 'Zadanie',
+            agent: 'Agent',
             terminal: 'Terminal',
             searchFiles: 'Wyszukaj pliki',
             search: 'Wyszukaj',

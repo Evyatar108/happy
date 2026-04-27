@@ -554,6 +554,7 @@ export const ru: TranslationStructure = {
         },
         names: {
             task: 'Задача',
+            agent: 'Агент',
             terminal: 'Терминал',
             searchFiles: 'Поиск файлов',
             search: 'Поиск',

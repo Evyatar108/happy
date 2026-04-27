@@ -538,6 +538,7 @@ export const es: TranslationStructure = {
         },
         names: {
             task: 'Tarea',
+            agent: 'Agente',
             terminal: 'Terminal',
             searchFiles: 'Buscar archivos',
             search: 'Buscar',

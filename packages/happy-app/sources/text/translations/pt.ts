@@ -537,6 +537,7 @@ export const pt: TranslationStructure = {
         },
         names: {
             task: 'Tarefa',
+            agent: 'Agente',
             terminal: 'Terminal',
             searchFiles: 'Buscar arquivos',
             search: 'Buscar',

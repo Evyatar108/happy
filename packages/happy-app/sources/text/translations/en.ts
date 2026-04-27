@@ -551,6 +551,7 @@ export const en: TranslationStructure = {
         },
         names: {
             task: 'Task',
+            agent: 'Agent',
             terminal: 'Terminal',
             searchFiles: 'Search Files',
             search: 'Search',

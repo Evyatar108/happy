@@ -543,6 +543,7 @@ export const it: TranslationStructure = {
         },
         names: {
             task: 'Attività',
+            agent: 'Agente',
             terminal: 'Terminale',
             searchFiles: 'Cerca file',
             search: 'Cerca',
