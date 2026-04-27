@@ -26,28 +26,40 @@ describe('paginationMath', () => {
     });
 
     describe('computeOlderPageAfterSeq', () => {
-        it('returns the older-page cursor using the R4 off-by-one fix', () => {
+        it('returns the older-page cursor with full page remaining', () => {
             expect(computeOlderPageAfterSeq(100, 80)).toEqual({
                 afterSeq: 19,
                 hasOlder: true,
+                hasOlderAfterFetch: true,
             });
         });
 
-        it('reports no older pages when the loaded window already reaches the start', () => {
+        it('reports no older pages when the loaded window already reaches seq=1', () => {
+            expect(computeOlderPageAfterSeq(1, 80)).toEqual({
+                afterSeq: 0,
+                hasOlder: false,
+                hasOlderAfterFetch: false,
+            });
+        });
+
+        it('still fetches a final partial page when oldestLoadedSeq > 1 but the remainder is smaller than pageSize', () => {
+            // 4 older messages remain (seq=1..4); fetch them all in one go and mark exhausted post-fetch.
             expect(computeOlderPageAfterSeq(5, 80)).toEqual({
                 afterSeq: 0,
-                hasOlder: false,
+                hasOlder: true,
+                hasOlderAfterFetch: false,
             });
-        });
-
-        it('reports hasOlder=false when oldestLoadedSeq > 1 but <= pageSize + 1', () => {
+            // 1 older message remains (seq=1); fetch it.
             expect(computeOlderPageAfterSeq(2, 80)).toEqual({
                 afterSeq: 0,
-                hasOlder: false,
+                hasOlder: true,
+                hasOlderAfterFetch: false,
             });
+            // exact boundary: 80 older messages remain (seq=1..80); fetch them all.
             expect(computeOlderPageAfterSeq(81, 80)).toEqual({
                 afterSeq: 0,
-                hasOlder: false,
+                hasOlder: true,
+                hasOlderAfterFetch: false,
             });
         });
     });
