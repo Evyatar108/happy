@@ -40,10 +40,12 @@ export function getTaskNotificationStatusLabel(status: string) {
 export function getTaskNotificationDetailRows(data: TaskNotificationData): TaskNotificationDetailRow[] {
     const rows: TaskNotificationDetailRow[] = [
         { key: 'task-id', title: t('chat.taskNotification.taskId'), value: data.taskId },
-        { key: 'task-type', title: t('chat.taskNotification.taskType'), value: data.taskType },
         { key: 'output-file', title: t('chat.taskNotification.outputFile'), value: data.outputFile },
     ];
 
+    if (data.taskType) {
+        rows.splice(1, 0, { key: 'task-type', title: t('chat.taskNotification.taskType'), value: data.taskType });
+    }
     if (data.toolUseId) {
         rows.splice(1, 0, { key: 'tool-use-id', title: t('chat.taskNotification.toolUseId'), value: data.toolUseId });
     }

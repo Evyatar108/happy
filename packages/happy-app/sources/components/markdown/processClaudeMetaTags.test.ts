@@ -165,6 +165,35 @@ describe('processClaudeMetaTags', () => {
         ]);
     });
 
+    it('parses a task-notification without a task-type field (Claude Code bash-hook variant)', () => {
+        // Real-world payload observed from Claude Code on a Windows host — note the
+        // missing <task-type> element between <tool-use-id> and <output-file>.
+        const input = [
+            '<task-notification>',
+            '<task-id>baqrk7s09</task-id>',
+            '<tool-use-id>toolu_01PJjLw5LLpYQsEtyPhh58jb</tool-use-id>',
+            '<output-file>C:\\Users\\Evyatar\\AppData\\Local\\Temp\\claude\\D--MyRimworldMods-PainMatters\\7517fce6-7d90-4bd1-a6cd-d420c7af035a\\tasks\\baqrk7s09.output</output-file>',
+            '<status>completed</status>',
+            '<summary>Background command "Run codex cross-review" completed (exit code 0)</summary>',
+            '</task-notification>',
+        ].join('\n');
+        const output = processClaudeMetaTags(input);
+
+        expect(output.renderMarkdown).toBe('__HAPPY_TASK_NOTIFICATION_0__');
+        expect(output.copyMarkdown).toBe('Background command "Run codex cross-review" completed (exit code 0)');
+        expect(output.taskNotifications).toEqual([
+            {
+                taskId: 'baqrk7s09',
+                toolUseId: 'toolu_01PJjLw5LLpYQsEtyPhh58jb',
+                outputFile: 'C:\\Users\\Evyatar\\AppData\\Local\\Temp\\claude\\D--MyRimworldMods-PainMatters\\7517fce6-7d90-4bd1-a6cd-d420c7af035a\\tasks\\baqrk7s09.output',
+                status: 'completed',
+                summary: 'Background command "Run codex cross-review" completed (exit code 0)',
+            },
+        ]);
+        // taskType is intentionally absent from the parsed object when missing in source.
+        expect(output.taskNotifications[0]).not.toHaveProperty('taskType');
+    });
+
     it('indexes multiple consecutive task-notification blocks correctly', () => {
         const input = [
             '<task-notification><task-id>task-1</task-id><task-type>a</task-type><output-file>/tmp/1</output-file><status>completed</status><summary>One</summary></task-notification>',

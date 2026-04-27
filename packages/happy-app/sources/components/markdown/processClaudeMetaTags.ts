@@ -22,14 +22,19 @@ const ANY_TAG_RE = /<\/?([a-z][a-z0-9-]*)(?:\s[^>]*)?>/gi;
 const FENCE_COLLISION_RE = /```/g;
 const FENCE_COLLISION_ESCAPE = '``\u200B`';
 
-const TASK_NOTIFICATION_PATTERN = /^<task-notification(?:\s[^>]*)?>\s*<task-id(?:\s[^>]*)?>([\s\S]*?)<\/task-id>\s*(?:<tool-use-id(?:\s[^>]*)?>([\s\S]*?)<\/tool-use-id>\s*)?<task-type(?:\s[^>]*)?>([\s\S]*?)<\/task-type>\s*<output-file(?:\s[^>]*)?>([\s\S]*?)<\/output-file>\s*<status(?:\s[^>]*)?>([\s\S]*?)<\/status>\s*<summary(?:\s[^>]*)?>([\s\S]*?)<\/summary>\s*<\/task-notification>$/i;
+// `<task-type>` is optional because not all task-notification emitters include it
+// (e.g. Claude Code's bash-hook background-task notification emits task-id, tool-use-id,
+// output-file, status, summary — no task-type). Without this tolerance the whole
+// notification falls through and renders as raw XML in the user-message bubble.
+const TASK_NOTIFICATION_PATTERN = /^<task-notification(?:\s[^>]*)?>\s*<task-id(?:\s[^>]*)?>([\s\S]*?)<\/task-id>\s*(?:<tool-use-id(?:\s[^>]*)?>([\s\S]*?)<\/tool-use-id>\s*)?(?:<task-type(?:\s[^>]*)?>([\s\S]*?)<\/task-type>\s*)?<output-file(?:\s[^>]*)?>([\s\S]*?)<\/output-file>\s*<status(?:\s[^>]*)?>([\s\S]*?)<\/status>\s*<summary(?:\s[^>]*)?>([\s\S]*?)<\/summary>\s*<\/task-notification>$/i;
 
 export type TaskNotificationStatus = 'pending' | 'running' | 'completed' | 'failed' | 'killed' | (string & {});
 
 export type TaskNotificationData = {
     taskId: string;
     toolUseId?: string;
-    taskType: string;
+    /** Optional — not emitted by Claude Code's bash-hook background-task notifications. */
+    taskType?: string;
     outputFile: string;
     status: TaskNotificationStatus;
     summary: string;
@@ -121,7 +126,7 @@ function parseTaskNotification(block: string): TaskNotificationData | null {
 
     const taskId = match[1].trim();
     const toolUseId = match[2]?.trim();
-    const taskType = match[3].trim();
+    const taskType = match[3]?.trim();
     const outputFile = match[4].trim();
     const status = match[5].trim();
     const summary = match[6].trim();
@@ -130,14 +135,14 @@ function parseTaskNotification(block: string): TaskNotificationData | null {
         return null;
     }
 
-    if (!taskId || !taskType || !outputFile || !status || !summary) {
+    if (!taskId || !outputFile || !status || !summary) {
         return null;
     }
 
     return {
         taskId,
         ...(toolUseId ? { toolUseId } : {}),
-        taskType,
+        ...(taskType ? { taskType } : {}),
         outputFile,
         status,
         summary,
