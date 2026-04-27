@@ -95,6 +95,10 @@ class Sync {
     private pendingOutbox = new Map<string, OutboxMessage[]>();
     private sessionMessageQueue = new Map<string, NormalizedMessage[]>();
     private sessionQueueProcessing = new Set<string>();
+    // Queue of raw `new-message` socket events that arrived for a session whose
+    // encryption keys are not yet loaded. Drained after `sessionsSync` lands.
+    private pendingNewMessages = new Map<string, unknown[]>();
+    private sessionInitInFlight = new Set<string>();
     private sessionMessageLocks = new Map<string, AsyncLock>();
     private sessionDataKeys = new Map<string, Uint8Array>(); // Store session data encryption keys internally
     private machineDataKeys = new Map<string, Uint8Array>(); // Store machine data encryption keys internally
@@ -321,9 +325,10 @@ class Sync {
                 }
 
                 applied = true;
+                const finalHasOlder = pagination.hasOlderAfterFetch ?? pagination.hasOlder;
                 storage.getState().applyOlderMessages(sessionId, normalizedMessages, {
                     newOldestLoadedSeq: pagination.afterSeq + 1,
-                    hasOlder: pagination.hasOlder,
+                    hasOlder: finalHasOlder,
                 });
             } finally {
                 if (!applied) {
@@ -1844,7 +1849,7 @@ class Sync {
         });
     }
 
-    private handleUpdate = async (update: unknown) => {
+    private handleUpdate = async (update: unknown, isReplay = false) => {
         const validatedUpdate = ApiUpdateContainerSchema.safeParse(update);
         if (!validatedUpdate.success) {
             console.log('❌ Sync: Invalid update received:', validatedUpdate.error);
@@ -1857,10 +1862,32 @@ class Sync {
         if (updateData.body.t === 'new-message') {
 
             // Get encryption
-            const encryption = this.encryption.getSessionEncryption(updateData.body.sid);
-            if (!encryption) { // Should never happen
-                console.error(`Session ${updateData.body.sid} not found`);
-                this.fetchSessions(); // Just fetch sessions again
+            const sid = updateData.body.sid;
+            const encryption = this.encryption.getSessionEncryption(sid);
+            if (!encryption) {
+                if (isReplay) {
+                    // We just awaited sessionsSync and encryption is still missing.
+                    // Don't requeue (would loop) — drop with an error.
+                    console.error(`Session ${sid} encryption still missing after sessions refetch; dropping new-message event`);
+                    return;
+                }
+                // Race: `new-session` lands before `sessionsSync` finishes loading the
+                // session row + encryption keys, but a `new-message` event for that
+                // session has already arrived. Queue it and replay after init.
+                const queue = this.pendingNewMessages.get(sid) ?? [];
+                queue.push(update);
+                this.pendingNewMessages.set(sid, queue);
+                if (!this.sessionInitInFlight.has(sid)) {
+                    this.sessionInitInFlight.add(sid);
+                    this.sessionsSync.invalidateAndAwait().finally(() => {
+                        this.sessionInitInFlight.delete(sid);
+                        const pending = this.pendingNewMessages.get(sid) ?? [];
+                        this.pendingNewMessages.delete(sid);
+                        for (const evt of pending) {
+                            void this.handleUpdate(evt, true);
+                        }
+                    });
+                }
                 return;
             }
 
@@ -1908,10 +1935,16 @@ class Sync {
                     // Update session
                     const session = storage.getState().sessions[updateData.body.sid];
                     if (session) {
+                        // NOTE: do not write `updateData.seq` into `session.seq`. `updateData.seq`
+                        // is the account-global update sequence; `session.seq` is session-local
+                        // (server-side `allocateSessionSeq` per session). Conflating them
+                        // corrupts the value used by `computeInitialAfterSeq` in `fetchMessages`,
+                        // which then misreads the session as having thousands of phantom older
+                        // messages and breaks pagination/display until the next full
+                        // `fetchSessions()` overwrites it with the authoritative value.
                         this.applySessions([{
                             ...session,
                             updatedAt: updateData.createdAt,
-                            seq: updateData.seq,
                             // Update thinking state based on task lifecycle events
                             ...(isTaskComplete ? { thinking: false } : {}),
                             ...(isTaskStarted ? { thinking: true } : {})
@@ -1968,6 +2001,8 @@ class Sync {
             this.sessionMessageLocks.delete(sessionId);
             this.sessionMessageQueue.delete(sessionId);
             this.sessionQueueProcessing.delete(sessionId);
+            this.pendingNewMessages.delete(sessionId);
+            this.sessionInitInFlight.delete(sessionId);
 
             log.log(`🗑️ Session ${sessionId} deleted from local storage`);
         } else if (updateData.body.t === 'update-session') {
@@ -1987,6 +2022,8 @@ class Sync {
                     ? await sessionEncryption.decryptMetadata(updateData.body.metadata.version, updateData.body.metadata.value)
                     : session.metadata;
 
+                // NOTE: same corruption rule as in the `new-message` handler — do not
+                // write `updateData.seq` (account-global) into `session.seq` (session-local).
                 this.applySessions([{
                     ...session,
                     agentState,
@@ -1997,8 +2034,7 @@ class Sync {
                     metadataVersion: updateData.body.metadata
                         ? updateData.body.metadata.version
                         : session.metadataVersion,
-                    updatedAt: updateData.createdAt,
-                    seq: updateData.seq
+                    updatedAt: updateData.createdAt
                 }]);
 
                 // Invalidate git status when agent state changes (files may have been modified)
