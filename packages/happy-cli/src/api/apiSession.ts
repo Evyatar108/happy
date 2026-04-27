@@ -398,9 +398,13 @@ export class ApiSessionClient extends EventEmitter {
 
         // Update metadata with summary if this is a summary message
         if (normalized.type === 'summary' && 'summary' in normalized && 'leafUuid' in normalized) {
-            const currentSummary = this.metadata?.summary?.text;
-            if (currentSummary === normalized.summary || this.pendingSummaryText === normalized.summary) {
-                return;
+            const leafUuid = normalized.leafUuid as string | undefined;
+            const isTitleEvent = leafUuid?.startsWith('custom-title:') || leafUuid?.startsWith('ai-title:');
+            if (isTitleEvent) {
+                const currentSummary = this.metadata?.summary?.text;
+                if (currentSummary === normalized.summary || this.pendingSummaryText === normalized.summary) {
+                    return;
+                }
             }
 
             this.pendingSummaryText = normalized.summary;

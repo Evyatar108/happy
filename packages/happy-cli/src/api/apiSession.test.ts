@@ -558,6 +558,26 @@ describe('ApiSessionClient v3 messages API migration', () => {
             leafUuid: 'mcp-echo-1',
         } as any);
 
+        expect(updateMetadata).toHaveBeenCalledTimes(2);
+    });
+
+    it('native summary (no title prefix) always writes updateMetadata even when text equals current title', () => {
+        const client = new ApiSessionClient('fake-token', session);
+        const updateMetadata = vi.spyOn(client, 'updateMetadata').mockImplementation(async (handler) => {
+            (client as any).metadata = handler((client as any).metadata);
+        });
+
+        (client as any).metadata = {
+            ...(client as any).metadata,
+            summary: { text: 'Existing Title', updatedAt: 1 }
+        };
+
+        client.sendClaudeSessionMessage({
+            type: 'summary',
+            summary: 'Existing Title',
+            leafUuid: 'some-native-uuid',
+        } as any);
+
         expect(updateMetadata).toHaveBeenCalledTimes(1);
     });
 
