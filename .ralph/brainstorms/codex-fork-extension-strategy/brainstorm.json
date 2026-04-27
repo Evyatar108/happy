@@ -1,0 +1,44 @@
+{
+  "brainstormName": "codex-fork-extension-strategy",
+  "idea": "Given the user's gim-home/codex fork (already ships Copilot routing patches, Windows tarball releases, GitHub Packages distribution) and the surprising finding that stock Codex already supports MCP, hooks, plugins, command-backed auth, profiles, and OTel — what is the highest-leverage fork-extension strategy for benefiting happy? Specifically: a single targeted patch, a coordinated bundle, or zero new fork patches plus a stock-Codex bridge.",
+  "availableLenses": ["devils-advocate", "codex", "copilot"],
+  "missingLenses": [],
+  "candidateDirections": [
+    {
+      "id": "D-001",
+      "name": "Zero-fork happy-codex bridge — stock plugin + side-by-side TS/Node app-server consumer",
+      "summary": "Treat the fork as frozen at Copilot routing only. Move every happy-specific capability into the stock extension surface: plugin manifest with MCP servers + skills, command-backed auth, the 6 stock hook events, and external app-server JSON-RPC consumption from happy-cli. Result: identical UX for stock @openai/codex and @gim-home/codex users, no distribution fragmentation, flat rebase tax.",
+      "contributingLenses": ["devils-advocate", "codex", "copilot"]
+    },
+    {
+      "id": "D-002",
+      "name": "Single targeted fork patch — happy remote approval reviewer transport",
+      "summary": "Smallest defensible fork patch with a clear user story: add a remote-reviewer variant to AskForApproval and the app-server message processor so mobile happy can approve/deny tool calls during active Codex turns. One coherent patch surface, one user-visible win — but only if approval frequency justifies it.",
+      "contributingLenses": ["codex", "copilot"]
+    },
+    {
+      "id": "D-003",
+      "name": "Platform-shaped fork bundle — lifecycle events + rollout fan-out for cross-device continuity",
+      "summary": "XL bundle: new lifecycle hook events, rollout fan-out to happy-server (canonical thread store), app-server protocol additions, /happy-resume slash command. Enables true cross-device session continuity. Highest user-visible upside if cross-device handoff is a real pain point — but touches Codex's highest-decay internals across five files.",
+      "contributingLenses": ["codex", "copilot"]
+    },
+    {
+      "id": "D-004",
+      "name": "Single meta-extension Generic hook variant — one patch, infinite future extensibility",
+      "summary": "If a fork patch must happen, add ONE Generic { name, payload } hook variant to hooks/registry.rs plus configurable emission points. Future happy lifecycle needs (BeforeRollout, OnApprovalDenied, OnContextCompact, etc.) require zero additional fork patches — only stock-config changes. Probably not upstreamable; means permanent minimal fork maintenance.",
+      "contributingLenses": ["devils-advocate"]
+    }
+  ],
+  "recommendedDirection": "D-001",
+  "questionsForSynthesis": [
+    "What concrete happy user-visible capability genuinely cannot be implemented as (a) a stock plugin, (b) an MCP server, (c) a hook shell-out, or (d) an external consumer of codex app-server JSON-RPC?",
+    "What is the measured upstream churn rate over the last 6 months for hooks/registry.rs, protocol/protocol.rs, recorder.rs, slash_command.rs, and model-provider-info/src/lib.rs in openai/codex?",
+    "Why did the previous brainstorm's TUI-socket idea not ship? What changes about a fork-extension bundle that makes it ship now when a one-patch idea didn't?",
+    "Are happy users willing to accept distribution fragmentation (@openai/codex vs @gim-home/codex) for fork-only features, and what is the migration story for stock-Codex users when a fork-only feature lands?",
+    "How frequent and painful are approval interruptions in target happy workflows? Is mobile approval actually faster than terminal approval, or just more mobile?",
+    "Is cross-device session handoff a top-5 user pain, or an attractive architecture idea masquerading as a need?",
+    "Could happy build a happy-bridge plugin/MCP server prototype against stock @openai/codex in one week, and would it cover 90%+ of the proposed fork-only capabilities?",
+    "Is there a latency, atomicity, or security boundary that requires happy logic to live inside the Codex Rust process rather than alongside it as a TS/Node bridge?",
+    "Has happy already inferred the lifecycle signals it cares about from existing turn/started, turn/completed, thread/status/changed events? If yes, what's left that would actually require new event types?"
+  ]
+}
