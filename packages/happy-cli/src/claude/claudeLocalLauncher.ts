@@ -23,11 +23,8 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
     const scanner = await createSessionScanner({
         sessionId: session.sessionId,
         workingDirectory: session.path,
-        onMessage: (message) => { 
-            // Block SDK summary messages - we generate our own
-            if (message.type !== 'summary') {
-                session.client.sendClaudeSessionMessage(message)
-            }
+        onMessage: (message) => {
+            session.client.sendClaudeSessionMessage(message)
         }
     });
     
