@@ -154,6 +154,52 @@ describe('usePreSendCommand', () => {
         expect(shared.alertMock).toHaveBeenCalledWith('translated:common.rename', 'translated:commands.rename.emptyName');
     });
 
+    it('applies both names when /rename is executed twice in rapid succession', async () => {
+        shared.sessionUpdateMetadataMock.mockResolvedValue({ version: 8, metadata: 'encrypted' });
+
+        // Simulate useHappyAction's loadingRef gate: only the first call within
+        // an in-flight action starts a new invocation; subsequent calls are no-ops
+        // until the current promise settles.
+        let inFlight = false;
+        shared.performRenameMock.mockImplementation(() => {
+            if (inFlight) return;
+            inFlight = true;
+            shared.latestActionPromise = (shared.latestAction?.() ?? Promise.resolve()).finally(() => {
+                inFlight = false;
+            });
+        });
+
+        // Capture the preSendCommand callback from a single hook instance so both
+        // intercept results share the same renameQueueRef.
+        let capturedCallback: ((cmd: string) => PreSendCommandResult) | null = null;
+        function CallbackCapture() {
+            const preSendCommand = usePreSendCommand('session-1');
+            capturedCallback = preSendCommand;
+            return null;
+        }
+        await act(async () => {
+            TestRenderer.create(<CallbackCapture />);
+        });
+
+        const resultA = capturedCallback!('/rename Alpha');
+        const resultB = capturedCallback!('/rename Beta');
+
+        // Both executes push to the queue synchronously before performRename drains it.
+        // The second performRename call is gated out (in-flight), so the action runs
+        // once and drains the full queue of two items.
+        act(() => {
+            resultA.execute();
+            resultB.execute();
+        });
+
+        await shared.latestActionPromise;
+
+        expect(shared.sessionUpdateMetadataMock).toHaveBeenCalledTimes(2);
+        const calls = shared.sessionUpdateMetadataMock.mock.calls;
+        expect(calls[0][1]).toMatchObject({ summary: expect.objectContaining({ text: 'Alpha' }) });
+        expect(calls[1][1]).toMatchObject({ summary: expect.objectContaining({ text: 'Beta' }) });
+    });
+
     it('converts rename failures into a HappyError with the localized failure message', async () => {
         shared.sessionUpdateMetadataMock.mockRejectedValue(new Error('socket failed'));
 

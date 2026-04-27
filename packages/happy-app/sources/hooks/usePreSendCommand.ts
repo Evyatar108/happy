@@ -28,34 +28,32 @@ export interface PreSendCommandResult {
 // Centralize local-only slash commands so both composers short-circuit before sending.
 export function usePreSendCommand(sessionId: string | undefined) {
     const router = useRouter();
-    const renameRequestRef = React.useRef<{ sessionId: string; name: string } | null>(null);
+    const renameQueueRef = React.useRef<Array<{ sessionId: string; name: string }>>([]);
     const [, performRename] = useHappyAction(async () => {
-        const renameRequest = renameRequestRef.current;
-        if (!renameRequest) {
-            return;
-        }
+        while (renameQueueRef.current.length > 0) {
+            const renameRequest = renameQueueRef.current.shift()!;
 
-        try {
-            const session = storage.getState().sessions[renameRequest.sessionId];
-            if (!session || !session.metadata) {
-                throw new Error('Session metadata unavailable for rename');
-            }
+            try {
+                const session = storage.getState().sessions[renameRequest.sessionId];
+                if (!session || !session.metadata) {
+                    throw new Error('Session metadata unavailable for rename');
+                }
 
-            await sessionUpdateMetadata(
-                renameRequest.sessionId,
-                {
-                    ...session.metadata,
-                    summary: {
-                        text: renameRequest.name,
-                        updatedAt: Date.now(),
+                await sessionUpdateMetadata(
+                    renameRequest.sessionId,
+                    {
+                        ...session.metadata,
+                        summary: {
+                            text: renameRequest.name,
+                            updatedAt: Date.now(),
+                        },
                     },
-                },
-                session.metadataVersion,
-            );
-        } catch {
-            throw new HappyError(t('commands.rename.failure'), false);
-        } finally {
-            renameRequestRef.current = null;
+                    session.metadataVersion,
+                );
+            } catch {
+                renameQueueRef.current = [];
+                throw new HappyError(t('commands.rename.failure'), false);
+            }
         }
     });
 
@@ -79,7 +77,7 @@ export function usePreSendCommand(sessionId: string | undefined) {
                 }
 
                 if (result.type === 'rename') {
-                    renameRequestRef.current = { sessionId: sessionId!, name: result.name };
+                    renameQueueRef.current.push({ sessionId: sessionId!, name: result.name });
                     performRename();
                     return;
                 }
