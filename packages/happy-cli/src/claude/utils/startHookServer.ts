@@ -2,7 +2,7 @@
  * Dedicated HTTP server for receiving Claude session hooks
  * 
  * This server receives notifications from Claude when sessions change
- * (new session, resume, compact, fork, etc.) via the SessionStart hook.
+ * (new session, resume, compact, fork, etc.) and when compaction completes.
  * 
  * Separate from the MCP server to keep concerns isolated.
  * 
@@ -15,7 +15,7 @@
  *     ├─► startHookServer() ──► HTTP server on random port (e.g., 52290)
  *     │                                         
  *     ├─► generateHookSettingsFile(port) ──► ~/.happy/tmp/hooks/session-hook-<pid>.json
- *     │   (contains SessionStart hook pointing to our server)
+ *     │   (contains Happy hook entries pointing to our server)
  *     │                                         
  *     └─► loop() ──► claudeLocal/claudeRemote
  *             │
@@ -24,7 +24,7 @@
  * 
  * ### Session Notification Flow
  * ```
- * Claude CLI (SessionStart event)
+ * Claude CLI (hook event)
  *     │
  *     ├─► Reads hooks from --settings file
  *     │
@@ -36,7 +36,8 @@
  *                     │
  *                     └─► startHookServer receives it
  *                             │
- *                             └─► onSessionHook(sessionId, data)
+ *                             ├─► onSessionHook(sessionId, data)
+ *                             └─► onCompactHook(data)
  *                                     │
  *                                     ├─► Updates Session.sessionId
  *                                     ├─► Updates API metadata
@@ -61,7 +62,7 @@ import { createServer, IncomingMessage, ServerResponse, Server } from 'node:http
 import { logger } from '@/ui/logger';
 
 /**
- * Data received from Claude's SessionStart hook
+ * Data received from Claude hooks
  */
 export interface SessionHookData {
     session_id?: string;
@@ -73,9 +74,18 @@ export interface SessionHookData {
     [key: string]: unknown;
 }
 
+export interface CompactHookData extends SessionHookData {
+    hook_event_name: 'PreCompact' | 'PostCompact';
+    trigger?: 'manual' | 'auto';
+    compact_summary?: string;
+    custom_instructions?: string | null;
+}
+
 export interface HookServerOptions {
     /** Called when a session hook is received with a valid session ID */
     onSessionHook: (sessionId: string, data: SessionHookData) => void;
+    /** Called when a compaction hook is received */
+    onCompactHook?: (data: CompactHookData) => void | Promise<void>;
 }
 
 export interface HookServer {
@@ -92,11 +102,11 @@ export interface HookServer {
  * @returns Promise resolving to the server instance with port info
  */
 export async function startHookServer(options: HookServerOptions): Promise<HookServer> {
-    const { onSessionHook } = options;
+    const { onSessionHook, onCompactHook } = options;
 
     return new Promise((resolve, reject) => {
         const server: Server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-            // Only handle POST to /hook/session-start
+            // All Happy-managed Claude hooks use the same local forwarder path.
             if (req.method === 'POST' && req.url === '/hook/session-start') {
                 // Set timeout to prevent hanging if Claude doesn't close stdin
                 const timeout = setTimeout(() => {
@@ -121,6 +131,10 @@ export async function startHookServer(options: HookServerOptions): Promise<HookS
                         data = JSON.parse(body);
                     } catch (parseError) {
                         logger.debug('[hookServer] Failed to parse hook data as JSON:', parseError);
+                    }
+
+                    if ((data.hook_event_name === 'PreCompact' || data.hook_event_name === 'PostCompact') && onCompactHook) {
+                        await onCompactHook(data as CompactHookData);
                     }
 
                     // Support both snake_case (from Claude) and camelCase

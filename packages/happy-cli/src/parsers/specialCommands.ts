@@ -5,6 +5,7 @@
 export interface CompactCommandResult {
     isCompact: boolean;
     originalMessage: string;
+    contextBoundaryKind?: 'compact';
 }
 
 export interface ClearCommandResult {
@@ -14,6 +15,7 @@ export interface ClearCommandResult {
 export interface SpecialCommandResult {
     type: 'compact' | 'clear' | null;
     originalMessage?: string;
+    contextBoundaryKind?: 'compact';
 }
 
 /**
@@ -26,14 +28,16 @@ export function parseCompact(message: string): CompactCommandResult {
     if (trimmed === '/compact') {
         return {
             isCompact: true,
-            originalMessage: trimmed
+            originalMessage: trimmed,
+            contextBoundaryKind: 'compact'
         };
     }
     
     if (trimmed.startsWith('/compact ')) {
         return {
             isCompact: true,
-            originalMessage: trimmed
+            originalMessage: trimmed,
+            contextBoundaryKind: 'compact'
         };
     }
     
@@ -64,7 +68,8 @@ export function parseSpecialCommand(message: string): SpecialCommandResult {
     if (compactResult.isCompact) {
         return {
             type: 'compact',
-            originalMessage: compactResult.originalMessage
+            originalMessage: compactResult.originalMessage,
+            contextBoundaryKind: compactResult.contextBoundaryKind
         };
     }
     

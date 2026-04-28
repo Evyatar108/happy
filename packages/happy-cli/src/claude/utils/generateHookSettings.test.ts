@@ -14,7 +14,7 @@ import { buildHookSettings } from './generateHookSettings';
 
 const HAPPY_HOOK_COMMAND = 'node "/tmp/session_hook_forwarder.cjs" 12345';
 
-function expectHappySessionStartHook(entry: any) {
+function expectHappyHook(entry: any) {
     expect(entry).toMatchObject({
         matcher: '*',
         hooks: [{ type: 'command', command: HAPPY_HOOK_COMMAND }],
@@ -27,7 +27,11 @@ describe('buildHookSettings', () => {
 
         expect(Object.keys(result)).toEqual(['hooks']);
         expect(result.hooks.SessionStart).toHaveLength(1);
-        expectHappySessionStartHook(result.hooks.SessionStart[0]);
+        expect(result.hooks.PreCompact).toHaveLength(1);
+        expect(result.hooks.PostCompact).toHaveLength(1);
+        expectHappyHook(result.hooks.SessionStart[0]);
+        expectHappyHook(result.hooks.PreCompact[0]);
+        expectHappyHook(result.hooks.PostCompact[0]);
     });
 
     it('preserves enabledPlugins so plugin-provided skills keep loading', () => {
@@ -90,7 +94,7 @@ describe('buildHookSettings', () => {
 
         expect(result.hooks.SessionStart).toHaveLength(2);
         expect(result.hooks.SessionStart[0]).toEqual(userHook);
-        expectHappySessionStartHook(result.hooks.SessionStart[1]);
+        expectHappyHook(result.hooks.SessionStart[1]);
     });
 
     it('keeps non-SessionStart user hook types (PreToolUse, PostToolUse, Stop, ...) intact', () => {
@@ -103,7 +107,20 @@ describe('buildHookSettings', () => {
 
         expect(result.hooks.PreToolUse).toEqual(preToolUse);
         expect(result.hooks.SessionStart).toHaveLength(1);
-        expectHappySessionStartHook(result.hooks.SessionStart[0]);
+        expectHappyHook(result.hooks.SessionStart[0]);
+    });
+
+    it('appends Happy compact hooks after existing user compact hooks', () => {
+        const preCompact = { matcher: '*', hooks: [{ type: 'command', command: 'echo pre-compact' }] };
+        const postCompact = { matcher: '*', hooks: [{ type: 'command', command: 'echo post-compact' }] };
+        const userSettings = { hooks: { PreCompact: [preCompact], PostCompact: [postCompact] } };
+
+        const result = buildHookSettings(userSettings, HAPPY_HOOK_COMMAND);
+
+        expect(result.hooks.PreCompact).toEqual([preCompact, expect.any(Object)]);
+        expect(result.hooks.PostCompact).toEqual([postCompact, expect.any(Object)]);
+        expectHappyHook(result.hooks.PreCompact[1]);
+        expectHappyHook(result.hooks.PostCompact[1]);
     });
 
     it('tolerates a malformed hooks field (non-object) without throwing', () => {
@@ -112,7 +129,7 @@ describe('buildHookSettings', () => {
         const result = buildHookSettings(userSettings, HAPPY_HOOK_COMMAND);
 
         expect(result.hooks.SessionStart).toHaveLength(1);
-        expectHappySessionStartHook(result.hooks.SessionStart[0]);
+        expectHappyHook(result.hooks.SessionStart[0]);
     });
 
     it('tolerates a SessionStart that is not an array', () => {
@@ -123,7 +140,7 @@ describe('buildHookSettings', () => {
         const result = buildHookSettings(userSettings, HAPPY_HOOK_COMMAND);
 
         expect(result.hooks.SessionStart).toHaveLength(1);
-        expectHappySessionStartHook(result.hooks.SessionStart[0]);
+        expectHappyHook(result.hooks.SessionStart[0]);
     });
 
     it('does not mutate the input user settings object', () => {

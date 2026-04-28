@@ -3442,6 +3442,35 @@ describe('reducer', () => {
             });
         });
 
+        it('records typed autocompact boundaries and resets usage without clearing todos', () => {
+            const state = createReducer();
+            seedActiveContextState(state);
+
+            reducer(state, [
+                createContextBoundaryMessage('boundary-autocompact', 1150, 31, 'autocompact'),
+            ]);
+
+            expect(state.latestBoundary).toEqual({
+                id: 'boundary-autocompact',
+                kind: 'autocompact',
+                seq: 31,
+                at: 1150,
+                forkedFromSid: undefined,
+            });
+            expect(state.latestTodos).toEqual({
+                todos: [{ content: 'Keep active task', status: 'pending' }],
+                timestamp: 900,
+            });
+            expect(state.latestUsage).toEqual({
+                inputTokens: 0,
+                outputTokens: 0,
+                cacheCreation: 0,
+                cacheRead: 0,
+                contextSize: 0,
+                timestamp: 1150,
+            });
+        });
+
         it('preserves unflagged legacy-only fallback without recording latestBoundary', () => {
             const state = createReducer();
             seedActiveContextState(state);

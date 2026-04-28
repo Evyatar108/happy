@@ -83,6 +83,8 @@ Core Claude Code integration layer.
 
 **Launcher parity:** `claudeLocalLauncher.ts` should forward the session scanner output verbatim, including `summary` messages. Remote mode already forwards everything, and local-only summary filtering breaks chat-title updates from SDK summaries and normalized `/rename` title events.
 
+**Claude hook settings:** `generateHookSettings.ts` appends Happy's `SessionStart`, `PreCompact`, and `PostCompact` hooks while preserving existing user hooks. Use `PostCompact trigger=auto` for automatic-compaction boundaries; manual `/compact` stays on the explicit slash-command path.
+
 ### 3. UI Module (`/src/ui/`)
 User interface components.
 
