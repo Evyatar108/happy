@@ -11,7 +11,7 @@ function useDeepEqual<T>(selector: (state: StorageState) => T): (state: StorageS
 }
 import { Session, Machine, GitStatus } from "./storageTypes";
 import type { GitStatusFiles } from "./gitStatusFiles";
-import { createReducer, reducer, ReducerState } from "./reducer/reducer";
+import { createReducer, reducer, ReducerState, seedLatestBoundary } from "./reducer/reducer";
 import { Message } from "./typesMessage";
 import { NormalizedMessage } from "./typesRaw";
 import { isMachineOnline } from '@/utils/machineUtils';
@@ -475,6 +475,13 @@ export const storage = create<StorageState>()((set, get) => {
 
                 // Check if sessionMessages exists AND agentStateVersion is newer
                 const existingSessionMessages = updatedSessionMessages[session.id];
+                if (existingSessionMessages && seedLatestBoundary(existingSessionMessages.reducerState, newSession.metadata?.latestBoundary)) {
+                    updatedSessionMessages[session.id] = {
+                        ...existingSessionMessages,
+                        reducerState: existingSessionMessages.reducerState,
+                    };
+                }
+
                 if (existingSessionMessages && newSession.agentState &&
                     (!oldSession || newSession.agentStateVersion > (oldSession.agentStateVersion || 0))) {
 
@@ -615,6 +622,7 @@ export const storage = create<StorageState>()((set, get) => {
                 // Get the session's agentState if available
                 const session = state.sessions[sessionId];
                 const agentState = session?.agentState;
+                seedLatestBoundary(existingSession.reducerState, session?.metadata?.latestBoundary);
 
                 // Messages are already normalized, no need to process them again
                 // Reducer phases assume oldest-to-newest within each batch so tool calls,
@@ -704,6 +712,7 @@ export const storage = create<StorageState>()((set, get) => {
 
                 // Create new reducer state
                 const reducerState = createReducer();
+                seedLatestBoundary(reducerState, session?.metadata?.latestBoundary);
 
                 // Process AgentState if it exists
                 let messages: Message[] = [];

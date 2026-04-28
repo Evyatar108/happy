@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { NormalizedMessage } from '../typesRaw';
-import { createReducer } from './reducer';
+import { createReducer, seedLatestBoundary } from './reducer';
 import { reducer } from './reducer';
 import { AgentState } from '../storageTypes';
+import type { SessionContextBoundaryKind } from '@slopus/happy-wire';
 
 type ReducerMessageSnapshot = ReturnType<typeof createReducer>['messages'] extends Map<string, infer TValue>
     ? TValue
@@ -58,6 +59,7 @@ function snapshotReducerState(state: ReturnType<typeof createReducer>) {
                 ...state.latestUsage,
             }
             : null,
+        latestBoundary: state.latestBoundary ? { ...state.latestBoundary } : null,
         messages: stableSort(
             Array.from(state.messages.values()).map((message) => serializeReducerMessage(message))
         ),
@@ -79,6 +81,64 @@ function snapshotReducerState(state: ReturnType<typeof createReducer>) {
                 toolId,
                 result,
             })),
+    };
+}
+
+function seedActiveContextState(state: ReturnType<typeof createReducer>) {
+    state.latestTodos = {
+        todos: [{ content: 'Keep active task', status: 'pending' }],
+        timestamp: 900,
+    };
+    state.latestUsage = {
+        inputTokens: 11,
+        outputTokens: 7,
+        cacheCreation: 3,
+        cacheRead: 5,
+        contextSize: 19,
+        timestamp: 900,
+    };
+}
+
+function createContextBoundaryMessage(
+    id: string,
+    createdAt: number,
+    seq: number,
+    kind: SessionContextBoundaryKind,
+    meta?: NormalizedMessage['meta'],
+): NormalizedMessage {
+    return {
+        id,
+        localId: null,
+        createdAt,
+        seq,
+        role: 'event',
+        isSidechain: false,
+        content: {
+            type: 'context-boundary',
+            kind,
+            at: createdAt,
+        },
+        ...(meta ? { meta } : {}),
+    };
+}
+
+function createLegacyBoundaryMessage(
+    id: string,
+    createdAt: number,
+    message: 'Context was reset' | 'Compaction completed',
+    meta?: NormalizedMessage['meta'],
+): NormalizedMessage {
+    return {
+        id,
+        localId: null,
+        createdAt,
+        role: 'event',
+        isSidechain: false,
+        content: {
+            type: 'message',
+            message,
+        },
+        ...(meta ? { meta } : {}),
     };
 }
 
@@ -3313,6 +3373,176 @@ describe('reducer', () => {
                     expect(result.messages[0].children[0].tool.name).toBe('Read');
                 }
             }
+        });
+    });
+
+    describe('context boundary handling', () => {
+        it('records typed clear boundaries and resets active-context state', () => {
+            const state = createReducer();
+            seedActiveContextState(state);
+
+            const result = reducer(state, [
+                createContextBoundaryMessage('boundary-clear', 1000, 25, 'clear'),
+            ]);
+
+            expect(state.latestBoundary).toEqual({
+                id: 'boundary-clear',
+                kind: 'clear',
+                seq: 25,
+                at: 1000,
+                forkedFromSid: undefined,
+            });
+            expect(state.latestTodos).toEqual({ todos: [], timestamp: 1000 });
+            expect(state.latestUsage).toEqual({
+                inputTokens: 0,
+                outputTokens: 0,
+                cacheCreation: 0,
+                cacheRead: 0,
+                contextSize: 0,
+                timestamp: 1000,
+            });
+            expect(result.messages).toHaveLength(1);
+            expect(result.messages[0].kind).toBe('agent-event');
+            if (result.messages[0].kind === 'agent-event') {
+                expect(result.messages[0].event).toEqual({
+                    type: 'context-boundary',
+                    kind: 'clear',
+                    at: 1000,
+                });
+                expect(result.messages[0].seq).toBe(25);
+            }
+        });
+
+        it('records typed compact boundaries and resets usage without clearing todos', () => {
+            const state = createReducer();
+            seedActiveContextState(state);
+
+            reducer(state, [
+                createContextBoundaryMessage('boundary-compact', 1100, 30, 'compact'),
+            ]);
+
+            expect(state.latestBoundary).toEqual({
+                id: 'boundary-compact',
+                kind: 'compact',
+                seq: 30,
+                at: 1100,
+                forkedFromSid: undefined,
+            });
+            expect(state.latestTodos).toEqual({
+                todos: [{ content: 'Keep active task', status: 'pending' }],
+                timestamp: 900,
+            });
+            expect(state.latestUsage).toEqual({
+                inputTokens: 0,
+                outputTokens: 0,
+                cacheCreation: 0,
+                cacheRead: 0,
+                contextSize: 0,
+                timestamp: 1100,
+            });
+        });
+
+        it('preserves unflagged legacy-only fallback without recording latestBoundary', () => {
+            const state = createReducer();
+            seedActiveContextState(state);
+
+            const result = reducer(state, [
+                createLegacyBoundaryMessage('legacy-clear', 1200, 'Context was reset'),
+            ]);
+
+            expect(state.latestBoundary).toBeUndefined();
+            expect(state.latestTodos).toEqual({ todos: [], timestamp: 1200 });
+            expect(state.latestUsage).toEqual({
+                inputTokens: 0,
+                outputTokens: 0,
+                cacheCreation: 0,
+                cacheRead: 0,
+                contextSize: 0,
+                timestamp: 1200,
+            });
+            expect(result.messages).toHaveLength(1);
+        });
+
+        it('suppresses flagged legacy fallback when dual-emitted with a typed boundary', () => {
+            const state = createReducer();
+            seedActiveContextState(state);
+
+            const result = reducer(state, [
+                createContextBoundaryMessage('boundary-dual', 1300, 40, 'clear'),
+                createLegacyBoundaryMessage('legacy-dual', 1301, 'Context was reset', {
+                    contextBoundaryFallback: true,
+                }),
+            ]);
+
+            expect(state.latestBoundary).toEqual({
+                id: 'boundary-dual',
+                kind: 'clear',
+                seq: 40,
+                at: 1300,
+                forkedFromSid: undefined,
+            });
+            expect(state.latestTodos).toEqual({ todos: [], timestamp: 1300 });
+            expect(state.latestUsage?.timestamp).toBe(1300);
+            expect(result.messages).toHaveLength(1);
+            expect(state.messageIds.has('legacy-dual')).toBe(true);
+        });
+
+        it('suppresses flagged legacy fallback even when it arrives without the typed envelope', () => {
+            const state = createReducer();
+            seedActiveContextState(state);
+
+            const result = reducer(state, [
+                createLegacyBoundaryMessage('legacy-first', 1400, 'Context was reset', {
+                    contextBoundaryFallback: true,
+                }),
+            ]);
+
+            expect(state.latestBoundary).toBeUndefined();
+            expect(state.latestTodos).toEqual({
+                todos: [{ content: 'Keep active task', status: 'pending' }],
+                timestamp: 900,
+            });
+            expect(state.latestUsage).toEqual({
+                inputTokens: 11,
+                outputTokens: 7,
+                cacheCreation: 3,
+                cacheRead: 5,
+                contextSize: 19,
+                timestamp: 900,
+            });
+            expect(result.messages).toHaveLength(0);
+            expect(state.messageIds.has('legacy-first')).toBe(true);
+        });
+
+        it('seeds latestBoundary from metadata and lets newer stream boundaries supersede it', () => {
+            const state = createReducer();
+
+            seedLatestBoundary(state, {
+                id: 'metadata-boundary',
+                kind: 'compact',
+                seq: 50,
+                at: 1500,
+            });
+
+            expect(state.latestBoundary).toEqual({
+                id: 'metadata-boundary',
+                kind: 'compact',
+                seq: 50,
+                at: 1500,
+            });
+
+            reducer(state, [
+                createContextBoundaryMessage('older-boundary', 1490, 49, 'clear'),
+                createContextBoundaryMessage('newer-boundary', 1510, 51, 'clear'),
+            ]);
+
+            expect(state.latestBoundary).toEqual({
+                id: 'newer-boundary',
+                kind: 'clear',
+                seq: 51,
+                at: 1510,
+                forkedFromSid: undefined,
+            });
         });
     });
 

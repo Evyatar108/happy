@@ -116,6 +116,15 @@ import { createTracer, traceMessages, TracerState } from "./reducerTracer";
 import { AgentState, TodoItem, TodoItemsSchema } from "../storageTypes";
 import { MessageMeta } from "../typesMessageMeta";
 import { parseMessageAsEvent } from "./messageToEvent";
+import type { SessionContextBoundaryKind } from "@slopus/happy-wire";
+
+export type LatestBoundary = {
+    id: string;
+    kind: SessionContextBoundaryKind;
+    seq: number;
+    at: number;
+    forkedFromSid?: string;
+};
 
 type ReducerMessage = {
     id: string;
@@ -177,6 +186,7 @@ export type ReducerState = {
         contextSize: number;
         timestamp: number;
     };
+    latestBoundary?: LatestBoundary;
 };
 
 export function createReducer(): ReducerState {
@@ -272,6 +282,43 @@ function updateLatestTodos(state: ReducerState, value: unknown, timestamp: numbe
     }
 }
 
+export function seedLatestBoundary(state: ReducerState, latestBoundary: LatestBoundary | null | undefined): boolean {
+    if (!latestBoundary) {
+        return false;
+    }
+
+    if (
+        !state.latestBoundary ||
+        latestBoundary.seq > state.latestBoundary.seq ||
+        (latestBoundary.seq === state.latestBoundary.seq && latestBoundary.id === state.latestBoundary.id)
+    ) {
+        state.latestBoundary = { ...latestBoundary };
+        return true;
+    }
+
+    return false;
+}
+
+function resetForBoundary(state: ReducerState, kind: SessionContextBoundaryKind, timestamp: number) {
+    if (kind === 'clear') {
+        state.latestTodos = {
+            todos: [],
+            timestamp,
+        };
+    }
+
+    if (kind === 'clear' || kind === 'compact' || kind === 'autocompact') {
+        state.latestUsage = {
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheCreation: 0,
+            cacheRead: 0,
+            contextSize: 0,
+            timestamp,
+        };
+    }
+}
+
 export function reducer(state: ReducerState, messages: NormalizedMessage[], agentState?: AgentState | null): ReducerResult {
     if (ENABLE_LOGGING) {
         console.log(`[REDUCER] Called with ${messages.length} messages, agentState: ${agentState ? 'YES' : 'NO'}`);
@@ -287,8 +334,20 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
     let changed: Set<string> = new Set();
     let hasReadyEvent = false;
 
+    const unflaggedMessages = messages.filter(msg => {
+        if (msg.meta?.contextBoundaryFallback !== true) {
+            return true;
+        }
+
+        state.messageIds.set(msg.id, msg.id);
+        if (msg.role === 'user' && msg.localId) {
+            state.localIds.set(msg.localId, msg.id);
+        }
+        return false;
+    });
+
     // First, trace all messages to identify sidechains
-    const tracedMessages = traceMessages(state.tracerState, messages);
+    const tracedMessages = traceMessages(state.tracerState, unflaggedMessages);
 
     // Separate sidechain and non-sidechain messages
     let nonSidechainMessages = tracedMessages.filter(msg => !msg.sidechainId);
@@ -331,34 +390,27 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
 
         // Handle context reset events - reset state and let the message be shown
         if (msg.role === 'event' && msg.content.type === 'message' && msg.content.message === 'Context was reset') {
-            // Reset todos to empty array and reset usage to zero
-            state.latestTodos = {
-                todos: [],
-                timestamp: msg.createdAt  // Use message timestamp, not current time
-            };
-            state.latestUsage = {
-                inputTokens: 0,
-                outputTokens: 0,
-                cacheCreation: 0,
-                cacheRead: 0,
-                contextSize: 0,
-                timestamp: msg.createdAt  // Use message timestamp to avoid blocking older usage data
-            };
+            resetForBoundary(state, 'clear', msg.createdAt);
             // Don't continue - let the event be processed normally to create a message
         }
 
         // Handle compaction completed events - reset context but keep todos
         if (msg.role === 'event' && msg.content.type === 'message' && msg.content.message === 'Compaction completed') {
-            // Reset usage/context to zero but keep todos unchanged
-            state.latestUsage = {
-                inputTokens: 0,
-                outputTokens: 0,
-                cacheCreation: 0,
-                cacheRead: 0,
-                contextSize: 0,
-                timestamp: msg.createdAt  // Use message timestamp to avoid blocking older usage data
-            };
+            resetForBoundary(state, 'compact', msg.createdAt);
             // Don't continue - let the event be processed normally to create a message
+        }
+
+        if (msg.role === 'event' && msg.content.type === 'context-boundary') {
+            const accepted = seedLatestBoundary(state, {
+                id: msg.id,
+                kind: msg.content.kind,
+                seq: msg.seq ?? 0,
+                at: msg.content.at,
+                forkedFromSid: msg.content.forkedFromSid,
+            });
+            if (accepted) {
+                resetForBoundary(state, msg.content.kind, msg.createdAt);
+            }
         }
 
         // Try to parse message as event
@@ -1126,7 +1178,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
     //
 
     if (ENABLE_LOGGING) {
-        console.log(JSON.stringify(messages, null, 2));
+        console.log(JSON.stringify(unflaggedMessages, null, 2));
         console.log(`[REDUCER] Changed messages: ${changed.size}`);
     }
 
