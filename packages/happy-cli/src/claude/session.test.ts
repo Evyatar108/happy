@@ -52,6 +52,32 @@ describe('Session deferred switch state', () => {
         session.cleanup();
     });
 
+    it('clears deferredSwitchCompleting on local→remote mode transition', () => {
+        const { session } = createSession();
+
+        session.deferredSwitchCompleting = true;
+
+        session.onModeChange('remote');
+
+        expect(session.deferredSwitchCompleting).toBe(false);
+        expect(session.mode).toBe('remote');
+
+        session.cleanup();
+    });
+
+    it('does not clear deferredSwitchCompleting on remote→local mode transition', () => {
+        const { session } = createSession();
+
+        session.deferredSwitchCompleting = true;
+
+        session.onModeChange('local');
+
+        expect(session.deferredSwitchCompleting).toBe(true);
+        expect(session.mode).toBe('local');
+
+        session.cleanup();
+    });
+
     it('routes hook-driven turn lifecycle through subscriptions', async () => {
         const { session, getAgentState } = createSession();
         const onTurnStart = vi.fn();
