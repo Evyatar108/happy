@@ -27,6 +27,44 @@ type ClaudeMapperResult = {
 
 export type ClaudeContextBoundaryIntent = Omit<SessionContextBoundaryEvent, 't' | 'summaryRef' | 'forkedFromSid'>;
 
+/**
+ * Claude Code's TUI/SDK wraps slash commands as
+ * `<command-name>/clear</command-name>\n<command-message>clear</command-message>...`
+ * before forwarding them through the JSONL stream. The SESSION_SCANNER ingests
+ * these records *after* Claude Code has already executed the slash command —
+ * by the time we see them, `/clear` has already cleared Claude's context, and
+ * `/compact` has already compacted it. Emitting a context-boundary intent at
+ * this point therefore correctly reflects the agent's now-current state.
+ *
+ * Without this detection, the wrapped form slips past both `parseSpecialCommand`
+ * (which only sees the inbound socket message, not the JSONL replay) and the
+ * mapper (which previously emitted the wrapped text as a regular user envelope).
+ * Result: tablet-typed `/clear` produces no typed boundary, the app reducer
+ * has nothing to dispatch on, and the divider never renders.
+ *
+ * Returns a boundary intent for `/clear` or `/compact` wrapped forms; null
+ * otherwise. `triggeredBy: 'user'` because the slash command originated from
+ * a user keystroke (whether on the tablet or in the TUI).
+ */
+function detectWrappedSlashCommandBoundary(text: string): ClaudeContextBoundaryIntent | null {
+    const trimmed = text.trimStart();
+    if (trimmed.startsWith('<command-name>/clear</command-name>')) {
+        return {
+            kind: 'clear',
+            triggeredBy: 'user',
+            at: Date.now(),
+        };
+    }
+    if (trimmed.startsWith('<command-name>/compact</command-name>')) {
+        return {
+            kind: 'compact',
+            triggeredBy: 'user',
+            at: Date.now(),
+        };
+    }
+    return null;
+}
+
 function planModeBoundaryForTool(name: string): ClaudeContextBoundaryIntent | null {
     if (name === 'EnterPlanMode' || name === 'enter_plan_mode') {
         return {
@@ -580,6 +618,17 @@ function mapClaudeLogMessageToSessionEnvelopesInternal(
                 maybeEmitSubagentStart(state, turnId, subagent, envelopes);
                 envelopes.push(createEnvelope('agent', { t: 'text', text: message.message.content }, { turn: turnId, subagent }));
             } else {
+                // Detect Claude Code's wrapped slash-command form
+                // (`<command-name>/clear</command-name>...`) and emit a context-boundary
+                // intent. The SESSION_SCANNER ingests these JSONL records *after* Claude
+                // Code has already processed the slash command — by the time we see them,
+                // /clear has already cleared Claude's context, so the boundary is real.
+                // Without this detection, /clear typed on the tablet (or in the TUI)
+                // never produces a typed boundary on the wire.
+                const boundary = detectWrappedSlashCommandBoundary(message.message.content);
+                if (boundary) {
+                    boundaries.push(boundary);
+                }
                 closeTurn(state, 'completed', envelopes);
                 envelopes.push(createEnvelope('user', { t: 'text', text: message.message.content }));
             }
