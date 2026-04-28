@@ -53,39 +53,46 @@ describe('claudeLocalLauncher shadow metadata wiring', () => {
     function createSessionMock() {
         const sendClaudeSessionMessage = vi.fn();
         const updateMetadata = vi.fn();
+        const session: Record<string, any> = {
+            sessionId: null,
+            path: '/workspace/project',
+            client: {
+                sendClaudeSessionMessage,
+                closeClaudeSessionTurn: vi.fn(),
+                sendSessionEvent: vi.fn(),
+                updateMetadata,
+                rpcHandlerManager: {
+                    registerHandler: vi.fn(),
+                },
+            },
+            queue: {
+                setOnMessage: vi.fn(),
+                size: vi.fn(() => 0),
+                reset: vi.fn(),
+            },
+            pendingSwitch: undefined,
+            turnActive: false,
+            setPendingSwitch: vi.fn((pendingSwitch: any) => {
+                session.pendingSwitch = pendingSwitch;
+            }),
+            setNotifyLegacyMessageBeforeQueue: vi.fn(),
+            onSessionFound: vi.fn(),
+            onThinkingChange: vi.fn(),
+            claudeEnvVars: { CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' },
+            claudeArgs: ['--debug'],
+            mcpServers: { happy: { command: 'happy-mcp' } },
+            allowedTools: ['Read', 'Write'],
+            hookSettingsPath: '/tmp/hook-settings.json',
+            sandboxConfig: null,
+            addSessionFoundCallback: vi.fn(),
+            removeSessionFoundCallback: vi.fn(),
+            consumeOneTimeFlags: vi.fn(),
+        };
 
         return {
             sendClaudeSessionMessage,
             updateMetadata,
-            session: {
-                sessionId: null,
-                path: '/workspace/project',
-                client: {
-                    sendClaudeSessionMessage,
-                    closeClaudeSessionTurn: vi.fn(),
-                    sendSessionEvent: vi.fn(),
-                    updateMetadata,
-                    rpcHandlerManager: {
-                        registerHandler: vi.fn(),
-                    },
-                },
-                queue: {
-                    setOnMessage: vi.fn(),
-                    size: vi.fn(() => 0),
-                    reset: vi.fn(),
-                },
-                onSessionFound: vi.fn(),
-                onThinkingChange: vi.fn(),
-                claudeEnvVars: { CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' },
-                claudeArgs: ['--debug'],
-                mcpServers: { happy: { command: 'happy-mcp' } },
-                allowedTools: ['Read', 'Write'],
-                hookSettingsPath: '/tmp/hook-settings.json',
-                sandboxConfig: null,
-                addSessionFoundCallback: vi.fn(),
-                removeSessionFoundCallback: vi.fn(),
-                consumeOneTimeFlags: vi.fn(),
-            },
+            session,
         };
     }
 
@@ -125,6 +132,12 @@ describe('claudeLocalLauncher shadow metadata wiring', () => {
                 size: vi.fn(() => 0),
                 reset: vi.fn(),
             },
+            pendingSwitch: undefined,
+            turnActive: false,
+            setPendingSwitch: vi.fn(function (this: any, pendingSwitch: any) {
+                session.pendingSwitch = pendingSwitch;
+            }),
+            setNotifyLegacyMessageBeforeQueue: vi.fn(),
             onSessionFound,
             onThinkingChange: vi.fn(),
             claudeEnvVars: { CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' },
@@ -255,5 +268,293 @@ describe('claudeLocalLauncher shadow metadata wiring', () => {
             summary: 'Suggested By Claude',
             leafUuid: 'ai-title:session-1',
         });
+    });
+
+    it('request-switch now delegates to the existing local switch path', async () => {
+        const handlers = new Map<string, (params?: unknown) => unknown>();
+        const closeClaudeSessionTurn = vi.fn();
+        const setPendingSwitch = vi.fn((pendingSwitch: any) => {
+            session.pendingSwitch = pendingSwitch;
+        });
+        const session = {
+            sessionId: null,
+            path: '/workspace/project',
+            client: {
+                sendClaudeSessionMessage: vi.fn(),
+                closeClaudeSessionTurn,
+                sendSessionEvent: vi.fn(),
+                updateMetadata: vi.fn(),
+                rpcHandlerManager: {
+                    registerHandler: vi.fn((name: string, handler: (params?: unknown) => unknown) => {
+                        handlers.set(name, handler);
+                    }),
+                },
+            },
+            queue: {
+                setOnMessage: vi.fn(),
+                size: vi.fn(() => 0),
+                reset: vi.fn(),
+            },
+            pendingSwitch: undefined,
+            turnActive: true,
+            setPendingSwitch,
+            setNotifyLegacyMessageBeforeQueue: vi.fn(),
+            onSessionFound: vi.fn(),
+            onThinkingChange: vi.fn(),
+            claudeEnvVars: {},
+            claudeArgs: undefined,
+            mcpServers: {},
+            allowedTools: [],
+            hookSettingsPath: '/tmp/hook-settings.json',
+            sandboxConfig: null,
+            addSessionFoundCallback: vi.fn(),
+            removeSessionFoundCallback: vi.fn(),
+            consumeOneTimeFlags: vi.fn(),
+        };
+
+        mockClaudeLocal.mockImplementation(async (opts: { abort: AbortSignal }) => {
+            await new Promise<void>((resolve) => opts.abort.addEventListener('abort', () => resolve(), { once: true }));
+        });
+
+        const { claudeLocalLauncher } = await import('./claudeLocalLauncher');
+        const launcher = claudeLocalLauncher(session as any);
+        await vi.waitFor(() => expect(handlers.has('request-switch')).toBe(true));
+
+        const response = await handlers.get('request-switch')!({ mode: 'now' });
+        const result = await launcher;
+
+        expect(response).toEqual({ deferred: false });
+        expect(closeClaudeSessionTurn).toHaveBeenCalledWith('cancelled');
+        expect(result).toEqual({ type: 'switch' });
+    });
+
+    it('request-switch when-idle records pending switch only while a turn is active', async () => {
+        const handlers = new Map<string, (params?: unknown) => unknown>();
+        const closeClaudeSessionTurn = vi.fn();
+        const setPendingSwitch = vi.fn((pendingSwitch: any) => {
+            session.pendingSwitch = pendingSwitch;
+        });
+        const session = {
+            sessionId: null,
+            path: '/workspace/project',
+            client: {
+                sendClaudeSessionMessage: vi.fn(),
+                closeClaudeSessionTurn,
+                sendSessionEvent: vi.fn(),
+                updateMetadata: vi.fn(),
+                rpcHandlerManager: {
+                    registerHandler: vi.fn((name: string, handler: (params?: unknown) => unknown) => {
+                        handlers.set(name, handler);
+                    }),
+                },
+            },
+            queue: {
+                setOnMessage: vi.fn(),
+                size: vi.fn(() => 0),
+                reset: vi.fn(),
+            },
+            pendingSwitch: undefined,
+            turnActive: true,
+            setPendingSwitch,
+            setNotifyLegacyMessageBeforeQueue: vi.fn(),
+            onSessionFound: vi.fn(),
+            onThinkingChange: vi.fn(),
+            claudeEnvVars: {},
+            claudeArgs: undefined,
+            mcpServers: {},
+            allowedTools: [],
+            hookSettingsPath: '/tmp/hook-settings.json',
+            sandboxConfig: null,
+            addSessionFoundCallback: vi.fn(),
+            removeSessionFoundCallback: vi.fn(),
+            consumeOneTimeFlags: vi.fn(),
+        };
+
+        mockClaudeLocal.mockImplementation(async (opts: { abort: AbortSignal }) => {
+            await new Promise<void>((resolve) => opts.abort.addEventListener('abort', () => resolve(), { once: true }));
+        });
+
+        const { claudeLocalLauncher } = await import('./claudeLocalLauncher');
+        const launcher = claudeLocalLauncher(session as any);
+        await vi.waitFor(() => expect(handlers.has('request-switch')).toBe(true));
+
+        const response = await handlers.get('request-switch')!({ mode: 'when-idle', messagePreview: 'hello' });
+
+        expect(response).toEqual({ deferred: true });
+        expect(session.pendingSwitch).toEqual({ requestedAt: expect.any(Number), messagePreview: 'hello' });
+        expect(closeClaudeSessionTurn).not.toHaveBeenCalled();
+
+        await handlers.get('switch')!();
+        await expect(launcher).resolves.toEqual({ type: 'switch' });
+    });
+
+    it('request-switch when-idle switches immediately with completed status when no turn is active', async () => {
+        const handlers = new Map<string, (params?: unknown) => unknown>();
+        const closeClaudeSessionTurn = vi.fn();
+        const setPendingSwitch = vi.fn((pendingSwitch: any) => {
+            session.pendingSwitch = pendingSwitch;
+        });
+        const session = {
+            sessionId: null,
+            path: '/workspace/project',
+            client: {
+                sendClaudeSessionMessage: vi.fn(),
+                closeClaudeSessionTurn,
+                sendSessionEvent: vi.fn(),
+                updateMetadata: vi.fn(),
+                rpcHandlerManager: {
+                    registerHandler: vi.fn((name: string, handler: (params?: unknown) => unknown) => {
+                        handlers.set(name, handler);
+                    }),
+                },
+            },
+            queue: {
+                setOnMessage: vi.fn(),
+                size: vi.fn(() => 0),
+                reset: vi.fn(),
+            },
+            pendingSwitch: undefined,
+            turnActive: false,
+            setPendingSwitch,
+            setNotifyLegacyMessageBeforeQueue: vi.fn(),
+            onSessionFound: vi.fn(),
+            onThinkingChange: vi.fn(),
+            claudeEnvVars: {},
+            claudeArgs: undefined,
+            mcpServers: {},
+            allowedTools: [],
+            hookSettingsPath: '/tmp/hook-settings.json',
+            sandboxConfig: null,
+            addSessionFoundCallback: vi.fn(),
+            removeSessionFoundCallback: vi.fn(),
+            consumeOneTimeFlags: vi.fn(),
+        };
+
+        mockClaudeLocal.mockImplementation(async (opts: { abort: AbortSignal }) => {
+            await new Promise<void>((resolve) => opts.abort.addEventListener('abort', () => resolve(), { once: true }));
+        });
+
+        const { claudeLocalLauncher } = await import('./claudeLocalLauncher');
+        const launcher = claudeLocalLauncher(session as any);
+        await vi.waitFor(() => expect(handlers.has('request-switch')).toBe(true));
+
+        const response = await handlers.get('request-switch')!({ mode: 'when-idle' });
+        const result = await launcher;
+
+        expect(response).toEqual({ deferred: false });
+        expect(session.pendingSwitch).toBeUndefined();
+        expect(closeClaudeSessionTurn).toHaveBeenCalledWith('completed');
+        expect(result).toEqual({ type: 'switch' });
+    });
+
+    it('rejects a second when-idle request while pending switch is already set', async () => {
+        const handlers = new Map<string, (params?: unknown) => unknown>();
+        const initialPendingSwitch = { requestedAt: 1234, messagePreview: 'first' };
+        const setPendingSwitch = vi.fn((pendingSwitch: any) => {
+            session.pendingSwitch = pendingSwitch;
+        });
+        const session = {
+            sessionId: null,
+            path: '/workspace/project',
+            client: {
+                sendClaudeSessionMessage: vi.fn(),
+                closeClaudeSessionTurn: vi.fn(),
+                sendSessionEvent: vi.fn(),
+                updateMetadata: vi.fn(),
+                rpcHandlerManager: {
+                    registerHandler: vi.fn((name: string, handler: (params?: unknown) => unknown) => {
+                        handlers.set(name, handler);
+                    }),
+                },
+            },
+            queue: {
+                setOnMessage: vi.fn(),
+                size: vi.fn(() => 0),
+                reset: vi.fn(),
+            },
+            pendingSwitch: initialPendingSwitch,
+            turnActive: true,
+            setPendingSwitch,
+            setNotifyLegacyMessageBeforeQueue: vi.fn(),
+            onSessionFound: vi.fn(),
+            onThinkingChange: vi.fn(),
+            claudeEnvVars: {},
+            claudeArgs: undefined,
+            mcpServers: {},
+            allowedTools: [],
+            hookSettingsPath: '/tmp/hook-settings.json',
+            sandboxConfig: null,
+            addSessionFoundCallback: vi.fn(),
+            removeSessionFoundCallback: vi.fn(),
+            consumeOneTimeFlags: vi.fn(),
+        };
+
+        mockClaudeLocal.mockImplementation(async (opts: { abort: AbortSignal }) => {
+            await new Promise<void>((resolve) => opts.abort.addEventListener('abort', () => resolve(), { once: true }));
+        });
+
+        const { claudeLocalLauncher } = await import('./claudeLocalLauncher');
+        const launcher = claudeLocalLauncher(session as any);
+        await vi.waitFor(() => expect(handlers.has('request-switch')).toBe(true));
+
+        await expect(handlers.get('request-switch')!({ mode: 'when-idle' })).rejects.toThrow('already-pending');
+
+        expect(session.pendingSwitch).toBe(initialPendingSwitch);
+        expect(setPendingSwitch).not.toHaveBeenCalled();
+
+        await handlers.get('switch')!();
+        await expect(launcher).resolves.toEqual({ type: 'switch' });
+    });
+
+    it('registers the legacy message hook to use the local switch path', async () => {
+        let legacyHook: (() => void) | null = null;
+        const closeClaudeSessionTurn = vi.fn();
+        const session = {
+            sessionId: null,
+            path: '/workspace/project',
+            client: {
+                sendClaudeSessionMessage: vi.fn(),
+                closeClaudeSessionTurn,
+                sendSessionEvent: vi.fn(),
+                updateMetadata: vi.fn(),
+                rpcHandlerManager: {
+                    registerHandler: vi.fn(),
+                },
+            },
+            queue: {
+                setOnMessage: vi.fn(),
+                size: vi.fn(() => 0),
+                reset: vi.fn(),
+            },
+            pendingSwitch: undefined,
+            turnActive: true,
+            setPendingSwitch: vi.fn(),
+            setNotifyLegacyMessageBeforeQueue: vi.fn((handler: (() => void) | null) => {
+                legacyHook = handler;
+            }),
+            onSessionFound: vi.fn(),
+            onThinkingChange: vi.fn(),
+            claudeEnvVars: {},
+            claudeArgs: undefined,
+            mcpServers: {},
+            allowedTools: [],
+            hookSettingsPath: '/tmp/hook-settings.json',
+            sandboxConfig: null,
+            addSessionFoundCallback: vi.fn(),
+            removeSessionFoundCallback: vi.fn(),
+            consumeOneTimeFlags: vi.fn(),
+        };
+
+        mockClaudeLocal.mockImplementation(async (opts: { abort: AbortSignal }) => {
+            await vi.waitFor(() => expect(legacyHook).not.toBeNull());
+            const aborted = new Promise<void>((resolve) => opts.abort.addEventListener('abort', () => resolve(), { once: true }));
+            legacyHook!();
+            await aborted;
+        });
+
+        const { claudeLocalLauncher } = await import('./claudeLocalLauncher');
+
+        await expect(claudeLocalLauncher(session as any)).resolves.toEqual({ type: 'switch' });
+        expect(closeClaudeSessionTurn).toHaveBeenCalledWith('cancelled');
     });
 });

@@ -8,6 +8,15 @@ import { queryInitMetadata } from "./utils/queryInitMetadata";
 
 export type LauncherResult = { type: 'switch' } | { type: 'exit', code: number };
 
+type RequestSwitchParams = {
+    mode: 'now' | 'when-idle';
+    messagePreview?: string;
+};
+
+type RequestSwitchResponse = {
+    deferred: boolean;
+};
+
 // Maps sessionId -> in-flight shadow-query promise.
 // Presence in the map is the dedupe guard: once a sessionId is inserted, no
 // subsequent handleSessionStart call will re-fire the query — even if the
@@ -69,23 +78,60 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
             await abort();
         }
 
-        async function doSwitch() {
-            logger.debug('[local]: doSwitch');
+        async function performSwitch(reason: 'cancelled' | 'completed') {
+            logger.debug(`[local]: performSwitch ${reason}`);
 
             // Switching to remote mode
             if (!exitReason) {
                 exitReason = { type: 'switch' };
             }
 
-            session.client.closeClaudeSessionTurn('cancelled');
+            session.setPendingSwitch(undefined);
+            session.client.closeClaudeSessionTurn(reason);
 
             // Abort
             await abort();
         }
 
+        async function doSwitch() {
+            logger.debug('[local]: doSwitch');
+            await performSwitch('cancelled');
+        }
+
+        async function requestSwitch(params: RequestSwitchParams): Promise<RequestSwitchResponse> {
+            if (params.mode === 'now') {
+                await doSwitch();
+                return { deferred: false };
+            }
+
+            if (session.pendingSwitch) {
+                throw new Error('already-pending');
+            }
+
+            if (!session.turnActive) {
+                await performSwitch('completed');
+                return { deferred: false };
+            }
+
+            session.setPendingSwitch({
+                requestedAt: Date.now(),
+                messagePreview: params.messagePreview,
+            });
+            return { deferred: true };
+        }
+
+        async function cancelPendingSwitch() {
+            session.setPendingSwitch(undefined);
+        }
+
         // When to abort
         session.client.rpcHandlerManager.registerHandler('abort', doAbort); // Abort current process, clean queue and switch to remote mode
         session.client.rpcHandlerManager.registerHandler('switch', doSwitch); // When user wants to switch to remote mode
+        session.client.rpcHandlerManager.registerHandler<RequestSwitchParams, RequestSwitchResponse>('request-switch', requestSwitch);
+        session.client.rpcHandlerManager.registerHandler('cancel-pending-switch', cancelPendingSwitch);
+        session.setNotifyLegacyMessageBeforeQueue(() => {
+            void doSwitch();
+        });
         session.queue.setOnMessage((message: string, mode) => {
             // Switch to remote mode when message received
             doSwitch();
@@ -202,6 +248,9 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
         // Set handlers to no-op
         session.client.rpcHandlerManager.registerHandler('abort', async () => { });
         session.client.rpcHandlerManager.registerHandler('switch', async () => { });
+        session.client.rpcHandlerManager.registerHandler('request-switch', async () => ({ deferred: false }));
+        session.client.rpcHandlerManager.registerHandler('cancel-pending-switch', async () => { });
+        session.setNotifyLegacyMessageBeforeQueue(null);
         session.queue.setOnMessage(null);
         
         // Remove session found callback

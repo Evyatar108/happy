@@ -67,7 +67,10 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
     const api = await ApiClient.create(credentials);
 
     // Create a new session
-    let state: AgentState = {};
+    let state: AgentState = {
+        pendingSwitch: null,
+        turnActive: false,
+    };
 
     // Get machine ID from settings (should already be set up)
     const settings = await readSettings();
@@ -235,7 +238,9 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
     // Set initial agent state
     session.updateAgentState((currentState) => ({
         ...currentState,
-        controlledByUser: options.startingMode !== 'remote'
+        controlledByUser: options.startingMode !== 'remote',
+        pendingSwitch: currentState.pendingSwitch ?? null,
+        turnActive: currentState.turnActive ?? false,
     }));
 
     // Import MessageQueue2 and create message queue

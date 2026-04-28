@@ -309,6 +309,11 @@ export type Metadata = {
 
 export type AgentState = {
   controlledByUser?: boolean | null | undefined
+  pendingSwitch?: {
+    requestedAt: number,
+    messagePreview?: string
+  } | null | undefined
+  turnActive?: boolean | null | undefined
   requests?: {
     [id: string]: {
       tool: string,

@@ -5,6 +5,11 @@ import { logger } from "@/ui/logger";
 import type { JsRuntime } from "./runClaude";
 import type { SandboxConfig } from "@/persistence";
 
+export type PendingSwitch = {
+    requestedAt: number;
+    messagePreview?: string;
+};
+
 export class Session {
     readonly path: string;
     readonly logPath: string;
@@ -25,6 +30,9 @@ export class Session {
     sessionId: string | null;
     mode: 'local' | 'remote' = 'local';
     thinking: boolean = false;
+    pendingSwitch: PendingSwitch | undefined;
+    turnActive: boolean = false;
+    private notifyLegacyMessageBeforeQueueHandler: (() => void) | null = null;
     
     /** Callbacks to be notified when session ID is found/changed */
     private sessionFoundCallbacks: ((sessionId: string) => void)[] = [];
@@ -90,6 +98,40 @@ export class Session {
         this.mode = mode;
         this.client.keepAlive(this.thinking, mode);
         this._onModeChange(mode);
+    }
+
+    setPendingSwitch = (pendingSwitch: PendingSwitch | undefined): void => {
+        this.pendingSwitch = pendingSwitch;
+        this.client.updateAgentState((currentState) => ({
+            ...currentState,
+            pendingSwitch: pendingSwitch ?? null,
+        }));
+    }
+
+    setTurnActive = (turnActive: boolean): void => {
+        this.turnActive = turnActive;
+        this.client.updateAgentState((currentState) => ({
+            ...currentState,
+            turnActive,
+        }));
+    }
+
+    clearDeferredSwitchState = (): void => {
+        this.pendingSwitch = undefined;
+        this.turnActive = false;
+        this.client.updateAgentState((currentState) => ({
+            ...currentState,
+            pendingSwitch: null,
+            turnActive: false,
+        }));
+    }
+
+    setNotifyLegacyMessageBeforeQueue = (handler: (() => void) | null): void => {
+        this.notifyLegacyMessageBeforeQueueHandler = handler;
+    }
+
+    notifyLegacyMessageBeforeQueue = (): void => {
+        this.notifyLegacyMessageBeforeQueueHandler?.();
     }
 
     /**
