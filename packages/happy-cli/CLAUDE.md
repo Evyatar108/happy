@@ -85,7 +85,7 @@ Core Claude Code integration layer.
 
 **Claude hook settings:** `generateHookSettings.ts` appends Happy's `SessionStart`, `PreCompact`, and `PostCompact` hooks while preserving existing user hooks. Use `PostCompact trigger=auto` for automatic-compaction boundaries; manual `/compact` stays on the explicit slash-command path.
 
-**Context-boundary emission:** lifecycle signals must go through `ApiSessionClient.sendContextBoundary()` so the typed envelope, flagged legacy fallback, and `metadata.latestBoundary` update stay in lockstep. If a Claude log mapper detects a boundary-worthy tool call, return a boundary intent from the mapper and route it through `sendContextBoundary()` in `apiSession.ts`; do not emit a `context-boundary` envelope directly from the mapper.
+**Context-boundary emission:** lifecycle signals must go through `ApiSessionClient.sendContextBoundary()` so the typed envelope, legacy dual-emit fallback, and `metadata.latestBoundary` update stay in lockstep. The helper sends the typed `context-boundary` envelope first, then the legacy compatibility event with `meta.contextBoundaryFallback: true`; app clients suppress that flagged fallback. If a Claude log mapper detects a boundary-worthy tool call, return a boundary intent from the mapper and route it through `sendContextBoundary()` in `apiSession.ts`; do not emit a `context-boundary` envelope directly from the mapper.
 
 ### 3. UI Module (`/src/ui/`)
 User interface components.
@@ -236,3 +236,4 @@ When using --resume:
 2. Original session remains as historical record
 3. All context preserved but under new session identity
 4. Session ID in stream-json output will be the new one, not the resumed one
+5. After `system.init.session_id` confirms the new sid, emit `kind: 'session-fork-resume'` through `ApiSessionClient.sendContextBoundary()` with `forkedFromSid` set to the previous sid. This preserves the standard dual-emit contract: typed `context-boundary` first, legacy fallback second with `meta.contextBoundaryFallback: true`, plus `metadata.latestBoundary` for clients that cold-start outside the boundary row window.

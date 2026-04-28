@@ -545,7 +545,8 @@ Role meaning:
 
 Boundary producers that need old-client compatibility dual-emit the typed
 `context-boundary` event first, then the legacy event with
-`meta.contextBoundaryFallback: true`.
+`meta.contextBoundaryFallback: true`. New consumers treat the typed boundary as
+authoritative and suppress any flagged legacy fallback by that meta flag alone.
 
 ## Envelope
 
