@@ -386,6 +386,16 @@ export class ApiSessionClient extends EventEmitter {
                 }
             }
             this.pendingOutbox.splice(batchStart, batch.length);
+            const respondedLocalIds = new Set(messages.map((m) => m.localId).filter(Boolean));
+            for (const entry of batch) {
+                if (entry.localId && !respondedLocalIds.has(entry.localId)) {
+                    const deferred = this.seqResolvers.get(entry.localId);
+                    if (deferred) {
+                        deferred.reject(new Error(`Server did not return seq for localId ${entry.localId}`));
+                        this.seqResolvers.delete(entry.localId);
+                    }
+                }
+            }
         }
     }
 
@@ -403,6 +413,9 @@ export class ApiSessionClient extends EventEmitter {
         if (invalidate) {
             this.sendSync.invalidate();
         }
+        // Suppress unhandled-rejection for fire-and-forget callers that don't await the result.
+        // sendContextBoundary awaits the same promise and handles rejection explicitly.
+        seqPromise.catch(() => undefined);
         return seqPromise;
     }
 
@@ -528,9 +541,20 @@ export class ApiSessionClient extends EventEmitter {
             message: contextBoundaryFallbackMessage(boundary.kind),
         }, undefined, { contextBoundaryFallback: true });
 
+        const SEQ_TIMEOUT_MS = 5000;
+        const timeoutSentinel = Symbol('seq-timeout');
+        const timeoutPromise = new Promise<typeof timeoutSentinel>((resolve) => {
+            setTimeout(() => resolve(timeoutSentinel), SEQ_TIMEOUT_MS);
+        });
+
         let seq: number;
         try {
-            seq = await seqPromise;
+            const result = await Promise.race([seqPromise, timeoutPromise]);
+            if (result === timeoutSentinel) {
+                logger.debug('[sendContextBoundary] seq resolution timed out, skipping metadata write');
+                return;
+            }
+            seq = result;
         } catch (err) {
             logger.debug('[sendContextBoundary] envelope flush failed, skipping metadata write', err);
             return;
