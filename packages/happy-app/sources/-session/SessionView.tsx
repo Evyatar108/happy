@@ -459,19 +459,31 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
             }}
             blockSend={false}
             canSendWhenIdle={canSendWhenIdle}
-            onSend={(switchMode) => {
+            onSend={async (switchMode) => {
                 const trimmedMessage = message.trim();
                 if (trimmedMessage) {
                     const intercept = preSendCommand(trimmedMessage);
                     composeStartAtRef.current = null;
-                    setMessage('');
-                    clearDraft();
                     if (intercept.intercepted) {
+                        setMessage('');
+                        clearDraft();
                         intercept.execute();
                         return;
                     }
 
-                    sync.sendMessage(sessionId, message, { source: 'chat', switchMode });
+                    if (switchMode === 'when-idle') {
+                        try {
+                            await sync.sendMessage(sessionId, message, { source: 'chat', switchMode });
+                            setMessage('');
+                            clearDraft();
+                        } catch {
+                            // text preserved for retry — sync.sendMessage already showed the modal
+                        }
+                    } else {
+                        setMessage('');
+                        clearDraft();
+                        sync.sendMessage(sessionId, message, { source: 'chat', switchMode });
+                    }
                 }
             }}
             onMicPress={isDisconnected ? undefined : micButtonState.onMicPress}
