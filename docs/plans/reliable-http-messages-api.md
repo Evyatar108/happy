@@ -176,3 +176,8 @@ For batch sends with mixed new/existing messages:
 - Add `GET /v3/sessions/:id/messages/stream` SSE endpoint
 - Client connects with `Last-Event-ID` = last seq for catch-up
 - Replaces polling for real-time message delivery
+
+## See also
+
+- **Streaming / older-page pagination (client app):** scroll-driven older-page fetch for the in-app `ChatList` is **not** handled over the v3 HTTP cursor. It runs over the existing socket.io connection via the new `session-message-range` event pair, behind the local-only `enableSocketRangeFetch` flag (default `false`). See [`docs/plans/streaming-pagination.md`](./streaming-pagination.md) for the protocol, reconnect contract, feature-flag policy, and rollout plan.
+- **SSE was considered and not chosen** for the streaming-pagination effort (brainstorm direction D-005). The decision was to keep cold-start on this v3 HTTP route, keep live updates on the existing `update`/`new-message` socket channel, and add `session-message-range` over the same socket for older-page prefetch — rather than introduce a parallel SSE transport. The future SSE Migration above is a separate, server-side discussion about replacing CLI polling, not the same problem.
