@@ -20,7 +20,7 @@ vi.mock('./sync', () => ({
 }));
 
 import { apiSocket } from './apiSocket';
-import { sessionUpdateMetadata } from './ops';
+import { cancelPendingSwitch, requestSwitch, sessionUpdateMetadata } from './ops';
 import { sync } from './sync';
 
 describe('sessionUpdateMetadata', () => {
@@ -93,5 +93,36 @@ describe('sessionUpdateMetadata', () => {
             metadata: 'encrypted-v8',
             expectedVersion: 8,
         });
+    });
+});
+
+describe('requestSwitch', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('calls the request-switch session RPC with the requested mode', async () => {
+        vi.mocked(apiSocket.sessionRPC).mockResolvedValue({ deferred: true });
+
+        const result = await requestSwitch('session-1', 'when-idle');
+
+        expect(result).toEqual({ deferred: true });
+        expect(apiSocket.sessionRPC).toHaveBeenCalledWith('session-1', 'request-switch', {
+            mode: 'when-idle',
+        });
+    });
+});
+
+describe('cancelPendingSwitch', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('calls the cancel-pending-switch session RPC with an empty payload', async () => {
+        vi.mocked(apiSocket.sessionRPC).mockResolvedValue(undefined);
+
+        await cancelPendingSwitch('session-1');
+
+        expect(apiSocket.sessionRPC).toHaveBeenCalledWith('session-1', 'cancel-pending-switch', {});
     });
 });

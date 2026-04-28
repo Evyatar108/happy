@@ -4,6 +4,7 @@ import { t } from '@/text';
 import { buildResumeCommand, buildResumeCommandBlock, ResumeCommandBlock } from './resumeCommand';
 
 export type SessionState = 'disconnected' | 'thinking' | 'waiting' | 'permission_required';
+export type SessionMode = 'local' | 'remote';
 
 export interface SessionStatus {
     state: SessionState;
@@ -13,6 +14,10 @@ export interface SessionStatus {
     statusColor: string;
     statusDotColor: string;
     isPulsing?: boolean;
+}
+
+export function getSessionMode(session: Pick<Session, 'agentState'>): SessionMode {
+    return session.agentState?.controlledByUser === true ? 'local' : 'remote';
 }
 
 /**

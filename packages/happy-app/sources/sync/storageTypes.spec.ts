@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { EncryptionCache } from './encryption/encryptionCache';
 import { SessionEncryption } from './encryption/sessionEncryption';
-import { MetadataSchema } from './storageTypes';
+import { AgentStateSchema, MetadataSchema } from './storageTypes';
 
 describe('MetadataSchema', () => {
     it('preserves archive lifecycle metadata', () => {
@@ -108,5 +108,27 @@ describe('MetadataSchema', () => {
 
         expect(metadata.currentPermissionModeCode).toBe('bypassPermissions');
         expect(metadata).not.toHaveProperty('futureCliField');
+    });
+});
+
+describe('AgentStateSchema', () => {
+    it('parses deferred-switch state from new CLIs and tolerates missing fields from legacy CLIs', () => {
+        const legacyState = AgentStateSchema.parse({});
+        const newState = AgentStateSchema.parse({
+            controlledByUser: true,
+            pendingSwitch: {
+                requestedAt: 1710000000000,
+                messagePreview: 'please take over later',
+            },
+            turnActive: true,
+        });
+
+        expect(legacyState.pendingSwitch).toBeUndefined();
+        expect(legacyState.turnActive).toBeUndefined();
+        expect(newState.pendingSwitch).toEqual({
+            requestedAt: 1710000000000,
+            messagePreview: 'please take over later',
+        });
+        expect(newState.turnActive).toBe(true);
     });
 });
