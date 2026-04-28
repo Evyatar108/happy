@@ -557,4 +557,14 @@ describe('claudeLocalLauncher shadow metadata wiring', () => {
         await expect(claudeLocalLauncher(session as any)).resolves.toEqual({ type: 'switch' });
         expect(closeClaudeSessionTurn).toHaveBeenCalledWith('cancelled');
     });
+
+    it('disables queue-level message switching while local mode is active', async () => {
+        const { session } = createSessionMock();
+        mockClaudeLocal.mockResolvedValue(undefined);
+
+        const { claudeLocalLauncher } = await import('./claudeLocalLauncher');
+
+        await expect(claudeLocalLauncher(session as any)).resolves.toEqual({ type: 'exit', code: 0 });
+        expect(session.queue.setOnMessage).toHaveBeenCalledWith(null);
+    });
 });

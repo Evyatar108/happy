@@ -31,6 +31,7 @@ export class Session {
     mode: 'local' | 'remote' = 'local';
     thinking: boolean = false;
     pendingSwitch: PendingSwitch | undefined;
+    deferredSwitchCompleting: boolean = false;
     turnActive: boolean = false;
     private notifyLegacyMessageBeforeQueueHandler: (() => void) | null = null;
     
@@ -96,6 +97,9 @@ export class Session {
 
     onModeChange = (mode: 'local' | 'remote') => {
         this.mode = mode;
+        if (mode === 'remote') {
+            this.deferredSwitchCompleting = false;
+        }
         this.client.keepAlive(this.thinking, mode);
         this._onModeChange(mode);
     }
@@ -118,6 +122,7 @@ export class Session {
 
     clearDeferredSwitchState = (): void => {
         this.pendingSwitch = undefined;
+        this.deferredSwitchCompleting = false;
         this.turnActive = false;
         this.client.updateAgentState((currentState) => ({
             ...currentState,

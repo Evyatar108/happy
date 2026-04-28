@@ -132,10 +132,7 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
         session.setNotifyLegacyMessageBeforeQueue(() => {
             void doSwitch();
         });
-        session.queue.setOnMessage((message: string, mode) => {
-            // Switch to remote mode when message received
-            doSwitch();
-        }); // When any message is received, abort current process, clean queue and switch to remote mode
+        session.queue.setOnMessage(null);
 
         // Exit if there are messages in the queue
         if (session.queue.size() > 0) {

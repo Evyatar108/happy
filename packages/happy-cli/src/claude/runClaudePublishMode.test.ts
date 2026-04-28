@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Metadata, PermissionMode } from '@/api/types';
+import type { MessageMeta, Metadata, PermissionMode } from '@/api/types';
 
 const mocks = vi.hoisted(() => {
     let userMessageHandler: ((message: any) => void) | null = null;
@@ -39,7 +39,7 @@ const mocks = vi.hoisted(() => {
         mockGenerateHookSettingsFile: vi.fn(() => '/tmp/happy-hooks.json'),
         mockCleanupHookSettingsFile: vi.fn(),
         mockRegisterKillSessionHandler: vi.fn(),
-        mockLoop: vi.fn(async () => 0),
+        mockLoop: vi.fn(async (..._args: any[]) => 0),
         mockLoggerDebug: vi.fn(),
         mockLoggerDebugLargeJson: vi.fn(),
         mockLoggerInfoDeveloper: vi.fn(),
@@ -154,6 +154,26 @@ function createUserMessage(permissionMode?: PermissionMode) {
     };
 }
 
+function createTextUserMessage(text: string, meta: MessageMeta = {}) {
+    return {
+        role: 'user',
+        content: { type: 'text', text },
+        meta,
+    };
+}
+
+function createLocalSessionState(overrides: Partial<{
+    pendingSwitch: unknown;
+    deferredSwitchCompleting: boolean;
+}> = {}) {
+    return {
+        pendingSwitch: overrides.pendingSwitch,
+        deferredSwitchCompleting: overrides.deferredSwitchCompleting ?? false,
+        notifyLegacyMessageBeforeQueue: vi.fn(),
+        cleanup: vi.fn(),
+    };
+}
+
 async function runClaudeUntilExit(permissionMode?: PermissionMode): Promise<ProcessExit> {
     try {
         await runClaude({ token: 'token' } as any, {
@@ -244,5 +264,118 @@ describe('runClaude permission mode metadata publishing', () => {
             pendingSwitch: null,
             turnActive: false,
         });
+    });
+
+    it.each([
+        ['normal text', 'hello', false],
+        ['/compact', '/compact', true],
+        ['/clear', '/clear', true],
+    ] as const)('runs legacy switch dispatch before queueing untagged %s messages', async (_name, text, isolate) => {
+        const localSession = createLocalSessionState();
+        mocks.mockLoop.mockImplementation(async (opts: any) => {
+            opts.onSessionReady(localSession);
+            mocks.getUserMessageHandler()?.(createTextUserMessage(text));
+            await Promise.resolve();
+            expect(localSession.notifyLegacyMessageBeforeQueue).toHaveBeenCalledTimes(1);
+            expect(opts.messageQueue.queue).toHaveLength(1);
+            expect(opts.messageQueue.queue[0]).toMatchObject({
+                message: text,
+                isolate,
+            });
+            return 0;
+        });
+
+        await runClaudeWithStartingModeUntilExit('local');
+    });
+
+    it.each([
+        ['normal text', 'hello', false],
+        ['/compact', '/compact', true],
+        ['/clear', '/clear', true],
+    ] as const)('silently queues tagged %s messages while a pending switch exists', async (_name, text, isolate) => {
+        const localSession = createLocalSessionState({
+            pendingSwitch: { requestedAt: 1234, messagePreview: text },
+        });
+        mocks.mockLoop.mockImplementation(async (opts: any) => {
+            opts.onSessionReady(localSession);
+            mocks.getUserMessageHandler()?.(createTextUserMessage(text, {
+                capabilities: { deferredSwitch: true },
+            }));
+            await Promise.resolve();
+            expect(localSession.notifyLegacyMessageBeforeQueue).not.toHaveBeenCalled();
+            expect(opts.messageQueue.queue).toHaveLength(1);
+            expect(opts.messageQueue.queue[0]).toMatchObject({
+                message: text,
+                isolate,
+            });
+            return 0;
+        });
+
+        await runClaudeWithStartingModeUntilExit('local');
+    });
+
+    it.each([
+        ['normal text', 'hello'],
+        ['/compact', '/compact'],
+        ['/clear', '/clear'],
+    ] as const)('drops tagged %s messages when no pending switch or completion window exists', async (_name, text) => {
+        const localSession = createLocalSessionState();
+        mocks.mockLoop.mockImplementation(async (opts: any) => {
+            opts.onSessionReady(localSession);
+            mocks.getUserMessageHandler()?.(createTextUserMessage(text, {
+                capabilities: { deferredSwitch: true },
+                model: 'must-not-stick',
+            }));
+            mocks.getUserMessageHandler()?.(createTextUserMessage('after-drop'));
+            await Promise.resolve();
+            expect(localSession.notifyLegacyMessageBeforeQueue).toHaveBeenCalledTimes(1);
+            expect(opts.messageQueue.queue).toHaveLength(1);
+            expect(opts.messageQueue.queue[0].message).toBe('after-drop');
+            expect(opts.messageQueue.queue[0].mode.model).toBeUndefined();
+            return 0;
+        });
+
+        await runClaudeWithStartingModeUntilExit('local');
+    });
+
+    it('queues and consumes a tagged message during the deferred-switch completion window', async () => {
+        const localSession = createLocalSessionState({ deferredSwitchCompleting: true });
+        mocks.mockLoop.mockImplementation(async (opts: any) => {
+            opts.onSessionReady(localSession);
+            mocks.getUserMessageHandler()?.(createTextUserMessage('hello', {
+                capabilities: { deferredSwitch: true },
+            }));
+            await Promise.resolve();
+            expect(localSession.notifyLegacyMessageBeforeQueue).not.toHaveBeenCalled();
+            expect(localSession.deferredSwitchCompleting).toBe(false);
+            expect(opts.messageQueue.queue).toHaveLength(1);
+            expect(opts.messageQueue.queue[0].message).toBe('hello');
+            return 0;
+        });
+
+        await runClaudeWithStartingModeUntilExit('local');
+    });
+
+    it.each([
+        ['tagged then untagged', ['tagged', 'untagged']],
+        ['untagged then tagged', ['untagged', 'tagged']],
+    ] as const)('keeps multi-client deferred-switch dispatch per-message: %s', async (_name, order) => {
+        const localSession = createLocalSessionState({
+            pendingSwitch: { requestedAt: 1234, messagePreview: 'tagged' },
+        });
+        mocks.mockLoop.mockImplementation(async (opts: any) => {
+            opts.onSessionReady(localSession);
+            for (const kind of order) {
+                mocks.getUserMessageHandler()?.(createTextUserMessage(kind, kind === 'tagged'
+                    ? { capabilities: { deferredSwitch: true } }
+                    : {}));
+            }
+            await Promise.resolve();
+            expect(localSession.notifyLegacyMessageBeforeQueue).toHaveBeenCalledTimes(1);
+            expect(opts.messageQueue.queue.map((item: { message: string }) => item.message)).toEqual(order);
+            return 0;
+        });
+
+        await runClaudeWithStartingModeUntilExit('local');
     });
 });

@@ -197,6 +197,9 @@ export const MessageMetaSchema = z.object({
   appendSystemPrompt: z.string().nullable().optional(), // Append to system prompt for this message (null = reset)
   allowedTools: z.array(z.string()).nullable().optional(), // Allowed tools for this message (null = reset)
   disallowedTools: z.array(z.string()).nullable().optional(), // Disallowed tools for this message (null = reset)
+  capabilities: z.object({
+    deferredSwitch: z.boolean().optional(),
+  }).optional(),
   contextBoundaryFallback: z.boolean().optional()
 })
 

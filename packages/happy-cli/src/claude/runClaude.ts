@@ -272,6 +272,18 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
     });
 
     session.onUserMessage((message) => {
+        const taggedDeferredSwitch = message.meta?.capabilities?.deferredSwitch === true;
+
+        if (!taggedDeferredSwitch) {
+            currentSession?.notifyLegacyMessageBeforeQueue();
+        } else if (currentSession?.pendingSwitch == null) {
+            if (currentSession?.deferredSwitchCompleting === true) {
+                currentSession.deferredSwitchCompleting = false;
+            } else {
+                logger.debug('[loop] Dropping tagged deferred-switch message with no pending switch');
+                return;
+            }
+        }
 
         // Resolve permission mode from meta - pass through as-is, mapping happens at SDK boundary
         let messagePermissionMode: PermissionMode | undefined = currentPermissionMode;
