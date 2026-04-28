@@ -14,6 +14,13 @@ import type { GitStatusFiles } from "./gitStatusFiles";
 import { createReducer, reducer, ReducerState, seedLatestBoundary, type LatestBoundary } from "./reducer/reducer";
 import { Message } from "./typesMessage";
 import { NormalizedMessage } from "./typesRaw";
+import {
+    mergeOlderMessagesIntoSession,
+    applyPrefetchedRangeToSession,
+    type SessionMergeMeta,
+    type ActivePrefetch,
+} from "./applyPrefetchedRange";
+export type { ActivePrefetch } from "./applyPrefetchedRange";
 import { isMachineOnline } from '@/utils/machineUtils';
 import { getSessionName, getSessionSubtitle, getSessionAvatarId, type SessionState } from '@/utils/sessionUtils';
 import { applySettings, Settings } from "./settings";
@@ -69,6 +76,8 @@ interface SessionMessages {
     hasOlder: boolean;
     oldestLoadedSeq: number;
     loadingOlder: boolean;
+    renderWindow: { firstSeq: number; lastSeq: number } | null;
+    activePrefetch?: ActivePrefetch;
 }
 
 type IncomingSession = Omit<Session, 'presence' | 'permissionModeUserChosen'> & {
@@ -195,6 +204,21 @@ interface StorageState {
             hasOlder: boolean;
         }
     ) => void;
+    setRenderWindow: (sessionId: string, window: { firstSeq: number; lastSeq: number } | null) => void;
+    setActivePrefetch: (sessionId: string, activePrefetch: ActivePrefetch) => void;
+    applyPrefetchedRange: (
+        sessionId: string,
+        messages: NormalizedMessage[],
+        params: {
+            requestedFromSeq: number;
+            requestedToSeq: number;
+            hasMore: boolean;
+            expectedRequestId: string;
+            expectedGeneration: number;
+            currentGeneration: (sessionId: string) => number;
+        }
+    ) => void;
+    clearActivePrefetch: (sessionId: string, expectedRequestId: string) => void;
     applySettings: (settings: Settings, version: number) => void;
     applySettingsLocal: (settings: Partial<Settings>) => void;
     applyLocalSettings: (settings: Partial<LocalSettings>) => void;
@@ -547,6 +571,8 @@ export const storage = create<StorageState>()((set, get) => {
                         hasOlder: existingSessionMessages.hasOlder,
                         oldestLoadedSeq: existingSessionMessages.oldestLoadedSeq,
                         loadingOlder: existingSessionMessages.loadingOlder,
+                        renderWindow: existingSessionMessages.renderWindow,
+                        activePrefetch: existingSessionMessages.activePrefetch,
                     };
 
                     // IMPORTANT: Copy latestUsage from reducerState to Session for immediate availability
@@ -643,6 +669,7 @@ export const storage = create<StorageState>()((set, get) => {
                     hasOlder: false,
                     oldestLoadedSeq: 0,
                     loadingOlder: false,
+                    renderWindow: null,
                 };
 
                 // Get the session's agentState if available
@@ -796,6 +823,7 @@ export const storage = create<StorageState>()((set, get) => {
                             hasOlder: pagination?.hasOlder ?? false,
                             oldestLoadedSeq: pagination?.oldestLoadedSeq ?? 0,
                             loadingOlder: false,
+                            renderWindow: null,
                         } satisfies SessionMessages
                     }
                 };
@@ -840,31 +868,31 @@ export const storage = create<StorageState>()((set, get) => {
             }
 
             const session = state.sessions[sessionId];
-            const agentState = session?.agentState;
+            const sessionMeta: SessionMergeMeta = {
+                agentState: session?.agentState ?? null,
+                latestUsage: session?.latestUsage,
+                todos: session?.todos,
+            };
+
             // Older-page batches must replay oldest-to-newest for the same reducer invariants
             // as initial loads, even when pagination arrives in a different transport order.
-            const normalizedMessages = [...messages].sort((left, right) => left.createdAt - right.createdAt);
-            const reducerResult = reducer(existingSession.reducerState, normalizedMessages, agentState);
-            const processedMessages = reducerResult.messages;
-
-            const mergedMessagesMap = { ...existingSession.messagesMap };
-            processedMessages.forEach(message => {
-                mergedMessagesMap[message.id] = message;
+            const { nextSession, nextSessionMeta } = mergeOlderMessagesIntoSession({
+                existingSession,
+                sessionMeta,
+                messages,
+                pagination,
             });
 
-            const messagesArray = Object.values(mergedMessagesMap)
-                .sort((a, b) => b.createdAt - a.createdAt);
-
             let updatedSessions = state.sessions;
-            if ((reducerResult.todos !== undefined || existingSession.reducerState.latestUsage) && session) {
+            const todosChanged = nextSessionMeta.todos !== sessionMeta.todos;
+            const latestUsageChanged = nextSessionMeta.latestUsage !== sessionMeta.latestUsage;
+            if (session && (todosChanged || latestUsageChanged)) {
                 updatedSessions = {
                     ...state.sessions,
                     [sessionId]: {
                         ...session,
-                        ...(reducerResult.todos !== undefined && { todos: reducerResult.todos }),
-                        latestUsage: existingSession.reducerState.latestUsage
-                            ? { ...existingSession.reducerState.latestUsage }
-                            : session.latestUsage,
+                        ...(todosChanged && { todos: nextSessionMeta.todos }),
+                        latestUsage: nextSessionMeta.latestUsage,
                     }
                 };
             }
@@ -874,14 +902,113 @@ export const storage = create<StorageState>()((set, get) => {
                 sessions: updatedSessions,
                 sessionMessages: {
                     ...state.sessionMessages,
+                    [sessionId]: nextSession satisfies SessionMessages
+                }
+            };
+        }),
+        setRenderWindow: (sessionId: string, window: { firstSeq: number; lastSeq: number } | null) => set((state) => {
+            const existingSession = state.sessionMessages[sessionId];
+            if (!existingSession) {
+                return state;
+            }
+            return {
+                ...state,
+                sessionMessages: {
+                    ...state.sessionMessages,
                     [sessionId]: {
                         ...existingSession,
-                        messages: messagesArray,
-                        messagesMap: mergedMessagesMap,
-                        reducerState: existingSession.reducerState,
-                        hasOlder: pagination.hasOlder,
-                        oldestLoadedSeq: pagination.newOldestLoadedSeq,
-                        loadingOlder: false,
+                        renderWindow: window,
+                    } satisfies SessionMessages
+                }
+            };
+        }),
+        setActivePrefetch: (sessionId: string, activePrefetch: ActivePrefetch) => set((state) => {
+            const existingSession = state.sessionMessages[sessionId];
+            if (!existingSession) {
+                return state;
+            }
+            return {
+                ...state,
+                sessionMessages: {
+                    ...state.sessionMessages,
+                    [sessionId]: {
+                        ...existingSession,
+                        activePrefetch,
+                    } satisfies SessionMessages
+                }
+            };
+        }),
+        applyPrefetchedRange: (sessionId, messages, params) => set((state) => {
+            const existingSession = state.sessionMessages[sessionId];
+            if (!existingSession) {
+                return state;
+            }
+
+            const session = state.sessions[sessionId];
+            const sessionMeta: SessionMergeMeta = {
+                agentState: session?.agentState ?? null,
+                latestUsage: session?.latestUsage,
+                todos: session?.todos,
+            };
+
+            const result = applyPrefetchedRangeToSession({
+                existingSession,
+                sessionMeta,
+                messages,
+                params: {
+                    requestedFromSeq: params.requestedFromSeq,
+                    requestedToSeq: params.requestedToSeq,
+                    hasMore: params.hasMore,
+                    expectedRequestId: params.expectedRequestId,
+                    expectedGeneration: params.expectedGeneration,
+                    actualGeneration: params.currentGeneration(sessionId),
+                },
+            });
+
+            if (result.stale) {
+                return state;
+            }
+
+            let updatedSessions = state.sessions;
+            const todosChanged = result.nextSessionMeta.todos !== sessionMeta.todos;
+            const latestUsageChanged = result.nextSessionMeta.latestUsage !== sessionMeta.latestUsage;
+            if (session && (todosChanged || latestUsageChanged)) {
+                updatedSessions = {
+                    ...state.sessions,
+                    [sessionId]: {
+                        ...session,
+                        ...(todosChanged && { todos: result.nextSessionMeta.todos }),
+                        latestUsage: result.nextSessionMeta.latestUsage,
+                    }
+                };
+            }
+
+            return {
+                ...state,
+                sessions: updatedSessions,
+                sessionMessages: {
+                    ...state.sessionMessages,
+                    [sessionId]: result.nextSession satisfies SessionMessages
+                }
+            };
+        }),
+        clearActivePrefetch: (sessionId: string, expectedRequestId: string) => set((state) => {
+            const existingSession = state.sessionMessages[sessionId];
+            if (!existingSession) {
+                return state;
+            }
+            // Guarded clear: a clear arriving after the generation has been bumped MUST NOT
+            // wipe a newer in-flight prefetch.
+            if (existingSession.activePrefetch?.requestId !== expectedRequestId) {
+                return state;
+            }
+            return {
+                ...state,
+                sessionMessages: {
+                    ...state.sessionMessages,
+                    [sessionId]: {
+                        ...existingSession,
+                        activePrefetch: undefined,
                     } satisfies SessionMessages
                 }
             };
