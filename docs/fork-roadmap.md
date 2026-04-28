@@ -85,6 +85,18 @@ Ranking is by **e-ink tablet quality-of-life** (the fork's primary target), then
 
 ## Shipped (see `docs/fork-notes.md` for details)
 
+### 2026-04-27 — Expandable file-content preview for Write/Edit/MultiEdit tool views
+
+Write, Edit, and MultiEdit tool bubbles now collapse their diff preview to 10 visible lines by default with an e-ink-safe Show / Hide toggle. Built around a shared `useDiffHunks` hook so the collapsed and expanded views share one memoized hunk list — single-pass diff confirmed by Vitest spies. Delivered as 10 commits on `ralph/expandable-diff-preview` merged to local `main` as `c8c0eca2` (`--no-ff`); job directory at `.ralph/jobs/expandable-diff-preview/` carries the plan, DSAT, per-story artifacts, and code/docs review findings.
+
+1. **`useDiffHunks(oldText, newText, contextLines?)` hook** in `packages/happy-app/sources/components/diff/` (commit `0fec2341`). Memoized on `[oldText, newText, contextLines]`; default contextLines `3` matches the original `DiffView`.
+2. **`DiffView` + `ToolDiffView` pass-through props.** Both accept optional `hunks?` and `maxVisibleLines?` props that bypass internal hunk computation when a precomputed list is supplied (commits `5dd6ce9e`, `772f5aca`). `DiffView` also suppresses its hunk header when the entire hunk falls outside the visible-line budget.
+3. **`CollapsibleDiffPreview` wrapper component + Vitest unit test** (commit `c714a835`). Renders the hunk-truncated `ToolDiffView` inside a Pressable header showing `Show N more lines` / `Hide`.
+4. **Two new i18n keys** (`tools.diff.showMore` with `count` plural, `tools.diff.collapse`) added to `_default.ts` + all 10 translation files (commit `3c7a9a5b`). Slavic locales (`ru`, `pl`) use the 3-form `plural({ count, one, few, many })` pattern.
+5. **`WriteView`, `EditView`, `MultiEditView` wired** to render their diff inside `CollapsibleDiffPreview` with `collapsedLines={10}` (commits `2cfe488f`, `8dd494b4`, `2bf2a86e`). Existing `showLineNumbersInToolViews` / `showPlusMinusSymbols` behavior preserved; MultiEditView's outer horizontal `ScrollView` left unchanged.
+6. **Two code-review fixes (round 1):** F-001 (consensus Medium, claude+codex+copilot) removed an unnecessary `(t as unknown as DiffTranslation)` cast at the new i18n call sites; F-002 (Claude-only Low) removed a superstitious `event.stopPropagation?.()` in the toggle handler (commits `68d5b9cc`, `7eba25da`).
+7. **Manual on-device verification (US-009)** on the BOOX e-ink tablet passed in-session — expand/collapse cycle verified across Write/Edit/MultiEdit fixtures via Metro `--dev-client --clear` + `adb reverse tcp:8081`.
+
 ### 2026-04-25 - Worklet pinch-to-zoom text animation shipped on `main`
 
 The chat pinch path now animates text leaves directly instead of scaling whole message bubbles. The shipped surface includes markdown, fenced code, diffs, tool output, permission/todo/codex views, and agent event text, while bubble chrome stays fixed. BOOX validation still runs as the separate manual hard gate documented in `docs/fork-notes.md`.

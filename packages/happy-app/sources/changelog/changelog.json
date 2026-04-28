@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "version": 24,
+      "date": "2026-04-27",
+      "summary": "Long file-edit previews in chat are easier to scan now. Write, Edit, and MultiEdit tool bubbles collapse their diff to the first 10 visible lines by default, with an e-ink-safe Show / Hide toggle that expands the full content on demand. The remaining lines are summarized inline so you know what is hidden.",
+      "changes": [
+        "Added a Show / Hide toggle on Write, Edit, and MultiEdit tool bubbles that collapses the diff preview to 10 lines and expands it on tap.",
+        "Reused the precomputed diff hunks across the collapsed and expanded views so opening a long edit doesn't re-run the diff.",
+        "Added the new `tools.diff.showMore` and `tools.diff.collapse` strings across all 11 supported languages."
+      ],
+      "rawMarkdown": "## Version 24 - 2026-04-27\n\n\nLong file-edit previews in chat are easier to scan now. Write, Edit, and MultiEdit tool bubbles collapse their diff to the first 10 visible lines by default, with an e-ink-safe Show / Hide toggle that expands the full content on demand. The remaining lines are summarized inline so you know what is hidden.\n\n- Added a Show / Hide toggle on Write, Edit, and MultiEdit tool bubbles that collapses the diff preview to 10 lines and expands it on tap.\n- Reused the precomputed diff hunks across the collapsed and expanded views so opening a long edit doesn't re-run the diff.\n- Added the new `tools.diff.showMore` and `tools.diff.collapse` strings across all 11 supported languages."
+    },
+    {
       "version": 23,
       "date": "2026-04-27",
       "summary": "Chat titles now stay in sync wherever you rename them. Renaming a live chat from Happy updates the title immediately, and titles chosen by Claude itself now flow back into the app instead of getting lost or showing different names in different places.",
@@ -273,5 +284,5 @@
       "rawMarkdown": "## Version 1 - 2025-05-12\n\n\nWelcome to Happy - your secure, encrypted mobile companion for Claude Code. This inaugural release establishes the foundation for private, powerful AI interactions on the go.\n\n- Implemented end-to-end encrypted session management ensuring complete privacy\n- Integrated intelligent voice assistant with natural conversation capabilities\n- Added experimental file manager with syntax highlighting and tree navigation\n- Built seamless real-time synchronization across all your devices\n- Established native support for iOS, Android, and responsive web interfaces"
     }
   ],
-  "latestVersion": 23
+  "latestVersion": 24
 }

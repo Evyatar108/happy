@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 24 - 2026-04-27
+
+Long file-edit previews in chat are easier to scan now. Write, Edit, and MultiEdit tool bubbles collapse their diff to the first 10 visible lines by default, with an e-ink-safe Show / Hide toggle that expands the full content on demand. The remaining lines are summarized inline so you know what is hidden.
+
+- Added a Show / Hide toggle on Write, Edit, and MultiEdit tool bubbles that collapses the diff preview to 10 lines and expands it on tap.
+- Reused the precomputed diff hunks across the collapsed and expanded views so opening a long edit doesn't re-run the diff.
+- Added the new `tools.diff.showMore` and `tools.diff.collapse` strings across all 11 supported languages.
+
 ## Version 23 - 2026-04-27
 
 Chat titles now stay in sync wherever you rename them. Renaming a live chat from Happy updates the title immediately, and titles chosen by Claude itself now flow back into the app instead of getting lost or showing different names in different places.
