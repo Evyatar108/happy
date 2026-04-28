@@ -44,15 +44,16 @@ Default selection:
 If selected mode is invalid for the currently selected agent, UI resets to agent default above.
 
 ### 4) Outbound message mode
+`packages/happy-app/sources/sync/messageMeta.ts`
 `packages/happy-app/sources/sync/sync.ts`
 
-On send:
-- If `session.permissionMode` is non-`default`, send it.
-- Otherwise:
-  - If `session.metadata.sandbox.enabled === true`: send `bypassPermissions`
-  - Else send `default`
+On send, `resolveMessageModeMeta` decides whether to attach `permissionMode` to the outbound message:
+- If `session.permissionModeUserChosen === true` and `session.permissionMode` is one of the wire modes (`default | acceptEdits | bypassPermissions | plan | read-only | safe-yolo | yolo`): send that mode.
+- Else if `session.metadata.sandbox.enabled === true`: send `bypassPermissions` (sandbox forcing).
+- Otherwise: omit `permissionMode` entirely — it is left out of both the encrypted `meta` and the socket envelope.
+  - This preserves the CLI's startup mode (e.g., `claude --dangerously-skip-permissions`) when the user has not toggled the picker, so the app does not silently downgrade the running session to `default`.
 
-This value is sent in:
+When present, the value is sent in:
 - encrypted message `meta.permissionMode`
 - socket envelope `permissionMode`
 
