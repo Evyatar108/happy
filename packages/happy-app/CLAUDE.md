@@ -128,6 +128,12 @@ sources/
 - **Always apply layout width constraints** from `@/components/layout` to full-screen ScrollViews and content containers for responsive design across device sizes
 - Always run `pnpm typecheck` after all changes to ensure type safety
 
+### Permission Picker Init Order
+
+Permission picker display state is resolved by `resolvePermissionModeForPicker(...)` in `sources/components/modelModeOptions.ts`; `sources/-session/SessionView.tsx` should call that helper instead of reading raw metadata fields directly. The order is: an explicit user pick when `session.permissionModeUserChosen === true`, then `metadata.currentPermissionModeCode`, then `metadata.dangerouslySkipPermissions` as a Claude-only legacy fallback, then `getDefaultPermissionModeKey(flavor)`.
+
+`session.permissionModeUserChosen` distinguishes a user selection from a derived/default value. Keep it false for machine-derived changes such as EnterPlanMode, and true only for explicit picker/button choices. Layer 1 protocol details are documented in `.ralph/jobs/preserve-permission-mode-layer1/plan.md`.
+
 ### Slash Commands
 
 - For app-local slash commands, use `sources/sync/slashCommandIntercept.ts` for parsing, `sources/hooks/usePreSendCommand.ts` for execution and error surfacing, and `sources/sync/suggestionCommands.ts` for picker discoverability.
