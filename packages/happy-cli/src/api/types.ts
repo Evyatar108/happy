@@ -259,6 +259,7 @@ export type Metadata = {
   currentOperatingModeCode?: string,
   thoughtLevels?: Array<{ code: string; value: string; description?: string | null }>,
   currentThoughtLevelCode?: string,
+  currentPermissionModeCode?: string,
   path: string,
   host: string,
   version?: string,

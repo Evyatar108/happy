@@ -26,6 +26,7 @@ import { notifyDaemonSessionStarted } from "@/daemon/controlClient";
 import { registerKillSessionHandler } from "@/claude/registerKillSessionHandler";
 import { connectionState } from '@/utils/serverConnectionErrors';
 import { setupOfflineReconnection } from '@/utils/setupOfflineReconnection';
+import { publishPermissionModeIfChanged } from '@/utils/publishPermissionMode';
 import type { ApiSessionClient } from '@/api/apiSession';
 import { resolveCodexExecutionPolicy } from './executionPolicy';
 import { mapCodexMcpMessageToSessionEnvelopes, mapCodexProcessorMessageToSessionEnvelopes } from './utils/sessionProtocolMapper';
@@ -129,6 +130,7 @@ export async function runCodex(opts: {
         }
     });
     session = initialSession;
+    const lastPublishedPermissionModeCode = { current: undefined as string | undefined };
 
     // Always report to daemon if it exists (skip if offline)
     if (response) {
@@ -162,6 +164,7 @@ export async function runCodex(opts: {
             messagePermissionMode = message.meta.permissionMode as import('@/api/types').PermissionMode;
             currentPermissionMode = messagePermissionMode;
             logger.debug(`[Codex] Permission mode updated from user message to: ${currentPermissionMode}`);
+            void publishPermissionModeIfChanged(session, metadata, messagePermissionMode, lastPublishedPermissionModeCode);
         } else {
             logger.debug(`[Codex] User message received with no permission mode override, using current: ${currentPermissionMode ?? 'default (effective)'}`);
         }
@@ -536,6 +539,11 @@ export async function runCodex(opts: {
         logger.debug('[codex]: client.connect begin');
         await client.connect();
         logger.debug('[codex]: client.connect done');
+
+        if (client.sandboxEnabled) {
+            currentPermissionMode = 'yolo';
+            await publishPermissionModeIfChanged(session, metadata, 'yolo', lastPublishedPermissionModeCode);
+        }
 
         if (opts.resumeThreadId) {
             await resumeExistingThread({

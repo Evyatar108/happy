@@ -171,7 +171,7 @@ export function useSessionQuickActions(
                 }
 
                 if (session.permissionMode) {
-                    storage.getState().updateSessionPermissionMode(result.sessionId, session.permissionMode);
+                    storage.getState().updateSessionPermissionMode(result.sessionId, session.permissionMode, session.permissionModeUserChosen);
                 }
                 if (session.modelMode) {
                     storage.getState().updateSessionModelMode(result.sessionId, session.modelMode);

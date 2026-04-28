@@ -6,6 +6,8 @@ import { sessionContextBoundaryKindSchema } from "@slopus/happy-wire";
 //
 
 export const MetadataSchema = z.object({
+    // Keep this schema strip-by-default; do not add .strict(), because newer CLIs
+    // can send metadata fields older apps do not know about yet.
     models: z.array(z.object({
         code: z.string(),
         value: z.string(),
@@ -18,6 +20,7 @@ export const MetadataSchema = z.object({
         description: z.string().nullish(),
     })).optional(),
     currentOperatingModeCode: z.string().optional(),
+    currentPermissionModeCode: z.string().optional(),
     thoughtLevels: z.array(z.object({
         code: z.string(),
         value: z.string(),
@@ -129,6 +132,7 @@ export interface Session {
     todos?: TodoItem[];
     draft?: string | null; // Local draft message, not synced to server
     permissionMode?: string | null; // Local permission mode key, not synced to server
+    permissionModeUserChosen: boolean; // True only after the user explicitly picked a permission mode
     modelMode?: string | null; // Local model key, not synced to server
     effortLevel?: string | null; // Local effort level key, not synced to server
     // IMPORTANT: latestUsage is extracted from reducerState.latestUsage after message processing.

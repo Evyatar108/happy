@@ -849,7 +849,7 @@ function NewSessionScreen() {
                     await sync.refreshSessions();
 
                     // Set permission mode and model on the session before sending
-                    storage.getState().updateSessionPermissionMode(result.sessionId, currentPermission.key);
+                    storage.getState().updateSessionPermissionMode(result.sessionId, currentPermission.key, true);
                     storage.getState().updateSessionModelMode(result.sessionId, currentModelKey);
 
                     // Clear input text so draft doesn't repeat the sent message

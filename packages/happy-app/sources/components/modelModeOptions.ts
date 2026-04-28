@@ -203,6 +203,31 @@ export function getDefaultPermissionModeKey(_flavor: AgentFlavor): string {
     return 'default';
 }
 
+export function resolvePermissionModeForPicker(
+    availableModes: PermissionMode[],
+    options: {
+        userChosen: boolean;
+        sessionPermissionMode: string | null | undefined;
+        metadataCurrentPermissionModeCode: string | null | undefined;
+        metadataDangerouslySkipPermissions: boolean | null | undefined;
+        flavor: AgentFlavor;
+    },
+): PermissionMode | null {
+    if (options.userChosen) {
+        return resolveCurrentOption(availableModes, [options.sessionPermissionMode]);
+    }
+
+    const legacyClaudeBypass = options.flavor === 'claude' && options.metadataDangerouslySkipPermissions === true
+        ? 'bypassPermissions'
+        : undefined;
+
+    return resolveCurrentOption(availableModes, [
+        options.metadataCurrentPermissionModeCode,
+        legacyClaudeBypass,
+        getDefaultPermissionModeKey(options.flavor),
+    ]);
+}
+
 // Effort levels per agent type
 
 export function getClaudeEffortLevels(): EffortLevel[] {

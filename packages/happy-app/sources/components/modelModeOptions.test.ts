@@ -5,6 +5,7 @@ import {
     getCodexModelModes,
     getClaudePermissionModes,
     mapMetadataOptions,
+    resolvePermissionModeForPicker,
     resolveCurrentOption,
 } from './modelModeOptions';
 
@@ -97,5 +98,88 @@ describe('modelModeOptions', () => {
 
         expect(resolveCurrentOption(options, ['missing', 'b', 'a'])).toEqual({ key: 'b', name: 'B' });
         expect(resolveCurrentOption(options, ['missing'])).toBeNull();
+    });
+
+    describe('resolvePermissionModeForPicker', () => {
+        const claudeModes = [
+            { key: 'default', name: 'Default' },
+            { key: 'plan', name: 'Plan' },
+            { key: 'bypassPermissions', name: 'Bypass' },
+        ];
+        const codexModes = [
+            { key: 'default', name: 'Default' },
+            { key: 'read-only', name: 'Read Only' },
+            { key: 'yolo', name: 'YOLO' },
+        ];
+
+        it('uses metadata current permission mode when the user has not chosen', () => {
+            expect(resolvePermissionModeForPicker(claudeModes, {
+                userChosen: false,
+                sessionPermissionMode: 'bypassPermissions',
+                metadataCurrentPermissionModeCode: 'plan',
+                metadataDangerouslySkipPermissions: false,
+                flavor: 'claude',
+            })?.key).toBe('plan');
+        });
+
+        it('uses the session permission mode when the user has chosen', () => {
+            expect(resolvePermissionModeForPicker(claudeModes, {
+                userChosen: true,
+                sessionPermissionMode: 'bypassPermissions',
+                metadataCurrentPermissionModeCode: 'plan',
+                metadataDangerouslySkipPermissions: false,
+                flavor: 'claude',
+            })?.key).toBe('bypassPermissions');
+        });
+
+        it('falls back to the flavor default when no user or metadata mode exists', () => {
+            expect(resolvePermissionModeForPicker(claudeModes, {
+                userChosen: false,
+                sessionPermissionMode: undefined,
+                metadataCurrentPermissionModeCode: undefined,
+                metadataDangerouslySkipPermissions: false,
+                flavor: 'claude',
+            })?.key).toBe('default');
+        });
+
+        it('falls back to the flavor default when metadata mode is unavailable', () => {
+            expect(resolvePermissionModeForPicker(claudeModes, {
+                userChosen: false,
+                sessionPermissionMode: undefined,
+                metadataCurrentPermissionModeCode: 'missing-mode',
+                metadataDangerouslySkipPermissions: false,
+                flavor: 'claude',
+            })?.key).toBe('default');
+        });
+
+        it('uses the Claude legacy bypass flag when modern metadata is absent', () => {
+            expect(resolvePermissionModeForPicker(claudeModes, {
+                userChosen: false,
+                sessionPermissionMode: undefined,
+                metadataCurrentPermissionModeCode: undefined,
+                metadataDangerouslySkipPermissions: true,
+                flavor: 'claude',
+            })?.key).toBe('bypassPermissions');
+        });
+
+        it('prefers modern metadata over the Claude legacy bypass flag', () => {
+            expect(resolvePermissionModeForPicker(claudeModes, {
+                userChosen: false,
+                sessionPermissionMode: undefined,
+                metadataCurrentPermissionModeCode: 'plan',
+                metadataDangerouslySkipPermissions: true,
+                flavor: 'claude',
+            })?.key).toBe('plan');
+        });
+
+        it('does not apply the legacy bypass fallback to Codex sessions', () => {
+            expect(resolvePermissionModeForPicker(codexModes, {
+                userChosen: false,
+                sessionPermissionMode: undefined,
+                metadataCurrentPermissionModeCode: undefined,
+                metadataDangerouslySkipPermissions: true,
+                flavor: 'codex',
+            })?.key).toBe('default');
+        });
     });
 });

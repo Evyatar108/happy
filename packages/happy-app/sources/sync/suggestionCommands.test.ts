@@ -31,6 +31,7 @@ function createSession(metadata?: Metadata | null): Session {
         thinking: false,
         thinkingAt: 0,
         presence: 'online',
+        permissionModeUserChosen: false,
     };
 }
 

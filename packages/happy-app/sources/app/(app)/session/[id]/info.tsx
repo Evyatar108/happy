@@ -23,6 +23,7 @@ import { useHappyAction } from '@/hooks/useHappyAction';
 import { useSessionQuickActions } from '@/hooks/useSessionQuickActions';
 import { copySessionMetadataToClipboard, copySessionMetadataAndLogsToClipboard } from '@/utils/copySessionMetadataToClipboard';
 import { HappyError } from '@/utils/errors';
+import { formatDangerouslySkipPermissionsMetadata } from '@/utils/sessionInfoPermissionMode';
 
 // Animated status dot component
 function StatusDot({ color, isPulsing, size = 8 }: { color: string; isPulsing?: boolean; size?: number }) {
@@ -97,30 +98,6 @@ function formatSandboxMetadata(sandbox: unknown, homeDir?: string): string {
     }
 
     return parts.join(' | ');
-}
-
-function formatDangerouslySkipPermissionsMetadata(
-    value: unknown,
-    flavor: string | null | undefined,
-    permissionMode: Session['permissionMode'],
-    sandbox: unknown,
-): string {
-    if (typeof value === 'boolean') {
-        return value ? 'Enabled' : 'Disabled';
-    }
-
-    if (permissionMode === 'bypassPermissions' || permissionMode === 'yolo') {
-        return 'Enabled';
-    }
-
-    if (flavor === 'claude' && sandbox && typeof sandbox === 'object') {
-        const sandboxValue = sandbox as Record<string, unknown>;
-        if (sandboxValue.enabled === true) {
-            return 'Enabled';
-        }
-    }
-
-    return 'Unknown';
 }
 
 function SessionInfoContent({ session }: { session: Session }) {
@@ -445,12 +422,7 @@ function SessionInfoContent({ session }: { session: Session }) {
                         />
                         <Item
                             title="Dangerously Skip Permissions"
-                            subtitle={formatDangerouslySkipPermissionsMetadata(
-                                session.metadata.dangerouslySkipPermissions,
-                                session.metadata.flavor,
-                                session.permissionMode,
-                                session.metadata.sandbox,
-                            )}
+                            subtitle={formatDangerouslySkipPermissionsMetadata(session, t)}
                             icon={<Ionicons name="warning-outline" size={29} color="#5856D6" />}
                             showChevron={false}
                         />

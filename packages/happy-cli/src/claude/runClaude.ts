@@ -26,6 +26,7 @@ import { claudeLocal } from '@/claude/claudeLocal';
 import { createSessionScanner } from '@/claude/utils/sessionScanner';
 import { Session } from './session';
 import { applySandboxPermissionPolicy, resolveInitialClaudePermissionMode } from './utils/permissionMode';
+import { publishPermissionModeIfChanged } from '@/utils/publishPermissionMode';
 
 /** JavaScript runtime to use for spawning Claude Code */
 export type JsRuntime = 'node' | 'bun'
@@ -113,6 +114,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         flavor: 'claude',
         sandbox: sandboxConfig?.enabled ? sandboxConfig : null,
         dangerouslySkipPermissions,
+        currentPermissionModeCode: initialPermissionMode,
     };
     const response = await api.getOrCreateSession({ tag: sessionTag, metadata, state });
 
@@ -250,6 +252,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
     // Forward messages to the queue
     // Permission modes: Use the unified 7-mode type, mapping happens at SDK boundary in claudeRemote.ts
     let currentPermissionMode: PermissionMode | undefined = initialPermissionMode;
+    const lastPublishedPermissionModeCode = { current: initialPermissionMode };
     let currentModel = options.model; // Track current model state
     let currentFallbackModel: string | undefined = undefined; // Track current fallback model
     let currentCustomSystemPrompt: string | undefined = undefined; // Track current custom system prompt
@@ -269,6 +272,9 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         if (message.meta?.permissionMode) {
             messagePermissionMode = applySandboxPermissionPolicy(message.meta.permissionMode, sandboxEnabled);
             currentPermissionMode = messagePermissionMode;
+            if (messagePermissionMode) {
+                void publishPermissionModeIfChanged(session, metadata, messagePermissionMode, lastPublishedPermissionModeCode);
+            }
             logger.debug(`[loop] Permission mode updated from user message to: ${currentPermissionMode}`);
         } else {
             logger.debug(`[loop] User message received with no permission mode override, using current: ${currentPermissionMode}`);

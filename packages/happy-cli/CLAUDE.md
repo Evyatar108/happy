@@ -79,6 +79,16 @@ Core Claude Code integration layer.
 - Real-time message streaming
 - Permission intercepting via MCP [Permission checking not implemented yet]
 
+### Permission Mode Protocol
+
+The Happy wire protocol uses a 7-mode permission enum: `default`, `acceptEdits`, `bypassPermissions`, `plan`, `read-only`, `safe-yolo`, and `yolo`. Claude Code's SDK accepts a smaller 4-mode enum, so Claude-specific mapping stays in `src/claude/permissions.ts` via `mapToClaudeMode(...)`; do not pass app wire keys directly to the SDK.
+
+Claude and Codex runners publish their effective mode to session metadata as `currentPermissionModeCode`. Claude seeds the initial value in the metadata object passed to `api.getOrCreateSession(...)`, then publishes later changes through `publishPermissionModeIfChanged(...)`. Codex publishes explicit user picks through the same helper, and also publishes an initial `yolo` once after `client.connect()` when Happy's sandbox forces full-access behavior.
+
+`publishPermissionModeIfChanged(...)` intentionally mutates the runner-local metadata object before awaiting `updateMetadata(...)`. That ordering keeps the offline-reconnect seed metadata current because reconnect paths reuse the same object by reference.
+
+Absence of `currentPermissionModeCode` is meaningful: it represents "no opinion yet", which lets the app avoid overwriting a CLI-owned mode until the user explicitly picks one. More detail is in `.ralph/jobs/preserve-permission-mode-layer1/plan.md`.
+
 **Title-event normalization:** Claude JSONL `custom-title` and `ai-title` records do not carry `uuid`/`leafUuid`/`timestamp`. Normalize them into synthetic `summary` messages before mapper/API handling, and use deterministic `leafUuid` values derived from `sessionId` (for example `custom-title:${sessionId}`) so scanner dedup and metadata writes stay idempotent.
 
 **Launcher parity:** `claudeLocalLauncher.ts` should forward the session scanner output verbatim, including `summary` messages. Remote mode already forwards everything, and local-only summary filtering breaks chat-title updates from SDK summaries and normalized `/rename` title events.

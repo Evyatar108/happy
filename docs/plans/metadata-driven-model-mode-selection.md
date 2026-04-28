@@ -1,5 +1,8 @@
 # Metadata-Driven Model and Mode Selection on Client
 
+> **Superseded in part by `docs/permission-resolution.md` (Layer 1 preservation work).**
+> Tasks 5 and 7 below describe `sendMessage()` reading `session.permissionMode` and unconditionally sending it as `meta.permissionMode` for every send. That behavior was later narrowed: `meta.permissionMode` is now only included when the user has explicitly toggled the mode (`permissionModeUserChosen`) or when sandbox enforcement requires it. See `docs/permission-resolution.md` for the current resolution rules. Historical content below is preserved as written.
+
 ## Overview
 - Make the client use backend-provided metadata fields (`metadata.models[]`, `metadata.operatingModes[]`, `metadata.currentModelCode`, `metadata.currentOperatingModeCode`) for model and mode selection in active sessions, instead of hardcoding options per agent type
 - Principle: if metadata provides options, use them; otherwise fall back to hardcoded defaults
@@ -100,6 +103,7 @@
 - [x] Run tests - must pass before next task
 
 ### Task 5: Send model and mode keys in message meta for all agent types
+> Superseded in part: the unconditional `meta.permissionMode` send below was later narrowed to user-chosen / sandbox-enabled cases. See `docs/permission-resolution.md`.
 - [x] In `sync.ts` `sendMessage()`, read `session.modelMode` (key string) and send in `meta.model` when set and not `'default'` — for ALL agent types, not just Gemini
 - [x] Read `session.permissionMode` (key string) and send in `meta.permissionMode`
 - [x] Remove Gemini-specific model logic and hardcoded default fallbacks
@@ -226,6 +230,9 @@ SessionView handles change:
 sendMessage():
   Reads session.modelMode ("gemini-2.5-pro") → sends as meta.model (ALL agents)
   Reads session.permissionMode ("acceptEdits") → sends as meta.permissionMode
+  # Note: the meta.permissionMode send was later narrowed — it now only fires when
+  # the user has toggled the mode (permissionModeUserChosen) or sandbox requires it.
+  # See docs/permission-resolution.md for the current rules.
 ```
 
 ## Post-Completion

@@ -96,4 +96,17 @@ describe('MetadataSchema', () => {
 
         expect(metadata?.latestBoundary).toEqual(expectedMetadata.latestBoundary);
     });
+
+    it('parses current permission mode and strips unknown metadata fields', () => {
+        const metadata = MetadataSchema.parse({
+            path: '/tmp/project',
+            host: 'local-machine',
+            currentOperatingModeCode: 'build',
+            currentPermissionModeCode: 'bypassPermissions',
+            futureCliField: 'ignored by older apps',
+        });
+
+        expect(metadata.currentPermissionModeCode).toBe('bypassPermissions');
+        expect(metadata).not.toHaveProperty('futureCliField');
+    });
 });
