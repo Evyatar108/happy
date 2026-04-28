@@ -23,9 +23,10 @@ import { usePreSendCommand } from '@/hooks/usePreSendCommand';
 import { Modal } from '@/modal';
 import { voiceHooks } from '@/realtime/hooks/voiceHooks';
 import { getCurrentVoiceConversationId, getCurrentVoiceSessionDurationSeconds, startRealtimeSession, stopRealtimeSession } from '@/realtime/RealtimeSession';
+import { shouldShowBoundaryAdvisory, updateComposeStartAt } from './composeBoundaryAdvisory';
 import { gitStatusSync } from '@/sync/gitStatusSync';
 import { sessionAbort } from '@/sync/ops';
-import { storage, useIsDataReady, useLocalSetting, useRealtimeStatus, useSessionMessages, useSessionUsage, useSetting } from '@/sync/storage';
+import { storage, useIsDataReady, useLatestBoundary, useLocalSetting, useRealtimeStatus, useSessionMessages, useSessionUsage, useSetting } from '@/sync/storage';
 import { useSidebar } from '@/components/SidebarContext';
 import { useSession } from '@/sync/storage';
 import { Session } from '@/sync/storageTypes';
@@ -44,7 +45,7 @@ import * as React from 'react';
 import { useMemo } from 'react';
 import { ActivityIndicator, Platform, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useUnistyles } from 'react-native-unistyles';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type { ModelMode, PermissionMode } from '@/components/PermissionModeSelector';
 
 export const SessionView = React.memo((props: { id: string }) => {
@@ -208,8 +209,10 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
     const deviceType = useDeviceType();
     const isTablet = useIsTablet();
     const [message, setMessage] = React.useState('');
+    const composeStartAtRef = React.useRef<number | null>(null);
     const realtimeStatus = useRealtimeStatus();
     const { messages, isLoaded } = useSessionMessages(sessionId);
+    const latestBoundary = useLatestBoundary(sessionId);
     const acknowledgedCliVersions = useLocalSetting('acknowledgedCliVersions');
     const sessionInputHorizontalPadding = Platform.OS === 'web' || isRunningOnMac() || isTablet ? 12 : 8;
     const preSendCommand = usePreSendCommand(sessionId);
@@ -280,6 +283,18 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
             });
         }
     }, [machineId, cliVersion, acknowledgedCliVersions]);
+
+    const handleChangeMessage = React.useCallback((nextMessage: string) => {
+        setMessage((previousMessage) => {
+            composeStartAtRef.current = updateComposeStartAt(
+                composeStartAtRef.current,
+                previousMessage,
+                nextMessage,
+                Date.now(),
+            );
+            return nextMessage;
+        });
+    }, []);
 
     // Function to update permission mode
     const updatePermissionMode = React.useCallback((mode: PermissionMode) => {
@@ -384,11 +399,18 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
         </>
     ) : null;
 
+    const showBoundaryAdvisory = shouldShowBoundaryAdvisory(latestBoundary, composeStartAtRef.current);
+    const boundaryAdvisory = showBoundaryAdvisory ? (
+        <CenteredInputWidth horizontalPadding={sessionInputHorizontalPadding}>
+            <CrossDeviceBoundaryAdvisory />
+        </CenteredInputWidth>
+    ) : null;
+
     const composer = (
         <AgentInput
             placeholder={t('session.inputPlaceholder')}
             value={message}
-            onChangeText={setMessage}
+            onChangeText={handleChangeMessage}
             sessionId={sessionId}
             permissionMode={permissionMode}
             onPermissionModeChange={updatePermissionMode}
@@ -411,6 +433,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                 const trimmedMessage = message.trim();
                 if (trimmedMessage) {
                     const intercept = preSendCommand(trimmedMessage);
+                    composeStartAtRef.current = null;
                     setMessage('');
                     clearDraft();
                     if (intercept.intercepted) {
@@ -456,6 +479,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
     const input = isInactiveArchivedSession ? (
         <>
             {archivedHint}
+            {boundaryAdvisory}
             {composer}
         </>
     ) : (
@@ -465,6 +489,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                     <ResumeCommandHint resumeCommandBlock={resumeCommandBlock} />
                 </CenteredInputWidth>
             )}
+            {boundaryAdvisory}
             {composer}
         </>
     );
@@ -554,6 +579,17 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
             }
         </>
     )
+}
+
+function CrossDeviceBoundaryAdvisory() {
+    const { theme } = useUnistyles();
+
+    return (
+        <View style={styles.boundaryAdvisory}>
+            <Ionicons name="warning-outline" size={16} color={theme.colors.text} />
+            <Text style={styles.boundaryAdvisoryText}>{t('chat.boundaryDivider.crossDeviceAdvisory')}</Text>
+        </View>
+    );
 }
 
 function ResumeCommandHint({ resumeCommandBlock }: {
@@ -680,3 +716,26 @@ function CenteredInputWidth(props: {
         </View>
     );
 }
+
+const styles = StyleSheet.create((theme) => ({
+    boundaryAdvisory: {
+        marginHorizontal: 8,
+        marginTop: 8,
+        marginBottom: 4,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderRadius: 8,
+        borderWidth: 2,
+        borderColor: theme.colors.textSecondary,
+        backgroundColor: theme.colors.surface,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    boundaryAdvisoryText: {
+        color: theme.colors.text,
+        fontSize: 13,
+        lineHeight: 18,
+        flex: 1,
+    },
+}));

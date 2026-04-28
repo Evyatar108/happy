@@ -1352,6 +1352,10 @@ export function useSessionMessages(sessionId: string): { messages: Message[], is
     }));
 }
 
+export function useLatestBoundary(sessionId: string): LatestBoundary | null {
+    return storage(useShallow((state) => state.sessionMessages[sessionId]?.reducerState?.latestBoundary ?? null));
+}
+
 export function useMessage(sessionId: string, messageId: string): Message | null {
     return storage(useShallow((state) => {
         const session = state.sessionMessages[sessionId];
