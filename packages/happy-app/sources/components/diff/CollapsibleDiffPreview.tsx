@@ -14,11 +14,6 @@ export interface CollapsibleDiffPreviewProps {
     renderDiff: (args: { hunks: DiffHunk[]; maxVisibleLines: number | undefined }) => React.ReactNode;
 }
 
-type DiffTranslation = {
-    (key: 'tools.diff.showMore', params: { count: number }): string;
-    (key: 'tools.diff.collapse'): string;
-};
-
 export const CollapsibleDiffPreview = React.memo<CollapsibleDiffPreviewProps>(({
     oldText,
     newText,
@@ -57,8 +52,8 @@ function ExpandToggleButton(props: {
     onPress: React.ComponentProps<typeof Pressable>['onPress'];
 }) {
     const label = props.isExpanded
-        ? (t as unknown as DiffTranslation)('tools.diff.collapse')
-        : (t as unknown as DiffTranslation)('tools.diff.showMore', { count: props.hiddenLineCount });
+        ? t('tools.diff.collapse')
+        : t('tools.diff.showMore', { count: props.hiddenLineCount });
 
     return (
         <Pressable style={styles.toggleButton} onPress={props.onPress}>
