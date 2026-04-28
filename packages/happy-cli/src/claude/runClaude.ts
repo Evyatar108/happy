@@ -68,6 +68,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
 
     // Create a new session
     let state: AgentState = {
+        controlledByUser: (options.startingMode ?? 'local') !== 'remote',
         pendingSwitch: null,
         turnActive: false,
     };

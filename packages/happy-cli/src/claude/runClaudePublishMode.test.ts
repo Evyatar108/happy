@@ -28,9 +28,9 @@ const mocks = vi.hoisted(() => {
         mockSession,
         mockApiCreate: vi.fn(),
         mockGetOrCreateMachine: vi.fn(async () => ({})),
-        mockGetOrCreateSession: vi.fn(async ({ metadata }: { metadata: any }) => {
-            serverMetadata = metadata;
-            return { id: 'session-1', metadata };
+        mockGetOrCreateSession: vi.fn(async (opts: { metadata: any, state: any }) => {
+            serverMetadata = opts.metadata;
+            return { id: 'session-1', metadata: opts.metadata };
         }),
         mockReadSettings: vi.fn(async () => ({ machineId: 'machine-1', sandboxConfig: undefined })),
         mockNotifyDaemonSessionStarted: vi.fn(async () => ({ error: null })),
@@ -169,6 +169,20 @@ async function runClaudeUntilExit(permissionMode?: PermissionMode): Promise<Proc
     throw new Error('runClaude returned without process.exit');
 }
 
+async function runClaudeWithStartingModeUntilExit(startingMode?: 'local' | 'remote'): Promise<ProcessExit> {
+    try {
+        await runClaude({ token: 'token' } as any, {
+            startingMode,
+        });
+    } catch (error) {
+        if (error instanceof ProcessExit) {
+            return error;
+        }
+        throw error;
+    }
+    throw new Error('runClaude returned without process.exit');
+}
+
 describe('runClaude permission mode metadata publishing', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -215,5 +229,20 @@ describe('runClaude permission mode metadata publishing', () => {
 
         expect(mocks.mockSession.updateMetadata).not.toHaveBeenCalled();
         expect(mocks.getServerMetadata().currentPermissionModeCode).toBe('default');
+    });
+
+    it.each([
+        ['local', true],
+        ['remote', false],
+        [undefined, true],
+    ] as const)('seeds controlledByUser before session creation for startingMode %s', async (startingMode, controlledByUser) => {
+        await runClaudeWithStartingModeUntilExit(startingMode);
+
+        expect(mocks.mockGetOrCreateSession).toHaveBeenCalledTimes(1);
+        expect(mocks.mockGetOrCreateSession.mock.calls[0][0].state).toMatchObject({
+            controlledByUser,
+            pendingSwitch: null,
+            turnActive: false,
+        });
     });
 });
