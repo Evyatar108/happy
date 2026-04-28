@@ -36,10 +36,7 @@ export const CollapsibleDiffPreview = React.memo<CollapsibleDiffPreviewProps>(({
                 <ExpandToggleButton
                     isExpanded={isExpanded}
                     hiddenLineCount={hiddenLineCount}
-                    onPress={(event) => {
-                        event.stopPropagation?.();
-                        setIsExpanded((current) => !current);
-                    }}
+                    onPress={() => setIsExpanded((current) => !current)}
                 />
             )}
         </View>
