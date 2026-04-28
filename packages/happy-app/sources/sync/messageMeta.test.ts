@@ -61,4 +61,17 @@ describe('resolveMessageModeMeta', () => {
         });
         expect(meta).not.toHaveProperty('permissionMode');
     });
+
+    it('forces bypass permissions when sandbox is enabled, user chosen is true, and mode is a UI-only key', () => {
+        const meta = resolveMessageModeMeta({
+            permissionMode: 'dontAsk',
+            permissionModeUserChosen: true,
+            modelMode: 'default',
+            metadata: {
+                sandbox: { enabled: true },
+            },
+        } as any);
+
+        expect(meta.permissionMode).toBe('bypassPermissions');
+    });
 });

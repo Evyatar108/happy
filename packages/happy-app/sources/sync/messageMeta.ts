@@ -27,9 +27,10 @@ export function resolveMessageModeMeta(
     session: Pick<Session, 'permissionMode' | 'modelMode' | 'metadata' | 'permissionModeUserChosen'>,
 ): { permissionMode?: PermissionModeKey; model: string | null } {
     const sandboxEnabled = isSandboxEnabled(session.metadata);
-    const permissionMode = session.permissionModeUserChosen
+    const wireFromUser = session.permissionModeUserChosen
         ? toWirePermissionMode(session.permissionMode)
-        : (sandboxEnabled ? 'bypassPermissions' : undefined);
+        : undefined;
+    const permissionMode = wireFromUser ?? (sandboxEnabled ? 'bypassPermissions' : undefined);
 
     const modelMode = session.modelMode || 'default';
     const model = modelMode !== 'default' ? modelMode : null;
