@@ -11,6 +11,7 @@ import { sync } from '@/sync/sync';
 import { Option } from './markdown/MarkdownView';
 import { AnimatedText } from './StyledText';
 import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
+import { BoundaryDivider } from './BoundaryDivider';
 
 
 export const MessageView = React.memo((props: {
@@ -149,6 +150,9 @@ function AgentEventBlock(props: {
         </AgentEventText>
       </View>
     );
+  }
+  if (props.event.type === 'context-boundary') {
+    return <BoundaryDivider kind={props.event.kind} />;
   }
   return (
     <View style={styles.agentEventContainer}>

@@ -73,6 +73,18 @@ export const it: TranslationStructure = {
         commandOutput: {
             stderrLabel: 'output di errore',
         },
+        boundaryDivider: {
+            kind: {
+                clear: 'Contesto cancellato',
+                compact: 'Compattato',
+                autocompact: 'Compattazione automatica completata',
+                planModeEnter: 'Modalità piano attivata',
+                planModeExit: 'Modalità piano disattivata',
+                sessionForkResume: 'Ripreso dalla sessione precedente',
+            },
+            crossDeviceAdvisory: 'Il contesto è stato cancellato da quando hai iniziato — rivedere?',
+            showPreClearHistory: 'Mostra cronologia prima della cancellazione',
+        },
         taskNotification: {
             title: 'Notifica attività',
             taskId: 'ID attività',

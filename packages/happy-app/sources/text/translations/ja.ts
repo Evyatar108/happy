@@ -76,6 +76,18 @@ export const ja: TranslationStructure = {
         commandOutput: {
             stderrLabel: '標準エラー',
         },
+        boundaryDivider: {
+            kind: {
+                clear: 'コンテキストをクリアしました',
+                compact: 'コンパクト化しました',
+                autocompact: '自動コンパクト化しました',
+                planModeEnter: 'プランモードに入りました',
+                planModeExit: 'プランモードを終了しました',
+                sessionForkResume: '前のセッションから再開しました',
+            },
+            crossDeviceAdvisory: '入力開始後にコンテキストがクリアされました — 確認しますか?',
+            showPreClearHistory: 'クリア前の履歴を表示',
+        },
         taskNotification: {
             title: 'タスク通知',
             taskId: 'タスク ID',

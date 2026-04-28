@@ -84,6 +84,18 @@ export const ru: TranslationStructure = {
         commandOutput: {
             stderrLabel: 'stderr',
         },
+        boundaryDivider: {
+            kind: {
+                clear: 'Контекст очищен',
+                compact: 'Сжато',
+                autocompact: 'Автосжатие выполнено',
+                planModeEnter: 'Режим плана включен',
+                planModeExit: 'Режим плана выключен',
+                sessionForkResume: 'Возобновлено из предыдущей сессии',
+            },
+            crossDeviceAdvisory: 'Контекст очищен после начала ввода — проверить?',
+            showPreClearHistory: 'Показать историю до очистки',
+        },
         taskNotification: {
             title: 'Уведомление о задаче',
             taskId: 'ID задачи',

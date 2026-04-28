@@ -73,6 +73,18 @@ export const es: TranslationStructure = {
         commandOutput: {
             stderrLabel: 'salida de error',
         },
+        boundaryDivider: {
+            kind: {
+                clear: 'Contexto borrado',
+                compact: 'Compactado',
+                autocompact: 'Autocompactado',
+                planModeEnter: 'Modo plan activado',
+                planModeExit: 'Modo plan desactivado',
+                sessionForkResume: 'Reanudado desde la sesión anterior',
+            },
+            crossDeviceAdvisory: 'El contexto se borró desde que empezaste — ¿revisar?',
+            showPreClearHistory: 'Mostrar historial previo al borrado',
+        },
         taskNotification: {
             title: 'Notificación de tarea',
             taskId: 'ID de tarea',

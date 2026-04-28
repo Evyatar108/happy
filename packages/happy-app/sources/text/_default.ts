@@ -73,6 +73,18 @@ export const en = {
         commandOutput: {
             stderrLabel: 'stderr',
         },
+        boundaryDivider: {
+            kind: {
+                clear: 'Context cleared',
+                compact: 'Compacted',
+                autocompact: 'Auto-compacted',
+                planModeEnter: 'Plan mode entered',
+                planModeExit: 'Plan mode exited',
+                sessionForkResume: 'Resumed from previous session',
+            },
+            crossDeviceAdvisory: 'Context cleared since you started — review?',
+            showPreClearHistory: 'Show pre-clear history',
+        },
         taskNotification: {
             title: 'Task notification',
             taskId: 'Task ID',

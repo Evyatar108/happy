@@ -84,6 +84,18 @@ export const pl: TranslationStructure = {
         commandOutput: {
             stderrLabel: 'stderr',
         },
+        boundaryDivider: {
+            kind: {
+                clear: 'Kontekst wyczyszczony',
+                compact: 'Skompaktowano',
+                autocompact: 'Automatycznie skompaktowano',
+                planModeEnter: 'Włączono tryb planu',
+                planModeExit: 'Wyłączono tryb planu',
+                sessionForkResume: 'Wznowiono z poprzedniej sesji',
+            },
+            crossDeviceAdvisory: 'Kontekst wyczyszczono po rozpoczęciu pisania — sprawdzić?',
+            showPreClearHistory: 'Pokaż historię sprzed czyszczenia',
+        },
         taskNotification: {
             title: 'Powiadomienie o zadaniu',
             taskId: 'ID zadania',
