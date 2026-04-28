@@ -54,6 +54,29 @@ install command.
   before assuming you can shrink the tarball — `files` in
   `package.json` dominates it (see Gotchas).
 
+## **DO NOT use `release-it`.** This skill is the canonical release path.
+
+`packages/happy-cli/.release-it.json` is leftover upstream tooling. The
+`pnpm --filter happy run release` script and `npx release-it` will:
+
+- Tag with `v${version}` instead of the required `cli-v${version}`
+  prefix — wrong tag namespace, breaks the `app-v` / `agent-v` /
+  `server-v` reservation.
+- Try to publish to npm (`npm.publish: true` is hardcoded). The fork
+  is GitHub-only; you do **not** publish to npm. `npm whoami` will
+  return ENEEDAUTH and you'll waste time chasing a non-issue.
+- Use `npm pack` semantics indirectly, which doesn't resolve
+  `workspace:*` correctly in the tarball.
+- Skip the `gh auth switch --user Evyatar108` step that the GitHub
+  release upload needs.
+
+If `release-it` already ran and bumped `package.json` without
+committing/tagging, the version-bump itself is fine — keep it, then
+follow Procedure step 2 onward as if you bumped the version manually.
+If it created a `v${version}` tag, delete it locally and on remote
+(`git tag -d v…` and `git push fork :refs/tags/v…`) before continuing —
+do **not** ship a release with the wrong tag prefix.
+
 ## Technical gotchas (read before packing)
 
 - **`pnpm pack` auto-resolves `workspace:*` to a concrete version** in
