@@ -58,15 +58,15 @@ build the symlink immediately serves the new code — no reinstall step.
 
 ## Procedure
 
-### 1. One-time setup (skip if `happy-dev --version` already works)
+### 1. One-time setup (skip if `happy-dev daemon status` already works)
 
 ```bash
 cd packages/happy-cli
 pnpm setup:dev          # creates ~/.happy/ and ~/.happy-dev/, writes .envrc.example
-pnpm link:dev           # symlinks happy-dev to the worktree's bin/happy-dev.mjs
+pnpm link:dev           # writes happy-dev shims into npm global bin
 ```
 
-Then build at least once so `dist/` exists (the symlink target reads from there):
+Then build at least once so `dist/` exists (the shim target reads from there):
 
 ```bash
 pnpm --filter happy build
@@ -75,23 +75,44 @@ pnpm --filter happy build
 Sanity-check:
 
 ```bash
-happy-dev --version            # should print the worktree's package.json version
+happy-dev daemon status        # should print yellow `🔧 DEV MODE` banner
 which happy-dev                # should point under your npm global bin
 ```
 
-If `happy-dev` is missing after `link:dev`, the global bin dir wasn't on
-PATH. Re-source your shell or check `npm bin -g`.
+**Avoid `happy-dev --version`** — the version path renders via `ink` and
+crashes on most Windows terminals (react-reconciler error). Use
+`happy-dev daemon status` to confirm the binary works; the version
+appears in the daemon-state JSON output once it's running.
 
-### 2. Authenticate the dev variant (first run only)
+If `happy-dev` is missing after `link:dev`, your `npm config get prefix`
+may be wrong. The script falls back to `/usr/local/bin` if it can't
+resolve the global bin dir — on Windows that's a useless path, leading
+to `ENOENT: 'D:\usr\local\bin\happy-dev.cmd'`. The fix landed in
+commit `64e93925` (use `npm.cmd` with `shell: true` and `npm config get prefix`
+instead of the deprecated `npm bin -g`). If you're on a worktree that
+predates that fix, you can manually drop the three shims (`happy-dev`,
+`happy-dev.cmd`, `happy-dev.ps1`) into `%APPDATA%\npm\` using the
+templates in commit `64e93925`'s `link()` function.
 
-The dev daemon uses a separate account. Either:
+### 2. Authenticate the dev variant
 
-**Option A — same account as stable (recommended for tablet testing):**
-Use the existing dev login and pair the *same* tablet account, so both
-the dev CLI and stable CLI talk to the same sessions. The tablet shows
-both daemons' sessions in one list.
+The dev daemon **needs its own auth** because `~/.happy-dev/access.key`
+is independent from `~/.happy/access.key`. Two paths — the **copy shortcut
+is the one you want for tablet testing**:
 
-**Option B — fresh dev account:**
+**Option A — copy stable's auth (no re-pairing required):**
+
+```bash
+cp ~/.happy/access.key   ~/.happy-dev/access.key
+cp ~/.happy/settings.json ~/.happy-dev/settings.json
+```
+
+Same account, same tablet — but the dev daemon registers a new
+machine ID with the server, so it shows up as a *separate machine* in
+your tablet's machine list. You pick the dev machine when you want to
+test the worktree's changes.
+
+**Option B — fresh dev account (only if you want isolation):**
 
 ```bash
 cd packages/happy-cli
@@ -99,9 +120,9 @@ pnpm dev:auth
 # follow prompts; pair the tablet via QR code
 ```
 
-Authentication state lives in `~/.happy-dev/access.key` — independent
-from `~/.happy/access.key`. Verify with `cat ~/.happy-dev/state/auth.json`
-or whatever the variant stores.
+Verify with `happy-dev daemon status` — running `daemon start` after
+copying should NOT prompt for auth and the log will say
+`[AUTH] Using existing credentials`.
 
 ### 3. The iteration loop
 
@@ -128,24 +149,41 @@ Each step:
    testing.)
 
 3. **Restart the dev daemon** so it picks up the new code. Daemons hot-load
-   nothing — every code change requires a daemon bounce:
+   nothing — every code change requires a daemon bounce. Use the
+   **direct form** (works from any directory):
 
    ```bash
-   pnpm dev:daemon:stop
-   pnpm dev:daemon:start
-   pnpm dev:daemon:status      # confirm new PID + version
+   happy-dev daemon stop
+   happy-dev daemon start
+   happy-dev daemon status      # confirm new PID + version
    ```
 
-4. **Test.** From the tablet, if you paired Option B, open a chat against
-   the dev account. If you paired Option A, the tablet shows the same
-   account's sessions and you can pick the dev daemon's session by its
-   tag/title. Reproduce the bug, watch the dev daemon's log for the
-   diagnostic you added:
+   The `pnpm dev:daemon:start` form (via `env-wrapper.cjs`) works too
+   but adds a yellow banner and is less reliable across cwds — it
+   sometimes prints "Failed to start daemon" on a stop/start race even
+   when the daemon actually came up cleanly. Always confirm with
+   `happy-dev daemon status` regardless of which form you used; the
+   visible "Failed to start" message is misleading on its own.
+
+4. **Test.** Open the tablet's machine list — you'll see your stable
+   daemon AND a separate dev-daemon machine (different machine ID).
+   Pick the dev machine, start a chat. Reproduce the bug, watch the
+   dev daemon's log for the diagnostic you added:
 
    ```bash
    ls -lt ~/.happy-dev/logs/ | head -3
    tail -f ~/.happy-dev/logs/<latest>.log | grep -E "your-marker"
    ```
+
+   To start a Claude Code session from a specific working directory:
+
+   ```powershell
+   cd D:\my-project
+   happy-dev
+   ```
+
+   `happy-dev` is on PATH from the `link:dev` step and works from any
+   directory; it scopes the Claude session to whatever cwd it's run in.
 
 5. **Hypothesis confirmed** → repeat from step 1 with a real fix, or graduate to step 4 below.
 
@@ -166,6 +204,21 @@ machines, the user's phone, etc. all hit the stable CLI.
 
 ## Common mistakes / confusion points
 
+- **`happy-dev --version` crashes on Windows** (and probably any non-TTY
+  terminal). The version-rendering path uses `ink` + react-reconciler
+  and chokes. Use `happy-dev daemon status` instead — the running
+  daemon's `startedWithCliVersion` field is the version anyway.
+- **"Failed to start daemon" is often a lie.** The error is printed by
+  `pnpm dev:daemon:start` / `env-wrapper.cjs` on the stop/start race —
+  the daemon usually came up fine. Always verify with
+  `happy-dev daemon status` before assuming failure. Prefer the direct
+  `happy-dev daemon stop && happy-dev daemon start` form to bypass the
+  env-wrapper layer entirely.
+- **Tablet sees the dev daemon as a *separate machine*.** Even with the
+  Option A auth-copy shortcut (same account), the dev daemon registers
+  a new machine ID with the server. Look for it as a sibling entry in
+  your tablet's machine list — NOT inside your stable daemon's session
+  list. Pick the dev machine to test a code change.
 - **`pnpm --filter happy-cli …` is silently a no-op.** Package name is
   `happy`. Use `pnpm --filter happy …` everywhere. Same trap as the
   release-to-fork and merge-to-main skills.
