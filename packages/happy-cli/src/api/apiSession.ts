@@ -129,6 +129,7 @@ export class ApiSessionClient extends EventEmitter {
     };
     private lastSeq = 0;
     private pendingOutbox: Array<{ content: string; localId: string }> = [];
+    private seqResolvers: Map<string, { resolve: (seq: number) => void; reject: (err: unknown) => void }> = new Map();
     private pendingSummaryText: string | null = null;
     private readonly sendSync: InvalidateSync;
     private readonly receiveSync: InvalidateSync;
@@ -375,19 +376,34 @@ export class ApiSessionClient extends EventEmitter {
                 message.seq > acc ? message.seq : acc
             ), this.lastSeq);
             this.lastSeq = maxSeq;
+            for (const msg of messages) {
+                if (msg.localId) {
+                    const deferred = this.seqResolvers.get(msg.localId);
+                    if (deferred) {
+                        deferred.resolve(msg.seq);
+                        this.seqResolvers.delete(msg.localId);
+                    }
+                }
+            }
             this.pendingOutbox.splice(batchStart, batch.length);
         }
     }
 
-    private enqueueMessage(content: unknown, invalidate: boolean = true) {
+    private enqueueMessage(content: unknown, invalidate: boolean = true): Promise<number> {
         const encrypted = encodeBase64(encrypt(this.encryptionKey, this.encryptionVariant, content));
-        this.pendingOutbox.push({
-            content: encrypted,
-            localId: randomUUID()
+        const localId = randomUUID();
+        let resolve!: (seq: number) => void;
+        let reject!: (err: unknown) => void;
+        const seqPromise = new Promise<number>((res, rej) => {
+            resolve = res;
+            reject = rej;
         });
+        this.seqResolvers.set(localId, { resolve, reject });
+        this.pendingOutbox.push({ content: encrypted, localId });
         if (invalidate) {
             this.sendSync.invalidate();
         }
+        return seqPromise;
     }
 
     /**
@@ -474,7 +490,7 @@ export class ApiSessionClient extends EventEmitter {
         this.enqueueMessage(content);
     }
 
-    private enqueueSessionProtocolEnvelope(envelope: SessionEnvelope, invalidate: boolean = true) {
+    private enqueueSessionProtocolEnvelope(envelope: SessionEnvelope, invalidate: boolean = true): Promise<number> {
         const content = {
             role: 'session',
             content: envelope,
@@ -483,7 +499,7 @@ export class ApiSessionClient extends EventEmitter {
             }
         };
 
-        this.enqueueMessage(content, invalidate);
+        return this.enqueueMessage(content, invalidate);
     }
 
     sendSessionProtocolMessage(envelope: SessionEnvelope) {
@@ -505,24 +521,35 @@ export class ApiSessionClient extends EventEmitter {
             t: 'context-boundary',
             ...boundary,
         }, { time: boundary.at });
-        const seq = this.lastSeq + this.pendingOutbox.length + 1;
 
-        this.enqueueSessionProtocolEnvelope(envelope, false);
+        const seqPromise = this.enqueueSessionProtocolEnvelope(envelope, false);
         this.sendSessionEvent({
             type: 'message',
             message: contextBoundaryFallbackMessage(boundary.kind),
         }, undefined, { contextBoundaryFallback: true });
 
-        await this.updateMetadata((metadata) => ({
-            ...metadata,
-            latestBoundary: {
-                id: envelope.id,
-                kind: boundary.kind,
-                seq,
-                at: boundary.at,
-                ...(boundary.forkedFromSid ? { forkedFromSid: boundary.forkedFromSid } : {}),
-            }
-        }));
+        let seq: number;
+        try {
+            seq = await seqPromise;
+        } catch (err) {
+            logger.debug('[sendContextBoundary] envelope flush failed, skipping metadata write', err);
+            return;
+        }
+
+        try {
+            await this.updateMetadata((metadata) => ({
+                ...metadata,
+                latestBoundary: {
+                    id: envelope.id,
+                    kind: boundary.kind,
+                    seq,
+                    at: boundary.at,
+                    ...(boundary.forkedFromSid ? { forkedFromSid: boundary.forkedFromSid } : {}),
+                }
+            }));
+        } catch (err) {
+            logger.debug('[sendContextBoundary] metadata write failed, continuing', err);
+        }
     }
 
     /**
@@ -708,6 +735,10 @@ export class ApiSessionClient extends EventEmitter {
         logger.debug('[API] socket.close() called');
         this.sendSync.stop();
         this.receiveSync.stop();
+        for (const deferred of this.seqResolvers.values()) {
+            deferred.reject(new Error('Session closed before seq was assigned'));
+        }
+        this.seqResolvers.clear();
         if (this.reconnectInterval) {
             clearInterval(this.reconnectInterval);
             this.reconnectInterval = null;
