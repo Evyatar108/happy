@@ -132,6 +132,7 @@ function createLegacyBoundaryMessage(
         id,
         localId: null,
         createdAt,
+        seq: 1,
         role: 'event',
         isSidechain: false,
         content: {
@@ -147,6 +148,7 @@ function createUserTextMessage(id: string, createdAt: number, text: string): Nor
         id,
         localId: null,
         createdAt,
+        seq: 1,
         role: 'user',
         isSidechain: false,
         content: {
@@ -166,6 +168,7 @@ function createAgentTextMessage(
         id,
         localId: null,
         createdAt,
+        seq: 1,
         role: 'agent',
         isSidechain: false,
         content: [{
@@ -189,6 +192,7 @@ function createToolCallMessage(
         id,
         localId: null,
         createdAt,
+        seq: 1,
         role: 'agent',
         isSidechain: false,
         content: [{
@@ -214,6 +218,7 @@ function createToolResultMessage(
         id,
         localId: null,
         createdAt,
+        seq: 1,
         role: 'agent',
         isSidechain: false,
         content: [{
@@ -3606,6 +3611,37 @@ describe('reducer', () => {
             expect(result.messages.some((message) => message.kind === 'agent-event'
                 && message.event.type === 'message'
                 && message.event.message === 'Entering plan mode')).toBe(true);
+        });
+
+        it('records typed plan-mode-exit boundary in latestBoundary', () => {
+            const state = createReducer();
+            seedLatestBoundary(state, {
+                id: 'boundary-plan-enter',
+                kind: 'plan-mode-enter',
+                seq: 60,
+                at: 1600,
+            });
+
+            reducer(state, [
+                createContextBoundaryMessage('boundary-plan-exit', 1700, 70, 'plan-mode-exit'),
+            ]);
+
+            expect(state.latestBoundary).toMatchObject({
+                id: 'boundary-plan-exit',
+                kind: 'plan-mode-exit',
+                seq: 70,
+            });
+        });
+
+        it('typed plan-mode-exit boundary supersedes typed plan-mode-enter in the same batch', () => {
+            const state = createReducer();
+
+            reducer(state, [
+                createContextBoundaryMessage('boundary-plan-enter', 1600, 60, 'plan-mode-enter'),
+                createContextBoundaryMessage('boundary-plan-exit', 1700, 70, 'plan-mode-exit'),
+            ]);
+
+            expect(state.latestBoundary?.kind).toBe('plan-mode-exit');
         });
     });
 
