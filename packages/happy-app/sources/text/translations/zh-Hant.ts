@@ -536,6 +536,10 @@ export const zhHant: TranslationStructure = {
             editNumber: ({ index, total }: { index: number; total: number }) => `編輯 ${index}/${total}`,
             replaceAll: '全部替換',
         },
+        diff: {
+            showMore: ({ count }: { count: number }) => `再顯示 ${count} 行`,
+            collapse: '摺疊',
+        },
         names: {
             task: '任務',
             agent: '代理',

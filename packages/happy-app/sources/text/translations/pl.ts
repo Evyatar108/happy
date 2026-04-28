@@ -552,6 +552,10 @@ export const pl: TranslationStructure = {
             editNumber: ({ index, total }: { index: number; total: number }) => `Edycja ${index} z ${total}`,
             replaceAll: 'Zamień wszystkie',
         },
+        diff: {
+            showMore: ({ count }: { count: number }) => `Pokaż jeszcze ${count} ${plural({ count, one: 'wiersz', few: 'wiersze', many: 'wierszy' })}`,
+            collapse: 'Zwiń',
+        },
         names: {
             task: 'Zadanie',
             agent: 'Agent',

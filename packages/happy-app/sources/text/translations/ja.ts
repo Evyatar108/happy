@@ -544,6 +544,10 @@ export const ja: TranslationStructure = {
             editNumber: ({ index, total }: { index: number; total: number }) => `編集 ${index}/${total}`,
             replaceAll: 'すべて置換',
         },
+        diff: {
+            showMore: ({ count }: { count: number }) => `あと${count}行を表示`,
+            collapse: '折りたたむ',
+        },
         names: {
             task: 'タスク',
             agent: 'エージェント',
