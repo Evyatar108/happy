@@ -32,6 +32,7 @@ export class Session {
     thinking: boolean = false;
     pendingSwitch: PendingSwitch | undefined;
     deferredSwitchCompleting: boolean = false;
+    switchFired: boolean = false;
     turnActive: boolean = false;
     private notifyLegacyMessageBeforeQueueHandler: (() => void) | null = null;
     

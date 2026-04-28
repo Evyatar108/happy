@@ -26,6 +26,9 @@ type RequestSwitchResponse = {
 const shadowMetadataInFlight = new Map<string, Promise<void>>();
 
 export async function claudeLocalLauncher(session: Session): Promise<LauncherResult> {
+    session.switchFired = false;
+    session.deferredSwitchCompleting = false;
+
     const shadowMetadataSessionIdsOwnedByLauncher = new Set<string>();
 
     // Create scanner
@@ -49,7 +52,7 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
     let exitReason: LauncherResult | null = null;
     const processAbortController = new AbortController();
     let exutFuture = new Future<void>();
-    let completedSwitchFromStopHook = false;
+    let preserveDeferredSwitchCompleting = false;
     let pendingStopSwitchInFlight = false;
     let turnCompleteCallback: (() => Promise<void>) | null = null;
     try {
@@ -83,6 +86,15 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
 
         async function performSwitch(reason: 'cancelled' | 'completed') {
             logger.debug(`[local]: performSwitch ${reason}`);
+            if (session.switchFired) {
+                return;
+            }
+
+            session.switchFired = true;
+            if (session.pendingSwitch) {
+                session.deferredSwitchCompleting = true;
+                preserveDeferredSwitchCompleting = true;
+            }
 
             // Switching to remote mode
             if (!exitReason) {
@@ -107,8 +119,6 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
             }
 
             pendingStopSwitchInFlight = true;
-            completedSwitchFromStopHook = true;
-            session.deferredSwitchCompleting = true;
             await performSwitch('completed');
         };
 
@@ -135,7 +145,12 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
         }
 
         async function cancelPendingSwitch() {
+            if (!session.pendingSwitch) {
+                return;
+            }
+
             session.setPendingSwitch(undefined);
+            session.queue.reset();
         }
 
         // When to abort
@@ -266,7 +281,7 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
         if (turnCompleteCallback) {
             session.removeTurnCompleteCallback(turnCompleteCallback);
         }
-        if (!completedSwitchFromStopHook) {
+        if (!preserveDeferredSwitchCompleting) {
             session.clearDeferredSwitchState();
         }
         session.queue.setOnMessage(null);
