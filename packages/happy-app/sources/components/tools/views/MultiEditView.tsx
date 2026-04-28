@@ -2,6 +2,7 @@ import * as React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { ToolSectionView } from '../../tools/ToolSectionView';
 import { ToolViewProps } from './_all';
+import { CollapsibleDiffPreview } from '@/components/diff/CollapsibleDiffPreview';
 import { DiffView } from '@/components/diff/DiffView';
 import { knownTools } from '../../tools/knownTools';
 import { trimIdent } from '@/utils/trimIdent';
@@ -30,12 +31,21 @@ export const MultiEditView = React.memo<ToolViewProps>(({ tool }) => {
                 
                 return (
                     <View key={index}>
-                        <DiffView 
-                            oldText={oldString} 
-                            newText={newString} 
-                            wrapLines={wrapLinesInDiffs}
-                            showLineNumbers={showLineNumbersInToolViews}
-                            showPlusMinusSymbols={showLineNumbersInToolViews}
+                        <CollapsibleDiffPreview
+                            oldText={oldString}
+                            newText={newString}
+                            collapsedLines={10}
+                            renderDiff={({ hunks, maxVisibleLines }) => (
+                                <DiffView
+                                    oldText={oldString}
+                                    newText={newString}
+                                    hunks={hunks}
+                                    maxVisibleLines={maxVisibleLines}
+                                    wrapLines={wrapLinesInDiffs}
+                                    showLineNumbers={showLineNumbersInToolViews}
+                                    showPlusMinusSymbols={showLineNumbersInToolViews}
+                                />
+                            )}
                         />
                         {index < edits.length - 1 && <View style={styles.separator} />}
                     </View>
