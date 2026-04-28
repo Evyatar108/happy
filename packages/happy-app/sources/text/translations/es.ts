@@ -63,15 +63,18 @@ export const es: TranslationStructure = {
     },
 
     pendingSwitch: {
-        banner: 'A message is waiting for Claude to go idle',
+        banner: 'Se cambiará al modo remoto cuando termine la tarea actual',
     },
 
     requestSwitch: {
-        now: 'Take over now',
-        whenIdle: 'Send when idle',
+        now: 'Tomar el control ahora',
+        whenIdle: 'Enviar cuando Claude esté inactivo',
     },
 
-    cancelPendingSwitch: 'Cancel switch',
+    cancelPendingSwitch: {
+        label: 'Cancelar cambio',
+        note: 'El mensaje se descartará',
+    },
 
     commands: {
         rename: {
@@ -294,8 +297,8 @@ export const es: TranslationStructure = {
         userNotFound: 'Usuario no encontrado',
         sessionDeleted: 'La sesión ha sido eliminada',
         sessionDeletedDescription: 'Esta sesión ha sido eliminada permanentemente',
-        requestSwitchFailed: 'Failed to update switch request',
-        sendFailed: 'Failed to send message',
+        requestSwitchFailed: 'No se pudo actualizar la solicitud de cambio',
+        sendFailed: 'No se pudo enviar el mensaje',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

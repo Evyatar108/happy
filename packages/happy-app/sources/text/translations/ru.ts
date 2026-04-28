@@ -74,15 +74,18 @@ export const ru: TranslationStructure = {
     },
 
     pendingSwitch: {
-        banner: 'A message is waiting for Claude to go idle',
+        banner: 'Переключение в удаленный режим произойдет, когда текущая задача завершится',
     },
 
     requestSwitch: {
-        now: 'Take over now',
-        whenIdle: 'Send when idle',
+        now: 'Взять управление сейчас',
+        whenIdle: 'Отправить, когда Claude освободится',
     },
 
-    cancelPendingSwitch: 'Cancel switch',
+    cancelPendingSwitch: {
+        label: 'Отменить переключение',
+        note: 'Сообщение будет удалено',
+    },
 
     commands: {
         rename: {
@@ -282,8 +285,8 @@ export const ru: TranslationStructure = {
         userNotFound: 'Пользователь не найден',
         sessionDeleted: 'Сессия была удалена',
         sessionDeletedDescription: 'Эта сессия была окончательно удалена',
-        requestSwitchFailed: 'Failed to update switch request',
-        sendFailed: 'Failed to send message',
+        requestSwitchFailed: 'Не удалось обновить запрос на переключение',
+        sendFailed: 'Не удалось отправить сообщение',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

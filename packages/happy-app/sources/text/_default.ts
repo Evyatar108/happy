@@ -63,7 +63,7 @@ export const en = {
     },
 
     pendingSwitch: {
-        banner: 'A message is waiting for Claude to go idle',
+        banner: 'Will switch to remote when current task ends',
     },
 
     requestSwitch: {
@@ -71,7 +71,10 @@ export const en = {
         whenIdle: 'Send when idle',
     },
 
-    cancelPendingSwitch: 'Cancel switch',
+    cancelPendingSwitch: {
+        label: 'Cancel switch',
+        note: 'Message will be discarded',
+    },
 
     commands: {
         rename: {

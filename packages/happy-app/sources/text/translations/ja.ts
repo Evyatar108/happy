@@ -66,15 +66,18 @@ export const ja: TranslationStructure = {
     },
 
     pendingSwitch: {
-        banner: 'A message is waiting for Claude to go idle',
+        banner: '現在のタスクが終了するとリモートモードに切り替わります',
     },
 
     requestSwitch: {
-        now: 'Take over now',
-        whenIdle: 'Send when idle',
+        now: '今すぐ引き継ぐ',
+        whenIdle: 'Claude がアイドルになったら送信',
     },
 
-    cancelPendingSwitch: 'Cancel switch',
+    cancelPendingSwitch: {
+        label: '切り替えをキャンセル',
+        note: 'メッセージは破棄されます',
+    },
 
     commands: {
         rename: {
@@ -295,8 +298,8 @@ export const ja: TranslationStructure = {
         userNotFound: 'ユーザーが見つかりません',
         sessionDeleted: 'セッションは削除されました',
         sessionDeletedDescription: 'このセッションは完全に削除されました',
-        requestSwitchFailed: 'Failed to update switch request',
-        sendFailed: 'Failed to send message',
+        requestSwitchFailed: '切り替えリクエストを更新できませんでした',
+        sendFailed: 'メッセージを送信できませんでした',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

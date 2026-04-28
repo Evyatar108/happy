@@ -653,7 +653,7 @@ export function PendingSwitchBanner(props: {
                 </Pressable>
                 <Pressable
                     onPress={props.onCancel}
-                    accessibilityLabel={t('cancelPendingSwitch')}
+                    accessibilityLabel={t('cancelPendingSwitch.label')}
                     style={({ pressed }) => [
                         styles.pendingSwitchButton,
                         styles.pendingSwitchSecondaryButton,
@@ -661,7 +661,10 @@ export function PendingSwitchBanner(props: {
                     ]}
                 >
                     <Ionicons name="close" size={14} color={theme.colors.text} />
-                    <Text style={styles.pendingSwitchSecondaryText}>{t('cancelPendingSwitch')}</Text>
+                    <View style={styles.pendingSwitchSecondaryCopyColumn}>
+                        <Text style={styles.pendingSwitchSecondaryText}>{t('cancelPendingSwitch.label')}</Text>
+                        <Text style={styles.pendingSwitchSecondaryNote}>{t('cancelPendingSwitch.note')}</Text>
+                    </View>
                 </Pressable>
             </View>
         </View>
@@ -854,6 +857,9 @@ const styles = StyleSheet.create((theme) => ({
         borderWidth: 1,
         borderColor: theme.colors.textSecondary,
     },
+    pendingSwitchSecondaryCopyColumn: {
+        gap: 1,
+    },
     pendingSwitchButtonPressed: {
         opacity: 0.7,
     },
@@ -868,6 +874,11 @@ const styles = StyleSheet.create((theme) => ({
         fontSize: 12,
         lineHeight: 16,
         fontWeight: '600',
+    },
+    pendingSwitchSecondaryNote: {
+        color: theme.colors.textSecondary,
+        fontSize: 11,
+        lineHeight: 14,
     },
     boundaryAdvisory: {
         marginHorizontal: 8,

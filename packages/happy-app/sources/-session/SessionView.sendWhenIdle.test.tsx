@@ -167,11 +167,12 @@ describe('SessionView send-when-idle controls', () => {
         });
 
         expect(treeText(renderer)).toContain('pendingSwitch.banner');
+        expect(treeText(renderer)).toContain('cancelPendingSwitch.note');
         expect(treeText(renderer)).toContain('queued message');
 
         const buttons = renderer.root.findAllByType('Pressable');
         act(() => buttons.find((button: { props: { accessibilityLabel?: string } }) => button.props.accessibilityLabel === 'requestSwitch.now')!.props.onPress());
-        act(() => buttons.find((button: { props: { accessibilityLabel?: string } }) => button.props.accessibilityLabel === 'cancelPendingSwitch')!.props.onPress());
+        act(() => buttons.find((button: { props: { accessibilityLabel?: string } }) => button.props.accessibilityLabel === 'cancelPendingSwitch.label')!.props.onPress());
 
         expect(onTakeOverNow).toHaveBeenCalledOnce();
         expect(onCancel).toHaveBeenCalledOnce();
