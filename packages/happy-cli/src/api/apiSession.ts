@@ -543,8 +543,10 @@ export class ApiSessionClient extends EventEmitter {
 
         const SEQ_TIMEOUT_MS = 5000;
         const timeoutSentinel = Symbol('seq-timeout');
+        let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
         const timeoutPromise = new Promise<typeof timeoutSentinel>((resolve) => {
-            setTimeout(() => resolve(timeoutSentinel), SEQ_TIMEOUT_MS);
+            timeoutHandle = setTimeout(() => resolve(timeoutSentinel), SEQ_TIMEOUT_MS);
+            timeoutHandle.unref?.();
         });
 
         let seq: number;
@@ -558,6 +560,8 @@ export class ApiSessionClient extends EventEmitter {
         } catch (err) {
             logger.debug('[sendContextBoundary] envelope flush failed, skipping metadata write', err);
             return;
+        } finally {
+            if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
         }
 
         try {
