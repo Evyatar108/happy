@@ -87,6 +87,12 @@ Core Claude Code integration layer.
 
 **Context-boundary emission:** lifecycle signals must go through `ApiSessionClient.sendContextBoundary()` so the typed envelope, legacy dual-emit fallback, and `metadata.latestBoundary` update stay in lockstep. The helper sends the typed `context-boundary` envelope first, then the legacy compatibility event with `meta.contextBoundaryFallback: true`; app clients suppress that flagged fallback. If a Claude log mapper detects a boundary-worthy tool call, return a boundary intent from the mapper and route it through `sendContextBoundary()` in `apiSession.ts`; do not emit a `context-boundary` envelope directly from the mapper.
 
+**Wrapped-slash-command detection (F-012 / F-013):** Claude Code's TUI / SDK wraps slash commands as `<command-name>/clear</command-name>\n<command-message>clear</command-message>...` before forwarding them through both the inbound socket message channel AND the JSONL stream. Two detection sites must stay in sync, and **production traffic flows through the second one**:
+
+1. **Inbound (`parseSpecialCommand` in `parsers/specialCommands.ts`):** matches both the literal `/clear` form AND the `<command-name>/clear</command-name>` wrapped form. Same for `/compact`. Used by `claudeRemote.ts:98` and `runClaude.ts:338` for messages received over the CLI socket.
+
+2. **JSONL replay (`detectWrappedSlashCommandBoundary` in `claude/utils/sessionProtocolMapper.ts`):** the **actual production path** — by the time the SESSION_SCANNER picks up the JSONL line, Claude Code has already executed the slash command, so the boundary is real. The mapper's user-message branch checks for the wrapped form and pushes a `kind: 'clear' | 'compact'` intent into the `boundaries` array, which then routes through `sendContextBoundary()` via `sendClaudeSessionMessage`. **If you only patch the inbound parser and not the mapper, tablet-typed `/clear` will silently slip past — the inbound path isn't on the JSONL replay flow.** Verified in production logs after evy.7 (parser-only) and fixed in evy.9 (mapper).
+
 ### 3. UI Module (`/src/ui/`)
 User interface components.
 
