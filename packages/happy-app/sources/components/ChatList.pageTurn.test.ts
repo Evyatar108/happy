@@ -241,4 +241,95 @@ describe('ChatList context-boundary pagination rows', () => {
             'boundary-show-history:boundary',
         ]);
     });
+
+    it('optimistic local message (seq=MAX_SAFE_INTEGER) stays in the active region after a boundary lands', () => {
+        const optimisticMsg: Message = {
+            kind: 'user-text',
+            id: 'optimistic-1',
+            localId: 'optimistic-1',
+            createdAt: Date.now(),
+            seq: Number.MAX_SAFE_INTEGER,
+            text: 'hello',
+        };
+        const messages = [
+            optimisticMsg,
+            boundaryMessage('boundary', 10),
+            userMessage('before-1', 9),
+        ];
+        const boundary = latestBoundary('boundary', 10);
+
+        const result = buildChatListBoundaryItems(messages, boundary, false);
+
+        expect(result.hiddenPreBoundaryCount).toBe(1);
+        const ids = result.items.map(item => item.id);
+        expect(ids).toContain('optimistic-1');
+        expect(ids).toContain('boundary');
+        expect(ids).not.toContain('before-1');
+    });
+
+    it('optimistic local message is excluded from pre-boundary count and not hidden', () => {
+        const optimisticMsg: Message = {
+            kind: 'user-text',
+            id: 'optimistic-2',
+            localId: 'optimistic-2',
+            createdAt: Date.now(),
+            seq: Number.MAX_SAFE_INTEGER,
+            text: 'optimistic',
+        };
+        const messages = [
+            optimisticMsg,
+            userMessage('confirmed-after', 15),
+            userMessage('pre-boundary', 5),
+        ];
+        const boundary = latestBoundary('boundary', 10);
+
+        const result = buildChatListBoundaryItems(messages, boundary, false);
+
+        expect(result.hiddenPreBoundaryCount).toBe(1);
+        const kinds = result.items.map(item => item.kind);
+        expect(kinds).toContain('message');
+        const messageIds = result.items.filter(i => i.kind === 'message').map(i => i.id);
+        expect(messageIds).toContain('optimistic-2');
+        expect(messageIds).toContain('confirmed-after');
+        expect(messageIds).not.toContain('pre-boundary');
+    });
+
+    it('metadata-seeded out-of-window boundary: hasLoadedBoundary is false until pagination brings the row in', () => {
+        const boundary = latestBoundary('boundary', 10);
+
+        // Cold-start: only post-boundary messages are loaded; boundary row is outside the window
+        const coldStartMessages = [
+            userMessage('after-3', 13),
+            userMessage('after-2', 12),
+            userMessage('after-1', 11),
+        ];
+        const beforePagination = buildChatListBoundaryItems(coldStartMessages, boundary, false);
+        expect(beforePagination.hasLoadedBoundary).toBe(false);
+
+        // After first older-page fetch: more messages arrive but boundary row still not loaded
+        const afterPage1Messages = [
+            ...coldStartMessages,
+            userMessage('near-boundary', 11),
+        ];
+        expect(buildChatListBoundaryItems(afterPage1Messages, boundary, false).hasLoadedBoundary).toBe(false);
+
+        // After second older-page fetch: boundary row enters the window
+        const afterPage2Messages = [
+            ...coldStartMessages,
+            boundaryMessage('boundary', 10),
+            userMessage('before-1', 9),
+        ];
+        const afterPagination = buildChatListBoundaryItems(afterPage2Messages, boundary, false);
+        expect(afterPagination.hasLoadedBoundary).toBe(true);
+
+        // Expanding now shows all messages without a sticky divider
+        const expanded = buildChatListBoundaryItems(afterPage2Messages, boundary, true);
+        expect(expanded.items.map(item => item.kind)).toEqual([
+            'message',
+            'message',
+            'message',
+            'message',
+            'message',
+        ]);
+    });
 });

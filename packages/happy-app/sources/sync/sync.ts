@@ -601,7 +601,7 @@ class Sync {
 
         // Add to messages - normalize the raw record
         const createdAt = Date.now();
-        const normalizedMessage = normalizeRawMessage(localId, localId, createdAt, 0, content);
+        const normalizedMessage = normalizeRawMessage(localId, localId, createdAt, Number.MAX_SAFE_INTEGER, content);
         if (normalizedMessage) {
             this.enqueueMessages(sessionId, [normalizedMessage]);
         }

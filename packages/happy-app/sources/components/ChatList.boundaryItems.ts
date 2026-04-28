@@ -56,14 +56,15 @@ export function buildChatListBoundaryItems(
     }
 
     const hasLoadedBoundary = messages.some(message => isLoadedBoundaryMessage(message, latestBoundary));
-    const preBoundaryMessages = messages.filter(message => message.seq < latestBoundary.seq);
+    const isConfirmed = (message: Message) => message.seq !== Number.MAX_SAFE_INTEGER;
+    const preBoundaryMessages = messages.filter(message => isConfirmed(message) && message.seq < latestBoundary.seq);
     const hiddenPreBoundaryCount = preBoundaryExpanded ? 0 : preBoundaryMessages.length;
 
     if (preBoundaryExpanded) {
         const items = messages.map(toMessageItem);
 
         if (!hasLoadedBoundary) {
-            const insertionIndex = messages.findIndex(message => message.seq < latestBoundary.seq);
+            const insertionIndex = messages.findIndex(message => isConfirmed(message) && message.seq < latestBoundary.seq);
             items.splice(insertionIndex === -1 ? items.length : insertionIndex, 0, stickyBoundaryItem(latestBoundary));
         }
 
@@ -71,7 +72,7 @@ export function buildChatListBoundaryItems(
     }
 
     const activeItems = messages
-        .filter(message => message.seq >= latestBoundary.seq)
+        .filter(message => !isConfirmed(message) || message.seq >= latestBoundary.seq)
         .map(toMessageItem);
 
     if (!hasLoadedBoundary) {
