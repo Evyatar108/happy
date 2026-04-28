@@ -5,6 +5,8 @@ import {
   ApiUpdateSessionStateSchema,
   CoreUpdateContainerSchema,
   MessageContentSchema,
+  SessionMessageRangeRequestSchema,
+  SessionMessageRangeResponseSchema,
   SessionProtocolMessageSchema,
 } from './messages';
 import {
@@ -14,21 +16,23 @@ import {
 } from './legacyProtocol';
 
 describe('shared wire message schemas', () => {
+  const encryptedMessage = {
+    id: 'msg-1',
+    seq: 10,
+    localId: null,
+    content: {
+      t: 'encrypted',
+      c: 'ZmFrZS1lbmNyeXB0ZWQ=',
+    },
+    createdAt: 123,
+    updatedAt: 124,
+  };
+
   it('parses a new-message update', () => {
     const parsed = ApiUpdateNewMessageSchema.safeParse({
       t: 'new-message',
       sid: 'session-1',
-      message: {
-        id: 'msg-1',
-        seq: 10,
-        localId: null,
-        content: {
-          t: 'encrypted',
-          c: 'ZmFrZS1lbmNyeXB0ZWQ=',
-        },
-        createdAt: 123,
-        updatedAt: 124,
-      },
+      message: encryptedMessage,
     });
 
     expect(parsed.success).toBe(true);
@@ -234,5 +238,107 @@ describe('shared wire message schemas', () => {
     expect(userParsed.success).toBe(true);
     expect(agentParsed.success).toBe(true);
     expect(modernParsed.success).toBe(true);
+  });
+
+  it('parses session-message-range request and response fixtures', () => {
+    const requestParsed = SessionMessageRangeRequestSchema.safeParse({
+      requestId: 'request-1',
+      sessionId: 'session-1',
+      fromSeq: 20,
+      toSeq: 99,
+      limit: 80,
+    });
+    const successParsed = SessionMessageRangeResponseSchema.safeParse({
+      ok: true,
+      requestId: 'request-1',
+      sessionId: 'session-1',
+      fromSeq: 20,
+      toSeq: 99,
+      messages: [],
+      hasMore: false,
+    });
+
+    expect(requestParsed.success).toBe(true);
+    expect(successParsed.success).toBe(true);
+
+    for (const code of ['session_not_found', 'invalid_range', 'rate_limited', 'internal']) {
+      const errorParsed = SessionMessageRangeResponseSchema.safeParse({
+        ok: false,
+        requestId: 'request-1',
+        error: {
+          code,
+          message: `${code} message`,
+        },
+      });
+
+      expect(errorParsed.success).toBe(true);
+    }
+  });
+
+  it('rejects invalid session-message-range requests', () => {
+    const validRequest = {
+      requestId: 'request-1',
+      sessionId: 'session-1',
+      fromSeq: 20,
+      toSeq: 99,
+      limit: 80,
+    };
+    const invalidRequests = [
+      { ...validRequest, fromSeq: 1.5 },
+      { ...validRequest, toSeq: 99.5 },
+      { ...validRequest, limit: 80.25 },
+      { ...validRequest, fromSeq: 100, toSeq: 99 },
+      { ...validRequest, limit: 0 },
+      { ...validRequest, limit: 201 },
+      { sessionId: 'session-1', fromSeq: 20, toSeq: 99, limit: 80 },
+      { requestId: 'request-1', fromSeq: 20, toSeq: 99, limit: 80 },
+      { requestId: 'request-1', sessionId: 'session-1', toSeq: 99, limit: 80 },
+      { requestId: 'request-1', sessionId: 'session-1', fromSeq: 20, limit: 80 },
+      { requestId: 'request-1', sessionId: 'session-1', fromSeq: 20, toSeq: 99 },
+    ];
+
+    for (const request of invalidRequests) {
+      expect(SessionMessageRangeRequestSchema.safeParse(request).success).toBe(false);
+    }
+  });
+
+  it('rejects invalid session-message-range responses', () => {
+    const validSuccess = {
+      ok: true,
+      requestId: 'request-1',
+      sessionId: 'session-1',
+      fromSeq: 20,
+      toSeq: 99,
+      messages: [encryptedMessage],
+      hasMore: false,
+    };
+    const validError = {
+      ok: false,
+      requestId: 'request-1',
+      error: {
+        code: 'internal',
+        message: 'failed',
+      },
+    };
+    const invalidResponses = [
+      { ...validSuccess, ok: undefined },
+      { ...validSuccess, ok: 'true' },
+      { ...validError, ok: undefined },
+      { ...validError, ok: 'false' },
+      { ...validError, error: { code: 'unauthorized', message: 'denied' } },
+      { ok: true, sessionId: 'session-1', fromSeq: 20, toSeq: 99, messages: [], hasMore: false },
+      { ok: true, requestId: 'request-1', fromSeq: 20, toSeq: 99, messages: [], hasMore: false },
+      { ok: true, requestId: 'request-1', sessionId: 'session-1', toSeq: 99, messages: [], hasMore: false },
+      { ok: true, requestId: 'request-1', sessionId: 'session-1', fromSeq: 20, messages: [], hasMore: false },
+      { ok: true, requestId: 'request-1', sessionId: 'session-1', fromSeq: 20, toSeq: 99, hasMore: false },
+      { ok: true, requestId: 'request-1', sessionId: 'session-1', fromSeq: 20, toSeq: 99, messages: [] },
+      { ok: false, error: { code: 'internal', message: 'failed' } },
+      { ok: false, requestId: 'request-1' },
+      { ok: false, requestId: 'request-1', error: { code: 'internal' } },
+    ];
+
+    for (const response of invalidResponses) {
+      expect(SessionMessageRangeResponseSchema.safeParse(response).success).toBe(false);
+    }
   });
 });

@@ -21,6 +21,41 @@ export type SessionMessage = z.infer<typeof SessionMessageSchema>;
 export { MessageMetaSchema };
 export type { MessageMeta };
 
+export const SessionMessageRangeRequestSchema = z
+  .object({
+    requestId: z.string(),
+    sessionId: z.string(),
+    fromSeq: z.number().int().min(0),
+    toSeq: z.number().int(),
+    limit: z.number().int().min(1).max(200),
+  })
+  .refine((request) => request.toSeq >= request.fromSeq, {
+    path: ['toSeq'],
+    message: 'toSeq must be greater than or equal to fromSeq',
+  });
+export type SessionMessageRangeRequest = z.infer<typeof SessionMessageRangeRequestSchema>;
+
+export const SessionMessageRangeResponseSchema = z.discriminatedUnion('ok', [
+  z.object({
+    ok: z.literal(true),
+    requestId: z.string(),
+    sessionId: z.string(),
+    fromSeq: z.number().int(),
+    toSeq: z.number().int(),
+    messages: z.array(SessionMessageSchema),
+    hasMore: z.boolean(),
+  }),
+  z.object({
+    ok: z.literal(false),
+    requestId: z.string(),
+    error: z.object({
+      code: z.enum(['session_not_found', 'invalid_range', 'rate_limited', 'internal']),
+      message: z.string(),
+    }),
+  }),
+]);
+export type SessionMessageRangeResponse = z.infer<typeof SessionMessageRangeResponseSchema>;
+
 export const SessionProtocolMessageSchema = z.object({
   role: z.literal('session'),
   content: sessionEnvelopeSchema,
