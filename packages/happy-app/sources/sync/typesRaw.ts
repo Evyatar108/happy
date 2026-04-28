@@ -1,5 +1,9 @@
 import * as z from 'zod';
-import { isCuid } from '@paralleldrive/cuid2';
+import {
+    sessionContextBoundaryKindSchema,
+    sessionEnvelopeSchema,
+    type SessionEnvelope,
+} from '@slopus/happy-wire';
 import { MessageMetaSchema, MessageMeta } from './typesMessageMeta';
 
 //
@@ -30,102 +34,13 @@ const agentEventSchema = z.discriminatedUnion('type', [z.object({
     endsAt: z.number(),
 }), z.object({
     type: z.literal('ready'),
+}), z.object({
+    type: z.literal('context-boundary'),
+    kind: sessionContextBoundaryKindSchema,
+    at: z.number(),
+    forkedFromSid: z.string().optional(),
 })]);
 export type AgentEvent = z.infer<typeof agentEventSchema>;
-
-const sessionTextEventSchema = z.object({
-    t: z.literal('text'),
-    text: z.string(),
-    thinking: z.boolean().optional(),
-});
-
-const sessionServiceMessageEventSchema = z.object({
-    t: z.literal('service'),
-    text: z.string(),
-});
-
-const sessionToolCallStartEventSchema = z.object({
-    t: z.literal('tool-call-start'),
-    call: z.string(),
-    name: z.string(),
-    title: z.string(),
-    description: z.string(),
-    args: z.record(z.string(), z.unknown()),
-});
-
-const sessionToolCallEndEventSchema = z.object({
-    t: z.literal('tool-call-end'),
-    call: z.string(),
-});
-
-const sessionFileEventSchema = z.object({
-    t: z.literal('file'),
-    ref: z.string(),
-    name: z.string(),
-    size: z.number(),
-    image: z.object({
-        width: z.number(),
-        height: z.number(),
-        thumbhash: z.string(),
-    }).optional(),
-});
-
-const sessionTurnStartEventSchema = z.object({
-    t: z.literal('turn-start'),
-});
-
-const sessionStartEventSchema = z.object({
-    t: z.literal('start'),
-    title: z.string().optional(),
-});
-
-const sessionTurnEndEventSchema = z.object({
-    t: z.literal('turn-end'),
-    status: z.enum(['completed', 'failed', 'cancelled']),
-});
-
-const sessionStopEventSchema = z.object({
-    t: z.literal('stop'),
-});
-
-const sessionEventSchema = z.discriminatedUnion('t', [
-    sessionTextEventSchema,
-    sessionServiceMessageEventSchema,
-    sessionToolCallStartEventSchema,
-    sessionToolCallEndEventSchema,
-    sessionFileEventSchema,
-    sessionTurnStartEventSchema,
-    sessionStartEventSchema,
-    sessionTurnEndEventSchema,
-    sessionStopEventSchema,
-]);
-
-const sessionEnvelopeSchema = z.object({
-    id: z.string(),
-    time: z.number(),
-    role: z.enum(['user', 'agent']),
-    turn: z.string().optional(),
-    subagent: z.string().refine((value) => isCuid(value), {
-        message: 'subagent must be a cuid2 value',
-    }).optional(),
-    ev: sessionEventSchema,
-}).superRefine((envelope, ctx) => {
-    if (envelope.ev.t === 'service' && envelope.role !== 'agent') {
-        ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'service events must use role "agent"',
-            path: ['role'],
-        });
-    }
-    if ((envelope.ev.t === 'start' || envelope.ev.t === 'stop') && envelope.role !== 'agent') {
-        ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `${envelope.ev.t} events must use role "agent"`,
-            path: ['role'],
-        });
-    }
-});
-type SessionEnvelope = z.infer<typeof sessionEnvelopeSchema>;
 
 const rawTextContentSchema = z.object({
     type: z.literal('text'),
@@ -537,7 +452,7 @@ function normalizeSessionEnvelope(
 ): NormalizedMessageBase | null {
     // Session protocol requires turn id on all agent-originated envelopes.
     // Drop malformed agent events without turn to avoid attaching stray messages.
-    if (envelope.role === 'agent' && !envelope.turn) {
+    if (envelope.role === 'agent' && !envelope.turn && envelope.ev.t !== 'context-boundary') {
         return null;
     }
 
@@ -549,6 +464,23 @@ function normalizeSessionEnvelope(
 
     if (envelope.ev.t === 'turn-start') {
         return null;
+    }
+
+    if (envelope.ev.t === 'context-boundary') {
+        return {
+            id: messageId,
+            localId,
+            createdAt: messageCreatedAt,
+            role: 'event',
+            isSidechain: false,
+            content: {
+                type: 'context-boundary',
+                kind: envelope.ev.kind,
+                at: envelope.ev.at,
+                forkedFromSid: envelope.ev.forkedFromSid,
+            },
+            meta
+        } satisfies NormalizedMessageBase;
     }
 
     if (envelope.ev.t === 'start' || envelope.ev.t === 'stop') {

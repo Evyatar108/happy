@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createId } from '@paralleldrive/cuid2';
+import { sessionEventSchema, type SessionEvent } from '@slopus/happy-wire';
 import { normalizeRawMessage } from './typesRaw';
 
 /**
@@ -1512,6 +1513,64 @@ describe('Zod Transform - WOLOG Content Normalization', () => {
 
     describe('Session protocol normalization', () => {
 
+        const sessionEventFixtures = {
+            text: { t: 'text', text: 'hello session' },
+            service: { t: 'service', text: '**Service:** Connection restored' },
+            'tool-call-start': {
+                t: 'tool-call-start',
+                call: 'call-1',
+                name: 'CodexBash',
+                title: 'Run `ls`',
+                description: 'Run command',
+                args: { command: 'ls' }
+            },
+            'tool-call-end': { t: 'tool-call-end', call: 'call-1' },
+            file: { t: 'file', ref: 'upload-file-1', name: 'report.pdf', size: 1234 },
+            'turn-start': { t: 'turn-start' },
+            start: { t: 'start', title: 'Research agent' },
+            'turn-end': { t: 'turn-end', status: 'completed' },
+            stop: { t: 'stop' },
+            'context-boundary': {
+                t: 'context-boundary',
+                kind: 'clear',
+                at: 1736300000000,
+                triggeredBy: 'user'
+            }
+        } satisfies Record<SessionEvent['t'], SessionEvent>;
+
+        function sessionProtocolMessage(kind: SessionEvent['t']) {
+            const ev = sessionEventFixtures[kind];
+            return {
+                role: 'session' as const,
+                content: {
+                    id: `env-contract-${kind}`,
+                    time: 1736300000000,
+                    role: 'agent' as const,
+                    ...(kind === 'context-boundary' ? {} : { turn: 'turn-contract-1' }),
+                    ev
+                }
+            };
+        }
+
+        it('has app parser fixtures for every happy-wire session event discriminant', () => {
+            const wireEventKinds = (sessionEventSchema.options as Array<{ shape: { t: { value: SessionEvent['t'] } } }>)
+                .map((option) => option.shape.t.value);
+            expect([...wireEventKinds].sort()).toEqual(Object.keys(sessionEventFixtures).sort());
+
+            for (const kind of wireEventKinds) {
+                const parsed = RawRecordSchema.safeParse(sessionProtocolMessage(kind));
+                expect(parsed.success, `${kind} should parse through RawRecordSchema`).toBe(true);
+
+                const normalized = normalizeRawMessage(`db-contract-${kind}`, null, 1, 31, sessionProtocolMessage(kind) as any);
+                if (kind === 'turn-start' || kind === 'start' || kind === 'stop') {
+                    expect(normalized, `${kind} is accepted and intentionally non-rendered`).toBeNull();
+                } else {
+                    expect(normalized, `${kind} should normalize to a rendered app message`).toBeTruthy();
+                    expect(normalized?.seq).toBe(31);
+                }
+            }
+        });
+
         const base = {
             role: 'agent' as const,
             content: {
@@ -1758,6 +1817,39 @@ describe('Zod Transform - WOLOG Content Normalization', () => {
                 id: 'env-6',
                 role: 'event',
                 content: { type: 'ready' }
+            });
+        });
+
+        it('normalizes no-turn context-boundary events to app event content', () => {
+            const normalized = normalizeRawMessage('db-context-boundary-1', null, 1, 42, {
+                role: 'session',
+                content: {
+                    id: 'env-context-boundary-1',
+                    time: 1736300000000,
+                    role: 'agent',
+                    ev: {
+                        t: 'context-boundary',
+                        kind: 'clear',
+                        at: 1736300000000,
+                        triggeredBy: 'user',
+                        forkedFromSid: 'old-session-id'
+                    }
+                },
+                meta: {
+                    contextBoundaryFallback: false
+                }
+            } as any);
+
+            expect(normalized).toMatchObject({
+                id: 'env-context-boundary-1',
+                role: 'event',
+                seq: 42,
+                content: {
+                    type: 'context-boundary',
+                    kind: 'clear',
+                    at: 1736300000000,
+                    forkedFromSid: 'old-session-id'
+                }
             });
         });
 
