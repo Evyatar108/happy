@@ -8,10 +8,25 @@
  * the oldest-content end. This is stricter (fires later) than the previous
  * `nextOffset >= maxOffset * 0.9` formula when contentHeight >> viewportHeight.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import type {
+    SessionMessageRangeRequest,
+    SessionMessageRangeResponse,
+} from '@slopus/happy-wire';
 import { buildChatListBoundaryItems } from './ChatList.boundaryItems';
 import type { LatestBoundary } from '@/sync/reducer/reducer';
 import type { Message } from '@/sync/typesMessage';
+import { computeRenderWindow, computePrefetchOlderRange, shouldPrefetchOlder } from '@/sync/messageWindow';
+import { PrefetchManager } from '@/sync/prefetchManager';
+import type {
+    PrefetchManagerStorage,
+    PrefetchManagerEncryptionAdapter,
+    PrefetchManagerTransport,
+    RunInSessionLock,
+    PrefetchTerminalEvent,
+} from '@/sync/prefetchManager';
+import type { ActivePrefetch } from '@/sync/applyPrefetchedRange';
+import { AsyncLock } from '@/utils/lock';
 
 /**
  * Pure replica of the threshold guard from pageToOlderMessages.
@@ -331,5 +346,328 @@ describe('ChatList context-boundary pagination rows', () => {
             'message',
             'message',
         ]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// US-007: Page-turn-mode debounce.
+//
+// Plan AC #10: a page-turn event in chatPaginatedScroll mode emits intent via
+// the same `sync.reportRenderWindow(...)` bridge as the scroll path. When a
+// page-turn produces multiple `onViewableItemsChanged` ticks within the same
+// JS tick (FlatList commonly emits a "leaving items" tick + "entering items"
+// tick after `scrollToOffset`), only ONE `session-message-range` request must
+// fire — the rest must observe the in-flight tracker and synchronously bail.
+//
+// The Sync class transitively imports react-native, which does not boot under
+// Vitest's node runner here. We follow the `sync.reportRenderWindow.spec.ts`
+// precedent: reproduce the bridge body one-to-one and drive it against a
+// REAL `PrefetchManager` (not a mock) so the synchronous-bail semantics are
+// exercised end-to-end. Spying at the transport layer captures network calls;
+// the manager's in-memory `inFlight` Map gates duplicates.
+//
+// AC #1's "no separate prefetch caller" invariant is verified at the source-
+// import level: this file does not import `prefetchManager` directly into
+// ChatList.tsx (covered by ChatList.viewableItemsAdapter.test.ts case (c));
+// the page-turn path's only intent surface is `sync.reportRenderWindow(...)`.
+// ---------------------------------------------------------------------------
+
+const PAGE_SIZE = 80;
+
+interface FakeSessionMessages {
+    oldestLoadedSeq: number;
+    hasOlder: boolean;
+    loadingOlder: boolean;
+    renderWindow: { firstSeq: number; lastSeq: number } | null;
+    activePrefetch: ActivePrefetch | undefined;
+}
+
+function createFakeBridgeStorage(initial: { sessions: Record<string, FakeSessionMessages> }) {
+    const state = {
+        localSettings: { enableSocketRangeFetch: true },
+        sessionMessages: { ...initial.sessions },
+    };
+    return {
+        getState: () => ({
+            localSettings: state.localSettings,
+            sessionMessages: state.sessionMessages,
+            setRenderWindow: (sessionId: string, window: { firstSeq: number; lastSeq: number } | null) => {
+                const s = state.sessionMessages[sessionId];
+                if (s) {
+                    state.sessionMessages[sessionId] = { ...s, renderWindow: window };
+                }
+            },
+        }),
+        rawState: () => state,
+    };
+}
+
+interface ManagerHarness {
+    storage: PrefetchManagerStorage;
+    encryption: PrefetchManagerEncryptionAdapter;
+    transport: PrefetchManagerTransport;
+    runInSessionLock: RunInSessionLock;
+    transportSpy: ReturnType<typeof vi.fn>;
+    terminalEvents: PrefetchTerminalEvent[];
+    activePrefetchByeSession: Map<string, ActivePrefetch | undefined>;
+}
+
+function createManagerHarness(): ManagerHarness {
+    const activePrefetchByeSession = new Map<string, ActivePrefetch | undefined>();
+    const terminalEvents: PrefetchTerminalEvent[] = [];
+
+    const storage: PrefetchManagerStorage = {
+        setActivePrefetch(sessionId, activePrefetch) {
+            activePrefetchByeSession.set(sessionId, activePrefetch);
+        },
+        applyPrefetchedRange(sessionId, _messages, params) {
+            // Mirror real storage gate: only commit when requestId AND
+            // generation match — irrelevant here since the test does not
+            // resolve the transport before asserting.
+            const cur = activePrefetchByeSession.get(sessionId);
+            const requestIdMatches = cur?.requestId === params.expectedRequestId;
+            const genMatches = params.currentGeneration(sessionId) === params.expectedGeneration;
+            if (requestIdMatches && genMatches) {
+                activePrefetchByeSession.set(sessionId, undefined);
+            }
+        },
+        clearActivePrefetch(sessionId, expectedRequestId) {
+            const cur = activePrefetchByeSession.get(sessionId);
+            if (cur?.requestId === expectedRequestId) {
+                activePrefetchByeSession.set(sessionId, undefined);
+            }
+        },
+    };
+
+    const transportSpy = vi.fn(async (req: SessionMessageRangeRequest): Promise<SessionMessageRangeResponse> => {
+        // Do not resolve immediately so the manager keeps the inFlight tracker
+        // alive across multiple bridge calls in the test. The fixture only
+        // asserts call counts, not commit ordering.
+        await new Promise<void>(() => { /* never resolves */ });
+        // Unreachable, but keeps TS happy:
+        return {
+            ok: true,
+            requestId: req.requestId,
+            sessionId: req.sessionId,
+            fromSeq: req.fromSeq,
+            toSeq: req.toSeq,
+            messages: [],
+            hasMore: false,
+        };
+    });
+
+    const transport: PrefetchManagerTransport = {
+        requestSessionMessageRange: transportSpy,
+        onReconnected: () => () => { /* no-op */ },
+    };
+
+    const encryption: PrefetchManagerEncryptionAdapter = {
+        async decryptMessages() {
+            return [];
+        },
+    };
+
+    const locks = new Map<string, AsyncLock>();
+    const runInSessionLock: RunInSessionLock = async (sessionId, body) => {
+        let lock = locks.get(sessionId);
+        if (!lock) {
+            lock = new AsyncLock();
+            locks.set(sessionId, lock);
+        }
+        await lock.inLock(() => {
+            body();
+        });
+    };
+
+    return {
+        storage,
+        encryption,
+        transport,
+        runInSessionLock,
+        transportSpy,
+        terminalEvents,
+        activePrefetchByeSession,
+    };
+}
+
+function makeReportRenderWindowBridge(
+    storage: ReturnType<typeof createFakeBridgeStorage>,
+    manager: PrefetchManager,
+) {
+    // One-to-one reproduction of sync.ts:reportRenderWindow (US-006), the only
+    // viewport→prefetch entrypoint. Both the scroll path AND the page-turn
+    // path route through this bridge.
+    return (sessionId: string, visibleSeqs: number[]) => {
+        const flag = storage.getState().localSettings.enableSocketRangeFetch;
+        if (!flag) return;
+        const window = computeRenderWindow({ visibleSeqs });
+        if (window === null) return;
+        storage.getState().setRenderWindow(sessionId, window);
+        const sm = storage.getState().sessionMessages[sessionId];
+        if (!sm) return;
+        const should = shouldPrefetchOlder({
+            renderWindow: window,
+            oldestLoadedSeq: sm.oldestLoadedSeq,
+            activePrefetch: sm.activePrefetch,
+            hasOlder: sm.hasOlder,
+        });
+        if (!should) return;
+        const range = computePrefetchOlderRange({ oldestLoadedSeq: sm.oldestLoadedSeq, pageSize: PAGE_SIZE });
+        if (!range) return;
+        void manager.requestSessionMessageRange({
+            sessionId,
+            fromSeq: range.fromSeq,
+            toSeq: range.toSeq,
+            limit: range.limit,
+            direction: 'older',
+        });
+    };
+}
+
+describe('ChatList page-turn-mode debounce (US-007 / Plan AC #10)', () => {
+    it('a page-turn that emits two onViewableItemsChanged ticks fires exactly one session-message-range request', () => {
+        // oldestLoadedSeq=100, RENDER_WINDOW_OVERSCAN_SEQS=30, PREFETCH_TRIGGER_GAP_SEQS=15
+        // visible min seq 110 → window.firstSeq=80 → gap = -20 ≤ 15 → triggers older prefetch.
+        const storage = createFakeBridgeStorage({
+            sessions: {
+                'sess-1': {
+                    oldestLoadedSeq: 100,
+                    hasOlder: true,
+                    loadingOlder: false,
+                    renderWindow: null,
+                    activePrefetch: undefined,
+                },
+            },
+        });
+        const harness = createManagerHarness();
+        const manager = new PrefetchManager({
+            storage: harness.storage,
+            encryption: harness.encryption,
+            transport: harness.transport,
+            runInSessionLock: harness.runInSessionLock,
+            now: () => 0,
+            generateRequestId: (() => {
+                let n = 0;
+                return () => `req-${++n}`;
+            })(),
+            onTerminal: (e) => harness.terminalEvents.push(e),
+        });
+        const reportRenderWindow = makeReportRenderWindowBridge(storage, manager);
+
+        // Simulate a page-turn event that emits TWO onViewableItemsChanged
+        // ticks in the same JS tick (FlatList typically emits a "leaving" tick
+        // and an "entering" tick after scrollToOffset). Both ticks compute a
+        // qualifying render window — without debounce, both would fire a
+        // network request.
+        reportRenderWindow('sess-1', [110, 120, 130]);
+        reportRenderWindow('sess-1', [108, 115, 125]);
+
+        // Exactly one transport call, regardless of the second tick.
+        expect(harness.transportSpy).toHaveBeenCalledTimes(1);
+        expect(harness.transportSpy.mock.calls[0]![0]).toMatchObject({
+            sessionId: 'sess-1',
+        });
+
+        // Second tick should have produced a `sync-bail` terminal event,
+        // proving the manager's in-memory inFlight tracker (NOT a storage
+        // round-trip) is what gates the debounce.
+        expect(harness.terminalEvents.filter(e => e.kind === 'sync-bail')).toHaveLength(1);
+    });
+
+    it('after the first page-turn commits and clears in-flight, a second page-turn produces exactly one more request (rate-limited, not unbounded)', async () => {
+        const storage = createFakeBridgeStorage({
+            sessions: {
+                'sess-1': {
+                    oldestLoadedSeq: 100,
+                    hasOlder: true,
+                    loadingOlder: false,
+                    renderWindow: null,
+                    activePrefetch: undefined,
+                },
+            },
+        });
+
+        // Variant harness: transport resolves with empty success so the
+        // manager's per-request commit completes and inFlight clears.
+        const activePrefetchByeSession = new Map<string, ActivePrefetch | undefined>();
+        const terminalEvents: PrefetchTerminalEvent[] = [];
+
+        const transportSpy = vi.fn(async (req: SessionMessageRangeRequest): Promise<SessionMessageRangeResponse> => {
+            // Mirror the bridge by also writing through to our fake
+            // `oldestLoadedSeq` after commit so the second page-turn computes
+            // a fresh prefetch range — but here we only assert call counts,
+            // not state, so leave it alone.
+            return {
+                ok: true,
+                requestId: req.requestId,
+                sessionId: req.sessionId,
+                fromSeq: req.fromSeq,
+                toSeq: req.toSeq,
+                messages: [],
+                hasMore: false,
+            };
+        });
+        const storageAdapter: PrefetchManagerStorage = {
+            setActivePrefetch(sessionId, activePrefetch) {
+                activePrefetchByeSession.set(sessionId, activePrefetch);
+            },
+            applyPrefetchedRange(sessionId, _messages, params) {
+                const cur = activePrefetchByeSession.get(sessionId);
+                const requestIdMatches = cur?.requestId === params.expectedRequestId;
+                const genMatches = params.currentGeneration(sessionId) === params.expectedGeneration;
+                if (requestIdMatches && genMatches) {
+                    activePrefetchByeSession.set(sessionId, undefined);
+                }
+            },
+            clearActivePrefetch(sessionId, expectedRequestId) {
+                const cur = activePrefetchByeSession.get(sessionId);
+                if (cur?.requestId === expectedRequestId) {
+                    activePrefetchByeSession.set(sessionId, undefined);
+                }
+            },
+        };
+
+        const locks = new Map<string, AsyncLock>();
+        const runInSessionLock: RunInSessionLock = async (sessionId, body) => {
+            let lock = locks.get(sessionId);
+            if (!lock) {
+                lock = new AsyncLock();
+                locks.set(sessionId, lock);
+            }
+            await lock.inLock(() => { body(); });
+        };
+
+        const manager = new PrefetchManager({
+            storage: storageAdapter,
+            encryption: { async decryptMessages() { return []; } },
+            transport: {
+                requestSessionMessageRange: transportSpy,
+                onReconnected: () => () => { /* no-op */ },
+            },
+            runInSessionLock,
+            now: () => 0,
+            generateRequestId: (() => {
+                let n = 0;
+                return () => `req-${++n}`;
+            })(),
+            onTerminal: (e) => terminalEvents.push(e),
+        });
+
+        const reportRenderWindow = makeReportRenderWindowBridge(storage, manager);
+
+        // First page-turn: two ticks → one request.
+        reportRenderWindow('sess-1', [110, 120, 130]);
+        reportRenderWindow('sess-1', [108, 115, 125]);
+        expect(transportSpy).toHaveBeenCalledTimes(1);
+
+        // Drain microtasks so the first request's commit/clear settles and
+        // the manager's inFlight tracker is released. Without the await,
+        // the synchronous bail would still gate the second page-turn.
+        await new Promise<void>((r) => setTimeout(r, 0));
+
+        // Second page-turn: two more ticks → exactly one MORE request.
+        reportRenderWindow('sess-1', [110, 120, 130]);
+        reportRenderWindow('sess-1', [108, 115, 125]);
+        expect(transportSpy).toHaveBeenCalledTimes(2);
     });
 });
