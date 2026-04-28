@@ -20,27 +20,32 @@ export interface SpecialCommandResult {
 
 /**
  * Parse /compact command
- * Matches messages starting with "/compact " or exactly "/compact"
+ * Matches messages starting with "/compact " or exactly "/compact",
+ * AND the Claude Code-wrapped form `<command-name>/compact</command-name>...`
+ * which the SDK / TUI emits when a slash command is forwarded through the
+ * SESSION_SCANNER ingestion path. Without the wrapped-form check, /compact
+ * typed on the tablet (or in interactive mode) reaches the CLI as the
+ * wrapped XML envelope and slips past the typed-boundary emission.
  */
 export function parseCompact(message: string): CompactCommandResult {
     const trimmed = message.trim();
-    
-    if (trimmed === '/compact') {
+
+    if (trimmed === '/compact' || trimmed.startsWith('/compact ')) {
         return {
             isCompact: true,
             originalMessage: trimmed,
             contextBoundaryKind: 'compact'
         };
     }
-    
-    if (trimmed.startsWith('/compact ')) {
+
+    if (trimmed.startsWith('<command-name>/compact</command-name>')) {
         return {
             isCompact: true,
             originalMessage: trimmed,
             contextBoundaryKind: 'compact'
         };
     }
-    
+
     return {
         isCompact: false,
         originalMessage: message
@@ -49,14 +54,23 @@ export function parseCompact(message: string): CompactCommandResult {
 
 /**
  * Parse /clear command
- * Only matches exactly "/clear"
+ * Matches the literal `/clear` AND the Claude Code-wrapped form
+ * `<command-name>/clear</command-name>...`. The wrapped form is what the
+ * tablet sends through Claude Code's SDK (and what interactive Claude Code
+ * writes to its JSONL when the user types /clear in the TUI).
  */
 export function parseClear(message: string): ClearCommandResult {
     const trimmed = message.trim();
-    
-    return {
-        isClear: trimmed === '/clear'
-    };
+
+    if (trimmed === '/clear') {
+        return { isClear: true };
+    }
+
+    if (trimmed.startsWith('<command-name>/clear</command-name>')) {
+        return { isClear: true };
+    }
+
+    return { isClear: false };
 }
 
 /**

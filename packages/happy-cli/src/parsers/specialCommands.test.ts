@@ -74,10 +74,27 @@ describe('parseSpecialCommand', () => {
         // Test with extra whitespace
         expect(parseSpecialCommand('  /compact test  ').type).toBe('compact');
         expect(parseSpecialCommand('  /clear  ').type).toBe('clear');
-        
+
         // Test partial matches should not trigger
         expect(parseSpecialCommand('some /compact text').type).toBeNull();
         expect(parseSpecialCommand('/compactor').type).toBeNull();
         expect(parseSpecialCommand('/clearing').type).toBeNull();
+    });
+
+    it('should detect Claude Code-wrapped /clear (regression: tablet sends wrapped form)', () => {
+        // When /clear is typed in the tablet UI (or in the Claude Code TUI),
+        // Claude Code wraps it in <command-name> XML tags before forwarding.
+        // Without recognizing the wrapped form, the typed-boundary path never fires.
+        const wrapped = '<command-name>/clear</command-name>\n            <command-message>clear</command-message>\n           ';
+        expect(parseClear(wrapped).isClear).toBe(true);
+        expect(parseSpecialCommand(wrapped).type).toBe('clear');
+    });
+
+    it('should detect Claude Code-wrapped /compact (regression: tablet sends wrapped form)', () => {
+        const wrapped = '<command-name>/compact</command-name>\n            <command-message>compact</command-message>\n           ';
+        const result = parseCompact(wrapped);
+        expect(result.isCompact).toBe(true);
+        expect(result.contextBoundaryKind).toBe('compact');
+        expect(parseSpecialCommand(wrapped).type).toBe('compact');
     });
 });
