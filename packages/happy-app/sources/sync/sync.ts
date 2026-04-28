@@ -614,6 +614,11 @@ class Sync {
                 tagDeferredSwitch,
             });
         } catch (error) {
+            if (tagDeferredSwitch) {
+                apiSocket.sessionRPC(sessionId, 'cancel-pending-switch', {}).catch((cancelErr) => {
+                    console.error('cancel-pending-switch failed after enqueue error', cancelErr);
+                });
+            }
             if (isWhenIdle) {
                 Modal.alert(t('common.error'), t('errors.sendFailed'));
             }
