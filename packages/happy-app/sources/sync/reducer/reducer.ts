@@ -352,10 +352,9 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
     // Separate sidechain and non-sidechain messages
     let nonSidechainMessages = tracedMessages.filter(msg => !msg.sidechainId);
     const sidechainMessages = tracedMessages.filter(msg => msg.sidechainId);
-    const hasPlanModeEnterBoundary = state.latestBoundary?.kind === 'plan-mode-enter'
-        || nonSidechainMessages.some(msg => msg.role === 'event'
-            && msg.content.type === 'context-boundary'
-            && msg.content.kind === 'plan-mode-enter');
+    const hasPlanModeEnterBoundary = nonSidechainMessages.some(msg => msg.role === 'event'
+        && msg.content.type === 'context-boundary'
+        && msg.content.kind === 'plan-mode-enter');
 
     //
     // Phase 0.5: Message-to-Event Conversion
@@ -408,7 +407,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
             const accepted = seedLatestBoundary(state, {
                 id: msg.id,
                 kind: msg.content.kind,
-                seq: msg.seq ?? 0,
+                seq: msg.seq,
                 at: msg.content.at,
                 forkedFromSid: msg.content.forkedFromSid,
             });
@@ -442,7 +441,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
             realID: message.id,
             role: 'agent',
             createdAt: message.createdAt,
-            seq: message.seq ?? 0,
+            seq: message.seq,
             event: event,
             tool: null,
             text: null,
@@ -736,7 +735,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                 realID: msg.id,
                 role: 'user',
                 createdAt: msg.createdAt,
-                seq: msg.seq ?? 0,
+                seq: msg.seq,
                 text: msg.content.text,
                 tool: null,
                 event: null,
@@ -774,7 +773,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                         realID: msg.id,
                         role: 'agent',
                         createdAt: msg.createdAt,
-                        seq: msg.seq ?? 0,
+                        seq: msg.seq,
                         text: isThinking ? `*${c.thinking}*` : c.text,
                         isThinking,
                         tool: null,
@@ -873,7 +872,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                             realID: msg.id,
                             role: 'agent',
                             createdAt: msg.createdAt,
-                            seq: msg.seq ?? 0,
+                            seq: msg.seq,
                             text: null,
                             tool: toolCall,
                             event: null,
@@ -964,7 +963,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                 realID: msg.id,
                 role: 'user',
                 createdAt: msg.createdAt,
-                seq: msg.seq ?? 0,
+                seq: msg.seq,
                 text: msg.content[0].prompt,
                 tool: null,
                 event: null,
@@ -987,7 +986,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                         realID: msg.id,
                         role: 'agent',
                         createdAt: msg.createdAt,
-                        seq: msg.seq ?? 0,
+                        seq: msg.seq,
                         text: isThinking ? `*${c.thinking}*` : c.text,
                         isThinking,
                         tool: null,

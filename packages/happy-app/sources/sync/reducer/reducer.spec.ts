@@ -3590,7 +3590,7 @@ describe('reducer', () => {
                 && message.event.kind === 'plan-mode-enter')).toBe(true);
         });
 
-        it('suppresses legacy plan-mode synthesis when metadata already recorded the typed boundary', () => {
+        it('preserves legacy plan-mode synthesis when latestBoundary is plan-mode-enter but the current batch has no typed boundary', () => {
             const state = createReducer();
             seedLatestBoundary(state, {
                 id: 'metadata-plan-enter',
@@ -3605,7 +3605,7 @@ describe('reducer', () => {
 
             expect(result.messages.some((message) => message.kind === 'agent-event'
                 && message.event.type === 'message'
-                && message.event.message === 'Entering plan mode')).toBe(false);
+                && message.event.message === 'Entering plan mode')).toBe(true);
         });
     });
 
