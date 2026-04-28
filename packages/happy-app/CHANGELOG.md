@@ -1,5 +1,14 @@
 # Changelog
 
+## Version 25 - 2026-04-28
+
+Permission mode is now preserved when bridging your local Claude CLI session to the Happy mobile app. If you start `claude --dangerously-skip-permissions` (or any non-default permission mode) on your local terminal, sending or resuming the conversation from your phone no longer silently reverts you to the default mode.
+
+- Fixed permission mode being silently reset to default when sending the first message from the Happy app to a local CLI session running with `--dangerously-skip-permissions`.
+- Fixed the same regression on the resume path when reopening a CLI conversation from the app.
+- The picker chip and the session info sheet now reflect the CLI's actual permission mode (including `yolo` for sandboxed Codex sessions) when you haven't explicitly chosen a mode in the app yet.
+- The picker continues to honor your explicit choice once you tap it; auto-derived mode changes (such as entering or exiting plan mode) no longer count as an explicit pick.
+
 ## Version 24 - 2026-04-27
 
 Long file-edit previews in chat are easier to scan now. Write, Edit, and MultiEdit tool bubbles collapse their diff to the first 10 visible lines by default, with an e-ink-safe Show / Hide toggle that expands the full content on demand. The remaining lines are summarized inline so you know what is hidden.
