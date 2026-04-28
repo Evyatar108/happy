@@ -21,7 +21,7 @@ const usageDataSchema = z.object({
 
 export type UsageData = z.infer<typeof usageDataSchema>;
 
-const DEFAULT_UNSEQUENCED_MESSAGE_SEQ = 0;
+const DEFAULT_UNSEQUENCED_MESSAGE_SEQ = Number.MAX_SAFE_INTEGER;
 
 const agentEventSchema = z.discriminatedUnion('type', [z.object({
     type: z.literal('switch'),
@@ -438,11 +438,9 @@ type NormalizedMessageBase = ({
     usage?: UsageData,
 };
 
-export type NormalizedMessage = NormalizedMessageBase & ({
+export type NormalizedMessage = NormalizedMessageBase & {
     seq: number,
-} | {
-    seq?: never,
-});
+};
 
 function normalizeSessionEnvelope(
     envelope: SessionEnvelope,

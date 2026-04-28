@@ -23,6 +23,7 @@ describe('reducerTracer', () => {
                     id: 'msg1',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'user',
                     isSidechain: false,
                     content: { type: 'text', text: 'Hello' }
@@ -31,6 +32,7 @@ describe('reducerTracer', () => {
                     id: 'msg2',
                     localId: null,
                     createdAt: 2000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{ type: 'text', text: 'Hi there', uuid: 'uuid1', parentUUID: null }]
@@ -52,6 +54,7 @@ describe('reducerTracer', () => {
                     id: 'msg1',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -83,6 +86,7 @@ describe('reducerTracer', () => {
                     id: 'msg-agent',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -114,6 +118,7 @@ describe('reducerTracer', () => {
                 id: 'task1',
                 localId: null,
                 createdAt: 1000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -134,6 +139,7 @@ describe('reducerTracer', () => {
                 id: 'sidechain1',
                 localId: null,
                 createdAt: 2000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: true,
                 content: [{
@@ -159,6 +165,7 @@ describe('reducerTracer', () => {
                     id: 'task1',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -175,6 +182,7 @@ describe('reducerTracer', () => {
                     id: 'sidechain1',
                     localId: null,
                     createdAt: 2000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: true,
                     content: [{
@@ -192,6 +200,7 @@ describe('reducerTracer', () => {
                 id: 'child1',
                 localId: null,
                 createdAt: 3000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: true,
                 content: [{
@@ -216,6 +225,7 @@ describe('reducerTracer', () => {
                 id: 'parent-msg',
                 localId: null,
                 createdAt: 1000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -235,6 +245,7 @@ describe('reducerTracer', () => {
                 id: 'child-msg',
                 localId: null,
                 createdAt: 2000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: true,
                 content: [{
@@ -257,6 +268,7 @@ describe('reducerTracer', () => {
                 id: 'parent-agent-msg',
                 localId: null,
                 createdAt: 1000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -279,6 +291,7 @@ describe('reducerTracer', () => {
                 id: 'child-agent-msg',
                 localId: null,
                 createdAt: 2000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: true,
                 content: [{
@@ -302,6 +315,7 @@ describe('reducerTracer', () => {
                 id: 'task1',
                 localId: null,
                 createdAt: 1000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -322,6 +336,7 @@ describe('reducerTracer', () => {
                 id: 'orphan1',
                 localId: null,
                 createdAt: 3000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: true,
                 content: [{
@@ -343,6 +358,7 @@ describe('reducerTracer', () => {
                 id: 'sidechain1',
                 localId: null,
                 createdAt: 2000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: true,
                 content: [{
@@ -373,6 +389,7 @@ describe('reducerTracer', () => {
                 id: 'task1',
                 localId: null,
                 createdAt: 1000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -393,6 +410,7 @@ describe('reducerTracer', () => {
                 id: 'orphan2',
                 localId: null,
                 createdAt: 4000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: true,
                 content: [{
@@ -407,6 +425,7 @@ describe('reducerTracer', () => {
                 id: 'orphan1',
                 localId: null,
                 createdAt: 3000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: true,
                 content: [{
@@ -429,6 +448,7 @@ describe('reducerTracer', () => {
                 id: 'sidechain1',
                 localId: null,
                 createdAt: 2000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: true,
                 content: [{
@@ -462,6 +482,7 @@ describe('reducerTracer', () => {
                 id: 'subagent-child',
                 localId: null,
                 createdAt: 1500,
+                seq: 1,
                 role: 'agent',
                 isSidechain: true,
                 content: [{
@@ -485,6 +506,7 @@ describe('reducerTracer', () => {
                 id: 'msg1',
                 localId: null,
                 createdAt: 1000,
+                seq: 1,
                 role: 'user',
                 isSidechain: false,
                 content: { type: 'text', text: 'Hello' }

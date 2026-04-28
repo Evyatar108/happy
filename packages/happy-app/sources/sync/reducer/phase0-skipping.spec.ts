@@ -13,6 +13,7 @@ describe('Phase 0 permission skipping issue', () => {
                 id: 'msg1',
                 localId: null,
                 createdAt: 1000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -29,6 +30,7 @@ describe('Phase 0 permission skipping issue', () => {
                 id: 'msg2',
                 localId: null,
                 createdAt: 2000,
+                seq: 2,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -45,6 +47,7 @@ describe('Phase 0 permission skipping issue', () => {
                 id: 'msg3',
                 localId: null,
                 createdAt: 3000,
+                seq: 3,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -155,6 +158,7 @@ describe('Phase 0 permission skipping issue', () => {
                 id: 'msg1',
                 localId: null,
                 createdAt: 1000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{

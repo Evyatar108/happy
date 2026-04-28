@@ -517,6 +517,7 @@ class Sync {
                 id: randomUUID(),
                 localId: null,
                 createdAt: now,
+                seq: Number.MAX_SAFE_INTEGER,
                 role: 'event',
                 isSidechain: false,
                 content: {

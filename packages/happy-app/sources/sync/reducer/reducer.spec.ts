@@ -383,6 +383,7 @@ describe('reducer', () => {
                     id: 'msg1',
                     localId: 'local123',
                     createdAt: 1000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'Hello' },
                     isSidechain: false
@@ -407,6 +408,7 @@ describe('reducer', () => {
                     id: 'msg1',
                     localId: 'local123',
                     createdAt: 1000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'First' },
                     isSidechain: false
@@ -422,6 +424,7 @@ describe('reducer', () => {
                     id: 'msg2',
                     localId: 'local123',
                     createdAt: 2000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'Second' },
                     isSidechain: false
@@ -441,6 +444,7 @@ describe('reducer', () => {
                     id: 'msg1',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'First' },
                     isSidechain: false
@@ -456,6 +460,7 @@ describe('reducer', () => {
                     id: 'msg1',
                     localId: null,
                     createdAt: 2000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'Second' },
                     isSidechain: false
@@ -473,6 +478,7 @@ describe('reducer', () => {
                     id: 'msg1',
                     localId: 'local123',
                     createdAt: 1000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'First' },
                     isSidechain: false
@@ -481,6 +487,7 @@ describe('reducer', () => {
                     id: 'msg2',
                     localId: 'local456',
                     createdAt: 2000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'Second' },
                     isSidechain: false
@@ -489,6 +496,7 @@ describe('reducer', () => {
                     id: 'msg3',
                     localId: null,
                     createdAt: 3000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'Third' },
                     isSidechain: false
@@ -517,6 +525,7 @@ describe('reducer', () => {
                     id: 'agent1',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -543,6 +552,7 @@ describe('reducer', () => {
                     id: 'agent1',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [
@@ -581,6 +591,7 @@ describe('reducer', () => {
                     id: 'user1',
                     localId: 'local1',
                     createdAt: 1000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'Question 1' },
                     isSidechain: false
@@ -589,6 +600,7 @@ describe('reducer', () => {
                     id: 'agent1',
                     localId: null,
                     createdAt: 2000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'text',
@@ -602,6 +614,7 @@ describe('reducer', () => {
                     id: 'user2',
                     localId: 'local2',
                     createdAt: 3000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'Question 2' },
                     isSidechain: false
@@ -610,6 +623,7 @@ describe('reducer', () => {
                     id: 'agent2',
                     localId: null,
                     createdAt: 4000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'text',
@@ -656,6 +670,7 @@ describe('reducer', () => {
                     id: 'agent1',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'text',
@@ -685,6 +700,7 @@ describe('reducer', () => {
                     id: 'user1',
                     localId: 'local1',
                     createdAt: 1000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'Valid' },
                     isSidechain: false
@@ -705,6 +721,7 @@ describe('reducer', () => {
                     id: 'agent1',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'event',
                     content: {
                         type: 'message',
@@ -812,6 +829,7 @@ describe('reducer', () => {
                     id: 'msg-1',
                     localId: null,
                     createdAt: 3000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -875,6 +893,7 @@ describe('reducer', () => {
                     id: 'msg-1',
                     localId: null,
                     createdAt: 3000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -956,6 +975,7 @@ describe('reducer', () => {
                     id: 'msg-1',
                     localId: null,
                     createdAt: 4000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -1023,6 +1043,7 @@ describe('reducer', () => {
                     id: 'msg-1',
                     localId: null,
                     createdAt: 5000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -1104,6 +1125,7 @@ describe('reducer', () => {
                     id: 'msg-1',
                     localId: null,
                     createdAt: 4000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'Hello' },
                     isSidechain: false
@@ -1140,6 +1162,7 @@ describe('reducer', () => {
                     id: 'tool-msg-1',
                     localId: null,
                     createdAt: 5000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1223,6 +1246,7 @@ describe('reducer', () => {
                     id: 'tool-msg-1',
                     localId: null,
                     createdAt: 5000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1303,6 +1327,7 @@ describe('reducer', () => {
                     id: 'msg-1',
                     localId: null,
                     createdAt: 3000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1331,6 +1356,7 @@ describe('reducer', () => {
                     id: 'msg-2',
                     localId: null,
                     createdAt: 4000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1381,6 +1407,7 @@ describe('reducer', () => {
                     id: 'tool-msg-1',
                     localId: null,
                     createdAt: 2000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1439,6 +1466,7 @@ describe('reducer', () => {
                     id: 'tool-msg-2',
                     localId: null,
                     createdAt: 4000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1516,6 +1544,7 @@ describe('reducer', () => {
                     id: 'msg-1',
                     localId: null,
                     createdAt: 3000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1542,6 +1571,7 @@ describe('reducer', () => {
                     id: 'msg-2',
                     localId: null,
                     createdAt: 4000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-result',
@@ -1642,6 +1672,7 @@ describe('reducer', () => {
                     id: 'msg-1',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-result',
@@ -1664,6 +1695,7 @@ describe('reducer', () => {
                     id: 'msg-2',
                     localId: null,
                     createdAt: 2000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1692,6 +1724,7 @@ describe('reducer', () => {
                     id: 'msg-3',
                     localId: null,
                     createdAt: 3000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-result',
@@ -1740,6 +1773,7 @@ describe('reducer', () => {
                     id: 'user-1',
                     localId: 'local-1',
                     createdAt: 1000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'Do something' },
                     isSidechain: false
@@ -1749,6 +1783,7 @@ describe('reducer', () => {
                     id: 'agent-1',
                     localId: null,
                     createdAt: 2000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'text',
@@ -1763,6 +1798,7 @@ describe('reducer', () => {
                     id: 'tool-1',
                     localId: null,
                     createdAt: 3000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1810,6 +1846,7 @@ describe('reducer', () => {
                     id: 'msg-1',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1832,6 +1869,7 @@ describe('reducer', () => {
                     id: 'msg-2',
                     localId: null,
                     createdAt: 2000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-result',
@@ -1858,6 +1896,7 @@ describe('reducer', () => {
                     id: 'msg-3',
                     localId: null,
                     createdAt: 3000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-result',
@@ -1905,6 +1944,7 @@ describe('reducer', () => {
                     id: 'msg-1',
                     localId: null,
                     createdAt: 3000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1992,6 +2032,7 @@ describe('reducer', () => {
                     id: 'msg-1',
                     localId: null,
                     createdAt: 2000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -2034,6 +2075,7 @@ describe('reducer', () => {
                         id: `user-${i}`,
                         localId: `local-${i}`,
                         createdAt: i * 1000,
+                        seq: 1,
                         role: 'user',
                         content: { type: 'text', text: `Message ${i}` },
                         isSidechain: false
@@ -2086,6 +2128,7 @@ describe('reducer', () => {
                     id: 'user-0',
                     localId: 'local-0',
                     createdAt: 0,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'Duplicate' },
                     isSidechain: false
@@ -2140,6 +2183,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1000,
+                seq: 1,
                 role: 'agent',
                 content: [{
                     type: 'tool-call',
@@ -2212,6 +2256,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1000,
+                seq: 1,
                 role: 'agent',
                 content: [{
                     type: 'tool-call',
@@ -2272,6 +2317,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1500,
+                seq: 1,
                 role: 'agent',
                 content: [{
                     type: 'tool-call',
@@ -2319,6 +2365,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1500,
+                seq: 1,
                 role: 'agent',
                 content: [{
                     type: 'tool-call',
@@ -2380,6 +2427,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1500,
+                seq: 1,
                 role: 'agent',
                 content: [{
                     type: 'tool-call',
@@ -2445,6 +2493,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1500,
+                seq: 1,
                 role: 'agent',
                 content: [{
                     type: 'tool-call',
@@ -2504,6 +2553,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1500,
+                seq: 1,
                 role: 'agent',
                 content: [{
                     type: 'tool-call',
@@ -2644,6 +2694,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1500,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -2662,6 +2713,7 @@ describe('reducer', () => {
                 id: 'msg-2',
                 localId: null,
                 createdAt: 2000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -2722,6 +2774,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1500,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -2739,6 +2792,7 @@ describe('reducer', () => {
                 id: 'msg-2',
                 localId: null,
                 createdAt: 2000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -2796,6 +2850,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1500,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -2813,6 +2868,7 @@ describe('reducer', () => {
                 id: 'msg-2',
                 localId: null,
                 createdAt: 2000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -2862,6 +2918,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1500,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -2879,6 +2936,7 @@ describe('reducer', () => {
                 id: 'msg-2',
                 localId: null,
                 createdAt: 2000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -2926,6 +2984,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1500,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -2946,6 +3005,7 @@ describe('reducer', () => {
                 id: 'msg-2',
                 localId: null,
                 createdAt: 2000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -3003,6 +3063,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1000,
+                seq: 1,
                 role: 'agent',
                 content: [{
                     type: 'tool-call',
@@ -3053,6 +3114,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 2000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -3128,6 +3190,7 @@ describe('reducer', () => {
                     id: 'user-1',
                     localId: 'local-1',
                     createdAt: 1000,
+                    seq: 1,
                     role: 'user',
                     isSidechain: false,
                     content: {
@@ -3140,6 +3203,7 @@ describe('reducer', () => {
                     id: 'tool-msg-1',
                     localId: null,
                     createdAt: 2000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -3157,6 +3221,7 @@ describe('reducer', () => {
                     id: 'result-1',
                     localId: null,
                     createdAt: 3000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -3214,6 +3279,7 @@ describe('reducer', () => {
                 id: 'user-2',
                 localId: 'local-2',
                 createdAt: 4000,
+                seq: 1,
                 role: 'user',
                 isSidechain: false,
                 content: {
@@ -3246,6 +3312,7 @@ describe('reducer', () => {
                 id: 'ready-1',
                 localId: null,
                 createdAt: 1000,
+                seq: 1,
                 role: 'event',
                 content: { type: 'ready' },
                 isSidechain: false
@@ -3261,6 +3328,7 @@ describe('reducer', () => {
                 id: 'turn-start-1',
                 localId: null,
                 createdAt: 1000,
+                seq: 1,
                 role: 'event',
                 content: { type: 'message', message: 'Turn started' },
                 isSidechain: false
@@ -3276,6 +3344,7 @@ describe('reducer', () => {
                     id: 'parent-msg',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -3292,6 +3361,7 @@ describe('reducer', () => {
                     id: 'child-msg',
                     localId: null,
                     createdAt: 1100,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: true,
                     content: [{
@@ -3321,6 +3391,7 @@ describe('reducer', () => {
                     id: 'agent-parent-msg',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -3341,6 +3412,7 @@ describe('reducer', () => {
                     id: 'agent-prompt-echo',
                     localId: null,
                     createdAt: 1100,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: true,
                     content: [{
@@ -3354,6 +3426,7 @@ describe('reducer', () => {
                     id: 'agent-child-tool',
                     localId: null,
                     createdAt: 1200,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: true,
                     content: [{
@@ -3652,6 +3725,7 @@ describe('reducer', () => {
                 id: 'todo-call-only',
                 localId: null,
                 createdAt: 1000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -3680,6 +3754,7 @@ describe('reducer', () => {
                     id: 'todo-call',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -3701,6 +3776,7 @@ describe('reducer', () => {
                     id: 'todo-result',
                     localId: null,
                     createdAt: 1010,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -3733,6 +3809,7 @@ describe('reducer', () => {
                     id: 'bad-todo-call',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -3751,6 +3828,7 @@ describe('reducer', () => {
                     id: 'bad-todo-result',
                     localId: null,
                     createdAt: 1010,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -3807,6 +3885,7 @@ describe('reducer', () => {
                 id: 'parent-msg',
                 localId: null,
                 createdAt: 1000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -3826,6 +3905,7 @@ describe('reducer', () => {
                     id: 'sc-prompt-msg',
                     localId: null,
                     createdAt: 1100,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: true,
                     content: [{
@@ -3838,6 +3918,7 @@ describe('reducer', () => {
                     id: 'sc-bash-call-msg',
                     localId: null,
                     createdAt: 1200,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: true,
                     content: [{
@@ -3858,6 +3939,7 @@ describe('reducer', () => {
                     id: 'sc-bash-result-msg',
                     localId: null,
                     createdAt: 1300,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: true,
                     content: [{
