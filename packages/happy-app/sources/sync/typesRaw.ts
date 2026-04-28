@@ -21,7 +21,7 @@ const usageDataSchema = z.object({
 
 export type UsageData = z.infer<typeof usageDataSchema>;
 
-const DEFAULT_UNSEQUENCED_MESSAGE_SEQ = Number.MAX_SAFE_INTEGER;
+export const DEFAULT_UNSEQUENCED_MESSAGE_SEQ = Number.MAX_SAFE_INTEGER;
 
 const agentEventSchema = z.discriminatedUnion('type', [z.object({
     type: z.literal('switch'),

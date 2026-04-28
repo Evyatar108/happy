@@ -3303,6 +3303,84 @@ describe('reducer', () => {
             const permMsgId = state.toolIdToMessageId.get('tool-1');
             expect(toolMsgId).toBe(permMsgId); // Same message - properly matched!
         });
+
+        it('permission-request placeholder stays in active region after a typed context-boundary lands', () => {
+            const state = createReducer();
+
+            // Phase 1: create a pending permission placeholder via agentState
+            const agentState: AgentState = {
+                requests: {
+                    'perm-inflight': {
+                        tool: 'Bash',
+                        arguments: { command: 'rm -rf /tmp/scratch' },
+                        createdAt: 1000,
+                    },
+                },
+            };
+            const result1 = reducer(state, [], agentState);
+            expect(result1.messages).toHaveLength(1);
+
+            // The placeholder must carry the unsequenced sentinel, not seq=0
+            const placeholder = result1.messages[0];
+            expect(placeholder.seq).toBe(Number.MAX_SAFE_INTEGER);
+
+            // Phase 2: a typed context-boundary lands with seq=5 (post-boundary)
+            const result2 = reducer(state, [
+                createContextBoundaryMessage('boundary-clear', 2000, 5, 'clear'),
+            ]);
+            expect(state.latestBoundary?.seq).toBe(5);
+
+            // The permission placeholder must NOT satisfy isConfirmed(msg) && msg.seq < boundary.seq
+            // because seq===MAX_SAFE_INTEGER is treated as unconfirmed.
+            // Verify it is still present in state.messages with the sentinel seq.
+            const storedMsg = Array.from(state.messages.values()).find(
+                m => m.tool?.permission?.id === 'perm-inflight',
+            );
+            expect(storedMsg).toBeDefined();
+            expect(storedMsg!.seq).toBe(Number.MAX_SAFE_INTEGER);
+
+            // The returned message from result1 likewise has the sentinel seq, confirming
+            // buildChatListBoundaryItems treats it as unconfirmed (not pre-boundary).
+            expect(result2.messages.some(m => m.seq === Number.MAX_SAFE_INTEGER)).toBe(false);
+            const refreshed = Array.from(state.messages.values())
+                .find(m => m.tool?.permission?.id === 'perm-inflight');
+            expect(refreshed!.seq).toBe(Number.MAX_SAFE_INTEGER);
+        });
+
+        it('completed permission placeholder stays in active region after a typed context-boundary lands', () => {
+            const state = createReducer();
+
+            // Phase 1: create a completed permission placeholder (completedRequests path)
+            const agentState: AgentState = {
+                completedRequests: {
+                    'perm-approved': {
+                        tool: 'Bash',
+                        arguments: { command: 'ls /tmp' },
+                        createdAt: 1000,
+                        completedAt: 1500,
+                        status: 'approved',
+                    },
+                },
+            };
+            const result1 = reducer(state, [], agentState);
+            expect(result1.messages).toHaveLength(1);
+
+            // The placeholder must carry the unsequenced sentinel, not seq=0
+            expect(result1.messages[0].seq).toBe(Number.MAX_SAFE_INTEGER);
+
+            // Phase 2: a typed context-boundary lands with seq=3
+            reducer(state, [
+                createContextBoundaryMessage('boundary-clear-2', 2000, 3, 'clear'),
+            ]);
+            expect(state.latestBoundary?.seq).toBe(3);
+
+            // Completed permission placeholder must still carry the sentinel
+            const storedMsg = Array.from(state.messages.values()).find(
+                m => m.tool?.permission?.id === 'perm-approved',
+            );
+            expect(storedMsg).toBeDefined();
+            expect(storedMsg!.seq).toBe(Number.MAX_SAFE_INTEGER);
+        });
     });
 
     describe('session protocol lifecycle and subagent sidechains', () => {

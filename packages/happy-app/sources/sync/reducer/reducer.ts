@@ -111,7 +111,7 @@
  */
 
 import { Message, ToolCall } from "../typesMessage";
-import { AgentEvent, NormalizedMessage, UsageData } from "../typesRaw";
+import { AgentEvent, DEFAULT_UNSEQUENCED_MESSAGE_SEQ, NormalizedMessage, UsageData } from "../typesRaw";
 import { createTracer, traceMessages, TracerState } from "./reducerTracer";
 import { AgentState, TodoItem, TodoItemsSchema } from "../storageTypes";
 import { MessageMeta } from "../typesMessageMeta";
@@ -523,7 +523,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                         realID: null,
                         role: 'agent',
                         createdAt: request.createdAt || Date.now(),
-                        seq: 0,
+                        seq: DEFAULT_UNSEQUENCED_MESSAGE_SEQ,
                         text: null,
                         tool: toolCall,
                         event: null,
@@ -686,7 +686,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                         realID: null,
                         role: 'agent',
                         createdAt: completed.createdAt || Date.now(),
-                        seq: 0,
+                        seq: DEFAULT_UNSEQUENCED_MESSAGE_SEQ,
                         text: null,
                         tool: toolCall,
                         event: null,
