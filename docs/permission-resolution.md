@@ -88,9 +88,13 @@ Then sandbox policy is applied:
 ### 2) Per-message updates in remote flow
 `packages/happy-cli/src/claude/runClaude.ts`
 
-When a user message includes `meta.permissionMode`:
+When a user message arrives, `meta.permissionMode` may be absent — the app omits it whenever the user has not explicitly chosen a mode (see "Outbound message mode" above). In that case the CLI preserves its current in-memory `currentPermissionMode` (initialized from startup resolution and only updated by subsequent explicit user picks). This preservation is what allows `claude --dangerously-skip-permissions` to survive a remote message-send from the Happy app — without it, every silent send would otherwise downgrade the running session to `default`.
+
+When `meta.permissionMode` is present:
 - If sandbox enabled: forced to `bypassPermissions`
-- If sandbox disabled: use incoming mode
+- If sandbox disabled: adopt the incoming mode as the new `currentPermissionMode` and republish via `publishPermissionModeIfChanged(...)` so the app's `metadata.currentPermissionModeCode` reflects the live CLI mode.
+
+The same rule applies on the **resume path**: when an existing session is resumed and a backlog of user messages is replayed, each replayed message follows the same logic — absent `meta.permissionMode` means "keep the CLI's current in-memory mode" (which on resume is the freshly resolved startup mode), and a present value goes through the sandbox policy and republish path. The CLI never treats absence as an implicit `default`.
 
 ### 3) Local Claude process
 `packages/happy-cli/src/claude/claudeLocal.ts`
