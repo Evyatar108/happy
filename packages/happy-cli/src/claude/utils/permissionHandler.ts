@@ -10,12 +10,13 @@ import { PermissionResult } from "../sdk/types";
 import { Session } from "../session";
 import { EnhancedMode, PermissionMode } from "../loop";
 import { getToolDescriptor } from "./getToolDescriptor";
+import { mapToClaudeMode, type ClaudeSdkPermissionMode } from "./permissionMode";
 
 interface PermissionResponse {
     id: string;
     approved: boolean;
     reason?: string;
-    mode?: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
+    mode?: ClaudeSdkPermissionMode;
     allowTools?: string[];
     updatedInput?: Record<string, unknown>;
     receivedAt?: number;
@@ -36,10 +37,16 @@ export class PermissionHandler {
     private allowedTools = new Set<string>();
     private allowedBashLiterals = new Set<string>();
     private allowedBashPrefixes = new Set<string>();
-    private permissionMode: PermissionMode = 'default';
+    /**
+     * Effective Claude-side permission mode (always one of the 4 SDK modes).
+     * Codex-style modes from the mobile (`yolo`, `safe-yolo`, `read-only`) are
+     * mapped to Claude equivalents via `mapToClaudeMode` before being stored,
+     * so the comparisons in `handleToolCall` see a Claude-native value.
+     */
+    private permissionMode: ClaudeSdkPermissionMode = 'default';
     private onPermissionRequestCallback?: (toolCallId: string) => void;
     /** Callback to change permission mode on the active query (set by claudeRemote) */
-    private setPermissionModeCallback?: (mode: PermissionMode) => Promise<void>;
+    private setPermissionModeCallback?: (mode: ClaudeSdkPermissionMode) => Promise<void>;
 
     constructor(session: Session) {
         this.session = session;
@@ -54,14 +61,14 @@ export class PermissionHandler {
     }
 
     handleModeChange(mode: PermissionMode) {
-        this.permissionMode = mode;
+        this.permissionMode = mapToClaudeMode(mode);
     }
 
     /**
      * Set callback to dynamically change permission mode on the active query.
      * Called by claudeRemote after the Query object is created.
      */
-    setPermissionModeUpdater(callback: (mode: PermissionMode) => Promise<void>) {
+    setPermissionModeUpdater(callback: (mode: ClaudeSdkPermissionMode) => Promise<void>) {
         this.setPermissionModeCallback = callback;
     }
 
