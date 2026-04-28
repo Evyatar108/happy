@@ -12,7 +12,12 @@ import { RpcHandlerManager } from './rpc/RpcHandlerManager';
 import { registerCommonHandlers } from '../modules/common/registerCommonHandlers';
 import { calculateCost } from '@/utils/pricing';
 import { shouldReconnect } from '@/utils/lidState';
-import { type SessionEnvelope, type SessionTurnEndStatus } from '@slopus/happy-wire';
+import {
+    createEnvelope,
+    type SessionContextBoundaryEvent,
+    type SessionEnvelope,
+    type SessionTurnEndStatus,
+} from '@slopus/happy-wire';
 import {
     closeClaudeTurnWithStatus,
     mapClaudeLogMessageToSessionEnvelopes,
@@ -76,6 +81,24 @@ type V3PostSessionMessagesResponse = {
         updatedAt: number;
     }>;
 };
+
+type ContextBoundaryInput = Omit<SessionContextBoundaryEvent, 't'>;
+
+function contextBoundaryFallbackMessage(kind: ContextBoundaryInput['kind']): string {
+    switch (kind) {
+        case 'clear':
+            return 'Context was reset';
+        case 'compact':
+        case 'autocompact':
+            return 'Compaction completed';
+        case 'plan-mode-enter':
+            return 'Entering plan mode';
+        case 'plan-mode-exit':
+            return 'Exiting plan mode';
+        case 'session-fork-resume':
+            return 'Resumed from previous session';
+    }
+}
 
 export class ApiSessionClient extends EventEmitter {
     private readonly token: string;
@@ -470,6 +493,31 @@ export class ApiSessionClient extends EventEmitter {
         }
 
         this.enqueueSessionProtocolEnvelope(envelope);
+    }
+
+    async sendContextBoundary(boundary: ContextBoundaryInput): Promise<void> {
+        const envelope = createEnvelope('agent', {
+            t: 'context-boundary',
+            ...boundary,
+        }, { time: boundary.at });
+        const seq = this.lastSeq + this.pendingOutbox.length + 1;
+
+        this.enqueueSessionProtocolEnvelope(envelope, false);
+        this.sendSessionEvent({
+            type: 'message',
+            message: contextBoundaryFallbackMessage(boundary.kind),
+        }, undefined, { contextBoundaryFallback: true });
+
+        await this.updateMetadata((metadata) => ({
+            ...metadata,
+            latestBoundary: {
+                id: envelope.id,
+                kind: boundary.kind,
+                seq,
+                at: boundary.at,
+                ...(boundary.forkedFromSid ? { forkedFromSid: boundary.forkedFromSid } : {}),
+            }
+        }));
     }
 
     /**

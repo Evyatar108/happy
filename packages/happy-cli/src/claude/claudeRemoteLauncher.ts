@@ -359,6 +359,10 @@ export async function claudeRemoteLauncher(session: Session): Promise<'switch' |
                         logger.debug(`[remote]: Completion event: ${message}`);
                         session.client.sendSessionEvent({ type: 'message', message });
                     },
+                    onContextBoundary: async (boundary) => {
+                        logger.debug('[remote]: Context boundary', boundary);
+                        await session.client.sendContextBoundary(boundary);
+                    },
                     onSessionReset: () => {
                         logger.debug('[remote]: Session reset');
                         session.clearSessionId();

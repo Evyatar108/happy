@@ -12,6 +12,9 @@ import { systemPrompt } from "./utils/systemPrompt";
 import { PermissionResult } from "./sdk/types";
 import type { JsRuntime } from "./runClaude";
 import { mapSystemInitToMetadata, type SDKInitMetadata } from "./utils/sdkMetadata";
+import type { SessionContextBoundaryEvent } from '@slopus/happy-wire';
+
+export type ClaudeRemoteContextBoundary = Omit<SessionContextBoundaryEvent, 't'>;
 
 export async function claudeRemote(opts: {
 
@@ -41,6 +44,7 @@ export async function claudeRemote(opts: {
     onThinkingChange?: (thinking: boolean) => void,
     onMessage: (message: SDKMessage) => void,
     onCompletionEvent?: (message: string) => void,
+    onContextBoundary?: (boundary: ClaudeRemoteContextBoundary) => void | Promise<void>,
     onSessionReset?: () => void,
     onSDKMetadata?: (metadata: SDKInitMetadata) => void
 }) {
@@ -95,8 +99,12 @@ export async function claudeRemote(opts: {
 
     // Handle /clear command
     if (specialCommand.type === 'clear') {
-        if (opts.onCompletionEvent) {
-            opts.onCompletionEvent('Context was reset');
+        if (opts.onContextBoundary) {
+            await opts.onContextBoundary({
+                kind: 'clear',
+                triggeredBy: 'user',
+                at: Date.now(),
+            });
         }
         if (opts.onSessionReset) {
             opts.onSessionReset();

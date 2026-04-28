@@ -173,4 +173,48 @@ describe('claudeRemote SDK metadata forwarding', () => {
         expect(onReady).toHaveBeenCalledTimes(1);
         expect(onMessage).toHaveBeenCalledTimes(2);
     });
+
+    it('emits /clear context boundary before resetting the Claude session id', async () => {
+        const events: string[] = [];
+        const nextMessage = vi.fn().mockResolvedValueOnce({
+            message: '/clear',
+            mode: {
+                permissionMode: 'default',
+            },
+        });
+        const onContextBoundary = vi.fn(async () => {
+            events.push('boundary');
+            await Promise.resolve();
+        });
+        const onSessionReset = vi.fn(() => {
+            events.push('reset');
+        });
+        const onCompletionEvent = vi.fn();
+        mockParseSpecialCommand.mockReturnValueOnce({ type: 'clear' });
+
+        await claudeRemote({
+            sessionId: null,
+            path: '/tmp/project',
+            allowedTools: [],
+            hookSettingsPath: '/tmp/settings.json',
+            nextMessage,
+            onReady: vi.fn(),
+            isAborted: () => false,
+            onSessionFound: vi.fn(),
+            onMessage: vi.fn(),
+            onContextBoundary,
+            onSessionReset,
+            onCompletionEvent,
+            canCallTool: async () => ({ behavior: 'allow', updatedInput: {} }),
+        });
+
+        expect(onContextBoundary).toHaveBeenCalledWith({
+            kind: 'clear',
+            triggeredBy: 'user',
+            at: expect.any(Number),
+        });
+        expect(events).toEqual(['boundary', 'reset']);
+        expect(onCompletionEvent).not.toHaveBeenCalled();
+        expect(mockQuery).not.toHaveBeenCalled();
+    });
 });

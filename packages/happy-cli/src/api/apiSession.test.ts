@@ -535,6 +535,92 @@ describe('ApiSessionClient v3 messages API migration', () => {
         });
     });
 
+    it('sends context boundary typed-first, legacy fallback second, and updates metadata', async () => {
+        const client = new ApiSessionClient('fake-token', session);
+        mockAxiosPost.mockResolvedValueOnce({
+            data: {
+                messages: [
+                    { id: 'msg-1', seq: 1, localId: 'local-1', createdAt: 1, updatedAt: 1 },
+                    { id: 'msg-2', seq: 2, localId: 'local-2', createdAt: 2, updatedAt: 2 }
+                ]
+            }
+        });
+        mockSocket.emitWithAck.mockImplementation(async (event: string, data: any) => {
+            if (event === 'update-metadata') {
+                return { result: 'success', version: 1, metadata: data.metadata };
+            }
+            return { result: 'error' };
+        });
+
+        await client.sendContextBoundary({
+            kind: 'clear',
+            triggeredBy: 'user',
+            at: 1234,
+        });
+
+        await waitForCheck(() => {
+            expect(mockAxiosPost).toHaveBeenCalledTimes(1);
+        });
+
+        const payload = mockAxiosPost.mock.calls[0][1];
+        expect(payload.messages).toHaveLength(2);
+
+        const typed = decrypt(
+            session.encryptionKey,
+            session.encryptionVariant,
+            decodeBase64(payload.messages[0].content)
+        ) as any;
+        const fallback = decrypt(
+            session.encryptionKey,
+            session.encryptionVariant,
+            decodeBase64(payload.messages[1].content)
+        );
+
+        expect(typed).toMatchObject({
+            role: 'session',
+            content: {
+                role: 'agent',
+                time: 1234,
+                ev: {
+                    t: 'context-boundary',
+                    kind: 'clear',
+                    at: 1234,
+                    triggeredBy: 'user'
+                }
+            },
+            meta: {
+                sentFrom: 'cli'
+            }
+        });
+        expect(fallback).toMatchObject({
+            role: 'agent',
+            content: {
+                type: 'event',
+                data: {
+                    type: 'message',
+                    message: 'Context was reset'
+                }
+            },
+            meta: {
+                contextBoundaryFallback: true
+            }
+        });
+
+        const metadataPayload = mockSocket.emitWithAck.mock.calls.find((call: any[]) => call[0] === 'update-metadata')?.[1];
+        expect(metadataPayload).toBeTruthy();
+        const metadata = decrypt(
+            session.encryptionKey,
+            session.encryptionVariant,
+            decodeBase64(metadataPayload.metadata)
+        ) as any;
+        expect(metadata.latestBoundary).toEqual({
+            id: typed.content.id,
+            kind: 'clear',
+            seq: 1,
+            at: 1234,
+        });
+    });
+
     it('normalizes custom-title records into one metadata update per rename event', () => {
         const client = new ApiSessionClient('fake-token', session);
         const updateMetadata = vi.spyOn(client, 'updateMetadata').mockImplementation(async (handler) => {
