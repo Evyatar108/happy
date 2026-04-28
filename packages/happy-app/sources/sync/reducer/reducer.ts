@@ -352,6 +352,10 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
     // Separate sidechain and non-sidechain messages
     let nonSidechainMessages = tracedMessages.filter(msg => !msg.sidechainId);
     const sidechainMessages = tracedMessages.filter(msg => msg.sidechainId);
+    const hasPlanModeEnterBoundary = state.latestBoundary?.kind === 'plan-mode-enter'
+        || nonSidechainMessages.some(msg => msg.role === 'event'
+            && msg.content.type === 'context-boundary'
+            && msg.content.kind === 'plan-mode-enter');
 
     //
     // Phase 0.5: Message-to-Event Conversion
@@ -414,7 +418,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
         }
 
         // Try to parse message as event
-        const event = parseMessageAsEvent(msg);
+        const event = parseMessageAsEvent(msg, { suppressPlanModeEnter: hasPlanModeEnterBoundary });
         if (event) {
             if (ENABLE_LOGGING) {
                 console.log(`[REDUCER] Converting message ${msg.id} to event:`, event);

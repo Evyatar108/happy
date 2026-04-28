@@ -40,7 +40,7 @@ export async function claudeRemote(opts: {
     isAborted: (toolCallId: string) => boolean,
 
     // Callbacks
-    onSessionFound: (id: string) => void,
+    onSessionFound: (id: string) => void | Promise<void>,
     onThinkingChange?: (thinking: boolean) => void,
     onMessage: (message: SDKMessage) => void,
     onCompletionEvent?: (message: string) => void,
@@ -207,7 +207,7 @@ export async function claudeRemote(opts: {
                     const projectDir = getProjectPath(opts.path);
                     const found = await awaitFileExist(join(projectDir, `${systemInit.session_id}.jsonl`));
                     logger.debug(`[claudeRemote] Session file found: ${systemInit.session_id} ${found}`);
-                    opts.onSessionFound(systemInit.session_id);
+                    await opts.onSessionFound(systemInit.session_id);
                 }
             }
 
@@ -219,8 +219,12 @@ export async function claudeRemote(opts: {
                 // Send completion messages
                 if (isCompactCommand) {
                     logger.debug('[claudeRemote] Compaction completed');
-                    if (opts.onCompletionEvent) {
-                        opts.onCompletionEvent('Compaction completed');
+                    if (opts.onContextBoundary) {
+                        await opts.onContextBoundary({
+                            kind: 'compact',
+                            triggeredBy: 'user',
+                            at: Date.now(),
+                        });
                     }
                     isCompactCommand = false;
                 }

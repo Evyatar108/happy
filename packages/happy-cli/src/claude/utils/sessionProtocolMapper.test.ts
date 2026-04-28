@@ -81,6 +81,48 @@ describe('mapClaudeLogMessageToSessionEnvelopes', () => {
         );
     });
 
+    it('returns plan-mode boundary intents separately from session envelopes', () => {
+        const entered = mapClaudeLogMessageToSessionEnvelopes({
+            type: 'assistant',
+            uuid: 'a-plan-enter',
+            message: {
+                role: 'assistant',
+                content: [
+                    { type: 'tool_use', id: 'tool-plan-enter', name: 'EnterPlanMode', input: {} },
+                ],
+            },
+        } as any, { currentTurnId: null });
+
+        expect(entered.envelopes.some((envelope) => envelope.ev.t === 'context-boundary')).toBe(false);
+        expect(entered.boundaries).toEqual([
+            {
+                kind: 'plan-mode-enter',
+                triggeredBy: 'agent',
+                at: expect.any(Number),
+            },
+        ]);
+
+        const exited = mapClaudeLogMessageToSessionEnvelopes({
+            type: 'assistant',
+            uuid: 'a-plan-exit',
+            message: {
+                role: 'assistant',
+                content: [
+                    { type: 'tool_use', id: 'tool-plan-exit', name: 'ExitPlanMode', input: {} },
+                ],
+            },
+        } as any, { currentTurnId: entered.currentTurnId });
+
+        expect(exited.envelopes.some((envelope) => envelope.ev.t === 'context-boundary')).toBe(false);
+        expect(exited.boundaries).toEqual([
+            {
+                kind: 'plan-mode-exit',
+                triggeredBy: 'agent',
+                at: expect.any(Number),
+            },
+        ]);
+    });
+
     it('exposes the generated session subagent id on Agent tool calls', () => {
         const started = mapClaudeLogMessageToSessionEnvelopes({
             type: 'assistant',

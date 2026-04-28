@@ -3573,6 +3573,40 @@ describe('reducer', () => {
                 forkedFromSid: undefined,
             });
         });
+
+        it('suppresses legacy plan-mode synthesis when typed plan-mode boundary is in the same batch', () => {
+            const state = createReducer();
+
+            const result = reducer(state, [
+                createToolCallMessage('plan-enter-tool', 1600, 'tool-plan-enter', 'EnterPlanMode', {}),
+                createContextBoundaryMessage('boundary-plan-enter', 1601, 60, 'plan-mode-enter'),
+            ]);
+
+            expect(result.messages.some((message) => message.kind === 'agent-event'
+                && message.event.type === 'message'
+                && message.event.message === 'Entering plan mode')).toBe(false);
+            expect(result.messages.some((message) => message.kind === 'agent-event'
+                && message.event.type === 'context-boundary'
+                && message.event.kind === 'plan-mode-enter')).toBe(true);
+        });
+
+        it('suppresses legacy plan-mode synthesis when metadata already recorded the typed boundary', () => {
+            const state = createReducer();
+            seedLatestBoundary(state, {
+                id: 'metadata-plan-enter',
+                kind: 'plan-mode-enter',
+                seq: 60,
+                at: 1601,
+            });
+
+            const result = reducer(state, [
+                createToolCallMessage('plan-enter-tool', 1602, 'tool-plan-enter', 'EnterPlanMode', {}),
+            ]);
+
+            expect(result.messages.some((message) => message.kind === 'agent-event'
+                && message.event.type === 'message'
+                && message.event.message === 'Entering plan mode')).toBe(false);
+        });
     });
 
     describe('TodoWrite latestTodos handling', () => {

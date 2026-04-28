@@ -410,6 +410,11 @@ export class ApiSessionClient extends EventEmitter {
         for (const envelope of mapped.envelopes) {
             this.sendSessionProtocolMessage(envelope);
         }
+        for (const boundary of mapped.boundaries) {
+            void this.sendContextBoundary(boundary).catch((error: unknown) => {
+                logger.debug('[SOCKET] Failed to send context boundary:', error);
+            });
+        }
         // Track usage from assistant messages
         if (normalized.type === 'assistant' && normalized.message?.usage) {
             try {

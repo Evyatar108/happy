@@ -621,6 +621,57 @@ describe('ApiSessionClient v3 messages API migration', () => {
         });
     });
 
+    it('routes plan-mode mapper intents through sendContextBoundary', async () => {
+        const client = new ApiSessionClient('fake-token', session);
+        const sendContextBoundary = vi.spyOn(client, 'sendContextBoundary').mockResolvedValue(undefined);
+        mockAxiosPost.mockResolvedValue({ data: { messages: [] } });
+
+        client.sendClaudeSessionMessage({
+            type: 'assistant',
+            uuid: 'assistant-plan-enter',
+            message: {
+                role: 'assistant',
+                content: [
+                    {
+                        type: 'tool_use',
+                        id: 'tool-plan-enter',
+                        name: 'EnterPlanMode',
+                        input: {},
+                    },
+                ],
+            },
+        } as any);
+        client.sendClaudeSessionMessage({
+            type: 'assistant',
+            uuid: 'assistant-plan-exit',
+            message: {
+                role: 'assistant',
+                content: [
+                    {
+                        type: 'tool_use',
+                        id: 'tool-plan-exit',
+                        name: 'ExitPlanMode',
+                        input: {},
+                    },
+                ],
+            },
+        } as any);
+
+        expect(sendContextBoundary).toHaveBeenNthCalledWith(1, {
+            kind: 'plan-mode-enter',
+            triggeredBy: 'agent',
+            at: expect.any(Number),
+        });
+        expect(sendContextBoundary).toHaveBeenNthCalledWith(2, {
+            kind: 'plan-mode-exit',
+            triggeredBy: 'agent',
+            at: expect.any(Number),
+        });
+        await waitForCheck(() => {
+            expect(mockAxiosPost).toHaveBeenCalled();
+        });
+    });
+
     it('normalizes custom-title records into one metadata update per rename event', () => {
         const client = new ApiSessionClient('fake-token', session);
         const updateMetadata = vi.spyOn(client, 'updateMetadata').mockImplementation(async (handler) => {

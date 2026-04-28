@@ -85,6 +85,8 @@ Core Claude Code integration layer.
 
 **Claude hook settings:** `generateHookSettings.ts` appends Happy's `SessionStart`, `PreCompact`, and `PostCompact` hooks while preserving existing user hooks. Use `PostCompact trigger=auto` for automatic-compaction boundaries; manual `/compact` stays on the explicit slash-command path.
 
+**Context-boundary emission:** lifecycle signals must go through `ApiSessionClient.sendContextBoundary()` so the typed envelope, flagged legacy fallback, and `metadata.latestBoundary` update stay in lockstep. If a Claude log mapper detects a boundary-worthy tool call, return a boundary intent from the mapper and route it through `sendContextBoundary()` in `apiSession.ts`; do not emit a `context-boundary` envelope directly from the mapper.
+
 ### 3. UI Module (`/src/ui/`)
 User interface components.
 
