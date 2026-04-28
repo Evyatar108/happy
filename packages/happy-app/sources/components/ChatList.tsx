@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { storage, useLatestBoundary, useLocalSetting, useSession, useSessionMessages } from "@/sync/storage";
 import { sync } from '@/sync/sync';
-import { FlatList, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, View } from 'react-native';
+import { FlatList, LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, View, ViewToken } from 'react-native';
 import { useCallback } from 'react';
 import { useHeaderHeight } from '@/utils/responsive';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -151,6 +151,23 @@ const ChatListInternal = React.memo((props: {
         contentHeightRef.current = height;
     }, []);
 
+    // US-006: viewport-tick adapter. The contract is intentionally narrow —
+    // ChatList does NOT call storage.setRenderWindow directly, does NOT
+    // import messageWindow.ts, and does NOT import prefetchManager.ts.
+    // It only filters the ViewToken[] payload to confirmed message seqs and
+    // forwards them to `sync.reportRenderWindow`. The flag-off short-circuit
+    // and the null-window short-circuit live inside `reportRenderWindow`.
+    const handleViewableItemsChanged = React.useCallback((info: { viewableItems: ViewToken[] }) => {
+        const visibleSeqs: number[] = [];
+        for (const token of info.viewableItems) {
+            const item = token.item as ChatListBoundaryItem | undefined;
+            if (item && item.kind === 'message') {
+                visibleSeqs.push(item.message.seq);
+            }
+        }
+        sync.reportRenderWindow(props.sessionId, visibleSeqs);
+    }, [props.sessionId]);
+
     const handleEndReached = React.useCallback(() => {
         const sessionMessages = storage.getState().sessionMessages[props.sessionId];
         if (!sessionMessages?.hasOlder || sessionMessages.loadingOlder) {
@@ -269,6 +286,7 @@ const ChatListInternal = React.memo((props: {
             onScroll={handleScroll}
             onEndReached={handleEndReached}
             onEndReachedThreshold={0.1}
+            onViewableItemsChanged={handleViewableItemsChanged}
             onContentSizeChange={handleContentSizeChange}
             scrollEventThrottle={32}
             scrollEnabled={!chatPaginatedScroll}

@@ -210,6 +210,8 @@ export const zhHans: TranslationStructure = {
         pinchToZoomDescription: '在聊天中使用双指捏合可实时预览文字大小，并在松手时保存。',
         paginatedScrollTitle: '分页式聊天导航',
         paginatedScrollDescription: '在聊天顶部和底部使用狭窄的点击区域按页移动，而不是自由滚动。',
+        socketRangeFetchTitle: '流式加载旧消息',
+        socketRangeFetchDescription: '通过实时套接字而不是单独的 HTTP 请求获取较早的消息，让它们在你滚动到之前就先到达。',
         inlineToolCalls: '内联工具调用',
         inlineToolCallsDescription: '在聊天消息中直接显示工具调用',
         expandTodoLists: '展开待办列表',
