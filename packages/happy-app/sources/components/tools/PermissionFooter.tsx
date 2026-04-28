@@ -53,7 +53,7 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, 
         try {
             await sessionAllow(sessionId, permission.id, 'acceptEdits');
             // Update the session permission mode to 'acceptEdits' for future permissions
-            storage.getState().updateSessionPermissionMode(sessionId, 'acceptEdits');
+            storage.getState().updateSessionPermissionMode(sessionId, 'acceptEdits', true);
         } catch (error) {
             console.error('Failed to approve all edits:', error);
         } finally {
@@ -67,7 +67,7 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, 
         setLoadingBypass(true);
         try {
             await sessionAllow(sessionId, permission.id, 'bypassPermissions');
-            storage.getState().updateSessionPermissionMode(sessionId, 'bypassPermissions');
+            storage.getState().updateSessionPermissionMode(sessionId, 'bypassPermissions', true);
         } catch (error) {
             console.error('Failed to bypass permissions:', error);
         } finally {

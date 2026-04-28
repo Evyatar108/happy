@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Session } from './storageTypes';
+import type { NormalizedMessage } from './typesRaw';
 
 vi.mock('@/realtime/RealtimeSession', () => ({
     getCurrentRealtimeSessionId: () => null,
@@ -123,5 +124,52 @@ describe('session permission mode user-chosen persistence', () => {
 
         expect(storage.getState().sessions[sessionId].permissionMode).toBe('default');
         expect(storage.getState().sessions[sessionId].permissionModeUserChosen).toBe(true);
+    });
+
+    it('clears user-chosen state in memory and persistence when EnterPlanMode auto-switches to plan', async () => {
+        const sessionId = 'session-enter-plan-mode';
+        let storage = await importFreshStorage();
+        storage.getState().applySessions([createSession(sessionId, {
+            permissionMode: 'bypassPermissions',
+            permissionModeUserChosen: true,
+        })]);
+        storage.getState().updateSessionPermissionMode(sessionId, 'bypassPermissions', true);
+
+        const enterPlanModeMessage: NormalizedMessage = {
+            id: 'message-enter-plan',
+            localId: null,
+            createdAt: 200,
+            isSidechain: false,
+            role: 'agent',
+            content: [{
+                type: 'tool-call',
+                id: 'tool-enter-plan',
+                name: 'EnterPlanMode',
+                input: {},
+                description: null,
+                uuid: 'tool-enter-plan',
+                parentUUID: null,
+            }],
+        };
+
+        storage.getState().applyMessages(sessionId, [enterPlanModeMessage]);
+
+        let session = storage.getState().sessions[sessionId];
+        expect(session.permissionMode).toBe('plan');
+        expect(session.permissionModeUserChosen).toBe(false);
+
+        let persistence = await importPersistence();
+        expect(persistence.loadSessionPermissionModes()[sessionId]).toBe('plan');
+        expect(persistence.loadSessionPermissionModeUserChosen()[sessionId]).toBe(false);
+
+        vi.resetModules();
+        persistence = await importPersistence();
+        storage = await importFreshStorage();
+        storage.getState().applySessions([createSession(sessionId)]);
+
+        session = storage.getState().sessions[sessionId];
+        expect(session.permissionMode).toBe('plan');
+        expect(session.permissionModeUserChosen).toBe(false);
+        expect(persistence.loadSessionPermissionModeUserChosen()[sessionId]).toBe(false);
     });
 });

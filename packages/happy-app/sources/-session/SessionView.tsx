@@ -4,10 +4,10 @@ import {
     getAvailableModels,
     getAvailablePermissionModes,
     getDefaultModelKey,
-    getDefaultPermissionModeKey,
     getEffortLevelsForModel,
     getDefaultEffortKeyForModel,
     resolveCurrentOption,
+    resolvePermissionModeForPicker,
     EffortLevel,
 } from '@/components/modelModeOptions';
 import { getSuggestions } from '@/components/autocomplete/suggestions';
@@ -229,12 +229,14 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
     ), [flavor, session.metadata]);
 
     const permissionMode = React.useMemo<PermissionMode | null>(() => (
-        resolveCurrentOption(availableModes, [
-            session.permissionMode,
-            session.metadata?.currentOperatingModeCode,
-            getDefaultPermissionModeKey(flavor),
-        ])
-    ), [availableModes, session.permissionMode, session.metadata?.currentOperatingModeCode, flavor]);
+        resolvePermissionModeForPicker(availableModes, {
+            userChosen: session.permissionModeUserChosen,
+            sessionPermissionMode: session.permissionMode,
+            metadataCurrentPermissionModeCode: session.metadata?.currentPermissionModeCode,
+            metadataDangerouslySkipPermissions: session.metadata?.dangerouslySkipPermissions,
+            flavor,
+        })
+    ), [availableModes, session.permissionModeUserChosen, session.permissionMode, session.metadata?.currentPermissionModeCode, session.metadata?.dangerouslySkipPermissions, flavor]);
 
     const modelMode = React.useMemo<ModelMode | null>(() => (
         resolveCurrentOption(availableModels, [
@@ -283,7 +285,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
 
     // Function to update permission mode
     const updatePermissionMode = React.useCallback((mode: PermissionMode) => {
-        storage.getState().updateSessionPermissionMode(sessionId, mode.key);
+        storage.getState().updateSessionPermissionMode(sessionId, mode.key, true);
     }, [sessionId]);
 
     const updateModelMode = React.useCallback((mode: ModelMode) => {

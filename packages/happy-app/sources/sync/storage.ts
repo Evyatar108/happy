@@ -211,7 +211,7 @@ interface StorageState {
     setSocketStatus: (status: 'disconnected' | 'connecting' | 'connected' | 'error') => void;
     getActiveSessions: () => Session[];
     updateSessionDraft: (sessionId: string, draft: string | null) => void;
-    updateSessionPermissionMode: (sessionId: string, mode: string, userChosen?: boolean) => void;
+    updateSessionPermissionMode: (sessionId: string, mode: string, userChosen: boolean) => void;
     updateSessionModelMode: (sessionId: string, mode: string) => void;
     updateSessionEffortLevel: (sessionId: string, level: string) => void;
     // Artifact methods
@@ -667,8 +667,8 @@ export const storage = create<StorageState>()((set, get) => {
                             latestUsage: existingSession.reducerState.latestUsage ? {
                                 ...existingSession.reducerState.latestUsage
                             } : session.latestUsage,
-                            // Auto-switch to plan mode when EnterPlanMode tool call is detected
-                            ...(shouldEnterPlanMode && { permissionMode: 'plan' })
+                            // Auto-switch to plan mode when EnterPlanMode tool call is detected.
+                            ...(shouldEnterPlanMode && { permissionMode: 'plan', permissionModeUserChosen: false })
                         }
                     };
                 }
@@ -700,6 +700,11 @@ export const storage = create<StorageState>()((set, get) => {
                 });
                 sessionPermissionModes = allModes;
                 saveSessionPermissionModes(allModes);
+
+                const updatedFlags = loadSessionPermissionModeUserChosen();
+                updatedFlags[sessionId] = false;
+                sessionPermissionModeUserChosen = updatedFlags;
+                saveSessionPermissionModeUserChosen(updatedFlags);
             }
 
             return { changed: Array.from(changed), hasReadyEvent };
@@ -1010,7 +1015,7 @@ export const storage = create<StorageState>()((set, get) => {
                 sessionListViewData: buildSessionListViewData(updatedSessions)
             };
         }),
-        updateSessionPermissionMode: (sessionId: string, mode: string, userChosen = false) => set((state) => {
+        updateSessionPermissionMode: (sessionId: string, mode: string, userChosen: boolean) => set((state) => {
             const session = state.sessions[sessionId];
             if (!session) return state;
 
@@ -1037,11 +1042,7 @@ export const storage = create<StorageState>()((set, get) => {
             saveSessionPermissionModes(allModes);
 
             const allUserChosenFlags = loadSessionPermissionModeUserChosen();
-            if (userChosen) {
-                allUserChosenFlags[sessionId] = true;
-            } else {
-                delete allUserChosenFlags[sessionId];
-            }
+            allUserChosenFlags[sessionId] = userChosen;
             sessionPermissionModeUserChosen = allUserChosenFlags;
             saveSessionPermissionModeUserChosen(allUserChosenFlags);
 
