@@ -291,7 +291,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
 
         if (!taggedDeferredSwitch) {
             currentSession?.notifyLegacyMessageBeforeQueue();
-        } else if (currentSession?.pendingSwitch == null) {
+        } else if (currentMode === 'local' && currentSession?.pendingSwitch == null) {
             if (currentSession?.deferredSwitchCompleting === true) {
                 currentSession.deferredSwitchCompleting = false;
             } else {

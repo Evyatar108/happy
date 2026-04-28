@@ -398,6 +398,24 @@ describe('runClaude permission mode metadata publishing', () => {
         await runClaudeWithStartingModeUntilExit('local');
     });
 
+    it('enqueues tagged deferred-switch message when currentMode is remote (F-077)', async () => {
+        const localSession = createLocalSessionState();
+        mocks.mockLoop.mockImplementation(async (opts: any) => {
+            opts.onSessionReady(localSession);
+            opts.onModeChange('remote');
+            mocks.getUserMessageHandler()?.(createTextUserMessage('hello', {
+                capabilities: { deferredSwitch: true },
+            }));
+            await Promise.resolve();
+            expect(localSession.notifyLegacyMessageBeforeQueue).not.toHaveBeenCalled();
+            expect(opts.messageQueue.queue).toHaveLength(1);
+            expect(opts.messageQueue.queue[0].message).toBe('hello');
+            return 0;
+        });
+
+        await runClaudeWithStartingModeUntilExit('local');
+    });
+
     it('ignores UserPromptSubmit and Stop hooks while current mode is remote', async () => {
         const remoteSession = createLocalSessionState();
         mocks.mockLoop.mockImplementation(async (opts: any) => {
