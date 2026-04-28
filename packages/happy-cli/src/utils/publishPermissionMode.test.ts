@@ -82,6 +82,20 @@ describe('publishPermissionModeIfChanged', () => {
         await Promise.all([firstPublish, secondPublish]);
     });
 
+    it('clears the mode when undefined is passed', async () => {
+        const metadata = createMetadata();
+        const { client, updateMetadata, getServerMetadata } = createClient();
+        const lastRef = { current: undefined };
+
+        await publishPermissionModeIfChanged(client, metadata, 'bypassPermissions', lastRef);
+        await publishPermissionModeIfChanged(client, metadata, undefined, lastRef);
+
+        expect(updateMetadata).toHaveBeenCalledTimes(2);
+        expect(metadata.currentPermissionModeCode).toBeUndefined();
+        expect(getServerMetadata().currentPermissionModeCode).toBeUndefined();
+        expect(lastRef.current).toBeUndefined();
+    });
+
     it('keeps optimistic writes and does not propagate updateMetadata rejection', async () => {
         const metadata = createMetadata();
         const updateMetadata = vi.fn(async () => {

@@ -19,7 +19,7 @@ export type LastPublishedPermissionModeRef = {
 export async function publishPermissionModeIfChanged(
     client: MetadataPublisher,
     metadata: Metadata,
-    mode: string,
+    mode: string | undefined,
     lastRef: LastPublishedPermissionModeRef,
 ): Promise<void> {
     if (lastRef.current === mode) {
@@ -27,7 +27,11 @@ export async function publishPermissionModeIfChanged(
     }
 
     lastRef.current = mode;
-    metadata.currentPermissionModeCode = mode;
+    if (mode === undefined) {
+        delete metadata.currentPermissionModeCode;
+    } else {
+        metadata.currentPermissionModeCode = mode;
+    }
 
     try {
         await client.updateMetadata((currentMetadata) => ({
