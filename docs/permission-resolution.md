@@ -57,6 +57,17 @@ When present, the value is sent in:
 - encrypted message `meta.permissionMode`
 - socket envelope `permissionMode`
 
+### 5) Picker display resolution
+`packages/happy-app/sources/components/modelModeOptions.ts` (`resolvePermissionModeForPicker`)
+
+When the picker decides which mode to show as currently selected, it walks this priority chain:
+1. Explicit user pick — when `session.permissionModeUserChosen === true`, use `session.permissionMode`.
+2. CLI-published mode — `session.metadata.currentPermissionModeCode` (see "CLI → App metadata publishing" below).
+3. Claude-only legacy fallback — when `flavor === 'claude'` and `session.metadata.dangerouslySkipPermissions === true`, fall back to `bypassPermissions`. This branch does not apply to Codex.
+4. `getDefaultPermissionModeKey(flavor)` (currently `'default'` for all flavors).
+
+`session.permissionModeUserChosen` is the boundary between an explicit picker/button choice (`true`) and a machine-derived mode such as `EnterPlanMode` (`false`). It is persisted per session so a CLI-owned mode is not overwritten by the picker until the user actually toggles it.
+
 ## Claude CLI Resolution
 
 ### 1) Startup resolution
@@ -83,6 +94,29 @@ When a user message includes `meta.permissionMode`:
 `packages/happy-cli/src/claude/claudeLocal.ts`
 
 If sandbox is enabled, launcher appends `--dangerously-skip-permissions` before spawn.
+
+## CLI → App metadata publishing
+`packages/happy-cli/src/utils/publishPermissionMode.ts`
+`packages/happy-cli/src/claude/runClaude.ts`
+`packages/happy-cli/src/codex/runCodex.ts`
+`packages/happy-cli/src/api/types.ts` (`Metadata.currentPermissionModeCode`)
+
+Both Claude and Codex runners publish their effective permission mode into session `metadata.currentPermissionModeCode` so the app's picker can show the actual running mode without the user having to toggle anything.
+
+### 1) Initial seed
+- Claude seeds `currentPermissionModeCode = initialPermissionMode` directly on the metadata object passed to `api.getOrCreateSession(...)`, so the value is present from the very first server-side session record.
+- Codex does not seed at session creation. Instead, after `client.connect()` resolves, if `client.sandboxEnabled === true` it publishes `'yolo'` once via `publishPermissionModeIfChanged(...)`. When sandbox is disabled, Codex starts with no `currentPermissionModeCode` until the user picks one.
+
+### 2) Subsequent updates
+Both runners publish later changes through `publishPermissionModeIfChanged(client, metadata, mode, lastRef)`. The helper:
+1. Short-circuits when `lastRef.current === mode` (no-op for unchanged modes).
+2. Updates `lastRef.current` and mutates the runner-local `metadata` object **in place** (sets or deletes `currentPermissionModeCode`) **before** awaiting `client.updateMetadata(...)`.
+3. Awaits the server update last, swallowing/logging errors so a transient server failure does not crash the runner loop.
+
+The in-place mutation before the awaited server call is intentional: `setupOfflineReconnection(...)` reuses the same metadata object by reference as its reconnect seed, so the optimistic write keeps the reconnect path's seed metadata current even while the server update is in flight.
+
+### 3) Semantics of absence
+A missing `currentPermissionModeCode` means "no opinion yet" — the CLI has not declared an effective mode. The app picker treats this as a signal to fall through to the legacy `dangerouslySkipPermissions` fallback (Claude only) and then to the agent default, rather than overwriting a CLI-owned mode prematurely.
 
 ## Effective Result Matrix
 
