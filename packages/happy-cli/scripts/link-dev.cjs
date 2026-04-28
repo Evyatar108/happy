@@ -25,10 +25,35 @@ const binSource = join(projectRoot, 'bin', 'happy-dev.mjs');
 const action = process.argv[2] || 'link';
 
 function getGlobalBinDir() {
-    // Try npm global bin first using execFileSync (safer than execSync)
+    const isWin = process.platform === 'win32';
+    // On Windows `npm` is `npm.cmd` — `execFileSync('npm', ...)` errors with ENOENT
+    // because it doesn't apply PATHEXT. Use `shell: true` (or call `npm.cmd`).
+    // Also: pnpm workspace roots reject npm config commands with ENOWORKSPACES,
+    // so always invoke from a non-workspace cwd (os.tmpdir()).
+    const npmExec = (args) => execFileSync(isWin ? 'npm.cmd' : 'npm', args, {
+        encoding: 'utf8',
+        cwd: require('os').tmpdir(),
+        shell: isWin,
+    }).trim();
+
+    // `npm bin -g` was removed in npm v9+. Prefer `npm config get prefix`.
     try {
-        const npmBin = execFileSync('npm', ['bin', '-g'], { encoding: 'utf8' }).trim();
-        if (fs.existsSync(npmBin)) {
+        const prefix = npmExec(['config', 'get', 'prefix']);
+        if (prefix && fs.existsSync(prefix)) {
+            // On Windows, npm's prefix IS the bin dir. On Unix it's parent of bin.
+            const candidate = isWin ? prefix : require('path').join(prefix, 'bin');
+            if (fs.existsSync(candidate)) {
+                return candidate;
+            }
+        }
+    } catch (e) {
+        // Fall through to alternatives
+    }
+
+    // Legacy `npm bin -g` for older npm (<v9)
+    try {
+        const npmBin = npmExec(['bin', '-g']);
+        if (npmBin && fs.existsSync(npmBin)) {
             return npmBin;
         }
     } catch (e) {
@@ -55,11 +80,11 @@ function getGlobalBinDir() {
 
 function link() {
     const globalBin = getGlobalBinDir();
-    const binTarget = join(globalBin, 'happy-dev');
+    const isWin = process.platform === 'win32';
 
-    console.log('Creating symlink for happy-dev...');
+    console.log('Creating happy-dev shim...');
     console.log(`  Source: ${binSource}`);
-    console.log(`  Target: ${binTarget}`);
+    console.log(`  Target dir: ${globalBin}`);
 
     // Check if source exists
     if (!fs.existsSync(binSource)) {
@@ -68,20 +93,100 @@ function link() {
         process.exit(1);
     }
 
-    // Remove existing symlink or file
-    try {
-        const stat = fs.lstatSync(binTarget);
-        if (stat.isSymbolicLink() || stat.isFile()) {
-            fs.unlinkSync(binTarget);
-            console.log(`  Removed existing: ${binTarget}`);
+    // Remove existing shims (cmd/ps1 on win, the bare file on unix, in case of stale state)
+    const targets = isWin
+        ? ['happy-dev', 'happy-dev.cmd', 'happy-dev.ps1']
+        : ['happy-dev'];
+    for (const t of targets) {
+        const p = join(globalBin, t);
+        try {
+            const stat = fs.lstatSync(p);
+            if (stat.isSymbolicLink() || stat.isFile()) {
+                fs.unlinkSync(p);
+                console.log(`  Removed existing: ${p}`);
+            }
+        } catch (e) {
+            // File doesn't exist, that's fine
         }
-    } catch (e) {
-        // File doesn't exist, that's fine
     }
 
-    // Create the symlink
     try {
-        fs.symlinkSync(binSource, binTarget);
+        if (isWin) {
+            // npm.cmd-style shims — Windows needs three: .cmd for cmd.exe,
+            // .ps1 for PowerShell, and a bare sh shim for Git Bash / MSYS.
+            // Symlinks would require admin / Developer Mode, so write shims.
+            const winSrc = binSource.replace(/\//g, '\\');
+
+            const cmdContent = [
+                '@ECHO off',
+                'GOTO start',
+                ':find_dp0',
+                'SET dp0=%~dp0',
+                'EXIT /b',
+                ':start',
+                'SETLOCAL',
+                'CALL :find_dp0',
+                '',
+                'IF EXIST "%dp0%\\node.exe" (',
+                '  SET "_prog=%dp0%\\node.exe"',
+                ') ELSE (',
+                '  SET "_prog=node"',
+                '  SET PATHEXT=%PATHEXT:;.JS;=;%',
+                ')',
+                '',
+                `endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "${winSrc}" %*`,
+                '',
+            ].join('\r\n');
+            fs.writeFileSync(join(globalBin, 'happy-dev.cmd'), cmdContent);
+
+            const ps1Content = [
+                '#!/usr/bin/env pwsh',
+                '$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent',
+                '$exe=""',
+                'if ($PSVersionTable.PSVersion -lt "6.0" -or $IsWindows) { $exe=".exe" }',
+                '$ret=0',
+                'if (Test-Path "$basedir/node$exe") {',
+                '  if ($MyInvocation.ExpectingInput) {',
+                `    $input | & "$basedir/node$exe"  "${winSrc.replace(/\\/g, '/')}" $args`,
+                '  } else {',
+                `    & "$basedir/node$exe"  "${winSrc.replace(/\\/g, '/')}" $args`,
+                '  }',
+                '  $ret=$LASTEXITCODE',
+                '} else {',
+                '  if ($MyInvocation.ExpectingInput) {',
+                `    $input | & "node$exe"  "${winSrc.replace(/\\/g, '/')}" $args`,
+                '  } else {',
+                `    & "node$exe"  "${winSrc.replace(/\\/g, '/')}" $args`,
+                '  }',
+                '  $ret=$LASTEXITCODE',
+                '}',
+                'exit $ret',
+                '',
+            ].join('\n');
+            fs.writeFileSync(join(globalBin, 'happy-dev.ps1'), ps1Content);
+
+            const shContent = [
+                '#!/bin/sh',
+                'basedir=$(dirname "$(echo "$0" | sed -e \'s,\\\\,/,g\')")',
+                '',
+                'case `uname` in',
+                '    *CYGWIN*|*MINGW*|*MSYS*) basedir=`cygpath -w "$basedir"`;;',
+                'esac',
+                '',
+                'if [ -x "$basedir/node" ]; then',
+                `  exec "$basedir/node"  "${binSource}" "$@"`,
+                'else',
+                `  exec node  "${binSource}" "$@"`,
+                'fi',
+                '',
+            ].join('\n');
+            fs.writeFileSync(join(globalBin, 'happy-dev'), shContent);
+            try { fs.chmodSync(join(globalBin, 'happy-dev'), 0o755); } catch {}
+        } else {
+            // Unix: a real symlink works fine
+            fs.symlinkSync(binSource, join(globalBin, 'happy-dev'));
+        }
+
         console.log('\n✅ Successfully linked happy-dev to local development version');
         console.log('\nNow you can use:');
         console.log('  happy      → stable npm version (unchanged)');
@@ -92,7 +197,7 @@ function link() {
             console.error('\n❌ Permission denied. Try running with sudo:');
             console.error('   sudo pnpm link:dev');
         } else {
-            console.error(`\n❌ Error creating symlink: ${e.message}`);
+            console.error(`\n❌ Error creating shim: ${e.message}`);
         }
         process.exit(1);
     }
@@ -100,37 +205,50 @@ function link() {
 
 function unlink() {
     const globalBin = getGlobalBinDir();
-    const binTarget = join(globalBin, 'happy-dev');
+    const isWin = process.platform === 'win32';
+    const targets = isWin
+        ? ['happy-dev', 'happy-dev.cmd', 'happy-dev.ps1']
+        : ['happy-dev'];
 
-    console.log('Removing happy-dev symlink...');
+    console.log('Removing happy-dev shim(s)...');
 
-    try {
-        const stat = fs.lstatSync(binTarget);
-        if (stat.isSymbolicLink()) {
-            const linkTarget = fs.readlinkSync(binTarget);
-            if (linkTarget === binSource || linkTarget.includes('happy-cli')) {
-                fs.unlinkSync(binTarget);
-                console.log('\n✅ Removed happy-dev development symlink');
-                console.log('\nTo restore npm version: npm install -g happy');
-            } else {
-                console.log(`\n⚠️  happy-dev symlink points elsewhere: ${linkTarget}`);
-                console.log('   Not removing. Remove manually if needed.');
+    let removed = 0;
+    let skipped = 0;
+    for (const t of targets) {
+        const p = join(globalBin, t);
+        try {
+            const stat = fs.lstatSync(p);
+            // Sanity check: if it's a symlink, only remove if it points into our source.
+            // For plain files (the cmd/ps1/sh shims we wrote), trust the name.
+            if (stat.isSymbolicLink()) {
+                const linkTarget = fs.readlinkSync(p);
+                if (linkTarget === binSource || linkTarget.includes('happy-cli')) {
+                    fs.unlinkSync(p);
+                    removed++;
+                } else {
+                    console.log(`  ⚠️  ${p} symlink points elsewhere: ${linkTarget} — skipping`);
+                    skipped++;
+                }
+            } else if (stat.isFile()) {
+                fs.unlinkSync(p);
+                removed++;
             }
-        } else {
-            console.log(`\n⚠️  ${binTarget} exists but is not a symlink.`);
-            console.log('   Not removing. This may be the npm-installed version.');
+        } catch (e) {
+            if (e.code !== 'ENOENT') {
+                if (e.code === 'EACCES') {
+                    console.error(`\n❌ Permission denied removing ${p}. Try running with sudo:`);
+                    console.error('   sudo pnpm unlink:dev');
+                    process.exit(1);
+                }
+                console.error(`  ⚠️  Error removing ${p}: ${e.message}`);
+            }
         }
-    } catch (e) {
-        if (e.code === 'ENOENT') {
-            console.log("\n✅ happy-dev symlink doesn't exist (already removed or never created)");
-        } else if (e.code === 'EACCES') {
-            console.error('\n❌ Permission denied. Try running with sudo:');
-            console.error('   sudo pnpm unlink:dev');
-            process.exit(1);
-        } else {
-            console.error(`\n❌ Error: ${e.message}`);
-            process.exit(1);
-        }
+    }
+
+    if (removed > 0) {
+        console.log(`\n✅ Removed ${removed} happy-dev shim file(s)`);
+    } else if (skipped === 0) {
+        console.log("\n✅ happy-dev shim doesn't exist (already removed or never created)");
     }
 }
 
