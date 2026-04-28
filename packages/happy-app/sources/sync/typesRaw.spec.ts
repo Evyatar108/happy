@@ -935,6 +935,25 @@ describe('Zod Transform - WOLOG Content Normalization', () => {
             }
         });
 
+        it('normalizes event message seq and fallback meta', () => {
+            const normalized = normalizeRawMessage('event-msg-1', null, 1, 23, {
+                role: 'agent',
+                content: {
+                    type: 'event',
+                    id: 'event-123',
+                    data: {
+                        type: 'ready'
+                    }
+                },
+                meta: {
+                    contextBoundaryFallback: true
+                }
+            });
+
+            expect(normalized?.seq).toBe(23);
+            expect(normalized?.meta?.contextBoundaryFallback).toBe(true);
+        });
+
         it('handles user role messages with text content', () => {
             const userMessage = {
                 role: 'user',

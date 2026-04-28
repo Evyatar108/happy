@@ -121,6 +121,7 @@ type ReducerMessage = {
     id: string;
     realID: string | null;
     createdAt: number;
+    seq: number;
     role: 'user' | 'agent';
     text: string | null;
     isThinking?: boolean;
@@ -385,6 +386,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
             realID: message.id,
             role: 'agent',
             createdAt: message.createdAt,
+            seq: message.seq ?? 0,
             event: event,
             tool: null,
             text: null,
@@ -466,6 +468,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                         realID: null,
                         role: 'agent',
                         createdAt: request.createdAt || Date.now(),
+                        seq: 0,
                         text: null,
                         tool: toolCall,
                         event: null,
@@ -628,6 +631,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                         realID: null,
                         role: 'agent',
                         createdAt: completed.createdAt || Date.now(),
+                        seq: 0,
                         text: null,
                         tool: toolCall,
                         event: null,
@@ -676,6 +680,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                 realID: msg.id,
                 role: 'user',
                 createdAt: msg.createdAt,
+                seq: msg.seq ?? 0,
                 text: msg.content.text,
                 tool: null,
                 event: null,
@@ -713,6 +718,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                         realID: msg.id,
                         role: 'agent',
                         createdAt: msg.createdAt,
+                        seq: msg.seq ?? 0,
                         text: isThinking ? `*${c.thinking}*` : c.text,
                         isThinking,
                         tool: null,
@@ -811,6 +817,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                             realID: msg.id,
                             role: 'agent',
                             createdAt: msg.createdAt,
+                            seq: msg.seq ?? 0,
                             text: null,
                             tool: toolCall,
                             event: null,
@@ -901,6 +908,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                 realID: msg.id,
                 role: 'user',
                 createdAt: msg.createdAt,
+                seq: msg.seq ?? 0,
                 text: msg.content[0].prompt,
                 tool: null,
                 event: null,
@@ -923,6 +931,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                         realID: msg.id,
                         role: 'agent',
                         createdAt: msg.createdAt,
+                        seq: msg.seq ?? 0,
                         text: isThinking ? `*${c.thinking}*` : c.text,
                         isThinking,
                         tool: null,
@@ -967,6 +976,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                         realID: msg.id,
                         role: 'agent',
                         createdAt: msg.createdAt,
+                        seq: msg.seq ?? 0,
                         text: null,
                         tool: toolCall,
                         event: null,
@@ -1087,6 +1097,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                 realID: msg.id,
                 role: 'agent',
                 createdAt: msg.createdAt,
+                seq: msg.seq ?? 0,
                 event: msg.content,
                 tool: null,
                 text: null,
@@ -1213,6 +1224,7 @@ function convertReducerMessageToMessage(reducerMsg: ReducerMessage, state: Reduc
             id: reducerMsg.id,
             localId: null,
             createdAt: reducerMsg.createdAt,
+            seq: reducerMsg.seq,
             kind: 'user-text',
             text: reducerMsg.text,
             ...(reducerMsg.meta?.displayText && { displayText: reducerMsg.meta.displayText }),
@@ -1223,6 +1235,7 @@ function convertReducerMessageToMessage(reducerMsg: ReducerMessage, state: Reduc
             id: reducerMsg.id,
             localId: null,
             createdAt: reducerMsg.createdAt,
+            seq: reducerMsg.seq,
             kind: 'agent-text',
             text: reducerMsg.text,
             ...(reducerMsg.isThinking && { isThinking: true }),
@@ -1243,6 +1256,7 @@ function convertReducerMessageToMessage(reducerMsg: ReducerMessage, state: Reduc
             id: reducerMsg.id,
             localId: null,
             createdAt: reducerMsg.createdAt,
+            seq: reducerMsg.seq,
             kind: 'tool-call',
             tool: { ...reducerMsg.tool },
             children: childMessages,
@@ -1252,6 +1266,7 @@ function convertReducerMessageToMessage(reducerMsg: ReducerMessage, state: Reduc
         return {
             id: reducerMsg.id,
             createdAt: reducerMsg.createdAt,
+            seq: reducerMsg.seq,
             kind: 'agent-event',
             event: reducerMsg.event,
             meta: reducerMsg.meta

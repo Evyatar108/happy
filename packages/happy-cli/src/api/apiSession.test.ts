@@ -507,7 +507,7 @@ describe('ApiSessionClient v3 messages API migration', () => {
             }
         });
 
-        client.sendSessionEvent({ type: 'ready' }, 'event-1');
+        client.sendSessionEvent({ type: 'ready' }, 'event-1', { contextBoundaryFallback: true });
 
         await waitForCheck(() => {
             expect(mockAxiosPost).toHaveBeenCalledTimes(1);
@@ -528,6 +528,9 @@ describe('ApiSessionClient v3 messages API migration', () => {
                 data: {
                     type: 'ready'
                 }
+            },
+            meta: {
+                contextBoundaryFallback: true
             }
         });
     });

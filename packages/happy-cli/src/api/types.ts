@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Update, UpdateMachineBody } from '@slopus/happy-wire';
+import type { SessionContextBoundaryKind, Update, UpdateMachineBody } from '@slopus/happy-wire';
 import { UsageSchema } from '@/claude/types'
 import type { SDKSystemMessage } from '@/claude/sdk'
 import type { SandboxConfig } from '@/persistence'
@@ -19,6 +19,7 @@ export type {
   UpdateBody,
   UpdateMachineBody,
   UpdateSessionBody,
+  SessionContextBoundaryKind,
 } from '@slopus/happy-wire';
 
 /**
@@ -195,7 +196,8 @@ export const MessageMetaSchema = z.object({
   customSystemPrompt: z.string().nullable().optional(), // Custom system prompt for this message (null = reset)
   appendSystemPrompt: z.string().nullable().optional(), // Append to system prompt for this message (null = reset)
   allowedTools: z.array(z.string()).nullable().optional(), // Allowed tools for this message (null = reset)
-  disallowedTools: z.array(z.string()).nullable().optional() // Disallowed tools for this message (null = reset)
+  disallowedTools: z.array(z.string()).nullable().optional(), // Disallowed tools for this message (null = reset)
+  contextBoundaryFallback: z.boolean().optional()
 })
 
 export type MessageMeta = z.infer<typeof MessageMetaSchema>
@@ -268,6 +270,13 @@ export type Metadata = {
   },
   machineId?: string,
   claudeSessionId?: string, // Claude Code session ID
+  latestBoundary?: {
+    id: string,
+    kind: SessionContextBoundaryKind,
+    seq: number,
+    at: number,
+    forkedFromSid?: string
+  },
   codexThreadId?: string, // Codex app-server thread ID
   tools?: string[],
   slashCommands?: string[],

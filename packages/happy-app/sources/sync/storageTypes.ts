@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sessionContextBoundaryKindSchema } from "@slopus/happy-wire";
 
 //
 // Agent states
@@ -67,6 +68,13 @@ export const MetadataSchema = z.object({
     lifecycleStateSince: z.number().optional(),
     archivedBy: z.string().optional(),
     archiveReason: z.string().optional(),
+    latestBoundary: z.object({
+        id: z.string(),
+        kind: sessionContextBoundaryKindSchema,
+        seq: z.number(),
+        at: z.number(),
+        forkedFromSid: z.string().optional(),
+    }).optional(),
 });
 
 export type Metadata = z.infer<typeof MetadataSchema>;

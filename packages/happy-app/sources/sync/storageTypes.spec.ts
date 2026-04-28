@@ -70,4 +70,30 @@ describe('MetadataSchema', () => {
         ]);
         expect(metadata.plugins?.[1]).not.toHaveProperty('source');
     });
+
+    it('preserves latest context boundary through sessionEncryption.safeParse', async () => {
+        const expectedMetadata = {
+            path: '/tmp/project',
+            host: 'local-machine',
+            latestBoundary: {
+                id: 'boundary-1',
+                kind: 'session-fork-resume' as const,
+                seq: 42,
+                at: 1710000000000,
+                forkedFromSid: 'previous-session',
+            },
+        };
+        const sessionEncryption = new SessionEncryption(
+            'session-1',
+            {
+                encrypt: async () => [new Uint8Array([0])],
+                decrypt: async () => [expectedMetadata],
+            },
+            new EncryptionCache(),
+        );
+
+        const metadata = await sessionEncryption.decryptMetadata(1, 'AA==');
+
+        expect(metadata?.latestBoundary).toEqual(expectedMetadata.latestBoundary);
+    });
 });

@@ -317,6 +317,7 @@ class Sync {
                         decrypted.id,
                         decrypted.localId,
                         decrypted.createdAt,
+                        decrypted.seq,
                         decrypted.content
                     );
                     if (normalized) {
@@ -600,7 +601,7 @@ class Sync {
 
         // Add to messages - normalize the raw record
         const createdAt = Date.now();
-        const normalizedMessage = normalizeRawMessage(localId, localId, createdAt, content);
+        const normalizedMessage = normalizeRawMessage(localId, localId, createdAt, 0, content);
         if (normalizedMessage) {
             this.enqueueMessages(sessionId, [normalizedMessage]);
         }
@@ -1772,7 +1773,7 @@ class Sync {
                     if (!decrypted) {
                         continue;
                     }
-                    const normalized = normalizeRawMessage(decrypted.id, decrypted.localId, decrypted.createdAt, decrypted.content);
+                    const normalized = normalizeRawMessage(decrypted.id, decrypted.localId, decrypted.createdAt, decrypted.seq, decrypted.content);
                     if (normalized) {
                         normalizedMessages.push(normalized);
                     }
@@ -1896,7 +1897,7 @@ class Sync {
             if (updateData.body.message) {
                 const decrypted = await encryption.decryptMessage(updateData.body.message);
                 if (decrypted) {
-                    lastMessage = normalizeRawMessage(decrypted.id, decrypted.localId, decrypted.createdAt, decrypted.content);
+                    lastMessage = normalizeRawMessage(decrypted.id, decrypted.localId, decrypted.createdAt, decrypted.seq, decrypted.content);
 
                     // Check for task lifecycle events to update thinking state
                     // This ensures UI updates even if volatile activity updates are lost

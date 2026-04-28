@@ -36,6 +36,7 @@ Happy CLI (`handy-cli`) is a command-line tool that wraps Claude Code to enable 
 - No mocking - tests make real API calls
 - Test files colocated with source files (`.test.ts`)
 - Descriptive test names and proper async handling
+- On Windows/Git Bash, run the package test script as `npm_config_script_shell=bash pnpm --filter happy test` so `$npm_execpath` expands correctly.
 
 ### Logging
 - All debugging through file logs to avoid disturbing Claude sessions

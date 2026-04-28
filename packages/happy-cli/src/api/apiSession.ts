@@ -1,7 +1,7 @@
 import { logger } from '@/ui/logger'
 import { EventEmitter } from 'node:events'
 import { io, Socket } from 'socket.io-client'
-import { AgentState, ClientToServerEvents, Metadata, ServerToClientEvents, Session, Update, UserMessage, UserMessageSchema, Usage } from './types'
+import { AgentState, ClientToServerEvents, MessageMeta, Metadata, ServerToClientEvents, Session, Update, UserMessage, UserMessageSchema, Usage } from './types'
 import { decodeBase64, decrypt, encodeBase64, encrypt } from './encryption';
 import { backoff, delay } from '@/utils/time';
 import { configuration } from '@/configuration';
@@ -505,14 +505,15 @@ export class ApiSessionClient extends EventEmitter {
         type: 'permission-mode-changed', mode: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan'
     } | {
         type: 'ready'
-    }, id?: string) {
+    }, id?: string, meta?: MessageMeta) {
         let content = {
             role: 'agent',
             content: {
                 id: id ?? randomUUID(),
                 type: 'event',
                 data: event
-            }
+            },
+            ...(meta && { meta })
         };
         this.enqueueMessage(content);
     }
