@@ -28,6 +28,8 @@ When sessions are merged, the app resolves `session.permissionMode` using this o
    - If `session.metadata.sandbox.enabled === true`: `bypassPermissions`
    - Otherwise: `default`
 
+In addition, `session.permissionModeUserChosen: boolean` is loaded from a dedicated MMKV namespace (`session-permission-mode-user-chosen` in `packages/happy-app/sources/sync/persistence.ts`, separate from `session-permission-modes`) and merged into the in-memory `Session`. It is only `true` for explicit picker/button choices; machine-derived updates (e.g., `EnterPlanMode`, programmatic copies, sandbox-derived defaults) keep it `false`. The picker uses this flag to decide whether to display the saved local mode or defer to the CLI-published `currentPermissionModeCode`.
+
 ### 2) New-session draft fallback
 `packages/happy-app/sources/sync/persistence.ts`
 
