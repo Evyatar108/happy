@@ -29,6 +29,7 @@ export type RequestSwitchMode = 'now' | 'when-idle';
 
 interface RequestSwitchRequest {
     mode: RequestSwitchMode;
+    messagePreview?: string;
 }
 
 export interface RequestSwitchResponse {

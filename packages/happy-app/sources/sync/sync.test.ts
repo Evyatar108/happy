@@ -205,7 +205,7 @@ describe('sync.sendMessage switch policy', () => {
         await sync.sendMessage('session-1', 'hello', { switchMode: 'when-idle' });
 
         expect(order).toEqual(['rpc', 'encrypt']);
-        expect(apiSocket.sessionRPC).toHaveBeenCalledWith('session-1', 'request-switch', { mode: 'when-idle' });
+        expect(apiSocket.sessionRPC).toHaveBeenCalledWith('session-1', 'request-switch', { mode: 'when-idle', messagePreview: 'hello' });
         expect(encryptRawRecord.mock.calls[0][0].meta.capabilities).toEqual({ deferredSwitch: true });
     });
 
@@ -268,7 +268,7 @@ describe('sync.sendMessage switch policy', () => {
         await new Promise(resolve => setTimeout(resolve, 0));
 
         expect(mocks.sessionRPC).toHaveBeenCalledTimes(2);
-        expect(mocks.sessionRPC).toHaveBeenNthCalledWith(1, 'session-1', 'request-switch', { mode: 'when-idle' });
+        expect(mocks.sessionRPC).toHaveBeenNthCalledWith(1, 'session-1', 'request-switch', { mode: 'when-idle', messagePreview: 'hello' });
         expect(mocks.sessionRPC).toHaveBeenNthCalledWith(2, 'session-1', 'cancel-pending-switch', {});
         expect(Modal.alert).toHaveBeenCalledWith('common.error', 'errors.sendFailed');
     });
@@ -283,7 +283,29 @@ describe('sync.sendMessage switch policy', () => {
         await new Promise(resolve => setTimeout(resolve, 0));
 
         expect(mocks.sessionRPC).toHaveBeenCalledTimes(1);
-        expect(mocks.sessionRPC).toHaveBeenCalledWith('session-1', 'request-switch', { mode: 'when-idle' });
+        expect(mocks.sessionRPC).toHaveBeenCalledWith('session-1', 'request-switch', { mode: 'when-idle', messagePreview: 'hello' });
+    });
+
+    it('sends messagePreview truncated to 80 chars with newlines collapsed', async () => {
+        mocks.sessionRPC.mockResolvedValue({ deferred: true });
+        installSyncHarness();
+
+        const long = 'a'.repeat(90);
+        await sync.sendMessage('session-1', long, { switchMode: 'when-idle' });
+        expect(mocks.sessionRPC).toHaveBeenCalledWith('session-1', 'request-switch', {
+            mode: 'when-idle',
+            messagePreview: 'a'.repeat(80) + '…',
+        });
+
+        mocks.sessionRPC.mockClear();
+        mocks.sessionRPC.mockResolvedValue({ deferred: true });
+
+        const multiline = 'line1\nline2\nline3';
+        await sync.sendMessage('session-1', multiline, { switchMode: 'when-idle' });
+        expect(mocks.sessionRPC).toHaveBeenCalledWith('session-1', 'request-switch', {
+            mode: 'when-idle',
+            messagePreview: 'line1 line2 line3',
+        });
     });
 
     it('latches concurrent when-idle RPCs per session and clears after settlement', async () => {

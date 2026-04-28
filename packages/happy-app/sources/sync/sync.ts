@@ -591,10 +591,14 @@ class Sync {
 
             this.deferredSwitchRequests.add(sessionId);
             try {
-                const response = await apiSocket.sessionRPC<RequestSwitchResponse, { mode: 'when-idle' }>(
+                const rawPreview = text.replace(/\n/g, ' ').trimStart();
+                const messagePreview = rawPreview.length > 80
+                    ? rawPreview.slice(0, 80) + '…'
+                    : rawPreview;
+                const response = await apiSocket.sessionRPC<RequestSwitchResponse, { mode: 'when-idle'; messagePreview: string }>(
                     sessionId,
                     'request-switch',
-                    { mode: 'when-idle' },
+                    { mode: 'when-idle', messagePreview },
                 );
                 tagDeferredSwitch = response.deferred === true;
             } catch (error) {
