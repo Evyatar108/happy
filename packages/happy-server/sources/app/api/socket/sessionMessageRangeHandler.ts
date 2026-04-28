@@ -15,10 +15,16 @@ import { log } from "@/utils/log";
  *    AND never-existed both collapse to a byte-identical session_not_found
  *    response so the handler does not leak information about session
  *    existence (no global-by-id lookup is ever performed).
- *  - take: limit + 1 / hasMore = rows.length > limit pagination pattern.
+ *  - hasMore semantics: hasMore === true iff messages exist with seq strictly
+ *    less than `fromSeq` for this session. The client's window is always at
+ *    most `limit` messages wide, so row-count overflow inside the queried
+ *    [fromSeq, toSeq] range is NOT a reliable signal — we explicitly probe
+ *    seq < fromSeq via a secondary findFirst when fromSeq > 0.
  *  - Empty-result short-circuit: when the primary message-fetch returns zero
- *    rows we resolve to { ok: true, messages: [], hasMore: false } directly
- *    without issuing a separate count or existence query.
+ *    rows AND fromSeq === 0 (no possible older history), we resolve to
+ *    { ok: true, messages: [], hasMore: false } directly without issuing a
+ *    secondary query. When fromSeq > 0 we still probe for older history so
+ *    a sparse server (range hole + unloaded older edge) reports correctly.
  *  - Returns encrypted blobs as-is; never decrypts.
  *
  * Validation is performed by SessionMessageRangeRequestSchema from
@@ -99,7 +105,22 @@ export function sessionMessageRangeHandler(userId: string, socket: Socket) {
                 }
             });
 
-            // Empty-result invariant: short-circuit, no follow-up count query.
+            // hasMore semantics: "messages exist with seq strictly less than
+            // fromSeq". When fromSeq === 0, nothing can be < 0, so hasMore is
+            // unconditionally false. Otherwise probe with a single index lookup.
+            const hasMore = fromSeq > 0
+                ? Boolean(await db.sessionMessage.findFirst({
+                    where: {
+                        sessionId,
+                        seq: { lt: fromSeq }
+                    },
+                    select: { id: true }
+                }))
+                : false;
+
+            // Empty-result short-circuit: no rows in [fromSeq, toSeq], echo
+            // the (possibly true) hasMore from the secondary probe so a
+            // sparse range hole still drives further pagination.
             if (rows.length === 0) {
                 callback({
                     ok: true,
@@ -108,13 +129,16 @@ export function sessionMessageRangeHandler(userId: string, socket: Socket) {
                     fromSeq,
                     toSeq,
                     messages: [],
-                    hasMore: false
+                    hasMore
                 });
                 return;
             }
 
-            const hasMore = rows.length > limit;
-            const page = hasMore ? rows.slice(0, limit) : rows;
+            // Slice to exactly `limit` rows. The `take: limit + 1` overflow
+            // exists so a future change can re-introduce row-count-based
+            // signaling without re-issuing the query, but it is NOT used to
+            // derive hasMore — see contract above.
+            const page = rows.length > limit ? rows.slice(0, limit) : rows;
 
             callback({
                 ok: true,

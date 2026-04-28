@@ -90,7 +90,8 @@ export type PrefetchTerminalKind =
     | 'transport-error'
     | 'decrypt-error'
     | 'stale-discard'
-    | 'sync-bail';
+    | 'sync-bail'
+    | 'abandon-on-reconnect';
 
 export interface PrefetchTerminalEvent {
     sessionId: string;
@@ -115,6 +116,14 @@ interface InFlight {
     requestId: string;
     generation: number;
     direction: 'older' | 'newer';
+    /**
+     * Resolver for the per-request terminal Promise<void>. Set when the
+     * request enters the in-flight tracker; called exactly once at terminal
+     * exit. Tracked here so `onReconnected()` can settle any orphaned
+     * promises whose original transport await was abandoned by socket.io on
+     * disconnect.
+     */
+    settle: () => void;
 }
 
 let _idCounter = 0;
@@ -220,6 +229,22 @@ export class PrefetchManager {
      * prefetch generation tracked, plus every session with an in-flight
      * tracker. There is no mid-prefetch resume — the contract is "abandon and
      * re-issue under a new generation".
+     *
+     * For each abandoned in-flight request the manager:
+     *   - calls `storage.clearActivePrefetch(sessionId, requestId)` so the
+     *     durable `activePrefetch` field does not strand `shouldPrefetchOlder`
+     *     in a permanent `false` state. The clear is idempotent (storage
+     *     no-ops on requestId mismatch — US-003 contract), so a clear arriving
+     *     after a NEW prefetch under a bumped generation is a no-op.
+     *   - resolves the per-request terminal Promise<void> via the captured
+     *     `settle` resolver so any awaiter (`sync.loadOlder`'s awaited-commit
+     *     branch) unblocks. The terminal event is classified as
+     *     `'abandon-on-reconnect'` to honor the failure-clear contract.
+     *
+     * Late commits/clears arriving from the abandoned request body still run
+     * to completion but no-op storage-side: `applyPrefetchedRange`'s requestId
+     * gate sees no `activePrefetch` (we just cleared it) and the deferred is
+     * already resolved (so the second settle call is suppressed).
      */
     onReconnected(): void {
         const sessionIds = new Set<string>([
@@ -229,7 +254,21 @@ export class PrefetchManager {
         for (const sid of sessionIds) {
             this.generations.set(sid, this.getGeneration(sid) + 1);
         }
+        // Snapshot in-flight entries before clearing — we need each entry's
+        // captured `requestId` for the storage clear AND the settle resolver
+        // for the orphaned promise.
+        const abandoned: Array<{ sessionId: string; requestId: string; settle: () => void }> = [];
+        for (const [sid, entry] of this.inFlight.entries()) {
+            abandoned.push({ sessionId: sid, requestId: entry.requestId, settle: entry.settle });
+        }
         this.inFlight.clear();
+        for (const { sessionId, requestId, settle } of abandoned) {
+            // Clear storage's durable activePrefetch FIRST so a viewport tick
+            // landing immediately after settle resolves can re-issue cleanly.
+            this.storage.clearActivePrefetch(sessionId, requestId);
+            this.fireTerminal({ sessionId, requestId, kind: 'abandon-on-reconnect' });
+            settle();
+        }
     }
 
     /**
@@ -275,8 +314,51 @@ export class PrefetchManager {
             issuedAt,
         };
 
-        this.inFlight.set(sessionId, { requestId, generation, direction });
+        // Per-request terminal Promise<void>. The outer Promise returned to
+        // the caller is bound to this deferred so reconnect can settle it
+        // even if the transport's emitWithAck never resolves. The inner
+        // work below ALSO settles it at its own terminal exit. `settled`
+        // makes the resolver idempotent — first call wins.
+        let settled = false;
+        let resolveOuter!: () => void;
+        const outerPromise = new Promise<void>((res) => {
+            resolveOuter = res;
+        });
+        const settle = () => {
+            if (settled) return;
+            settled = true;
+            resolveOuter();
+        };
+
+        this.inFlight.set(sessionId, { requestId, generation, direction, settle });
         this.storage.setActivePrefetch(sessionId, activePrefetch);
+
+        // Run the body asynchronously without blocking the outer Promise on
+        // any single inner await. Reconnect can settle `outerPromise`
+        // independently if the transport await is abandoned by socket.io.
+        void this.runRequestBody({
+            sessionId,
+            fromSeq,
+            toSeq,
+            limit,
+            requestId,
+            generation,
+            settle,
+        });
+
+        return outerPromise;
+    }
+
+    private async runRequestBody(args: {
+        sessionId: string;
+        fromSeq: number;
+        toSeq: number;
+        limit: number;
+        requestId: string;
+        generation: number;
+        settle: () => void;
+    }): Promise<void> {
+        const { sessionId, fromSeq, toSeq, limit, requestId, generation, settle } = args;
 
         let response: SessionMessageRangeResponse;
         try {
@@ -291,6 +373,7 @@ export class PrefetchManager {
             this.inFlight.delete(sessionId);
             this.storage.clearActivePrefetch(sessionId, requestId);
             this.fireTerminal({ sessionId, requestId, kind: 'transport-error' });
+            settle();
             return;
         }
 
@@ -303,6 +386,7 @@ export class PrefetchManager {
                 kind: 'ack-error',
                 errorCode: response.error.code,
             });
+            settle();
             return;
         }
 
@@ -314,6 +398,7 @@ export class PrefetchManager {
             this.inFlight.delete(sessionId);
             this.storage.clearActivePrefetch(sessionId, requestId);
             this.fireTerminal({ sessionId, requestId, kind: 'decrypt-error' });
+            settle();
             return;
         }
 
@@ -357,11 +442,13 @@ export class PrefetchManager {
         });
 
         // Whether the in-lock dispatch committed or staleness-discarded, the
-        // in-flight tracker is no longer ours.
+        // in-flight tracker is no longer ours. (No-op if `onReconnected`
+        // already cleared it.)
         this.inFlight.delete(sessionId);
 
         if (committed) {
             this.fireTerminal({ sessionId, requestId, kind: 'commit' });
+            settle();
             return;
         }
 
@@ -372,6 +459,7 @@ export class PrefetchManager {
         // generation bump.
         this.storage.clearActivePrefetch(sessionId, requestId);
         this.fireTerminal({ sessionId, requestId, kind: 'stale-discard' });
+        settle();
     }
 
     private fireTerminal(event: PrefetchTerminalEvent): void {

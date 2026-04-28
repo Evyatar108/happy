@@ -418,6 +418,100 @@ describe('PrefetchManager', () => {
             expect(batch.committed).toBe(true);
         });
 
+        it('(d-leak) reconnect with TWO in-flight prefetches: clears each storage.activePrefetch, settles each promise, fires abandon-on-reconnect, and unblocks the next viewport tick', async () => {
+            // Bug 2 fix: pre-fix, onReconnected only bumped generations and
+            // wiped the in-memory inFlight map. Storage's activePrefetch was
+            // left stranded for each session — `shouldPrefetchOlder` would
+            // then return false permanently because activePrefetch was set,
+            // and any awaiter of the orphaned per-request Promise<void>
+            // (sync.loadOlder's awaited-commit branch) would block forever
+            // because the original transport await was abandoned by Socket.IO
+            // on disconnect.
+            const h = createHarness();
+            const manager = makeManager(h);
+
+            // Slow transports for both sessions so we can assert reconnect
+            // behavior while requests are still in-flight.
+            const transportA = createDeferred<SessionMessageRangeResponse>();
+            const transportB = createDeferred<SessionMessageRangeResponse>();
+            h.transportQueue.push(async () => transportA.promise);
+            h.transportQueue.push(async () => transportB.promise);
+
+            // Issue two prefetches under generation 0 each.
+            const pA = manager.requestSessionMessageRange({
+                sessionId: 'sA', fromSeq: 1, toSeq: 50, limit: 50, direction: 'older',
+            });
+            const pB = manager.requestSessionMessageRange({
+                sessionId: 'sB', fromSeq: 1, toSeq: 50, limit: 50, direction: 'older',
+            });
+
+            // Both have a durable activePrefetch in storage and an in-memory
+            // in-flight tracker.
+            expect(h.record['sA']!.activePrefetch).toBeDefined();
+            expect(h.record['sB']!.activePrefetch).toBeDefined();
+            expect(manager.getGeneration('sA')).toBe(0);
+            expect(manager.getGeneration('sB')).toBe(0);
+
+            // Capture the requestIds the manager assigned.
+            const idA = h.record['sA']!.activePrefetch!.requestId;
+            const idB = h.record['sB']!.activePrefetch!.requestId;
+
+            // Trigger reconnect.
+            h.triggerReconnect();
+
+            // Generations bumped for both sessions.
+            expect(manager.getGeneration('sA')).toBe(1);
+            expect(manager.getGeneration('sB')).toBe(1);
+
+            // Storage.clearActivePrefetch was called for each in-flight with
+            // the captured requestId, and the durable activePrefetch is
+            // cleared (so `shouldPrefetchOlder` is no longer permanently
+            // blocked).
+            expect(h.record['sA']!.activePrefetch).toBeUndefined();
+            expect(h.record['sB']!.activePrefetch).toBeUndefined();
+            expect(h.record['sA']!.clearCalls).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({ sessionId: 'sA', expectedRequestId: idA, effective: true }),
+                ]),
+            );
+            expect(h.record['sB']!.clearCalls).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({ sessionId: 'sB', expectedRequestId: idB, effective: true }),
+                ]),
+            );
+
+            // abandon-on-reconnect terminal events fired for both.
+            const abandonEvents = h.terminalEvents.filter(e => e.kind === 'abandon-on-reconnect');
+            expect(abandonEvents.length).toBe(2);
+            expect(abandonEvents.map(e => e.sessionId).sort()).toEqual(['sA', 'sB']);
+
+            // The orphaned per-request Promise<void>s settled — pre-fix they
+            // would block forever because the original transport await was
+            // abandoned by socket.io on disconnect.
+            await Promise.all([pA, pB]);
+
+            // Subsequent viewport tick on sA satisfies shouldPrefetchOlder
+            // and issues a NEW request under the bumped generation. Pre-fix
+            // this was permanently blocked.
+            h.transportQueue.push(async (req) => okResponse(req, { seqs: [11] }));
+            await manager.requestSessionMessageRange({
+                sessionId: 'sA', fromSeq: 1, toSeq: 50, limit: 50, direction: 'older',
+            });
+            const lastBatch = h.record['sA']!.appliedBatches.at(-1)!;
+            expect(lastBatch.params.expectedGeneration).toBe(1);
+            expect(lastBatch.committed).toBe(true);
+
+            // Resolve the originally-orphaned transport promises last to
+            // assert the body's late commit/clear is harmless (storage's
+            // requestId gate protects the newer activePrefetch).
+            transportA.resolve(okResponse({ requestId: idA, sessionId: 'sA', fromSeq: 1, toSeq: 50, limit: 50 }, { seqs: [10] }));
+            transportB.resolve(okResponse({ requestId: idB, sessionId: 'sB', fromSeq: 1, toSeq: 50, limit: 50 }, { seqs: [10] }));
+            // Drain microtasks so the late body completes.
+            await Promise.resolve();
+            await Promise.resolve();
+            await Promise.resolve();
+        });
+
         it('(e) bumpGeneration() invalidates an in-flight commit (session-switch surrogate)', async () => {
             // Session switch in US-006 calls prefetchManager.bumpGeneration(prevSid)
             // from sync.onActiveSessionChanged. Verify the bump changes the

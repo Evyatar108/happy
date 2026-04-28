@@ -2033,6 +2033,17 @@ class Sync {
             for (const sync of this.sendSync.values()) {
                 sync.invalidate();
             }
+            // US-006: evict every entry in `prefetchPendingPromises`. The
+            // PrefetchManager's own onReconnected listener already
+            //   (i) bumped per-session generations,
+            //   (ii) called storage.clearActivePrefetch for each in-flight,
+            //   (iii) settled per-request terminal Promise<void>s with kind
+            //        `abandon-on-reconnect`.
+            // The references in prefetchPendingPromises are now stale. We
+            // drop them so a subsequent loadOlder() does not await a settled
+            // promise (which is harmless but a leak) and re-issues a fresh
+            // request under the bumped generation.
+            this.prefetchPendingPromises.clear();
         });
     }
 

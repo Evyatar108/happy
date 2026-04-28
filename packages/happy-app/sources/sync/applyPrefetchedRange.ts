@@ -175,11 +175,30 @@ export function applyPrefetchedRangeToSession({
         existingSession.oldestLoadedSeq,
     );
 
+    // Defensive contract (Plan §Approach): a server reply with `messages: []`
+    // AND `hasMore: true` is a protocol violation — by definition there can't
+    // be more older history if the server returned no rows for the requested
+    // range. Combined with `oldestLoadedSeq` left at its prior value
+    // (computeNextOldestLoadedSeq returns prior seq for an empty filtered
+    // batch), the next viewport tick would see the same `oldestLoadedSeq` AND
+    // `hasOlder: true` AND `activePrefetch === undefined` (cleared on commit)
+    // and re-issue an identical-range request. Override `hasOlder` to false
+    // here to guarantee progress and surface the violation via console.warn.
+    const filteredMessages = messages.filter(m => m.seq !== DEFAULT_UNSEQUENCED_MESSAGE_SEQ);
+    let effectiveHasMore = params.hasMore;
+    if (filteredMessages.length === 0 && params.hasMore === true) {
+        // eslint-disable-next-line no-console
+        console.warn(
+            '[applyPrefetchedRange] protocol violation: empty messages with hasMore=true; forcing hasOlder=false to guarantee pagination progress',
+        );
+        effectiveHasMore = false;
+    }
+
     const { nextSession, nextSessionMeta } = mergeOlderMessagesIntoSession({
         existingSession,
         sessionMeta,
         messages,
-        pagination: { newOldestLoadedSeq, hasOlder: params.hasMore },
+        pagination: { newOldestLoadedSeq, hasOlder: effectiveHasMore },
     });
 
     return {

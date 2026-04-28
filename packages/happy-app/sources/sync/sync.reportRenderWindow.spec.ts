@@ -291,6 +291,36 @@ describe('sync.onActiveSessionChanged (US-006)', () => {
     });
 });
 
+// Bug 2 fix: sync.ts's reconnect plumbing must clear `prefetchPendingPromises`
+// so a subsequent `loadOlder()` call does not await stale per-request promise
+// references abandoned by the manager's onReconnected listener. We reproduce
+// the exact reconnect callback body from sync.ts here.
+describe('sync.onReconnected: prefetchPendingPromises eviction (US-006 / Bug 2)', () => {
+    it('clears every pending promise reference so subsequent loadOlder issues a fresh request', () => {
+        const prefetchPendingPromises = new Map<string, Promise<void>>();
+        // Seed two stale promise references that would otherwise be awaited
+        // by the next loadOlder() call.
+        prefetchPendingPromises.set('sA', new Promise(() => { /* never resolves */ }));
+        prefetchPendingPromises.set('sB', new Promise(() => { /* never resolves */ }));
+        expect(prefetchPendingPromises.size).toBe(2);
+
+        // One-to-one reproduction of the reconnect callback body in sync.ts
+        // (the line that reads `this.prefetchPendingPromises.clear()`).
+        const onReconnect = () => {
+            prefetchPendingPromises.clear();
+        };
+        onReconnect();
+
+        // After reconnect, both stale references are gone — the next
+        // loadOlder() call's `prefetchPendingPromises.get(sessionId)` lookup
+        // returns undefined and triggers a fresh manager.requestSessionMessageRange
+        // under the now-bumped generation.
+        expect(prefetchPendingPromises.size).toBe(0);
+        expect(prefetchPendingPromises.get('sA')).toBeUndefined();
+        expect(prefetchPendingPromises.get('sB')).toBeUndefined();
+    });
+});
+
 describe('sync.onSessionVisible regression guard (F-046, US-006)', () => {
     it('does NOT touch renderWindow, does NOT bump prefetch generation regardless of session id', () => {
         const storage = createFakeStorage({

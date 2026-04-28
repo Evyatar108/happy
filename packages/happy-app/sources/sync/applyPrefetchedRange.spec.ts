@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createReducer } from './reducer/reducer';
 import {
     applyPrefetchedRangeToSession,
@@ -217,6 +217,102 @@ describe('applyPrefetchedRange', () => {
             if (result.stale) return;
             expect(result.nextSession.oldestLoadedSeq).toBe(25);
             expect(result.nextSession.hasOlder).toBe(true);
+        });
+
+        it('Bug 3 fix: empty filtered batch + hasMore=true forces hasOlder=false (protocol-violation defense) and warns', () => {
+            const base = seedBoundary(createEmptySession(100), 100);
+            const baseWithFlight: MergeOlderMessagesSession = {
+                ...base,
+                activePrefetch: {
+                    requestId: 'req-defense',
+                    generation: 1,
+                    direction: 'older',
+                    targetSeq: 0,
+                    issuedAt: 0,
+                },
+            };
+
+            const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { /* swallow */ });
+            try {
+                const result = applyPrefetchedRangeToSession({
+                    existingSession: baseWithFlight,
+                    sessionMeta: NO_META,
+                    messages: [],
+                    params: {
+                        requestedFromSeq: 50,
+                        requestedToSeq: 99,
+                        // Server claims more older history despite returning
+                        // zero messages — protocol violation. The reducer must
+                        // override hasOlder=false to guarantee progress.
+                        hasMore: true,
+                        expectedRequestId: 'req-defense',
+                        expectedGeneration: 1,
+                        actualGeneration: 1,
+                    },
+                });
+
+                expect(result.stale).toBe(false);
+                if (result.stale) return;
+                // Override applied: hasOlder is forced to false, breaking the
+                // would-be-infinite re-prefetch loop.
+                expect(result.nextSession.hasOlder).toBe(false);
+                // oldestLoadedSeq unchanged (empty filtered batch).
+                expect(result.nextSession.oldestLoadedSeq).toBe(100);
+                // activePrefetch atomically cleared on commit.
+                expect(result.nextSession.activePrefetch).toBeUndefined();
+                // Warning was emitted.
+                expect(warnSpy).toHaveBeenCalledTimes(1);
+                expect(warnSpy.mock.calls[0]![0]).toContain('protocol violation');
+            } finally {
+                warnSpy.mockRestore();
+            }
+        });
+
+        it('Bug 3 fix: defense triggers even when batch contains ONLY pending sentinels (filtered to empty) + hasMore=true', () => {
+            const base = seedBoundary(createEmptySession(100), 100);
+            const baseWithFlight: MergeOlderMessagesSession = {
+                ...base,
+                activePrefetch: {
+                    requestId: 'req-pending-defense',
+                    generation: 1,
+                    direction: 'older',
+                    targetSeq: 0,
+                    issuedAt: 0,
+                },
+            };
+            const pendingOnly: NormalizedMessage[] = [
+                {
+                    id: 'pending-x',
+                    localId: 'l-x',
+                    createdAt: 1,
+                    seq: DEFAULT_UNSEQUENCED_MESSAGE_SEQ,
+                    role: 'user',
+                    isSidechain: false,
+                    content: { type: 'text', text: 'pending' },
+                },
+            ];
+            const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => { /* swallow */ });
+            try {
+                const result = applyPrefetchedRangeToSession({
+                    existingSession: baseWithFlight,
+                    sessionMeta: NO_META,
+                    messages: pendingOnly,
+                    params: {
+                        requestedFromSeq: 50,
+                        requestedToSeq: 99,
+                        hasMore: true,
+                        expectedRequestId: 'req-pending-defense',
+                        expectedGeneration: 1,
+                        actualGeneration: 1,
+                    },
+                });
+                expect(result.stale).toBe(false);
+                if (result.stale) return;
+                expect(result.nextSession.hasOlder).toBe(false);
+                expect(warnSpy).toHaveBeenCalledTimes(1);
+            } finally {
+                warnSpy.mockRestore();
+            }
         });
 
         it('leaves oldestLoadedSeq unchanged and clears hasOlder for empty batch with hasMore: false', () => {
