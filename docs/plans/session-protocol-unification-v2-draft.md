@@ -203,7 +203,7 @@ All fields optional — include only what changed:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `permissionMode` | string? | `"default"` \| `"acceptEdits"` \| `"bypassPermissions"` \| `"plan"` |
+| `permissionMode` | string? | `"default"` \| `"acceptEdits"` \| `"bypassPermissions"` \| `"plan"` \| `"read-only"` \| `"safe-yolo"` \| `"yolo"` (matches the live `meta.permissionMode` wire enum in `packages/happy-wire/README.md`) |
 | `model` | string? | Model identifier |
 | `thinkingLevel` | string? | Thinking budget level |
 | `sandbox` | boolean? | Sandbox enabled |

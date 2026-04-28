@@ -95,7 +95,7 @@ Fields you'll see in the init on 2.1.111 (may grow):
 - `agents` — subagents (`Explore`, `Plan`, plugin agents, ...). Forwarded; feeds the Agents catalog screen.
 - `plugins` — `{name, path, source}` for each loaded plugin. Forwarded; feeds the Plugins catalog screen and the `source: 'plugin'` classification.
 - `mcp_servers`, `output_style` — forwarded as `mcpServers` / `outputStyle`.
-- `permissionMode`, `memory_paths`, `fast_mode_state` — still dropped today (no consumer in the app yet).
+- `permissionMode`, `memory_paths`, `fast_mode_state` — the SDK init field itself is not forwarded to the app under the same name. As of 2026-04-28, the runner instead publishes its effective permission mode through a separate session-metadata channel — `metadata.currentPermissionModeCode` — populated by `publishPermissionModeIfChanged(...)` in `packages/happy-cli/src/utils/publishPermissionMode.ts` (Claude initial seed via `getOrCreateSession` + on-change; Codex on-change + sandbox-forced `'yolo'` initial seed). See `docs/permission-resolution.md` for the full publish + picker resolution chain. `memory_paths` and `fast_mode_state` remain dropped (no consumer).
 
 **If a skill/plugin is missing from `slash_commands`**, the problem is
 almost always that `enabledPlugins` in `~/.claude/settings.json` didn't
