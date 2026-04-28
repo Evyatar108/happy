@@ -64,6 +64,17 @@ export const zhHant: TranslationStructure = {
         optional: '選填',
     },
 
+    pendingSwitch: {
+        banner: 'A message is waiting for Claude to go idle',
+    },
+
+    requestSwitch: {
+        now: 'Take over now',
+        whenIdle: 'Send when idle',
+    },
+
+    cancelPendingSwitch: 'Cancel switch',
+
     commands: {
         rename: {
             emptyName: '請在 /rename 後輸入聊天名稱。',
@@ -283,6 +294,8 @@ export const zhHant: TranslationStructure = {
         userNotFound: '未找到使用者',
         sessionDeleted: '工作階段已被刪除',
         sessionDeletedDescription: '此工作階段已被永久刪除',
+        requestSwitchFailed: 'Failed to update switch request',
+        sendFailed: 'Failed to send message',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

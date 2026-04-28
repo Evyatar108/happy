@@ -65,6 +65,17 @@ export const ja: TranslationStructure = {
         saveAs: '名前を付けて保存',
     },
 
+    pendingSwitch: {
+        banner: 'A message is waiting for Claude to go idle',
+    },
+
+    requestSwitch: {
+        now: 'Take over now',
+        whenIdle: 'Send when idle',
+    },
+
+    cancelPendingSwitch: 'Cancel switch',
+
     commands: {
         rename: {
             emptyName: '/rename の後にチャット名を入力してください。',
@@ -284,6 +295,8 @@ export const ja: TranslationStructure = {
         userNotFound: 'ユーザーが見つかりません',
         sessionDeleted: 'セッションは削除されました',
         sessionDeletedDescription: 'このセッションは完全に削除されました',
+        requestSwitchFailed: 'Failed to update switch request',
+        sendFailed: 'Failed to send message',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

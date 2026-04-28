@@ -30,7 +30,7 @@ interface AgentInputProps {
     placeholder: string;
     onChangeText: (text: string) => void;
     sessionId?: string;
-    onSend: () => void;
+    onSend: (switchMode: 'now' | 'when-idle') => void;
     sendIcon?: React.ReactNode;
     onMicPress?: () => void;
     isMicActive?: boolean;
@@ -75,6 +75,7 @@ interface AgentInputProps {
     currentPath?: string | null;
     onPathClick?: () => void;
     blockSend?: boolean;
+    canSendWhenIdle?: boolean;
     isSendDisabled?: boolean;
     isSending?: boolean;
     minHeight?: number;
@@ -555,10 +556,21 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
 
         hapticsLight();
         if (hasText) {
-            props.onSend();
+            props.onSend('now');
         } else {
             props.onMicPress?.();
         }
+    }, [handleBlockedSendAttempt, hasText, isSendBlocked, props]);
+
+    const handleSendWhenIdlePress = React.useCallback(() => {
+        if (isSendBlocked) {
+            handleBlockedSendAttempt();
+            return;
+        }
+        if (!hasText || props.isSendDisabled || props.isSending) return;
+
+        hapticsLight();
+        props.onSend('when-idle');
     }, [handleBlockedSendAttempt, hasText, isSendBlocked, props]);
 
     // Handle keyboard navigation
@@ -608,7 +620,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                     if (isSendBlocked) {
                         handleBlockedSendAttempt();
                     } else if (!props.isSendDisabled) {
-                        props.onSend();
+                        props.onSend('now');
                     }
                     return true; // Key was handled
                 }
@@ -1386,6 +1398,38 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
 
                                 {/* Git Status Badge */}
                                 <GitStatusButton sessionId={props.sessionId} onPress={props.onFileViewerPress} />
+                                {props.canSendWhenIdle && (
+                                    <Pressable
+                                        onPress={handleSendWhenIdlePress}
+                                        hitSlop={{ top: 5, bottom: 10, left: 0, right: 0 }}
+                                        accessibilityLabel={t('requestSwitch.whenIdle')}
+                                        disabled={!hasText || props.isSendDisabled || props.isSending}
+                                        style={(p) => ({
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            borderRadius: Platform.select({ default: 16, android: 20 }),
+                                            paddingHorizontal: 10,
+                                            paddingVertical: 6,
+                                            justifyContent: 'center',
+                                            height: 32,
+                                            opacity: (!hasText || props.isSendDisabled || props.isSending) ? 0.45 : p.pressed ? 0.7 : 1,
+                                            gap: 6,
+                                        })}
+                                    >
+                                        <Ionicons
+                                            name="time-outline"
+                                            size={15}
+                                            color={theme.colors.button.secondary.tint}
+                                        />
+                                        <Text style={{
+                                            fontSize: 12,
+                                            color: theme.colors.button.secondary.tint,
+                                            ...Typography.default('semiBold'),
+                                        }}>
+                                            {t('requestSwitch.whenIdle')}
+                                        </Text>
+                                    </Pressable>
+                                )}
                                 </View>
 
                                 {/* Send/Voice button - aligned with first row */}

@@ -73,6 +73,17 @@ export const pl: TranslationStructure = {
         optional: 'opcjonalnie',
     },
 
+    pendingSwitch: {
+        banner: 'A message is waiting for Claude to go idle',
+    },
+
+    requestSwitch: {
+        now: 'Take over now',
+        whenIdle: 'Send when idle',
+    },
+
+    cancelPendingSwitch: 'Cancel switch',
+
     commands: {
         rename: {
             emptyName: 'Dodaj nazwę czatu po /rename.',
@@ -300,6 +311,8 @@ export const pl: TranslationStructure = {
         userNotFound: 'Użytkownik nie został znaleziony',
         sessionDeleted: 'Sesja została usunięta',
         sessionDeletedDescription: 'Ta sesja została trwale usunięta',
+        requestSwitchFailed: 'Failed to update switch request',
+        sendFailed: 'Failed to send message',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

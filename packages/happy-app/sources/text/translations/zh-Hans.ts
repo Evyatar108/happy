@@ -64,6 +64,17 @@ export const zhHans: TranslationStructure = {
         optional: '可选的',
     },
 
+    pendingSwitch: {
+        banner: 'A message is waiting for Claude to go idle',
+    },
+
+    requestSwitch: {
+        now: 'Take over now',
+        whenIdle: 'Send when idle',
+    },
+
+    cancelPendingSwitch: 'Cancel switch',
+
     commands: {
         rename: {
             emptyName: '请在 /rename 后输入聊天名称。',
@@ -284,6 +295,8 @@ export const zhHans: TranslationStructure = {
         userNotFound: '未找到用户',
         sessionDeleted: '会话已被删除',
         sessionDeletedDescription: '此会话已被永久删除',
+        requestSwitchFailed: 'Failed to update switch request',
+        sendFailed: 'Failed to send message',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

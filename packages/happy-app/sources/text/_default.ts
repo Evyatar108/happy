@@ -62,6 +62,17 @@ export const en = {
         optional: 'optional',
     },
 
+    pendingSwitch: {
+        banner: 'A message is waiting for Claude to go idle',
+    },
+
+    requestSwitch: {
+        now: 'Take over now',
+        whenIdle: 'Send when idle',
+    },
+
+    cancelPendingSwitch: 'Cancel switch',
+
     commands: {
         rename: {
             emptyName: 'Add a chat name after /rename.',
@@ -281,6 +292,8 @@ export const en = {
         userNotFound: 'User not found',
         sessionDeleted: 'Session has been deleted',
         sessionDeletedDescription: 'This session has been permanently removed',
+        requestSwitchFailed: 'Failed to update switch request',
+        sendFailed: 'Failed to send message',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

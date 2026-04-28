@@ -73,6 +73,17 @@ export const ru: TranslationStructure = {
         optional: 'необязательно',
     },
 
+    pendingSwitch: {
+        banner: 'A message is waiting for Claude to go idle',
+    },
+
+    requestSwitch: {
+        now: 'Take over now',
+        whenIdle: 'Send when idle',
+    },
+
+    cancelPendingSwitch: 'Cancel switch',
+
     commands: {
         rename: {
             emptyName: 'Добавьте название чата после /rename.',
@@ -271,6 +282,8 @@ export const ru: TranslationStructure = {
         userNotFound: 'Пользователь не найден',
         sessionDeleted: 'Сессия была удалена',
         sessionDeletedDescription: 'Эта сессия была окончательно удалена',
+        requestSwitchFailed: 'Failed to update switch request',
+        sendFailed: 'Failed to send message',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

@@ -75,6 +75,7 @@ type OutboxMessage = {
 type SendMessageOptions = {
     displayText?: string;
     source?: MessageSentSource;
+    switchMode?: 'now' | 'when-idle' | 'none';
 };
 
 const INITIAL_MESSAGES_WINDOW_SIZE = 80;
