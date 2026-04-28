@@ -136,6 +136,8 @@ Field names below match on-wire payloads.
   - `{ sid, message, localId? }`
   - Creates a new session message (encrypted payload) and emits `new-message` update to other connections.
 
+  Session lifecycle boundaries are encoded inside encrypted session messages as the shared `context-boundary` event from `@slopus/happy-wire`. Current CLI producers dual-emit: first a modern `role: "session"` envelope whose `content.ev.t` is `"context-boundary"`, then a legacy compatibility event with `meta.contextBoundaryFallback: true`. New clients consume the typed boundary and suppress the flagged legacy fallback by that meta flag alone. Producers also write encrypted session metadata `latestBoundary` so clients that cold-start outside the initial message window can still place the active-context divider.
+
 - `session-alive`
   - `{ sid, time, thinking? }`
   - Emits `ephemeral` activity to user-scoped connections.

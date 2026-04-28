@@ -1,11 +1,61 @@
 import { describe, expect, it } from 'vitest';
 import { createId } from '@paralleldrive/cuid2';
+import * as z from 'zod';
 import {
   createEnvelope,
+  sessionContextBoundaryEventSchema,
   sessionEnvelopeSchema,
   sessionEventSchema,
   type SessionEvent,
 } from './sessionProtocol';
+
+const preD001SessionEventSchema = z.discriminatedUnion('t', [
+  z.object({
+    t: z.literal('text'),
+    text: z.string(),
+    thinking: z.boolean().optional(),
+  }),
+  z.object({
+    t: z.literal('service'),
+    text: z.string(),
+  }),
+  z.object({
+    t: z.literal('tool-call-start'),
+    call: z.string(),
+    name: z.string(),
+    title: z.string(),
+    description: z.string(),
+    args: z.record(z.string(), z.unknown()),
+  }),
+  z.object({
+    t: z.literal('tool-call-end'),
+    call: z.string(),
+  }),
+  z.object({
+    t: z.literal('file'),
+    ref: z.string(),
+    name: z.string(),
+    size: z.number(),
+    mimeType: z.string().optional(),
+    image: z
+      .object({
+        width: z.number(),
+        height: z.number(),
+        thumbhash: z.string(),
+      })
+      .optional(),
+  }),
+  z.object({ t: z.literal('turn-start') }),
+  z.object({
+    t: z.literal('start'),
+    title: z.string().optional(),
+  }),
+  z.object({
+    t: z.literal('turn-end'),
+    status: z.enum(['completed', 'failed', 'cancelled']),
+  }),
+  z.object({ t: z.literal('stop') }),
+]);
 
 describe('session protocol schemas', () => {
   it('accepts all supported event types', () => {
@@ -35,6 +85,7 @@ describe('session protocol schemas', () => {
       { t: 'start', title: 'Research agent' },
       { t: 'turn-end', status: 'completed' },
       { t: 'stop' },
+      { t: 'context-boundary', kind: 'clear', at: 1234, triggeredBy: 'user' },
     ];
 
     for (const event of events) {
@@ -51,6 +102,41 @@ describe('session protocol schemas', () => {
     expect(sessionEventSchema.safeParse({ t: 'start', title: 1 }).success).toBe(false);
     expect(sessionEventSchema.safeParse({ t: 'service' }).success).toBe(false);
     expect(sessionEventSchema.safeParse({ t: 'not-real' }).success).toBe(false);
+  });
+
+  it('accepts every context boundary kind', () => {
+    const kinds = [
+      'clear',
+      'compact',
+      'autocompact',
+      'plan-mode-enter',
+      'plan-mode-exit',
+      'session-fork-resume',
+    ] as const;
+
+    for (const kind of kinds) {
+      const parsed = sessionContextBoundaryEventSchema.safeParse({
+        t: 'context-boundary',
+        kind,
+        at: 1234,
+        triggeredBy: 'user',
+        summaryRef: 'summary-1',
+        forkedFromSid: 'sid-1',
+      });
+
+      expect(parsed.success).toBe(true);
+    }
+  });
+
+  it('pre-D-001 session event schema rejects context boundary events', () => {
+    const parsed = preD001SessionEventSchema.safeParse({
+      t: 'context-boundary',
+      kind: 'clear',
+      at: 1234,
+      triggeredBy: 'user',
+    });
+
+    expect(parsed.success).toBe(false);
   });
 
   it('validates envelopes that include turn/subagent', () => {

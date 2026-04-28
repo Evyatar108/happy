@@ -75,6 +75,18 @@ export const zhHans: TranslationStructure = {
         commandOutput: {
             stderrLabel: '标准错误',
         },
+        boundaryDivider: {
+            kind: {
+                clear: '上下文已清除',
+                compact: '已压缩',
+                autocompact: '已自动压缩',
+                planModeEnter: '已进入计划模式',
+                planModeExit: '已退出计划模式',
+                sessionForkResume: '已从上一会话恢复',
+            },
+            crossDeviceAdvisory: '你开始输入后上下文已清除 — 要查看吗？',
+            showPreClearHistory: '显示清除前历史',
+        },
         taskNotification: {
             title: '任务通知',
             taskId: '任务 ID',

@@ -11,7 +11,7 @@ function useDeepEqual<T>(selector: (state: StorageState) => T): (state: StorageS
 }
 import { Session, Machine, GitStatus } from "./storageTypes";
 import type { GitStatusFiles } from "./gitStatusFiles";
-import { createReducer, reducer, ReducerState } from "./reducer/reducer";
+import { createReducer, reducer, ReducerState, seedLatestBoundary, type LatestBoundary } from "./reducer/reducer";
 import { Message } from "./typesMessage";
 import { NormalizedMessage } from "./typesRaw";
 import { isMachineOnline } from '@/utils/machineUtils';
@@ -475,6 +475,13 @@ export const storage = create<StorageState>()((set, get) => {
 
                 // Check if sessionMessages exists AND agentStateVersion is newer
                 const existingSessionMessages = updatedSessionMessages[session.id];
+                if (existingSessionMessages && seedLatestBoundary(existingSessionMessages.reducerState, newSession.metadata?.latestBoundary)) {
+                    updatedSessionMessages[session.id] = {
+                        ...existingSessionMessages,
+                        reducerState: existingSessionMessages.reducerState,
+                    };
+                }
+
                 if (existingSessionMessages && newSession.agentState &&
                     (!oldSession || newSession.agentStateVersion > (oldSession.agentStateVersion || 0))) {
 
@@ -585,19 +592,35 @@ export const storage = create<StorageState>()((set, get) => {
             // This prevents history replays (which contain both Enter + Exit) from
             // re-triggering plan mode, while still catching real-time EnterPlanMode.
             let shouldEnterPlanMode = false;
+            let sawExitPlanMode = false;
+            let hasTypedPlanModeEnter = false;
+            let hasTypedPlanModeExit = false;
             for (const msg of messages) {
                 if (msg.role === 'agent') {
                     for (const c of msg.content) {
                         if (c.type === 'tool-call') {
                             if (c.name === 'EnterPlanMode' || c.name === 'enter_plan_mode') {
                                 shouldEnterPlanMode = true;
+                                sawExitPlanMode = false;
                             } else if (c.name === 'ExitPlanMode' || c.name === 'exit_plan_mode') {
                                 shouldEnterPlanMode = false;
+                                sawExitPlanMode = true;
                             }
                         }
                     }
                 }
+                if (msg.role === 'event' && msg.content.type === 'context-boundary') {
+                    if (msg.content.kind === 'plan-mode-enter') {
+                        hasTypedPlanModeEnter = true;
+                        hasTypedPlanModeExit = false;
+                    } else if (msg.content.kind === 'plan-mode-exit') {
+                        hasTypedPlanModeExit = true;
+                        hasTypedPlanModeEnter = false;
+                    }
+                }
             }
+            // Batch ends with an ExitPlanMode tool call (legacy detection path).
+            const shouldExitPlanMode = sawExitPlanMode && !shouldEnterPlanMode;
 
             set((state) => {
 
@@ -615,6 +638,7 @@ export const storage = create<StorageState>()((set, get) => {
                 // Get the session's agentState if available
                 const session = state.sessions[sessionId];
                 const agentState = session?.agentState;
+                seedLatestBoundary(existingSession.reducerState, session?.metadata?.latestBoundary);
 
                 // Messages are already normalized, no need to process them again
                 // Reducer phases assume oldest-to-newest within each batch so tool calls,
@@ -644,8 +668,11 @@ export const storage = create<StorageState>()((set, get) => {
                 // Update session with todos and latestUsage
                 // IMPORTANT: We extract latestUsage from the mutable reducerState and copy it to the Session object
                 // This ensures latestUsage is available immediately on load, even before messages are fully loaded
+                const effectiveEnterPlanMode = shouldEnterPlanMode || hasTypedPlanModeEnter;
+                const effectiveExitPlanMode = (shouldExitPlanMode || hasTypedPlanModeExit) && !effectiveEnterPlanMode;
+
                 let updatedSessions = state.sessions;
-                const needsUpdate = (reducerResult.todos !== undefined || existingSession.reducerState.latestUsage || shouldEnterPlanMode) && session;
+                const needsUpdate = (reducerResult.todos !== undefined || existingSession.reducerState.latestUsage || effectiveEnterPlanMode || effectiveExitPlanMode) && session;
 
                 if (needsUpdate) {
                     updatedSessions = {
@@ -658,7 +685,9 @@ export const storage = create<StorageState>()((set, get) => {
                                 ...existingSession.reducerState.latestUsage
                             } : session.latestUsage,
                             // Auto-switch to plan mode when EnterPlanMode tool call is detected
-                            ...(shouldEnterPlanMode && { permissionMode: 'plan' })
+                            ...(effectiveEnterPlanMode && { permissionMode: 'plan' }),
+                            // Reset plan mode when ExitPlanMode tool call or typed plan-mode-exit boundary is detected
+                            ...(effectiveExitPlanMode && { permissionMode: null })
                         }
                     };
                 }
@@ -679,8 +708,10 @@ export const storage = create<StorageState>()((set, get) => {
                 };
             });
 
-            // Persist plan mode change
-            if (shouldEnterPlanMode) {
+            // Persist plan mode change (both enter and exit paths)
+            const persistEnter = shouldEnterPlanMode || hasTypedPlanModeEnter;
+            const persistExit = (shouldExitPlanMode || hasTypedPlanModeExit) && !persistEnter;
+            if (persistEnter || persistExit) {
                 const allModes: Record<string, string> = {};
                 const currentState = get();
                 Object.entries(currentState.sessions).forEach(([id, sess]) => {
@@ -704,6 +735,7 @@ export const storage = create<StorageState>()((set, get) => {
 
                 // Create new reducer state
                 const reducerState = createReducer();
+                seedLatestBoundary(reducerState, session?.metadata?.latestBoundary);
 
                 // Process AgentState if it exists
                 let messages: Message[] = [];
@@ -1337,9 +1369,13 @@ export function useSessionMessages(sessionId: string): { messages: Message[], is
         const session = state.sessionMessages[sessionId];
         return {
             messages: session?.messages ?? emptyArray,
-            isLoaded: session?.isLoaded ?? false
+            isLoaded: session?.isLoaded ?? false,
         };
     }));
+}
+
+export function useLatestBoundary(sessionId: string): LatestBoundary | null {
+    return storage(useShallow((state) => state.sessionMessages[sessionId]?.reducerState?.latestBoundary ?? null));
 }
 
 export function useMessage(sessionId: string, messageId: string): Message | null {

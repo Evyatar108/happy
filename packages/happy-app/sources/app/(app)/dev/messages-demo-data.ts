@@ -5,6 +5,29 @@ import { Message, ToolCall } from '@/sync/typesMessage';
 
 const MARKDOWN_RENDERER_TEST_IMAGE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4////fwAJ+wP9KobjigAAAABJRU5ErkJggg==';
 
+type DemoMessage =
+    | Omit<Extract<Message, { kind: 'user-text' }>, 'seq'>
+    | Omit<Extract<Message, { kind: 'agent-text' }>, 'seq'>
+    | Omit<Extract<Message, { kind: 'agent-event' }>, 'seq'>
+    | (Omit<Extract<Message, { kind: 'tool-call' }>, 'seq' | 'children'> & { children: DemoMessage[] });
+
+let demoSeq = 1;
+
+function withSeq(message: DemoMessage): Message {
+    if (message.kind === 'tool-call') {
+        return {
+            ...message,
+            seq: demoSeq++,
+            children: message.children.map(withSeq),
+        };
+    }
+
+    return {
+        ...message,
+        seq: demoSeq++,
+    };
+}
+
 // Helper to create a tool call with proper timestamps
 const createToolCall = (name: string, state: ToolCall['state'], input: any, result?: any, description?: string | null): ToolCall => ({
     name,
@@ -18,7 +41,7 @@ const createToolCall = (name: string, state: ToolCall['state'], input: any, resu
 });
 
 // Reusable Read tool call constant
-const createReadToolCall = (id: string, filePath: string, startLine: number, endLine: number, result: string): Message => ({
+const createReadToolCall = (id: string, filePath: string, startLine: number, endLine: number, result: string): DemoMessage => ({
     id,
     localId: null,
     createdAt: Date.now() - Math.random() * 10000,
@@ -32,11 +55,11 @@ const createReadToolCall = (id: string, filePath: string, startLine: number, end
 });
 
 // Helper function to create user messages that serve as descriptions
-function createSectionTitle(id: string, text: string, timeOffset: number = 0): Message {
+function createSectionTitle(id: string, text: string, timeOffset: number = 0): DemoMessage {
     return { id, localId: null, createdAt: Date.now() - timeOffset, kind: 'user-text', text }
 }
 
-export const debugMessages: Message[] = [
+export const debugMessages: Message[] = ([
     // User message
     {
         id: 'user-1',
@@ -476,4 +499,4 @@ export const NewComponent: React.FC<NewComponentProps> = ({ title, description }
             }
         ]
     }
-];
+] satisfies DemoMessage[]).map(withSeq);

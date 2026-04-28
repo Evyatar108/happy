@@ -36,6 +36,8 @@ Happy CLI (`handy-cli`) is a command-line tool that wraps Claude Code to enable 
 - No mocking - tests make real API calls
 - Test files colocated with source files (`.test.ts`)
 - Descriptive test names and proper async handling
+- On Windows/Git Bash, run the package test script as `npm_config_script_shell=bash pnpm --filter happy test` so `$npm_execpath` expands correctly.
+- For file-scoped CLI validation, use `pnpm --filter happy exec vitest run <paths>`; passing paths through the package `test` script can still invoke the broader suite.
 
 ### Logging
 - All debugging through file logs to avoid disturbing Claude sessions
@@ -80,6 +82,10 @@ Core Claude Code integration layer.
 **Title-event normalization:** Claude JSONL `custom-title` and `ai-title` records do not carry `uuid`/`leafUuid`/`timestamp`. Normalize them into synthetic `summary` messages before mapper/API handling, and use deterministic `leafUuid` values derived from `sessionId` (for example `custom-title:${sessionId}`) so scanner dedup and metadata writes stay idempotent.
 
 **Launcher parity:** `claudeLocalLauncher.ts` should forward the session scanner output verbatim, including `summary` messages. Remote mode already forwards everything, and local-only summary filtering breaks chat-title updates from SDK summaries and normalized `/rename` title events.
+
+**Claude hook settings:** `generateHookSettings.ts` appends Happy's `SessionStart`, `PreCompact`, and `PostCompact` hooks while preserving existing user hooks. Use `PostCompact trigger=auto` for automatic-compaction boundaries; manual `/compact` stays on the explicit slash-command path.
+
+**Context-boundary emission:** lifecycle signals must go through `ApiSessionClient.sendContextBoundary()` so the typed envelope, legacy dual-emit fallback, and `metadata.latestBoundary` update stay in lockstep. The helper sends the typed `context-boundary` envelope first, then the legacy compatibility event with `meta.contextBoundaryFallback: true`; app clients suppress that flagged fallback. If a Claude log mapper detects a boundary-worthy tool call, return a boundary intent from the mapper and route it through `sendContextBoundary()` in `apiSession.ts`; do not emit a `context-boundary` envelope directly from the mapper.
 
 ### 3. UI Module (`/src/ui/`)
 User interface components.
@@ -230,3 +236,4 @@ When using --resume:
 2. Original session remains as historical record
 3. All context preserved but under new session identity
 4. Session ID in stream-json output will be the new one, not the resumed one
+5. After `system.init.session_id` confirms the new sid, emit `kind: 'session-fork-resume'` through `ApiSessionClient.sendContextBoundary()` with `forkedFromSid` set to the previous sid. This preserves the standard dual-emit contract: typed `context-boundary` first, legacy fallback second with `meta.contextBoundaryFallback: true`, plus `metadata.latestBoundary` for clients that cold-start outside the boundary row window.

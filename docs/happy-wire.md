@@ -32,6 +32,7 @@ Shared from `@slopus/happy-wire`:
 - `sessionEnvelopeSchema`
 - `createEnvelope(...)`
 - `SessionEnvelope` and related types
+- `sessionContextBoundaryEventSchema`, `sessionContextBoundaryKindSchema`, and related types
 
 This is the canonical schema for the unified session protocol event stream.
 
@@ -44,6 +45,8 @@ Current session wire payload shape (decrypted message body):
 - `content` is the session envelope object directly (not wrapped under `content.data`)
 - envelope-level role remains inside `content.role` (`'user' | 'agent'`)
 - envelope timestamp is required as `content.time` (Unix ms)
+
+`context-boundary` is the shared lifecycle event for `/clear`, `/compact`, autocompact, plan-mode transitions, and `/resume` forks. Producers that need old-client compatibility follow the dual-emit contract: typed `context-boundary` envelope first, legacy fallback event second with `meta.contextBoundaryFallback: true`. New consumers suppress the flagged legacy event and use encrypted session metadata `latestBoundary` only as the cold-start side channel when the boundary row is outside the loaded page.
 
 ## Migration in this repository
 

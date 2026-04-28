@@ -25,7 +25,7 @@ The real [Agent Communication Protocol](https://agentcommunicationprotocol.dev) 
 1. **Encryption** — ACP assumes plaintext REST. Our payloads are end-to-end encrypted.
 2. **Tool calls are UI-visible** — ACP models tools as metadata for debugging. We render them with spinners, descriptions, and permission dialogs.
 3. **Instant image rendering** — ACP has no thumbhash or dimensions. Our `file` event can carry image metadata for instant placeholder layout.
-4. **Simplicity** — 9 event types total. A client implements the full protocol in a single `switch`.
+4. **Simplicity** — 10 event types total. A client implements the full protocol in a single `switch`.
 
 **What we take from ACP:**
 
@@ -187,6 +187,29 @@ Agent lifecycle marker for subagent stop. Always `role: "agent"`. Use envelope `
 { "t": "stop" }
 ```
 
+### `context-boundary`
+
+Lifecycle boundary marker for transcript segmentation. It is emitted for explicit clears, compaction, automatic compaction, plan-mode transitions, and resume forks.
+
+```json
+{
+  "t": "context-boundary",
+  "kind": "clear",
+  "at": 1739347240000,
+  "triggeredBy": "user"
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `kind` | `"clear"` \| `"compact"` \| `"autocompact"` \| `"plan-mode-enter"` \| `"plan-mode-exit"` \| `"session-fork-resume"` | Boundary kind |
+| `at` | number | Boundary timestamp in Unix milliseconds |
+| `triggeredBy` | `"user"` \| `"agent"` \| `"system"` | Source category: explicit user action, agent-initiated transition, or Happy runtime/sync event |
+| `summaryRef` | string? | Optional reference to boundary summary content |
+| `forkedFromSid` | string? | Previous session id for `session-fork-resume` |
+
+CLI producers use the dual-emit contract for old-client compatibility: typed `context-boundary` envelope first, then a legacy lifecycle event with `meta.contextBoundaryFallback: true`. New clients treat the typed event as authoritative, suppress the flagged legacy fallback by the meta flag, and may use encrypted `metadata.latestBoundary` to recover the latest boundary when the boundary row is outside the loaded message window.
+
 ## Example stream
 
 ```
@@ -229,7 +252,7 @@ User sending an image file:
 1. **Flat stream** — no nesting; tool boundaries are markers in the stream
 2. **Upload-first** — files are uploaded to the server, then referenced by `ref`
 3. **Every message has identity** — `id` (cuid2) + `time` (ms) on the envelope
-4. **9 event types** — simple `switch(ev.t)` in any client
+4. **10 event types** — simple `switch(ev.t)` in any client
 5. **Provider-agnostic** — no agent backend leaks into the protocol
 6. **Consistent naming** — all `kebab-case`, no mixed conventions
 7. **Inline markdown** — `title` and `description` support `` `code` ``, **bold**, *italic*, [links]

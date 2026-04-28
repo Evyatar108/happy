@@ -1,8 +1,8 @@
 /**
  * Generate temporary settings file with Claude hooks for session tracking
  *
- * Creates a settings.json file that configures Claude's SessionStart hook
- * to notify our HTTP server when sessions change (new session, resume, compact, etc.)
+ * Creates a settings.json file that configures Claude hooks to notify our
+ * HTTP server when sessions change and when compaction completes.
  *
  * This file is passed to Claude Code via `--settings <path>`. Since v0.13.0 that
  * flag has been observed to override plugin/MCP activation fields from the
@@ -63,16 +63,22 @@ export function buildHookSettings(
         ],
     };
 
+    const appendHappyHook = (entries: unknown): unknown[] => [
+        ...(Array.isArray(entries) ? entries : []),
+        happyHookEntry,
+    ];
+
     const base = (userSettings ?? {}) as Record<string, any>;
     const userHooks = (base.hooks && typeof base.hooks === 'object' && !Array.isArray(base.hooks))
         ? (base.hooks as Record<string, any[]>)
         : {};
-    const userSessionStart = Array.isArray(userHooks.SessionStart) ? userHooks.SessionStart : [];
 
     const result: Record<string, any> = {
         hooks: {
             ...userHooks,
-            SessionStart: [...userSessionStart, happyHookEntry],
+            SessionStart: appendHappyHook(userHooks.SessionStart),
+            PreCompact: appendHappyHook(userHooks.PreCompact),
+            PostCompact: appendHappyHook(userHooks.PostCompact),
         },
     };
 

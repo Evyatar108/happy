@@ -24,6 +24,28 @@ interface PermissionsField {
     allowedTools?: string[];
 }
 
+function pickResumeForkSourceSid(claudeArgs: string[] | undefined, fallbackSid: string | null): string | null {
+    if (!claudeArgs) {
+        return null;
+    }
+
+    for (let i = 0; i < claudeArgs.length; i++) {
+        const arg = claudeArgs[i];
+        if (arg !== '--resume' && arg !== '-r') {
+            continue;
+        }
+
+        const nextArg = claudeArgs[i + 1];
+        if (nextArg && !nextArg.startsWith('-')) {
+            return nextArg;
+        }
+
+        return fallbackSid;
+    }
+
+    return null;
+}
+
 export async function claudeRemoteLauncher(session: Session): Promise<'switch' | 'exit'> {
     logger.debug('[claudeRemoteLauncher] Starting remote launcher');
 
@@ -274,6 +296,7 @@ export async function claudeRemoteLauncher(session: Session): Promise<'switch' |
         // actually changes (e.g., new session started or /clear command used).
         // See: https://github.com/anthropics/happy-cli/issues/143
         let previousSessionId: string | null = null;
+        let emittedForkResumeBoundaryForSid: string | null = null;
         while (!exitReason) {
             logger.debug('[remote]: launch');
             messageBuffer.addMessage('═'.repeat(40), 'status');
@@ -337,10 +360,20 @@ export async function claudeRemoteLauncher(session: Session): Promise<'switch' |
                         // Exit
                         return null;
                     },
-                    onSessionFound: (sessionId) => {
+                    onSessionFound: async (sessionId) => {
+                        const forkedFromSid = pickResumeForkSourceSid(session.claudeArgs, session.sessionId);
                         // Update converter's session ID when new session is found
                         sdkToLogConverter.updateSessionId(sessionId);
                         session.onSessionFound(sessionId);
+                        if (forkedFromSid && forkedFromSid !== sessionId && emittedForkResumeBoundaryForSid !== sessionId) {
+                            emittedForkResumeBoundaryForSid = sessionId;
+                            await session.client.sendContextBoundary({
+                                kind: 'session-fork-resume',
+                                triggeredBy: 'user',
+                                at: Date.now(),
+                                forkedFromSid,
+                            });
+                        }
                     },
                     onSDKMetadata: (metadata) => {
                         logger.debug('[remote] SDK metadata received, updating session:', metadata);
@@ -358,6 +391,10 @@ export async function claudeRemoteLauncher(session: Session): Promise<'switch' |
                     onCompletionEvent: (message: string) => {
                         logger.debug(`[remote]: Completion event: ${message}`);
                         session.client.sendSessionEvent({ type: 'message', message });
+                    },
+                    onContextBoundary: async (boundary) => {
+                        logger.debug('[remote]: Context boundary', boundary);
+                        await session.client.sendContextBoundary(boundary);
                     },
                     onSessionReset: () => {
                         logger.debug('[remote]: Session reset');

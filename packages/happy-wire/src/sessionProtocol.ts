@@ -1,20 +1,7 @@
-/**
- * ⚠️ UNDER REVIEW — LIKELY NEEDS MORE CAREFUL DESIGN
- *
- * This session protocol is not used in production and should NOT be used in dev
- * environments either until we revisit the design. The legacy protocol
- * (role: 'user' / role: 'agent') is the active code path everywhere.
- *
- * Before investing more here, look at how pi.dev standardizes their agent
- * protocol — we may want to align with or build on that approach instead of
- * rolling our own envelope format.
- *
- * Types are kept here for reference but are frozen. Do not add new consumers.
- */
-
 import { createId, isCuid } from '@paralleldrive/cuid2';
 import * as z from 'zod';
 
+// Production session protocol schemas shared by happy-cli, happy-app, and happy-wire consumers.
 export const sessionRoleSchema = z.enum(['user', 'agent']);
 export type SessionRole = z.infer<typeof sessionRoleSchema>;
 
@@ -79,6 +66,34 @@ export const sessionStopEventSchema = z.object({
   t: z.literal('stop'),
 });
 
+export const sessionContextBoundaryKindSchema = z.enum([
+  'clear',
+  'compact',
+  'autocompact',
+  'plan-mode-enter',
+  'plan-mode-exit',
+  'session-fork-resume',
+]);
+export type SessionContextBoundaryKind = z.infer<typeof sessionContextBoundaryKindSchema>;
+
+export const sessionContextBoundaryTriggeredBySchema = z.enum(['user', 'agent', 'system']);
+export type SessionContextBoundaryTriggeredBy = z.infer<typeof sessionContextBoundaryTriggeredBySchema>;
+
+export const sessionContextBoundaryEventSchema = z.object({
+  t: z.literal('context-boundary'),
+  kind: sessionContextBoundaryKindSchema,
+  at: z.number(),
+  /**
+   * Boundary source mapping: 'user' for explicit user commands such as /clear,
+   * 'agent' for model/agent-initiated lifecycle transitions, and 'system' for
+   * Happy runtime or synchronization events.
+   */
+  triggeredBy: sessionContextBoundaryTriggeredBySchema,
+  summaryRef: z.string().optional(),
+  forkedFromSid: z.string().optional(),
+});
+export type SessionContextBoundaryEvent = z.infer<typeof sessionContextBoundaryEventSchema>;
+
 export const sessionEventSchema = z.discriminatedUnion('t', [
   sessionTextEventSchema,
   sessionServiceMessageEventSchema,
@@ -89,6 +104,7 @@ export const sessionEventSchema = z.discriminatedUnion('t', [
   sessionStartEventSchema,
   sessionTurnEndEventSchema,
   sessionStopEventSchema,
+  sessionContextBoundaryEventSchema,
 ]);
 
 export type SessionEvent = z.infer<typeof sessionEventSchema>;

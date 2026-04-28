@@ -2,6 +2,7 @@ import { createId } from '@paralleldrive/cuid2';
 import type { RawJSONLines } from '@/claude/types';
 import {
     createEnvelope,
+    type SessionContextBoundaryEvent,
     type SessionEnvelope,
     type SessionTurnEndStatus,
 } from '@slopus/happy-wire';
@@ -21,7 +22,30 @@ export type ClaudeSessionProtocolState = {
 type ClaudeMapperResult = {
     currentTurnId: string | null;
     envelopes: SessionEnvelope[];
+    boundaries: ClaudeContextBoundaryIntent[];
 };
+
+export type ClaudeContextBoundaryIntent = Omit<SessionContextBoundaryEvent, 't' | 'summaryRef' | 'forkedFromSid'>;
+
+function planModeBoundaryForTool(name: string): ClaudeContextBoundaryIntent | null {
+    if (name === 'EnterPlanMode' || name === 'enter_plan_mode') {
+        return {
+            kind: 'plan-mode-enter',
+            triggeredBy: 'agent',
+            at: Date.now(),
+        };
+    }
+
+    if (name === 'ExitPlanMode' || name === 'exit_plan_mode') {
+        return {
+            kind: 'plan-mode-exit',
+            triggeredBy: 'agent',
+            at: Date.now(),
+        };
+    }
+
+    return null;
+}
 
 function isSubagentTool(name: string): boolean {
     return name === 'Task' || name === 'Agent';
@@ -429,6 +453,7 @@ export function closeClaudeTurnWithStatus(
     return {
         currentTurnId: state.currentTurnId,
         envelopes,
+        boundaries: [],
     };
 }
 
@@ -444,6 +469,7 @@ function mapClaudeLogMessageToSessionEnvelopesInternal(
     state: ClaudeSessionProtocolState,
 ): ClaudeMapperResult {
     const envelopes: SessionEnvelope[] = [];
+    const boundaries: ClaudeContextBoundaryIntent[] = [];
     const providerSubagent = resolveProviderSubagent(message, state);
     const subagent = providerSubagent
         ? getSessionSubagentIdForProviderSubagent(state, providerSubagent)
@@ -455,6 +481,7 @@ function mapClaudeLogMessageToSessionEnvelopesInternal(
         return {
             currentTurnId: state.currentTurnId,
             envelopes: [],
+            boundaries: [],
         };
     }
 
@@ -462,6 +489,7 @@ function mapClaudeLogMessageToSessionEnvelopesInternal(
         return {
             currentTurnId: state.currentTurnId,
             envelopes,
+            boundaries,
         };
     }
 
@@ -469,6 +497,7 @@ function mapClaudeLogMessageToSessionEnvelopesInternal(
         return {
             currentTurnId: state.currentTurnId,
             envelopes,
+            boundaries,
         };
     }
 
@@ -508,12 +537,14 @@ function mapClaudeLogMessageToSessionEnvelopesInternal(
                     for (const bufferedMessage of buffered) {
                         const replay = mapClaudeLogMessageToSessionEnvelopesInternal(bufferedMessage, state);
                         envelopes.push(...replay.envelopes);
+                        boundaries.push(...replay.boundaries);
                     }
                     continue;
                 }
                 const args = isSubagentTool(name)
                     ? { ...baseArgs, sessionSubagent: sessionSubagentForCall }
                     : baseArgs;
+                const boundary = planModeBoundaryForTool(name);
 
                 envelopes.push(createEnvelope('agent', {
                     t: 'tool-call-start',
@@ -523,10 +554,14 @@ function mapClaudeLogMessageToSessionEnvelopesInternal(
                     description: title,
                     args,
                 }, { turn: turnId, subagent }));
+                if (boundary) {
+                    boundaries.push(boundary);
+                }
                 const buffered = consumeBufferedSubagentMessages(state, call);
                 for (const bufferedMessage of buffered) {
                     const replay = mapClaudeLogMessageToSessionEnvelopesInternal(bufferedMessage, state);
                     envelopes.push(...replay.envelopes);
+                    boundaries.push(...replay.boundaries);
                 }
             }
         }
@@ -534,6 +569,7 @@ function mapClaudeLogMessageToSessionEnvelopesInternal(
         return {
             currentTurnId: state.currentTurnId,
             envelopes,
+            boundaries,
         };
     }
 
@@ -551,6 +587,7 @@ function mapClaudeLogMessageToSessionEnvelopesInternal(
             return {
                 currentTurnId: state.currentTurnId,
                 envelopes,
+                boundaries,
             };
         }
 
@@ -559,6 +596,7 @@ function mapClaudeLogMessageToSessionEnvelopesInternal(
             return {
                 currentTurnId: state.currentTurnId,
                 envelopes,
+                boundaries,
             };
         }
 
@@ -596,11 +634,13 @@ function mapClaudeLogMessageToSessionEnvelopesInternal(
         return {
             currentTurnId: state.currentTurnId,
             envelopes,
+            boundaries,
         };
     }
 
     return {
         currentTurnId: state.currentTurnId,
         envelopes,
+        boundaries,
     };
 }

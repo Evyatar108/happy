@@ -507,7 +507,7 @@ describe('ApiSessionClient v3 messages API migration', () => {
             }
         });
 
-        client.sendSessionEvent({ type: 'ready' }, 'event-1');
+        client.sendSessionEvent({ type: 'ready' }, 'event-1', { contextBoundaryFallback: true });
 
         await waitForCheck(() => {
             expect(mockAxiosPost).toHaveBeenCalledTimes(1);
@@ -528,7 +528,150 @@ describe('ApiSessionClient v3 messages API migration', () => {
                 data: {
                     type: 'ready'
                 }
+            },
+            meta: {
+                contextBoundaryFallback: true
             }
+        });
+    });
+
+    it('sends context boundary typed-first, legacy fallback second, and updates metadata', async () => {
+        const client = new ApiSessionClient('fake-token', session);
+        mockAxiosPost.mockImplementationOnce(async (_url: string, body: { messages: Array<{ localId: string }> }) => ({
+            data: {
+                messages: body.messages.map((m, i) => ({
+                    id: `msg-${i + 1}`,
+                    seq: i + 1,
+                    localId: m.localId,
+                    createdAt: i + 1,
+                    updatedAt: i + 1,
+                }))
+            }
+        }));
+        mockSocket.emitWithAck.mockImplementation(async (event: string, data: any) => {
+            if (event === 'update-metadata') {
+                return { result: 'success', version: 1, metadata: data.metadata };
+            }
+            return { result: 'error' };
+        });
+
+        await client.sendContextBoundary({
+            kind: 'clear',
+            triggeredBy: 'user',
+            at: 1234,
+        });
+
+        await waitForCheck(() => {
+            expect(mockAxiosPost).toHaveBeenCalledTimes(1);
+        });
+
+        const payload = mockAxiosPost.mock.calls[0][1];
+        expect(payload.messages).toHaveLength(2);
+
+        const typed = decrypt(
+            session.encryptionKey,
+            session.encryptionVariant,
+            decodeBase64(payload.messages[0].content)
+        ) as any;
+        const fallback = decrypt(
+            session.encryptionKey,
+            session.encryptionVariant,
+            decodeBase64(payload.messages[1].content)
+        );
+
+        expect(typed).toMatchObject({
+            role: 'session',
+            content: {
+                role: 'agent',
+                time: 1234,
+                ev: {
+                    t: 'context-boundary',
+                    kind: 'clear',
+                    at: 1234,
+                    triggeredBy: 'user'
+                }
+            },
+            meta: {
+                sentFrom: 'cli'
+            }
+        });
+        expect(fallback).toMatchObject({
+            role: 'agent',
+            content: {
+                type: 'event',
+                data: {
+                    type: 'message',
+                    message: 'Context was reset'
+                }
+            },
+            meta: {
+                contextBoundaryFallback: true
+            }
+        });
+
+        const metadataPayload = mockSocket.emitWithAck.mock.calls.find((call: any[]) => call[0] === 'update-metadata')?.[1];
+        expect(metadataPayload).toBeTruthy();
+        const metadata = decrypt(
+            session.encryptionKey,
+            session.encryptionVariant,
+            decodeBase64(metadataPayload.metadata)
+        ) as any;
+        expect(metadata.latestBoundary).toEqual({
+            id: typed.content.id,
+            kind: 'clear',
+            seq: 1,
+            at: 1234,
+        });
+    });
+
+    it('routes plan-mode mapper intents through sendContextBoundary', async () => {
+        const client = new ApiSessionClient('fake-token', session);
+        const sendContextBoundary = vi.spyOn(client, 'sendContextBoundary').mockResolvedValue(undefined);
+        mockAxiosPost.mockResolvedValue({ data: { messages: [] } });
+
+        client.sendClaudeSessionMessage({
+            type: 'assistant',
+            uuid: 'assistant-plan-enter',
+            message: {
+                role: 'assistant',
+                content: [
+                    {
+                        type: 'tool_use',
+                        id: 'tool-plan-enter',
+                        name: 'EnterPlanMode',
+                        input: {},
+                    },
+                ],
+            },
+        } as any);
+        client.sendClaudeSessionMessage({
+            type: 'assistant',
+            uuid: 'assistant-plan-exit',
+            message: {
+                role: 'assistant',
+                content: [
+                    {
+                        type: 'tool_use',
+                        id: 'tool-plan-exit',
+                        name: 'ExitPlanMode',
+                        input: {},
+                    },
+                ],
+            },
+        } as any);
+
+        expect(sendContextBoundary).toHaveBeenNthCalledWith(1, {
+            kind: 'plan-mode-enter',
+            triggeredBy: 'agent',
+            at: expect.any(Number),
+        });
+        expect(sendContextBoundary).toHaveBeenNthCalledWith(2, {
+            kind: 'plan-mode-exit',
+            triggeredBy: 'agent',
+            at: expect.any(Number),
+        });
+        await waitForCheck(() => {
+            expect(mockAxiosPost).toHaveBeenCalled();
         });
     });
 
@@ -957,5 +1100,68 @@ describe('ApiSessionClient v3 messages API migration', () => {
         expect(mockSocket.close).toHaveBeenCalledTimes(1);
         expect(mockAxiosGet).not.toHaveBeenCalled();
         expect(mockAxiosPost).not.toHaveBeenCalled();
+    });
+
+    it('sendContextBoundary returns within timeout when flushOutbox never resolves the seq', async () => {
+        vi.useFakeTimers();
+        const client = new ApiSessionClient('fake-token', session);
+
+        // POST never resolves — simulates a stalled network
+        mockAxiosPost.mockImplementation(() => new Promise(() => undefined));
+        mockSocket.emitWithAck.mockResolvedValue({ result: 'error' });
+
+        const boundaryPromise = client.sendContextBoundary({
+            kind: 'clear',
+            triggeredBy: 'user',
+            at: Date.now(),
+        });
+
+        // Advance past the 5-second seq-resolution timeout
+        await vi.advanceTimersByTimeAsync(6000);
+
+        await expect(boundaryPromise).resolves.toBeUndefined();
+
+        // metadata write must NOT have been attempted (seq was never resolved)
+        expect(mockSocket.emitWithAck).not.toHaveBeenCalledWith('update-metadata', expect.anything());
+
+        vi.useRealTimers();
+    });
+
+    it('flushOutbox rejects seqResolvers for localIds absent from partial server response', async () => {
+        const client = new ApiSessionClient('fake-token', session);
+
+        // Only localId-A is returned; localId-B is omitted (partial server response)
+        mockAxiosPost.mockImplementationOnce(async (_url: string, body: { messages: Array<{ localId: string }> }) => ({
+            data: {
+                messages: [
+                    {
+                        id: 'msg-1',
+                        seq: 1,
+                        localId: body.messages.find((m) => m.localId)?.localId ?? '',
+                        createdAt: 1,
+                        updatedAt: 1,
+                    }
+                ]
+            }
+        }));
+
+        // Enqueue two messages so both get localIds; capture their seq promises
+        const seqPromiseA = (client as any).enqueueMessage({ role: 'agent', content: 'a' }, false);
+        const seqPromiseB = (client as any).enqueueMessage({ role: 'agent', content: 'b' }, false);
+
+        // Manually trigger flush
+        (client as any).sendSync.invalidate();
+
+        // seqPromiseA should resolve (its localId appears in the response)
+        // seqPromiseB should reject (its localId was NOT in the response)
+        await waitForCheck(() => {
+            expect(mockAxiosPost).toHaveBeenCalledTimes(1);
+        });
+
+        // seqPromiseA resolves for whichever localId the server echoed back
+        const resultA = await Promise.race([seqPromiseA, seqPromiseB.then(() => 'B-resolved')]);
+        expect(typeof resultA).toBe('number');
+
+        await expect(seqPromiseB).rejects.toThrow(/did not return seq/);
     });
 });

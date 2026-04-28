@@ -6,6 +6,7 @@ describe('parseCompact', () => {
         const result = parseCompact('/compact optimize the code');
         expect(result.isCompact).toBe(true);
         expect(result.originalMessage).toBe('/compact optimize the code');
+        expect(result.contextBoundaryKind).toBe('compact');
     });
 
     it('should parse /compact command without argument', () => {
@@ -54,6 +55,7 @@ describe('parseSpecialCommand', () => {
         const result = parseSpecialCommand('/compact optimize');
         expect(result.type).toBe('compact');
         expect(result.originalMessage).toBe('/compact optimize');
+        expect(result.contextBoundaryKind).toBe('compact');
     });
 
     it('should detect clear command', () => {

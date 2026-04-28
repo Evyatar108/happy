@@ -192,6 +192,12 @@ Schemas + inferred types:
 - `SessionTurnEndStatus`
 - `sessionTurnEndEventSchema`
 - `sessionStopEventSchema`
+- `sessionContextBoundaryKindSchema`
+- `SessionContextBoundaryKind`
+- `sessionContextBoundaryTriggeredBySchema`
+- `SessionContextBoundaryTriggeredBy`
+- `sessionContextBoundaryEventSchema`
+- `SessionContextBoundaryEvent`
 - `sessionEventSchema`
 - `SessionEvent`
 - `sessionEnvelopeSchema`
@@ -256,8 +262,14 @@ Notes:
   allowedTools?: string[] | null;
   disallowedTools?: string[] | null;
   displayText?: string;
+  contextBoundaryFallback?: boolean;
 }
 ```
+
+`contextBoundaryFallback` marks legacy lifecycle events emitted only as
+compatibility fallbacks for a typed `context-boundary` session event. New
+clients should suppress flagged legacy events after consuming the typed
+boundary.
 
 ## Legacy Decrypted Payload Specs (`legacyProtocol.ts`)
 
@@ -420,7 +432,7 @@ Role meaning:
 
 ## Event Variants
 
-`sessionEventSchema` is a discriminated union on `t` with 9 variants.
+`sessionEventSchema` is a discriminated union on `t` with 10 variants.
 
 ### 1) Text event
 
@@ -512,6 +524,29 @@ Role meaning:
   t: 'stop';
 }
 ```
+
+### 10) Context-boundary event
+
+```ts
+{
+  t: 'context-boundary';
+  kind: 'clear' | 'compact' | 'autocompact' | 'plan-mode-enter' | 'plan-mode-exit' | 'session-fork-resume';
+  at: number;
+  triggeredBy: 'user' | 'agent' | 'system';
+  summaryRef?: string;
+  forkedFromSid?: string;
+}
+```
+
+`triggeredBy` mapping:
+- `'user'`: explicit user commands such as `/clear`, `/compact`, or entering/exiting plan mode from the UI/CLI.
+- `'agent'`: model/agent-initiated lifecycle transitions.
+- `'system'`: Happy runtime or synchronization events, including system-detected session boundaries.
+
+Boundary producers that need old-client compatibility dual-emit the typed
+`context-boundary` event first, then the legacy event with
+`meta.contextBoundaryFallback: true`. New consumers treat the typed boundary as
+authoritative and suppress any flagged legacy fallback by that meta flag alone.
 
 ## Envelope
 

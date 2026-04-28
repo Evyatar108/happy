@@ -202,6 +202,21 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
                     currentSession.onSessionFound(sessionId);
                 }
             }
+        },
+        onCompactHook: async (data) => {
+            logger.debug('[START] Compact hook received:', data);
+            if (data.hook_event_name !== 'PostCompact' || data.trigger !== 'auto') {
+                return;
+            }
+            if (!currentSession) {
+                logger.debug('[START] Auto-compact hook received before Session was ready');
+                return;
+            }
+            await currentSession.client.sendContextBoundary({
+                kind: 'autocompact',
+                triggeredBy: 'system',
+                at: Date.now(),
+            });
         }
     });
     logger.debug(`[START] Hook server started on port ${hookServer.port}`);

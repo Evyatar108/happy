@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { maybeIntercept } from '@/sync/slashCommandIntercept';
 import type { PreSendCommandResult } from '@/hooks/usePreSendCommand';
+import { shouldShowBoundaryAdvisory, updateComposeStartAt } from './composeBoundaryAdvisory';
+import type { LatestBoundary } from '@/sync/reducer/reducer';
 
 // Simulates the onSend callback in SessionView: trims the message, calls
 // preSendCommand, and short-circuits before sync.sendMessage when intercepted.
@@ -117,5 +119,40 @@ describe('SessionView onSend intercept guard', () => {
 
         expect(preSendCommand).not.toHaveBeenCalled();
         expect(sendMessage).not.toHaveBeenCalled();
+    });
+});
+
+describe('SessionView cross-device boundary advisory', () => {
+    const boundary: LatestBoundary = {
+        id: 'boundary-1',
+        kind: 'clear',
+        seq: 10,
+        at: 1_500,
+    };
+
+    it('records compose start on empty-to-non-empty transition and clears it when emptied', () => {
+        const startedAt = updateComposeStartAt(null, '', 'draft', 1_000);
+
+        expect(startedAt).toBe(1_000);
+        expect(updateComposeStartAt(startedAt, 'draft', 'draft more', 1_100)).toBe(1_000);
+        expect(updateComposeStartAt(startedAt, 'draft', '', 1_200)).toBeNull();
+    });
+
+    it('shows advisory when a boundary arrives after compose started without blocking send', () => {
+        const composeStartAt = updateComposeStartAt(null, '', 'draft', 1_000);
+        const sendMessage = vi.fn();
+        const preSendCommand = makePreSendCommand('session-1');
+
+        expect(shouldShowBoundaryAdvisory(boundary, composeStartAt)).toBe(true);
+
+        const onSend = buildOnSend('draft', preSendCommand, sendMessage, 'session-1');
+        onSend();
+
+        expect(sendMessage).toHaveBeenCalledOnce();
+        expect(sendMessage).toHaveBeenCalledWith('session-1', 'draft', { source: 'chat' });
+    });
+
+    it('does not show advisory for boundaries older than compose start', () => {
+        expect(shouldShowBoundaryAdvisory(boundary, 2_000)).toBe(false);
     });
 });

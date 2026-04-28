@@ -111,16 +111,26 @@
  */
 
 import { Message, ToolCall } from "../typesMessage";
-import { AgentEvent, NormalizedMessage, UsageData } from "../typesRaw";
+import { AgentEvent, DEFAULT_UNSEQUENCED_MESSAGE_SEQ, NormalizedMessage, UsageData } from "../typesRaw";
 import { createTracer, traceMessages, TracerState } from "./reducerTracer";
 import { AgentState, TodoItem, TodoItemsSchema } from "../storageTypes";
 import { MessageMeta } from "../typesMessageMeta";
 import { parseMessageAsEvent } from "./messageToEvent";
+import type { SessionContextBoundaryKind } from "@slopus/happy-wire";
+
+export type LatestBoundary = {
+    id: string;
+    kind: SessionContextBoundaryKind;
+    seq: number;
+    at: number;
+    forkedFromSid?: string;
+};
 
 type ReducerMessage = {
     id: string;
     realID: string | null;
     createdAt: number;
+    seq: number;
     role: 'user' | 'agent';
     text: string | null;
     isThinking?: boolean;
@@ -176,6 +186,7 @@ export type ReducerState = {
         contextSize: number;
         timestamp: number;
     };
+    latestBoundary?: LatestBoundary;
 };
 
 export function createReducer(): ReducerState {
@@ -271,6 +282,43 @@ function updateLatestTodos(state: ReducerState, value: unknown, timestamp: numbe
     }
 }
 
+export function seedLatestBoundary(state: ReducerState, latestBoundary: LatestBoundary | null | undefined): boolean {
+    if (!latestBoundary) {
+        return false;
+    }
+
+    if (
+        !state.latestBoundary ||
+        latestBoundary.seq > state.latestBoundary.seq ||
+        (latestBoundary.seq === state.latestBoundary.seq && latestBoundary.id === state.latestBoundary.id)
+    ) {
+        state.latestBoundary = { ...latestBoundary };
+        return true;
+    }
+
+    return false;
+}
+
+function resetForBoundary(state: ReducerState, kind: SessionContextBoundaryKind, timestamp: number) {
+    if (kind === 'clear') {
+        state.latestTodos = {
+            todos: [],
+            timestamp,
+        };
+    }
+
+    if (kind === 'clear' || kind === 'compact' || kind === 'autocompact') {
+        state.latestUsage = {
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheCreation: 0,
+            cacheRead: 0,
+            contextSize: 0,
+            timestamp,
+        };
+    }
+}
+
 export function reducer(state: ReducerState, messages: NormalizedMessage[], agentState?: AgentState | null): ReducerResult {
     if (ENABLE_LOGGING) {
         console.log(`[REDUCER] Called with ${messages.length} messages, agentState: ${agentState ? 'YES' : 'NO'}`);
@@ -286,12 +334,27 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
     let changed: Set<string> = new Set();
     let hasReadyEvent = false;
 
+    const unflaggedMessages = messages.filter(msg => {
+        if (msg.meta?.contextBoundaryFallback !== true) {
+            return true;
+        }
+
+        state.messageIds.set(msg.id, msg.id);
+        if (msg.role === 'user' && msg.localId) {
+            state.localIds.set(msg.localId, msg.id);
+        }
+        return false;
+    });
+
     // First, trace all messages to identify sidechains
-    const tracedMessages = traceMessages(state.tracerState, messages);
+    const tracedMessages = traceMessages(state.tracerState, unflaggedMessages);
 
     // Separate sidechain and non-sidechain messages
     let nonSidechainMessages = tracedMessages.filter(msg => !msg.sidechainId);
     const sidechainMessages = tracedMessages.filter(msg => msg.sidechainId);
+    const hasPlanModeEnterBoundary = nonSidechainMessages.some(msg => msg.role === 'event'
+        && msg.content.type === 'context-boundary'
+        && msg.content.kind === 'plan-mode-enter');
 
     //
     // Phase 0.5: Message-to-Event Conversion
@@ -330,38 +393,31 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
 
         // Handle context reset events - reset state and let the message be shown
         if (msg.role === 'event' && msg.content.type === 'message' && msg.content.message === 'Context was reset') {
-            // Reset todos to empty array and reset usage to zero
-            state.latestTodos = {
-                todos: [],
-                timestamp: msg.createdAt  // Use message timestamp, not current time
-            };
-            state.latestUsage = {
-                inputTokens: 0,
-                outputTokens: 0,
-                cacheCreation: 0,
-                cacheRead: 0,
-                contextSize: 0,
-                timestamp: msg.createdAt  // Use message timestamp to avoid blocking older usage data
-            };
+            resetForBoundary(state, 'clear', msg.createdAt);
             // Don't continue - let the event be processed normally to create a message
         }
 
         // Handle compaction completed events - reset context but keep todos
         if (msg.role === 'event' && msg.content.type === 'message' && msg.content.message === 'Compaction completed') {
-            // Reset usage/context to zero but keep todos unchanged
-            state.latestUsage = {
-                inputTokens: 0,
-                outputTokens: 0,
-                cacheCreation: 0,
-                cacheRead: 0,
-                contextSize: 0,
-                timestamp: msg.createdAt  // Use message timestamp to avoid blocking older usage data
-            };
+            resetForBoundary(state, 'compact', msg.createdAt);
             // Don't continue - let the event be processed normally to create a message
         }
 
+        if (msg.role === 'event' && msg.content.type === 'context-boundary') {
+            const accepted = seedLatestBoundary(state, {
+                id: msg.id,
+                kind: msg.content.kind,
+                seq: msg.seq,
+                at: msg.content.at,
+                forkedFromSid: msg.content.forkedFromSid,
+            });
+            if (accepted) {
+                resetForBoundary(state, msg.content.kind, msg.createdAt);
+            }
+        }
+
         // Try to parse message as event
-        const event = parseMessageAsEvent(msg);
+        const event = parseMessageAsEvent(msg, { suppressPlanModeEnter: hasPlanModeEnterBoundary });
         if (event) {
             if (ENABLE_LOGGING) {
                 console.log(`[REDUCER] Converting message ${msg.id} to event:`, event);
@@ -385,6 +441,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
             realID: message.id,
             role: 'agent',
             createdAt: message.createdAt,
+            seq: message.seq,
             event: event,
             tool: null,
             text: null,
@@ -466,6 +523,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                         realID: null,
                         role: 'agent',
                         createdAt: request.createdAt || Date.now(),
+                        seq: DEFAULT_UNSEQUENCED_MESSAGE_SEQ,
                         text: null,
                         tool: toolCall,
                         event: null,
@@ -628,6 +686,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                         realID: null,
                         role: 'agent',
                         createdAt: completed.createdAt || Date.now(),
+                        seq: DEFAULT_UNSEQUENCED_MESSAGE_SEQ,
                         text: null,
                         tool: toolCall,
                         event: null,
@@ -676,6 +735,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                 realID: msg.id,
                 role: 'user',
                 createdAt: msg.createdAt,
+                seq: msg.seq,
                 text: msg.content.text,
                 tool: null,
                 event: null,
@@ -713,6 +773,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                         realID: msg.id,
                         role: 'agent',
                         createdAt: msg.createdAt,
+                        seq: msg.seq,
                         text: isThinking ? `*${c.thinking}*` : c.text,
                         isThinking,
                         tool: null,
@@ -811,6 +872,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                             realID: msg.id,
                             role: 'agent',
                             createdAt: msg.createdAt,
+                            seq: msg.seq,
                             text: null,
                             tool: toolCall,
                             event: null,
@@ -901,6 +963,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                 realID: msg.id,
                 role: 'user',
                 createdAt: msg.createdAt,
+                seq: msg.seq,
                 text: msg.content[0].prompt,
                 tool: null,
                 event: null,
@@ -923,6 +986,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                         realID: msg.id,
                         role: 'agent',
                         createdAt: msg.createdAt,
+                        seq: msg.seq,
                         text: isThinking ? `*${c.thinking}*` : c.text,
                         isThinking,
                         tool: null,
@@ -967,6 +1031,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                         realID: msg.id,
                         role: 'agent',
                         createdAt: msg.createdAt,
+                        seq: msg.seq,
                         text: null,
                         tool: toolCall,
                         event: null,
@@ -1087,6 +1152,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                 realID: msg.id,
                 role: 'agent',
                 createdAt: msg.createdAt,
+                seq: msg.seq,
                 event: msg.content,
                 tool: null,
                 text: null,
@@ -1115,7 +1181,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
     //
 
     if (ENABLE_LOGGING) {
-        console.log(JSON.stringify(messages, null, 2));
+        console.log(JSON.stringify(unflaggedMessages, null, 2));
         console.log(`[REDUCER] Changed messages: ${changed.size}`);
     }
 
@@ -1213,6 +1279,7 @@ function convertReducerMessageToMessage(reducerMsg: ReducerMessage, state: Reduc
             id: reducerMsg.id,
             localId: null,
             createdAt: reducerMsg.createdAt,
+            seq: reducerMsg.seq,
             kind: 'user-text',
             text: reducerMsg.text,
             ...(reducerMsg.meta?.displayText && { displayText: reducerMsg.meta.displayText }),
@@ -1223,6 +1290,7 @@ function convertReducerMessageToMessage(reducerMsg: ReducerMessage, state: Reduc
             id: reducerMsg.id,
             localId: null,
             createdAt: reducerMsg.createdAt,
+            seq: reducerMsg.seq,
             kind: 'agent-text',
             text: reducerMsg.text,
             ...(reducerMsg.isThinking && { isThinking: true }),
@@ -1243,6 +1311,7 @@ function convertReducerMessageToMessage(reducerMsg: ReducerMessage, state: Reduc
             id: reducerMsg.id,
             localId: null,
             createdAt: reducerMsg.createdAt,
+            seq: reducerMsg.seq,
             kind: 'tool-call',
             tool: { ...reducerMsg.tool },
             children: childMessages,
@@ -1252,6 +1321,7 @@ function convertReducerMessageToMessage(reducerMsg: ReducerMessage, state: Reduc
         return {
             id: reducerMsg.id,
             createdAt: reducerMsg.createdAt,
+            seq: reducerMsg.seq,
             kind: 'agent-event',
             event: reducerMsg.event,
             meta: reducerMsg.meta

@@ -11,4 +11,12 @@ describe('MessageMetaSchema', () => {
         expect(parsed.permissionMode).toBe('team-custom-mode');
         expect(parsed.model).toBe('custom-model');
     });
+
+    it('preserves context boundary fallback marker', () => {
+        const parsed = MessageMetaSchema.parse({
+            contextBoundaryFallback: true,
+        });
+
+        expect(parsed.contextBoundaryFallback).toBe(true);
+    });
 });

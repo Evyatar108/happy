@@ -173,4 +173,108 @@ describe('claudeRemote SDK metadata forwarding', () => {
         expect(onReady).toHaveBeenCalledTimes(1);
         expect(onMessage).toHaveBeenCalledTimes(2);
     });
+
+    it('emits /clear context boundary before resetting the Claude session id', async () => {
+        const events: string[] = [];
+        const nextMessage = vi.fn().mockResolvedValueOnce({
+            message: '/clear',
+            mode: {
+                permissionMode: 'default',
+            },
+        });
+        const onContextBoundary = vi.fn(async () => {
+            events.push('boundary');
+            await Promise.resolve();
+        });
+        const onSessionReset = vi.fn(() => {
+            events.push('reset');
+        });
+        const onCompletionEvent = vi.fn();
+        mockParseSpecialCommand.mockReturnValueOnce({ type: 'clear' });
+
+        await claudeRemote({
+            sessionId: null,
+            path: '/tmp/project',
+            allowedTools: [],
+            hookSettingsPath: '/tmp/settings.json',
+            nextMessage,
+            onReady: vi.fn(),
+            isAborted: () => false,
+            onSessionFound: vi.fn(),
+            onMessage: vi.fn(),
+            onContextBoundary,
+            onSessionReset,
+            onCompletionEvent,
+            canCallTool: async () => ({ behavior: 'allow', updatedInput: {} }),
+        });
+
+        expect(onContextBoundary).toHaveBeenCalledWith({
+            kind: 'clear',
+            triggeredBy: 'user',
+            at: expect.any(Number),
+        });
+        expect(events).toEqual(['boundary', 'reset']);
+        expect(onCompletionEvent).not.toHaveBeenCalled();
+        expect(mockQuery).not.toHaveBeenCalled();
+    });
+
+    it('emits /compact context boundary when compaction completes', async () => {
+        const nextMessage = vi
+            .fn()
+            .mockResolvedValueOnce({
+                message: '/compact summarize older context',
+                mode: {
+                    permissionMode: 'default',
+                },
+            })
+            .mockResolvedValueOnce(null);
+        const onContextBoundary = vi.fn(async () => undefined);
+        const onCompletionEvent = vi.fn();
+        mockParseSpecialCommand.mockReturnValueOnce({
+            type: 'compact',
+            originalMessage: '/compact summarize older context',
+            contextBoundaryKind: 'compact',
+        });
+        mockQuery.mockReturnValue(createMessageStream([
+            {
+                type: 'result',
+                subtype: 'success',
+                duration_ms: 1,
+                duration_api_ms: 1,
+                is_error: false,
+                num_turns: 1,
+                result: 'done',
+                stop_reason: null,
+                session_id: 'session-compact',
+                total_cost_usd: 0,
+                usage: {},
+                modelUsage: {},
+                permission_denials: [],
+                uuid: '00000000-0000-0000-0000-000000000003',
+            } as unknown as SDKMessage,
+        ]));
+
+        await claudeRemote({
+            sessionId: null,
+            path: '/tmp/project',
+            allowedTools: [],
+            hookSettingsPath: '/tmp/settings.json',
+            nextMessage,
+            onReady: vi.fn(),
+            isAborted: () => false,
+            onSessionFound: vi.fn(),
+            onMessage: vi.fn(),
+            onContextBoundary,
+            onCompletionEvent,
+            canCallTool: async () => ({ behavior: 'allow', updatedInput: {} }),
+        });
+
+        expect(onCompletionEvent).toHaveBeenCalledWith('Compaction started');
+        expect(onCompletionEvent).not.toHaveBeenCalledWith('Compaction completed');
+        expect(onContextBoundary).toHaveBeenCalledWith({
+            kind: 'compact',
+            triggeredBy: 'user',
+            at: expect.any(Number),
+        });
+    });
 });

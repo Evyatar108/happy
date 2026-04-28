@@ -73,6 +73,18 @@ export const ca: TranslationStructure = {
         commandOutput: {
             stderrLabel: 'sortida d\'error',
         },
+        boundaryDivider: {
+            kind: {
+                clear: 'Context esborrat',
+                compact: 'Compactat',
+                autocompact: 'Autocompactat',
+                planModeEnter: 'Mode de pla activat',
+                planModeExit: 'Mode de pla desactivat',
+                sessionForkResume: 'Reprès des de la sessió anterior',
+            },
+            crossDeviceAdvisory: 'El context s\'ha esborrat des que has començat — revisar?',
+            showPreClearHistory: 'Mostra l\'historial previ a l\'esborrat',
+        },
         taskNotification: {
             title: 'Notificació de tasca',
             taskId: 'ID de la tasca',

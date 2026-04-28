@@ -73,6 +73,18 @@ export const pt: TranslationStructure = {
         commandOutput: {
             stderrLabel: 'saída de erro',
         },
+        boundaryDivider: {
+            kind: {
+                clear: 'Contexto limpo',
+                compact: 'Compactado',
+                autocompact: 'Compactado automaticamente',
+                planModeEnter: 'Modo de plano ativado',
+                planModeExit: 'Modo de plano desativado',
+                sessionForkResume: 'Retomado da sessão anterior',
+            },
+            crossDeviceAdvisory: 'O contexto foi limpo desde que você começou — revisar?',
+            showPreClearHistory: 'Mostrar histórico antes da limpeza',
+        },
         taskNotification: {
             title: 'Notificação de tarefa',
             taskId: 'ID da tarefa',

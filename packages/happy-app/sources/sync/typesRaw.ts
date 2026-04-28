@@ -1,5 +1,9 @@
 import * as z from 'zod';
-import { isCuid } from '@paralleldrive/cuid2';
+import {
+    sessionContextBoundaryKindSchema,
+    sessionEnvelopeSchema,
+    type SessionEnvelope,
+} from '@slopus/happy-wire';
 import { MessageMetaSchema, MessageMeta } from './typesMessageMeta';
 
 //
@@ -17,6 +21,8 @@ const usageDataSchema = z.object({
 
 export type UsageData = z.infer<typeof usageDataSchema>;
 
+export const DEFAULT_UNSEQUENCED_MESSAGE_SEQ = Number.MAX_SAFE_INTEGER;
+
 const agentEventSchema = z.discriminatedUnion('type', [z.object({
     type: z.literal('switch'),
     mode: z.enum(['local', 'remote'])
@@ -28,102 +34,13 @@ const agentEventSchema = z.discriminatedUnion('type', [z.object({
     endsAt: z.number(),
 }), z.object({
     type: z.literal('ready'),
+}), z.object({
+    type: z.literal('context-boundary'),
+    kind: sessionContextBoundaryKindSchema,
+    at: z.number(),
+    forkedFromSid: z.string().optional(),
 })]);
 export type AgentEvent = z.infer<typeof agentEventSchema>;
-
-const sessionTextEventSchema = z.object({
-    t: z.literal('text'),
-    text: z.string(),
-    thinking: z.boolean().optional(),
-});
-
-const sessionServiceMessageEventSchema = z.object({
-    t: z.literal('service'),
-    text: z.string(),
-});
-
-const sessionToolCallStartEventSchema = z.object({
-    t: z.literal('tool-call-start'),
-    call: z.string(),
-    name: z.string(),
-    title: z.string(),
-    description: z.string(),
-    args: z.record(z.string(), z.unknown()),
-});
-
-const sessionToolCallEndEventSchema = z.object({
-    t: z.literal('tool-call-end'),
-    call: z.string(),
-});
-
-const sessionFileEventSchema = z.object({
-    t: z.literal('file'),
-    ref: z.string(),
-    name: z.string(),
-    size: z.number(),
-    image: z.object({
-        width: z.number(),
-        height: z.number(),
-        thumbhash: z.string(),
-    }).optional(),
-});
-
-const sessionTurnStartEventSchema = z.object({
-    t: z.literal('turn-start'),
-});
-
-const sessionStartEventSchema = z.object({
-    t: z.literal('start'),
-    title: z.string().optional(),
-});
-
-const sessionTurnEndEventSchema = z.object({
-    t: z.literal('turn-end'),
-    status: z.enum(['completed', 'failed', 'cancelled']),
-});
-
-const sessionStopEventSchema = z.object({
-    t: z.literal('stop'),
-});
-
-const sessionEventSchema = z.discriminatedUnion('t', [
-    sessionTextEventSchema,
-    sessionServiceMessageEventSchema,
-    sessionToolCallStartEventSchema,
-    sessionToolCallEndEventSchema,
-    sessionFileEventSchema,
-    sessionTurnStartEventSchema,
-    sessionStartEventSchema,
-    sessionTurnEndEventSchema,
-    sessionStopEventSchema,
-]);
-
-const sessionEnvelopeSchema = z.object({
-    id: z.string(),
-    time: z.number(),
-    role: z.enum(['user', 'agent']),
-    turn: z.string().optional(),
-    subagent: z.string().refine((value) => isCuid(value), {
-        message: 'subagent must be a cuid2 value',
-    }).optional(),
-    ev: sessionEventSchema,
-}).superRefine((envelope, ctx) => {
-    if (envelope.ev.t === 'service' && envelope.role !== 'agent') {
-        ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'service events must use role "agent"',
-            path: ['role'],
-        });
-    }
-    if ((envelope.ev.t === 'start' || envelope.ev.t === 'stop') && envelope.role !== 'agent') {
-        ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `${envelope.ev.t} events must use role "agent"`,
-            path: ['role'],
-        });
-    }
-});
-type SessionEnvelope = z.infer<typeof sessionEnvelopeSchema>;
 
 const rawTextContentSchema = z.object({
     type: z.literal('text'),
@@ -500,7 +417,7 @@ type NormalizedAgentContent =
         prompt: string
     };
 
-export type NormalizedMessage = ({
+type NormalizedMessageBase = ({
     role: 'user'
     content: {
         type: 'text';
@@ -521,15 +438,19 @@ export type NormalizedMessage = ({
     usage?: UsageData,
 };
 
+export type NormalizedMessage = NormalizedMessageBase & {
+    seq: number,
+};
+
 function normalizeSessionEnvelope(
     envelope: SessionEnvelope,
     localId: string | null,
     createdAt: number,
     meta: MessageMeta | undefined,
-): NormalizedMessage | null {
+): NormalizedMessageBase | null {
     // Session protocol requires turn id on all agent-originated envelopes.
     // Drop malformed agent events without turn to avoid attaching stray messages.
-    if (envelope.role === 'agent' && !envelope.turn) {
+    if (envelope.role === 'agent' && !envelope.turn && envelope.ev.t !== 'context-boundary') {
         return null;
     }
 
@@ -541,6 +462,23 @@ function normalizeSessionEnvelope(
 
     if (envelope.ev.t === 'turn-start') {
         return null;
+    }
+
+    if (envelope.ev.t === 'context-boundary') {
+        return {
+            id: messageId,
+            localId,
+            createdAt: messageCreatedAt,
+            role: 'event',
+            isSidechain: false,
+            content: {
+                type: 'context-boundary',
+                kind: envelope.ev.kind,
+                at: envelope.ev.at,
+                forkedFromSid: envelope.ev.forkedFromSid,
+            },
+            meta
+        } satisfies NormalizedMessageBase;
     }
 
     if (envelope.ev.t === 'start' || envelope.ev.t === 'stop') {
@@ -557,7 +495,7 @@ function normalizeSessionEnvelope(
             isSidechain: false,
             content: { type: 'ready' },
             meta
-        } satisfies NormalizedMessage;
+        } satisfies NormalizedMessageBase;
     }
 
     if (envelope.ev.t === 'service') {
@@ -578,7 +516,7 @@ function normalizeSessionEnvelope(
                 parentUUID
             }],
             meta
-        } satisfies NormalizedMessage;
+        } satisfies NormalizedMessageBase;
     }
 
     if (envelope.ev.t === 'text') {
@@ -594,7 +532,7 @@ function normalizeSessionEnvelope(
                     text: envelope.ev.text
                 },
                 meta
-            } satisfies NormalizedMessage;
+            } satisfies NormalizedMessageBase;
         }
 
         return {
@@ -617,7 +555,7 @@ function normalizeSessionEnvelope(
                 }
             ],
             meta
-        } satisfies NormalizedMessage;
+        } satisfies NormalizedMessageBase;
     }
 
     if (envelope.ev.t === 'tool-call-start') {
@@ -637,7 +575,7 @@ function normalizeSessionEnvelope(
                 parentUUID
             }],
             meta
-        } satisfies NormalizedMessage;
+        } satisfies NormalizedMessageBase;
     }
 
     if (envelope.ev.t === 'tool-call-end') {
@@ -656,7 +594,7 @@ function normalizeSessionEnvelope(
                 parentUUID
             }],
             meta
-        } satisfies NormalizedMessage;
+        } satisfies NormalizedMessageBase;
     }
 
     if (envelope.ev.t === 'file') {
@@ -693,13 +631,23 @@ function normalizeSessionEnvelope(
                 parentUUID
             }],
             meta
-        } satisfies NormalizedMessage;
+        } satisfies NormalizedMessageBase;
     }
 
     return null;
 }
 
-export function normalizeRawMessage(id: string, localId: string | null, createdAt: number, raw: RawRecord): NormalizedMessage | null {
+function addSeq(message: NormalizedMessageBase | null, seq: number | null): NormalizedMessage | null {
+    if (!message) {
+        return null;
+    }
+    return {
+        ...message,
+        seq: seq ?? DEFAULT_UNSEQUENCED_MESSAGE_SEQ,
+    };
+}
+
+function normalizeRawMessageBase(id: string, localId: string | null, createdAt: number, raw: RawRecord): NormalizedMessageBase | null {
     // Zod transform handles normalization during validation
     let parsed = rawRecordSchema.safeParse(raw);
     if (!parsed.success) {
@@ -870,6 +818,7 @@ export function normalizeRawMessage(id: string, localId: string | null, createdA
                 role: 'event',
                 content: raw.content.data,
                 isSidechain: false,
+                meta: raw.meta,
             };
         }
         if (raw.content.type === 'codex') {
@@ -905,7 +854,7 @@ export function normalizeRawMessage(id: string, localId: string | null, createdA
                         parentUUID: null
                     }],
                     meta: raw.meta
-                } satisfies NormalizedMessage;
+                } satisfies NormalizedMessageBase;
             }
             if (raw.content.data.type === 'tool-call') {
                 // Cast tool calls to agent tool-call messages
@@ -925,7 +874,7 @@ export function normalizeRawMessage(id: string, localId: string | null, createdA
                         parentUUID: null
                     }],
                     meta: raw.meta
-                } satisfies NormalizedMessage;
+                } satisfies NormalizedMessageBase;
             }
             if (raw.content.data.type === 'tool-call-result') {
                 // Cast tool call results to agent tool-result messages
@@ -944,7 +893,7 @@ export function normalizeRawMessage(id: string, localId: string | null, createdA
                         parentUUID: null
                     }],
                     meta: raw.meta
-                } satisfies NormalizedMessage;
+                } satisfies NormalizedMessageBase;
             }
         }
         if (raw.content.type === 'session') {
@@ -966,7 +915,7 @@ export function normalizeRawMessage(id: string, localId: string | null, createdA
                         parentUUID: null
                     }],
                     meta: raw.meta
-                } satisfies NormalizedMessage;
+                } satisfies NormalizedMessageBase;
             }
             if (raw.content.data.type === 'reasoning') {
                 return {
@@ -982,7 +931,7 @@ export function normalizeRawMessage(id: string, localId: string | null, createdA
                         parentUUID: null
                     }],
                     meta: raw.meta
-                } satisfies NormalizedMessage;
+                } satisfies NormalizedMessageBase;
             }
             if (raw.content.data.type === 'tool-call') {
                 return {
@@ -1001,7 +950,7 @@ export function normalizeRawMessage(id: string, localId: string | null, createdA
                         parentUUID: null
                     }],
                     meta: raw.meta
-                } satisfies NormalizedMessage;
+                } satisfies NormalizedMessageBase;
             }
             if (raw.content.data.type === 'tool-result') {
                 return {
@@ -1019,7 +968,7 @@ export function normalizeRawMessage(id: string, localId: string | null, createdA
                         parentUUID: null
                     }],
                     meta: raw.meta
-                } satisfies NormalizedMessage;
+                } satisfies NormalizedMessageBase;
             }
             // Handle hyphenated tool-call-result (backwards compatibility)
             if (raw.content.data.type === 'tool-call-result') {
@@ -1038,7 +987,7 @@ export function normalizeRawMessage(id: string, localId: string | null, createdA
                         parentUUID: null
                     }],
                     meta: raw.meta
-                } satisfies NormalizedMessage;
+                } satisfies NormalizedMessageBase;
             }
             if (raw.content.data.type === 'thinking') {
                 return {
@@ -1054,7 +1003,7 @@ export function normalizeRawMessage(id: string, localId: string | null, createdA
                         parentUUID: null
                     }],
                     meta: raw.meta
-                } satisfies NormalizedMessage;
+                } satisfies NormalizedMessageBase;
             }
             if (raw.content.data.type === 'file-edit') {
                 // Map file-edit to tool-call for UI rendering
@@ -1080,7 +1029,7 @@ export function normalizeRawMessage(id: string, localId: string | null, createdA
                         parentUUID: null
                     }],
                     meta: raw.meta
-                } satisfies NormalizedMessage;
+                } satisfies NormalizedMessageBase;
             }
             if (raw.content.data.type === 'terminal-output') {
                 // Map terminal-output to tool-result
@@ -1099,7 +1048,7 @@ export function normalizeRawMessage(id: string, localId: string | null, createdA
                         parentUUID: null
                     }],
                     meta: raw.meta
-                } satisfies NormalizedMessage;
+                } satisfies NormalizedMessageBase;
             }
             if (raw.content.data.type === 'permission-request') {
                 // Map permission-request to tool-call for UI to show permission dialog
@@ -1119,11 +1068,26 @@ export function normalizeRawMessage(id: string, localId: string | null, createdA
                         parentUUID: null
                     }],
                     meta: raw.meta
-                } satisfies NormalizedMessage;
+                } satisfies NormalizedMessageBase;
             }
             // Task lifecycle events (task_started, task_complete, turn_aborted) and token_count
             // are status/metrics - skip normalization, they don't need UI rendering
         }
     }
     return null;
+}
+
+export function normalizeRawMessage(id: string, localId: string | null, createdAt: number, raw: RawRecord): NormalizedMessage | null;
+export function normalizeRawMessage(id: string, localId: string | null, createdAt: number, seq: number | null, raw: RawRecord): NormalizedMessage | null;
+export function normalizeRawMessage(
+    id: string,
+    localId: string | null,
+    createdAt: number,
+    seqOrRaw: number | null | RawRecord,
+    rawMaybe?: RawRecord,
+): NormalizedMessage | null {
+    const hasSeq = rawMaybe !== undefined;
+    const seq = hasSeq ? seqOrRaw as number | null : DEFAULT_UNSEQUENCED_MESSAGE_SEQ;
+    const raw = hasSeq ? rawMaybe : seqOrRaw as RawRecord;
+    return addSeq(normalizeRawMessageBase(id, localId, createdAt, raw), seq);
 }

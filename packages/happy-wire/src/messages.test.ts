@@ -148,10 +148,14 @@ describe('shared wire message schemas', () => {
       },
       meta: {
         sentFrom: 'cli',
+        contextBoundaryFallback: true,
       },
     });
 
     expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.meta?.contextBoundaryFallback).toBe(true);
+    }
   });
 
   it('parses legacy message discriminated union', () => {

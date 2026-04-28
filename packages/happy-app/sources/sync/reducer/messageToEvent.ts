@@ -9,6 +9,10 @@
 import { NormalizedMessage } from "../typesRaw";
 import { AgentEvent } from "../typesRaw";
 
+export type MessageToEventContext = {
+    suppressPlanModeEnter?: boolean;
+};
+
 /**
  * Parses a normalized message to determine if it should be converted to an event.
  * 
@@ -20,7 +24,7 @@ import { AgentEvent } from "../typesRaw";
  * - Agent messages with specific tool results
  * - Messages with certain metadata flags
  */
-export function parseMessageAsEvent(msg: NormalizedMessage): AgentEvent | null {
+export function parseMessageAsEvent(msg: NormalizedMessage, context: MessageToEventContext = {}): AgentEvent | null {
     // Skip sidechain messages
     if (msg.isSidechain) {
         return null;
@@ -57,6 +61,9 @@ export function parseMessageAsEvent(msg: NormalizedMessage): AgentEvent | null {
 
             // Check for EnterPlanMode tool calls
             if (content.type === 'tool-call' && (content.name === 'EnterPlanMode' || content.name === 'enter_plan_mode')) {
+                if (context.suppressPlanModeEnter) {
+                    return null;
+                }
                 return {
                     type: 'message',
                     message: 'Entering plan mode',
@@ -79,7 +86,7 @@ export function parseMessageAsEvent(msg: NormalizedMessage): AgentEvent | null {
  * @param msg - The normalized message to check
  * @returns true if the message should skip normal processing
  */
-export function shouldSkipNormalProcessing(msg: NormalizedMessage): boolean {
+export function shouldSkipNormalProcessing(msg: NormalizedMessage, context: MessageToEventContext = {}): boolean {
     // If a message converts to an event, it should skip normal processing
-    return parseMessageAsEvent(msg) !== null;
+    return parseMessageAsEvent(msg, context) !== null;
 }

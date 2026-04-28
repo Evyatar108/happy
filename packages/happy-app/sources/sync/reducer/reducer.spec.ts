@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { NormalizedMessage } from '../typesRaw';
-import { createReducer } from './reducer';
+import { createReducer, seedLatestBoundary } from './reducer';
 import { reducer } from './reducer';
 import { AgentState } from '../storageTypes';
+import type { SessionContextBoundaryKind } from '@slopus/happy-wire';
 
 type ReducerMessageSnapshot = ReturnType<typeof createReducer>['messages'] extends Map<string, infer TValue>
     ? TValue
@@ -58,6 +59,7 @@ function snapshotReducerState(state: ReturnType<typeof createReducer>) {
                 ...state.latestUsage,
             }
             : null,
+        latestBoundary: state.latestBoundary ? { ...state.latestBoundary } : null,
         messages: stableSort(
             Array.from(state.messages.values()).map((message) => serializeReducerMessage(message))
         ),
@@ -82,11 +84,71 @@ function snapshotReducerState(state: ReturnType<typeof createReducer>) {
     };
 }
 
+function seedActiveContextState(state: ReturnType<typeof createReducer>) {
+    state.latestTodos = {
+        todos: [{ content: 'Keep active task', status: 'pending' }],
+        timestamp: 900,
+    };
+    state.latestUsage = {
+        inputTokens: 11,
+        outputTokens: 7,
+        cacheCreation: 3,
+        cacheRead: 5,
+        contextSize: 19,
+        timestamp: 900,
+    };
+}
+
+function createContextBoundaryMessage(
+    id: string,
+    createdAt: number,
+    seq: number,
+    kind: SessionContextBoundaryKind,
+    meta?: NormalizedMessage['meta'],
+): NormalizedMessage {
+    return {
+        id,
+        localId: null,
+        createdAt,
+        seq,
+        role: 'event',
+        isSidechain: false,
+        content: {
+            type: 'context-boundary',
+            kind,
+            at: createdAt,
+        },
+        ...(meta ? { meta } : {}),
+    };
+}
+
+function createLegacyBoundaryMessage(
+    id: string,
+    createdAt: number,
+    message: 'Context was reset' | 'Compaction completed',
+    meta?: NormalizedMessage['meta'],
+): NormalizedMessage {
+    return {
+        id,
+        localId: null,
+        createdAt,
+        seq: 1,
+        role: 'event',
+        isSidechain: false,
+        content: {
+            type: 'message',
+            message,
+        },
+        ...(meta ? { meta } : {}),
+    };
+}
+
 function createUserTextMessage(id: string, createdAt: number, text: string): NormalizedMessage {
     return {
         id,
         localId: null,
         createdAt,
+        seq: 1,
         role: 'user',
         isSidechain: false,
         content: {
@@ -106,6 +168,7 @@ function createAgentTextMessage(
         id,
         localId: null,
         createdAt,
+        seq: 1,
         role: 'agent',
         isSidechain: false,
         content: [{
@@ -129,6 +192,7 @@ function createToolCallMessage(
         id,
         localId: null,
         createdAt,
+        seq: 1,
         role: 'agent',
         isSidechain: false,
         content: [{
@@ -154,6 +218,7 @@ function createToolResultMessage(
         id,
         localId: null,
         createdAt,
+        seq: 1,
         role: 'agent',
         isSidechain: false,
         content: [{
@@ -318,6 +383,7 @@ describe('reducer', () => {
                     id: 'msg1',
                     localId: 'local123',
                     createdAt: 1000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'Hello' },
                     isSidechain: false
@@ -342,6 +408,7 @@ describe('reducer', () => {
                     id: 'msg1',
                     localId: 'local123',
                     createdAt: 1000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'First' },
                     isSidechain: false
@@ -357,6 +424,7 @@ describe('reducer', () => {
                     id: 'msg2',
                     localId: 'local123',
                     createdAt: 2000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'Second' },
                     isSidechain: false
@@ -376,6 +444,7 @@ describe('reducer', () => {
                     id: 'msg1',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'First' },
                     isSidechain: false
@@ -391,6 +460,7 @@ describe('reducer', () => {
                     id: 'msg1',
                     localId: null,
                     createdAt: 2000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'Second' },
                     isSidechain: false
@@ -408,6 +478,7 @@ describe('reducer', () => {
                     id: 'msg1',
                     localId: 'local123',
                     createdAt: 1000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'First' },
                     isSidechain: false
@@ -416,6 +487,7 @@ describe('reducer', () => {
                     id: 'msg2',
                     localId: 'local456',
                     createdAt: 2000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'Second' },
                     isSidechain: false
@@ -424,6 +496,7 @@ describe('reducer', () => {
                     id: 'msg3',
                     localId: null,
                     createdAt: 3000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'Third' },
                     isSidechain: false
@@ -452,6 +525,7 @@ describe('reducer', () => {
                     id: 'agent1',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -478,6 +552,7 @@ describe('reducer', () => {
                     id: 'agent1',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [
@@ -516,6 +591,7 @@ describe('reducer', () => {
                     id: 'user1',
                     localId: 'local1',
                     createdAt: 1000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'Question 1' },
                     isSidechain: false
@@ -524,6 +600,7 @@ describe('reducer', () => {
                     id: 'agent1',
                     localId: null,
                     createdAt: 2000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'text',
@@ -537,6 +614,7 @@ describe('reducer', () => {
                     id: 'user2',
                     localId: 'local2',
                     createdAt: 3000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'Question 2' },
                     isSidechain: false
@@ -545,6 +623,7 @@ describe('reducer', () => {
                     id: 'agent2',
                     localId: null,
                     createdAt: 4000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'text',
@@ -591,6 +670,7 @@ describe('reducer', () => {
                     id: 'agent1',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'text',
@@ -620,6 +700,7 @@ describe('reducer', () => {
                     id: 'user1',
                     localId: 'local1',
                     createdAt: 1000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'Valid' },
                     isSidechain: false
@@ -640,6 +721,7 @@ describe('reducer', () => {
                     id: 'agent1',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'event',
                     content: {
                         type: 'message',
@@ -747,6 +829,7 @@ describe('reducer', () => {
                     id: 'msg-1',
                     localId: null,
                     createdAt: 3000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -810,6 +893,7 @@ describe('reducer', () => {
                     id: 'msg-1',
                     localId: null,
                     createdAt: 3000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -891,6 +975,7 @@ describe('reducer', () => {
                     id: 'msg-1',
                     localId: null,
                     createdAt: 4000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -958,6 +1043,7 @@ describe('reducer', () => {
                     id: 'msg-1',
                     localId: null,
                     createdAt: 5000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -1039,6 +1125,7 @@ describe('reducer', () => {
                     id: 'msg-1',
                     localId: null,
                     createdAt: 4000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'Hello' },
                     isSidechain: false
@@ -1075,6 +1162,7 @@ describe('reducer', () => {
                     id: 'tool-msg-1',
                     localId: null,
                     createdAt: 5000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1158,6 +1246,7 @@ describe('reducer', () => {
                     id: 'tool-msg-1',
                     localId: null,
                     createdAt: 5000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1238,6 +1327,7 @@ describe('reducer', () => {
                     id: 'msg-1',
                     localId: null,
                     createdAt: 3000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1266,6 +1356,7 @@ describe('reducer', () => {
                     id: 'msg-2',
                     localId: null,
                     createdAt: 4000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1316,6 +1407,7 @@ describe('reducer', () => {
                     id: 'tool-msg-1',
                     localId: null,
                     createdAt: 2000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1374,6 +1466,7 @@ describe('reducer', () => {
                     id: 'tool-msg-2',
                     localId: null,
                     createdAt: 4000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1451,6 +1544,7 @@ describe('reducer', () => {
                     id: 'msg-1',
                     localId: null,
                     createdAt: 3000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1477,6 +1571,7 @@ describe('reducer', () => {
                     id: 'msg-2',
                     localId: null,
                     createdAt: 4000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-result',
@@ -1577,6 +1672,7 @@ describe('reducer', () => {
                     id: 'msg-1',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-result',
@@ -1599,6 +1695,7 @@ describe('reducer', () => {
                     id: 'msg-2',
                     localId: null,
                     createdAt: 2000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1627,6 +1724,7 @@ describe('reducer', () => {
                     id: 'msg-3',
                     localId: null,
                     createdAt: 3000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-result',
@@ -1675,6 +1773,7 @@ describe('reducer', () => {
                     id: 'user-1',
                     localId: 'local-1',
                     createdAt: 1000,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'Do something' },
                     isSidechain: false
@@ -1684,6 +1783,7 @@ describe('reducer', () => {
                     id: 'agent-1',
                     localId: null,
                     createdAt: 2000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'text',
@@ -1698,6 +1798,7 @@ describe('reducer', () => {
                     id: 'tool-1',
                     localId: null,
                     createdAt: 3000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1745,6 +1846,7 @@ describe('reducer', () => {
                     id: 'msg-1',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1767,6 +1869,7 @@ describe('reducer', () => {
                     id: 'msg-2',
                     localId: null,
                     createdAt: 2000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-result',
@@ -1793,6 +1896,7 @@ describe('reducer', () => {
                     id: 'msg-3',
                     localId: null,
                     createdAt: 3000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-result',
@@ -1840,6 +1944,7 @@ describe('reducer', () => {
                     id: 'msg-1',
                     localId: null,
                     createdAt: 3000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1927,6 +2032,7 @@ describe('reducer', () => {
                     id: 'msg-1',
                     localId: null,
                     createdAt: 2000,
+                    seq: 1,
                     role: 'agent',
                     content: [{
                         type: 'tool-call',
@@ -1969,6 +2075,7 @@ describe('reducer', () => {
                         id: `user-${i}`,
                         localId: `local-${i}`,
                         createdAt: i * 1000,
+                        seq: 1,
                         role: 'user',
                         content: { type: 'text', text: `Message ${i}` },
                         isSidechain: false
@@ -2021,6 +2128,7 @@ describe('reducer', () => {
                     id: 'user-0',
                     localId: 'local-0',
                     createdAt: 0,
+                    seq: 1,
                     role: 'user',
                     content: { type: 'text', text: 'Duplicate' },
                     isSidechain: false
@@ -2075,6 +2183,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1000,
+                seq: 1,
                 role: 'agent',
                 content: [{
                     type: 'tool-call',
@@ -2147,6 +2256,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1000,
+                seq: 1,
                 role: 'agent',
                 content: [{
                     type: 'tool-call',
@@ -2207,6 +2317,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1500,
+                seq: 1,
                 role: 'agent',
                 content: [{
                     type: 'tool-call',
@@ -2254,6 +2365,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1500,
+                seq: 1,
                 role: 'agent',
                 content: [{
                     type: 'tool-call',
@@ -2315,6 +2427,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1500,
+                seq: 1,
                 role: 'agent',
                 content: [{
                     type: 'tool-call',
@@ -2380,6 +2493,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1500,
+                seq: 1,
                 role: 'agent',
                 content: [{
                     type: 'tool-call',
@@ -2439,6 +2553,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1500,
+                seq: 1,
                 role: 'agent',
                 content: [{
                     type: 'tool-call',
@@ -2579,6 +2694,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1500,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -2597,6 +2713,7 @@ describe('reducer', () => {
                 id: 'msg-2',
                 localId: null,
                 createdAt: 2000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -2657,6 +2774,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1500,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -2674,6 +2792,7 @@ describe('reducer', () => {
                 id: 'msg-2',
                 localId: null,
                 createdAt: 2000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -2731,6 +2850,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1500,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -2748,6 +2868,7 @@ describe('reducer', () => {
                 id: 'msg-2',
                 localId: null,
                 createdAt: 2000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -2797,6 +2918,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1500,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -2814,6 +2936,7 @@ describe('reducer', () => {
                 id: 'msg-2',
                 localId: null,
                 createdAt: 2000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -2861,6 +2984,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1500,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -2881,6 +3005,7 @@ describe('reducer', () => {
                 id: 'msg-2',
                 localId: null,
                 createdAt: 2000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -2938,6 +3063,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 1000,
+                seq: 1,
                 role: 'agent',
                 content: [{
                     type: 'tool-call',
@@ -2988,6 +3114,7 @@ describe('reducer', () => {
                 id: 'msg-1',
                 localId: null,
                 createdAt: 2000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -3063,6 +3190,7 @@ describe('reducer', () => {
                     id: 'user-1',
                     localId: 'local-1',
                     createdAt: 1000,
+                    seq: 1,
                     role: 'user',
                     isSidechain: false,
                     content: {
@@ -3075,6 +3203,7 @@ describe('reducer', () => {
                     id: 'tool-msg-1',
                     localId: null,
                     createdAt: 2000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -3092,6 +3221,7 @@ describe('reducer', () => {
                     id: 'result-1',
                     localId: null,
                     createdAt: 3000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -3149,6 +3279,7 @@ describe('reducer', () => {
                 id: 'user-2',
                 localId: 'local-2',
                 createdAt: 4000,
+                seq: 1,
                 role: 'user',
                 isSidechain: false,
                 content: {
@@ -3172,6 +3303,84 @@ describe('reducer', () => {
             const permMsgId = state.toolIdToMessageId.get('tool-1');
             expect(toolMsgId).toBe(permMsgId); // Same message - properly matched!
         });
+
+        it('permission-request placeholder stays in active region after a typed context-boundary lands', () => {
+            const state = createReducer();
+
+            // Phase 1: create a pending permission placeholder via agentState
+            const agentState: AgentState = {
+                requests: {
+                    'perm-inflight': {
+                        tool: 'Bash',
+                        arguments: { command: 'rm -rf /tmp/scratch' },
+                        createdAt: 1000,
+                    },
+                },
+            };
+            const result1 = reducer(state, [], agentState);
+            expect(result1.messages).toHaveLength(1);
+
+            // The placeholder must carry the unsequenced sentinel, not seq=0
+            const placeholder = result1.messages[0];
+            expect(placeholder.seq).toBe(Number.MAX_SAFE_INTEGER);
+
+            // Phase 2: a typed context-boundary lands with seq=5 (post-boundary)
+            const result2 = reducer(state, [
+                createContextBoundaryMessage('boundary-clear', 2000, 5, 'clear'),
+            ]);
+            expect(state.latestBoundary?.seq).toBe(5);
+
+            // The permission placeholder must NOT satisfy isConfirmed(msg) && msg.seq < boundary.seq
+            // because seq===MAX_SAFE_INTEGER is treated as unconfirmed.
+            // Verify it is still present in state.messages with the sentinel seq.
+            const storedMsg = Array.from(state.messages.values()).find(
+                m => m.tool?.permission?.id === 'perm-inflight',
+            );
+            expect(storedMsg).toBeDefined();
+            expect(storedMsg!.seq).toBe(Number.MAX_SAFE_INTEGER);
+
+            // The returned message from result1 likewise has the sentinel seq, confirming
+            // buildChatListBoundaryItems treats it as unconfirmed (not pre-boundary).
+            expect(result2.messages.some(m => m.seq === Number.MAX_SAFE_INTEGER)).toBe(false);
+            const refreshed = Array.from(state.messages.values())
+                .find(m => m.tool?.permission?.id === 'perm-inflight');
+            expect(refreshed!.seq).toBe(Number.MAX_SAFE_INTEGER);
+        });
+
+        it('completed permission placeholder stays in active region after a typed context-boundary lands', () => {
+            const state = createReducer();
+
+            // Phase 1: create a completed permission placeholder (completedRequests path)
+            const agentState: AgentState = {
+                completedRequests: {
+                    'perm-approved': {
+                        tool: 'Bash',
+                        arguments: { command: 'ls /tmp' },
+                        createdAt: 1000,
+                        completedAt: 1500,
+                        status: 'approved',
+                    },
+                },
+            };
+            const result1 = reducer(state, [], agentState);
+            expect(result1.messages).toHaveLength(1);
+
+            // The placeholder must carry the unsequenced sentinel, not seq=0
+            expect(result1.messages[0].seq).toBe(Number.MAX_SAFE_INTEGER);
+
+            // Phase 2: a typed context-boundary lands with seq=3
+            reducer(state, [
+                createContextBoundaryMessage('boundary-clear-2', 2000, 3, 'clear'),
+            ]);
+            expect(state.latestBoundary?.seq).toBe(3);
+
+            // Completed permission placeholder must still carry the sentinel
+            const storedMsg = Array.from(state.messages.values()).find(
+                m => m.tool?.permission?.id === 'perm-approved',
+            );
+            expect(storedMsg).toBeDefined();
+            expect(storedMsg!.seq).toBe(Number.MAX_SAFE_INTEGER);
+        });
     });
 
     describe('session protocol lifecycle and subagent sidechains', () => {
@@ -3181,6 +3390,7 @@ describe('reducer', () => {
                 id: 'ready-1',
                 localId: null,
                 createdAt: 1000,
+                seq: 1,
                 role: 'event',
                 content: { type: 'ready' },
                 isSidechain: false
@@ -3196,6 +3406,7 @@ describe('reducer', () => {
                 id: 'turn-start-1',
                 localId: null,
                 createdAt: 1000,
+                seq: 1,
                 role: 'event',
                 content: { type: 'message', message: 'Turn started' },
                 isSidechain: false
@@ -3211,6 +3422,7 @@ describe('reducer', () => {
                     id: 'parent-msg',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -3227,6 +3439,7 @@ describe('reducer', () => {
                     id: 'child-msg',
                     localId: null,
                     createdAt: 1100,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: true,
                     content: [{
@@ -3256,6 +3469,7 @@ describe('reducer', () => {
                     id: 'agent-parent-msg',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -3276,6 +3490,7 @@ describe('reducer', () => {
                     id: 'agent-prompt-echo',
                     localId: null,
                     createdAt: 1100,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: true,
                     content: [{
@@ -3289,6 +3504,7 @@ describe('reducer', () => {
                     id: 'agent-child-tool',
                     localId: null,
                     createdAt: 1200,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: true,
                     content: [{
@@ -3316,6 +3532,270 @@ describe('reducer', () => {
         });
     });
 
+    describe('context boundary handling', () => {
+        it('records typed clear boundaries and resets active-context state', () => {
+            const state = createReducer();
+            seedActiveContextState(state);
+
+            const result = reducer(state, [
+                createContextBoundaryMessage('boundary-clear', 1000, 25, 'clear'),
+            ]);
+
+            expect(state.latestBoundary).toEqual({
+                id: 'boundary-clear',
+                kind: 'clear',
+                seq: 25,
+                at: 1000,
+                forkedFromSid: undefined,
+            });
+            expect(state.latestTodos).toEqual({ todos: [], timestamp: 1000 });
+            expect(state.latestUsage).toEqual({
+                inputTokens: 0,
+                outputTokens: 0,
+                cacheCreation: 0,
+                cacheRead: 0,
+                contextSize: 0,
+                timestamp: 1000,
+            });
+            expect(result.messages).toHaveLength(1);
+            expect(result.messages[0].kind).toBe('agent-event');
+            if (result.messages[0].kind === 'agent-event') {
+                expect(result.messages[0].event).toEqual({
+                    type: 'context-boundary',
+                    kind: 'clear',
+                    at: 1000,
+                });
+                expect(result.messages[0].seq).toBe(25);
+            }
+        });
+
+        it('records typed compact boundaries and resets usage without clearing todos', () => {
+            const state = createReducer();
+            seedActiveContextState(state);
+
+            reducer(state, [
+                createContextBoundaryMessage('boundary-compact', 1100, 30, 'compact'),
+            ]);
+
+            expect(state.latestBoundary).toEqual({
+                id: 'boundary-compact',
+                kind: 'compact',
+                seq: 30,
+                at: 1100,
+                forkedFromSid: undefined,
+            });
+            expect(state.latestTodos).toEqual({
+                todos: [{ content: 'Keep active task', status: 'pending' }],
+                timestamp: 900,
+            });
+            expect(state.latestUsage).toEqual({
+                inputTokens: 0,
+                outputTokens: 0,
+                cacheCreation: 0,
+                cacheRead: 0,
+                contextSize: 0,
+                timestamp: 1100,
+            });
+        });
+
+        it('records typed autocompact boundaries and resets usage without clearing todos', () => {
+            const state = createReducer();
+            seedActiveContextState(state);
+
+            reducer(state, [
+                createContextBoundaryMessage('boundary-autocompact', 1150, 31, 'autocompact'),
+            ]);
+
+            expect(state.latestBoundary).toEqual({
+                id: 'boundary-autocompact',
+                kind: 'autocompact',
+                seq: 31,
+                at: 1150,
+                forkedFromSid: undefined,
+            });
+            expect(state.latestTodos).toEqual({
+                todos: [{ content: 'Keep active task', status: 'pending' }],
+                timestamp: 900,
+            });
+            expect(state.latestUsage).toEqual({
+                inputTokens: 0,
+                outputTokens: 0,
+                cacheCreation: 0,
+                cacheRead: 0,
+                contextSize: 0,
+                timestamp: 1150,
+            });
+        });
+
+        it('preserves unflagged legacy-only fallback without recording latestBoundary', () => {
+            const state = createReducer();
+            seedActiveContextState(state);
+
+            const result = reducer(state, [
+                createLegacyBoundaryMessage('legacy-clear', 1200, 'Context was reset'),
+            ]);
+
+            expect(state.latestBoundary).toBeUndefined();
+            expect(state.latestTodos).toEqual({ todos: [], timestamp: 1200 });
+            expect(state.latestUsage).toEqual({
+                inputTokens: 0,
+                outputTokens: 0,
+                cacheCreation: 0,
+                cacheRead: 0,
+                contextSize: 0,
+                timestamp: 1200,
+            });
+            expect(result.messages).toHaveLength(1);
+        });
+
+        it('suppresses flagged legacy fallback when dual-emitted with a typed boundary', () => {
+            const state = createReducer();
+            seedActiveContextState(state);
+
+            const result = reducer(state, [
+                createContextBoundaryMessage('boundary-dual', 1300, 40, 'clear'),
+                createLegacyBoundaryMessage('legacy-dual', 1301, 'Context was reset', {
+                    contextBoundaryFallback: true,
+                }),
+            ]);
+
+            expect(state.latestBoundary).toEqual({
+                id: 'boundary-dual',
+                kind: 'clear',
+                seq: 40,
+                at: 1300,
+                forkedFromSid: undefined,
+            });
+            expect(state.latestTodos).toEqual({ todos: [], timestamp: 1300 });
+            expect(state.latestUsage?.timestamp).toBe(1300);
+            expect(result.messages).toHaveLength(1);
+            expect(state.messageIds.has('legacy-dual')).toBe(true);
+        });
+
+        it('suppresses flagged legacy fallback even when it arrives without the typed envelope', () => {
+            const state = createReducer();
+            seedActiveContextState(state);
+
+            const result = reducer(state, [
+                createLegacyBoundaryMessage('legacy-first', 1400, 'Context was reset', {
+                    contextBoundaryFallback: true,
+                }),
+            ]);
+
+            expect(state.latestBoundary).toBeUndefined();
+            expect(state.latestTodos).toEqual({
+                todos: [{ content: 'Keep active task', status: 'pending' }],
+                timestamp: 900,
+            });
+            expect(state.latestUsage).toEqual({
+                inputTokens: 11,
+                outputTokens: 7,
+                cacheCreation: 3,
+                cacheRead: 5,
+                contextSize: 19,
+                timestamp: 900,
+            });
+            expect(result.messages).toHaveLength(0);
+            expect(state.messageIds.has('legacy-first')).toBe(true);
+        });
+
+        it('seeds latestBoundary from metadata and lets newer stream boundaries supersede it', () => {
+            const state = createReducer();
+
+            seedLatestBoundary(state, {
+                id: 'metadata-boundary',
+                kind: 'compact',
+                seq: 50,
+                at: 1500,
+            });
+
+            expect(state.latestBoundary).toEqual({
+                id: 'metadata-boundary',
+                kind: 'compact',
+                seq: 50,
+                at: 1500,
+            });
+
+            reducer(state, [
+                createContextBoundaryMessage('older-boundary', 1490, 49, 'clear'),
+                createContextBoundaryMessage('newer-boundary', 1510, 51, 'clear'),
+            ]);
+
+            expect(state.latestBoundary).toEqual({
+                id: 'newer-boundary',
+                kind: 'clear',
+                seq: 51,
+                at: 1510,
+                forkedFromSid: undefined,
+            });
+        });
+
+        it('suppresses legacy plan-mode synthesis when typed plan-mode boundary is in the same batch', () => {
+            const state = createReducer();
+
+            const result = reducer(state, [
+                createToolCallMessage('plan-enter-tool', 1600, 'tool-plan-enter', 'EnterPlanMode', {}),
+                createContextBoundaryMessage('boundary-plan-enter', 1601, 60, 'plan-mode-enter'),
+            ]);
+
+            expect(result.messages.some((message) => message.kind === 'agent-event'
+                && message.event.type === 'message'
+                && message.event.message === 'Entering plan mode')).toBe(false);
+            expect(result.messages.some((message) => message.kind === 'agent-event'
+                && message.event.type === 'context-boundary'
+                && message.event.kind === 'plan-mode-enter')).toBe(true);
+        });
+
+        it('preserves legacy plan-mode synthesis when latestBoundary is plan-mode-enter but the current batch has no typed boundary', () => {
+            const state = createReducer();
+            seedLatestBoundary(state, {
+                id: 'metadata-plan-enter',
+                kind: 'plan-mode-enter',
+                seq: 60,
+                at: 1601,
+            });
+
+            const result = reducer(state, [
+                createToolCallMessage('plan-enter-tool', 1602, 'tool-plan-enter', 'EnterPlanMode', {}),
+            ]);
+
+            expect(result.messages.some((message) => message.kind === 'agent-event'
+                && message.event.type === 'message'
+                && message.event.message === 'Entering plan mode')).toBe(true);
+        });
+
+        it('records typed plan-mode-exit boundary in latestBoundary', () => {
+            const state = createReducer();
+            seedLatestBoundary(state, {
+                id: 'boundary-plan-enter',
+                kind: 'plan-mode-enter',
+                seq: 60,
+                at: 1600,
+            });
+
+            reducer(state, [
+                createContextBoundaryMessage('boundary-plan-exit', 1700, 70, 'plan-mode-exit'),
+            ]);
+
+            expect(state.latestBoundary).toMatchObject({
+                id: 'boundary-plan-exit',
+                kind: 'plan-mode-exit',
+                seq: 70,
+            });
+        });
+
+        it('typed plan-mode-exit boundary supersedes typed plan-mode-enter in the same batch', () => {
+            const state = createReducer();
+
+            reducer(state, [
+                createContextBoundaryMessage('boundary-plan-enter', 1600, 60, 'plan-mode-enter'),
+                createContextBoundaryMessage('boundary-plan-exit', 1700, 70, 'plan-mode-exit'),
+            ]);
+
+            expect(state.latestBoundary?.kind).toBe('plan-mode-exit');
+        });
+    });
+
     describe('TodoWrite latestTodos handling', () => {
         it('does not update todos from a running TodoWrite input', () => {
             const state = createReducer();
@@ -3323,6 +3803,7 @@ describe('reducer', () => {
                 id: 'todo-call-only',
                 localId: null,
                 createdAt: 1000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -3351,6 +3832,7 @@ describe('reducer', () => {
                     id: 'todo-call',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -3372,6 +3854,7 @@ describe('reducer', () => {
                     id: 'todo-result',
                     localId: null,
                     createdAt: 1010,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -3404,6 +3887,7 @@ describe('reducer', () => {
                     id: 'bad-todo-call',
                     localId: null,
                     createdAt: 1000,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -3422,6 +3906,7 @@ describe('reducer', () => {
                     id: 'bad-todo-result',
                     localId: null,
                     createdAt: 1010,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: false,
                     content: [{
@@ -3478,6 +3963,7 @@ describe('reducer', () => {
                 id: 'parent-msg',
                 localId: null,
                 createdAt: 1000,
+                seq: 1,
                 role: 'agent',
                 isSidechain: false,
                 content: [{
@@ -3497,6 +3983,7 @@ describe('reducer', () => {
                     id: 'sc-prompt-msg',
                     localId: null,
                     createdAt: 1100,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: true,
                     content: [{
@@ -3509,6 +3996,7 @@ describe('reducer', () => {
                     id: 'sc-bash-call-msg',
                     localId: null,
                     createdAt: 1200,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: true,
                     content: [{
@@ -3529,6 +4017,7 @@ describe('reducer', () => {
                     id: 'sc-bash-result-msg',
                     localId: null,
                     createdAt: 1300,
+                    seq: 1,
                     role: 'agent',
                     isSidechain: true,
                     content: [{
