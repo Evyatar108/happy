@@ -574,6 +574,28 @@ describe('claudeLocalLauncher shadow metadata wiring', () => {
         expect(session.switchFired).toBe(true);
     });
 
+    it('cancelled-with-pending exit clears turnActive and pendingSwitch but preserves deferredSwitchCompleting', async () => {
+        const { session, handlers } = createSessionMockWithHandlers();
+        session.pendingSwitch = { requestedAt: 1234, messagePreview: 'hello' };
+        session.turnActive = true;
+
+        mockClaudeLocal.mockImplementation(async (opts: { abort: AbortSignal }) => {
+            await new Promise<void>((resolve) => opts.abort.addEventListener('abort', () => resolve(), { once: true }));
+        });
+
+        const { claudeLocalLauncher } = await import('./claudeLocalLauncher');
+        const launcher = claudeLocalLauncher(session as any);
+        await vi.waitFor(() => expect(handlers.has('switch')).toBe(true));
+
+        await handlers.get('switch')!();
+        await expect(launcher).resolves.toEqual({ type: 'switch' });
+
+        expect(session.deferredSwitchCompleting).toBe(true);
+        expect(session.turnActive).toBe(false);
+        expect(session.pendingSwitch).toBeUndefined();
+        expect(session.clearDeferredSwitchState).not.toHaveBeenCalled();
+    });
+
     it('clears deferred-switch turn state and subscriptions on non-Stop exits', async () => {
         let turnCompleteCallback: (() => Promise<void>) | null = null;
         const { session } = createSessionMock();

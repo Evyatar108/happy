@@ -283,6 +283,9 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
         }
         if (!preserveDeferredSwitchCompleting) {
             session.clearDeferredSwitchState();
+        } else {
+            session.setTurnActive(false);
+            session.setPendingSwitch(undefined);
         }
         session.queue.setOnMessage(null);
         
