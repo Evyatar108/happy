@@ -170,6 +170,8 @@ function createLocalSessionState(overrides: Partial<{
         pendingSwitch: overrides.pendingSwitch,
         deferredSwitchCompleting: overrides.deferredSwitchCompleting ?? false,
         notifyLegacyMessageBeforeQueue: vi.fn(),
+        onTurnStarted: vi.fn(async () => {}),
+        onTurnCompleted: vi.fn(async () => {}),
         cleanup: vi.fn(),
     };
 }
@@ -377,5 +379,39 @@ describe('runClaude permission mode metadata publishing', () => {
         });
 
         await runClaudeWithStartingModeUntilExit('local');
+    });
+
+    it('routes local UserPromptSubmit and Stop hooks to hook-driven turn lifecycle callbacks', async () => {
+        const localSession = createLocalSessionState();
+        mocks.mockLoop.mockImplementation(async (opts: any) => {
+            opts.onSessionReady(localSession);
+            const hookOptions = (mocks.mockStartHookServer as any).mock.calls[0][0];
+
+            await hookOptions.onUserPromptSubmitHook({ hook_event_name: 'UserPromptSubmit' });
+            await hookOptions.onStopHook({ hook_event_name: 'Stop' });
+
+            expect(localSession.onTurnStarted).toHaveBeenCalledTimes(1);
+            expect(localSession.onTurnCompleted).toHaveBeenCalledTimes(1);
+            return 0;
+        });
+
+        await runClaudeWithStartingModeUntilExit('local');
+    });
+
+    it('ignores UserPromptSubmit and Stop hooks while current mode is remote', async () => {
+        const remoteSession = createLocalSessionState();
+        mocks.mockLoop.mockImplementation(async (opts: any) => {
+            opts.onSessionReady(remoteSession);
+            const hookOptions = (mocks.mockStartHookServer as any).mock.calls[0][0];
+
+            await hookOptions.onUserPromptSubmitHook({ hook_event_name: 'UserPromptSubmit' });
+            await hookOptions.onStopHook({ hook_event_name: 'Stop' });
+
+            expect(remoteSession.onTurnStarted).not.toHaveBeenCalled();
+            expect(remoteSession.onTurnCompleted).not.toHaveBeenCalled();
+            return 0;
+        });
+
+        await runClaudeWithStartingModeUntilExit('remote');
     });
 });

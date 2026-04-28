@@ -49,6 +49,9 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
     let exitReason: LauncherResult | null = null;
     const processAbortController = new AbortController();
     let exutFuture = new Future<void>();
+    let completedSwitchFromStopHook = false;
+    let pendingStopSwitchInFlight = false;
+    let turnCompleteCallback: (() => Promise<void>) | null = null;
     try {
         async function abort() {
 
@@ -98,6 +101,17 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
             await performSwitch('cancelled');
         }
 
+        turnCompleteCallback = async () => {
+            if (!session.pendingSwitch || pendingStopSwitchInFlight) {
+                return;
+            }
+
+            pendingStopSwitchInFlight = true;
+            completedSwitchFromStopHook = true;
+            session.deferredSwitchCompleting = true;
+            await performSwitch('completed');
+        };
+
         async function requestSwitch(params: RequestSwitchParams): Promise<RequestSwitchResponse> {
             if (params.mode === 'now') {
                 await doSwitch();
@@ -132,6 +146,7 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
         session.setNotifyLegacyMessageBeforeQueue(() => {
             void doSwitch();
         });
+        session.addTurnCompleteCallback(turnCompleteCallback);
         session.queue.setOnMessage(null);
 
         // Exit if there are messages in the queue
@@ -248,6 +263,12 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
         session.client.rpcHandlerManager.registerHandler('request-switch', async () => ({ deferred: false }));
         session.client.rpcHandlerManager.registerHandler('cancel-pending-switch', async () => { });
         session.setNotifyLegacyMessageBeforeQueue(null);
+        if (turnCompleteCallback) {
+            session.removeTurnCompleteCallback(turnCompleteCallback);
+        }
+        if (!completedSwitchFromStopHook) {
+            session.clearDeferredSwitchState();
+        }
         session.queue.setOnMessage(null);
         
         // Remove session found callback

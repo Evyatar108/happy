@@ -194,6 +194,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
     // Variable to track current session instance (updated via onSessionReady callback)
     // Used by hook server to notify Session when Claude changes session ID
     let currentSession: Session | null = null;
+    let currentMode: 'local' | 'remote' = options.startingMode ?? 'local';
 
     // Start Hook server for receiving Claude session notifications
     const hookServer = await startHookServer({
@@ -223,7 +224,21 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
                 triggeredBy: 'system',
                 at: Date.now(),
             });
-        }
+        },
+        onUserPromptSubmitHook: async (data) => {
+            logger.debug('[START] UserPromptSubmit hook received:', data);
+            if (currentMode === 'remote') {
+                return;
+            }
+            await currentSession?.onTurnStarted();
+        },
+        onStopHook: async (data) => {
+            logger.debug('[START] Stop hook received:', data);
+            if (currentMode === 'remote') {
+                return;
+            }
+            await currentSession?.onTurnCompleted();
+        },
     });
     logger.debug(`[START] Hook server started on port ${hookServer.port}`);
 
@@ -473,6 +488,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         api,
         allowedTools: happyServer.toolNames.map(toolName => `mcp__happy__${toolName}`),
         onModeChange: (newMode) => {
+            currentMode = newMode;
             session.sendSessionEvent({ type: 'switch', mode: newMode });
             session.updateAgentState((currentState) => ({
                 ...currentState,

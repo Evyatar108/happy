@@ -71,11 +71,22 @@ describe('claudeLocalLauncher shadow metadata wiring', () => {
                 reset: vi.fn(),
             },
             pendingSwitch: undefined,
+            deferredSwitchCompleting: false,
             turnActive: false,
             setPendingSwitch: vi.fn((pendingSwitch: any) => {
                 session.pendingSwitch = pendingSwitch;
             }),
+            setTurnActive: vi.fn((turnActive: boolean) => {
+                session.turnActive = turnActive;
+            }),
+            clearDeferredSwitchState: vi.fn(() => {
+                session.pendingSwitch = undefined;
+                session.deferredSwitchCompleting = false;
+                session.turnActive = false;
+            }),
             setNotifyLegacyMessageBeforeQueue: vi.fn(),
+            addTurnCompleteCallback: vi.fn(),
+            removeTurnCompleteCallback: vi.fn(),
             onSessionFound: vi.fn(),
             onThinkingChange: vi.fn(),
             claudeEnvVars: { CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' },
@@ -138,6 +149,9 @@ describe('claudeLocalLauncher shadow metadata wiring', () => {
                 session.pendingSwitch = pendingSwitch;
             }),
             setNotifyLegacyMessageBeforeQueue: vi.fn(),
+            clearDeferredSwitchState: vi.fn(),
+            addTurnCompleteCallback: vi.fn(),
+            removeTurnCompleteCallback: vi.fn(),
             onSessionFound,
             onThinkingChange: vi.fn(),
             claudeEnvVars: { CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' },
@@ -299,6 +313,9 @@ describe('claudeLocalLauncher shadow metadata wiring', () => {
             turnActive: true,
             setPendingSwitch,
             setNotifyLegacyMessageBeforeQueue: vi.fn(),
+            clearDeferredSwitchState: vi.fn(),
+            addTurnCompleteCallback: vi.fn(),
+            removeTurnCompleteCallback: vi.fn(),
             onSessionFound: vi.fn(),
             onThinkingChange: vi.fn(),
             claudeEnvVars: {},
@@ -357,6 +374,9 @@ describe('claudeLocalLauncher shadow metadata wiring', () => {
             turnActive: true,
             setPendingSwitch,
             setNotifyLegacyMessageBeforeQueue: vi.fn(),
+            clearDeferredSwitchState: vi.fn(),
+            addTurnCompleteCallback: vi.fn(),
+            removeTurnCompleteCallback: vi.fn(),
             onSessionFound: vi.fn(),
             onThinkingChange: vi.fn(),
             claudeEnvVars: {},
@@ -417,6 +437,9 @@ describe('claudeLocalLauncher shadow metadata wiring', () => {
             turnActive: false,
             setPendingSwitch,
             setNotifyLegacyMessageBeforeQueue: vi.fn(),
+            clearDeferredSwitchState: vi.fn(),
+            addTurnCompleteCallback: vi.fn(),
+            removeTurnCompleteCallback: vi.fn(),
             onSessionFound: vi.fn(),
             onThinkingChange: vi.fn(),
             claudeEnvVars: {},
@@ -476,6 +499,9 @@ describe('claudeLocalLauncher shadow metadata wiring', () => {
             turnActive: true,
             setPendingSwitch,
             setNotifyLegacyMessageBeforeQueue: vi.fn(),
+            clearDeferredSwitchState: vi.fn(),
+            addTurnCompleteCallback: vi.fn(),
+            removeTurnCompleteCallback: vi.fn(),
             onSessionFound: vi.fn(),
             onThinkingChange: vi.fn(),
             claudeEnvVars: {},
@@ -532,6 +558,9 @@ describe('claudeLocalLauncher shadow metadata wiring', () => {
             setNotifyLegacyMessageBeforeQueue: vi.fn((handler: (() => void) | null) => {
                 legacyHook = handler;
             }),
+            clearDeferredSwitchState: vi.fn(),
+            addTurnCompleteCallback: vi.fn(),
+            removeTurnCompleteCallback: vi.fn(),
             onSessionFound: vi.fn(),
             onThinkingChange: vi.fn(),
             claudeEnvVars: {},
@@ -566,5 +595,51 @@ describe('claudeLocalLauncher shadow metadata wiring', () => {
 
         await expect(claudeLocalLauncher(session as any)).resolves.toEqual({ type: 'exit', code: 0 });
         expect(session.queue.setOnMessage).toHaveBeenCalledWith(null);
+    });
+
+    it('switches once with completed status when the Stop hook completes a pending deferred switch', async () => {
+        let turnCompleteCallback: (() => Promise<void>) | null = null;
+        const { session } = createSessionMock();
+        session.pendingSwitch = { requestedAt: 1234, messagePreview: 'hello' };
+        session.turnActive = true;
+        session.addTurnCompleteCallback.mockImplementation((callback: () => Promise<void>) => {
+            turnCompleteCallback = callback;
+        });
+        mockClaudeLocal.mockImplementation(async (opts: { abort: AbortSignal }) => {
+            await vi.waitFor(() => expect(turnCompleteCallback).not.toBeNull());
+            const aborted = new Promise<void>((resolve) => opts.abort.addEventListener('abort', () => resolve(), { once: true }));
+            void turnCompleteCallback!();
+            void turnCompleteCallback!();
+            await aborted;
+        });
+
+        const { claudeLocalLauncher } = await import('./claudeLocalLauncher');
+
+        await expect(claudeLocalLauncher(session as any)).resolves.toEqual({ type: 'switch' });
+        expect(session.client.closeClaudeSessionTurn).toHaveBeenCalledTimes(1);
+        expect(session.client.closeClaudeSessionTurn).toHaveBeenCalledWith('completed');
+        expect(session.pendingSwitch).toBeUndefined();
+        expect(session.deferredSwitchCompleting).toBe(true);
+        expect(session.removeTurnCompleteCallback).toHaveBeenCalledWith(turnCompleteCallback);
+        expect(session.clearDeferredSwitchState).not.toHaveBeenCalled();
+    });
+
+    it('clears deferred-switch turn state and subscriptions on non-Stop exits', async () => {
+        let turnCompleteCallback: (() => Promise<void>) | null = null;
+        const { session } = createSessionMock();
+        session.pendingSwitch = { requestedAt: 1234, messagePreview: 'hello' };
+        session.turnActive = true;
+        session.addTurnCompleteCallback.mockImplementation((callback: () => Promise<void>) => {
+            turnCompleteCallback = callback;
+        });
+        mockClaudeLocal.mockResolvedValue(undefined);
+
+        const { claudeLocalLauncher } = await import('./claudeLocalLauncher');
+
+        await expect(claudeLocalLauncher(session as any)).resolves.toEqual({ type: 'exit', code: 0 });
+        expect(session.removeTurnCompleteCallback).toHaveBeenCalledWith(turnCompleteCallback);
+        expect(session.clearDeferredSwitchState).toHaveBeenCalledTimes(1);
+        expect(session.pendingSwitch).toBeUndefined();
+        expect(session.turnActive).toBe(false);
     });
 });

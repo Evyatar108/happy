@@ -9,7 +9,7 @@
  * user's `~/.claude/settings.json`, with the practical effect that plugin-
  * provided skills silently disappear. To preserve those skills we copy a small
  * allowlist of plugin/MCP-related fields from the user's settings into the
- * tmpfile, and merge any user SessionStart hooks with Happy's own hook rather
+ * tmpfile, and merge any user Happy-managed hooks with Happy's own hook rather
  * than replacing them.
  *
  * The allowlist is intentionally narrow: we do NOT forward `env`,
@@ -39,13 +39,21 @@ const USER_SETTINGS_PASSTHROUGH_KEYS = [
     'mcpServers',
 ] as const;
 
+const HAPPY_HOOK_EVENTS = [
+    'SessionStart',
+    'PreCompact',
+    'PostCompact',
+    'Stop',
+    'UserPromptSubmit',
+] as const;
+
 /**
  * Build the settings object that will be written to the hook settings file.
  *
  * Exported for testing. Given the user's Claude settings (or null if absent)
  * and the hook command string, returns a merged object where:
  *  - the narrow allowlist of plugin/MCP fields is copied from the user,
- *  - any user SessionStart hooks are preserved and Happy's hook is appended,
+ *  - any user hooks for Happy-managed events are preserved and Happy's hook is appended,
  *  - all other user fields (including potentially sensitive ones like `env`
  *    and `apiKeyHelper`) are deliberately NOT copied.
  */
@@ -73,14 +81,12 @@ export function buildHookSettings(
         ? (base.hooks as Record<string, any[]>)
         : {};
 
-    const result: Record<string, any> = {
-        hooks: {
-            ...userHooks,
-            SessionStart: appendHappyHook(userHooks.SessionStart),
-            PreCompact: appendHappyHook(userHooks.PreCompact),
-            PostCompact: appendHappyHook(userHooks.PostCompact),
-        },
-    };
+    const hooks = { ...userHooks };
+    for (const eventName of HAPPY_HOOK_EVENTS) {
+        hooks[eventName] = appendHappyHook(userHooks[eventName]);
+    }
+
+    const result: Record<string, any> = { hooks };
 
     for (const key of USER_SETTINGS_PASSTHROUGH_KEYS) {
         if (base[key] !== undefined) {
@@ -92,7 +98,7 @@ export function buildHookSettings(
 }
 
 /**
- * Generate a temporary settings file with SessionStart hook configuration
+ * Generate a temporary settings file with Happy hook configuration
  *
  * @param port - The port where Happy server is listening
  * @returns Path to the generated settings file

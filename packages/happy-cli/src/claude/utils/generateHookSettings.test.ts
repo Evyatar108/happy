@@ -3,7 +3,7 @@
  *
  * Verifies that passing --settings <tmpfile> to Claude Code does not wipe the
  * user's plugin/MCP activation (notably `enabledPlugins`) or their existing
- * SessionStart hooks, and that sensitive / unrelated user settings are NOT
+ * Happy-managed hooks, and that sensitive / unrelated user settings are NOT
  * copied into the tmpfile.
  *
  * See https://github.com/slopus/happy/issues/779.
@@ -22,16 +22,20 @@ function expectHappyHook(entry: any) {
 }
 
 describe('buildHookSettings', () => {
-    it('emits a standalone SessionStart hook when user has no settings', () => {
+    it('emits standalone Happy hooks when user has no settings', () => {
         const result = buildHookSettings(null, HAPPY_HOOK_COMMAND);
 
         expect(Object.keys(result)).toEqual(['hooks']);
         expect(result.hooks.SessionStart).toHaveLength(1);
         expect(result.hooks.PreCompact).toHaveLength(1);
         expect(result.hooks.PostCompact).toHaveLength(1);
+        expect(result.hooks.Stop).toHaveLength(1);
+        expect(result.hooks.UserPromptSubmit).toHaveLength(1);
         expectHappyHook(result.hooks.SessionStart[0]);
         expectHappyHook(result.hooks.PreCompact[0]);
         expectHappyHook(result.hooks.PostCompact[0]);
+        expectHappyHook(result.hooks.Stop[0]);
+        expectHappyHook(result.hooks.UserPromptSubmit[0]);
     });
 
     it('preserves enabledPlugins so plugin-provided skills keep loading', () => {
@@ -97,7 +101,7 @@ describe('buildHookSettings', () => {
         expectHappyHook(result.hooks.SessionStart[1]);
     });
 
-    it('keeps non-SessionStart user hook types (PreToolUse, PostToolUse, Stop, ...) intact', () => {
+    it('keeps non-Happy-managed user hook types intact', () => {
         const preToolUse = [
             { matcher: 'Bash', hooks: [{ type: 'command', command: 'echo pre' }] },
         ];
@@ -110,17 +114,30 @@ describe('buildHookSettings', () => {
         expectHappyHook(result.hooks.SessionStart[0]);
     });
 
-    it('appends Happy compact hooks after existing user compact hooks', () => {
+    it('appends Happy compact and turn hooks after existing user hooks', () => {
         const preCompact = { matcher: '*', hooks: [{ type: 'command', command: 'echo pre-compact' }] };
         const postCompact = { matcher: '*', hooks: [{ type: 'command', command: 'echo post-compact' }] };
-        const userSettings = { hooks: { PreCompact: [preCompact], PostCompact: [postCompact] } };
+        const stop = { matcher: '*', hooks: [{ type: 'command', command: 'echo stop' }] };
+        const userPromptSubmit = { matcher: '*', hooks: [{ type: 'command', command: 'echo submit' }] };
+        const userSettings = {
+            hooks: {
+                PreCompact: [preCompact],
+                PostCompact: [postCompact],
+                Stop: [stop],
+                UserPromptSubmit: [userPromptSubmit],
+            },
+        };
 
         const result = buildHookSettings(userSettings, HAPPY_HOOK_COMMAND);
 
         expect(result.hooks.PreCompact).toEqual([preCompact, expect.any(Object)]);
         expect(result.hooks.PostCompact).toEqual([postCompact, expect.any(Object)]);
+        expect(result.hooks.Stop).toEqual([stop, expect.any(Object)]);
+        expect(result.hooks.UserPromptSubmit).toEqual([userPromptSubmit, expect.any(Object)]);
         expectHappyHook(result.hooks.PreCompact[1]);
         expectHappyHook(result.hooks.PostCompact[1]);
+        expectHappyHook(result.hooks.Stop[1]);
+        expectHappyHook(result.hooks.UserPromptSubmit[1]);
     });
 
     it('tolerates a malformed hooks field (non-object) without throwing', () => {

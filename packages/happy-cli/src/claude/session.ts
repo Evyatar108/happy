@@ -37,6 +37,8 @@ export class Session {
     
     /** Callbacks to be notified when session ID is found/changed */
     private sessionFoundCallbacks: ((sessionId: string) => void)[] = [];
+    private turnStartCallbacks: (() => void | Promise<void>)[] = [];
+    private turnCompleteCallbacks: (() => void | Promise<void>)[] = [];
     
     /** Keep alive interval reference for cleanup */
     private keepAliveInterval: NodeJS.Timeout;
@@ -87,6 +89,8 @@ export class Session {
     cleanup = (): void => {
         clearInterval(this.keepAliveInterval);
         this.sessionFoundCallbacks = [];
+        this.turnStartCallbacks = [];
+        this.turnCompleteCallbacks = [];
         logger.debug('[Session] Cleaned up resources');
     }
 
@@ -137,6 +141,38 @@ export class Session {
 
     notifyLegacyMessageBeforeQueue = (): void => {
         this.notifyLegacyMessageBeforeQueueHandler?.();
+    }
+
+    onTurnStarted = async (): Promise<void> => {
+        this.setTurnActive(true);
+        await Promise.all(this.turnStartCallbacks.map((callback) => callback()));
+    }
+
+    onTurnCompleted = async (): Promise<void> => {
+        this.setTurnActive(false);
+        await Promise.all(this.turnCompleteCallbacks.map((callback) => callback()));
+    }
+
+    addTurnStartCallback = (callback: () => void | Promise<void>): void => {
+        this.turnStartCallbacks.push(callback);
+    }
+
+    removeTurnStartCallback = (callback: () => void | Promise<void>): void => {
+        const index = this.turnStartCallbacks.indexOf(callback);
+        if (index !== -1) {
+            this.turnStartCallbacks.splice(index, 1);
+        }
+    }
+
+    addTurnCompleteCallback = (callback: () => void | Promise<void>): void => {
+        this.turnCompleteCallbacks.push(callback);
+    }
+
+    removeTurnCompleteCallback = (callback: () => void | Promise<void>): void => {
+        const index = this.turnCompleteCallbacks.indexOf(callback);
+        if (index !== -1) {
+            this.turnCompleteCallbacks.splice(index, 1);
+        }
     }
 
     /**

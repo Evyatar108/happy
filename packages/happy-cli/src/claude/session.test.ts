@@ -51,4 +51,35 @@ describe('Session deferred switch state', () => {
 
         session.cleanup();
     });
+
+    it('routes hook-driven turn lifecycle through subscriptions', async () => {
+        const { session, getAgentState } = createSession();
+        const onTurnStart = vi.fn();
+        const onTurnComplete = vi.fn();
+
+        session.addTurnStartCallback(onTurnStart);
+        session.addTurnCompleteCallback(onTurnComplete);
+
+        await session.onTurnStarted();
+
+        expect(session.turnActive).toBe(true);
+        expect(getAgentState().turnActive).toBe(true);
+        expect(onTurnStart).toHaveBeenCalledTimes(1);
+
+        await session.onTurnCompleted();
+
+        expect(session.turnActive).toBe(false);
+        expect(getAgentState().turnActive).toBe(false);
+        expect(onTurnComplete).toHaveBeenCalledTimes(1);
+
+        session.removeTurnStartCallback(onTurnStart);
+        session.removeTurnCompleteCallback(onTurnComplete);
+        await session.onTurnStarted();
+        await session.onTurnCompleted();
+
+        expect(onTurnStart).toHaveBeenCalledTimes(1);
+        expect(onTurnComplete).toHaveBeenCalledTimes(1);
+
+        session.cleanup();
+    });
 });
