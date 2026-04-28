@@ -1,5 +1,5 @@
-import { execSync } from 'node:child_process';
-import { resolve } from 'node:path';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { resolve, join, relative } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -277,20 +277,38 @@ describe('sync.sendMessage switch policy', () => {
     });
 });
 
+function collectTsFiles(dir: string, results: string[] = []): string[] {
+    for (const entry of readdirSync(dir)) {
+        if (entry === 'node_modules' || entry === 'build' || entry === 'dist') {
+            continue;
+        }
+        const full = join(dir, entry);
+        if (statSync(full).isDirectory()) {
+            collectTsFiles(full, results);
+        } else if (entry.endsWith('.ts') || entry.endsWith('.tsx')) {
+            results.push(full);
+        }
+    }
+    return results;
+}
+
 describe('sync.sendMessage call-site audit', () => {
     it('keeps direct production callers on the reviewed send surfaces', () => {
-        const command = 'git grep -n -F "sync.sendMessage" -- packages/happy-app/sources';
-        const output = execSync(command, { cwd: resolve(process.cwd(), '../..'), encoding: 'utf8' });
-        const productionLines = output.trim().split(/\r?\n/)
-            .filter(line => !line.includes('.test.'))
-            .filter(line => !line.startsWith('packages/happy-app/sources/sync/sync.ts:'))
-            .map(line => line.replace(/^(.+?):\d+:.*$/, '$1'));
+        const sourcesRoot = resolve(__dirname, '..');
+        const repoRoot = resolve(sourcesRoot, '../../..');
+        const files = collectTsFiles(sourcesRoot);
 
-        expect([...new Set(productionLines)].sort()).toEqual([
+        const matchingFiles = files
+            .filter(f => readFileSync(f, 'utf8').includes('sync.sendMessage'))
+            .map(f => relative(repoRoot, f).replace(/\\/g, '/'))
+            .filter(p => !p.includes('.test.'))
+            .filter(p => p !== 'packages/happy-app/sources/sync/sync.ts');
+
+        expect([...new Set(matchingFiles)].sort()).toEqual([
             'packages/happy-app/sources/-session/SessionView.tsx',
             'packages/happy-app/sources/app/(app)/new/index.tsx',
             'packages/happy-app/sources/components/MessageView.tsx',
             'packages/happy-app/sources/realtime/realtimeClientTools.ts',
         ].sort());
-    });
+    }, 30_000);
 });
