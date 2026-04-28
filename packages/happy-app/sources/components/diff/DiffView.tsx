@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, ViewStyle } from 'react-native';
-import { calculateUnifiedDiff, DiffToken } from '@/components/diff/calculateDiff';
+import { calculateUnifiedDiff, DiffHunk, DiffToken } from '@/components/diff/calculateDiff';
 import { AnimatedText } from '@/components/StyledText';
 import { Typography } from '@/constants/Typography';
 import { useUnistyles } from 'react-native-unistyles';
@@ -10,7 +10,9 @@ import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
 interface DiffViewProps {
     oldText: string;
     newText: string;
+    hunks?: DiffHunk[];
     contextLines?: number;
+    maxVisibleLines?: number;
     showLineNumbers?: boolean;
     showPlusMinusSymbols?: boolean;
     showDiffStats?: boolean;
@@ -44,7 +46,9 @@ function AnimatedDiffText(props: React.ComponentProps<typeof AnimatedText> & { b
 export const DiffView: React.FC<DiffViewProps> = ({
     oldText,
     newText,
+    hunks: precomputedHunks,
     contextLines = 3,
+    maxVisibleLines,
     showLineNumbers = true,
     showPlusMinusSymbols = true,
     wrapLines = false,
@@ -56,8 +60,12 @@ export const DiffView: React.FC<DiffViewProps> = ({
     const colors = theme.colors.diff;
     // Calculate diff with inline highlighting
     const { hunks } = useMemo(() => {
+        if (precomputedHunks !== undefined) {
+            return { hunks: precomputedHunks };
+        }
+
         return calculateUnifiedDiff(oldText, newText, contextLines);
-    }, [oldText, newText, contextLines]);
+    }, [oldText, newText, precomputedHunks, contextLines]);
 
     // Styles
     const containerStyle: ViewStyle = {
@@ -149,8 +157,17 @@ export const DiffView: React.FC<DiffViewProps> = ({
     // Render diff content as separate lines to prevent wrapping
     const renderDiffContent = () => {
         const lines: React.ReactNode[] = [];
+        let renderedLineCount = 0;
         
         hunks.forEach((hunk, hunkIndex) => {
+            const remainingVisibleLines = maxVisibleLines === undefined
+                ? hunk.lines.length
+                : maxVisibleLines - renderedLineCount;
+
+            if (remainingVisibleLines <= 0) {
+                return;
+            }
+
             // Add hunk header for non-first hunks
             if (hunkIndex > 0) {
                 lines.push(
@@ -173,6 +190,10 @@ export const DiffView: React.FC<DiffViewProps> = ({
             }
 
             hunk.lines.forEach((line, lineIndex) => {
+                if (maxVisibleLines !== undefined && renderedLineCount >= maxVisibleLines) {
+                    return;
+                }
+
                 const isAdded = line.type === 'add';
                 const isRemoved = line.type === 'remove';
                 const textColor = isAdded ? colors.addedText : isRemoved ? colors.removedText : colors.contextText;
@@ -211,6 +232,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
                         {renderLineContent(line.content, textColor, line.tokens)}
                     </AnimatedDiffText>
                 );
+                renderedLineCount++;
             });
         });
         

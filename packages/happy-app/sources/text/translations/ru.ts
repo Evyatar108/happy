@@ -552,6 +552,10 @@ export const ru: TranslationStructure = {
             editNumber: ({ index, total }: { index: number; total: number }) => `Правка ${index} из ${total}`,
             replaceAll: 'Заменить все',
         },
+        diff: {
+            showMore: ({ count }: { count: number }) => `Показать ещё ${count} ${plural({ count, one: 'строку', few: 'строки', many: 'строк' })}`,
+            collapse: 'Свернуть',
+        },
         names: {
             task: 'Задача',
             agent: 'Агент',

@@ -535,6 +535,10 @@ export const pt: TranslationStructure = {
             editNumber: ({ index, total }: { index: number; total: number }) => `Edição ${index} de ${total}`,
             replaceAll: 'Substituir tudo',
         },
+        diff: {
+            showMore: ({ count }: { count: number }) => count === 1 ? 'Mostrar mais 1 linha' : `Mostrar mais ${count} linhas`,
+            collapse: 'Recolher',
+        },
         names: {
             task: 'Tarefa',
             agent: 'Agente',

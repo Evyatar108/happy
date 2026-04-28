@@ -1,11 +1,14 @@
 import * as React from 'react';
 import { ScrollView, View } from 'react-native';
+import type { DiffHunk } from '@/components/diff/calculateDiff';
 import { DiffView } from '@/components/diff/DiffView';
 import { useSetting } from '@/sync/storage';
 
 interface ToolDiffViewProps {
     oldText: string;
     newText: string;
+    hunks?: DiffHunk[];
+    maxVisibleLines?: number;
     style?: any;
     showLineNumbers?: boolean;
     showPlusMinusSymbols?: boolean;
@@ -14,6 +17,8 @@ interface ToolDiffViewProps {
 export const ToolDiffView = React.memo<ToolDiffViewProps>(({ 
     oldText, 
     newText, 
+    hunks,
+    maxVisibleLines,
     style, 
     showLineNumbers = false,
     showPlusMinusSymbols = false 
@@ -24,6 +29,8 @@ export const ToolDiffView = React.memo<ToolDiffViewProps>(({
         <DiffView 
             oldText={oldText} 
             newText={newText} 
+            hunks={hunks}
+            maxVisibleLines={maxVisibleLines}
             wrapLines={wrapLines}
             showLineNumbers={showLineNumbers}
             showPlusMinusSymbols={showPlusMinusSymbols}

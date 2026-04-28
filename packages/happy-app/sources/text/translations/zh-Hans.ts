@@ -537,6 +537,10 @@ export const zhHans: TranslationStructure = {
             editNumber: ({ index, total }: { index: number; total: number }) => `编辑 ${index}/${total}`,
             replaceAll: '全部替换',
         },
+        diff: {
+            showMore: ({ count }: { count: number }) => `再显示 ${count} 行`,
+            collapse: '折叠',
+        },
         names: {
             task: '任务',
             agent: '代理',
