@@ -21,7 +21,7 @@ import { LocalSettings, applyLocalSettings } from "./localSettings";
 import { Purchases, customerInfoToPurchases } from "./purchases";
 import { Profile } from "./profile";
 import { UserProfile, RelationshipUpdatedEvent } from "./friendTypes";
-import { loadSettings, loadLocalSettings, saveLocalSettings, saveSettings, loadPurchases, savePurchases, loadProfile, saveProfile, loadSessionDrafts, saveSessionDrafts, loadSessionPermissionModes, saveSessionPermissionModes } from "./persistence";
+import { loadSettings, loadLocalSettings, saveLocalSettings, saveSettings, loadPurchases, savePurchases, loadProfile, saveProfile, loadSessionDrafts, saveSessionDrafts, loadSessionPermissionModes, saveSessionPermissionModes, loadSessionPermissionModeUserChosen, saveSessionPermissionModeUserChosen } from "./persistence";
 import type { PermissionModeKey } from '@/components/PermissionModeSelector';
 import type { CustomerInfo } from './revenueCat/types';
 import React from "react";
@@ -70,6 +70,11 @@ interface SessionMessages {
     oldestLoadedSeq: number;
     loadingOlder: boolean;
 }
+
+type IncomingSession = Omit<Session, 'presence' | 'permissionModeUserChosen'> & {
+    presence?: "online" | number;
+    permissionModeUserChosen?: boolean;
+};
 
 // Machine type is now imported from storageTypes - represents persisted machine data
 
@@ -168,7 +173,7 @@ interface StorageState {
     socketLastDisconnectedAt: number | null;
     isDataReady: boolean;
     nativeUpdateStatus: { available: boolean; updateUrl?: string } | null;
-    applySessions: (sessions: (Omit<Session, 'presence'> & { presence?: "online" | number })[]) => void;
+    applySessions: (sessions: IncomingSession[]) => void;
     applyMachines: (machines: Machine[], replace?: boolean) => void;
     deleteMachine: (machineId: string) => void;
     applyLoaded: () => void;
@@ -206,7 +211,7 @@ interface StorageState {
     setSocketStatus: (status: 'disconnected' | 'connecting' | 'connected' | 'error') => void;
     getActiveSessions: () => Session[];
     updateSessionDraft: (sessionId: string, draft: string | null) => void;
-    updateSessionPermissionMode: (sessionId: string, mode: string) => void;
+    updateSessionPermissionMode: (sessionId: string, mode: string, userChosen?: boolean) => void;
     updateSessionModelMode: (sessionId: string, mode: string) => void;
     updateSessionEffortLevel: (sessionId: string, level: string) => void;
     // Artifact methods
@@ -341,6 +346,7 @@ export const storage = create<StorageState>()((set, get) => {
     let profile = loadProfile();
     let sessionDrafts = loadSessionDrafts();
     let sessionPermissionModes = loadSessionPermissionModes();
+    let sessionPermissionModeUserChosen = loadSessionPermissionModeUserChosen();
     return {
         settings,
         settingsVersion: version,
@@ -390,10 +396,11 @@ export const storage = create<StorageState>()((set, get) => {
             const state = get();
             return Object.values(state.sessions).filter(s => s.active);
         },
-        applySessions: (sessions: (Omit<Session, 'presence'> & { presence?: "online" | number })[]) => set((state) => {
+        applySessions: (sessions: IncomingSession[]) => set((state) => {
             // Load drafts and permission modes if sessions are empty (initial load)
             const savedDrafts = Object.keys(state.sessions).length === 0 ? sessionDrafts : {};
             const savedPermissionModes = Object.keys(state.sessions).length === 0 ? sessionPermissionModes : {};
+            const savedPermissionModeUserChosen = Object.keys(state.sessions).length === 0 ? sessionPermissionModeUserChosen : {};
 
             // Merge new sessions with existing ones
             const mergedSessions: Record<string, Session> = { ...state.sessions };
@@ -408,6 +415,8 @@ export const storage = create<StorageState>()((set, get) => {
                 const savedDraft = savedDrafts[session.id];
                 const existingPermissionMode = state.sessions[session.id]?.permissionMode;
                 const savedPermissionMode = savedPermissionModes[session.id];
+                const existingPermissionModeUserChosen = state.sessions[session.id]?.permissionModeUserChosen;
+                const savedUserChosen = savedPermissionModeUserChosen[session.id];
                 const defaultPermissionMode: PermissionModeKey = isSandboxEnabled(session.metadata) ? 'bypassPermissions' : 'default';
                 const resolvedPermissionMode: PermissionModeKey =
                     (existingPermissionMode && existingPermissionMode !== 'default' ? existingPermissionMode : undefined) ||
@@ -419,7 +428,8 @@ export const storage = create<StorageState>()((set, get) => {
                     ...session,
                     presence,
                     draft: existingDraft || savedDraft || session.draft || null,
-                    permissionMode: resolvedPermissionMode
+                    permissionMode: resolvedPermissionMode,
+                    permissionModeUserChosen: existingPermissionModeUserChosen ?? savedUserChosen ?? session.permissionModeUserChosen ?? false
                 };
             });
 
@@ -688,6 +698,7 @@ export const storage = create<StorageState>()((set, get) => {
                         allModes[id] = sess.permissionMode;
                     }
                 });
+                sessionPermissionModes = allModes;
                 saveSessionPermissionModes(allModes);
             }
 
@@ -999,7 +1010,7 @@ export const storage = create<StorageState>()((set, get) => {
                 sessionListViewData: buildSessionListViewData(updatedSessions)
             };
         }),
-        updateSessionPermissionMode: (sessionId: string, mode: string) => set((state) => {
+        updateSessionPermissionMode: (sessionId: string, mode: string, userChosen = false) => set((state) => {
             const session = state.sessions[sessionId];
             if (!session) return state;
 
@@ -1008,7 +1019,8 @@ export const storage = create<StorageState>()((set, get) => {
                 ...state.sessions,
                 [sessionId]: {
                     ...session,
-                    permissionMode: mode
+                    permissionMode: mode,
+                    permissionModeUserChosen: userChosen
                 }
             };
 
@@ -1021,7 +1033,17 @@ export const storage = create<StorageState>()((set, get) => {
             });
 
             // Persist permission modes (only non-default values to save space)
+            sessionPermissionModes = allModes;
             saveSessionPermissionModes(allModes);
+
+            const allUserChosenFlags = loadSessionPermissionModeUserChosen();
+            if (userChosen) {
+                allUserChosenFlags[sessionId] = true;
+            } else {
+                delete allUserChosenFlags[sessionId];
+            }
+            sessionPermissionModeUserChosen = allUserChosenFlags;
+            saveSessionPermissionModeUserChosen(allUserChosenFlags);
 
             // No need to rebuild sessionListViewData since permission mode doesn't affect the list display
             return {
@@ -1181,7 +1203,13 @@ export const storage = create<StorageState>()((set, get) => {
             
             const modes = loadSessionPermissionModes();
             delete modes[sessionId];
+            sessionPermissionModes = modes;
             saveSessionPermissionModes(modes);
+
+            const flags = loadSessionPermissionModeUserChosen();
+            delete flags[sessionId];
+            sessionPermissionModeUserChosen = flags;
+            saveSessionPermissionModeUserChosen(flags);
             
             // Rebuild sessionListViewData without the deleted session
             const sessionListViewData = buildSessionListViewData(remainingSessions);

@@ -210,6 +210,23 @@ export function saveSessionPermissionModes(modes: Record<string, string>) {
     mmkv.set('session-permission-modes', JSON.stringify(modes));
 }
 
+export function loadSessionPermissionModeUserChosen(): Record<string, boolean> {
+    const flags = mmkv.getString('session-permission-mode-user-chosen');
+    if (flags) {
+        try {
+            return JSON.parse(flags);
+        } catch (e) {
+            console.error('Failed to parse session permission mode user chosen flags', e);
+            return {};
+        }
+    }
+    return {};
+}
+
+export function saveSessionPermissionModeUserChosen(flags: Record<string, boolean>) {
+    mmkv.set('session-permission-mode-user-chosen', JSON.stringify(flags));
+}
+
 export function loadProfile(): Profile {
     const profile = mmkv.getString('profile');
     if (profile) {

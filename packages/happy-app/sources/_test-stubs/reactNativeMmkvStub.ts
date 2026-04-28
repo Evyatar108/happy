@@ -4,10 +4,18 @@
 // don't need real persistence; an in-memory map is sufficient.
 
 export class MMKV {
-    private store = new Map<string, string | number | boolean | ArrayBuffer>();
+    private store: Map<string, string | number | boolean | ArrayBuffer>;
 
-    constructor(_opts?: { id?: string; path?: string; encryptionKey?: string }) {
-        // no-op
+    constructor(opts?: { id?: string; path?: string; encryptionKey?: string }) {
+        const storeId = opts?.id ?? 'default';
+        const stores = getStores();
+        const existing = stores.get(storeId);
+        if (existing) {
+            this.store = existing;
+        } else {
+            this.store = new Map<string, string | number | boolean | ArrayBuffer>();
+            stores.set(storeId, this.store);
+        }
     }
 
     getString(key: string): string | undefined {
@@ -49,6 +57,16 @@ export class MMKV {
         const v = this.store.get(key);
         return v instanceof ArrayBuffer ? v : undefined;
     }
+}
+
+function getStores(): Map<string, Map<string, string | number | boolean | ArrayBuffer>> {
+    const globalRecord = globalThis as unknown as {
+        __happyTestMmkvStores?: Map<string, Map<string, string | number | boolean | ArrayBuffer>>;
+    };
+    if (!globalRecord.__happyTestMmkvStores) {
+        globalRecord.__happyTestMmkvStores = new Map();
+    }
+    return globalRecord.__happyTestMmkvStores;
 }
 
 export default { MMKV };
