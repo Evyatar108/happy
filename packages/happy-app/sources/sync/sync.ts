@@ -589,7 +589,7 @@ class Sync {
             },
             meta: {
                 sentFrom,
-                permissionMode,
+                ...(permissionMode !== undefined && { permissionMode }),
                 model,
                 fallbackModel,
                 appendSystemPrompt: systemPrompt,
