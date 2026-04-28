@@ -1,6 +1,7 @@
 import { createId, isCuid } from '@paralleldrive/cuid2';
 import * as z from 'zod';
 
+// Production session protocol schemas shared by happy-cli, happy-app, and happy-wire consumers.
 export const sessionRoleSchema = z.enum(['user', 'agent']);
 export type SessionRole = z.infer<typeof sessionRoleSchema>;
 
