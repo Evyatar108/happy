@@ -20,7 +20,11 @@ type TaskNotificationDetailRow = {
     value: string;
 };
 
-export function getTaskNotificationStatusLabel(status: string) {
+export function getTaskNotificationStatusLabel(status: string | undefined) {
+    if (!status) {
+        return null;
+    }
+
     switch (status.trim().toLowerCase()) {
         case 'completed':
             return t('chat.taskNotification.status.completed');
@@ -40,14 +44,16 @@ export function getTaskNotificationStatusLabel(status: string) {
 export function getTaskNotificationDetailRows(data: TaskNotificationData): TaskNotificationDetailRow[] {
     const rows: TaskNotificationDetailRow[] = [
         { key: 'task-id', title: t('chat.taskNotification.taskId'), value: data.taskId },
-        { key: 'output-file', title: t('chat.taskNotification.outputFile'), value: data.outputFile },
     ];
 
-    if (data.taskType) {
-        rows.splice(1, 0, { key: 'task-type', title: t('chat.taskNotification.taskType'), value: data.taskType });
-    }
     if (data.toolUseId) {
-        rows.splice(1, 0, { key: 'tool-use-id', title: t('chat.taskNotification.toolUseId'), value: data.toolUseId });
+        rows.push({ key: 'tool-use-id', title: t('chat.taskNotification.toolUseId'), value: data.toolUseId });
+    }
+    if (data.taskType) {
+        rows.push({ key: 'task-type', title: t('chat.taskNotification.taskType'), value: data.taskType });
+    }
+    if (data.outputFile) {
+        rows.push({ key: 'output-file', title: t('chat.taskNotification.outputFile'), value: data.outputFile });
     }
 
     return rows;
@@ -55,13 +61,14 @@ export function getTaskNotificationDetailRows(data: TaskNotificationData): TaskN
 
 export function TaskNotificationDetailModal({ data }: TaskNotificationDetailModalProps) {
     const rows = getTaskNotificationDetailRows(data);
+    const statusLabel = getTaskNotificationStatusLabel(data.status);
 
     return (
         <View style={styles.modal}>
             <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
                 <View style={styles.header}>
                     <Text style={styles.title}>{t('chat.taskNotification.title')}</Text>
-                    <Text style={styles.status}>{getTaskNotificationStatusLabel(data.status)}</Text>
+                    {statusLabel ? <Text style={styles.status}>{statusLabel}</Text> : null}
                 </View>
 
                 <View style={styles.rows}>

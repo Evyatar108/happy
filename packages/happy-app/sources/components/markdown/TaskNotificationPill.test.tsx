@@ -120,6 +120,28 @@ describe('TaskNotificationPill', () => {
         expect(getTaskNotificationStatusAppearance(status)).toEqual(expected);
     });
 
+    it('renders an info glyph when the notification has no status field (Monitor variant)', () => {
+        expect(getTaskNotificationStatusAppearance(undefined)).toEqual({
+            type: 'icon',
+            name: 'information-circle-outline',
+            color: '#8E8E93',
+        });
+        expect(getTaskNotificationStatusAppearance('')).toEqual({
+            type: 'icon',
+            name: 'information-circle-outline',
+            color: '#8E8E93',
+        });
+    });
+
+    it('omits the output-file row when outputFile is absent (Monitor variant)', () => {
+        const data = {
+            taskId: 'b16gtyivu',
+            summary: 'Monitor event',
+        };
+
+        expect(getTaskNotificationDetailRows(data).map(row => row.key)).toEqual(['task-id']);
+    });
+
     it('opens the detail modal with the task data on press', () => {
         const tree = TaskNotificationPill({ data: baseData });
         const pressable = findAllByType(tree, 'Pressable')[0];

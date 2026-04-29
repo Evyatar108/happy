@@ -9,6 +9,7 @@ import { ToolView } from "./tools/ToolView";
 import { AgentEvent } from "@/sync/typesRaw";
 import { sync } from '@/sync/sync';
 import { Option } from './markdown/MarkdownView';
+import { isSkillBodyMessage } from './markdown/skillBody';
 import { AnimatedText } from './StyledText';
 import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
 import { BoundaryDivider } from './BoundaryDivider';
@@ -83,10 +84,21 @@ function UserTextBlock(props: {
     sync.sendMessage(props.sessionId, option.title, { source: 'option' });
   }, [props.sessionId]);
 
+  const text = props.message.displayText || props.message.text;
+
+  // Claude Code injects a verbatim copy of every loaded skill's SKILL.md as a
+  // user-role text message right after the Skill tool_use/tool_result pair.
+  // The wrench-icon Skill ToolView already shows the user that a skill was
+  // called; the body itself is opaque infrastructure noise, so we hide the
+  // whole bubble. See `isSkillBodyMessage` for the detection contract.
+  if (isSkillBodyMessage(text)) {
+    return null;
+  }
+
   return (
     <View style={styles.userMessageContainer}>
       <View style={styles.userMessageBubble}>
-        <MarkdownView markdown={props.message.displayText || props.message.text} onOptionPress={handleOptionPress} sessionId={props.sessionId} />
+        <MarkdownView markdown={text} onOptionPress={handleOptionPress} sessionId={props.sessionId} />
         {/* {__DEV__ && (
           <Text style={styles.debugText}>{JSON.stringify(props.message.meta)}</Text>
         )} */}

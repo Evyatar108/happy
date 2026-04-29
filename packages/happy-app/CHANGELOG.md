@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 27 - 2026-04-29
+
+Two chat-rendering fixes for Claude Code sessions. Background-task notifications from Claude Code's Monitor tool — which only carry a task id, a summary, and an event line (no status, no output file) — now render as a proper info chip instead of leaking through as raw `<task-notification>` XML in the message body. And the verbatim copy of every loaded skill's `SKILL.md` that Claude Code injects after a Skill tool call no longer floods the chat with hundreds of lines of internal markdown — the wrench-icon Skill tool block on its own already shows the call.
+
+- Task notification chips render reliably across every Claude Code variant we have observed (terminal task framework, bash-hook background tasks, Monitor-tool events). Only `task-id` + `summary` are required now; everything else is optional and unknown inner tags are tolerated silently, so future variants are non-breaking by default.
+- Notifications without a status field show a neutral info icon instead of the misleading "pending" hourglass, and the detail modal hides empty rows for missing fields.
+- Hid the verbatim `SKILL.md` body that Claude Code injects as a user-role message after each Skill tool call. The Skill tool block is unchanged.
+
 ## Version 26 - 2026-04-29
 
 Scrolling back through long chats is much smoother. The next chunk of older messages now arrives over the live socket connection a beat before you scroll there, instead of waiting on a one-shot HTTP fetch when you reach the edge. The new path is on by default; you can flip it off in Settings → Appearance ("Stream Older Messages") if you ever want to fall back to the legacy HTTP behavior. The setting is local to the device (does not sync across devices).

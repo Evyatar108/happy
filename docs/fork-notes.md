@@ -398,6 +398,14 @@ Claude Code wraps internal state in XML-ish tags inside message text. Its native
 
 **When a new tag family appears**, the preprocessor logs `[MarkdownView] unknown tag <name>` once to Metro (dev-only). See `.agents/skills/happy-discover-metadata-tags/SKILL.md` for the full discovery workflow — it's the one we used to build the taxonomy above.
 
+### Claude Code injections that are NOT XML tags
+
+Some Claude Code injections arrive as plain user-role text (no wrapper), so `processClaudeMetaTags` doesn't see them. They're suppressed at the message-render layer instead:
+
+| Injection | Origin | Detection | Treatment |
+|---|---|---|---|
+| Skill body | After every `Skill` tool_use/tool_result, Claude Code posts a verbatim copy of the loaded `SKILL.md` as a `user`-role text message. The wrench-icon `Skill` ToolView already shows the call. | `isSkillBodyMessage(text)` in `packages/happy-app/sources/components/markdown/skillBody.ts` — matches the canonical prefix `Base directory for this skill: <abs-path>\n\n# <Heading>` (strict enough that user text mentioning the prefix mid-sentence won't match). | `UserTextBlock` in `packages/happy-app/sources/components/MessageView.tsx` returns `null`, suppressing the entire user-message bubble. The Skill ToolView remains visible. |
+
 ## Decision log
 
 - **PR #1154 — scope:** first thought the PR should revert the anchoring change in a separate perf PR (cleaner review narrative). Reviewers (Codex × 2 rounds, Plan, Explore) debated, Explore recanted their initial "no regression" claim, and the consensus was the two-commit story (perf fix + anchor restore) reads well enough on its own. Shipped as two commits.

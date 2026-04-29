@@ -18,7 +18,14 @@ type TaskNotificationStatusAppearance =
     | { type: 'spinner'; color: string }
     | { type: 'icon'; name: keyof typeof Ionicons.glyphMap; color: string };
 
-export function getTaskNotificationStatusAppearance(status: string): TaskNotificationStatusAppearance {
+export function getTaskNotificationStatusAppearance(status: string | undefined): TaskNotificationStatusAppearance {
+    if (!status) {
+        // Notification shapes without a `<status>` field (e.g. Claude Code's
+        // Monitor-tool events) are informational, not lifecycle-driven — show
+        // a neutral info glyph rather than the hourglass "pending" icon.
+        return { type: 'icon', name: 'information-circle-outline', color: '#8E8E93' };
+    }
+
     switch (status.trim().toLowerCase()) {
         case 'completed':
             return { type: 'icon', name: 'checkmark-circle', color: '#34C759' };

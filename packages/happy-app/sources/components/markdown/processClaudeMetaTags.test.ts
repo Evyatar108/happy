@@ -248,15 +248,56 @@ describe('processClaudeMetaTags', () => {
         expect(output.taskNotifications[0]?.summary).toBe(summaryText);
     });
 
-    it('falls back to plain text when a required task-notification tag is missing', () => {
+    it('parses a Monitor-tool task-notification (task-id + summary + event)', () => {
+        // Real-world payload from Claude Code's Monitor tool — only `task-id` and
+        // `summary` are universal; status / output-file / task-type are absent and
+        // an `<event>` tag carries the monitor heartbeat. The chip should still
+        // render with summary text and a neutral status.
+        const input = [
+            '<task-notification>',
+            '<task-id>b16gtyivu</task-id>',
+            '<summary>Monitor event: "Watch for session-message-range events on :3006"</summary>',
+            '<event>[Monitor timed out — re-arm if needed.]</event>',
+            '</task-notification>',
+        ].join('\n');
+        const output = processClaudeMetaTags(input);
+
+        expect(output.renderMarkdown).toBe('__HAPPY_TASK_NOTIFICATION_0__');
+        expect(output.copyMarkdown).toBe('Monitor event: "Watch for session-message-range events on :3006"');
+        expect(output.taskNotifications).toEqual([
+            {
+                taskId: 'b16gtyivu',
+                summary: 'Monitor event: "Watch for session-message-range events on :3006"',
+            },
+        ]);
+        expect(output.taskNotifications[0]).not.toHaveProperty('status');
+        expect(output.taskNotifications[0]).not.toHaveProperty('outputFile');
+    });
+
+    it('does not warn for the Monitor-tool <event> inner tag', () => {
+        const logger = vi.fn();
+        _setLogger(logger);
+
+        processClaudeMetaTags([
+            '<task-notification>',
+            '<task-id>b16gtyivu</task-id>',
+            '<summary>Monitor event</summary>',
+            '<event>[heartbeat]</event>',
+            '</task-notification>',
+        ].join('\n'));
+
+        expect(logger).not.toHaveBeenCalled();
+    });
+
+    it('falls back to plain text when task-id is missing', () => {
         const logger = vi.fn();
         _setLogger(logger);
 
         const input = [
             '<task-notification>',
-            '<task-id>task-123</task-id>',
             '<task-type>review</task-type>',
             '<output-file>/tmp/task-123.output</output-file>',
+            '<status>completed</status>',
             '<summary>Review finished successfully</summary>',
             '</task-notification>',
         ].join('\n');
@@ -266,6 +307,19 @@ describe('processClaudeMetaTags', () => {
         expect(output.copyMarkdown).toBe(input);
         expect(output.taskNotifications).toEqual([]);
         expect(logger).not.toHaveBeenCalled();
+    });
+
+    it('falls back to plain text when summary is missing', () => {
+        const input = [
+            '<task-notification>',
+            '<task-id>task-123</task-id>',
+            '<status>completed</status>',
+            '</task-notification>',
+        ].join('\n');
+        const output = processClaudeMetaTags(input);
+
+        expect(output.renderMarkdown).toBe(input);
+        expect(output.taskNotifications).toEqual([]);
     });
 
     it('preserves options byte-for-byte when adjacent to a task-notification block', () => {

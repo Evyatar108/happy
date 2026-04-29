@@ -6,6 +6,7 @@ This document records the Claude Code synthetic XML tag survey conducted for the
   - `<task-notification>` renders as a clickable pill with a detail modal.
   - `<system-reminder>` is stripped before markdown render/copy.
   - `<fork-boilerplate>` is stripped before markdown render/copy.
+  - **Skill-body injection** (post-`Skill` tool — NOT an XML tag, plain user-role text) is detected by prefix and suppressed at the `UserTextBlock` render layer. See `packages/happy-app/sources/components/markdown/skillBody.ts` and the "Claude Code injections that are NOT XML tags" section in `docs/fork-notes.md`.
 
 Use this doc as the stable link target from [fork-notes.md](../fork-notes.md).
 
@@ -21,14 +22,19 @@ The Claude Code harness emits several synthetic XML tag families into the conver
 
 ### Tags that DO reach the chat transcript
 
-#### `<task-notification>` *(shipped in this PR)*
+#### `<task-notification>` *(shipped in this PR; parser hardened 2026-04-29)*
 
-- **Constructed in:** `claude-code/src/utils/task/framework.ts:274-290` (`enqueueTaskNotification()`).
-- **Schema:** `<task-id>` (req) → optional `<tool-use-id>` → `<task-type>` (req) → `<output-file>` (req) → `<status>` (req) → `<summary>` (req).
-- **Status enum** (`claude-code/src/Task.ts:15-20`): `'pending' | 'running' | 'completed' | 'failed' | 'killed'`. Only the three terminal states currently produce notification blocks.
+- **Constructed in:** `claude-code/src/utils/task/framework.ts:274-290` (`enqueueTaskNotification()`), plus other Claude Code emitters that re-use the same wrapper (Monitor tool, bash-hook background-task, remote-review re-wrap).
+- **Original schema (Task framework):** `<task-id>` → optional `<tool-use-id>` → `<task-type>` → `<output-file>` → `<status>` → `<summary>`.
+- **Observed variants in the wild:**
+  - **Bash-hook background-task** (Claude Code on Windows): drops `<task-type>` — `<task-id>`, `<tool-use-id>`, `<output-file>`, `<status>`, `<summary>`.
+  - **Monitor tool events** (re-arm heartbeats and other long-running monitor pings): only `<task-id>` + `<summary>`, plus a free-form `<event>` inner tag carrying the heartbeat text — no `<task-type>`, no `<output-file>`, no `<status>`.
+- **Stable contract for Happy's parser:** **only `<task-id>` and `<summary>` are required.** Every other recognized inner tag (`<tool-use-id>`, `<task-type>`, `<output-file>`, `<status>`) is optional, and unknown inner tags such as `<event>` are tolerated silently (they get dropped from the typed chip data, but the chip still renders). New emitters that add inner tags are non-breaking by default. See `parseTaskNotification(...)` in `packages/happy-app/sources/components/markdown/processClaudeMetaTags.ts`.
+- **Status enum** (`claude-code/src/Task.ts:15-20`): `'pending' | 'running' | 'completed' | 'failed' | 'killed'`. When `<status>` is absent (Monitor variant) the pill renders an `information-circle-outline` glyph and the detail modal hides the status row; otherwise unknown status strings fall through to the hourglass-pending icon.
 - **Escaping:** none — values inserted raw.
 - **Atomic:** yes — full block constructed before enqueue, never split across streaming chunks.
-- **Treatment in Happy:** pill render (icon + summary) opening a custom modal with copyable id / output-file rows.
+- **Treatment in Happy:** pill render (icon + summary) opening a custom modal with copyable id / output-file rows. Detail-modal rows are conditional: only fields actually present in the source XML are surfaced.
+- **When to revisit this doc:** if a future emitter introduces a brand-new inner tag that should be user-visible (e.g. surfacing the Monitor-variant `<event>` text inside the modal). The parser already tolerates unknown tags, but adding a typed field requires a one-line entry in `KNOWN_TAG_NAMES` plus the consumer plumbing.
 
 #### `<system-reminder>` *(shipped in this PR)*
 

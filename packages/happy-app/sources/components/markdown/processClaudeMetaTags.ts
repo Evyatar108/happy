@@ -22,21 +22,24 @@ const ANY_TAG_RE = /<\/?([a-z][a-z0-9-]*)(?:\s[^>]*)?>/gi;
 const FENCE_COLLISION_RE = /```/g;
 const FENCE_COLLISION_ESCAPE = '``\u200B`';
 
-// `<task-type>` is optional because not all task-notification emitters include it
-// (e.g. Claude Code's bash-hook background-task notification emits task-id, tool-use-id,
-// output-file, status, summary — no task-type). Without this tolerance the whole
-// notification falls through and renders as raw XML in the user-message bubble.
-const TASK_NOTIFICATION_PATTERN = /^<task-notification(?:\s[^>]*)?>\s*<task-id(?:\s[^>]*)?>([\s\S]*?)<\/task-id>\s*(?:<tool-use-id(?:\s[^>]*)?>([\s\S]*?)<\/tool-use-id>\s*)?(?:<task-type(?:\s[^>]*)?>([\s\S]*?)<\/task-type>\s*)?<output-file(?:\s[^>]*)?>([\s\S]*?)<\/output-file>\s*<status(?:\s[^>]*)?>([\s\S]*?)<\/status>\s*<summary(?:\s[^>]*)?>([\s\S]*?)<\/summary>\s*<\/task-notification>$/i;
+// Tolerant inner-tag extraction. Different Claude Code emitters produce
+// different `<task-notification>` shapes:
+//   - Task framework (terminal): task-id, [tool-use-id], task-type, output-file, status, summary
+//   - Bash-hook background-task: task-id, tool-use-id, output-file, status, summary (no task-type)
+//   - Monitor tool events: task-id, summary, event (no task-type, output-file, or status)
+// Rather than maintain an anchored multi-shape regex, we require only the two
+// universal fields — `<task-id>` and `<summary>` — and lift the other recognized
+// inner tags as optional fields. Unknown inner tags (e.g. `<event>`) are tolerated
+// silently so future Claude Code shapes don't fall through to raw-XML render.
 
 export type TaskNotificationStatus = 'pending' | 'running' | 'completed' | 'failed' | 'killed' | (string & {});
 
 export type TaskNotificationData = {
     taskId: string;
     toolUseId?: string;
-    /** Optional — not emitted by Claude Code's bash-hook background-task notifications. */
     taskType?: string;
-    outputFile: string;
-    status: TaskNotificationStatus;
+    outputFile?: string;
+    status?: TaskNotificationStatus;
     summary: string;
 };
 
@@ -62,6 +65,10 @@ export const KNOWN_TAG_NAMES = new Set([
     'output-file',
     'status',
     'summary',
+    // Emitted by Claude Code's Monitor tool inside <task-notification>. We don't
+    // surface it as a typed field, but listing it here suppresses the warn-once
+    // for "unknown tag" while the chip renders normally.
+    'event',
     'system-reminder',
     'fork-boilerplate',
 ]);
@@ -117,34 +124,56 @@ function restoreOptions(raw: string, protectedBlocks: string[]) {
     });
 }
 
+type InnerTagMatch = { value: string; endIndex: number };
+
+function extractFirstInnerTag(block: string, tagName: string): InnerTagMatch | null {
+    const re = new RegExp(`<${tagName}(?:\\s[^>]*)?>([\\s\\S]*?)</${tagName}>`, 'i');
+    const m = block.match(re);
+
+    if (!m || m.index === undefined) {
+        return null;
+    }
+
+    return { value: m[1].trim(), endIndex: m.index + m[0].length };
+}
+
 function parseTaskNotification(block: string): TaskNotificationData | null {
-    const match = block.match(TASK_NOTIFICATION_PATTERN);
+    const taskIdMatch = extractFirstInnerTag(block, 'task-id');
+    const summaryMatch = extractFirstInnerTag(block, 'summary');
 
-    if (!match) {
+    if (!taskIdMatch || !summaryMatch) {
         return null;
     }
 
-    const taskId = match[1].trim();
-    const toolUseId = match[2]?.trim();
-    const taskType = match[3]?.trim();
-    const outputFile = match[4].trim();
-    const status = match[5].trim();
-    const summary = match[6].trim();
+    const taskId = taskIdMatch.value;
+    const summary = summaryMatch.value;
 
-    if (summary && /<\/summary>/i.test(summary)) {
+    if (!taskId || !summary) {
         return null;
     }
 
-    if (!taskId || !outputFile || !status || !summary) {
+    // Defense against malformed payload: a literal `</summary>` inside the captured
+    // summary, or a stray `</summary>` after we already closed one, signals that the
+    // block is structurally broken (or attempting to inject content that masquerades
+    // as a chip). Fall back to raw render in that case.
+    if (/<\/summary>/i.test(summary)) {
         return null;
     }
+    if (/<\/summary>/i.test(block.slice(summaryMatch.endIndex))) {
+        return null;
+    }
+
+    const toolUseId = extractFirstInnerTag(block, 'tool-use-id')?.value || undefined;
+    const taskType = extractFirstInnerTag(block, 'task-type')?.value || undefined;
+    const outputFile = extractFirstInnerTag(block, 'output-file')?.value || undefined;
+    const status = extractFirstInnerTag(block, 'status')?.value || undefined;
 
     return {
         taskId,
         ...(toolUseId ? { toolUseId } : {}),
         ...(taskType ? { taskType } : {}),
-        outputFile,
-        status,
+        ...(outputFile ? { outputFile } : {}),
+        ...(status ? { status } : {}),
         summary,
     };
 }
