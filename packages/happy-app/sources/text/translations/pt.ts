@@ -208,6 +208,8 @@ export const pt: TranslationStructure = {
         pinchToZoomDescription: 'Use um gesto de pinça com dois dedos no chat para uma prévia ao vivo do tamanho do texto que é salva ao soltar.',
         paginatedScrollTitle: 'Navegação do chat por páginas',
         paginatedScrollDescription: 'Use zonas de toque estreitas no topo e na parte inferior do chat para avançar por páginas em vez de rolar livremente.',
+        socketRangeFetchTitle: 'Transmitir mensagens antigas',
+        socketRangeFetchDescription: 'Receba as mensagens mais antigas pelo socket ao vivo em vez de requisições HTTP avulsas, para que cheguem um pouco antes de você rolar até elas.',
         inlineToolCalls: 'Chamadas de ferramentas inline',
         inlineToolCallsDescription: 'Exibir chamadas de ferramentas diretamente nas mensagens do chat',
         expandTodoLists: 'Expandir listas de tarefas',

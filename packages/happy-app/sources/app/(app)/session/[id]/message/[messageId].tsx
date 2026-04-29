@@ -44,6 +44,11 @@ export default React.memo(() => {
     React.useEffect(() => {
         if (sessionId) {
             sync.onSessionVisible(sessionId);
+            // US-006: also notify the active-session-changed path so the
+            // message detail route is treated as a real session focus and
+            // the prefetch generation / renderWindow lifecycle stays
+            // consistent with SessionView.
+            sync.onActiveSessionChanged(sessionId);
         }
     }, [sessionId]);
     

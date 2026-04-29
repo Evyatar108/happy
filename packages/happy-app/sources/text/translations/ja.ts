@@ -210,6 +210,8 @@ export const ja: TranslationStructure = {
         pinchToZoomDescription: 'チャット内で2本指のピンチ操作を使うと、文字サイズをライブプレビューし、指を離した時に保存できます。',
         paginatedScrollTitle: 'ページ送りチャット操作',
         paginatedScrollDescription: 'チャットの上端と下端の細いタップゾーンを使って、自由にスクロールする代わりにページ単位で移動します。',
+        socketRangeFetchTitle: '過去のメッセージをストリーミング',
+        socketRangeFetchDescription: '個別のHTTPリクエストではなくライブソケット経由で過去のメッセージを取得し、スクロールが届く少し前に表示できるようにします。',
         inlineToolCalls: 'ツール呼び出しをインライン表示',
         inlineToolCallsDescription: 'チャットメッセージ内にツール呼び出しを直接表示',
         expandTodoLists: 'Todoリストを展開',

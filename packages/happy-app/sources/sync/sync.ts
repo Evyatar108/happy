@@ -51,6 +51,9 @@ import { FeedItem } from './feedTypes';
 import { UserProfile } from './friendTypes';
 import { resolveMessageModeMeta } from './messageMeta';
 import { computeInitialAfterSeq, computeOlderPageAfterSeq } from './paginationMath';
+import { PrefetchManager, type PrefetchManagerEncryptionAdapter, type PrefetchManagerTransport, type RunInSessionLock } from './prefetchManager';
+import { computeRenderWindow, computePrefetchOlderRange, shouldPrefetchOlder } from './messageWindow';
+import type { DecryptedMessage } from './storageTypes';
 
 type V3GetSessionMessagesResponse = {
     messages: ApiMessage[];
@@ -125,6 +128,21 @@ class Sync {
     private recalculationLockCount = 0;
     private lastRecalculationTime = 0;
 
+    // US-006: streaming-pagination prefetch manager. Owns the per-session
+    // generation counter for socket-pushed older-page fetches. Wired here
+    // (not at module scope) so the constructor can supply the per-session
+    // AsyncLock closure and an encryption adapter that pulls fresh per-session
+    // encryption out of `this.encryption` at decrypt time.
+    private prefetchManager: PrefetchManager;
+    // US-006: only `onActiveSessionChanged` writes this. Used to short-circuit
+    // re-entries with the same active session id and to know which previous
+    // session to bump generation for on a real transition.
+    private lastActiveSessionId: string | null = null;
+    // US-006: tracks per-request terminal Promise<void> from the manager so
+    // the flag-on `loadOlder()` delegate can await the awaited-commit
+    // contract (Plan AC #16, addresses auto-skipped F-038).
+    private prefetchPendingPromises = new Map<string, Promise<void>>();
+
     constructor() {
         this.sessionsSync = new InvalidateSync(this.fetchSessions);
         this.settingsSync = new InvalidateSync(this.syncSettings);
@@ -145,6 +163,40 @@ class Sync {
         }
         this.pushTokenSync = new InvalidateSync(registerPushToken);
         this.activityAccumulator = new ActivityUpdateAccumulator(this.flushActivityUpdates.bind(this), 2000);
+
+        // US-006: instantiate the per-session prefetch manager. The lock
+        // closure routes the in-lock commit through the same per-session
+        // AsyncLock that serializes loadOlder() and the live new-message
+        // queue. The encryption adapter pulls per-session encryption fresh
+        // from `this.encryption` so manager-issued requests during a session
+        // switch use the right key set.
+        const prefetchEncryptionAdapter: PrefetchManagerEncryptionAdapter = {
+            decryptMessages: async (sessionId, messages) => {
+                const encryption = this.encryption?.getSessionEncryption(sessionId);
+                if (!encryption) {
+                    throw new Error(`Session encryption not ready for ${sessionId}`);
+                }
+                const decrypted = await encryption.decryptMessages(messages);
+                return decrypted as (DecryptedMessage | null)[];
+            },
+        };
+        const prefetchTransport: PrefetchManagerTransport = {
+            requestSessionMessageRange: (req) => apiSocket.requestSessionMessageRange(req),
+            onReconnected: (listener) => apiSocket.onReconnected(listener),
+        };
+        const prefetchRunInSessionLock: RunInSessionLock = (sessionId, body) => {
+            return this.getSessionMessageLock(sessionId).inLock(body);
+        };
+        this.prefetchManager = new PrefetchManager({
+            storage: {
+                setActivePrefetch: (sid, ap) => storage.getState().setActivePrefetch(sid, ap),
+                applyPrefetchedRange: (sid, msgs, params) => storage.getState().applyPrefetchedRange(sid, msgs, params),
+                clearActivePrefetch: (sid, requestId) => storage.getState().clearActivePrefetch(sid, requestId),
+            },
+            encryption: prefetchEncryptionAdapter,
+            transport: prefetchTransport,
+            runInSessionLock: prefetchRunInSessionLock,
+        });
 
         // Listen for app state changes to refresh purchases
         AppState.addEventListener('change', (nextAppState) => {
@@ -260,11 +312,141 @@ class Sync {
         }
     }
 
+    /**
+     * US-006: distinct from `onSessionVisible`. The ONLY entrypoint that:
+     *   (i) writes `renderWindow: null` for the newly active session
+     *  (ii) bumps the previous session's prefetch generation (skipped when
+     *       there is no previous session)
+     * Routing the renderWindow reset through `onSessionVisible` would
+     * reintroduce the F-046 regression (the latter fires on new-message
+     * pings, control-return, and realtimeStatus changes — none of which are
+     * actual session switches).
+     */
+    onActiveSessionChanged = (sessionId: string): void => {
+        if (this.lastActiveSessionId === sessionId) {
+            return;
+        }
+        const previousSessionId = this.lastActiveSessionId;
+        storage.getState().setRenderWindow(sessionId, null);
+        if (previousSessionId !== null) {
+            this.prefetchManager.bumpGeneration(previousSessionId);
+        }
+        this.lastActiveSessionId = sessionId;
+    }
+
+    /**
+     * US-006: viewport-tick bridge from ChatList's onViewableItemsChanged.
+     * Flag-off short-circuit returns immediately without touching
+     * renderWindow, activePrefetch, or the manager. With the flag on:
+     *   - null `computeRenderWindow` (synthetic-only or pending-only tick) →
+     *     do NOT call setRenderWindow, do NOT call the manager, leave
+     *     `renderWindow` unchanged from its prior value.
+     *   - non-null computeRenderWindow → setRenderWindow then, when
+     *     `shouldPrefetchOlder` is satisfied, issue exactly one
+     *     `requestSessionMessageRange` per qualifying tick.
+     */
+    reportRenderWindow = (sessionId: string, visibleSeqs: number[]): void => {
+        const flag = storage.getState().localSettings.enableSocketRangeFetch;
+        if (!flag) {
+            return;
+        }
+        const window = computeRenderWindow({ visibleSeqs });
+        if (window === null) {
+            return;
+        }
+        storage.getState().setRenderWindow(sessionId, window);
+        const sessionMessages = storage.getState().sessionMessages[sessionId];
+        if (!sessionMessages) {
+            return;
+        }
+        const should = shouldPrefetchOlder({
+            renderWindow: window,
+            oldestLoadedSeq: sessionMessages.oldestLoadedSeq,
+            activePrefetch: sessionMessages.activePrefetch,
+            hasOlder: sessionMessages.hasOlder,
+        });
+        if (!should) {
+            return;
+        }
+        const range = computePrefetchOlderRange({
+            oldestLoadedSeq: sessionMessages.oldestLoadedSeq,
+            pageSize: OLDER_MESSAGES_PAGE_SIZE,
+        });
+        if (!range) {
+            return;
+        }
+        const promise = this.prefetchManager.requestSessionMessageRange({
+            sessionId,
+            fromSeq: range.fromSeq,
+            toSeq: range.toSeq,
+            limit: range.limit,
+            direction: 'older',
+        });
+        // Track for the awaited-commit contract used by the flag-on
+        // `loadOlder()` delegate. Cleared after terminal resolution.
+        this.prefetchPendingPromises.set(sessionId, promise);
+        void promise.finally(() => {
+            if (this.prefetchPendingPromises.get(sessionId) === promise) {
+                this.prefetchPendingPromises.delete(sessionId);
+            }
+        });
+    }
+
     loadOlder = async (sessionId: string): Promise<void> => {
         const sessionMessages = storage.getState().sessionMessages[sessionId];
         if (!sessionMessages || !sessionMessages.hasOlder || sessionMessages.loadingOlder) {
             return;
         }
+
+        // US-006: when the local-only flag is on, delegate to the prefetch
+        // manager and AWAIT the per-request terminal Promise<void> before
+        // resolving. The await is the entire awaited-commit contract (Plan
+        // AC #16, addresses auto-skipped F-038): callers like
+        // `handleShowPreBoundaryHistory` (ChatList.tsx:85-109) probe
+        // `oldestLoadedSeq` after each await, so resolving before the commit
+        // would cause the loop to spin or terminate wrong.
+        const flag = storage.getState().localSettings.enableSocketRangeFetch;
+        if (flag) {
+            // If a viewport-tick request is already in-flight for this
+            // session, await IT to honor the contract; otherwise issue an
+            // older-page request through the manager.
+            const inFlight = this.prefetchPendingPromises.get(sessionId);
+            if (inFlight) {
+                await inFlight;
+                return;
+            }
+            const range = computePrefetchOlderRange({
+                oldestLoadedSeq: sessionMessages.oldestLoadedSeq,
+                pageSize: OLDER_MESSAGES_PAGE_SIZE,
+            });
+            if (!range) {
+                // Nothing older to fetch — match the legacy semantics by
+                // marking the session as having no older messages and
+                // returning.
+                storage.getState().applyOlderMessages(sessionId, [], {
+                    newOldestLoadedSeq: sessionMessages.oldestLoadedSeq,
+                    hasOlder: false,
+                });
+                return;
+            }
+            const promise = this.prefetchManager.requestSessionMessageRange({
+                sessionId,
+                fromSeq: range.fromSeq,
+                toSeq: range.toSeq,
+                limit: range.limit,
+                direction: 'older',
+            });
+            this.prefetchPendingPromises.set(sessionId, promise);
+            try {
+                await promise;
+            } finally {
+                if (this.prefetchPendingPromises.get(sessionId) === promise) {
+                    this.prefetchPendingPromises.delete(sessionId);
+                }
+            }
+            return;
+        }
+
         storage.getState().setLoadingOlder(sessionId, true);
 
         const lock = this.getSessionMessageLock(sessionId);
@@ -1851,6 +2033,17 @@ class Sync {
             for (const sync of this.sendSync.values()) {
                 sync.invalidate();
             }
+            // US-006: evict every entry in `prefetchPendingPromises`. The
+            // PrefetchManager's own onReconnected listener already
+            //   (i) bumped per-session generations,
+            //   (ii) called storage.clearActivePrefetch for each in-flight,
+            //   (iii) settled per-request terminal Promise<void>s with kind
+            //        `abandon-on-reconnect`.
+            // The references in prefetchPendingPromises are now stale. We
+            // drop them so a subsequent loadOlder() does not await a settled
+            // promise (which is harmless but a leak) and re-issues a fresh
+            // request under the bumped generation.
+            this.prefetchPendingPromises.clear();
         });
     }
 

@@ -382,6 +382,14 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
         gitStatusSync.getSync(sessionId);
     }, [sessionId, realtimeStatus]);
 
+    // US-006: NEW useEffect keyed on [sessionId] only — disjoint from the
+    // [sessionId, realtimeStatus]-keyed layoutEffect above (F-046 regression
+    // guard). This is the ONLY entrypoint that resets the new session's
+    // renderWindow and bumps the previous session's prefetch generation.
+    React.useEffect(() => {
+        sync.onActiveSessionChanged(sessionId);
+    }, [sessionId]);
+
     let content = (
         <>
             <Deferred>

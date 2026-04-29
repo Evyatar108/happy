@@ -223,6 +223,8 @@ export const en: TranslationStructure = {
         pinchToZoomDescription: 'Use a two-finger pinch in chat for a live text-size preview that saves on release.',
         paginatedScrollTitle: 'Page-Turn Chat Navigation',
         paginatedScrollDescription: 'Use narrow top and bottom tap zones in chat to move by page instead of scrolling freely.',
+        socketRangeFetchTitle: 'Stream Older Messages',
+        socketRangeFetchDescription: 'Fetch older messages over the live socket instead of one-off HTTP requests, so they arrive a bit before you scroll there.',
         inlineToolCalls: 'Inline Tool Calls',
         inlineToolCallsDescription: 'Display tool calls directly in chat messages',
         expandTodoLists: 'Expand Todo Lists',

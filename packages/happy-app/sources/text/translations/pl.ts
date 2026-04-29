@@ -226,6 +226,8 @@ export const pl: TranslationStructure = {
         pinchToZoomDescription: 'Użyj gestu szczypania dwoma palcami w czacie, aby zobaczyć podgląd rozmiaru tekstu na żywo i zapisać go po puszczeniu.',
         paginatedScrollTitle: 'Nawigacja po czacie stronami',
         paginatedScrollDescription: 'Używaj wąskich górnych i dolnych stref dotyku w czacie, aby poruszać się stronami zamiast przewijać swobodnie.',
+        socketRangeFetchTitle: 'Strumieniuj starsze wiadomości',
+        socketRangeFetchDescription: 'Pobieraj starsze wiadomości przez aktywne gniazdo zamiast pojedynczymi żądaniami HTTP, żeby docierały tuż przed dotarciem do nich przewijaniem.',
         inlineToolCalls: 'Wbudowane wywołania narzędzi',
         inlineToolCallsDescription: 'Wyświetlaj wywołania narzędzi bezpośrednio w wiadomościach czatu',
         expandTodoLists: 'Rozwiń listy zadań',

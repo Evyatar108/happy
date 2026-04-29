@@ -209,6 +209,8 @@ export const zhHant: TranslationStructure = {
         pinchToZoomDescription: '在聊天中使用雙指捏合即可即時預覽文字大小，並在放手時儲存。',
         paginatedScrollTitle: '分頁式聊天導覽',
         paginatedScrollDescription: '在聊天頂部與底部使用狹窄的點按區域逐頁移動，而不是自由捲動。',
+        socketRangeFetchTitle: '串流載入較舊訊息',
+        socketRangeFetchDescription: '透過即時連線而不是單次 HTTP 請求取得較舊的訊息，讓它們在你捲到之前就先送達。',
         inlineToolCalls: '內嵌工具呼叫',
         inlineToolCallsDescription: '在聊天訊息中直接顯示工具呼叫',
         expandTodoLists: '展開待辦清單',

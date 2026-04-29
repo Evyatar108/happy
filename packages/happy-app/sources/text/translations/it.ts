@@ -207,6 +207,8 @@ export const it: TranslationStructure = {
         pinchToZoomDescription: 'Usa un pizzico con due dita nella chat per un\'anteprima live della dimensione del testo che viene salvata al rilascio.',
         paginatedScrollTitle: 'Navigazione della chat a pagine',
         paginatedScrollDescription: 'Usa strette zone di tocco in alto e in basso nella chat per spostarti di una pagina alla volta invece di scorrere liberamente.',
+        socketRangeFetchTitle: 'Trasmetti i messaggi precedenti',
+        socketRangeFetchDescription: 'Recupera i messaggi più vecchi tramite il socket attivo invece di richieste HTTP separate, così arrivano un po\' prima che tu ci scorra.',
         inlineToolCalls: 'Chiamate strumenti inline',
         inlineToolCallsDescription: 'Mostra le chiamate agli strumenti direttamente nei messaggi di chat',
         expandTodoLists: 'Espandi liste di attività',

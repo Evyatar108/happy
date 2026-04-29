@@ -4,6 +4,12 @@ import Constants from 'expo-constants';
 import { TokenStorage } from '@/auth/tokenStorage';
 import { Encryption } from './encryption/encryption';
 import { storage } from './storage';
+import {
+    SessionMessageRangeRequestSchema,
+    SessionMessageRangeResponseSchema,
+    type SessionMessageRangeRequest,
+    type SessionMessageRangeResponse,
+} from '@slopus/happy-wire';
 
 export function getHappyClientId(): string {
     let platform: string = Platform.OS; // 'ios' | 'android' | 'web'
@@ -171,6 +177,27 @@ class ApiSocket {
             throw new Error('Socket not connected');
         }
         return await this.socket.emitWithAck(event, data);
+    }
+
+    /**
+     * Issue a session-message-range request over the socket using the wire schemas
+     * shared with happy-server. Validates both the outgoing request and the
+     * incoming response so callers (the prefetch manager) can rely on a strict
+     * `SessionMessageRangeResponse` shape. Throws on socket-not-connected, on
+     * validation failure of the response, or when the underlying `emitWithAck`
+     * rejects.
+     */
+    async requestSessionMessageRange(req: SessionMessageRangeRequest): Promise<SessionMessageRangeResponse> {
+        if (!this.socket) {
+            throw new Error('Socket not connected');
+        }
+        const validatedRequest = SessionMessageRangeRequestSchema.parse(req);
+        const raw = await this.socket.emitWithAck('session-message-range', validatedRequest);
+        const parsed = SessionMessageRangeResponseSchema.safeParse(raw);
+        if (!parsed.success) {
+            throw new Error(`Invalid session-message-range response: ${parsed.error.message}`);
+        }
+        return parsed.data;
     }
 
     //
