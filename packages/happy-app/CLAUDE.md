@@ -27,8 +27,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `sources/components/markdown/processClaudeMetaTags.test.ts` should mock `@/text` and clear `warnedTagNames` in `beforeEach()` so the stderr-label assertion and unknown-tag warn-once behavior stay deterministic under Vitest.
 - No existing tests in the codebase yet
 
-### Production
-- `pnpm ota` - Deploy over-the-air updates via EAS Update to production branch
+### Production / release (fork)
+
+This is the `Evyatar108/happy` fork. **The fork does NOT use EAS / OTA.** The `pnpm ota` and `pnpm ota:production` scripts in `package.json` are upstream tooling and do not work here — they require an Expo cloud session and push to channels nothing on the fork consumes. The only consumer of happy-app on the fork is the maintainer's BOOX dev tablet, which pulls JS over `adb reverse` from a local Metro server. To "release" an app change on the fork: commit + push, bump `CHANGELOG.md`, regenerate `sources/changelog/changelog.json`, and reload the tablet via Metro (`.agents/skills/happy-tablet-iterate/SKILL.md`). See `.agents/skills/release/SKILL.md` "Mobile Release (fork — Metro-based, not EAS)" for the full procedure.
 
 ## Changelog Management
 
@@ -64,7 +65,7 @@ This generates `sources/changelog/changelog.json` which is used by the app.
 - Group related changes together
 - Keep descriptions concise but informative
 - Focus on what changed, not technical implementation details
-- The changelog is automatically parsed during `pnpm ota` and `pnpm ota:production`
+- After bumping CHANGELOG.md, regenerate `sources/changelog/changelog.json` manually with `npx tsx sources/scripts/parseChangelog.ts` and commit it. Upstream's `pnpm ota` script auto-parses it, but the fork doesn't run that script (see "Production / release (fork)" above).
 - Always improve and expand basic changelog descriptions to be more user-friendly and informative
 - Include a brief summary paragraph before bullet points for each version explaining the theme of the update
 

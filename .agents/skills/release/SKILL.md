@@ -152,55 +152,42 @@ The smoke check must confirm that `happy --version` matches the published versio
 
 ---
 
-## Mobile Release
+## Mobile Release (fork — Metro-based, not EAS)
 
     Package:     packages/happy-app
-    Variants:    development, preview, production
     Platform:    Expo SDK 54 / React Native 0.81.4
+    Distribution on the fork:  one BOOX dev tablet, JS pushed via local Metro
 
-### Build types
+### THE FORK DOES NOT USE EAS / OTA
 
-Ask the user what kind of release. OTA is the most common — suggest it first:
+The `pnpm ota`, `pnpm ota:production`, `release:build:developer`, and `release:build:appstore` scripts in `packages/happy-app/package.json` are leftover upstream tooling (`slopus/happy` ships through EAS Build + EAS Update). The fork (`Evyatar108/happy`) does not have an Expo cloud subscription, has no production OTA channel, no App Store presence, and no published happy-app artifact — invoking any of those scripts will either fail with `An Expo user account is required` (no saved EAS session) or push a bundle to a channel that nothing on the fork actually consumes. **Do not run them.**
 
-- **OTA update (preview)** — push JS update to preview channel (most common)
-  ```bash
-  pnpm --filter happy-app run ota
-  ```
+The only consumer of happy-app on the fork is the maintainer's BOOX e-ink dev tablet, which runs the dev-client APK and pulls JS over `adb reverse` from a local Metro server.
 
-- **OTA update (production)** — push JS update to production channel
-  ```bash
-  pnpm --filter happy-app run ota:production
-  ```
+### What "release the app" actually means on the fork
 
-Native builds are rare — only needed when native code changes:
+For an app-only change to reach the dev tablet:
 
-- **Dev builds** — development + preview variants (internal distribution)
-  ```bash
-  pnpm --filter happy-app run release:build:developer
-  ```
+1. **Commit and push** the change to `main` (or land a feature batch via `/happy-merge-to-fork-main` if it's coming off a worktree branch).
+2. **Update `packages/happy-app/CHANGELOG.md`** with a new `Version N - YYYY-MM-DD` entry. This is documentation only — no script consumes it on the fork side. Run `npx tsx sources/scripts/parseChangelog.ts` from `packages/happy-app/` to regenerate `sources/changelog/changelog.json`, which the in-app "What's new" sheet reads. Commit that too.
+3. **Get the new JS onto the tablet** via the Metro reload loop in `.agents/skills/happy-tablet-iterate/SKILL.md`. Concretely: ensure Metro is serving from a worktree at the latest `main` commit (the conventional source is `D:\h`; `D:\harness-efforts\happy` also works), `adb reverse tcp:8081 tcp:8081`, then deep-link force-launch the dev client. The tablet fetches the fresh bundle. Verify with `adb shell "dumpsys activity activities | grep topResumedActivity"` (expect `com.slopus.happy.dev/.MainActivity`).
+4. **Restart `HappyServer`** if-and-only-if the change touched `packages/happy-server/`. See `.agents/skills/happy-service-manage/SKILL.md`. JS-only happy-app changes do not need a server restart.
 
-- **App Store** — production builds with auto-submit
-  ```bash
-  pnpm --filter happy-app run release:build:appstore
-  ```
+That's it. There's no app-version tag, no `gh release`, no upload step — Metro is the distribution channel.
 
-### EAS Build Profiles
+### Native code changes (rare)
 
-    Profile              Distribution   Channel
-    development          internal       development
-    development-store    store          development
-    preview              internal       preview
-    preview-store        store          preview
-    production           store          production
+If `packages/happy-app/android/` or `ios/` changes (or a native-module dependency is added/upgraded), Metro reload is not enough — the dev-client APK must be rebuilt and reinstalled:
 
-Version source is remote (EAS manages build numbers, auto-incremented).
-Runtime version "20" — bump when native code changes to invalidate OTA.
+```bash
+cd /d/h/packages/happy-app && pnpm exec expo run:android
+```
 
-### App Store Connect
+(~10 min cold, ~1–2 min warm.) This rebuilds the APK locally; it does not invoke EAS Build. Native changes are out of scope for this skill — defer to `.agents/skills/happy-tablet-iterate/SKILL.md` "When to stop using this loop".
 
-    Apple ID:    steve@bulkovo.com
-    ASC App ID:  126165711
-    Team ID:     466DQWDR8C
+### Versioning is documentation-only
+
+`packages/happy-app/package.json` `"version"` is `1.0.0` and not bumped on the fork — the upstream EAS pipeline used a remote version source, so the local field is inert. The user-facing "Version N" string is the integer counter in `CHANGELOG.md`, which is parsed into the in-app "What's new" sheet. Bump that, regenerate the JSON, commit, and stop. No `git tag` for app releases on the fork.
 
 ---
 

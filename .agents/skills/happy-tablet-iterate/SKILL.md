@@ -10,6 +10,8 @@ description: >
 
 # /happy-tablet-iterate -- JS-only reload loop
 
+> **This loop is also the fork's app release path, not just dev iteration.** The fork (`Evyatar108/happy`) does not use EAS / OTA — the only consumer of happy-app on the fork is this dev tablet, so "shipping an app change" *is* "Metro reload here." See `.agents/skills/release/SKILL.md` "Mobile Release (fork — Metro-based, not EAS)" for the full release procedure (the extra steps beyond this loop are: bump `packages/happy-app/CHANGELOG.md`, regenerate `sources/changelog/changelog.json`, commit).
+
 ## Preconditions (check these before starting)
 
 1. **Choose the right working tree.** The short-path build clone lives at `D:\h` and is the conventional Metro source. You may also drive Metro from any other worktree (e.g. `.ralph/jobs/<job>/worktree`) — both work as long as the tip you're testing is checked out there. If you're editing in `D:\harness-efforts\happy` directly, either commit + push + fast-forward `D:\h`, or just run Metro from the active worktree. Mixing is the trap — pick one.
