@@ -256,20 +256,17 @@ describe('sync.sendMessage switch policy', () => {
         expect((sync as any).pendingOutbox.get('session-1')).toBeUndefined();
     });
 
-    it('calls cancel-pending-switch when request-switch deferred but enqueue fails', async () => {
+    it('does NOT call cancel-pending-switch when request-switch deferred but enqueue fails', async () => {
         mocks.sessionRPC.mockResolvedValueOnce({ deferred: true });
-        mocks.sessionRPC.mockResolvedValueOnce({}); // cancel-pending-switch response
         const encryptRawRecord = vi.fn().mockRejectedValue(new Error('enqueue failed'));
         installSyncHarness({ encryptRawRecord });
 
         await expect(sync.sendMessage('session-1', 'hello', { switchMode: 'when-idle' })).rejects.toThrow('enqueue failed');
 
-        // Let the fire-and-forget cancel settle
         await new Promise(resolve => setTimeout(resolve, 0));
 
-        expect(mocks.sessionRPC).toHaveBeenCalledTimes(2);
-        expect(mocks.sessionRPC).toHaveBeenNthCalledWith(1, 'session-1', 'request-switch', { mode: 'when-idle', messagePreview: 'hello' });
-        expect(mocks.sessionRPC).toHaveBeenNthCalledWith(2, 'session-1', 'cancel-pending-switch', {});
+        expect(mocks.sessionRPC).toHaveBeenCalledTimes(1);
+        expect(mocks.sessionRPC).toHaveBeenCalledWith('session-1', 'request-switch', { mode: 'when-idle', messagePreview: 'hello' });
         expect(Modal.alert).toHaveBeenCalledWith('common.error', 'errors.sendFailed');
     });
 
@@ -284,6 +281,15 @@ describe('sync.sendMessage switch policy', () => {
 
         expect(mocks.sessionRPC).toHaveBeenCalledTimes(1);
         expect(mocks.sessionRPC).toHaveBeenCalledWith('session-1', 'request-switch', { mode: 'when-idle', messagePreview: 'hello' });
+    });
+
+    it('now send failures do not throw to the caller (fire-and-forget)', async () => {
+        const encryptRawRecord = vi.fn().mockRejectedValue(new Error('enqueue failed'));
+        installSyncHarness({ encryptRawRecord });
+
+        await expect(sync.sendMessage('session-1', 'hello')).resolves.toBeUndefined();
+        await expect(sync.sendMessage('session-1', 'hello', { switchMode: 'now' })).resolves.toBeUndefined();
+        expect(Modal.alert).not.toHaveBeenCalled();
     });
 
     it('sends messagePreview truncated to 80 chars with newlines collapsed', async () => {
