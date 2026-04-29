@@ -13,6 +13,8 @@ description: >
 
 Claude Code periodically adds XML-ish internal metadata tags (like `<command-name>`, `<local-command-stdout>`, `<local-command-caveat>`) that its native CLI hides. Happy receives the raw text, so any tag without an explicit rule renders as literal markup in the chat. This skill is how we find the next one.
 
+> **Multi-device.** The maintainer normally has both BOOX tablets (Air5C + TabX) plugged in. Bare `adb shell` errors with `more than one device/emulator` in that state. Resolve `DEV_TABLET=$(adb devices -l | grep -m1 'model:Air5C' | awk '{print $1}')` (or `model:TabXC`) first and thread `-s $DEV_TABLET` through the deploy/reload step below. See `.agents/skills/happy-tablet-iterate/SKILL.md` "Multi-device disambiguation" for the full pattern.
+
 ## Where things live
 
 - Tag handler: `packages/happy-app/sources/components/markdown/processClaudeMetaTags.ts` → `processClaudeMetaTags()` + `KNOWN_TAG_NAMES` set

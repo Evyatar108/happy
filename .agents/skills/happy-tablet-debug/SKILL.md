@@ -19,18 +19,29 @@ modes account for what we've seen — check them in order. Modes 1–5
 are launch-time failures from a working Metro; modes 6–7 are
 "can't start Metro / Metro is wrong" failures.
 
+## Multi-device note (read first when both BOOX tablets are plugged in)
+
+The maintainer normally has TWO BOOX tablets connected: **Air5C** (primary) and **TabX** (model name `TabXC`, secondary). Bare `adb shell ...` errors with `more than one device/emulator` whenever both are on. Resolve a `$DEV_TABLET` serial first via the device's reported model field, then thread `-s $DEV_TABLET` through every adb invocation in this skill:
+
+```bash
+DEV_TABLET=$(/d/Android/Sdk/platform-tools/adb.exe devices -l | grep -m1 'model:Air5C' | awk '{print $1}')
+# Or for TabX: grep 'model:TabXC'
+```
+
+Sample commands below show bare `adb` for readability; substitute `adb -s $DEV_TABLET` whenever the second tablet is also connected. Many failure modes here (Metro reachability, DevLauncherErrorActivity, screensaver/dream activity) are scoped to one device — fix on `$DEV_TABLET` first, then sanity-check the other if the change should propagate.
+
 ## Preflight checklist (do all at once)
 
 Run these in one bash call; you need the answers to classify the
 failure mode:
 
 ```bash
-/d/Android/Sdk/platform-tools/adb.exe devices
-/d/Android/Sdk/platform-tools/adb.exe reverse --list
+/d/Android/Sdk/platform-tools/adb.exe devices -l
+/d/Android/Sdk/platform-tools/adb.exe -s $DEV_TABLET reverse --list
 curl.exe -s -m 3 http://localhost:8081/status
 curl.exe -s -m 15 -H "expo-platform: android" -H "expo-api-version: 1" http://localhost:8081/
-/d/Android/Sdk/platform-tools/adb.exe shell pm path com.slopus.happy.dev
-/d/Android/Sdk/platform-tools/adb.exe shell "dumpsys activity activities | grep topResumedActivity"
+/d/Android/Sdk/platform-tools/adb.exe -s $DEV_TABLET shell pm path com.slopus.happy.dev
+/d/Android/Sdk/platform-tools/adb.exe -s $DEV_TABLET shell "dumpsys activity activities | grep topResumedActivity"
 ```
 
 Expected-healthy answers:

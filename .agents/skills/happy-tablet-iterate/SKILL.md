@@ -27,9 +27,19 @@ description: >
    cd <worktree>/packages/happy-app && pnpm exec expo start --dev-client --clear
    ```
    Run as a background task. **Do not use** `pnpm start` / `pnpm --filter happy-app start` — those resolve to `expo start` without `--dev-client`.
-5. `/d/Android/Sdk/platform-tools/adb.exe devices` shows the tablet as `device` (not `unauthorized`, not empty).
-6. `adb reverse --list` shows `tcp:8081 tcp:8081`. If not: `adb reverse tcp:8081 tcp:8081`.
-7. The HappyServer Windows service is running (`Get-Service HappyServer` → `Running`), and the named cloudflared tunnel is up (`curl -s -m 5 https://happy.evyatar.dev` → `200`). The tablet dev client reads MMKV `custom-server-url` = `https://happy.evyatar.dev`, so if either is down the app will fail to reach the server. See `.agents/skills/happy-service-manage/SKILL.md` for service ops.
+5. `/d/Android/Sdk/platform-tools/adb.exe devices` shows the tablet(s) as `device` (not `unauthorized`, not empty).
+6. **Multi-device disambiguation.** The maintainer normally has TWO BOOX tablets plugged in: **Air5C** (the original/primary, color e-ink) and **TabX** (the secondary, model name `TabXC`). With both plugged in, every bare `adb` command errors `more than one device/emulator` — you must pass `-s <serial>` on each call, including `reverse`, `install`, `shell`, and `exec-out`. Adb serials are stable across reboots but new across replugs of the same device only when you forget USB Authorisation; use the device's reported `model` field to pick deterministically rather than memorising serials:
+   ```bash
+   # Pick ONE tablet to drive (defaults to Air5C; flip the grep to TabXC for the other):
+   DEV_TABLET=$(/d/Android/Sdk/platform-tools/adb.exe devices -l | grep -m1 'model:Air5C' | awk '{print $1}')
+   # Or for TabX:
+   # DEV_TABLET=$(/d/Android/Sdk/platform-tools/adb.exe devices -l | grep -m1 'model:TabXC' | awk '{print $1}')
+   echo "Using tablet: $DEV_TABLET"
+   ```
+   Once `$DEV_TABLET` is set, use `adb -s $DEV_TABLET ...` for every subsequent invocation in the loop. To exercise both tablets simultaneously (e.g. cross-device verification), set up `adb reverse` on each and force-launch each in turn — one Metro instance serves both via `adb reverse tcp:8081 tcp:8081`. Don't start two Metros.
+
+7. `adb -s $DEV_TABLET reverse --list` shows `tcp:8081 tcp:8081`. If not: `adb -s $DEV_TABLET reverse tcp:8081 tcp:8081`. (Repeat per tablet if driving both.)
+8. The HappyServer Windows service is running (`Get-Service HappyServer` → `Running`), and the named cloudflared tunnel is up (`curl -s -m 5 https://happy.evyatar.dev` → `200`). The tablet dev client reads MMKV `custom-server-url` = `https://happy.evyatar.dev`, so if either is down the app will fail to reach the server. See `.agents/skills/happy-service-manage/SKILL.md` for service ops.
 
 ## The loop
 
@@ -41,16 +51,16 @@ description: >
 3. **Commit** (small, focused commits -- one concern per commit). Even for throwaway diagnostics, a separate commit lets you `git revert` it cleanly when done.
 4. **Force-reload the app** via deep link (most reliable; `shake to reload` is painful on e-ink). **Use the deep link, NOT `monkey -p ...LAUNCHER` — `monkey` opens the dev launcher's home screen, not your project, so you end up debugging the launcher.** See `happy-tablet-debug/SKILL.md` golden rule 4.
    ```bash
-   /d/Android/Sdk/platform-tools/adb.exe shell am force-stop com.slopus.happy.dev
-   /d/Android/Sdk/platform-tools/adb.exe shell am start -a android.intent.action.VIEW \
+   /d/Android/Sdk/platform-tools/adb.exe -s $DEV_TABLET shell am force-stop com.slopus.happy.dev
+   /d/Android/Sdk/platform-tools/adb.exe -s $DEV_TABLET shell am start -a android.intent.action.VIEW \
      -d 'happy://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081'
    ```
-   The app relaunches, reconnects to Metro over `adb reverse tcp:8081`, fetches the fresh JS bundle. Verify with `adb shell "dumpsys activity activities | grep topResumedActivity"` — should show `com.slopus.happy.dev/.MainActivity` (NOT `DevLauncherErrorActivity`, NOT `com.onyx.android.dream.DreamActivity`).
+   The app relaunches, reconnects to Metro over `adb reverse tcp:8081`, fetches the fresh JS bundle. Verify with `adb -s $DEV_TABLET shell "dumpsys activity activities | grep topResumedActivity"` — should show `com.slopus.happy.dev/.MainActivity` (NOT `DevLauncherErrorActivity`, NOT `com.onyx.android.dream.DreamActivity`).
 
    **If `topResumedActivity` shows `com.onyx/...DreamActivity`** the BOOX is in screensaver mode and your deep link landed under the dream. Wake it then re-fire the deep link:
    ```bash
-   /d/Android/Sdk/platform-tools/adb.exe shell input keyevent KEYCODE_WAKEUP
-   /d/Android/Sdk/platform-tools/adb.exe shell input keyevent KEYCODE_HOME
+   /d/Android/Sdk/platform-tools/adb.exe -s $DEV_TABLET shell input keyevent KEYCODE_WAKEUP
+   /d/Android/Sdk/platform-tools/adb.exe -s $DEV_TABLET shell input keyevent KEYCODE_HOME
    # then re-run the force-stop + am start deep-link block above
    ```
    `KEYCODE_WAKEUP` alone is not enough — the dream activity stays on top until something else is launched, so a `HOME` keyevent (or another `am start`) is needed to dismiss it.
@@ -155,10 +165,12 @@ EXPO_PUBLIC_SERVER_URL="http://<lan-ip>:$TEST_PORT" \
 EXPO_PUBLIC_HAPPY_SERVER_URL="http://<lan-ip>:$TEST_PORT" \
   pnpm exec expo start --dev-client --clear
 
-# 8. adb reverse + deep-link force-launch
-/d/Android/Sdk/platform-tools/adb.exe reverse tcp:8081 tcp:8081
-/d/Android/Sdk/platform-tools/adb.exe shell am force-stop com.slopus.happy.dev
-/d/Android/Sdk/platform-tools/adb.exe shell am start -a android.intent.action.VIEW \
+# 8. adb reverse + deep-link force-launch (set $DEV_TABLET via the multi-device
+# preflight in the main loop — these calls error with "more than one device"
+# without `-s` when both tablets are plugged in).
+/d/Android/Sdk/platform-tools/adb.exe -s $DEV_TABLET reverse tcp:8081 tcp:8081
+/d/Android/Sdk/platform-tools/adb.exe -s $DEV_TABLET shell am force-stop com.slopus.happy.dev
+/d/Android/Sdk/platform-tools/adb.exe -s $DEV_TABLET shell am start -a android.intent.action.VIEW \
   -d 'happy://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081'
 ```
 
