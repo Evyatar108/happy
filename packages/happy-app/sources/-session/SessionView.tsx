@@ -472,12 +472,13 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                     }
 
                     if (switchMode === 'when-idle') {
+                        const snapshot = message;
+                        setMessage('');
+                        clearDraft();
                         try {
-                            await sync.sendMessage(sessionId, message, { source: 'chat', switchMode });
-                            setMessage('');
-                            clearDraft();
+                            await sync.sendMessage(sessionId, snapshot, { source: 'chat', switchMode });
                         } catch {
-                            // text preserved for retry — sync.sendMessage already showed the modal
+                            setMessage(snapshot);
                         }
                     } else {
                         setMessage('');
