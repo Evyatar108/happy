@@ -102,6 +102,32 @@ Add the tag name to `KNOWN_TAG_NAMES` so the unknown-tag logger stops flagging i
 - **Do not bundle this with another feature.** One tag rule per commit keeps git blame useful and PRs small.
 - **If the tag spans across adjacent messages** (some Claude Code tags can straddle user + next-assistant message as a pair), the per-message preprocessor won't see the pair together. Solve upstream in the reducer, not in MarkdownView.
 
+## Discovery loop misses two cases — recognise them visually
+
+The `[MarkdownView] unknown tag` log fires only for tag names not in `KNOWN_TAG_NAMES`. Two failure modes route around it entirely; you'll see them on the tablet but Metro will be silent:
+
+### A) Variant shapes inside an already-known tag
+
+When Claude Code adds a new emitter for an existing tag family (e.g. `<task-notification>` from the bash-hook background-task path, or from the Monitor tool, vs the original Task framework), the inner-tag layout can differ. If the parser uses an anchored multi-tag regex requiring a specific tag order or set, the new shape silently fails the parse and falls back to **raw XML render** — but the outer tag name (`task-notification`) is in `KNOWN_TAG_NAMES`, so the warn-once does NOT fire. This bit us 2026-04-29: Monitor-tool task-notifications shipped only `<task-id>` + `<summary>` + `<event>`, with no `<output-file>`/`<status>`/`<task-type>`, and the strict anchored pattern rejected them.
+
+**Symptom**: a tag family that used to render as a chip starts rendering as raw `<task-notification>...<task-id>...</task-id>...` text in some messages and not others. Metro is silent.
+
+**Diagnosis**: open the failing message in the JSONL transcript (`C:\Users\evmitran\.claude\projects\<dir>\<sid>.jsonl`), find the `<task-notification>` block, and compare its inner-tag layout against `TASK_NOTIFICATION_PATTERN` (or whatever the sub-parser is). You'll see a missing/added/reordered inner tag.
+
+**Fix pattern**: replace the anchored multi-tag regex with **per-tag extraction** — pull each known inner tag out independently with its own regex, and require only the universals (`<task-id>` + `<summary>` for the task-notification case). Tolerate unknown inner tags silently. Add the unknown inner tag name to `KNOWN_TAG_NAMES` so warn-once doesn't fire on it either. Document the new variant in `docs/plans/synthetic-xml-tags-future-coverage.md` so the next agent has the inventory. See `parseTaskNotification(...)` in `processClaudeMetaTags.ts` for the worked example.
+
+### B) Non-XML injections (Skill body, etc.)
+
+Some Claude Code injections arrive as **plain user-role text** with no XML wrapper at all. The most common is the verbatim copy of `SKILL.md` Claude Code posts after every `Skill` tool_use/tool_result pair, prefixed with `Base directory for this skill: <abs-path>\n\n# <Heading>`. `processClaudeMetaTags` never sees these as candidates because the preprocessor's first short-circuit is `if (!raw.includes('<')) return ...` — and even if it did include `<`, the body is just markdown without enclosing tags.
+
+**Symptom**: the chat shows a long verbatim documentation dump in a regular grey user-message bubble, often immediately after a tool-call ToolView block.
+
+**Diagnosis**: check the JSONL — the bubble corresponds to a `{"type":"user","message":{"role":"user","content":[{"type":"text","text":"Base directory for this skill: ..."}]}}` entry whose `parentUuid` chains it to a tool_result for a `Skill` tool_use.
+
+**Fix pattern**: detect the prefix shape with a strict regex (anchor + path + double-newline + `# `), suppress at the **render layer** rather than the preprocessor — `UserTextBlock` in `MessageView.tsx` returns `null` when `isSkillBodyMessage(text)` matches, so the entire bubble disappears (no empty grey strip). See `packages/happy-app/sources/components/markdown/skillBody.ts` for the worked example. Document new non-XML injection categories in `docs/fork-notes.md` → "Claude Code injections that are NOT XML tags".
+
+**Test invariant**: false positives matter more here than for tag-based stripping, because suppressing a real user message at the render layer is silent data loss. Always include negative test cases for messages that mention the prefix mid-sentence.
+
 ## Related
 
 - `.agents/skills/happy-tablet-iterate/SKILL.md` -- the host edit-reload loop this skill sits on top of.
