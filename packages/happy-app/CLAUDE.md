@@ -532,7 +532,7 @@ const MyComponent = () => {
 
 ## Socket-prefetch pagination invariants
 
-Design context: see `docs/plans/streaming-pagination.md`. The `enableSocketRangeFetch` flag (local-only, in `LocalSettingsSchema`, default `false`) gates a socket-pushed older-page prefetch path that is a **drop-in replacement** for `sync.loadOlder()` — it does not evict any decrypted state.
+Design context: see `docs/plans/streaming-pagination.md`. The `enableSocketRangeFetch` flag (local-only, in `LocalSettingsSchema`, default `true` on `main` since 2026-04-29) gates a socket-pushed older-page prefetch path that is a **drop-in replacement** for `sync.loadOlder()` — it does not evict any decrypted state. Users can flip the toggle off in Settings → Appearance ("Stream Older Messages") if they want the legacy HTTP `loadOlder()` behavior back.
 
 (i) **Three-extent rule — never conflate them.** Three session-scoped extents are owned by disjoint code paths and must never be conflated:
 

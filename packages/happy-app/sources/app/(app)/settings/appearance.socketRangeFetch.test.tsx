@@ -40,11 +40,11 @@ describe('Appearance screen — enableSocketRangeFetch toggle (US-006 AC #13)', 
     });
 
     it('(b) tapping the Switch flips the persisted local-settings value via applyLocalSettings', () => {
-        // Default
+        // Default (flipped to on by default 2026-04-29 after manual BOOX verification).
         const defaults = { ...localSettingsDefaults };
-        expect(defaults.enableSocketRangeFetch).toBe(false);
+        expect(defaults.enableSocketRangeFetch).toBe(true);
 
-        // Flip on
+        // Round-trip preserves the on default
         const flippedOn = applyLocalSettings(defaults, { enableSocketRangeFetch: true });
         expect(flippedOn.enableSocketRangeFetch).toBe(true);
 

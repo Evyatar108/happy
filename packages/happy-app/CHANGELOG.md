@@ -2,10 +2,10 @@
 
 ## Version 26 - 2026-04-29
 
-Scrolling back through long chats is much smoother. With the new "Stream Older Messages" toggle on (Settings → Appearance), the next chunk of older messages arrives over the live socket connection a beat before you scroll there, instead of waiting on a one-shot HTTP fetch when you reach the edge. The toggle is local to the device (does not sync across devices), defaults off, and is a drop-in replacement for the existing older-page fetch.
+Scrolling back through long chats is much smoother. The next chunk of older messages now arrives over the live socket connection a beat before you scroll there, instead of waiting on a one-shot HTTP fetch when you reach the edge. The new path is on by default; you can flip it off in Settings → Appearance ("Stream Older Messages") if you ever want to fall back to the legacy HTTP behavior. The setting is local to the device (does not sync across devices).
 
-- Added a "Stream Older Messages" toggle to Settings → Appearance that routes scroll-back over the same socket the chat already uses for live updates.
-- Older history now arrives slightly ahead of the scroll edge instead of in one large blocking batch, so the chat reads more fluidly on long sessions.
+- Older history now arrives slightly ahead of the scroll edge instead of in one large blocking batch, so the chat reads more fluidly on long sessions — on by default.
+- Added a "Stream Older Messages" toggle to Settings → Appearance so you can flip the behavior off if you prefer the legacy HTTP path.
 - Picking and switching sessions resets the prefetch state so the next session starts with a clean window without lingering requests from the previous one.
 - Network reconnects abandon any in-flight prefetch and reissue cleanly on the next scroll instead of leaving the chat stuck waiting for an old request that will never arrive.
 - Cold-start chat opening and live new-message updates are unchanged.

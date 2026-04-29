@@ -46,7 +46,7 @@ export const localSettingsDefaults: LocalSettings = {
     chatWidthMode: 5,
     pinchToZoomEnabled: false,
     chatPaginatedScroll: false,
-    enableSocketRangeFetch: false,
+    enableSocketRangeFetch: true,
     commandPaletteEnabled: false,
     themePreference: 'adaptive',
     markdownCopyV2: false,

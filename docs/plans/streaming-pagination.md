@@ -99,7 +99,7 @@ The `requestId` is logged for traceability but is not what makes the discard saf
 
 ## Feature Flag
 
-`enableSocketRangeFetch` is a **local-only** flag. It lives in `LocalSettingsSchema` / `localSettingsDefaults` in `packages/happy-app/sources/sync/localSettings.ts` with default `false`. It is **not** added to `SettingsSchema` in `packages/happy-app/sources/sync/settings.ts` and is **not** synced across devices.
+`enableSocketRangeFetch` is a **local-only** flag. It lives in `LocalSettingsSchema` / `localSettingsDefaults` in `packages/happy-app/sources/sync/localSettings.ts` with default `true` (flipped from `false` on 2026-04-29 after manual BOOX e-ink verification). It is **not** added to `SettingsSchema` in `packages/happy-app/sources/sync/settings.ts` and is **not** synced across devices, so each device opts in/out independently.
 
 This is intentional: the flag turns on a transport that is sensitive to network/runtime characteristics (Cloudflare/tunnel coalescing, decrypt batch size, available heap). Promotion to the synced `Settings` schema would couple "I tested this on my BOOX tablet" to "every session now uses socket prefetch on every device", which is the wrong default. Cross-device promotion is a follow-up after the BOOX rollout has produced enough field signal.
 
@@ -115,10 +115,10 @@ The flag-on `sync.loadOlder()` delegate **awaits** the prefetch manager's per-re
 
 The intended path:
 
-1. Build ships with `enableSocketRangeFetch: false` everywhere. Default behavior on every device is unchanged from current main (cold-start HTTP, legacy `loadOlder` HTTP cursor).
-2. The BOOX user opens **Settings > Appearance** and flips the in-app toggle. The flag persists in local settings on that device only.
-3. After enough field signal is collected from the BOOX device, the toggle can be evaluated for additional devices on a per-device basis — still by manual opt-in, not automatic.
-4. Promotion to a synced `Settings` flag is a separate follow-up, gated on the field signal above.
+1. Initial implementation shipped with `enableSocketRangeFetch: false` everywhere; BOOX verified the new path against a side-by-side test server with a snapshot of production pglite, then the default was flipped to `true` on 2026-04-29.
+2. Devices that explicitly toggled the setting off keep their override; devices that never touched the setting migrate to the new behavior on first launch after upgrade.
+3. Users who hit issues can flip the toggle off in **Settings > Appearance > Stream Older Messages** to fall back to legacy HTTP `loadOlder()`.
+4. Promotion to a synced `Settings` flag is a separate follow-up, gated on field signal across more device classes.
 
 **No automatic device-class targeting.** `packages/happy-app/sources/utils/responsive.ts` only distinguishes `'phone' | 'tablet'`; it has no concept of "e-ink" vs. "color LCD" or "low-power" vs. "high-power" device. Auto-enabling on `'tablet'` would catch ordinary iPads and color Android tablets along with the BOOX, which is not what the rollout wants. Manual per-device opt-in via the in-app toggle is the only supported path until the device-class taxonomy gains the necessary axis (out of scope for this plan).
 
