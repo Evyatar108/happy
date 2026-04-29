@@ -86,8 +86,68 @@ description: >
 - If you're doing many rapid edits and Metro starts choking, a full Metro restart is faster than diagnosing:
   ```
   # stop the old Metro background task, then:
-  cd /d/h/packages/happy-app && pnpm start
+  cd /d/h/packages/happy-app && pnpm exec expo start --dev-client --clear
   ```
+  (Note: not `pnpm start` — that resolves to `expo start` without `--dev-client`; see preflight step 4.)
+
+## Side-by-side test server (different port, fresh DB)
+
+Sometimes you want to test a server-touching change without touching the live HappyServer Windows service on `:3005` (its pglite holds your real account data, and you can't `taskkill` it without elevation anyway because it runs in Session 0). Instead, stand up a second `happy-server` on `:3006` with its own pglite, point Metro at it, and pair the tablet fresh.
+
+**Preconditions specific to this pattern.** The dev-client APK reads its server URL from MMKV (`custom-server-url`, set during onboarding to the cloudflared tunnel `https://happy.evyatar.dev`). Metro can override this at bundle-load time **only if BOTH** env vars are set when starting Metro — `EXPO_PUBLIC_SERVER_URL` AND `EXPO_PUBLIC_HAPPY_SERVER_URL`. The first is read by `appConfig.ts` (the runtime config loader, persists into MMKV), the second by `serverConfig.ts:getServerUrl()` (used by some fetch paths directly). Setting only one leaves the other code path on the cloudflared default and you'll see split-brain behavior (e.g., socket connects locally, HTTP loadOlder hits the tunnel).
+
+```bash
+# 1. Pick a worktree and a fresh data dir
+WORKTREE=D:/harness-efforts/happy/.ralph/jobs/<job>/worktree
+TEST_PORT=3006
+
+# 2. Drop a .env.test file (mirrors .env.dev except for PORT and PGLITE_DIR)
+cat > $WORKTREE/packages/happy-server/.env.test <<EOF
+DB_PROVIDER=pglite
+HANDY_MASTER_SECRET=test-key-$(date +%s)
+PORT=$TEST_PORT
+NODE_ENV=development
+PGLITE_DIR=./data-test/pglite
+DATA_DIR=./data-test
+METRICS_ENABLED=false
+DANGEROUSLY_LOG_TO_SERVER_FOR_AI_AUTO_DEBUGGING=false
+EOF
+
+# 3. Migrate the test pglite (37 migrations on a clean tree as of 2026-04)
+cd $WORKTREE/packages/happy-server
+npx tsx --env-file=.env.test ./sources/standalone.ts migrate
+
+# 4. Serve in the background
+npx tsx --env-file=.env.test ./sources/standalone.ts serve &
+
+# 5. Confirm health
+curl.exe -s -m 3 http://localhost:$TEST_PORT/health   # → {"status":"ok",...}
+
+# 6. Start Metro with BOTH env-var overrides + --dev-client --clear
+cd $WORKTREE/packages/happy-app
+EXPO_PUBLIC_SERVER_URL="http://192.168.0.130:$TEST_PORT" \
+EXPO_PUBLIC_HAPPY_SERVER_URL="http://192.168.0.130:$TEST_PORT" \
+  pnpm exec expo start --dev-client --clear
+
+# 7. adb reverse + deep-link force-launch (same as the standard loop)
+/d/Android/Sdk/platform-tools/adb.exe reverse tcp:8081 tcp:8081
+/d/Android/Sdk/platform-tools/adb.exe shell am force-stop com.slopus.happy.dev
+/d/Android/Sdk/platform-tools/adb.exe shell am start -a android.intent.action.VIEW \
+  -d 'happy://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081'
+```
+
+**Tablet pairs fresh** — the `:3006` pglite is empty so your usual account doesn't exist on it; QR-scan to create a new one, just for the test session.
+
+**LAN reachability.** `192.168.0.130:3006` works because the desktop's HappyServer-on-3005 doesn't bind 3006, and the test server binds `0.0.0.0:3006`. The cloudflared tunnel only routes to `:3005`, so external HTTPS isn't an option for `:3006` — the tablet must be on the same LAN as the desktop. If you need TLS / external access, run a second cloudflared named tunnel pointing at `:3006` (out of scope for this skill).
+
+**Cleanup.**
+```bash
+# stop the test server
+ps -ef | grep "standalone.ts serve" | grep -v grep | awk '{print $2}' | xargs -r kill -9
+rm -rf $WORKTREE/packages/happy-server/data-test
+rm $WORKTREE/packages/happy-server/.env.test
+```
+The Windows service on `:3005` was untouched throughout — your real account is unchanged.
 
 ## Related
 
