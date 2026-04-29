@@ -512,10 +512,109 @@ describe('PrefetchManager', () => {
             await Promise.resolve();
         });
 
-        it('(e) bumpGeneration() invalidates an in-flight commit (session-switch surrogate)', async () => {
-            // Session switch in US-006 calls prefetchManager.bumpGeneration(prevSid)
-            // from sync.onActiveSessionChanged. Verify the bump changes the
-            // expected generation that storage sees inside the lock.
+        it('(d-leak-session-cleanup) abandonInFlight() clears storage.activePrefetch, settles the orphaned promise, and fires abandon-on-cleanup', async () => {
+            // 3-way Phase 5a re-review (Codex #1, Copilot #1) — the analogous
+            // failure mode to (d-leak) but on the session-switch and
+            // session-delete cleanup paths. Pre-fix, sync.onActiveSessionChanged
+            // and the delete-session handler both called the lightweight
+            // bumpGeneration() which only deletes the in-memory inFlight entry
+            // and bumps the generation counter. Storage's durable
+            // activePrefetch was left set, the per-request Promise<void> was
+            // never settled, and (in sync.ts) prefetchPendingPromises kept the
+            // orphaned reference. Coming back to the previous session would
+            // find shouldPrefetchOlder permanently gated by stale activePrefetch
+            // and any flag-on loadOlder() would await a promise that never
+            // resolves (the transport ack may have been abandoned by Socket.IO
+            // before it ever arrived). With default-on this surfaces on every
+            // session switch where a prefetch was in flight.
+            const h = createHarness();
+            const manager = makeManager(h);
+
+            // Slow transport so the request stays in-flight when we abandon.
+            const transport = createDeferred<SessionMessageRangeResponse>();
+            h.transportQueue.push(async () => transport.promise);
+
+            const p = manager.requestSessionMessageRange({
+                sessionId: 's1', fromSeq: 1, toSeq: 50, limit: 50, direction: 'older',
+            });
+
+            expect(h.record['s1']!.activePrefetch).toBeDefined();
+            const requestId = h.record['s1']!.activePrefetch!.requestId;
+            expect(manager.getGeneration('s1')).toBe(0);
+
+            // Sync layer calls this from onActiveSessionChanged (previous
+            // session) or from the delete-session handler.
+            manager.abandonInFlight('s1');
+
+            // Generation bumped.
+            expect(manager.getGeneration('s1')).toBe(1);
+
+            // Storage clearActivePrefetch was called with the captured
+            // requestId, and the durable activePrefetch is gone.
+            expect(h.record['s1']!.activePrefetch).toBeUndefined();
+            expect(h.record['s1']!.clearCalls).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({ sessionId: 's1', expectedRequestId: requestId, effective: true }),
+                ]),
+            );
+
+            // abandon-on-cleanup terminal event fired (distinct kind from
+            // reconnect's abandon-on-reconnect, so DSAT / telemetry can tell
+            // the two cleanup paths apart).
+            const cleanupEvents = h.terminalEvents.filter(e => e.kind === 'abandon-on-cleanup');
+            expect(cleanupEvents.length).toBe(1);
+            expect(cleanupEvents[0]).toMatchObject({ sessionId: 's1', requestId });
+
+            // Orphaned per-request Promise<void> settled — pre-fix this would
+            // block any flag-on loadOlder() awaiter forever.
+            await p;
+
+            // Coming back to the same session: a fresh viewport tick under
+            // the bumped generation issues cleanly (pre-fix, shouldPrefetchOlder
+            // was permanently gated by stale activePrefetch).
+            h.transportQueue.push(async (req) => okResponse(req, { seqs: [11] }));
+            await manager.requestSessionMessageRange({
+                sessionId: 's1', fromSeq: 1, toSeq: 50, limit: 50, direction: 'older',
+            });
+            const lastBatch = h.record['s1']!.appliedBatches.at(-1)!;
+            expect(lastBatch.params.expectedGeneration).toBe(1);
+            expect(lastBatch.committed).toBe(true);
+
+            // Resolve the originally-orphaned transport last to assert the
+            // body's late commit/clear is harmless (storage's requestId gate
+            // protects the newer activePrefetch from a stale wipe).
+            transport.resolve(okResponse({ requestId, sessionId: 's1', fromSeq: 1, toSeq: 50, limit: 50 }, { seqs: [10] }));
+            await Promise.resolve();
+            await Promise.resolve();
+            await Promise.resolve();
+        });
+
+        it('(d-leak-no-inflight) abandonInFlight() with no in-flight is a safe no-op (still bumps generation)', async () => {
+            // Plain idle session: bumps the generation counter but does not
+            // call clearActivePrefetch and does not fire a terminal event.
+            const h = createHarness();
+            const manager = makeManager(h);
+
+            // Seed the generation (manager only tracks sessions that have
+            // been touched; verify we don't crash on an unknown session).
+            manager.abandonInFlight('s1');
+            expect(manager.getGeneration('s1')).toBe(1);
+            expect(h.record['s1']?.clearCalls ?? []).toEqual([]);
+            expect(h.terminalEvents.filter(e => e.kind === 'abandon-on-cleanup').length).toBe(0);
+
+            // Calling again continues to bump.
+            manager.abandonInFlight('s1');
+            expect(manager.getGeneration('s1')).toBe(2);
+        });
+
+        it('(e) bumpGeneration() invalidates an in-flight commit (direction-reversal surrogate)', async () => {
+            // Direction-reversal inside requestSessionMessageRange uses the
+            // lightweight bumpGeneration() — does NOT settle the orphaned
+            // promise or clear storage's activePrefetch, because a NEW
+            // request immediately follows on the same session and the
+            // late-body cleanup path covers the orphan via stale-discard.
+            // Verify the bump changes the expected generation that storage
+            // sees inside the lock.
             const h = createHarness();
             const manager = makeManager(h);
 

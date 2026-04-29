@@ -78,6 +78,7 @@ function createFakeStorage(initial: { enableSocketRangeFetch: boolean; sessions:
 
 interface FakeManager {
     bumpGeneration: ReturnType<typeof vi.fn>;
+    abandonInFlight: ReturnType<typeof vi.fn>;
     requestSessionMessageRange: ReturnType<typeof vi.fn>;
     requestPromises: Map<string, { resolve: () => void; promise: Promise<void> }>;
 }
@@ -86,6 +87,7 @@ function createFakeManager(): FakeManager {
     const requestPromises = new Map<string, { resolve: () => void; promise: Promise<void> }>();
     return {
         bumpGeneration: vi.fn(),
+        abandonInFlight: vi.fn(),
         requestSessionMessageRange: vi.fn(async (req: { sessionId: string }) => {
             // Each call gets a deferred promise so the test can assert call
             // count without resolving (or resolve to verify ordering).
@@ -101,7 +103,16 @@ function createFakeManager(): FakeManager {
 const PAGE_SIZE = 80;
 
 // One-to-one reproduction of sync.ts:onActiveSessionChanged
-function makeOnActiveSessionChanged(storage: ReturnType<typeof createFakeStorage>, manager: FakeManager) {
+// Updated post-3-way-Phase-5a-re-review (Codex #1, Copilot #1) — uses
+// `abandonInFlight` for the previous-session cleanup AND evicts the
+// orphaned `prefetchPendingPromises[previousSessionId]` reference. Pre-fix
+// the bridge called `bumpGeneration` only and left the durable
+// activePrefetch + the orphaned promise stranded.
+function makeOnActiveSessionChanged(
+    storage: ReturnType<typeof createFakeStorage>,
+    manager: FakeManager,
+    prefetchPendingPromises: Map<string, Promise<void>>,
+) {
     let lastActiveSessionId: string | null = null;
     return {
         get lastActiveSessionId() { return lastActiveSessionId; },
@@ -112,7 +123,8 @@ function makeOnActiveSessionChanged(storage: ReturnType<typeof createFakeStorage
             const previousSessionId = lastActiveSessionId;
             storage.getState().setRenderWindow(sessionId, null);
             if (previousSessionId !== null) {
-                manager.bumpGeneration(previousSessionId);
+                manager.abandonInFlight(previousSessionId);
+                prefetchPendingPromises.delete(previousSessionId);
             }
             lastActiveSessionId = sessionId;
         },
@@ -249,6 +261,7 @@ describe('sync.reportRenderWindow bridge (US-006)', () => {
 describe('sync.onActiveSessionChanged (US-006)', () => {
     let storage: ReturnType<typeof createFakeStorage>;
     let manager: FakeManager;
+    let prefetchPendingPromises: Map<string, Promise<void>>;
     let bridge: ReturnType<typeof makeOnActiveSessionChanged>;
 
     beforeEach(() => {
@@ -260,13 +273,15 @@ describe('sync.onActiveSessionChanged (US-006)', () => {
             },
         });
         manager = createFakeManager();
-        bridge = makeOnActiveSessionChanged(storage, manager);
+        prefetchPendingPromises = new Map();
+        bridge = makeOnActiveSessionChanged(storage, manager, prefetchPendingPromises);
     });
 
-    it('first call: setRenderWindow(newSid, null), no bumpGeneration (previous is null)', () => {
+    it('first call: setRenderWindow(newSid, null), no abandonInFlight (previous is null)', () => {
         bridge.call('sess-1');
         expect(storage.getCalls().setRenderWindow).toHaveLength(1);
         expect(storage.getCalls().setRenderWindow[0]).toEqual({ sessionId: 'sess-1', window: null });
+        expect(manager.abandonInFlight).not.toHaveBeenCalled();
         expect(manager.bumpGeneration).not.toHaveBeenCalled();
         expect(bridge.lastActiveSessionId).toBe('sess-1');
     });
@@ -275,18 +290,35 @@ describe('sync.onActiveSessionChanged (US-006)', () => {
         bridge.call('sess-1');
         bridge.call('sess-1');
         expect(storage.getCalls().setRenderWindow).toHaveLength(1);
-        expect(manager.bumpGeneration).not.toHaveBeenCalled();
+        expect(manager.abandonInFlight).not.toHaveBeenCalled();
     });
 
-    it('new id after a previous: setRenderWindow(new, null) AND bumpGeneration(previous)', () => {
+    it('new id after a previous: setRenderWindow(new, null) AND abandonInFlight(previous) AND prefetchPendingPromises eviction', () => {
+        // 3-way Phase 5a re-review fix (Codex #1): the previous-session
+        // cleanup now goes through abandonInFlight (full cleanup including
+        // clearActivePrefetch + settle) instead of the lightweight
+        // bumpGeneration. Plus the orphaned prefetchPendingPromises entry is
+        // evicted so a future loadOlder() does not await a settled (or
+        // never-settling) promise.
+        prefetchPendingPromises.set('sess-1', new Promise(() => { /* orphaned, never resolves */ }));
+        prefetchPendingPromises.set('sess-2', new Promise(() => { /* unrelated */ }));
+
         bridge.call('sess-1');
         bridge.call('sess-2');
+
         expect(storage.getCalls().setRenderWindow).toEqual([
             { sessionId: 'sess-1', window: null },
             { sessionId: 'sess-2', window: null },
         ]);
-        expect(manager.bumpGeneration).toHaveBeenCalledTimes(1);
-        expect(manager.bumpGeneration).toHaveBeenCalledWith('sess-1');
+        expect(manager.abandonInFlight).toHaveBeenCalledTimes(1);
+        expect(manager.abandonInFlight).toHaveBeenCalledWith('sess-1');
+        // Pre-fix bumpGeneration was the call site — assert we no longer
+        // route the previous-session cleanup through it from the bridge.
+        expect(manager.bumpGeneration).not.toHaveBeenCalled();
+        // The orphaned promise reference for sess-1 is evicted; sess-2's
+        // (the now-active session) is left alone.
+        expect(prefetchPendingPromises.has('sess-1')).toBe(false);
+        expect(prefetchPendingPromises.has('sess-2')).toBe(true);
         expect(bridge.lastActiveSessionId).toBe('sess-2');
     });
 });

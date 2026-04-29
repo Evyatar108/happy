@@ -329,7 +329,21 @@ class Sync {
         const previousSessionId = this.lastActiveSessionId;
         storage.getState().setRenderWindow(sessionId, null);
         if (previousSessionId !== null) {
-            this.prefetchManager.bumpGeneration(previousSessionId);
+            // Full cleanup of the previous session's in-flight prefetch:
+            // bumps generation, clears storage's durable activePrefetch,
+            // settles the orphaned terminal Promise, and fires
+            // `abandon-on-cleanup` so the failure-clear contract holds even
+            // when the abandoned request body's transport ack never arrives.
+            // Without this (the prior `bumpGeneration` only call) coming
+            // back to the previous session would find shouldPrefetchOlder
+            // permanently gated by stale activePrefetch and any flag-on
+            // loadOlder() would await an orphaned promise indefinitely.
+            this.prefetchManager.abandonInFlight(previousSessionId);
+            // Manager owns its own state; sync owns the prefetchPendingPromises
+            // map. Evict the orphaned reference so a later loadOlder() does
+            // not await a settled promise (harmless but a leak) and re-issues
+            // a fresh request under the bumped generation.
+            this.prefetchPendingPromises.delete(previousSessionId);
         }
         this.lastActiveSessionId = sessionId;
     }
@@ -2201,6 +2215,15 @@ class Sync {
             this.sessionQueueProcessing.delete(sessionId);
             this.pendingNewMessages.delete(sessionId);
             this.sessionInitInFlight.delete(sessionId);
+            // US-006: prefetch state cleanup, mirroring onActiveSessionChanged.
+            // `abandonInFlight` performs the manager-side flush
+            // (bump generation + clearActivePrefetch + settle orphaned
+            // terminal Promise + fire `abandon-on-cleanup` event), and
+            // `prefetchPendingPromises.delete` evicts the sync-side reference
+            // so a subsequent flag-on loadOlder() doesn't await a settled
+            // promise.
+            this.prefetchManager.abandonInFlight(sessionId);
+            this.prefetchPendingPromises.delete(sessionId);
 
             log.log(`🗑️ Session ${sessionId} deleted from local storage`);
         } else if (updateData.body.t === 'update-session') {

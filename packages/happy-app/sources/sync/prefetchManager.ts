@@ -91,7 +91,8 @@ export type PrefetchTerminalKind =
     | 'decrypt-error'
     | 'stale-discard'
     | 'sync-bail'
-    | 'abandon-on-reconnect';
+    | 'abandon-on-reconnect'
+    | 'abandon-on-cleanup';
 
 export interface PrefetchTerminalEvent {
     sessionId: string;
@@ -214,14 +215,76 @@ export class PrefetchManager {
     }
 
     /**
-     * Bump the generation for a single session. Abandons any in-flight
-     * tracker so the next pre-flight check passes. Used by US-006's
-     * `sync.onActiveSessionChanged` to invalidate the previous session's
-     * pending prefetch on session switch.
+     * Bump the generation for a single session and drop the in-flight tracker.
+     * Lightweight — does NOT clear storage's durable `activePrefetch`, does NOT
+     * settle the orphaned terminal Promise, does NOT fire a terminal event.
+     *
+     * Safe ONLY when a NEW request immediately follows on the same session
+     * (e.g., direction reversal inside `requestSessionMessageRange`): the
+     * abandoned request body still runs to completion via its transport ack
+     * → in-lock staleness check → `applyPrefetchedRange` no-op (storage
+     * requestId guard) → `clearActivePrefetch` no-op (storage requestId guard)
+     * → `stale-discard` terminal event → `settle()`. The late-body cleanup
+     * path covers the orphan.
+     *
+     * For session-switch and session-delete the user may NOT come back, the
+     * transport ack may NEVER arrive, and the late-body path is therefore
+     * NOT guaranteed. Callers in those scenarios must use
+     * `abandonInFlight(sessionId)` instead — which performs the full cleanup
+     * synchronously.
      */
     bumpGeneration(sessionId: string): void {
         this.generations.set(sessionId, this.getGeneration(sessionId) + 1);
         this.inFlight.delete(sessionId);
+    }
+
+    /**
+     * Full per-session cleanup: bump generation, drop the in-flight tracker,
+     * clear storage's durable `activePrefetch`, settle the orphaned terminal
+     * Promise, and fire `abandon-on-cleanup` so the failure-clear contract is
+     * honored even when the abandoned request body never runs (e.g., the
+     * transport ack never arrives).
+     *
+     * Used by `sync.onActiveSessionChanged` when leaving a session and by the
+     * `delete-session` handler. Reconnect uses the same internal flush helper
+     * but fires `abandon-on-reconnect` instead.
+     *
+     * Note: the sync layer is responsible for evicting its own
+     * `prefetchPendingPromises[sessionId]` reference — the manager does not
+     * own that map. Together, the two cleanups (manager-side flush + sync-side
+     * promise eviction) match the reconnect cleanup pattern that fixed the
+     * 3-way Phase 5a `onReconnected` leak.
+     */
+    abandonInFlight(sessionId: string): void {
+        this.generations.set(sessionId, this.getGeneration(sessionId) + 1);
+        this.flushAbandonedInFlight(sessionId, 'abandon-on-cleanup');
+    }
+
+    /**
+     * Internal flush helper used by both `onReconnected` (per-session, with
+     * `abandon-on-reconnect` kind) and `abandonInFlight` (single session,
+     * with `abandon-on-cleanup` kind). Caller is responsible for bumping the
+     * generation BEFORE invoking this — the helper only handles the cleanup
+     * side-effects (storage clear, terminal event, settle resolver).
+     *
+     * Idempotent under late re-entry: if the abandoned request body
+     * subsequently runs to completion, its `applyPrefetchedRange` call
+     * no-ops via the storage requestId guard, its `clearActivePrefetch`
+     * no-ops the same way, the second `fireTerminal('stale-discard')` is
+     * a duplicate event but the `settle()` is idempotent through the
+     * captured `settled` boolean (see `requestSessionMessageRange`).
+     */
+    private flushAbandonedInFlight(sessionId: string, kind: PrefetchTerminalKind): void {
+        const inFlight = this.inFlight.get(sessionId);
+        if (!inFlight) {
+            return;
+        }
+        this.inFlight.delete(sessionId);
+        // Storage clear FIRST so any viewport tick landing immediately after
+        // settle resolves can re-issue cleanly under the bumped generation.
+        this.storage.clearActivePrefetch(sessionId, inFlight.requestId);
+        this.fireTerminal({ sessionId, requestId: inFlight.requestId, kind });
+        inFlight.settle();
     }
 
     /**
@@ -251,23 +314,14 @@ export class PrefetchManager {
             ...this.generations.keys(),
             ...this.inFlight.keys(),
         ]);
+        // Two-pass: bump every generation FIRST so any terminal-event
+        // listener that issues a fresh request lands under the new
+        // generation, then flush per-session in-flight cleanup.
         for (const sid of sessionIds) {
             this.generations.set(sid, this.getGeneration(sid) + 1);
         }
-        // Snapshot in-flight entries before clearing — we need each entry's
-        // captured `requestId` for the storage clear AND the settle resolver
-        // for the orphaned promise.
-        const abandoned: Array<{ sessionId: string; requestId: string; settle: () => void }> = [];
-        for (const [sid, entry] of this.inFlight.entries()) {
-            abandoned.push({ sessionId: sid, requestId: entry.requestId, settle: entry.settle });
-        }
-        this.inFlight.clear();
-        for (const { sessionId, requestId, settle } of abandoned) {
-            // Clear storage's durable activePrefetch FIRST so a viewport tick
-            // landing immediately after settle resolves can re-issue cleanly.
-            this.storage.clearActivePrefetch(sessionId, requestId);
-            this.fireTerminal({ sessionId, requestId, kind: 'abandon-on-reconnect' });
-            settle();
+        for (const sid of sessionIds) {
+            this.flushAbandonedInFlight(sid, 'abandon-on-reconnect');
         }
     }
 
