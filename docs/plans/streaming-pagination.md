@@ -85,15 +85,26 @@ The handler issues a single account-scoped `findFirst({ id: sessionId, accountId
 
 `hasMore` is derived from the existing `take: limit + 1` pattern. When the primary message-fetch returns zero rows the handler short-circuits to `hasMore: false` without issuing a separate count or existence query — guaranteeing the client never observes the unprogressable `messages: [] && hasMore: true` state.
 
-## Reconnect Contract
+## Reconnect / Cleanup Contract
 
-Socket.IO's `connectionStateRecovery` is disabled server-side (`packages/happy-server/sources/app/api/socket.ts`). The prefetch path therefore implements **abandon-and-re-issue**, not mid-prefetch resume:
+Socket.IO's `connectionStateRecovery` is disabled server-side (`packages/happy-server/sources/app/api/socket.ts`). The prefetch path therefore implements **abandon-and-re-issue**, not mid-prefetch resume. There are three abandon-in-flight paths in the manager, with deliberately different cleanup intensity:
 
-1. On `apiSocket.onReconnected()`, the prefetch manager **increments the generation counter for every session** and drops in-flight tracking. The same generation bump fires on session switch (via `sync.onActiveSessionChanged`) and on direction reversal.
-2. The `emitWithAck` promise for any abandoned prefetch is intentionally orphaned. When (or if) it later resolves, the prefetch manager invokes `storage.applyPrefetchedRange(...)` unconditionally inside the per-session lock — and the storage layer itself re-checks `(current.activePrefetch?.requestId === expectedRequestId)` and `(currentGeneration(sessionId) === expectedGeneration)`. On mismatch the call short-circuits to a no-op merge: no message commit, no `oldestLoadedSeq`/`hasOlder` mutation, no `activePrefetch` clear from the success path. The storage layer is the **single source of truth** for the staleness gate.
-3. Already-committed plaintext is fine — nothing is rolled back. The next viewport tick that satisfies `shouldPrefetchOlder` re-issues the request under the new generation.
-4. **No mid-prefetch resume.** The client does not attempt to resume a partial prefetch across a reconnect; it simply abandons the in-flight request and lets the next scroll re-issue.
-5. **Failure / non-commit clear.** Every terminal non-commit exit — (i) `ok: false` ack (any `error.code`), (ii) thrown transport error, (iii) decrypt failure, (iv) closure-mismatch staleness discard inside the lock — routes through a single guarded `storage.clearActivePrefetch(sessionId, expectedRequestId)`. The `clearActivePrefetch` action is guarded by `requestId`, so a late failure-path clear from an abandoned generation cannot blow away a newer in-flight prefetch issued under a bumped generation.
+| Path | Caller | Generation bump | `clearActivePrefetch` | Settle terminal `Promise<void>` | Terminal-event kind | Sync-side `prefetchPendingPromises` evict |
+|---|---|---|---|---|---|---|
+| Reconnect | `apiSocket.onReconnected()` → `manager.onReconnected()` | every tracked session | yes, per in-flight | yes, per in-flight | `abandon-on-reconnect` | yes, in `sync.ts`'s reconnect bridge — `prefetchPendingPromises.clear()` |
+| Session switch | `sync.onActiveSessionChanged(prev → next)` → `manager.abandonInFlight(prev)` | previous session only | yes, if in-flight | yes, if in-flight | `abandon-on-cleanup` | yes, `prefetchPendingPromises.delete(prev)` |
+| Session delete | `delete-session` handler → `manager.abandonInFlight(sid)` | deleted session only | yes, if in-flight | yes, if in-flight | `abandon-on-cleanup` | yes, `prefetchPendingPromises.delete(sid)` |
+| Direction reversal | inside `manager.requestSessionMessageRange` → `manager.bumpGeneration(sid)` | current session only | NO — late-body path covers it | NO — late-body path covers it | none from the bump (the late-body fires `stale-discard`) | n/a — new request immediately follows on the same `sessionId` so the map entry is overwritten |
+
+**Why the asymmetry.** Reconnect and session-switch/delete cannot rely on the abandoned request body running to completion — the transport ack may have been dropped by Socket.IO on disconnect, or the user has navigated away and may never return — so the cleanup is performed synchronously by the manager. Direction reversal happens with the user still on the same session and a new request issued in the same tick, so the abandoned body's `stale-discard` late-cleanup path covers the orphan via the storage `requestId` guard + the closure-captured `settled` flag.
+
+**Promise semantics under all three paths:**
+
+1. The `emitWithAck` promise for any abandoned prefetch is intentionally orphaned. When (or if) it later resolves, the prefetch manager invokes `storage.applyPrefetchedRange(...)` unconditionally inside the per-session lock — and the storage layer itself re-checks `(current.activePrefetch?.requestId === expectedRequestId)` and `(currentGeneration(sessionId) === expectedGeneration)`. On mismatch the call short-circuits to a no-op merge: no message commit, no `oldestLoadedSeq`/`hasOlder` mutation, no `activePrefetch` clear from the success path. The storage layer is the **single source of truth** for the staleness gate.
+2. Already-committed plaintext is fine — nothing is rolled back. The next viewport tick that satisfies `shouldPrefetchOlder` re-issues the request under the new generation.
+3. **No mid-prefetch resume.** The client does not attempt to resume a partial prefetch across a reconnect; it simply abandons the in-flight request and lets the next scroll re-issue.
+4. **Failure / non-commit clear.** Every terminal non-commit exit — (i) `ok: false` ack (any `error.code`), (ii) thrown transport error, (iii) decrypt failure, (iv) closure-mismatch staleness discard inside the lock, (v) reconnect-side `abandon-on-reconnect`, (vi) session-switch / session-delete `abandon-on-cleanup` — routes through a single guarded `storage.clearActivePrefetch(sessionId, expectedRequestId)`. The `clearActivePrefetch` action is guarded by `requestId`, so a late failure-path clear from an abandoned generation cannot blow away a newer in-flight prefetch issued under a bumped generation.
+5. The `settle()` resolver captured at request-issue time is **idempotent** through a closure-captured `settled` boolean. So a late-body terminal arriving after the synchronous cleanup already settled the outer promise is a no-op for promise resolution; only an extra terminal event (`stale-discard`) is emitted, which is harmless for the `Promise<void>` contract.
 
 The `requestId` is logged for traceability but is not what makes the discard safe; ack correlation is owned by `emitWithAck`, and staleness is owned by the closure-captured `(sessionId, generation)` re-check inside the per-session lock.
 
