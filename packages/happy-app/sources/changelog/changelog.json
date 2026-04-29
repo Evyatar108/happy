@@ -1,6 +1,19 @@
 {
   "entries": [
     {
+      "version": 26,
+      "date": "2026-04-29",
+      "summary": "Scrolling back through long chats is much smoother. With the new \"Stream Older Messages\" toggle on (Settings → Appearance), the next chunk of older messages arrives over the live socket connection a beat before you scroll there, instead of waiting on a one-shot HTTP fetch when you reach the edge. The toggle is local to the device (does not sync across devices), defaults off, and is a drop-in replacement for the existing older-page fetch.",
+      "changes": [
+        "Added a \"Stream Older Messages\" toggle to Settings → Appearance that routes scroll-back over the same socket the chat already uses for live updates.",
+        "Older history now arrives slightly ahead of the scroll edge instead of in one large blocking batch, so the chat reads more fluidly on long sessions.",
+        "Picking and switching sessions resets the prefetch state so the next session starts with a clean window without lingering requests from the previous one.",
+        "Network reconnects abandon any in-flight prefetch and reissue cleanly on the next scroll instead of leaving the chat stuck waiting for an old request that will never arrive.",
+        "Cold-start chat opening and live new-message updates are unchanged."
+      ],
+      "rawMarkdown": "## Version 26 - 2026-04-29\n\n\nScrolling back through long chats is much smoother. With the new \"Stream Older Messages\" toggle on (Settings → Appearance), the next chunk of older messages arrives over the live socket connection a beat before you scroll there, instead of waiting on a one-shot HTTP fetch when you reach the edge. The toggle is local to the device (does not sync across devices), defaults off, and is a drop-in replacement for the existing older-page fetch.\n\n- Added a \"Stream Older Messages\" toggle to Settings → Appearance that routes scroll-back over the same socket the chat already uses for live updates.\n- Older history now arrives slightly ahead of the scroll edge instead of in one large blocking batch, so the chat reads more fluidly on long sessions.\n- Picking and switching sessions resets the prefetch state so the next session starts with a clean window without lingering requests from the previous one.\n- Network reconnects abandon any in-flight prefetch and reissue cleanly on the next scroll instead of leaving the chat stuck waiting for an old request that will never arrive.\n- Cold-start chat opening and live new-message updates are unchanged."
+    },
+    {
       "version": 25,
       "date": "2026-04-28",
       "summary": "Permission mode is now preserved when bridging your local Claude CLI session to the Happy mobile app. If you start `claude --dangerously-skip-permissions` (or any non-default permission mode) on your local terminal, sending or resuming the conversation from your phone no longer silently reverts you to the default mode.",
@@ -296,5 +309,5 @@
       "rawMarkdown": "## Version 1 - 2025-05-12\n\n\nWelcome to Happy - your secure, encrypted mobile companion for Claude Code. This inaugural release establishes the foundation for private, powerful AI interactions on the go.\n\n- Implemented end-to-end encrypted session management ensuring complete privacy\n- Integrated intelligent voice assistant with natural conversation capabilities\n- Added experimental file manager with syntax highlighting and tree navigation\n- Built seamless real-time synchronization across all your devices\n- Established native support for iOS, Android, and responsive web interfaces"
     }
   ],
-  "latestVersion": 25
+  "latestVersion": 26
 }

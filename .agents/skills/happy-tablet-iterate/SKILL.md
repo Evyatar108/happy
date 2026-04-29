@@ -90,18 +90,39 @@ description: >
   ```
   (Note: not `pnpm start` — that resolves to `expo start` without `--dev-client`; see preflight step 4.)
 
-## Side-by-side test server (different port, fresh DB)
+## Side-by-side test server (different port)
 
-Sometimes you want to test a server-touching change without touching the live HappyServer Windows service on `:3005` (its pglite holds your real account data, and you can't `taskkill` it without elevation anyway because it runs in Session 0). Instead, stand up a second `happy-server` on `:3006` with its own pglite, point Metro at it, and pair the tablet fresh.
+Sometimes you want to test a server-touching change without touching the live HappyServer Windows service on `:3005` (its pglite holds your real account data, and you can't `taskkill` it without elevation anyway because it runs in Session 0). Stand up a second `happy-server` on `:3006`, point Metro at it, and either pair fresh OR snapshot the live pglite for token reuse (covered below).
 
-**Preconditions specific to this pattern.** The dev-client APK reads its server URL from MMKV (`custom-server-url`, set during onboarding to the cloudflared tunnel `https://happy.evyatar.dev`). Metro can override this at bundle-load time **only if BOTH** env vars are set when starting Metro — `EXPO_PUBLIC_SERVER_URL` AND `EXPO_PUBLIC_HAPPY_SERVER_URL`. The first is read by `appConfig.ts` (the runtime config loader, persists into MMKV), the second by `serverConfig.ts:getServerUrl()` (used by some fetch paths directly). Setting only one leaves the other code path on the cloudflared default and you'll see split-brain behavior (e.g., socket connects locally, HTTP loadOlder hits the tunnel).
+### Why env-var overrides alone don't redirect the tablet
+
+The dev-client APK reads its server URL from MMKV key `custom-server-url`, set during onboarding to the cloudflared tunnel `https://happy.evyatar.dev`. There are two server-URL code paths:
+
+- `appConfig.ts` reads `EXPO_PUBLIC_SERVER_URL` — overrides the persisted MMKV value. Logs `[loadAppConfig] Override serverUrl from EXPO_PUBLIC_SERVER_URL` on success.
+- `serverConfig.ts:getServerUrl()` checks **MMKV first**, then `EXPO_PUBLIC_HAPPY_SERVER_URL`. **MMKV wins.** Every consumer in `auth/*`, `sync/api*`, and the socket initializer (`sync.ts:2676 apiSocket.initialize({ endpoint: getServerUrl(), ... })`) goes through `getServerUrl()`. So if the device ever onboarded against ANY server, MMKV is non-empty and the env var is silently ignored — every API call still hits the original tunnel.
+
+Symptom of this trap: `[loadAppConfig] Override` log fires, `appConfig.serverUrl` looks correct, but the server log shows zero traffic; the tablet still talks to `https://happy.evyatar.dev`. **Setting the env vars is necessary but insufficient.**
+
+To actually redirect, do **one** of:
+
+- **(A) On-device:** open the app's `Settings → Server` screen (`packages/happy-app/sources/app/(app)/server.tsx`) and set the custom URL to `http://<lan-ip>:<test-port>`. This writes MMKV directly. Painful on e-ink.
+- **(B) Local source patch (preferred for short test sessions):** flip the precedence in `serverConfig.ts` so the env var beats MMKV. Don't commit this — it's a worktree-only override:
+   ```ts
+   // serverConfig.ts:getServerUrl — LOCAL TEST OVERRIDE, revert before commit.
+   return process.env.EXPO_PUBLIC_HAPPY_SERVER_URL ||
+          serverConfigStorage.getString(SERVER_KEY) ||
+          DEFAULT_SERVER_URL;
+   ```
+   Save → Metro auto-rebundles → the next deep-link force-launch picks up the redirect. **Always `git checkout -- packages/happy-app/sources/sync/serverConfig.ts` before merging the worktree.**
+
+### Steps
 
 ```bash
 # 1. Pick a worktree and a fresh data dir
 WORKTREE=D:/harness-efforts/happy/.ralph/jobs/<job>/worktree
 TEST_PORT=3006
 
-# 2. Drop a .env.test file (mirrors .env.dev except for PORT and PGLITE_DIR)
+# 2. Drop a .env.test file
 cat > $WORKTREE/packages/happy-server/.env.test <<EOF
 DB_PROVIDER=pglite
 HANDY_MASTER_SECRET=test-key-$(date +%s)
@@ -123,29 +144,78 @@ npx tsx --env-file=.env.test ./sources/standalone.ts serve &
 # 5. Confirm health
 curl.exe -s -m 3 http://localhost:$TEST_PORT/health   # → {"status":"ok",...}
 
-# 6. Start Metro with BOTH env-var overrides + --dev-client --clear
+# 6. Apply the serverConfig.ts precedence patch (option B above) IF using env-var redirect
+# (skip if using on-device option A)
+
+# 7. Start Metro with BOTH env-var overrides + --dev-client --clear
 cd $WORKTREE/packages/happy-app
-EXPO_PUBLIC_SERVER_URL="http://192.168.0.130:$TEST_PORT" \
-EXPO_PUBLIC_HAPPY_SERVER_URL="http://192.168.0.130:$TEST_PORT" \
+EXPO_PUBLIC_SERVER_URL="http://<lan-ip>:$TEST_PORT" \
+EXPO_PUBLIC_HAPPY_SERVER_URL="http://<lan-ip>:$TEST_PORT" \
   pnpm exec expo start --dev-client --clear
 
-# 7. adb reverse + deep-link force-launch (same as the standard loop)
+# 8. adb reverse + deep-link force-launch
 /d/Android/Sdk/platform-tools/adb.exe reverse tcp:8081 tcp:8081
 /d/Android/Sdk/platform-tools/adb.exe shell am force-stop com.slopus.happy.dev
 /d/Android/Sdk/platform-tools/adb.exe shell am start -a android.intent.action.VIEW \
   -d 'happy://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081'
 ```
 
-**Tablet pairs fresh** — the `:3006` pglite is empty so your usual account doesn't exist on it; QR-scan to create a new one, just for the test session.
+**Verify the redirect actually took.** Server log (`packages/happy-server/.logs/<timestamp>.log`) should show requests from the tablet's LAN IP within seconds — `Auth check - path: /v1/sessions, has header: true`. If you see only your own `curl /health` probes and nothing from `192.168.0.x`, the redirect didn't take — re-check that the precedence patch is saved AND that Metro rebundled after the save.
 
-**LAN reachability.** `192.168.0.130:3006` works because the desktop's HappyServer-on-3005 doesn't bind 3006, and the test server binds `0.0.0.0:3006`. The cloudflared tunnel only routes to `:3005`, so external HTTPS isn't an option for `:3006` — the tablet must be on the same LAN as the desktop. If you need TLS / external access, run a second cloudflared named tunnel pointing at `:3006` (out of scope for this skill).
+### Token reuse via pglite snapshot (avoid fresh QR pairing)
 
-**Cleanup.**
+Pairing the tablet fresh is annoying — empty pglite → no sessions to scroll, no real-world data, every test starts from zero. Better: snapshot the live `:3005` pglite into the test data-dir, match the master secret, and the tablet's existing auth token validates against `:3006` immediately (verified by `module: "auth-decorator", msg: "Auth success - user: <userId>"` in the server log).
+
+This works because pglite stores its data as Postgres files with FILE_SHARE_READ on Windows — you can `cp -r` a live pglite tree while the running service holds it open. Token verification is `Ed25519`-signed with the seed from `HANDY_MASTER_SECRET`, so as long as the secret matches AND the user record exists in the snapshot, the existing token from the production tunnel verifies on the test server.
+
+```bash
+# 1. Stop the :3006 test server (don't touch the :3005 service)
+TEST_PID=$(netstat -ano | grep ":$TEST_PORT" | grep LISTENING | awk '{print $NF}')
+taskkill //F //PID $TEST_PID
+
+# 2. Snapshot the live pglite + files (read-shareable on Windows, no admin needed)
+LIVE=D:/harness-efforts/happy/packages/happy-server/data
+TEST=$WORKTREE/packages/happy-server/data-test
+rm -rf $TEST/pglite $TEST/files
+cp -r $LIVE/pglite $TEST/pglite
+cp -r $LIVE/files $TEST/files     # voice / artifact blobs, if you care about them
+
+# 3. Match the master secret in .env.test (matches the dev .env.dev value used by the live service)
+sed -i 's|HANDY_MASTER_SECRET=.*|HANDY_MASTER_SECRET=your-super-secret-key-for-local-development|' \
+  $WORKTREE/packages/happy-server/.env.test
+
+# 4. Restart serve (skip migrate — the snapshot already has every migration applied)
+cd $WORKTREE/packages/happy-server
+npx tsx --env-file=.env.test ./sources/standalone.ts serve &
+```
+
+**Caveat: live snapshot is not transactionally consistent.** pglite WAL files in the snapshot may be slightly ahead of the data files because the source service was running. In practice startup recovery handles this fine for the streaming-pagination test ( the snapshot booted clean and accepted all reads). If pglite refuses to start with WAL errors, stop the live service briefly (needs admin), snapshot, restart — or just `rm -rf data-test/pglite/pg_wal/*` after copy and let pglite cold-recover from the data files only (acceptable for a read-only test scenario, will lose any unflushed writes from the moment of copy).
+
+**LAN reachability.** `<lan-ip>:3006` works because the desktop's HappyServer-on-3005 doesn't bind 3006, and the test server binds `0.0.0.0:3006`. The cloudflared tunnel only routes to `:3005`, so external HTTPS isn't an option for `:3006` — the tablet must be on the same LAN as the desktop. If you need TLS / external access, run a second cloudflared named tunnel pointing at `:3006` (out of scope for this skill).
+
+### Verifying which path the app actually uses (HTTP vs socket)
+
+Once redirected, you'll need to confirm the new code path is running, not the legacy fallback. Some socket-event handlers are deliberately silent on entry (no per-request `log()`) so direct telemetry isn't visible — fall back to indirect signals:
+
+- **HTTP path is logged** — every `/v3/sessions/.../messages?after_seq=N&limit=M` shows up as a request line in the server log. `limit=100` means cold-start (always HTTP, untouched by feature flags); `limit=80` means legacy `loadOlder()` (the path you want to see *disappear* when a flag-gated socket replacement is on).
+- **Socket events are NOT logged by default.** If you need per-event telemetry, add a one-liner to the handler entry:
+   ```ts
+   socket.on('session-message-range', async (data, callback) => {
+     log({ module: 'session-message-range' }, `request: ${data?.fromSeq}..${data?.toSeq}`);
+     ...
+   });
+   ```
+   Worktree-only, or commit it as a small follow-up if it stays useful.
+- **Socket connection alive?** `module: "websocket", msg: "User connected: <userId>"` confirms the dev-client's `/v1/updates` websocket is up. No connection event = the socket layer never connected; the new path can't fire at all and the app silently falls back to HTTP. Look for active TCP via `netstat -ano | grep :<port> | grep ESTABLISHED`.
+
+### Cleanup
+
 ```bash
 # stop the test server
 ps -ef | grep "standalone.ts serve" | grep -v grep | awk '{print $2}' | xargs -r kill -9
 rm -rf $WORKTREE/packages/happy-server/data-test
 rm $WORKTREE/packages/happy-server/.env.test
+git checkout -- $WORKTREE/packages/happy-app/sources/sync/serverConfig.ts   # revert option-B precedence patch
 ```
 The Windows service on `:3005` was untouched throughout — your real account is unchanged.
 
