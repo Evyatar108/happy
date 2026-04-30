@@ -2,7 +2,7 @@
 /**
  * Session Hook Forwarder
  * 
- * This script is executed by Claude's SessionStart hook.
+ * This script is executed by Claude hooks.
  * It reads JSON data from stdin and forwards it to Happy's hook server.
  * 
  * Usage: echo '{"session_id":"..."}' | node session_hook_forwarder.cjs <port>
@@ -24,12 +24,26 @@ process.stdin.on('data', (chunk) => {
 
 process.stdin.on('end', () => {
     const body = Buffer.concat(chunks);
+    let path = '/hook/session-start';
+
+    try {
+        const payload = JSON.parse(body.toString('utf8'));
+        if (payload && typeof payload === 'object') {
+            if (payload.hook_event_name === 'Stop') {
+                path = '/hook/stop';
+            } else if (payload.hook_event_name === 'UserPromptSubmit') {
+                path = '/hook/user-prompt-submit';
+            }
+        }
+    } catch {
+        // Preserve the existing SessionStart fallback for malformed hook input.
+    }
     
     const req = http.request({
         host: '127.0.0.1',
         port: port,
         method: 'POST',
-        path: '/hook/session-start',
+        path,
         headers: {
             'Content-Type': 'application/json',
             'Content-Length': body.length

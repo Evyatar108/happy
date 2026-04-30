@@ -45,9 +45,12 @@ sequenceDiagram
 
 ### Local turn-close behavior
 
-- Abort/switch: `turn-end(status="cancelled")`
+- Abort or take-over-now switch (`request-switch` mode=`now`): `turn-end(status="cancelled")`
+- Deferred switch on Stop hook (`request-switch` mode=`when-idle`): `turn-end(status="completed")`
 - Normal process exit: `turn-end(status="completed")`
 - Non-zero launcher exit/error: `turn-end(status="failed")`
+
+The switch trigger source is `performSwitch(reason)` in `claudeLocalLauncher.ts`, which routes through `session.client.closeClaudeSessionTurn(reason)`.
 
 Implemented in:
 - `packages/happy-cli/src/claude/claudeLocalLauncher.ts`

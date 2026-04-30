@@ -64,6 +64,20 @@ export const zhHans: TranslationStructure = {
         optional: '可选的',
     },
 
+    pendingSwitch: {
+        banner: '当前任务结束后将切换到远程模式',
+    },
+
+    requestSwitch: {
+        now: '立即接管',
+        whenIdle: 'Claude 空闲时发送',
+    },
+
+    cancelPendingSwitch: {
+        label: '取消切换',
+        note: '消息将被丢弃',
+    },
+
     commands: {
         rename: {
             emptyName: '请在 /rename 后输入聊天名称。',
@@ -286,6 +300,8 @@ export const zhHans: TranslationStructure = {
         userNotFound: '未找到用户',
         sessionDeleted: '会话已被删除',
         sessionDeletedDescription: '此会话已被永久删除',
+        requestSwitchFailed: '更新切换请求失败',
+        sendFailed: '发送消息失败',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

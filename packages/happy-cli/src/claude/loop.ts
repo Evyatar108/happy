@@ -77,7 +77,7 @@ export async function loop(opts: LoopOptions): Promise<number> {
                 switch (result.type ) {
                     case 'switch':
                         mode = 'remote';
-                        opts.onModeChange?.(mode);
+                        session.onModeChange(mode);
                         break;
                     case 'exit':
                         return result.code;
@@ -94,7 +94,7 @@ export async function loop(opts: LoopOptions): Promise<number> {
                         return 0;
                     case 'switch':
                         mode = 'local';
-                        opts.onModeChange?.(mode);
+                        session.onModeChange(mode);
                         break;
                     default:
                         const _: never = reason satisfies never;

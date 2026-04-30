@@ -62,6 +62,20 @@ export const it: TranslationStructure = {
         saveAs: 'Salva con nome',
     },
 
+    pendingSwitch: {
+        banner: 'Passerà alla modalità remota al termine dell\'attività corrente',
+    },
+
+    requestSwitch: {
+        now: 'Prendi il controllo ora',
+        whenIdle: 'Invia quando Claude è inattivo',
+    },
+
+    cancelPendingSwitch: {
+        label: 'Annulla cambio',
+        note: 'Il messaggio verrà scartato',
+    },
+
     commands: {
         rename: {
             emptyName: 'Aggiungi un nome chat dopo /rename.',
@@ -283,6 +297,8 @@ export const it: TranslationStructure = {
         userNotFound: 'Utente non trovato',
         sessionDeleted: 'La sessione è stata eliminata',
         sessionDeletedDescription: 'Questa sessione è stata rimossa definitivamente',
+        requestSwitchFailed: 'Impossibile aggiornare la richiesta di cambio',
+        sendFailed: 'Impossibile inviare il messaggio',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

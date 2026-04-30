@@ -64,6 +64,20 @@ export const zhHant: TranslationStructure = {
         optional: '選填',
     },
 
+    pendingSwitch: {
+        banner: '目前任務結束後將切換到遠端模式',
+    },
+
+    requestSwitch: {
+        now: '立即接管',
+        whenIdle: 'Claude 閒置時傳送',
+    },
+
+    cancelPendingSwitch: {
+        label: '取消切換',
+        note: '訊息將被丟棄',
+    },
+
     commands: {
         rename: {
             emptyName: '請在 /rename 後輸入聊天名稱。',
@@ -285,6 +299,8 @@ export const zhHant: TranslationStructure = {
         userNotFound: '未找到使用者',
         sessionDeleted: '工作階段已被刪除',
         sessionDeletedDescription: '此工作階段已被永久刪除',
+        requestSwitchFailed: '更新切換請求失敗',
+        sendFailed: '傳送訊息失敗',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

@@ -65,6 +65,20 @@ export const ja: TranslationStructure = {
         saveAs: '名前を付けて保存',
     },
 
+    pendingSwitch: {
+        banner: '現在のタスクが終了するとリモートモードに切り替わります',
+    },
+
+    requestSwitch: {
+        now: '今すぐ引き継ぐ',
+        whenIdle: 'Claude がアイドルになったら送信',
+    },
+
+    cancelPendingSwitch: {
+        label: '切り替えをキャンセル',
+        note: 'メッセージは破棄されます',
+    },
+
     commands: {
         rename: {
             emptyName: '/rename の後にチャット名を入力してください。',
@@ -286,6 +300,8 @@ export const ja: TranslationStructure = {
         userNotFound: 'ユーザーが見つかりません',
         sessionDeleted: 'セッションは削除されました',
         sessionDeletedDescription: 'このセッションは完全に削除されました',
+        requestSwitchFailed: '切り替えリクエストを更新できませんでした',
+        sendFailed: 'メッセージを送信できませんでした',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

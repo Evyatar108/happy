@@ -73,6 +73,20 @@ export const ru: TranslationStructure = {
         optional: 'необязательно',
     },
 
+    pendingSwitch: {
+        banner: 'Переключение в удаленный режим произойдет, когда текущая задача завершится',
+    },
+
+    requestSwitch: {
+        now: 'Взять управление сейчас',
+        whenIdle: 'Отправить, когда Claude освободится',
+    },
+
+    cancelPendingSwitch: {
+        label: 'Отменить переключение',
+        note: 'Сообщение будет удалено',
+    },
+
     commands: {
         rename: {
             emptyName: 'Добавьте название чата после /rename.',
@@ -273,6 +287,8 @@ export const ru: TranslationStructure = {
         userNotFound: 'Пользователь не найден',
         sessionDeleted: 'Сессия была удалена',
         sessionDeletedDescription: 'Эта сессия была окончательно удалена',
+        requestSwitchFailed: 'Не удалось обновить запрос на переключение',
+        sendFailed: 'Не удалось отправить сообщение',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

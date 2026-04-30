@@ -73,6 +73,20 @@ export const pl: TranslationStructure = {
         optional: 'opcjonalnie',
     },
 
+    pendingSwitch: {
+        banner: 'Przełączenie na tryb zdalny nastąpi po zakończeniu bieżącego zadania',
+    },
+
+    requestSwitch: {
+        now: 'Przejmij teraz',
+        whenIdle: 'Wyślij, gdy Claude będzie bezczynny',
+    },
+
+    cancelPendingSwitch: {
+        label: 'Anuluj przełączenie',
+        note: 'Wiadomość zostanie odrzucona',
+    },
+
     commands: {
         rename: {
             emptyName: 'Dodaj nazwę czatu po /rename.',
@@ -302,6 +316,8 @@ export const pl: TranslationStructure = {
         userNotFound: 'Użytkownik nie został znaleziony',
         sessionDeleted: 'Sesja została usunięta',
         sessionDeletedDescription: 'Ta sesja została trwale usunięta',
+        requestSwitchFailed: 'Nie udało się zaktualizować żądania przełączenia',
+        sendFailed: 'Nie udało się wysłać wiadomości',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

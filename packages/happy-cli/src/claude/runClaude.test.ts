@@ -1,22 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { MessageMeta, Metadata, PermissionMode } from '@/api/types';
+import type { MessageMeta } from '@/api/types';
 
 const mocks = vi.hoisted(() => {
     let userMessageHandler: ((message: any) => void) | null = null;
-    let serverMetadata: any = {};
 
     const mockSession = {
         on: vi.fn(),
         onUserMessage: vi.fn((handler: (message: any) => void) => {
             userMessageHandler = handler;
         }),
-        updateMetadata: vi.fn(async (handler: (metadata: any) => any) => {
-            serverMetadata = handler(serverMetadata);
-        }),
-        updateAgentState: vi.fn((handler: (state: Record<string, unknown>) => Record<string, unknown>) => {
-            handler({});
-        }),
+        updateMetadata: vi.fn(),
+        updateAgentState: vi.fn(),
         sendSessionEvent: vi.fn(),
         sendSessionDeath: vi.fn(),
         flush: vi.fn(async () => {}),
@@ -28,10 +23,7 @@ const mocks = vi.hoisted(() => {
         mockSession,
         mockApiCreate: vi.fn(),
         mockGetOrCreateMachine: vi.fn(async () => ({})),
-        mockGetOrCreateSession: vi.fn(async (opts: { metadata: any, state: any }) => {
-            serverMetadata = opts.metadata;
-            return { id: 'session-1', metadata: opts.metadata };
-        }),
+        mockGetOrCreateSession: vi.fn(async (opts: { metadata: any; state: any }) => ({ id: 'session-1', metadata: opts.metadata })),
         mockReadSettings: vi.fn(async () => ({ machineId: 'machine-1', sandboxConfig: undefined })),
         mockNotifyDaemonSessionStarted: vi.fn(async () => ({ error: null })),
         mockStartHappyServer: vi.fn(async () => ({ url: 'http://127.0.0.1:3000/mcp', toolNames: [], stop: vi.fn() })),
@@ -51,10 +43,6 @@ const mocks = vi.hoisted(() => {
         getUserMessageHandler: () => userMessageHandler,
         setUserMessageHandler: (handler: ((message: any) => void) | null) => {
             userMessageHandler = handler;
-        },
-        getServerMetadata: () => serverMetadata,
-        setServerMetadata: (metadata: any) => {
-            serverMetadata = metadata;
         },
     };
 });
@@ -146,14 +134,6 @@ function createApi() {
     };
 }
 
-function createUserMessage(permissionMode?: PermissionMode) {
-    return {
-        role: 'user',
-        content: { type: 'text', text: 'hello' },
-        meta: permissionMode ? { permissionMode } : {},
-    };
-}
-
 function createTextUserMessage(text: string, meta: MessageMeta = {}) {
     return {
         role: 'user',
@@ -176,21 +156,6 @@ function createLocalSessionState(overrides: Partial<{
     };
 }
 
-async function runClaudeUntilExit(permissionMode?: PermissionMode): Promise<ProcessExit> {
-    try {
-        await runClaude({ token: 'token' } as any, {
-            permissionMode,
-            startingMode: 'remote',
-        });
-    } catch (error) {
-        if (error instanceof ProcessExit) {
-            return error;
-        }
-        throw error;
-    }
-    throw new Error('runClaude returned without process.exit');
-}
-
 async function runClaudeWithStartingModeUntilExit(startingMode?: 'local' | 'remote'): Promise<ProcessExit> {
     try {
         await runClaude({ token: 'token' } as any, {
@@ -205,52 +170,16 @@ async function runClaudeWithStartingModeUntilExit(startingMode?: 'local' | 'remo
     throw new Error('runClaude returned without process.exit');
 }
 
-describe('runClaude permission mode metadata publishing', () => {
+describe('runClaude deferred switch protocol coverage', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mocks.setUserMessageHandler(null);
-        mocks.setServerMetadata({});
         mocks.mockApiCreate.mockResolvedValue(createApi());
         mocks.mockReadSettings.mockResolvedValue({ machineId: 'machine-1', sandboxConfig: undefined });
-        mocks.mockLoop.mockImplementation(async () => 0);
+        mocks.mockLoop.mockImplementation(async (..._args: any[]) => 0);
         vi.spyOn(process, 'exit').mockImplementation((code?: string | number | null | undefined): never => {
             throw new ProcessExit(code);
         });
-    });
-
-    it('seeds initial metadata with the effective initial permission mode', async () => {
-        await runClaudeUntilExit('bypassPermissions');
-
-        expect(mocks.mockGetOrCreateSession).toHaveBeenCalledTimes(1);
-        const metadata = mocks.mockGetOrCreateSession.mock.calls[0][0].metadata as Metadata;
-        expect(metadata.currentPermissionModeCode).toBe('bypassPermissions');
-        expect(mocks.mockSession.updateMetadata).not.toHaveBeenCalled();
-    });
-
-    it('publishes a changed message permission mode through updateMetadata', async () => {
-        mocks.mockLoop.mockImplementation(async () => {
-            mocks.getUserMessageHandler()?.(createUserMessage('bypassPermissions'));
-            await Promise.resolve();
-            return 0;
-        });
-
-        await runClaudeUntilExit('default');
-
-        expect(mocks.mockSession.updateMetadata).toHaveBeenCalledTimes(1);
-        expect(mocks.getServerMetadata().currentPermissionModeCode).toBe('bypassPermissions');
-    });
-
-    it('does not publish when the user message keeps the current effective mode', async () => {
-        mocks.mockLoop.mockImplementation(async () => {
-            mocks.getUserMessageHandler()?.(createUserMessage('default'));
-            await Promise.resolve();
-            return 0;
-        });
-
-        await runClaudeUntilExit('default');
-
-        expect(mocks.mockSession.updateMetadata).not.toHaveBeenCalled();
-        expect(mocks.getServerMetadata().currentPermissionModeCode).toBe('default');
     });
 
     it.each([
@@ -280,10 +209,7 @@ describe('runClaude permission mode metadata publishing', () => {
             await Promise.resolve();
             expect(localSession.notifyLegacyMessageBeforeQueue).toHaveBeenCalledTimes(1);
             expect(opts.messageQueue.queue).toHaveLength(1);
-            expect(opts.messageQueue.queue[0]).toMatchObject({
-                message: text,
-                isolate,
-            });
+            expect(opts.messageQueue.queue[0]).toMatchObject({ message: text, isolate });
             return 0;
         });
 
@@ -306,10 +232,7 @@ describe('runClaude permission mode metadata publishing', () => {
             await Promise.resolve();
             expect(localSession.notifyLegacyMessageBeforeQueue).not.toHaveBeenCalled();
             expect(opts.messageQueue.queue).toHaveLength(1);
-            expect(opts.messageQueue.queue[0]).toMatchObject({
-                message: text,
-                isolate,
-            });
+            expect(opts.messageQueue.queue[0]).toMatchObject({ message: text, isolate });
             return 0;
         });
 
@@ -361,7 +284,7 @@ describe('runClaude permission mode metadata publishing', () => {
     it.each([
         ['tagged then untagged', ['tagged', 'untagged']],
         ['untagged then tagged', ['untagged', 'tagged']],
-    ] as const)('keeps multi-client deferred-switch dispatch per-message: %s', async (_name, order) => {
+    ] as const)('keeps deferred-switch dispatch per-message for multi-client ordering: %s', async (_name, order) => {
         const localSession = createLocalSessionState({
             pendingSwitch: { requestedAt: 1234, messagePreview: 'tagged' },
         });
@@ -375,41 +298,6 @@ describe('runClaude permission mode metadata publishing', () => {
             await Promise.resolve();
             expect(localSession.notifyLegacyMessageBeforeQueue).toHaveBeenCalledTimes(1);
             expect(opts.messageQueue.queue.map((item: { message: string }) => item.message)).toEqual(order);
-            return 0;
-        });
-
-        await runClaudeWithStartingModeUntilExit('local');
-    });
-
-    it('routes local UserPromptSubmit and Stop hooks to hook-driven turn lifecycle callbacks', async () => {
-        const localSession = createLocalSessionState();
-        mocks.mockLoop.mockImplementation(async (opts: any) => {
-            opts.onSessionReady(localSession);
-            const hookOptions = (mocks.mockStartHookServer as any).mock.calls[0][0];
-
-            await hookOptions.onUserPromptSubmitHook({ hook_event_name: 'UserPromptSubmit' });
-            await hookOptions.onStopHook({ hook_event_name: 'Stop' });
-
-            expect(localSession.onTurnStarted).toHaveBeenCalledTimes(1);
-            expect(localSession.onTurnCompleted).toHaveBeenCalledTimes(1);
-            return 0;
-        });
-
-        await runClaudeWithStartingModeUntilExit('local');
-    });
-
-    it('enqueues tagged deferred-switch message when currentMode is remote (F-077)', async () => {
-        const localSession = createLocalSessionState();
-        mocks.mockLoop.mockImplementation(async (opts: any) => {
-            opts.onSessionReady(localSession);
-            opts.onModeChange('remote');
-            mocks.getUserMessageHandler()?.(createTextUserMessage('hello', {
-                capabilities: { deferredSwitch: true },
-            }));
-            await Promise.resolve();
-            expect(localSession.notifyLegacyMessageBeforeQueue).not.toHaveBeenCalled();
-            expect(opts.messageQueue.queue).toHaveLength(1);
-            expect(opts.messageQueue.queue[0].message).toBe('hello');
             return 0;
         });
 

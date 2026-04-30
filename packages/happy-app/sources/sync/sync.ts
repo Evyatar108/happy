@@ -54,6 +54,9 @@ import { computeInitialAfterSeq, computeOlderPageAfterSeq } from './paginationMa
 import { PrefetchManager, type PrefetchManagerEncryptionAdapter, type PrefetchManagerTransport, type RunInSessionLock } from './prefetchManager';
 import { computeRenderWindow, computePrefetchOlderRange, shouldPrefetchOlder } from './messageWindow';
 import type { DecryptedMessage } from './storageTypes';
+import { getSessionMode } from '@/utils/sessionUtils';
+import { Modal } from '@/modal';
+import { t } from '@/text';
 
 type V3GetSessionMessagesResponse = {
     messages: ApiMessage[];
@@ -75,9 +78,14 @@ type OutboxMessage = {
     content: string;
 };
 
-type SendMessageOptions = {
+export type SendMessageOptions = {
     displayText?: string;
     source?: MessageSentSource;
+    switchMode?: 'now' | 'when-idle' | 'none';
+};
+
+type RequestSwitchResponse = {
+    deferred: boolean;
 };
 
 const INITIAL_MESSAGES_WINDOW_SIZE = 80;
@@ -102,6 +110,7 @@ class Sync {
     // encryption keys are not yet loaded. Drained after `sessionsSync` lands.
     private pendingNewMessages = new Map<string, unknown[]>();
     private sessionInitInFlight = new Set<string>();
+    private deferredSwitchRequests = new Set<string>();
     private sessionMessageLocks = new Map<string, AsyncLock>();
     private sessionDataKeys = new Map<string, Uint8Array>(); // Store session data encryption keys internally
     private machineDataKeys = new Map<string, Uint8Array>(); // Store machine data encryption keys internally
@@ -738,11 +747,17 @@ class Sync {
     }
 
     async sendMessage(sessionId: string, text: string, options?: SendMessageOptions) {
+        const switchMode = options?.switchMode ?? 'now';
+        const isWhenIdle = switchMode === 'when-idle';
 
         // Get encryption
         const encryption = this.encryption.getSessionEncryption(sessionId);
         if (!encryption) { // Should never happen
             console.error(`Session ${sessionId} not found`);
+            if (isWhenIdle) {
+                Modal.alert(t('common.error'), t('errors.sendFailed'));
+                throw new Error(`Session ${sessionId} not found`);
+            }
             return;
         }
 
@@ -750,11 +765,78 @@ class Sync {
         const session = storage.getState().sessions[sessionId];
         if (!session) {
             console.error(`Session ${sessionId} not found in storage`);
+            if (isWhenIdle) {
+                Modal.alert(t('common.error'), t('errors.sendFailed'));
+                throw new Error(`Session ${sessionId} not found in storage`);
+            }
             return;
         }
 
         const { permissionMode, model } = resolveMessageModeMeta(session);
         const { displayText, source = 'chat' } = options ?? {};
+        const shouldRequestDeferredSwitch = isWhenIdle
+            && session.metadata?.flavor === 'claude'
+            && getSessionMode(session) === 'local';
+        let tagDeferredSwitch = false;
+
+        if (shouldRequestDeferredSwitch) {
+            if (this.deferredSwitchRequests.has(sessionId)) {
+                Modal.alert(t('common.error'), t('errors.requestSwitchFailed'));
+                throw new Error('request-switch already pending');
+            }
+
+            this.deferredSwitchRequests.add(sessionId);
+            try {
+                const rawPreview = text.replace(/\n/g, ' ').trimStart();
+                const messagePreview = rawPreview.length > 80
+                    ? rawPreview.slice(0, 80) + '…'
+                    : rawPreview;
+                const response = await apiSocket.sessionRPC<RequestSwitchResponse, { mode: 'when-idle'; messagePreview: string }>(
+                    sessionId,
+                    'request-switch',
+                    { mode: 'when-idle', messagePreview },
+                );
+                tagDeferredSwitch = response.deferred === true;
+            } catch (error) {
+                Modal.alert(t('common.error'), t('errors.requestSwitchFailed'));
+                throw error;
+            } finally {
+                this.deferredSwitchRequests.delete(sessionId);
+            }
+        }
+
+        try {
+            await this.enqueueUserMessage(sessionId, text, session, {
+                displayText,
+                source,
+                permissionMode,
+                model,
+                tagDeferredSwitch,
+            });
+        } catch (error) {
+            if (isWhenIdle) {
+                Modal.alert(t('common.error'), t('errors.sendFailed'));
+                throw error;
+            }
+        }
+    }
+
+    private async enqueueUserMessage(
+        sessionId: string,
+        text: string,
+        session: Session,
+        options: {
+            displayText?: string;
+            source: MessageSentSource;
+            permissionMode: string | undefined;
+            model: string | null;
+            tagDeferredSwitch: boolean;
+        }
+    ) {
+        const encryption = this.encryption.getSessionEncryption(sessionId);
+        if (!encryption) {
+            throw new Error(`Session ${sessionId} not found`);
+        }
 
         // Generate local ID
         const localId = randomUUID();
@@ -787,11 +869,12 @@ class Sync {
             },
             meta: {
                 sentFrom,
-                ...(permissionMode !== undefined && { permissionMode }),
-                model,
+                ...(options.permissionMode !== undefined && { permissionMode: options.permissionMode }),
+                model: options.model,
                 fallbackModel,
                 appendSystemPrompt: systemPrompt,
-                ...(displayText && { displayText }) // Add displayText if provided
+                ...(options.tagDeferredSwitch && { capabilities: { deferredSwitch: true } }),
+                ...(options.displayText && { displayText: options.displayText }) // Add displayText if provided
             }
         };
         const encryptedRawRecord = await encryption.encryptRawRecord(content);
@@ -812,7 +895,7 @@ class Sync {
             localId,
             content: encryptedRawRecord
         });
-        trackMessageSent(source, session.metadata);
+        trackMessageSent(options.source, session.metadata);
 
         this.getSendSync(sessionId).invalidate();
         this.maybeStartBackgroundSendWatchdog();

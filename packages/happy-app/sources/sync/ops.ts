@@ -25,6 +25,17 @@ interface SessionModeChangeRequest {
     to: 'remote' | 'local';
 }
 
+export type RequestSwitchMode = 'now' | 'when-idle';
+
+interface RequestSwitchRequest {
+    mode: RequestSwitchMode;
+    messagePreview?: string;
+}
+
+export interface RequestSwitchResponse {
+    deferred: boolean;
+}
+
 // Bash operation types
 interface SessionBashRequest {
     command: string;
@@ -432,6 +443,22 @@ export async function sessionSwitch(sessionId: string, to: 'remote' | 'local'): 
         request,
     );
     return response;
+}
+
+export async function requestSwitch(sessionId: string, mode: RequestSwitchMode): Promise<RequestSwitchResponse> {
+    return apiSocket.sessionRPC<RequestSwitchResponse, RequestSwitchRequest>(
+        sessionId,
+        'request-switch',
+        { mode },
+    );
+}
+
+export async function cancelPendingSwitch(sessionId: string): Promise<void> {
+    await apiSocket.sessionRPC<void, Record<string, never>>(
+        sessionId,
+        'cancel-pending-switch',
+        {},
+    );
 }
 
 /**

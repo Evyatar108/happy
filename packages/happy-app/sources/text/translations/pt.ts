@@ -62,6 +62,20 @@ export const pt: TranslationStructure = {
         optional: 'Opcional',
     },
 
+    pendingSwitch: {
+        banner: 'Vai alternar para o modo remoto quando a tarefa atual terminar',
+    },
+
+    requestSwitch: {
+        now: 'Assumir agora',
+        whenIdle: 'Enviar quando Claude estiver ocioso',
+    },
+
+    cancelPendingSwitch: {
+        label: 'Cancelar alternância',
+        note: 'A mensagem será descartada',
+    },
+
     commands: {
         rename: {
             emptyName: 'Adicione um nome ao chat após /rename.',
@@ -284,6 +298,8 @@ export const pt: TranslationStructure = {
         userNotFound: 'Usuário não encontrado',
         sessionDeleted: 'A sessão foi excluída',
         sessionDeletedDescription: 'Esta sessão foi removida permanentemente',
+        requestSwitchFailed: 'Falha ao atualizar a solicitação de alternância',
+        sendFailed: 'Falha ao enviar mensagem',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

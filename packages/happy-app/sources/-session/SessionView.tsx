@@ -25,7 +25,7 @@ import { voiceHooks } from '@/realtime/hooks/voiceHooks';
 import { getCurrentVoiceConversationId, getCurrentVoiceSessionDurationSeconds, startRealtimeSession, stopRealtimeSession } from '@/realtime/RealtimeSession';
 import { shouldShowBoundaryAdvisory, updateComposeStartAt } from './composeBoundaryAdvisory';
 import { gitStatusSync } from '@/sync/gitStatusSync';
-import { sessionAbort } from '@/sync/ops';
+import { cancelPendingSwitch, requestSwitch, sessionAbort } from '@/sync/ops';
 import { storage, useIsDataReady, useLatestBoundary, useLocalSetting, useRealtimeStatus, useSessionMessages, useSessionUsage, useSetting } from '@/sync/storage';
 import { useSidebar } from '@/components/SidebarContext';
 import { useSession } from '@/sync/storage';
@@ -36,7 +36,7 @@ import { tracking } from '@/track';
 import { getVoiceMessageCount, getVoiceOnboardingPromptLoadCount } from '@/sync/persistence';
 import { isRunningOnMac } from '@/utils/platform';
 import { useDeviceType, useHeaderHeight, useIsLandscape, useIsTablet } from '@/utils/responsive';
-import { formatPathRelativeToHome, getResumeCommandBlock, getSessionAvatarId, getSessionName, useSessionStatus } from '@/utils/sessionUtils';
+import { formatPathRelativeToHome, getResumeCommandBlock, getSessionAvatarId, getSessionMode, getSessionName, useSessionStatus } from '@/utils/sessionUtils';
 import { isVersionSupported, MINIMUM_CLI_VERSION } from '@/utils/versionUtils';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
@@ -47,6 +47,13 @@ import { ActivityIndicator, Platform, Pressable, Text, View } from 'react-native
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type { ModelMode, PermissionMode } from '@/components/PermissionModeSelector';
+
+export function getCanSendWhenIdle(session: Session): boolean {
+    return session.metadata?.flavor === 'claude'
+        && getSessionMode(session) === 'local'
+        && session.agentState?.turnActive === true
+        && session.agentState?.pendingSwitch == null;
+}
 
 export const SessionView = React.memo((props: { id: string }) => {
     const sessionId = props.id;
@@ -209,6 +216,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
     const deviceType = useDeviceType();
     const isTablet = useIsTablet();
     const [message, setMessage] = React.useState('');
+    const messageRef = React.useRef('');
     const composeStartAtRef = React.useRef<number | null>(null);
     const realtimeStatus = useRealtimeStatus();
     const { messages, isLoaded } = useSessionMessages(sessionId);
@@ -273,6 +281,26 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
 
     // Use draft hook for auto-saving message drafts
     const { clearDraft } = useDraft(sessionId, message, setMessage);
+    const canSendWhenIdle = getCanSendWhenIdle(session);
+    const pendingSwitch = session.agentState?.pendingSwitch;
+
+    const handleRequestSwitchNow = React.useCallback(async () => {
+        try {
+            await requestSwitch(sessionId, 'now');
+        } catch (error) {
+            console.error('Failed to request switch:', error);
+            Modal.alert(t('common.error'), t('errors.requestSwitchFailed'));
+        }
+    }, [sessionId]);
+
+    const handleCancelPendingSwitch = React.useCallback(async () => {
+        try {
+            await cancelPendingSwitch(sessionId);
+        } catch (error) {
+            console.error('Failed to cancel pending switch:', error);
+            Modal.alert(t('common.error'), t('errors.requestSwitchFailed'));
+        }
+    }, [sessionId]);
 
     // Handle dismissing CLI version warning
     const handleDismissCliWarning = React.useCallback(() => {
@@ -287,6 +315,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
     }, [machineId, cliVersion, acknowledgedCliVersions]);
 
     const handleChangeMessage = React.useCallback((nextMessage: string) => {
+        messageRef.current = nextMessage;
         setMessage((previousMessage) => {
             composeStartAtRef.current = updateComposeStartAt(
                 composeStartAtRef.current,
@@ -439,19 +468,37 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                 isPulsing: sessionStatus.isPulsing
             }}
             blockSend={false}
-            onSend={() => {
+            canSendWhenIdle={canSendWhenIdle}
+            onSend={async (switchMode) => {
                 const trimmedMessage = message.trim();
                 if (trimmedMessage) {
                     const intercept = preSendCommand(trimmedMessage);
                     composeStartAtRef.current = null;
-                    setMessage('');
-                    clearDraft();
                     if (intercept.intercepted) {
+                        setMessage('');
+                        clearDraft();
                         intercept.execute();
                         return;
                     }
 
-                    sync.sendMessage(sessionId, message, { source: 'chat' });
+                    if (switchMode === 'when-idle') {
+                        const snapshot = message;
+                        messageRef.current = '';
+                        setMessage('');
+                        clearDraft();
+                        try {
+                            await sync.sendMessage(sessionId, snapshot, { source: 'chat', switchMode });
+                        } catch {
+                            if (messageRef.current === '') {
+                                messageRef.current = snapshot;
+                                setMessage(snapshot);
+                            }
+                        }
+                    } else {
+                        setMessage('');
+                        clearDraft();
+                        sync.sendMessage(sessionId, message, { source: 'chat', switchMode });
+                    }
                 }
             }}
             onMicPress={isDisconnected ? undefined : micButtonState.onMicPress}
@@ -486,10 +533,21 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
         </CenteredInputWidth>
     ) : null;
 
+    const pendingSwitchBanner = pendingSwitch ? (
+        <CenteredInputWidth horizontalPadding={sessionInputHorizontalPadding}>
+            <PendingSwitchBanner
+                messagePreview={pendingSwitch.messagePreview}
+                onCancel={handleCancelPendingSwitch}
+                onTakeOverNow={handleRequestSwitchNow}
+            />
+        </CenteredInputWidth>
+    ) : null;
+
     const input = isInactiveArchivedSession ? (
         <>
             {archivedHint}
             {boundaryAdvisory}
+            {pendingSwitchBanner}
             {composer}
         </>
     ) : (
@@ -500,6 +558,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                 </CenteredInputWidth>
             )}
             {boundaryAdvisory}
+            {pendingSwitchBanner}
             {composer}
         </>
     );
@@ -589,6 +648,54 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
             }
         </>
     )
+}
+
+export function PendingSwitchBanner(props: {
+    messagePreview?: string;
+    onCancel: () => void;
+    onTakeOverNow: () => void;
+}) {
+    const { theme } = useUnistyles();
+
+    return (
+        <View style={styles.pendingSwitchBanner}>
+            <View style={styles.pendingSwitchTextColumn}>
+                <Text style={styles.pendingSwitchTitle}>{t('pendingSwitch.banner')}</Text>
+                {!!props.messagePreview && (
+                    <Text style={styles.pendingSwitchPreview} numberOfLines={1}>{props.messagePreview}</Text>
+                )}
+            </View>
+            <View style={styles.pendingSwitchActions}>
+                <Pressable
+                    onPress={props.onTakeOverNow}
+                    accessibilityLabel={t('requestSwitch.now')}
+                    style={({ pressed }) => [
+                        styles.pendingSwitchButton,
+                        styles.pendingSwitchPrimaryButton,
+                        pressed && styles.pendingSwitchButtonPressed,
+                    ]}
+                >
+                    <Ionicons name="flash-outline" size={14} color={theme.colors.button.primary.tint} />
+                    <Text style={styles.pendingSwitchPrimaryText}>{t('requestSwitch.now')}</Text>
+                </Pressable>
+                <Pressable
+                    onPress={props.onCancel}
+                    accessibilityLabel={t('cancelPendingSwitch.label')}
+                    style={({ pressed }) => [
+                        styles.pendingSwitchButton,
+                        styles.pendingSwitchSecondaryButton,
+                        pressed && styles.pendingSwitchButtonPressed,
+                    ]}
+                >
+                    <Ionicons name="close" size={14} color={theme.colors.text} />
+                    <View style={styles.pendingSwitchSecondaryCopyColumn}>
+                        <Text style={styles.pendingSwitchSecondaryText}>{t('cancelPendingSwitch.label')}</Text>
+                        <Text style={styles.pendingSwitchSecondaryNote}>{t('cancelPendingSwitch.note')}</Text>
+                    </View>
+                </Pressable>
+            </View>
+        </View>
+    );
 }
 
 function CrossDeviceBoundaryAdvisory() {
@@ -728,6 +835,78 @@ function CenteredInputWidth(props: {
 }
 
 const styles = StyleSheet.create((theme) => ({
+    pendingSwitchBanner: {
+        marginHorizontal: 8,
+        marginTop: 8,
+        marginBottom: 4,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderRadius: 8,
+        borderWidth: 2,
+        borderColor: theme.colors.textSecondary,
+        backgroundColor: theme.colors.userMessageBackground,
+        gap: 10,
+    },
+    pendingSwitchTextColumn: {
+        gap: 2,
+    },
+    pendingSwitchTitle: {
+        color: theme.colors.text,
+        fontSize: 13,
+        lineHeight: 18,
+        fontWeight: '600',
+    },
+    pendingSwitchPreview: {
+        color: theme.colors.textSecondary,
+        fontSize: 12,
+        lineHeight: 16,
+    },
+    pendingSwitchActions: {
+        flexDirection: 'row',
+        gap: 8,
+        flexWrap: 'wrap',
+    },
+    pendingSwitchButton: {
+        minHeight: 32,
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+    },
+    pendingSwitchPrimaryButton: {
+        backgroundColor: theme.colors.button.primary.background,
+    },
+    pendingSwitchSecondaryButton: {
+        backgroundColor: theme.colors.surface,
+        borderWidth: 1,
+        borderColor: theme.colors.textSecondary,
+    },
+    pendingSwitchSecondaryCopyColumn: {
+        gap: 1,
+    },
+    pendingSwitchButtonPressed: {
+        opacity: 0.7,
+    },
+    pendingSwitchPrimaryText: {
+        color: theme.colors.button.primary.tint,
+        fontSize: 12,
+        lineHeight: 16,
+        fontWeight: '600',
+    },
+    pendingSwitchSecondaryText: {
+        color: theme.colors.text,
+        fontSize: 12,
+        lineHeight: 16,
+        fontWeight: '600',
+    },
+    pendingSwitchSecondaryNote: {
+        color: theme.colors.textSecondary,
+        fontSize: 11,
+        lineHeight: 14,
+    },
     boundaryAdvisory: {
         marginHorizontal: 8,
         marginTop: 8,

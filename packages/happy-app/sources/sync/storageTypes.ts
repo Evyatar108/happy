@@ -84,6 +84,11 @@ export type Metadata = z.infer<typeof MetadataSchema>;
 
 export const AgentStateSchema = z.object({
     controlledByUser: z.boolean().nullish(),
+    pendingSwitch: z.object({
+        requestedAt: z.number(),
+        messagePreview: z.string().optional(),
+    }).nullish(),
+    turnActive: z.boolean().nullish(),
     requests: z.record(z.string(), z.object({
         tool: z.string(),
         arguments: z.any(),

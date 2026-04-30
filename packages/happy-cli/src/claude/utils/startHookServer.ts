@@ -81,11 +81,19 @@ export interface CompactHookData extends SessionHookData {
     custom_instructions?: string | null;
 }
 
+export interface TurnHookData extends SessionHookData {
+    hook_event_name: 'Stop' | 'UserPromptSubmit';
+}
+
 export interface HookServerOptions {
     /** Called when a session hook is received with a valid session ID */
     onSessionHook: (sessionId: string, data: SessionHookData) => void;
     /** Called when a compaction hook is received */
     onCompactHook?: (data: CompactHookData) => void | Promise<void>;
+    /** Called when Claude reports that a local user prompt was submitted */
+    onUserPromptSubmitHook?: (data: TurnHookData) => void | Promise<void>;
+    /** Called when Claude reports that a local turn stopped */
+    onStopHook?: (data: TurnHookData) => void | Promise<void>;
 }
 
 export interface HookServer {
@@ -102,12 +110,33 @@ export interface HookServer {
  * @returns Promise resolving to the server instance with port info
  */
 export async function startHookServer(options: HookServerOptions): Promise<HookServer> {
-    const { onSessionHook, onCompactHook } = options;
+    const { onSessionHook, onCompactHook, onUserPromptSubmitHook, onStopHook } = options;
 
     return new Promise((resolve, reject) => {
+        const readJsonBody = async (req: IncomingMessage): Promise<SessionHookData> => {
+            const chunks: Buffer[] = [];
+            for await (const chunk of req) {
+                chunks.push(chunk as Buffer);
+            }
+
+            const body = Buffer.concat(chunks).toString('utf-8');
+            logger.debug('[hookServer] Received hook:', body);
+
+            try {
+                return JSON.parse(body);
+            } catch (parseError) {
+                logger.debug('[hookServer] Failed to parse hook data as JSON:', parseError);
+                return {};
+            }
+        };
+
         const server: Server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
             // All Happy-managed Claude hooks use the same local forwarder path.
-            if (req.method === 'POST' && req.url === '/hook/session-start') {
+            if (req.method === 'POST' && (
+                req.url === '/hook/session-start'
+                || req.url === '/hook/stop'
+                || req.url === '/hook/user-prompt-submit'
+            )) {
                 // Set timeout to prevent hanging if Claude doesn't close stdin
                 const timeout = setTimeout(() => {
                     if (!res.headersSent) {
@@ -117,20 +146,19 @@ export async function startHookServer(options: HookServerOptions): Promise<HookS
                 }, 5000);
 
                 try {
-                    const chunks: Buffer[] = [];
-                    for await (const chunk of req) {
-                        chunks.push(chunk as Buffer);
-                    }
+                    const data = await readJsonBody(req);
                     clearTimeout(timeout);
-                    
-                    const body = Buffer.concat(chunks).toString('utf-8');
-                    logger.debug('[hookServer] Received session hook:', body);
 
-                    let data: SessionHookData = {};
-                    try {
-                        data = JSON.parse(body);
-                    } catch (parseError) {
-                        logger.debug('[hookServer] Failed to parse hook data as JSON:', parseError);
+                    if (req.url === '/hook/user-prompt-submit') {
+                        await onUserPromptSubmitHook?.(data as TurnHookData);
+                        res.writeHead(200, { 'Content-Type': 'text/plain' }).end('ok');
+                        return;
+                    }
+
+                    if (req.url === '/hook/stop') {
+                        await onStopHook?.(data as TurnHookData);
+                        res.writeHead(200, { 'Content-Type': 'text/plain' }).end('ok');
+                        return;
                     }
 
                     if ((data.hook_event_name === 'PreCompact' || data.hook_event_name === 'PostCompact') && onCompactHook) {

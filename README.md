@@ -54,7 +54,7 @@ happy codex
 
 ## How does it work?
 
-On your computer, run `happy` instead of `claude` or `happy codex` instead of `codex` to start your AI through our wrapper. When you want to control your coding agent from your phone, it restarts the session in remote mode. To switch back to your computer, just press any key on your keyboard.
+On your computer, run `happy` instead of `claude` or `happy codex` instead of `codex` to start your AI through our wrapper. When you want to control your coding agent from your phone, you can take over immediately or, for Claude Code sessions, send a message that waits for the current local turn to finish before switching control. To switch back to your computer, just press any key on your keyboard.
 
 ## 🔥 Why Happy Coder?
 

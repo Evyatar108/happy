@@ -19,4 +19,12 @@ describe('MessageMetaSchema', () => {
 
         expect(parsed.contextBoundaryFallback).toBe(true);
     });
+
+    it('preserves the deferred switch capability tag', () => {
+        const parsed = MessageMetaSchema.parse({
+            capabilities: { deferredSwitch: true },
+        });
+
+        expect(parsed.capabilities?.deferredSwitch).toBe(true);
+    });
 });

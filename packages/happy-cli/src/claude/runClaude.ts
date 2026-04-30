@@ -67,7 +67,11 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
     const api = await ApiClient.create(credentials);
 
     // Create a new session
-    let state: AgentState = {};
+    let state: AgentState = {
+        controlledByUser: (options.startingMode ?? 'local') !== 'remote',
+        pendingSwitch: null,
+        turnActive: false,
+    };
 
     // Get machine ID from settings (should already be set up)
     const settings = await readSettings();
@@ -190,6 +194,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
     // Variable to track current session instance (updated via onSessionReady callback)
     // Used by hook server to notify Session when Claude changes session ID
     let currentSession: Session | null = null;
+    let currentMode: 'local' | 'remote' = options.startingMode ?? 'local';
 
     // Start Hook server for receiving Claude session notifications
     const hookServer = await startHookServer({
@@ -219,7 +224,21 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
                 triggeredBy: 'system',
                 at: Date.now(),
             });
-        }
+        },
+        onUserPromptSubmitHook: async (data) => {
+            logger.debug('[START] UserPromptSubmit hook received:', data);
+            if (currentMode === 'remote') {
+                return;
+            }
+            await currentSession?.onTurnStarted();
+        },
+        onStopHook: async (data) => {
+            logger.debug('[START] Stop hook received:', data);
+            if (currentMode === 'remote') {
+                return;
+            }
+            await currentSession?.onTurnCompleted();
+        },
     });
     logger.debug(`[START] Hook server started on port ${hookServer.port}`);
 
@@ -235,7 +254,9 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
     // Set initial agent state
     session.updateAgentState((currentState) => ({
         ...currentState,
-        controlledByUser: options.startingMode !== 'remote'
+        controlledByUser: options.startingMode !== 'remote',
+        pendingSwitch: currentState.pendingSwitch ?? null,
+        turnActive: currentState.turnActive ?? false,
     }));
 
     // Import MessageQueue2 and create message queue
@@ -266,6 +287,18 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
     });
 
     session.onUserMessage((message) => {
+        const taggedDeferredSwitch = message.meta?.capabilities?.deferredSwitch === true;
+
+        if (!taggedDeferredSwitch) {
+            currentSession?.notifyLegacyMessageBeforeQueue();
+        } else if (currentMode === 'local' && currentSession?.pendingSwitch == null) {
+            if (currentSession?.deferredSwitchCompleting === true) {
+                currentSession.deferredSwitchCompleting = false;
+            } else {
+                logger.debug('[loop] Dropping tagged deferred-switch message with no pending switch');
+                return;
+            }
+        }
 
         // Resolve permission mode from meta - pass through as-is, mapping happens at SDK boundary
         let messagePermissionMode: PermissionMode | undefined = currentPermissionMode;
@@ -455,6 +488,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         api,
         allowedTools: happyServer.toolNames.map(toolName => `mcp__happy__${toolName}`),
         onModeChange: (newMode) => {
+            currentMode = newMode;
             session.sendSessionEvent({ type: 'switch', mode: newMode });
             session.updateAgentState((currentState) => ({
                 ...currentState,

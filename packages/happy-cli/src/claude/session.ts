@@ -5,6 +5,11 @@ import { logger } from "@/ui/logger";
 import type { JsRuntime } from "./runClaude";
 import type { SandboxConfig } from "@/persistence";
 
+export type PendingSwitch = {
+    requestedAt: number;
+    messagePreview?: string;
+};
+
 export class Session {
     readonly path: string;
     readonly logPath: string;
@@ -25,9 +30,16 @@ export class Session {
     sessionId: string | null;
     mode: 'local' | 'remote' = 'local';
     thinking: boolean = false;
+    pendingSwitch: PendingSwitch | undefined;
+    deferredSwitchCompleting: boolean = false;
+    switchFired: boolean = false;
+    turnActive: boolean = false;
+    private notifyLegacyMessageBeforeQueueHandler: (() => void) | null = null;
     
     /** Callbacks to be notified when session ID is found/changed */
     private sessionFoundCallbacks: ((sessionId: string) => void)[] = [];
+    private turnStartCallbacks: (() => void | Promise<void>)[] = [];
+    private turnCompleteCallbacks: (() => void | Promise<void>)[] = [];
     
     /** Keep alive interval reference for cleanup */
     private keepAliveInterval: NodeJS.Timeout;
@@ -78,6 +90,8 @@ export class Session {
     cleanup = (): void => {
         clearInterval(this.keepAliveInterval);
         this.sessionFoundCallbacks = [];
+        this.turnStartCallbacks = [];
+        this.turnCompleteCallbacks = [];
         logger.debug('[Session] Cleaned up resources');
     }
 
@@ -88,8 +102,78 @@ export class Session {
 
     onModeChange = (mode: 'local' | 'remote') => {
         this.mode = mode;
+        if (mode === 'remote') {
+            this.deferredSwitchCompleting = false;
+        }
         this.client.keepAlive(this.thinking, mode);
         this._onModeChange(mode);
+    }
+
+    setPendingSwitch = (pendingSwitch: PendingSwitch | undefined): void => {
+        this.pendingSwitch = pendingSwitch;
+        this.client.updateAgentState((currentState) => ({
+            ...currentState,
+            pendingSwitch: pendingSwitch ?? null,
+        }));
+    }
+
+    setTurnActive = (turnActive: boolean): void => {
+        this.turnActive = turnActive;
+        this.client.updateAgentState((currentState) => ({
+            ...currentState,
+            turnActive,
+        }));
+    }
+
+    clearDeferredSwitchState = (): void => {
+        this.pendingSwitch = undefined;
+        this.deferredSwitchCompleting = false;
+        this.turnActive = false;
+        this.client.updateAgentState((currentState) => ({
+            ...currentState,
+            pendingSwitch: null,
+            turnActive: false,
+        }));
+    }
+
+    setNotifyLegacyMessageBeforeQueue = (handler: (() => void) | null): void => {
+        this.notifyLegacyMessageBeforeQueueHandler = handler;
+    }
+
+    notifyLegacyMessageBeforeQueue = (): void => {
+        this.notifyLegacyMessageBeforeQueueHandler?.();
+    }
+
+    onTurnStarted = async (): Promise<void> => {
+        this.setTurnActive(true);
+        await Promise.all(this.turnStartCallbacks.map((callback) => callback()));
+    }
+
+    onTurnCompleted = async (): Promise<void> => {
+        this.setTurnActive(false);
+        await Promise.all(this.turnCompleteCallbacks.map((callback) => callback()));
+    }
+
+    addTurnStartCallback = (callback: () => void | Promise<void>): void => {
+        this.turnStartCallbacks.push(callback);
+    }
+
+    removeTurnStartCallback = (callback: () => void | Promise<void>): void => {
+        const index = this.turnStartCallbacks.indexOf(callback);
+        if (index !== -1) {
+            this.turnStartCallbacks.splice(index, 1);
+        }
+    }
+
+    addTurnCompleteCallback = (callback: () => void | Promise<void>): void => {
+        this.turnCompleteCallbacks.push(callback);
+    }
+
+    removeTurnCompleteCallback = (callback: () => void | Promise<void>): void => {
+        const index = this.turnCompleteCallbacks.indexOf(callback);
+        if (index !== -1) {
+            this.turnCompleteCallbacks.splice(index, 1);
+        }
     }
 
     /**
