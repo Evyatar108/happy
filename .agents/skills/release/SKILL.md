@@ -160,9 +160,12 @@ The smoke check must confirm that `happy --version` matches the published versio
 
 ### THE FORK DOES NOT USE EAS / OTA
 
-The `pnpm ota`, `pnpm ota:production`, `release:build:developer`, and `release:build:appstore` scripts in `packages/happy-app/package.json` are leftover upstream tooling (`slopus/happy` ships through EAS Build + EAS Update). The fork (`Evyatar108/happy`) does not have an Expo cloud subscription, has no production OTA channel, no App Store presence, and no published happy-app artifact — invoking any of those scripts will either fail with `An Expo user account is required` (no saved EAS session) or push a bundle to a channel that nothing on the fork actually consumes. **Do not run them.**
+The `pnpm ota`, `pnpm ota:production`, `release:build:developer`, and `release:build:appstore` scripts in `packages/happy-app/package.json` are leftover upstream tooling (`slopus/happy` ships through EAS Build + EAS Update). The fork (`Evyatar108/happy`) does not have an Expo cloud subscription, has no production OTA channel, and no App Store presence — invoking any of those scripts will either fail with `An Expo user account is required` (no saved EAS session) or push a bundle to a channel that nothing on the fork actually consumes. **Do not run them.**
 
-The only consumer of happy-app on the fork is the maintainer's BOOX e-ink dev tablet, which runs the dev-client APK and pulls JS over `adb reverse` from a local Metro server.
+The fork's mobile distribution is split into two paths:
+
+- **Inner-loop dev / verification** → Metro+USB to the maintainer's primary BOOX e-ink dev tablet (described in this section). The dev-client APK pulls JS over `adb reverse` from a local Metro server.
+- **Cross-device propagation (Android)** → a signed APK pushed via **Firebase App Distribution** to the maintainer's personal Google account `evyatar109@gmail.com` (package id `com.evyatar109.happy`). Google Play Internal Testing is the planned long-term channel under the same account but is currently blocked by the developer account being locked for inactivity (as of 2026-04-30); the same pipeline targets either channel by swapping `assembleRelease` ↔ `bundleRelease`. See `.agents/skills/happy-app-playstore-release/SKILL.md` for the full procedure (one-time prerequisites, `pnpm release:android` build script, App Tester install on each tablet, channel-swap notes). iOS App Store remains out of scope.
 
 ### What "release the app" actually means on the fork
 

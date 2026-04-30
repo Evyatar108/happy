@@ -11,7 +11,22 @@ expo-env.d.ts
 /ios
 /android
 /packages/happy-app/ios
-/packages/happy-app/android
+
+# packages/happy-app/android/ is partially tracked: build.gradle,
+# settings.gradle, gradle/, gradlew*, app/build.gradle, app/proguard-rules.pro,
+# app/google-services.json, app/debug.keystore, and app/src/ all carry
+# load-bearing fork customizations (env-driven applicationId, signing
+# wiring, the @expo/cli wrapper pointer, Kotlin sources under
+# com/slopus/happy/dev/). Without these in git, a fresh clone cannot
+# reproduce a release. Build outputs and machine-specific files stay
+# ignored — see .agents/skills/happy-app-playstore-release/SKILL.md.
+packages/happy-app/android/build/
+packages/happy-app/android/app/build/
+packages/happy-app/android/.gradle/
+packages/happy-app/android/.cxx/
+packages/happy-app/android/app/.cxx/
+packages/happy-app/android/local.properties
+packages/happy-app/android/keystore.properties
 
 # Native
 .kotlin/

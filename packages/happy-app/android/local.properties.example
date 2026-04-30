@@ -1,0 +1,8 @@
+# Copy this file to `local.properties` and edit `sdk.dir` to point at
+# your local Android SDK. The real `local.properties` is gitignored
+# because it's machine-specific.
+#
+# Use forward slashes on Windows — Java Properties parses backslashes
+# as escape characters.
+
+sdk.dir=D:/Android/Sdk

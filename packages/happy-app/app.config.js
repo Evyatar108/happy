@@ -1,4 +1,29 @@
+const fs = require('fs');
+const path = require('path');
+
 const variant = process.env.APP_ENV || 'development';
+
+// Derive the static `version` from the latest `## Version N - DATE`
+// heading in CHANGELOG.md, so anything reading `Constants.expoConfig.version`
+// at runtime (Metro debug, JS-only screens) shows the same number that
+// Gradle stamps as `versionName=1.N.0` for release builds.
+function readChangelogVersion() {
+    try {
+        const changelogPath = path.join(__dirname, 'CHANGELOG.md');
+        const content = fs.readFileSync(changelogPath, 'utf-8');
+        let latest = 0;
+        const re = /^## Version (\d+) - /gm;
+        let m;
+        while ((m = re.exec(content)) !== null) {
+            const n = parseInt(m[1], 10);
+            if (!isNaN(n) && n > latest) latest = n;
+        }
+        return latest > 0 ? `1.${latest}.0` : '1.0.0';
+    } catch {
+        return '1.0.0';
+    }
+}
+const appVersion = readChangelogVersion();
 const name = {
     development: "Happy (dev)",
     preview: "Happy (preview)",
@@ -7,7 +32,7 @@ const name = {
 const bundleId = {
     development: "com.slopus.happy.dev",
     preview: "com.slopus.happy.preview",
-    production: "com.ex3ndr.happy"
+    production: "com.evyatar109.happy"
 }[variant];
 // const stagingElevenLabsAgentId = 'agent_7801k2c0r5hjfraa1kdbytpvs6yt';
 const productionElevenLabsAgentId = 'agent_6701k211syvvegba4kt7m68nxjmw';
@@ -26,7 +51,7 @@ export default {
     expo: {
         name,
         slug: "happy",
-        version: "1.7.0",
+        version: appVersion,
         runtimeVersion: "21",
         orientation: "default",
         icon: "./sources/assets/images/icon.png",
@@ -161,12 +186,6 @@ export default {
                 }
             ]
         ],
-        updates: {
-            url: "https://u.expo.dev/4558dd3d-cd5a-47cd-bad9-e591a241cc06",
-            requestHeaders: {
-                "expo-channel-name": "production"
-            }
-        },
         experiments: {
             typedRoutes: true
         },
