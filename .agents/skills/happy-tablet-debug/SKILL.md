@@ -343,6 +343,81 @@ Pick grep strings that are unique to the code you just added. If the
 string isn't in the bundle, Metro's cache is stale — restart with
 `--clear`.
 
+## Mode 9 — Scroll-snap-back / list-anchor regression on inverted FlatList
+
+When the user reports "the chat scrolls smoothly until I reach a specific message, then suddenly jumps back," the culprit is an interaction between `maintainVisibleContentPosition`, the live messages array, and React Native's contentSize-based offset clamping. Diagnose with a four-channel `console.warn` trace.
+
+### Setup — instrument the FlatList wrapper
+
+`packages/happy-app/sources/components/ChatList.tsx` is the inverted-FlatList host. Add throttled `console.warn`s on four channels (the diag pattern proven on the 2026-04-29 trace; see `docs/plans/offline-catchup-and-sync-architecture.md` for the verified findings, and `docs/fork-notes.md ## What's on main after the 2026-04-29 streaming-pagination follow-up cluster` bug #5 for the eventual root cause):
+
+```ts
+// 1. Scroll deltas — throttled to |delta| ≥ 100 so normal scrolling doesn't flood
+const handleScroll = useCallback((e) => {
+    const offsetY = e.nativeEvent.contentOffset.y;
+    const prev = currentOffsetRef.current;
+    if (Math.abs(offsetY - prev) >= 100) {
+        console.warn(`[snap-diag] scroll ${prev.toFixed(0)} -> ${offsetY.toFixed(0)} Δ${(offsetY - prev).toFixed(0)} ts=${Date.now()}`);
+    }
+    currentOffsetRef.current = offsetY;
+}, []);
+
+// 2. ContentSize changes — flag ⚠CLAMP when newMax < currentOffset (RN about to clamp the scroll)
+const handleContentSizeChange = useCallback((_, height) => {
+    const prev = contentHeightRef.current;
+    const offset = currentOffsetRef.current;
+    const newMax = height - viewportHeight;
+    const wouldClamp = offset > newMax && newMax > 0;
+    const tag = wouldClamp ? ' ⚠CLAMP' : '';
+    console.warn(`[snap-diag] contentSize ${prev.toFixed(0)} -> ${height.toFixed(0)} Δ${(height - prev).toFixed(0)} newMax=${newMax.toFixed(0)} offset=${offset.toFixed(0)}${tag} ts=${Date.now()}`);
+    contentHeightRef.current = height;
+}, [viewportHeight]);
+
+// 3. Viewable items first/last — confirms which row is at the MVCP anchor
+const handleViewableItemsChanged = useCallback((info) => {
+    if (info.viewableItems.length > 0) {
+        const first = info.viewableItems[0].item;
+        const last = info.viewableItems[info.viewableItems.length - 1].item;
+        console.warn(`[snap-diag] viewable first=${first?.kind}:${first?.id} last=${last?.kind}:${last?.id} count=${info.viewableItems.length}`);
+    }
+}, []);
+
+// 4. Messages array identity — catches mid-array splices vs append-only growth
+React.useEffect(() => {
+    const prev = prevMessagesRef.current;
+    const next = { length: props.messages.length, firstId: props.messages[0]?.id, lastId: props.messages.at(-1)?.id };
+    if (prev.length !== next.length || prev.firstId !== next.firstId || prev.lastId !== next.lastId) {
+        console.warn(`[snap-diag] messages changed len=${prev.length}->${next.length} first=${prev.firstId ?? '_'}->${next.firstId ?? '_'} last=${prev.lastId ?? '_'}->${next.lastId ?? '_'}`);
+    }
+    prevMessagesRef.current = next;
+}, [props.messages]);
+```
+
+Use `console.warn` not `console.log` (Happy's `consoleLogging.ts` suppresses `log/info/debug` unless a runtime flag is on; `warn`/`error` always pass). See `happy-tablet-iterate/SKILL.md` for the full e-ink reload loop including how to tail Metro for these warnings.
+
+### Reading the trace — three failure signatures
+
+Once the user reproduces the snap, look for one of these patterns at the moment of jump:
+
+**Signature A — `⚠CLAMP` from contentSize SHRINK:** the merge produced a smaller total height than before; RN clamps the user's scroll offset to `newMax` and you see a downstream `scroll ... Δ-NNN` event. Root cause is something *removing* layout from the rendered set — could be virtualization estimate drift, a row re-rendering with smaller content, or (most insidious) mid-array message splices that displace previously-measured rows.
+
+**Signature B — `messages changed` with `first` and `last` BOTH unchanged:** the merge inserted N rows in the middle of the array. New rows have `seq` low enough to be "older" but `createdAt` between the existing first and last (e.g., `--resume`-rewritten history, plan-mode-exit synthesis, `session-fork-resume`). The sort places them in the middle; row indices below the user's viewport shift; MVCP compensates by shifting the offset; user sees a snap. **This was bug #5 of 2026-04-29.** Fix was to sort by `seq DESC` not `createdAt DESC` in `applyPrefetchedRange.ts:76-99`.
+
+**Signature C — `messages changed` length growing unboundedly with same first/last:** indicates duplicate rows accumulating in the reducer state. The reducer is re-allocating `mid`s for the same wire message on each batch because of a missing `state.messageIds.has()` guard. **This was bug #4 of 2026-04-29** (Phase 5 event-role dedup gap). Fix at `reducer.ts:1147-1180`.
+
+### Definitive isolation tests
+
+If the trace ambiguity persists, two one-line FlatList prop tweaks pin the cause:
+
+- `disableVirtualization={true}` — if the snap survives this, the bug is NOT in FlatList's index-keyed layout cache. The 2026-04-29 trace confirmed this rules out FlashList migration as a fix.
+- `maintainVisibleContentPosition={undefined}` — if the snap survives, the offset shift is NOT MVCP doing anchor-preservation; it's pure RN auto-clamping from a contentSize shrink. Then the data layer (sort order, dedup) is the culprit.
+
+Toggle one at a time. Restore both before committing.
+
+### When to revert the diagnostic
+
+Once a `⚠CLAMP` event time-correlates with a `messages changed` event AND you can identify which signature (A/B/C) fired, you have causal proof. Apply the targeted fix (sort change, dedup guard, etc.) and revert all four `console.warn` blocks in the same commit. The diag log is too verbose to ship.
+
 ## Golden rules
 
 1. **Screenshot before diagnosing.** The device surface knows more than

@@ -183,6 +183,17 @@ HAPPY_SERVER_URL=http://localhost:3005 ./bin/happy.mjs daemon start
 - Daemon logs are stored in `~/.happy-dev/logs/` (or `$HAPPY_HOME_DIR/logs/`)
 - Named with format: `YYYY-MM-DD-HH-MM-SS-daemon.log`
 
+# Known offline-catchup gap (Claude + Codex)
+
+happy-cli today does NOT catch up agent-CLI activity that happened while it was offline. The gap shape differs per agent:
+
+- **Claude**: `processedMessageKeys` in `claude/utils/sessionScanner.ts:35` is in-memory only; on cold-start the scanner only watches sids registered via Claude's `SessionStart` hook (i.e., sessions launched by happy-cli itself). A bare `claude` invocation outside happy-cli writes to its own JSONL with a sid happy-cli never learns about. Orphan JSONLs are invisible. Server dedup is by `localId` (random `randomUUID()` per `enqueueMessage` at `apiSession.ts:402-412`), NOT by wire/realID — so naive re-forwarding on a future restart would create server-side duplicates. No persisted scanner offset on disk.
+- **Codex**: architecturally different — happy-cli spawns `codex app-server` as a child via `codex/codexAppServerClient.ts:393` and consumes JSON-RPC over stdio. When happy-cli isn't running, no app-server runs either, so there's no event stream to miss. The actual gap is "happy-cli crash mid-turn loses any unsent in-memory `pendingOutbox` events" plus "external `codex` invocations are permanently invisible — no rollout-file enumeration in `~/.codex/sessions/`."
+
+**`session-fork-resume` is remote-mode only.** The boundary emit on `claude --resume` lives at `claude/claudeRemoteLauncher.ts:363-375`, gated by the live `system.init` SDK message. **Local mode (`claudeLocalLauncher.ts`) does NOT emit `session-fork-resume` AT ALL**, even when Happy IS running and the fork happens live. Move the emit into a shared helper called from both launchers' `onSessionFound` if you touch this area.
+
+Full research, verified findings (file:line), brainstorm history, candidate solutions, and per-agent fix bundles are captured in `docs/plans/offline-catchup-and-sync-architecture.md`. **Read that before proposing any catch-up code change.** The doc identifies four Claude fixes (C-1 persisted scanner offsets, C-2 cold-start orphan-JSONL enumeration, C-3 local-mode `session-fork-resume` parity, C-4 deterministic localId for catch-up) and three Codex fixes (X-1 durable Happy outbox, X-2 thread history import on resume, X-3 local cache of `codexThreadId`), with effort estimates and open decision questions.
+
 # Session Forking `claude` and sdk behavior
 
 ## Commands Run

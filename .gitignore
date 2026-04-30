@@ -65,3 +65,9 @@ progress*.txt
 
 # OpenCode trace output (script is committed, output is not)
 docs/competition/opencode/traces/
+
+# Ralph orchestration scratch — brainstorm staging, job worktrees, debug screenshots.
+# Existing tracked artifacts under `.ralph/brainstorms/codex-fork-extension-strategy/`
+# stay tracked (gitignore doesn't affect already-tracked files); only future entries
+# are ignored.
+.ralph/
