@@ -86,11 +86,12 @@ function UserTextBlock(props: {
 
   const text = props.message.displayText || props.message.text;
 
-  // Claude Code injects a verbatim copy of every loaded skill's SKILL.md as a
-  // user-role text message right after the Skill tool_use/tool_result pair.
-  // The wrench-icon Skill ToolView already shows the user that a skill was
-  // called; the body itself is opaque infrastructure noise, so we hide the
-  // whole bubble. See `isSkillBodyMessage` for the detection contract.
+  // Claude Code injects a verbatim copy of every loaded skill's SKILL.md after
+  // the Skill tool_use/tool_result pair. Despite its `role:"user"` on the wire,
+  // Happy's normalizer routes most variants through `AgentTextBlock`; this
+  // user-text branch is kept as a defensive symmetric guard for any path that
+  // surfaces the prefix here. See `isSkillBodyMessage` for the detection
+  // contract and the same suppression in `AgentTextBlock`.
   if (isSkillBodyMessage(text)) {
     return null;
   }
@@ -117,6 +118,14 @@ function AgentTextBlock(props: {
 
   // Hide thinking messages
   if (props.message.isThinking) {
+    return null;
+  }
+
+  // Claude Code injects the verbatim SKILL.md body after every Skill tool call.
+  // Despite its `role:"user"` on the wire, Happy's normalizer routes it through
+  // the agent-text path (typesRaw.ts), so we must suppress it here as well as
+  // in `UserTextBlock`. See `isSkillBodyMessage` for the detection contract.
+  if (isSkillBodyMessage(props.message.text)) {
     return null;
   }
 

@@ -404,7 +404,7 @@ Some Claude Code injections arrive as plain user-role text (no wrapper), so `pro
 
 | Injection | Origin | Detection | Treatment |
 |---|---|---|---|
-| Skill body | After every `Skill` tool_use/tool_result, Claude Code posts a verbatim copy of the loaded `SKILL.md` as a `user`-role text message. The wrench-icon `Skill` ToolView already shows the call. | `isSkillBodyMessage(text)` in `packages/happy-app/sources/components/markdown/skillBody.ts` — matches the canonical prefix `Base directory for this skill: <abs-path>\n\n# <Heading>` (strict enough that user text mentioning the prefix mid-sentence won't match). | `UserTextBlock` in `packages/happy-app/sources/components/MessageView.tsx` returns `null`, suppressing the entire user-message bubble. The Skill ToolView remains visible. |
+| Skill body | After every `Skill` tool_use/tool_result, Claude Code posts a verbatim copy of the loaded `SKILL.md` as a `user`-role text message. The wrench-icon `Skill` ToolView already shows the call. | `isSkillBodyMessage(text)` in `packages/happy-app/sources/components/markdown/skillBody.ts` — matches the canonical prefix `Base directory for this skill: <abs-path>\n\n# <Heading>` (strict enough that user text mentioning the prefix mid-sentence won't match). | **Both** `UserTextBlock` and `AgentTextBlock` in `packages/happy-app/sources/components/MessageView.tsx` return `null`. On the wire the role is `user`, but `typesRaw.ts`'s normalizer routes most non-string-content user messages through the agent-text path, so the user-text-only guard alone is insufficient — the agent-text guard is the one that actually fires for skill bodies. The user-text guard is a defensive symmetric backstop. The Skill ToolView remains visible. |
 
 ## Decision log
 

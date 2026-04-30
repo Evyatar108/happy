@@ -6,7 +6,7 @@ This document records the Claude Code synthetic XML tag survey conducted for the
   - `<task-notification>` renders as a clickable pill with a detail modal.
   - `<system-reminder>` is stripped before markdown render/copy.
   - `<fork-boilerplate>` is stripped before markdown render/copy.
-  - **Skill-body injection** (post-`Skill` tool — NOT an XML tag, plain user-role text) is detected by prefix and suppressed at the `UserTextBlock` render layer. See `packages/happy-app/sources/components/markdown/skillBody.ts` and the "Claude Code injections that are NOT XML tags" section in `docs/fork-notes.md`.
+  - **Skill-body injection** (post-`Skill` tool — NOT an XML tag, plain `role:"user"` text on the wire). Detected by prefix and suppressed at BOTH `UserTextBlock` and `AgentTextBlock`. The wire role is `user` but Happy's `typesRaw.ts` normalizer routes most non-string-content user messages through the agent-text path, so the agent-text guard is the one that fires; the user-text guard is a defensive backstop. See `packages/happy-app/sources/components/markdown/skillBody.ts` and the "Claude Code injections that are NOT XML tags" section in `docs/fork-notes.md`.
 
 Use this doc as the stable link target from [fork-notes.md](../fork-notes.md).
 
