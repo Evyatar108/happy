@@ -451,6 +451,32 @@ describe('claudeLocalLauncher shadow metadata wiring', () => {
         await expect(launcher).resolves.toEqual({ type: 'switch' });
     });
 
+    it('cancel-pending-switch is a no-op in the race window where pendingSwitch is still set but deferredSwitchCompleting is true', async () => {
+        const { session, handlers } = createSessionMockWithHandlers();
+        session.pendingSwitch = { requestedAt: 1234, messagePreview: 'hello' };
+        session.deferredSwitchCompleting = true;
+        mockClaudeLocal.mockImplementation(async (opts: { abort: AbortSignal }) => {
+            await new Promise<void>((resolve) => opts.abort.addEventListener('abort', () => resolve(), { once: true }));
+        });
+
+        const { claudeLocalLauncher } = await import('./claudeLocalLauncher');
+        const launcher = claudeLocalLauncher(session as any);
+        await vi.waitFor(() => expect(handlers.has('cancel-pending-switch')).toBe(true));
+
+        // Simulate cancel arriving in the race window: pendingSwitch still set but deferredSwitchCompleting=true
+        session.deferredSwitchCompleting = true;
+        await handlers.get('cancel-pending-switch')!();
+
+        // The handler must be a no-op: queue.reset and setPendingSwitch must not be called by the handler
+        expect(session.queue.reset).not.toHaveBeenCalled();
+        expect(session.setPendingSwitch).not.toHaveBeenCalled();
+        expect(session.deferredSwitchCompleting).toBe(true);
+        expect(session.pendingSwitch).toEqual({ requestedAt: 1234, messagePreview: 'hello' });
+
+        await handlers.get('switch')!();
+        await expect(launcher).resolves.toEqual({ type: 'switch' });
+    });
+
     it('registers the legacy message hook to use the local switch path', async () => {
         let legacyHook: (() => void) | null = null;
         const closeClaudeSessionTurn = vi.fn();

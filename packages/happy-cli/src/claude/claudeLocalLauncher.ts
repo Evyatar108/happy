@@ -145,6 +145,10 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
         }
 
         async function cancelPendingSwitch() {
+            if (session.deferredSwitchCompleting) {
+                return;
+            }
+
             if (!session.pendingSwitch) {
                 return;
             }
