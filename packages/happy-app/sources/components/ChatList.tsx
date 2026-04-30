@@ -72,9 +72,44 @@ const ChatListInternal = React.memo((props: {
     const [preBoundaryExpanded, setPreBoundaryExpanded] = React.useState(false);
     const latestBoundaryKey = getLatestBoundaryKey(props.latestBoundary);
 
+    // When `latestBoundary` first becomes available — typically because an
+    // older-page prefetch dragged the typed context-boundary event into the
+    // loaded message range — DO NOT silently re-collapse the user's view.
+    // The previous `setPreBoundaryExpanded(false)` was the eviction trigger
+    // diagnosed in `.ralph/brainstorms/streaming-pagination-scroll-jump/`:
+    // the user was scrolled into pre-boundary history, the boundary arrived,
+    // and the `seq >= latestBoundary.seq` filter at `ChatList.boundaryItems.ts`
+    // hid every message they were just looking at — including the row
+    // currently under their viewport. Combined with the synthetic-key flip
+    // in boundary-item ids it produced a contentSize shrink, an MVCP anchor
+    // miss, and a visible snap-back.
+    //
+    // Fix: when the boundary key transitions from null/undefined to a
+    // concrete value AND the user already has pre-boundary messages loaded,
+    // auto-expand. When the user actively switches to a new session (via
+    // session-id change) we still want a fresh collapse for that session,
+    // so we key the reset on session id, not on `latestBoundaryKey`.
     React.useEffect(() => {
         setPreBoundaryExpanded(false);
-    }, [latestBoundaryKey]);
+    }, [props.sessionId]);
+    const prevLatestBoundaryKeyRef = React.useRef<string | null>(latestBoundaryKey);
+    React.useEffect(() => {
+        const prev = prevLatestBoundaryKeyRef.current;
+        if (prev === null && latestBoundaryKey !== null) {
+            // Boundary just arrived. If the user has any pre-boundary
+            // messages loaded, keep them visible — collapsing them now would
+            // evict messages the user was already viewing.
+            const hasPreBoundary = props.messages.some(message =>
+                message.seq !== Number.MAX_SAFE_INTEGER &&
+                props.latestBoundary !== null &&
+                message.seq < props.latestBoundary.seq,
+            );
+            if (hasPreBoundary) {
+                setPreBoundaryExpanded(true);
+            }
+        }
+        prevLatestBoundaryKeyRef.current = latestBoundaryKey;
+    }, [latestBoundaryKey, props.messages, props.latestBoundary]);
 
     const boundaryItems = React.useMemo(() => buildChatListBoundaryItems(
         props.messages,
@@ -274,8 +309,18 @@ const ChatListInternal = React.memo((props: {
             keyExtractor={keyExtractor}
             initialNumToRender={8}
             maxToRenderPerBatch={4}
-            windowSize={5}
-            removeClippedSubviews={true}
+            // Keep anchor rows mounted on slow-CPU/no-GPU e-ink panels:
+            // when older messages arrive on `onEndReached`, MVCP needs the
+            // data-index-0 row to be mounted to compute the offset delta.
+            // windowSize=5 + removeClippedSubviews=true unmounted that
+            // anchor whenever the user was scrolled high (~2.5 viewports up),
+            // and contentSize changes against a null anchor caused RN to
+            // fall back to absolute-offset clamping → visible snap-back when
+            // a load-older batch arrived. Diagnosed 2026-04-29; see the
+            // contentSize-shrink trace in
+            // `.ralph/brainstorms/streaming-pagination-scroll-jump/`.
+            windowSize={21}
+            removeClippedSubviews={false}
             maintainVisibleContentPosition={{
                 minIndexForVisible: 0,
                 autoscrollToTopThreshold: 10,

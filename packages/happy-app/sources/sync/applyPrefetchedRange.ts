@@ -73,8 +73,30 @@ export function mergeOlderMessagesIntoSession({
         mergedMessagesMap[message.id] = message;
     });
 
+    // Sort by session-local `seq` DESC so older-by-seq messages always land
+    // at the array tail (visual top in inverted FlatList). Earlier sort by
+    // `createdAt DESC` was unstable for sessions where `seq` order doesn't
+    // match `createdAt` order (clock skew, mixed sources, post-clear
+    // re-sequencing): an older-seq message with a `createdAt` between the
+    // existing first/last would splice into the MIDDLE of the array,
+    // shifting indices between the user's viewport and data-index 0, which
+    // MVCP would compensate for by shifting the scroll offset → visible
+    // snap-back. Diagnosed 2026-04-29 in
+    // `.ralph/brainstorms/streaming-pagination-scroll-jump/` round 2.
+    //
+    // Pending optimistic messages (seq === DEFAULT_UNSEQUENCED_MESSAGE_SEQ
+    // === Number.MAX_SAFE_INTEGER) keep landing at index 0 because they
+    // have the highest possible seq.
+    //
+    // `createdAt` remains the deterministic tiebreaker so messages with the
+    // same seq (e.g. multiple unsequenced pendings) keep a stable order.
     const messagesArray = Object.values(mergedMessagesMap)
-        .sort((a, b) => b.createdAt - a.createdAt);
+        .sort((a, b) => {
+            if (a.seq !== b.seq) {
+                return b.seq - a.seq;
+            }
+            return b.createdAt - a.createdAt;
+        });
 
     const nextSessionMeta: SessionMergeMeta = {
         agentState: sessionMeta.agentState,

@@ -147,7 +147,7 @@ describe('ChatList context-boundary pagination rows', () => {
             'after-2',
             'after-1',
             'boundary',
-            'boundary-show-history:boundary',
+            'boundary-show-history',
         ]);
     });
 
@@ -169,7 +169,7 @@ describe('ChatList context-boundary pagination rows', () => {
             'after-2',
             'after-1',
             'boundary',
-            'boundary-show-history:boundary',
+            'boundary-show-history',
         ]);
         expect(itemIds(withOlderPage, boundary, true)).toEqual([
             'after-2',
@@ -202,8 +202,8 @@ describe('ChatList context-boundary pagination rows', () => {
             'after-3',
             'after-2',
             'after-1',
-            'boundary-sticky:boundary',
-            'boundary-show-history:boundary',
+            'boundary-sticky',
+            'boundary-show-history',
         ]);
     });
 
@@ -253,7 +253,7 @@ describe('ChatList context-boundary pagination rows', () => {
             'after-2',
             'after-1',
             'boundary',
-            'boundary-show-history:boundary',
+            'boundary-show-history',
         ]);
     });
 

@@ -22,10 +22,16 @@ function toMessageItem(message: Message): ChatListBoundaryItem {
     return { kind: 'message', id: message.id, message };
 }
 
+// Synthetic boundary-row IDs are stable across boundary updates. There is at
+// most one of each kind per list, so suffixing with `latestBoundary.id` only
+// causes FlatList to see a key change every time the boundary id flips —
+// which forces an unmount+remount, a height re-measure, and an MVCP anchor
+// miss when contentSize shifts. Diagnosed 2026-04-29 in
+// `.ralph/brainstorms/streaming-pagination-scroll-jump/`.
 function stickyBoundaryItem(latestBoundary: LatestBoundary): ChatListBoundaryItem {
     return {
         kind: 'sticky-boundary',
-        id: `boundary-sticky:${latestBoundary.id}`,
+        id: 'boundary-sticky',
         latestBoundary,
     };
 }
@@ -33,7 +39,7 @@ function stickyBoundaryItem(latestBoundary: LatestBoundary): ChatListBoundaryIte
 function showHistoryItem(latestBoundary: LatestBoundary): ChatListBoundaryItem {
     return {
         kind: 'show-pre-boundary-history',
-        id: `boundary-show-history:${latestBoundary.id}`,
+        id: 'boundary-show-history',
         latestBoundary,
     };
 }
