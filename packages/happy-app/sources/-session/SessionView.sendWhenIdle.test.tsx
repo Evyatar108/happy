@@ -253,6 +253,47 @@ const agentInput = renderer.root.findAllByType('AgentInput' as any)[0];
 
         expect(agentInput.props.value).toBe('hello world');
     });
+
+    it('does NOT restore the snapshot when user has typed new text during in-flight send rejection', async () => {
+        mockUseSession.mockReturnValue(makeLocalClaudeSession());
+        let rejectSend!: (e: Error) => void;
+        mockSendMessage.mockReturnValue(new Promise<void>((_, reject) => { rejectSend = reject; }));
+
+        let renderer!: Renderer;
+        act(() => {
+            renderer = TestRenderer.create(<SessionView id="session-1" />);
+        });
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+const agentInput = renderer.root.findAllByType('AgentInput' as any)[0];
+
+        // Prime the message state
+        act(() => {
+            agentInput.props.onChangeText('hello world');
+        });
+
+        let sendPromise!: Promise<void>;
+        act(() => {
+            sendPromise = agentInput.props.onSend('when-idle');
+        });
+
+        // Composer cleared optimistically
+        expect(agentInput.props.value).toBe('');
+
+        // User types new text while the RPC is in flight
+        act(() => {
+            agentInput.props.onChangeText('new draft typed while in flight');
+        });
+        expect(agentInput.props.value).toBe('new draft typed while in flight');
+
+        // Reject the send — new draft must NOT be overwritten by the old snapshot
+        await act(async () => {
+            rejectSend(new Error('rpc failed'));
+            await sendPromise;
+        });
+
+        expect(agentInput.props.value).toBe('new draft typed while in flight');
+    });
 });
 
 describe('SessionView send-when-idle controls', () => {

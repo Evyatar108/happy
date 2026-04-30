@@ -216,6 +216,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
     const deviceType = useDeviceType();
     const isTablet = useIsTablet();
     const [message, setMessage] = React.useState('');
+    const messageRef = React.useRef('');
     const composeStartAtRef = React.useRef<number | null>(null);
     const realtimeStatus = useRealtimeStatus();
     const { messages, isLoaded } = useSessionMessages(sessionId);
@@ -314,6 +315,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
     }, [machineId, cliVersion, acknowledgedCliVersions]);
 
     const handleChangeMessage = React.useCallback((nextMessage: string) => {
+        messageRef.current = nextMessage;
         setMessage((previousMessage) => {
             composeStartAtRef.current = updateComposeStartAt(
                 composeStartAtRef.current,
@@ -473,12 +475,16 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
 
                     if (switchMode === 'when-idle') {
                         const snapshot = message;
+                        messageRef.current = '';
                         setMessage('');
                         clearDraft();
                         try {
                             await sync.sendMessage(sessionId, snapshot, { source: 'chat', switchMode });
                         } catch {
-                            setMessage(snapshot);
+                            if (messageRef.current === '') {
+                                messageRef.current = snapshot;
+                                setMessage(snapshot);
+                            }
                         }
                     } else {
                         setMessage('');
