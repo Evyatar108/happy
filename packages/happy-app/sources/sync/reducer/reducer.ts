@@ -1146,6 +1146,21 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
 
     for (let msg of nonSidechainMessages) {
         if (msg.role === 'event') {
+            // Dedup by wire realID. Without this guard, the same context-boundary
+            // (or other typed event) was re-processed on every reducer batch
+            // because Phase 0.5's context-boundary handler at line ~406 falls
+            // through to `messagesToProcess` WITHOUT setting `state.messageIds`,
+            // and Phase 5 here historically also failed to set it. Result: every
+            // older-page commit allocated a fresh `mid` for the SAME wire event,
+            // accumulating duplicate rows in `state.messages` and the downstream
+            // `mergedMessagesMap`. The visible symptom was unbounded chat-array
+            // growth (357 → 1098 messages with `lastId` unchanged) plus an MVCP
+            // offset shift (~200 px snap) when those duplicate event rows
+            // shifted indices on each commit. Diagnosed 2026-04-29 in
+            // `.ralph/brainstorms/streaming-pagination-scroll-jump/` round 2.
+            if (state.messageIds.has(msg.id)) {
+                continue;
+            }
             let mid = allocateId();
             state.messages.set(mid, {
                 id: mid,
@@ -1158,6 +1173,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                 text: null,
                 meta: msg.meta,
             });
+            state.messageIds.set(msg.id, mid);
             changed.add(mid);
         }
     }
