@@ -357,13 +357,17 @@ checked in; this list is here so a future regression / fresh worktree
    label (`resValue "string", "app_name", appLabel`), versioned
    `applicationId`/`namespace` decoupling, gradle-property `versionCode`/
    `versionName`, the `expo-embed-wrapper.cjs` cliFile pointer, the
-   CMake `buildStagingDirectory`, and the
-   `-PreactNativeArchitectures` ABI filter all live as direct edits
-   to `packages/happy-app/android/app/build.gradle`, not as Expo
-   config plugins. If you ever run prebuild, re-apply every block.
-   The fork has not run prebuild to-date; the committed `android/`
-   is the source of truth. A future cleanup is to wrap the
-   injection in an Expo config plugin (pattern:
+   CMake `buildStagingDirectory`, the `-PreactNativeArchitectures`
+   ABI filter, AND the production-only-scoped
+   `apply plugin: 'com.google.gms.google-services'` (wrapped in
+   `if (appEnv == 'production') { ... }` because the personal
+   Firebase project only registers `com.evyatar109.happy` and would
+   fail debug builds on `com.slopus.happy.dev`) all live as direct
+   edits to `packages/happy-app/android/app/build.gradle`, not as
+   Expo config plugins. If you ever run prebuild, re-apply every
+   block. The fork has not run prebuild to-date; the committed
+   `android/` is the source of truth. A future cleanup is to wrap
+   the injection in an Expo config plugin (pattern:
    `packages/happy-app/plugins/withEinkCompatibility.js`).
 2. **`google-services.json` lives in TWO places that must stay in
    sync.** `packages/happy-app/google-services.json` is what
@@ -539,6 +543,26 @@ checked in; this list is here so a future regression / fresh worktree
     Testing.** When Play reactivates, stay on Internal Testing —
     the 14-day-with-12-testers rule only kicks in if the listing
     is promoted to a Production track.
+18. **`expo run:android` is broken on this fork.** Expo CLI's
+    project-id parser reads `android/app/build.gradle` looking for
+    a literal `applicationId 'com.x.y'` string, but the fork's
+    build.gradle uses `applicationId appPackage` (a Groovy variable
+    derived from `APP_ENV`). The CLI throws
+    `CommandError: Failed to locate the android application
+    identifier in the "android/" folder.` even though Gradle
+    itself resolves it fine. Workaround: bypass `expo run:android`
+    and invoke Gradle directly. For a debug install on the dev
+    tablet (the Metro inner-loop first-time setup):
+    ```bash
+    cd packages/happy-app/android
+    ANDROID_HOME=D:/Android/Sdk APP_ENV=development \
+      ./gradlew installDebug -PreactNativeArchitectures=arm64-v8a
+    ```
+    Then `pnpm exec expo start --dev-client` and force-launch via
+    deep link per
+    `.agents/skills/happy-tablet-iterate/SKILL.md`. For a release
+    install, `pnpm release:android` (this skill's own flow) handles
+    Gradle directly and is unaffected.
 
 ## Out of scope
 

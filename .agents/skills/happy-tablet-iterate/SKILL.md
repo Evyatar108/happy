@@ -80,6 +80,29 @@ description: >
   (~10 min first time, ~1-2 min after).
 - **If the app shows a red/yellow error overlay on the tablet**, the screen is painful to read on e-ink; tail Metro instead to get the readable error.
 - **If `adb devices` shows `unauthorized`**, unplug + replug the USB cable, accept the "Allow USB debugging?" prompt on the tablet (tick "Always allow from this computer").
+- **If `adb devices` shows nothing despite USB debugging being on**, Windows likely bound the wrong driver to the tablet's ADB endpoint. Check with PowerShell:
+  ```powershell
+  Get-PnpDevice -PresentOnly | Where-Object { $_.InstanceId -match 'VID_18D1' } | Select-Object Status, Class, FriendlyName, InstanceId | Format-Table -AutoSize
+  ```
+  If `MI_01` shows as `WinUsb Device` (or any non-Android-ADB driver) instead of `Android ADB Interface`, install the Google USB driver and re-bind:
+  ```bash
+  /d/Android/Sdk/cmdline-tools/latest/bin/sdkmanager.bat "extras;google;usb_driver"
+  # then in an ELEVATED shell (UAC required):
+  pnputil /add-driver "D:\Android\Sdk\extras\google\usb_driver\android_winusb.inf" /install
+  ```
+  Then unplug + replug. The `pnputil` step needs admin — easiest non-interactive form is
+  `Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile','-Command','pnputil /add-driver ... /install'`.
+- **If `am start` reports `Activity class … does not exist` despite the activity being present in `pm dump`**, the package is in `enabled=3` (`COMPONENT_ENABLED_STATE_DISABLED_USER`) state. BOOX (or some Play Protect / first-install flow) sometimes installs apps disabled. The signature `result code=-92` in logcat alongside the "does not exist" text is the smoking gun. Diagnose + fix:
+  ```bash
+  /d/Android/Sdk/platform-tools/adb.exe -s $DEV_TABLET shell "dumpsys package com.slopus.happy.dev | grep enabled"
+  # expected: enabled=0 or enabled=1; if enabled=3:
+  /d/Android/Sdk/platform-tools/adb.exe -s $DEV_TABLET shell pm enable com.slopus.happy.dev
+  ```
+- **`ANDROID_HOME` is read by Expo CLI separately from `local.properties`.** `local.properties` covers Gradle; `expo start` / `expo run:android` reads the env var directly and errors with `Failed to resolve the Android SDK path. ANDROID_HOME is set to a non-existing path: C:\...` if the system value is stale. Override per-invocation:
+  ```bash
+  ANDROID_HOME=D:/Android/Sdk pnpm exec expo start --dev-client
+  ```
+  Do not unset the system var globally — other tools may rely on it; just override in the shell that invokes Expo.
 - **If `adb` commands hang indefinitely with no output** (this hits the Claude Code harness specifically — and any other automation that spawns adb without a TTY), there is almost certainly a stale adb client process holding a connection to the adb-server. The legitimate server lives at `D:\Android\Sdk\platform-tools\adb.exe`; a second adb binary at `D:\bin\platform-tools\adb.exe` (or any other location on PATH) can have been spawned hours ago by a previous session and never exited. Diagnose and kill:
   ```bash
   # find every running adb.exe and its source path:

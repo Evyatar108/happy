@@ -271,4 +271,16 @@ dependencies {
     }
 }
 
-apply plugin: 'com.google.gms.google-services'
+// Apply Firebase google-services plugin only for production builds.
+// `google-services.json` only registers `com.evyatar109.happy` (the
+// production package id); dev/preview applicationIds aren't in the
+// personal Firebase project, so the plugin would fail
+// processDebugGoogleServices with "No matching client found for
+// package name 'com.slopus.happy.dev'". Dev/preview also don't need
+// Firebase services for the Metro+adb iterate loop. To re-enable for
+// all variants, register com.slopus.happy.dev + com.slopus.happy.preview
+// in the personal Firebase project, re-download google-services.json,
+// and remove this guard.
+if (appEnv == 'production') {
+    apply plugin: 'com.google.gms.google-services'
+}
