@@ -128,12 +128,21 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
         // callers, this is the "needs attention" signal that Stop won't deliver
         // because the turn is paused mid-stream rather than ended. Treat it the
         // same as turn-complete: hand off to remote so the app can answer.
+        //
+        // Why the 300ms delay: when Claude is paused on a permission prompt, it
+        // generates the assistant message with the `tool_use` block and writes it
+        // to the append-only JSONL. The Notification hook fires roughly in parallel
+        // with that write. If we abort Claude before the JSONL flush completes,
+        // `--resume` on the remote SDK reads a truncated transcript and the SDK
+        // may not re-issue the orphaned tool_use through `canUseTool` — leaving
+        // the user with no way to answer the permission from the app.
         notificationCallback = async () => {
             if (!session.pendingSwitch || pendingStopSwitchInFlight) {
                 return;
             }
 
             pendingStopSwitchInFlight = true;
+            await new Promise<void>((resolve) => setTimeout(resolve, 300));
             await performSwitch('completed');
         };
 
