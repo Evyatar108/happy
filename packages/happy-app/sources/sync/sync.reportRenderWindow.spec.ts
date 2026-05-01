@@ -214,14 +214,14 @@ describe('sync.reportRenderWindow bridge (US-006)', () => {
 
     it('flag on, non-null window, shouldPrefetchOlder=true: setRenderWindow then setActivePrefetch then requestSessionMessageRange exactly once', () => {
         storage.setFlag(true);
-        // visibleSeqs near the older edge so render window first - oldest <= 15
-        // oldestLoadedSeq=100, RENDER_WINDOW_OVERSCAN_SEQS=30, PREFETCH_TRIGGER_GAP_SEQS=15
-        // visible min seq 110: window.firstSeq = 110-30 = 80; gap = 80-100 = -20 <= 15 → triggers
+        // visibleSeqs near the older edge so render window first - oldest <= 40
+        // oldestLoadedSeq=100, RENDER_WINDOW_OVERSCAN_SEQS=60, PREFETCH_TRIGGER_GAP_SEQS=40
+        // visible min seq 110: window.firstSeq = 110-60 = 50; gap = 50-100 = -50 <= 40 → triggers
         reportRenderWindow('sess-1', [110, 120, 130]);
         expect(storage.getCalls().setRenderWindow).toHaveLength(1);
         expect(storage.getCalls().setRenderWindow[0]).toEqual({
             sessionId: 'sess-1',
-            window: { firstSeq: 80, lastSeq: 160 },
+            window: { firstSeq: 50, lastSeq: 190 },
         });
         expect(storage.getCalls().setActivePrefetch).toHaveLength(1);
         expect(manager.requestSessionMessageRange).toHaveBeenCalledTimes(1);
@@ -249,9 +249,9 @@ describe('sync.reportRenderWindow bridge (US-006)', () => {
 
     it('flag on, shouldPrefetchOlder=false (gap too large): setRenderWindow but NOT setActivePrefetch / manager', () => {
         storage.setFlag(true);
-        // visible min seq 200 with oldestLoadedSeq=100: window.firstSeq=170,
-        // gap = 170-100 = 70 > 15 → do not trigger
-        reportRenderWindow('sess-1', [200, 220]);
+        // visible min seq 250 with oldestLoadedSeq=100: window.firstSeq=190,
+        // gap = 190-100 = 90 > 40 → do not trigger
+        reportRenderWindow('sess-1', [250, 270]);
         expect(storage.getCalls().setRenderWindow).toHaveLength(1);
         expect(storage.getCalls().setActivePrefetch).toHaveLength(0);
         expect(manager.requestSessionMessageRange).not.toHaveBeenCalled();

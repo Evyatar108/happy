@@ -1,5 +1,12 @@
 # Changelog
 
+## Version 28 - 2026-04-30
+
+Scrolling back through long chats is even smoother. The older-message prefetch now starts earlier and preloads the next page on chat open, so the first scroll-up no longer pauses while a fresh batch is fetched.
+
+- Improved older-history prefetch to fire sooner during an upward scroll, so a steady scroll lands on already-loaded messages instead of stalling at the edge.
+- Cold-start chat opening now eagerly preloads one page of older history in the background, so the first scroll-up after opening a long chat is instant.
+
 ## Version 27 - 2026-04-29
 
 Two chat-rendering fixes for Claude Code sessions. Background-task notifications from Claude Code's Monitor tool — which only carry a task id, a summary, and an event line (no status, no output file) — now render as a proper info chip instead of leaking through as raw `<task-notification>` XML in the message body. And the verbatim copy of every loaded skill's `SKILL.md` that Claude Code injects after a Skill tool call no longer floods the chat with hundreds of lines of internal markdown — the wrench-icon Skill tool block on its own already shows the call.

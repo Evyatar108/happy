@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "version": 28,
+      "date": "2026-04-30",
+      "summary": "Scrolling back through long chats is even smoother. The older-message prefetch now starts earlier and preloads the next page on chat open, so the first scroll-up no longer pauses while a fresh batch is fetched.",
+      "changes": [
+        "Improved older-history prefetch to fire sooner during an upward scroll, so a steady scroll lands on already-loaded messages instead of stalling at the edge.",
+        "Cold-start chat opening now eagerly preloads one page of older history in the background, so the first scroll-up after opening a long chat is instant."
+      ],
+      "rawMarkdown": "## Version 28 - 2026-04-30\n\n\nScrolling back through long chats is even smoother. The older-message prefetch now starts earlier and preloads the next page on chat open, so the first scroll-up no longer pauses while a fresh batch is fetched.\n\n- Improved older-history prefetch to fire sooner during an upward scroll, so a steady scroll lands on already-loaded messages instead of stalling at the edge.\n- Cold-start chat opening now eagerly preloads one page of older history in the background, so the first scroll-up after opening a long chat is instant."
+    },
+    {
       "version": 27,
       "date": "2026-04-29",
       "summary": "Two chat-rendering fixes for Claude Code sessions. Background-task notifications from Claude Code's Monitor tool — which only carry a task id, a summary, and an event line (no status, no output file) — now render as a proper info chip instead of leaking through as raw `<task-notification>` XML in the message body. And the verbatim copy of every loaded skill's `SKILL.md` that Claude Code injects after a Skill tool call no longer floods the chat with hundreds of lines of internal markdown — the wrench-icon Skill tool block on its own already shows the call.",
@@ -320,5 +330,5 @@
       "rawMarkdown": "## Version 1 - 2025-05-12\n\n\nWelcome to Happy - your secure, encrypted mobile companion for Claude Code. This inaugural release establishes the foundation for private, powerful AI interactions on the go.\n\n- Implemented end-to-end encrypted session management ensuring complete privacy\n- Integrated intelligent voice assistant with natural conversation capabilities\n- Added experimental file manager with syntax highlighting and tree navigation\n- Built seamless real-time synchronization across all your devices\n- Established native support for iOS, Android, and responsive web interfaces"
     }
   ],
-  "latestVersion": 27
+  "latestVersion": 28
 }

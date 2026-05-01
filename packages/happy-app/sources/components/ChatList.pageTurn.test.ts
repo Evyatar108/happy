@@ -526,8 +526,8 @@ function makeReportRenderWindowBridge(
 
 describe('ChatList page-turn-mode debounce (US-007 / Plan AC #10)', () => {
     it('a page-turn that emits two onViewableItemsChanged ticks fires exactly one session-message-range request', () => {
-        // oldestLoadedSeq=100, RENDER_WINDOW_OVERSCAN_SEQS=30, PREFETCH_TRIGGER_GAP_SEQS=15
-        // visible min seq 110 → window.firstSeq=80 → gap = -20 ≤ 15 → triggers older prefetch.
+        // oldestLoadedSeq=100, RENDER_WINDOW_OVERSCAN_SEQS=60, PREFETCH_TRIGGER_GAP_SEQS=40
+        // visible min seq 110 → window.firstSeq=50 → gap = -50 ≤ 40 → triggers older prefetch.
         const storage = createFakeBridgeStorage({
             sessions: {
                 'sess-1': {

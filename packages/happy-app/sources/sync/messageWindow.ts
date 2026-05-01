@@ -1,7 +1,11 @@
 import { DEFAULT_UNSEQUENCED_MESSAGE_SEQ } from './typesRaw';
 
-export const RENDER_WINDOW_OVERSCAN_SEQS = 30;
-export const PREFETCH_TRIGGER_GAP_SEQS = 15;
+// Effective trigger: prefetch fires when `minVisibleSeq <= oldestLoadedSeq + (overscan + gap)`.
+// With page size 80, 60+40 keeps the next older page loading eagerly so a steady
+// upward scroll lands on already-decrypted rows instead of stalling at the boundary.
+// Diagnosed 2026-04-30 — old 30/15 only triggered at ~44% buffer remaining, perceived as `onEndReached`.
+export const RENDER_WINDOW_OVERSCAN_SEQS = 60;
+export const PREFETCH_TRIGGER_GAP_SEQS = 40;
 
 export type RenderWindow = {
     firstSeq: number;
