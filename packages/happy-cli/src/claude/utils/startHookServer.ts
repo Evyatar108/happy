@@ -85,6 +85,17 @@ export interface TurnHookData extends SessionHookData {
     hook_event_name: 'Stop' | 'UserPromptSubmit';
 }
 
+export interface NotificationHookData extends SessionHookData {
+    hook_event_name: 'Notification';
+    /**
+     * Claude Code includes a `message` describing the notification. Permission prompts
+     * carry text like "Claude needs your permission to use Bash". Idle waits and
+     * plan-mode confirmations carry their own descriptions. We surface the raw payload
+     * to the callback so callers can disambiguate if they need to.
+     */
+    message?: string;
+}
+
 export interface HookServerOptions {
     /** Called when a session hook is received with a valid session ID */
     onSessionHook: (sessionId: string, data: SessionHookData) => void;
@@ -94,6 +105,13 @@ export interface HookServerOptions {
     onUserPromptSubmitHook?: (data: TurnHookData) => void | Promise<void>;
     /** Called when Claude reports that a local turn stopped */
     onStopHook?: (data: TurnHookData) => void | Promise<void>;
+    /**
+     * Called when Claude reports a Notification (permission request, idle wait,
+     * plan-mode confirmation). Treated as a "needs user attention" signal —
+     * deferred-switch callers use this to detect that the local turn is paused
+     * even though `Stop` hasn't fired.
+     */
+    onNotificationHook?: (data: NotificationHookData) => void | Promise<void>;
 }
 
 export interface HookServer {
@@ -111,6 +129,8 @@ export interface HookServer {
  */
 export async function startHookServer(options: HookServerOptions): Promise<HookServer> {
     const { onSessionHook, onCompactHook, onUserPromptSubmitHook, onStopHook } = options;
+
+    const { onNotificationHook } = options;
 
     return new Promise((resolve, reject) => {
         const readJsonBody = async (req: IncomingMessage): Promise<SessionHookData> => {
@@ -136,6 +156,7 @@ export async function startHookServer(options: HookServerOptions): Promise<HookS
                 req.url === '/hook/session-start'
                 || req.url === '/hook/stop'
                 || req.url === '/hook/user-prompt-submit'
+                || req.url === '/hook/notification'
             )) {
                 // Set timeout to prevent hanging if Claude doesn't close stdin
                 const timeout = setTimeout(() => {
@@ -157,6 +178,12 @@ export async function startHookServer(options: HookServerOptions): Promise<HookS
 
                     if (req.url === '/hook/stop') {
                         await onStopHook?.(data as TurnHookData);
+                        res.writeHead(200, { 'Content-Type': 'text/plain' }).end('ok');
+                        return;
+                    }
+
+                    if (req.url === '/hook/notification') {
+                        await onNotificationHook?.(data as NotificationHookData);
                         res.writeHead(200, { 'Content-Type': 'text/plain' }).end('ok');
                         return;
                     }

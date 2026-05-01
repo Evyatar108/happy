@@ -239,6 +239,13 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
             }
             await currentSession?.onTurnCompleted();
         },
+        onNotificationHook: async (data) => {
+            logger.debug('[START] Notification hook received:', data);
+            if (currentMode === 'remote') {
+                return;
+            }
+            await currentSession?.onNotification();
+        },
     });
     logger.debug(`[START] Hook server started on port ${hookServer.port}`);
 

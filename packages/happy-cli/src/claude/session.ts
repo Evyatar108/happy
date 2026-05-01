@@ -40,6 +40,7 @@ export class Session {
     private sessionFoundCallbacks: ((sessionId: string) => void)[] = [];
     private turnStartCallbacks: (() => void | Promise<void>)[] = [];
     private turnCompleteCallbacks: (() => void | Promise<void>)[] = [];
+    private notificationCallbacks: (() => void | Promise<void>)[] = [];
     
     /** Keep alive interval reference for cleanup */
     private keepAliveInterval: NodeJS.Timeout;
@@ -92,6 +93,7 @@ export class Session {
         this.sessionFoundCallbacks = [];
         this.turnStartCallbacks = [];
         this.turnCompleteCallbacks = [];
+        this.notificationCallbacks = [];
         logger.debug('[Session] Cleaned up resources');
     }
 
@@ -173,6 +175,27 @@ export class Session {
         const index = this.turnCompleteCallbacks.indexOf(callback);
         if (index !== -1) {
             this.turnCompleteCallbacks.splice(index, 1);
+        }
+    }
+
+    /**
+     * Called when Claude reports a Notification (permission request, idle wait,
+     * plan-mode confirmation). Distinct from `onTurnCompleted` because Notification
+     * fires while a turn is still active but paused — used by deferred-switch logic
+     * to detect "needs user attention" without waiting for `Stop`.
+     */
+    onNotification = async (): Promise<void> => {
+        await Promise.all(this.notificationCallbacks.map((callback) => callback()));
+    }
+
+    addNotificationCallback = (callback: () => void | Promise<void>): void => {
+        this.notificationCallbacks.push(callback);
+    }
+
+    removeNotificationCallback = (callback: () => void | Promise<void>): void => {
+        const index = this.notificationCallbacks.indexOf(callback);
+        if (index !== -1) {
+            this.notificationCallbacks.splice(index, 1);
         }
     }
 

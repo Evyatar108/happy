@@ -108,4 +108,26 @@ describe('Session deferred switch state', () => {
 
         session.cleanup();
     });
+
+    it('routes Notification through subscriptions (without affecting turnActive)', async () => {
+        const { session, getAgentState } = createSession();
+        const onNotification = vi.fn();
+
+        session.addNotificationCallback(onNotification);
+        session.setTurnActive(true);
+
+        await session.onNotification();
+
+        // Notification must NOT clear turnActive — turn is still streaming, just paused.
+        // Only Stop/onTurnCompleted may flip turnActive false.
+        expect(session.turnActive).toBe(true);
+        expect(getAgentState().turnActive).toBe(true);
+        expect(onNotification).toHaveBeenCalledTimes(1);
+
+        session.removeNotificationCallback(onNotification);
+        await session.onNotification();
+        expect(onNotification).toHaveBeenCalledTimes(1);
+
+        session.cleanup();
+    });
 });

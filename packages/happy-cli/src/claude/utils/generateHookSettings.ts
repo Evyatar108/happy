@@ -45,6 +45,7 @@ const HAPPY_HOOK_EVENTS = [
     'PostCompact',
     'Stop',
     'UserPromptSubmit',
+    'Notification',
 ] as const;
 
 /**

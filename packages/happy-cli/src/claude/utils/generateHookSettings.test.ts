@@ -31,11 +31,13 @@ describe('buildHookSettings', () => {
         expect(result.hooks.PostCompact).toHaveLength(1);
         expect(result.hooks.Stop).toHaveLength(1);
         expect(result.hooks.UserPromptSubmit).toHaveLength(1);
+        expect(result.hooks.Notification).toHaveLength(1);
         expectHappyHook(result.hooks.SessionStart[0]);
         expectHappyHook(result.hooks.PreCompact[0]);
         expectHappyHook(result.hooks.PostCompact[0]);
         expectHappyHook(result.hooks.Stop[0]);
         expectHappyHook(result.hooks.UserPromptSubmit[0]);
+        expectHappyHook(result.hooks.Notification[0]);
     });
 
     it('preserves enabledPlugins so plugin-provided skills keep loading', () => {
@@ -119,12 +121,14 @@ describe('buildHookSettings', () => {
         const postCompact = { matcher: '*', hooks: [{ type: 'command', command: 'echo post-compact' }] };
         const stop = { matcher: '*', hooks: [{ type: 'command', command: 'echo stop' }] };
         const userPromptSubmit = { matcher: '*', hooks: [{ type: 'command', command: 'echo submit' }] };
+        const notification = { matcher: '*', hooks: [{ type: 'command', command: 'echo notification' }] };
         const userSettings = {
             hooks: {
                 PreCompact: [preCompact],
                 PostCompact: [postCompact],
                 Stop: [stop],
                 UserPromptSubmit: [userPromptSubmit],
+                Notification: [notification],
             },
         };
 
@@ -134,10 +138,12 @@ describe('buildHookSettings', () => {
         expect(result.hooks.PostCompact).toEqual([postCompact, expect.any(Object)]);
         expect(result.hooks.Stop).toEqual([stop, expect.any(Object)]);
         expect(result.hooks.UserPromptSubmit).toEqual([userPromptSubmit, expect.any(Object)]);
+        expect(result.hooks.Notification).toEqual([notification, expect.any(Object)]);
         expectHappyHook(result.hooks.PreCompact[1]);
         expectHappyHook(result.hooks.PostCompact[1]);
         expectHappyHook(result.hooks.Stop[1]);
         expectHappyHook(result.hooks.UserPromptSubmit[1]);
+        expectHappyHook(result.hooks.Notification[1]);
     });
 
     it('tolerates a malformed hooks field (non-object) without throwing', () => {

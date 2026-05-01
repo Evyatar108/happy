@@ -55,6 +55,7 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
     let preserveDeferredSwitchCompleting = false;
     let pendingStopSwitchInFlight = false;
     let turnCompleteCallback: (() => Promise<void>) | null = null;
+    let notificationCallback: (() => Promise<void>) | null = null;
     try {
         async function abort() {
 
@@ -122,6 +123,20 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
             await performSwitch('completed');
         };
 
+        // Notification hook fires when Claude is paused waiting for the user
+        // (permission prompts, idle waits, plan-mode confirms). For deferred-switch
+        // callers, this is the "needs attention" signal that Stop won't deliver
+        // because the turn is paused mid-stream rather than ended. Treat it the
+        // same as turn-complete: hand off to remote so the app can answer.
+        notificationCallback = async () => {
+            if (!session.pendingSwitch || pendingStopSwitchInFlight) {
+                return;
+            }
+
+            pendingStopSwitchInFlight = true;
+            await performSwitch('completed');
+        };
+
         async function requestSwitch(params: RequestSwitchParams): Promise<RequestSwitchResponse> {
             if (params.mode === 'now') {
                 await doSwitch();
@@ -166,6 +181,7 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
             void doSwitch();
         });
         session.addTurnCompleteCallback(turnCompleteCallback);
+        session.addNotificationCallback(notificationCallback);
         session.queue.setOnMessage(null);
 
         // Exit if there are messages in the queue
@@ -284,6 +300,9 @@ export async function claudeLocalLauncher(session: Session): Promise<LauncherRes
         session.setNotifyLegacyMessageBeforeQueue(null);
         if (turnCompleteCallback) {
             session.removeTurnCompleteCallback(turnCompleteCallback);
+        }
+        if (notificationCallback) {
+            session.removeNotificationCallback(notificationCallback);
         }
         if (!preserveDeferredSwitchCompleting) {
             session.clearDeferredSwitchState();

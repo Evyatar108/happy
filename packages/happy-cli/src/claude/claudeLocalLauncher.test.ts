@@ -88,6 +88,8 @@ describe('claudeLocalLauncher shadow metadata wiring', () => {
             setNotifyLegacyMessageBeforeQueue: vi.fn(),
             addTurnCompleteCallback: vi.fn(),
             removeTurnCompleteCallback: vi.fn(),
+            addNotificationCallback: vi.fn(),
+            removeNotificationCallback: vi.fn(),
             onSessionFound: vi.fn(),
             onThinkingChange: vi.fn(),
             claudeEnvVars: { CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' },
@@ -166,6 +168,8 @@ describe('claudeLocalLauncher shadow metadata wiring', () => {
             clearDeferredSwitchState: vi.fn(),
             addTurnCompleteCallback: vi.fn(),
             removeTurnCompleteCallback: vi.fn(),
+            addNotificationCallback: vi.fn(),
+            removeNotificationCallback: vi.fn(),
             onSessionFound,
             onThinkingChange: vi.fn(),
             claudeEnvVars: { CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1' },
@@ -506,6 +510,8 @@ describe('claudeLocalLauncher shadow metadata wiring', () => {
             clearDeferredSwitchState: vi.fn(),
             addTurnCompleteCallback: vi.fn(),
             removeTurnCompleteCallback: vi.fn(),
+            addNotificationCallback: vi.fn(),
+            removeNotificationCallback: vi.fn(),
             onSessionFound: vi.fn(),
             onThinkingChange: vi.fn(),
             claudeEnvVars: {},
@@ -639,5 +645,98 @@ describe('claudeLocalLauncher shadow metadata wiring', () => {
         expect(session.clearDeferredSwitchState).toHaveBeenCalledTimes(1);
         expect(session.pendingSwitch).toBeUndefined();
         expect(session.turnActive).toBe(false);
+    });
+
+    it('switches with completed status when Notification fires while pendingSwitch is armed', async () => {
+        let notificationCallback: (() => Promise<void>) | null = null;
+        const { session } = createSessionMock();
+        session.pendingSwitch = { requestedAt: 1234, messagePreview: 'hello' };
+        session.turnActive = true;
+        session.addNotificationCallback.mockImplementation((callback: () => Promise<void>) => {
+            notificationCallback = callback;
+        });
+        mockClaudeLocal.mockImplementation(async (opts: { abort: AbortSignal }) => {
+            await vi.waitFor(() => expect(notificationCallback).not.toBeNull());
+            const aborted = new Promise<void>((resolve) => opts.abort.addEventListener('abort', () => resolve(), { once: true }));
+            // Simulate Claude pausing on a permission prompt — Notification fires while turn is still mid-stream
+            void notificationCallback!();
+            await aborted;
+        });
+
+        const { claudeLocalLauncher } = await import('./claudeLocalLauncher');
+
+        await expect(claudeLocalLauncher(session as any)).resolves.toEqual({ type: 'switch' });
+        expect(session.client.closeClaudeSessionTurn).toHaveBeenCalledTimes(1);
+        expect(session.client.closeClaudeSessionTurn).toHaveBeenCalledWith('completed');
+        expect(session.pendingSwitch).toBeUndefined();
+        expect(session.deferredSwitchCompleting).toBe(true);
+        expect(session.removeNotificationCallback).toHaveBeenCalledWith(notificationCallback);
+    });
+
+    it('Notification is a no-op when pendingSwitch is not armed', async () => {
+        let notificationCallback: (() => Promise<void>) | null = null;
+        const { session } = createSessionMock();
+        session.pendingSwitch = undefined;
+        session.turnActive = true;
+        session.addNotificationCallback.mockImplementation((callback: () => Promise<void>) => {
+            notificationCallback = callback;
+        });
+        mockClaudeLocal.mockImplementation(async () => {
+            await vi.waitFor(() => expect(notificationCallback).not.toBeNull());
+            await notificationCallback!();
+            // Notification fires but no pendingSwitch → no switch should occur. Resolve normally.
+        });
+
+        const { claudeLocalLauncher } = await import('./claudeLocalLauncher');
+
+        // Result must be a clean exit, NOT a switch — Notification without pendingSwitch is a no-op.
+        await expect(claudeLocalLauncher(session as any)).resolves.toEqual({ type: 'exit', code: 0 });
+        // No deferred-switch state should have been set during the run.
+        expect(session.deferredSwitchCompleting).toBe(false);
+        expect(session.pendingSwitch).toBeUndefined();
+    });
+
+    it('only one of Stop or Notification fires the deferred switch when both arrive', async () => {
+        let turnCompleteCallback: (() => Promise<void>) | null = null;
+        let notificationCallback: (() => Promise<void>) | null = null;
+        const { session } = createSessionMock();
+        session.pendingSwitch = { requestedAt: 1234, messagePreview: 'hello' };
+        session.turnActive = true;
+        session.addTurnCompleteCallback.mockImplementation((callback: () => Promise<void>) => {
+            turnCompleteCallback = callback;
+        });
+        session.addNotificationCallback.mockImplementation((callback: () => Promise<void>) => {
+            notificationCallback = callback;
+        });
+        mockClaudeLocal.mockImplementation(async (opts: { abort: AbortSignal }) => {
+            await vi.waitFor(() => expect(notificationCallback).not.toBeNull());
+            const aborted = new Promise<void>((resolve) => opts.abort.addEventListener('abort', () => resolve(), { once: true }));
+            // Notification fires first (permission prompt) — drains pendingSwitch.
+            // Stop fires later (Claude exited after the abort) — must be a no-op.
+            void notificationCallback!();
+            void turnCompleteCallback!();
+            await aborted;
+        });
+
+        const { claudeLocalLauncher } = await import('./claudeLocalLauncher');
+
+        await expect(claudeLocalLauncher(session as any)).resolves.toEqual({ type: 'switch' });
+        // performSwitch fires exactly once across both callbacks
+        expect(session.client.closeClaudeSessionTurn).toHaveBeenCalledTimes(1);
+        expect(session.client.closeClaudeSessionTurn).toHaveBeenCalledWith('completed');
+    });
+
+    it('cleans up notification callback on every exit path', async () => {
+        let notificationCallback: (() => Promise<void>) | null = null;
+        const { session } = createSessionMock();
+        session.addNotificationCallback.mockImplementation((callback: () => Promise<void>) => {
+            notificationCallback = callback;
+        });
+        mockClaudeLocal.mockResolvedValue(undefined);
+
+        const { claudeLocalLauncher } = await import('./claudeLocalLauncher');
+
+        await expect(claudeLocalLauncher(session as any)).resolves.toEqual({ type: 'exit', code: 0 });
+        expect(session.removeNotificationCallback).toHaveBeenCalledWith(notificationCallback);
     });
 });

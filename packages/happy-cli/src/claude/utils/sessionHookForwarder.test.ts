@@ -72,6 +72,7 @@ describe('session_hook_forwarder', () => {
         ['SessionStart', '/hook/session-start'],
         ['UserPromptSubmit', '/hook/user-prompt-submit'],
         ['Stop', '/hook/stop'],
+        ['Notification', '/hook/notification'],
     ] as const)('routes %s payloads to %s', async (hook_event_name, expectedPath) => {
         const { port, received } = await startRecordingServer();
         const payload = { hook_event_name, session_id: 'claude-session-1' };

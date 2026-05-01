@@ -33,6 +33,8 @@ process.stdin.on('end', () => {
                 path = '/hook/stop';
             } else if (payload.hook_event_name === 'UserPromptSubmit') {
                 path = '/hook/user-prompt-submit';
+            } else if (payload.hook_event_name === 'Notification') {
+                path = '/hook/notification';
             }
         }
     } catch {

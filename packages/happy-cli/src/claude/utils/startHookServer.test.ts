@@ -86,4 +86,24 @@ describe('startHookServer', () => {
         }));
         expect(onSessionHook).not.toHaveBeenCalled();
     });
+
+    it('dispatches Notification hooks to onNotificationHook with the message payload', async () => {
+        const onSessionHook = vi.fn();
+        const onNotificationHook = vi.fn();
+        server = await startHookServer({ onSessionHook, onNotificationHook });
+
+        const response = await postHook(server.port, '/hook/notification', {
+            hook_event_name: 'Notification',
+            session_id: 'claude-session-4',
+            message: 'Claude needs your permission to use Bash',
+        });
+
+        expect(response.status).toBe(200);
+        expect(onNotificationHook).toHaveBeenCalledWith(expect.objectContaining({
+            hook_event_name: 'Notification',
+            session_id: 'claude-session-4',
+            message: 'Claude needs your permission to use Bash',
+        }));
+        expect(onSessionHook).not.toHaveBeenCalled();
+    });
 });
