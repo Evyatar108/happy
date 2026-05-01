@@ -78,6 +78,14 @@ export const zhHans: TranslationStructure = {
         note: '消息将被丢弃',
     },
 
+    abortPrompt: {
+        title: '切换到远程控制?',
+        message: 'Claude 正在本地运行。请选择交接方式:',
+        switchWhenIdle: '空闲时切换',
+        switchNow: '立即切换 (取消任务)',
+        cancel: '继续在本地工作',
+    },
+
     commands: {
         rename: {
             emptyName: '请在 /rename 后输入聊天名称。',

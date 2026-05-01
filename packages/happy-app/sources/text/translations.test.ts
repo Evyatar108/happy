@@ -33,6 +33,11 @@ const REQUIRED_DEFERRED_SWITCH_KEYS = [
     'requestSwitch.whenIdle',
     'cancelPendingSwitch.label',
     'cancelPendingSwitch.note',
+    'abortPrompt.title',
+    'abortPrompt.message',
+    'abortPrompt.switchWhenIdle',
+    'abortPrompt.switchNow',
+    'abortPrompt.cancel',
     'errors.requestSwitchFailed',
     'errors.sendFailed',
 ] as const;

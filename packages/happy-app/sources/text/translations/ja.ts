@@ -79,6 +79,14 @@ export const ja: TranslationStructure = {
         note: 'メッセージは破棄されます',
     },
 
+    abortPrompt: {
+        title: 'リモート操作に切り替えますか?',
+        message: 'Claude はローカルで実行中です。引き継ぎ方法を選択してください:',
+        switchWhenIdle: 'アイドル時に切り替え',
+        switchNow: '今すぐ切り替え (タスクを中断)',
+        cancel: 'ローカルで続行',
+    },
+
     commands: {
         rename: {
             emptyName: '/rename の後にチャット名を入力してください。',

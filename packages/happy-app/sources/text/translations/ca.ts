@@ -76,6 +76,14 @@ export const ca: TranslationStructure = {
         note: 'El missatge es descartarà',
     },
 
+    abortPrompt: {
+        title: 'Canviar a control remot?',
+        message: "Claude s'està executant localment. Tria com cedir el control:",
+        switchWhenIdle: 'Canvia quan acabi',
+        switchNow: 'Canvia ara (cancel·la la tasca)',
+        cancel: 'Continua treballant localment',
+    },
+
     commands: {
         rename: {
             emptyName: 'Afegeix un nom al xat després de /rename.',

@@ -302,6 +302,41 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
         }
     }, [sessionId]);
 
+    const handleAbortPress = React.useCallback(() => {
+        const isLocalClaudeTurn =
+            session.metadata?.flavor === 'claude'
+            && getSessionMode(session) === 'local'
+            && session.agentState?.turnActive === true
+            && session.agentState?.pendingSwitch == null;
+        if (!isLocalClaudeTurn) {
+            void sessionAbort(sessionId);
+            return;
+        }
+        Modal.alert(
+            t('abortPrompt.title'),
+            t('abortPrompt.message'),
+            [
+                {
+                    text: t('abortPrompt.switchWhenIdle'),
+                    onPress: () => {
+                        void requestSwitch(sessionId, 'when-idle').catch((error) => {
+                            console.error('Failed to request switch:', error);
+                            Modal.alert(t('common.error'), t('errors.requestSwitchFailed'));
+                        });
+                    },
+                },
+                {
+                    text: t('abortPrompt.switchNow'),
+                    style: 'destructive',
+                    onPress: () => {
+                        void sessionAbort(sessionId);
+                    },
+                },
+                { text: t('abortPrompt.cancel'), style: 'cancel' },
+            ],
+        );
+    }, [session, sessionId]);
+
     // Handle dismissing CLI version warning
     const handleDismissCliWarning = React.useCallback(() => {
         if (machineId && cliVersion) {
@@ -503,7 +538,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
             }}
             onMicPress={isDisconnected ? undefined : micButtonState.onMicPress}
             isMicActive={isDisconnected ? false : micButtonState.isMicActive}
-            onAbort={isDisconnected ? undefined : () => sessionAbort(sessionId)}
+            onAbort={isDisconnected ? undefined : handleAbortPress}
             showAbortButton={sessionStatus.state === 'thinking' || sessionStatus.state === 'waiting'}
             onFileViewerPress={experiments ? () => router.push(`/session/${sessionId}/files`) : undefined}
             autocompletePrefixes={['@', '/']}

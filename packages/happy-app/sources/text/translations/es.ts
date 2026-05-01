@@ -76,6 +76,14 @@ export const es: TranslationStructure = {
         note: 'El mensaje se descartará',
     },
 
+    abortPrompt: {
+        title: '¿Cambiar a control remoto?',
+        message: 'Claude se está ejecutando localmente. Elige cómo entregar el control:',
+        switchWhenIdle: 'Cambiar al terminar',
+        switchNow: 'Cambiar ahora (cancelar tarea)',
+        cancel: 'Seguir trabajando localmente',
+    },
+
     commands: {
         rename: {
             emptyName: 'Añade un nombre al chat después de /rename.',

@@ -87,6 +87,14 @@ export const pl: TranslationStructure = {
         note: 'Wiadomość zostanie odrzucona',
     },
 
+    abortPrompt: {
+        title: 'Przełączyć na zdalne sterowanie?',
+        message: 'Claude działa lokalnie. Wybierz, jak przekazać kontrolę:',
+        switchWhenIdle: 'Przełącz, gdy się zwolni',
+        switchNow: 'Przełącz teraz (anuluj zadanie)',
+        cancel: 'Pracuj dalej lokalnie',
+    },
+
     commands: {
         rename: {
             emptyName: 'Dodaj nazwę czatu po /rename.',

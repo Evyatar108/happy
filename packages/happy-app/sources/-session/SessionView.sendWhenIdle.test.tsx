@@ -337,3 +337,152 @@ describe('SessionView send-when-idle controls', () => {
         },
     );
 });
+
+describe('SessionView abort prompt — local Claude turn intercepts onAbort with switch options', () => {
+    let modalAlertMock: ReturnType<typeof vi.fn>;
+    let sessionAbortMock: ReturnType<typeof vi.fn>;
+    let requestSwitchMock: ReturnType<typeof vi.fn>;
+
+    beforeEach(async () => {
+        const modalModule = await import('@/modal');
+        modalAlertMock = vi.mocked(modalModule.Modal.alert);
+        modalAlertMock.mockReset();
+        const opsModule = await import('@/sync/ops');
+        sessionAbortMock = vi.mocked(opsModule.sessionAbort);
+        sessionAbortMock.mockReset();
+        sessionAbortMock.mockResolvedValue(undefined);
+        requestSwitchMock = vi.mocked(opsModule.requestSwitch);
+        requestSwitchMock.mockReset();
+        requestSwitchMock.mockResolvedValue({ deferred: true });
+        mockUseSession.mockReset();
+    });
+
+    function findAgentInput(renderer: Renderer) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return renderer.root.findAllByType('AgentInput' as any)[0];
+    }
+
+    function getButton(label: string) {
+        const lastCall = modalAlertMock.mock.calls.at(-1);
+        const buttons = (lastCall?.[2] ?? []) as Array<{ text: string; onPress?: () => void; style?: string }>;
+        return buttons.find((b) => b.text === label);
+    }
+
+    it('shows the modal with three options when tapping abort during a local Claude turn', () => {
+        mockUseSession.mockReturnValue(makeSession());
+        let renderer!: Renderer;
+        act(() => { renderer = TestRenderer.create(<SessionView id="session-1" />); });
+        const agentInput = findAgentInput(renderer);
+
+        act(() => { agentInput.props.onAbort(); });
+
+        expect(modalAlertMock).toHaveBeenCalledOnce();
+        const [title, message, buttons] = modalAlertMock.mock.calls[0] as [string, string, Array<{ text: string }>];
+        expect(title).toBe('abortPrompt.title');
+        expect(message).toBe('abortPrompt.message');
+        expect(buttons.map((b) => b.text)).toEqual([
+            'abortPrompt.switchWhenIdle',
+            'abortPrompt.switchNow',
+            'abortPrompt.cancel',
+        ]);
+        // sessionAbort must NOT fire until the user picks an option
+        expect(sessionAbortMock).not.toHaveBeenCalled();
+        expect(requestSwitchMock).not.toHaveBeenCalled();
+    });
+
+    it('calls requestSwitch(when-idle) when the user picks "Switch when idle"', () => {
+        mockUseSession.mockReturnValue(makeSession());
+        let renderer!: Renderer;
+        act(() => { renderer = TestRenderer.create(<SessionView id="session-1" />); });
+        act(() => { findAgentInput(renderer).props.onAbort(); });
+
+        act(() => { getButton('abortPrompt.switchWhenIdle')!.onPress!(); });
+
+        expect(requestSwitchMock).toHaveBeenCalledExactlyOnceWith('session-1', 'when-idle');
+        expect(sessionAbortMock).not.toHaveBeenCalled();
+    });
+
+    it('calls sessionAbort when the user picks "Switch now"', () => {
+        mockUseSession.mockReturnValue(makeSession());
+        let renderer!: Renderer;
+        act(() => { renderer = TestRenderer.create(<SessionView id="session-1" />); });
+        act(() => { findAgentInput(renderer).props.onAbort(); });
+
+        act(() => { getButton('abortPrompt.switchNow')!.onPress!(); });
+
+        expect(sessionAbortMock).toHaveBeenCalledExactlyOnceWith('session-1');
+        expect(requestSwitchMock).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when the user picks Cancel', () => {
+        mockUseSession.mockReturnValue(makeSession());
+        let renderer!: Renderer;
+        act(() => { renderer = TestRenderer.create(<SessionView id="session-1" />); });
+        act(() => { findAgentInput(renderer).props.onAbort(); });
+
+        const cancelButton = getButton('abortPrompt.cancel');
+        expect(cancelButton).toBeDefined();
+        expect(cancelButton!.style).toBe('cancel');
+        // Cancel button has no onPress — Modal closes naturally, no action fires
+        expect(cancelButton!.onPress).toBeUndefined();
+        expect(sessionAbortMock).not.toHaveBeenCalled();
+        expect(requestSwitchMock).not.toHaveBeenCalled();
+    });
+
+    it('skips the modal in remote mode and calls sessionAbort directly', () => {
+        mockUseSession.mockReturnValue(makeSession({
+            agentState: { controlledByUser: false, turnActive: true },
+        }));
+        let renderer!: Renderer;
+        act(() => { renderer = TestRenderer.create(<SessionView id="session-1" />); });
+
+        act(() => { findAgentInput(renderer).props.onAbort(); });
+
+        expect(modalAlertMock).not.toHaveBeenCalled();
+        expect(sessionAbortMock).toHaveBeenCalledExactlyOnceWith('session-1');
+    });
+
+    it('skips the modal when no turn is active', () => {
+        mockUseSession.mockReturnValue(makeSession({
+            agentState: { controlledByUser: true, turnActive: false },
+        }));
+        let renderer!: Renderer;
+        act(() => { renderer = TestRenderer.create(<SessionView id="session-1" />); });
+
+        act(() => { findAgentInput(renderer).props.onAbort(); });
+
+        expect(modalAlertMock).not.toHaveBeenCalled();
+        expect(sessionAbortMock).toHaveBeenCalledExactlyOnceWith('session-1');
+    });
+
+    it('skips the modal when a pending switch is already armed', () => {
+        mockUseSession.mockReturnValue(makeSession({
+            agentState: { controlledByUser: true, turnActive: true, pendingSwitch: { requestedAt: 1 } },
+        }));
+        let renderer!: Renderer;
+        act(() => { renderer = TestRenderer.create(<SessionView id="session-1" />); });
+
+        act(() => { findAgentInput(renderer).props.onAbort(); });
+
+        // pendingSwitch already set: skip the modal (user can use the sticky banner instead)
+        expect(modalAlertMock).not.toHaveBeenCalled();
+        expect(sessionAbortMock).toHaveBeenCalledExactlyOnceWith('session-1');
+    });
+
+    it.each(['codex', 'gemini', 'openclaw', 'opencode'])(
+        'skips the modal for non-Claude flavor %s',
+        (flavor) => {
+            mockUseSession.mockReturnValue(makeSession({
+                metadata: { flavor, path: '', host: '' },
+                agentState: { controlledByUser: true, turnActive: true },
+            }));
+            let renderer!: Renderer;
+            act(() => { renderer = TestRenderer.create(<SessionView id="session-1" />); });
+
+            act(() => { findAgentInput(renderer).props.onAbort(); });
+
+            expect(modalAlertMock).not.toHaveBeenCalled();
+            expect(sessionAbortMock).toHaveBeenCalledExactlyOnceWith('session-1');
+        },
+    );
+});

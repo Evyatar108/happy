@@ -87,6 +87,14 @@ export const ru: TranslationStructure = {
         note: 'Сообщение будет удалено',
     },
 
+    abortPrompt: {
+        title: 'Переключить на удалённое управление?',
+        message: 'Claude работает локально. Выберите, как передать управление:',
+        switchWhenIdle: 'Переключить, когда освободится',
+        switchNow: 'Переключить сейчас (отменить задачу)',
+        cancel: 'Продолжить локально',
+    },
+
     commands: {
         rename: {
             emptyName: 'Добавьте название чата после /rename.',

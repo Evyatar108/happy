@@ -91,6 +91,14 @@ export const en: TranslationStructure = {
         note: 'Message will be discarded',
     },
 
+    abortPrompt: {
+        title: 'Switch to remote control?',
+        message: 'Claude is running locally. Choose how to hand off:',
+        switchWhenIdle: 'Switch when idle',
+        switchNow: 'Switch now (cancel turn)',
+        cancel: 'Keep working locally',
+    },
+
     commands: {
         rename: {
             emptyName: 'Add a chat name after /rename.',

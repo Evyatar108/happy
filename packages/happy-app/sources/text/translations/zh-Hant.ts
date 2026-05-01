@@ -78,6 +78,14 @@ export const zhHant: TranslationStructure = {
         note: '訊息將被丟棄',
     },
 
+    abortPrompt: {
+        title: '切換到遠端控制?',
+        message: 'Claude 正在本機執行。請選擇交接方式:',
+        switchWhenIdle: '閒置時切換',
+        switchNow: '立即切換 (取消任務)',
+        cancel: '繼續在本機工作',
+    },
+
     commands: {
         rename: {
             emptyName: '請在 /rename 後輸入聊天名稱。',
