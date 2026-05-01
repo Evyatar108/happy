@@ -20,6 +20,7 @@ vi.mock('./apiSocket', () => ({
         sessionRPC: mocks.sessionRPC,
         initialize: vi.fn(),
         onStatusChange: vi.fn(),
+        onReconnected: vi.fn(),
         request: vi.fn(),
         emitWithAck: vi.fn(),
     },

@@ -102,7 +102,7 @@ vi.mock('@/sync/storage', () => ({
     useSetting: () => false,
 }));
 const mockSendMessage = vi.fn<() => Promise<void>>();
-vi.mock('@/sync/sync', () => ({ sync: { onSessionVisible: vi.fn(), sendMessage: (..._args: unknown[]) => mockSendMessage() } }));
+vi.mock('@/sync/sync', () => ({ sync: { onSessionVisible: vi.fn(), onActiveSessionChanged: vi.fn(), reportRenderWindow: vi.fn(), sendMessage: (..._args: unknown[]) => mockSendMessage() } }));
 vi.mock('@/track', () => ({ tracking: { capture: vi.fn() } }));
 vi.mock('@/sync/persistence', () => ({ getVoiceMessageCount: () => 0, getVoiceOnboardingPromptLoadCount: () => 0 }));
 vi.mock('@/utils/platform', () => ({ isRunningOnMac: () => false }));
