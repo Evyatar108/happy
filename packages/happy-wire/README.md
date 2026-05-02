@@ -122,6 +122,7 @@ The goal is to keep CLI/app/server/agent on the same wire contract and avoid sch
 - `src/messages.ts`
 - `src/legacyProtocol.ts`
 - `src/sessionProtocol.ts`
+- `src/nonRenderablePolicy.ts`
 
 ### `messages.ts` exports
 
@@ -204,6 +205,33 @@ Schemas + inferred types:
 - `SessionEnvelope`
 - `CreateEnvelopeOptions`
 - `createEnvelope(...)`
+
+### `nonRenderablePolicy.ts` exports
+
+Shared registry of non-renderable-content matchers. The same entries drive the
+happy-cli sender-drop filter (applied in `sendClaudeSessionMessage(...)` before
+wire envelopes are built) and the happy-app receiver-side strip
+(`skillBody.ts`, `processClaudeMetaTags.ts`), so both sides agree on what never
+reaches the rendered transcript.
+
+Types:
+- `NonRenderableEntry`
+- `RawClaudeMessageMatchInput`
+- `ReceiverRegexFactory`
+
+Registry entries:
+- `skillBodyEntry`
+- `localCommandCaveatEntry`
+- `systemReminderEntry`
+- `forkBoilerplateEntry`
+- `nonRenderableEntries`
+
+Helpers:
+- `makeWrappedTagEntry(tagName, opts?)` — factory producing a `NonRenderableEntry`
+  for `<tagName>...</tagName>` wrappers; returns fresh `RegExp` instances per
+  call so the receiver's stateful `/gi` matchers stay correct.
+- `findSenderDropEntry(raw)` — returns the first entry whose `senderPredicate`
+  matches the raw Claude JSONL message, or `null`.
 
 ## Wire Type Specifications
 
