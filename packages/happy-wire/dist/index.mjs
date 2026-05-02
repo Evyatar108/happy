@@ -279,4 +279,70 @@ const VoiceUsageResponseSchema = z.object({
   elevenUserId: z.string()
 });
 
-export { AgentMessageSchema, ApiMessageSchema, ApiUpdateMachineStateSchema, ApiUpdateNewMessageSchema, ApiUpdateSessionStateSchema, CoreUpdateBodySchema, CoreUpdateContainerSchema, LegacyMessageContentSchema, MessageContentSchema, MessageMetaSchema, SessionMessageContentSchema, SessionMessageRangeRequestSchema, SessionMessageRangeResponseSchema, SessionMessageSchema, SessionProtocolMessageSchema, UpdateBodySchema, UpdateMachineBodySchema, UpdateNewMessageBodySchema, UpdateSchema, UpdateSessionBodySchema, UserMessageSchema, VersionedEncryptedValueSchema, VersionedMachineEncryptedValueSchema, VersionedNullableEncryptedValueSchema, VoiceConversationDeniedSchema, VoiceConversationGrantedSchema, VoiceConversationResponseSchema, VoiceUsageResponseSchema, createEnvelope, sessionContextBoundaryEventSchema, sessionContextBoundaryKindSchema, sessionContextBoundaryTriggeredBySchema, sessionEnvelopeSchema, sessionEventSchema, sessionFileEventSchema, sessionRoleSchema, sessionServiceMessageEventSchema, sessionStartEventSchema, sessionStopEventSchema, sessionTextEventSchema, sessionToolCallEndEventSchema, sessionToolCallStartEventSchema, sessionTurnEndEventSchema, sessionTurnEndStatusSchema, sessionTurnStartEventSchema };
+const SKILL_BODY_PREFIX_RE = /^Base directory for this skill: \S[^\r\n]*\r?\n\r?\n# /;
+function isRecord(value) {
+  return typeof value === "object" && value !== null;
+}
+function isMatchInput(raw) {
+  return isRecord(raw) && typeof raw.type === "string" && isRecord(raw.message) && "content" in raw.message;
+}
+function getUserText(raw) {
+  if (raw.type !== "user") {
+    return null;
+  }
+  const { content } = raw.message;
+  if (typeof content === "string") {
+    return content;
+  }
+  if (Array.isArray(content) && content.length === 1) {
+    const [block] = content;
+    if (isRecord(block) && block.type === "text" && typeof block.text === "string") {
+      return block.text;
+    }
+  }
+  return null;
+}
+function makeWrappedTagEntry(tagName) {
+  const inlineSource = `<${tagName}(?:\\s[^>]*)?>[\\s\\S]*?<\\/${tagName}>`;
+  const standaloneLineSource = `(^|\\n)<${tagName}(?:\\s[^>]*)?>[\\s\\S]*?<\\/${tagName}>(\\n|$)`;
+  return {
+    name: tagName,
+    receiverMatchSite: "wrapped-tag",
+    receiverRegexes: {
+      buildInlineRe: () => new RegExp(inlineSource, "gi"),
+      buildStandaloneLineRe: () => new RegExp(standaloneLineSource, "gi")
+    }
+  };
+}
+const skillBodyEntry = {
+  name: "skill-body",
+  receiverMatchSite: "skill-body-prefix",
+  receiverPrefix: SKILL_BODY_PREFIX_RE,
+  senderPredicate: (raw) => {
+    const text = getUserText(raw);
+    return text !== null && SKILL_BODY_PREFIX_RE.test(text);
+  }
+};
+const localCommandCaveatEntry = {
+  ...makeWrappedTagEntry("local-command-caveat"),
+  senderPredicate: (raw) => {
+    const text = getUserText(raw);
+    return text !== null && /^\s*<local-command-caveat(?:\s[^>]*)?>[\s\S]*?<\/local-command-caveat>\s*$/i.test(text);
+  }
+};
+const systemReminderEntry = makeWrappedTagEntry("system-reminder");
+const forkBoilerplateEntry = makeWrappedTagEntry("fork-boilerplate");
+const nonRenderableEntries = [
+  skillBodyEntry,
+  localCommandCaveatEntry,
+  systemReminderEntry,
+  forkBoilerplateEntry
+];
+function findSenderDropEntry(raw) {
+  if (!isMatchInput(raw)) {
+    return null;
+  }
+  return nonRenderableEntries.find((entry) => entry.senderPredicate?.(raw)) ?? null;
+}
+
+export { AgentMessageSchema, ApiMessageSchema, ApiUpdateMachineStateSchema, ApiUpdateNewMessageSchema, ApiUpdateSessionStateSchema, CoreUpdateBodySchema, CoreUpdateContainerSchema, LegacyMessageContentSchema, MessageContentSchema, MessageMetaSchema, SessionMessageContentSchema, SessionMessageRangeRequestSchema, SessionMessageRangeResponseSchema, SessionMessageSchema, SessionProtocolMessageSchema, UpdateBodySchema, UpdateMachineBodySchema, UpdateNewMessageBodySchema, UpdateSchema, UpdateSessionBodySchema, UserMessageSchema, VersionedEncryptedValueSchema, VersionedMachineEncryptedValueSchema, VersionedNullableEncryptedValueSchema, VoiceConversationDeniedSchema, VoiceConversationGrantedSchema, VoiceConversationResponseSchema, VoiceUsageResponseSchema, createEnvelope, findSenderDropEntry, forkBoilerplateEntry, localCommandCaveatEntry, makeWrappedTagEntry, nonRenderableEntries, sessionContextBoundaryEventSchema, sessionContextBoundaryKindSchema, sessionContextBoundaryTriggeredBySchema, sessionEnvelopeSchema, sessionEventSchema, sessionFileEventSchema, sessionRoleSchema, sessionServiceMessageEventSchema, sessionStartEventSchema, sessionStopEventSchema, sessionTextEventSchema, sessionToolCallEndEventSchema, sessionToolCallStartEventSchema, sessionTurnEndEventSchema, sessionTurnEndStatusSchema, sessionTurnStartEventSchema, skillBodyEntry, systemReminderEntry };
