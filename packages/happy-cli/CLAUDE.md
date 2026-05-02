@@ -105,6 +105,19 @@ Absence of `currentPermissionModeCode` is meaningful: it represents "no opinion 
 
 **Context-boundary emission:** lifecycle signals must go through `ApiSessionClient.sendContextBoundary()` so the typed envelope, legacy dual-emit fallback, and `metadata.latestBoundary` update stay in lockstep. The helper sends the typed `context-boundary` envelope first, then the legacy compatibility event with `meta.contextBoundaryFallback: true`; app clients suppress that flagged fallback. If a Claude log mapper detects a boundary-worthy tool call, return a boundary intent from the mapper and route it through `sendContextBoundary()` in `apiSession.ts`; do not emit a `context-boundary` envelope directly from the mapper.
 
+**Non-renderable Claude JSONL filter:** the shared registry lives in `packages/happy-wire/src/nonRenderablePolicy.ts`. `ApiSessionClient.sendClaudeSessionMessage(...)` in `src/api/apiSession.ts` must call `findSenderDropEntry(body)` at the very top, before `normalizeSessionLogMessage(...)`, mapper calls, envelope creation, or outbox enqueue. The sender contract is deliberately strict: it drops only whole raw `type === 'user'` messages that are known non-renderable (`skill-body` and standalone `local-command-caveat` in v0), and logs only `{ class: entry.name }` for privacy. The receiver contract stays more permissive: happy-app imports the same registry and still strips matching render-time artifacts as defense in depth for old stored sessions and SDK drift.
+
+Empirical v0 policy snapshot:
+
+| Date | Command | Class | Result | Sender policy | Rationale |
+|---|---|---|---|---|---|
+| 2026-05-01 | `grep -cE '<(system-reminder|local-command-caveat|fork-boilerplate)>' ~/.claude/projects/<recent>.jsonl` | `local-command-caveat` | observed in recent JSONL (sample count 1) | Drop at sender | Whole-message caveat is Claude-only instruction text with no human value. |
+| 2026-05-01 | same | `system-reminder` | 0 in sampled recent file | Receiver-only | Keep sender narrow; empirical sender sightings were not enough to justify encrypted-outbox dropping. |
+| 2026-05-01 | same | `fork-boilerplate` | 0 in sampled recent file | Receiver-only | Fork-child scaffolding remains render-time cleanup unless it appears as a whole raw sender artifact. |
+| 2026-05-01 | not XML, identified from Skill tool JSONL shape | `skill-body` | observed as post-Skill `SKILL.md` body injection | Drop at sender | The Skill ToolView already represents the user-visible action; the injected body is duplicate implementation text. |
+
+Do not add `thinking` blocks to the non-renderable sender policy. Extended thinking is renderable user value gated in the app, and the carve-out is cross-linked from `docs/plans/render-extended-thinking-optional.md`.
+
 **Wrapped-slash-command detection (F-012 / F-013):** Claude Code's TUI / SDK wraps slash commands as `<command-name>/clear</command-name>\n<command-message>clear</command-message>...` before forwarding them through both the inbound socket message channel AND the JSONL stream. Two detection sites must stay in sync, and **production traffic flows through the second one**:
 
 1. **Inbound (`parseSpecialCommand` in `parsers/specialCommands.ts`):** matches both the literal `/clear` form AND the `<command-name>/clear</command-name>` wrapped form. Same for `/compact`. Used by `claudeRemote.ts:98` and `runClaude.ts:338` for messages received over the CLI socket.
