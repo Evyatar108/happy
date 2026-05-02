@@ -52,11 +52,11 @@ function getUserContentShape(raw: RawClaudeMessageMatchInput): UserContentShape 
   return null;
 }
 
-export function makeWrappedTagEntry(tagName: string): NonRenderableEntry {
+export function makeWrappedTagEntry(tagName: string, opts?: { enableSender?: boolean }): NonRenderableEntry {
   const inlineSource = `<${tagName}(?:\\s[^>]*)?>[\\s\\S]*?<\\/${tagName}>`;
   const standaloneLineSource = `(^|\\n)<${tagName}(?:\\s[^>]*)?>[\\s\\S]*?<\\/${tagName}>(\\n|$)`;
 
-  return {
+  const entry: NonRenderableEntry = {
     name: tagName,
     receiverMatchSite: 'wrapped-tag',
     receiverRegexes: {
@@ -64,6 +64,16 @@ export function makeWrappedTagEntry(tagName: string): NonRenderableEntry {
       buildStandaloneLineRe: () => new RegExp(standaloneLineSource, 'gi'),
     },
   };
+
+  if (opts?.enableSender) {
+    const fullStringRe = new RegExp('^\\s*' + inlineSource + '\\s*$', 'i');
+    entry.senderPredicate = (raw) => {
+      const shaped = getUserContentShape(raw);
+      return shaped !== null && shaped.shape === 'string' && fullStringRe.test(shaped.text);
+    };
+  }
+
+  return entry;
 }
 
 export const skillBodyEntry: NonRenderableEntry = {
@@ -76,17 +86,7 @@ export const skillBodyEntry: NonRenderableEntry = {
   },
 };
 
-export const localCommandCaveatEntry: NonRenderableEntry = {
-  ...makeWrappedTagEntry('local-command-caveat'),
-  senderPredicate: (raw) => {
-    const shaped = getUserContentShape(raw);
-    return (
-      shaped !== null &&
-      shaped.shape === 'string' &&
-      /^\s*<local-command-caveat(?:\s[^>]*)?>[\s\S]*?<\/local-command-caveat>\s*$/i.test(shaped.text)
-    );
-  },
-};
+export const localCommandCaveatEntry: NonRenderableEntry = makeWrappedTagEntry('local-command-caveat', { enableSender: true });
 
 export const systemReminderEntry: NonRenderableEntry = makeWrappedTagEntry('system-reminder');
 export const forkBoilerplateEntry: NonRenderableEntry = makeWrappedTagEntry('fork-boilerplate');
