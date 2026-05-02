@@ -6,6 +6,160 @@ Enable a Codex session to be **continuously usable from any active client** (lap
 
 This is the natural answer to "deferred local→remote switch when Claude is paused mid-turn" that we couldn't solve cleanly for Claude (see Background section). Codex's architecture already provides every primitive needed; this plan is mostly about exposing them coherently in the UX, not building new infrastructure.
 
+## Quick-start orientation for an agent picking this up
+
+If you've just been handed this plan and the prior conversation is gone, read in this order to bootstrap:
+
+1. **This whole file** end-to-end (~10 min). Don't skip the verification scripts or the failure modes — they capture context that would otherwise be lost.
+2. **`packages/happy-cli/CLAUDE.md`** — fork-wide architecture overview. Especially the **"Codex exclusion"** paragraph and the existing daemon/release/iteration skill memos. The "v1 limitation — pendingSwitch" note in the Claude section is the failure case this plan supersedes.
+3. **`packages/happy-cli/src/codex/runCodex.ts`** — main entrypoint for `happy codex`. Read top-to-bottom; ~600 lines. Pay attention to `abortInProgress` (lines 258-296), `permissionHandler` registration, and the `mockClaudeLocal` is irrelevant — Codex uses a different lifecycle entirely.
+4. **`packages/happy-cli/src/codex/codexAppServerClient.ts`** — JSON-RPC client. Read lines 1-100 for the protocol overview comment, then jump to `handleServerRequest` (lines 1079-1123) for approval routing. The `--listen stdio://` arg is at line 394.
+5. **`packages/happy-cli/src/codex/utils/permissionHandler.ts`** — `CodexPermissionHandler`. ~300 lines. This is where multi-client coordination would live if Phase 0 reveals fan-out gaps.
+6. **`docs/plans/codex-app-server-migration.md`** — sibling plan that documents the migration to `app-server` (already complete). Provides historical context for why the architecture is shaped the way it is.
+7. **Run the reproducible verification** (next section) on your machine. ~5 minutes. Confirms the architectural primitive still works on whatever Codex CLI version is installed (it's evolving).
+
+After step 7 you should be able to read the rest of this plan with full context.
+
+## Reproducible verification (run before starting Phase 1)
+
+This whole plan is built on the assumption that `codex app-server --listen ws://...` + multi-client connections work. We verified this empirically on **codex-cli 0.125.0-copilot-api.8** on **2026-05-02** on Windows. Re-run before committing to Phase 1, in case the upstream protocol shifted.
+
+### Pre-reqs
+
+```bash
+codex --version    # Should print something like "codex-cli 0.125.0-..." or later
+which codex        # Must exist on PATH
+```
+
+If codex isn't installed: `npm install -g @openai/codex`.
+
+### Step 1: Start app-server with WebSocket listener
+
+```bash
+cd /tmp
+codex app-server --listen 'ws://127.0.0.1:51234' --analytics-default-enabled > codex-app-server.log 2>&1 &
+APPSRV_PID=$!
+sleep 3
+ps -p $APPSRV_PID && echo "alive" || echo "dead"
+netstat.exe -ano | grep ':51234.*LISTEN'    # On Windows; Linux: ss -ltn | grep ':51234'
+cat codex-app-server.log
+```
+
+Expected: `alive`, port 51234 listening, log shows `listening on: ws://127.0.0.1:51234`.
+
+### Step 2: Smoke-test JSON-RPC handshake
+
+Save as `verify-rpc.cjs`:
+
+```javascript
+const WebSocket = require('PATH/TO/happy-cli/node_modules/ws');  // adjust path
+const ws = new WebSocket('ws://127.0.0.1:51234');
+let nextId = 1;
+ws.on('open', () => {
+    ws.send(JSON.stringify({
+        jsonrpc: '2.0', id: nextId++, method: 'initialize',
+        params: { clientInfo: { name: 'verify', version: '0.0.1' } },
+    }));
+});
+ws.on('message', (data) => { console.log('←', data.toString()); ws.close(); process.exit(0); });
+ws.on('error', (e) => { console.error('ERROR', e.message); process.exit(3); });
+setTimeout(() => process.exit(2), 8000);
+```
+
+Run: `node verify-rpc.cjs`. Expected output: a JSON response with `userAgent`, `codexHome`, `platformFamily`, `platformOs`. If you get this, the WebSocket transport is alive and JSON-RPC works.
+
+### Step 3: Multi-client smoke test
+
+Save as `verify-multiclient.cjs`:
+
+```javascript
+const WebSocket = require('PATH/TO/happy-cli/node_modules/ws');
+const url = 'ws://127.0.0.1:51234';
+
+function client(label) {
+    return new Promise((resolve) => {
+        const ws = new WebSocket(url);
+        let id = 1;
+        ws.on('open', () => {
+            ws.send(JSON.stringify({ jsonrpc: '2.0', id: id++, method: 'initialize',
+                params: { clientInfo: { name: label, version: '0.0.1' } } }));
+        });
+        ws.on('message', (d) => {
+            const obj = JSON.parse(d.toString());
+            if (obj.id === 1) {
+                console.log(`[${label}] initialize OK codexHome=${obj.result?.codexHome}`);
+                ws.close();
+                resolve();
+            }
+        });
+        ws.on('error', (e) => { console.error(`[${label}] ERR`, e.message); resolve(); });
+    });
+}
+
+(async () => {
+    await Promise.all([client('clientA'), client('clientB')]);
+    console.log('=== both clients exited ===');
+    process.exit(0);
+})();
+```
+
+Run: `node verify-multiclient.cjs`. Expected: both `clientA initialize OK` AND `clientB initialize OK`. If both succeed, multi-client primitive is confirmed working on your machine.
+
+### Step 4: Discover the full RPC method list
+
+Save as `discover-methods.cjs`:
+
+```javascript
+const WebSocket = require('PATH/TO/happy-cli/node_modules/ws');
+const ws = new WebSocket('ws://127.0.0.1:51234');
+let id = 1;
+ws.on('open', () => {
+    ws.send(JSON.stringify({ jsonrpc: '2.0', id: id++, method: 'initialize',
+        params: { clientInfo: { name: 'discover', version: '0.0.1' } } }));
+});
+ws.on('message', (d) => {
+    const obj = JSON.parse(d.toString());
+    if (obj.id === 1) {
+        // Send a deliberately-bad method to harvest the supported list
+        ws.send(JSON.stringify({ jsonrpc: '2.0', id: id++, method: '__discover__', params: {} }));
+    }
+    if (obj.id === 2) {
+        const m = obj.error?.message?.match(/expected one of (.+)$/s);
+        console.log(m ? m[1].split(',').map(s => s.trim().replace(/[`'"]/g, '')).join('\n') : 'parse failed');
+        ws.close();
+        process.exit(0);
+    }
+});
+setTimeout(() => process.exit(2), 8000);
+```
+
+Run: `node discover-methods.cjs`. As of 2026-05-02, this returned ~50 methods. If yours is different, the protocol has evolved — update this plan's "verified RPC surface" section accordingly.
+
+### Step 5: Real native-TUI multi-client test (manual, requires two terminals)
+
+This requires a TTY-attached terminal — can't be scripted.
+
+```bash
+# Terminal 1 (already running app-server from Step 1)
+
+# Terminal 2:
+codex --remote ws://127.0.0.1:51234
+
+# Terminal 3 (separate):
+codex --remote ws://127.0.0.1:51234
+```
+
+In Terminal 2: send a message. Verify Terminal 3's TUI shows the same message in real-time. Then send a message from Terminal 3; verify Terminal 2 sees it. If both work, the multi-client UX is real, not just the connection layer.
+
+If the TUI clients can answer permission prompts and one client's answer dismisses the other's, simultaneous-client coordination works at the Codex layer and Happy doesn't need to add coordination.
+
+### Cleanup
+
+```bash
+taskkill.exe //F //PID $APPSRV_PID    # Windows; Linux: kill $APPSRV_PID
+rm verify-rpc.cjs verify-multiclient.cjs discover-methods.cjs codex-app-server.log
+```
+
 ## Phase 0 verification result (2026-05-02)
 
 Empirical verification of the multi-client primitive — all GREEN:
@@ -39,6 +193,70 @@ Codex's CLI already exposes the multi-client primitive we want:
 This means: a single shared `codex app-server` can have Happy CLI as one client, the **actual native Codex TUI as another client**, and the phone app (via Happy's relay) as a third client — all seeing the same conversation, all able to send messages, all able to answer prompts. We don't need to chase TUI feature parity in our ink renderer; we can just expose the option of running Codex's polished native TUI alongside Happy's renderer, both connected to the same backend.
 
 This is a materially better Phase 1 scope than the original draft assumed. Most of "build the seamless multi-device experience" reduces to "switch the listener from `stdio://` to `ws://127.0.0.1:N` and support spawning `codex --remote` as an opt-in client."
+
+## Verified RPC surface (codex-cli 0.125.0-copilot-api.8, 2026-05-02)
+
+Full method list returned by the protocol error-message discovery. Group by area:
+
+**Lifecycle:**
+- `initialize`
+
+**Threads (the conversation primitive):**
+- `thread/start` — start a new thread
+- `thread/resume` — resume an existing thread
+- `thread/fork` — fork an existing thread
+- `thread/archive` / `thread/unarchive`
+- `thread/list` — list threads
+- `thread/loaded/list` — list currently-loaded threads
+- `thread/read` — read a thread's content
+- `thread/turns/list` — list turns within a thread
+- `thread/inject_items` — **inject context items into a thread (the "synthetic preamble" equivalent we wanted for Claude is a first-class RPC for Codex)**
+- `thread/rollback` — rollback to a prior state
+- `thread/name/set` / `thread/metadata/update`
+- `thread/memoryMode/set` / `memory/reset`
+- `thread/compact/start` — trigger compaction
+- `thread/shellCommand` — execute a shell command in the thread context
+- `thread/approveGuardianDeniedAction` — approve actions previously denied by sandboxing
+- **`thread/backgroundTerminals/clean` — first-class background-task lifecycle management**
+- `thread/increment_elicitation` / `thread/decrement_elicitation` — elicitation counters
+- `thread/unsubscribe` — unsubscribe a client from a thread
+
+**Turns (within a thread):**
+- `turn/start` — start a new turn
+- `turn/steer` — mid-turn steering (insert guidance while Claude is generating)
+- `turn/interrupt` — interrupt the current turn
+
+**Real-time audio:**
+- `thread/realtime/start` / `thread/realtime/stop`
+- `thread/realtime/appendAudio` / `thread/realtime/appendText`
+- `thread/realtime/listVoices`
+
+**Skills, marketplace, plugins:**
+- `skills/list` / `skills/config/write`
+- `marketplace/add` / `marketplace/remove` / `marketplace/upgrade`
+- `plugin/list` / `plugin/read` / `plugin/install` / `plugin/uninstall`
+
+**App / Models / Features:**
+- `app/list`
+- `model/list`
+- `experimentalFeature/list` / `experimentalFeature/enablement/set`
+- `collaborationMode/list` — **collaboration mode is a documented concept**
+
+**Device & FS delegation:**
+- `device/key/create` / `device/key/public` / `device/key/sign`
+- `fs/readFile` / `fs/writeFile` / `fs/createDirectory` / `fs/getMetadata`
+- `fs/readDirectory` / `fs/remove` / `fs/copy`
+- `fs/watch` / `fs/unwatch`
+
+**Reviews:**
+- `review/start`
+
+**Server-side requests** (the app-server calls these on the client; not client→server):
+- `mcpServer/elicitation/request` — MCP tool needs user input (the AskUserQuestion equivalent)
+- `item/commandExecution/requestApproval` — command execution approval (Bash equivalent)
+- `item/fileChange/requestApproval` — file change approval
+
+If the upstream protocol changes, re-run Step 4 of the verification and update this list.
 
 ## Background — why Codex, not Claude
 
@@ -138,6 +356,53 @@ Original Phase 0 sweep — covers single-client `happy codex` behaviors. Run onl
 6. Spawn a long background task. Disconnect terminal. Is the task still running? Does its output reach the app?
 7. Trigger MCP elicitation — same questions as #4.
 
+### Phase 1 implementation specifics
+
+Detailed code-modification points to start from:
+
+**File 1: `packages/happy-cli/src/codex/codexAppServerClient.ts`**
+
+Around line 394, the current spawn args:
+```typescript
+let args = ['app-server', '--listen', 'stdio://'];
+```
+
+Change to a per-launch random port + auth token approach:
+```typescript
+const port = await pickRandomLocalPort();  // need to add helper
+const authToken = generateRandomBase64(32);  // need to add helper
+process.env.HAPPY_CODEX_AUTH_TOKEN = authToken;
+let args = [
+    'app-server',
+    '--listen', `ws://127.0.0.1:${port}`,
+    '--remote-auth-token-env', 'HAPPY_CODEX_AUTH_TOKEN',
+];
+```
+
+Then the spawn-and-connect path needs to switch from the current stdio child handles to a WebSocket client connection. The `cross-spawn` import and stdio handling logic in this file (~lines 50-200) is where the change concentrates.
+
+For the WebSocket client side, Happy CLI already has `ws` as a dependency (used in `apiSocket.ts`). Look at how Codex Web (in `@openai/codex` repo, codex-rs/app-server-web docs) connects as a reference; the JSON-RPC framing is the same — just transported over WebSocket frames instead of newline-delimited stdio bytes.
+
+**File 2: `packages/happy-cli/src/codex/runCodex.ts`**
+
+Adding a `--use-codex-tui` opt-in flag would route here. After app-server starts and the `port`/`authToken` are known, if the flag is set, spawn `codex --remote ws://127.0.0.1:${port} --remote-auth-token-env HAPPY_CODEX_AUTH_TOKEN` as a child process inheriting stdio (the user's terminal becomes Codex's TUI). The child's exit signals end-of-session for that client; Happy CLI's own ink renderer is skipped.
+
+When `--use-codex-tui` is NOT set, the existing ink renderer flow continues unchanged. App-server is just talking over ws instead of stdio internally.
+
+**File 3 (create new): `packages/happy-cli/src/codex/transport/wsTransport.ts`**
+
+Wraps the existing `JsonRpcConnection` interface around a WebSocket client instead of stdio handles. Existing `codexAppServerClient.ts` should not need to know about the transport switch — it just calls a different factory.
+
+**File 4: tests**
+
+`packages/happy-cli/src/codex/codexAppServerClient.test.ts` is the existing test file (1100+ lines, grep for it). The mock pattern uses fake JSON-RPC envelopes; the same pattern works for ws transport — only the input/output channel changes.
+
+Specific assertions Phase 1 needs:
+- App-server stays alive when one client disconnects (other clients still attached)
+- `initialize` succeeds for both Happy CLI's connection AND a hypothetical second client
+- `--remote-auth-token-env` rejects a connection without the matching token (security)
+- Lifecycle: app-server child is force-restartable (mirrors existing `abortTurnWithFallback` test patterns)
+
 ### Phase 1 — Switch Happy's app-server listener to ws/unix and support native TUI as opt-in client (sized after Phase 0)
 
 Assuming Phase 0 confirms multi-client behavior works:
@@ -164,6 +429,67 @@ If Phase 0 reveals gaps in the multi-client primitive itself (e.g., simultaneous
 - Update `packages/happy-app/CLAUDE.md` with what app users should expect
 - Write user-facing docs covering "your session lives across devices"
 - Compare/contrast section: Claude's deferred-switch limits vs. Codex's seamless model — guide users on which to choose
+
+## Testing approach
+
+### Existing test patterns to mirror
+
+- `packages/happy-cli/src/codex/codexAppServerClient.test.ts` — JSON-RPC client mock framing pattern
+- `packages/happy-cli/src/codex/codex.integration.test.ts` — real-Codex integration test (skipped if CLI not installed)
+- `packages/happy-cli/src/codex/runCodexPublishMode.test.ts` — runCodex.ts wiring tests
+- `packages/happy-cli/src/codex/utils/permissionHandler.test.ts` if exists; otherwise grep for `CodexPermissionHandler` test usages
+
+### Test invocation
+
+Per `packages/happy-cli/CLAUDE.md`:
+- File-scoped: `pnpm --filter happy exec vitest run src/codex/...`
+- Full package: `npm_config_script_shell=bash pnpm --filter happy test` (note the env var; required on Windows for `$npm_execpath` to expand)
+
+### Real-Codex integration testing (manual)
+
+After Phase 1 lands, run on real machine:
+
+1. `pnpm --filter happy build` — rebuild dist
+2. `happy-dev codex` (or whatever variant flag opts into the new path) — start a session
+3. Connect via phone app to the same session
+4. Send messages from terminal; verify phone sees them
+5. Send messages from phone; verify terminal sees them
+6. Trigger a Bash approval; verify both see the prompt and either can answer
+7. Spawn a long task; close the terminal; verify the task keeps running and phone can interact
+8. Reopen `happy-dev codex` on laptop; verify it attaches to the existing session
+
+If the `--use-codex-tui` flag is added, also test:
+- Native Codex TUI launches and is usable
+- Phone-side answering works while native TUI is the foreground
+- Closing the TUI doesn't kill the session if phone is still connected
+
+## Failure modes and debugging
+
+### App-server doesn't start
+
+Logs: stdout/stderr of the spawned `codex app-server`. In Happy's flow today, this is captured via stdio pipes. After Phase 1, since stdio is no longer used for IPC, route the app-server's stdout/stderr to a log file at `~/.happy-dev/logs/codex-app-server-<sid>.log`.
+
+Common causes:
+- Codex CLI not installed (`codex --version` fails)
+- Port collision (another process on the chosen port)
+- Auth token env var not exported correctly
+- Codex CLI version mismatch (older versions may not support `--listen ws://`)
+
+### Multi-client behavior diverges from expectations
+
+Reproduce with Step 5 of the verification scripts (two `codex --remote` clients). If the upstream `codex-cli` has changed behavior:
+- Update the verified RPC surface in this plan
+- File an issue against `openai/codex` if the multi-client semantics regressed
+
+### Auth token rejection
+
+Each connection needs `Authorization: Bearer <token>` header (or whatever scheme `--remote-auth-token-env` implements; verify with the Codex source if needed). The `--remote-auth-token-env` flag tells the SERVER to require the token; clients must include it in their initial WebSocket handshake.
+
+For Happy's relay path (phone → Happy server → laptop CLI → app-server), the laptop CLI is the one connecting to app-server, so it's the one that needs the token. Phone doesn't need to know about it.
+
+### Background tasks not surviving client disconnect
+
+Verify with: spawn a `sleep 60` background bash via Codex; observe `thread/backgroundTerminals` state across a client disconnect. If the task dies, it's a Codex bug to file upstream — Happy can't fix it. The plan assumes this works because that's the entire architectural point.
 
 ## Out of scope
 
@@ -204,3 +530,17 @@ If Phase 0 reveals gaps in the multi-client primitive itself (e.g., simultaneous
 ### Conversation context
 
 This plan was written after extensive design discussion comparing Claude's deferred-switch implementation (which has structural gaps) with Codex's RPC architecture (which doesn't). Key conclusion: Codex's design is empirical evidence that path Q (uniform RPC for the agent process) is feasible and clean. Rather than refactoring Claude to match, the cheaper path is to invest in Codex's UX where the architecture already supports the goal.
+
+## Codex CLI version pin
+
+Verified against **codex-cli 0.125.0-copilot-api.8** on Windows 10.0.26200, 2026-05-02. The protocol may have shifted in later versions; always re-run the verification scripts in this plan before assuming the surface is what's documented here. If the protocol changes, update this plan's "Verified RPC surface" section and `app-server` invocation flags accordingly.
+
+## Glossary
+
+- **app-server** — Codex's headless backend. Started via `codex app-server [--listen URL]`. Owns conversations, threads, tool execution, background tasks. JSON-RPC 2.0 protocol over the chosen transport.
+- **thread** — Codex's term for a conversation. Threads are persistent, can be forked, resumed, archived, listed.
+- **turn** — A single round of (user message → agent response with tool uses → tool results). Threads contain multiple turns.
+- **client** — Anything that connects to the app-server: Happy CLI, native Codex TUI (`codex --remote`), Codex Web, the phone app via Happy's relay, etc.
+- **elicitation** — Codex's term for a tool that pauses to ask the user something. Routed via `mcpServer/elicitation/request`. AskUserQuestion-equivalent.
+- **approval** — Codex's term for "Claude wants to use this tool — is it OK?" Routed via `item/commandExecution/requestApproval` (Bash) or `item/fileChange/requestApproval` (Edit).
+- **Happy's relay** — Phone app talks to Happy server (cloudflared tunnel) which forwards encrypted RPCs to the laptop's Happy CLI, which is a client of the local app-server. Not the same channel as `codex --remote` (which is direct WebSocket from a local terminal).
