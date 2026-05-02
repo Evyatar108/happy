@@ -14,6 +14,7 @@ import { calculateCost } from '@/utils/pricing';
 import { shouldReconnect } from '@/utils/lidState';
 import {
     createEnvelope,
+    findSenderDropEntry,
     type SessionContextBoundaryEvent,
     type SessionEnvelope,
     type SessionTurnEndStatus,
@@ -424,6 +425,12 @@ export class ApiSessionClient extends EventEmitter {
      * @param body - Message body (can be MessageContent or raw content for agent messages)
      */
     sendClaudeSessionMessage(body: RawJSONLines | unknown) {
+        const dropEntry = findSenderDropEntry(body);
+        if (dropEntry) {
+            logger.debug('[SOCKET] Dropped non-renderable claude message', { class: dropEntry.name });
+            return;
+        }
+
         const isSyntheticTitleEvent = isRecord(body)
             && (body.type === 'custom-title' || body.type === 'ai-title');
         const normalizedTitleEvent = isSyntheticTitleEvent
