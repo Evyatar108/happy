@@ -48,6 +48,26 @@ Current session wire payload shape (decrypted message body):
 
 `context-boundary` is the shared lifecycle event for `/clear`, `/compact`, autocompact, plan-mode transitions, and `/resume` forks. Producers that need old-client compatibility follow the dual-emit contract: typed `context-boundary` envelope first, legacy fallback event second with `meta.contextBoundaryFallback: true`. New consumers suppress the flagged legacy event and use encrypted session metadata `latestBoundary` only as the cold-start side channel when the boundary row is outside the loaded page.
 
+### 3. Non-renderable content registry
+
+Shared from `@slopus/happy-wire` (re-exported from `nonRenderablePolicy.ts`):
+- types: `NonRenderableEntry`, `RawClaudeMessageMatchInput`, `ReceiverRegexFactory`
+- entries: `skillBodyEntry`, `localCommandCaveatEntry`, `systemReminderEntry`, `forkBoilerplateEntry`
+- aggregate: `nonRenderableEntries`
+- helpers: `makeWrappedTagEntry`, `findSenderDropEntry`
+
+`nonRenderablePolicy.ts` ships a single shared registry of matchers that classify non-renderable Claude JSONL content (skill-body prefixes and well-formed wrapped tags such as `<local-command-caveat>`, `<system-reminder>`, `<fork-boilerplate>`). The same entries drive two sites:
+
+- happy-cli sender-drop filter: `findSenderDropEntry` is applied at the top of `sendClaudeSessionMessage(...)` in `packages/happy-cli/src/api/apiSession.ts`, against the raw Claude JSONL `body` *before* `normalizeSessionLogMessage(...)` runs and before wire envelopes are built. Matching messages are dropped at the source and never reach the encrypted wire payload.
+- happy-app receiver-side strip: `skillBody.ts` and `processClaudeMetaTags.ts` consume `skillBodyEntry.receiverPrefix` and the wrapped-tag entries' `receiverRegexes` factory as defense-in-depth so older senders that still emit these blocks render cleanly.
+
+Notes on the registry shape:
+- `RawClaudeMessageMatchInput` is intentionally narrow (`{ type, message: { content } }`) so happy-wire never imports CLI-side `RawJSONLines` types.
+- `ReceiverRegexFactory.buildInlineRe()` / `buildStandaloneLineRe()` MUST return fresh `RegExp` instances per call because the receiver consumes `/gi`-flagged regexes whose `lastIndex` is stateful.
+- Extended thinking blocks are renderable user value and MUST stay on the wire — there is an explicit no-op comment in `nonRenderablePolicy.ts` forbidding a thinking-block entry, paired with a unit test (see also `docs/plans/render-extended-thinking-optional.md`).
+
+For consumer-side details see `packages/happy-cli/CLAUDE.md` and `packages/happy-wire/README.md`.
+
 ## Migration in this repository
 
 ### CLI (`packages/happy-cli`)
@@ -115,6 +135,6 @@ When building workspaces from a clean checkout, build `@slopus/happy-wire` first
 
 ## Notes
 
-- `happy-wire` should stay focused on wire contracts only (types + Zod schemas + small helpers).
+- `happy-wire` should stay focused on wire contracts only (types + Zod schemas + small helpers, plus small policy registries — like the non-renderable content registry — that are inherently shared between sender and receiver).
 - Domain/business logic should remain in consumer packages.
 - Keep schema additions additive where possible to minimize client breakage.
