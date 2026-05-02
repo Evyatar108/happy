@@ -11,8 +11,10 @@ This document explains how Claude launcher paths emit the unified session protoc
 ## Key Components
 
 - `packages/happy-cli/src/api/apiSession.ts`
-  - `sendClaudeSessionMessage(...)` maps Claude records into session envelopes and sends them.
+  - `sendClaudeSessionMessage(...)` first calls `findSenderDropEntry(body)` from `@slopus/happy-wire` and silently drops known non-renderable raw user messages (skill-body and standalone `<local-command-caveat>`) before doing anything else; surviving records are then mapped into session envelopes and sent.
   - `closeClaudeSessionTurn(status)` emits `turn-end` with `completed|failed|cancelled`.
+- `packages/happy-wire/src/nonRenderablePolicy.ts`
+  - Shared non-renderable-content registry. Exposes `findSenderDropEntry(...)` to the CLI sender and the receiver-side regex factories used as defense-in-depth. See `packages/happy-cli/CLAUDE.md` for the empirical v0 policy table and the registry shape.
 - `packages/happy-cli/src/claude/utils/sessionProtocolMapper.ts`
   - Claude RawJSONLines -> session-protocol envelopes.
   - Maintains `currentTurnId` state.
@@ -38,10 +40,13 @@ sequenceDiagram
     Hook->>Scanner: onNewSession(sessionId)
     Scanner->>Scanner: read JSONL and dedupe
     Scanner->>API: sendClaudeSessionMessage(rawJsonLine)
+    API->>API: findSenderDropEntry(body) (drop non-renderable)
     API->>Mapper: mapClaudeLogMessageToSessionEnvelopes(...)
     Mapper-->>API: envelopes and turn state
     API->>WS: sendSessionProtocolMessage(envelope...)
 ```
+
+Note: when `findSenderDropEntry(body)` matches (skill-body raw user message or standalone `<local-command-caveat>` block), `sendClaudeSessionMessage` early-returns and the record never reaches the mapper or the wire.
 
 ### Local turn-close behavior
 
@@ -72,12 +77,15 @@ sequenceDiagram
     Conv->>Queue: enqueue(logMessage)
     Queue->>Queue: preserve strict order
     Queue->>API: sendClaudeSessionMessage(logMessage)
+    API->>API: findSenderDropEntry(body) (drop non-renderable)
     API->>Mapper: mapClaudeLogMessageToSessionEnvelopes(...)
     Mapper-->>API: envelopes and turn state
     API->>WS: sendSessionProtocolMessage(envelope...)
 
     Note over Queue: top-level tool calls can be delayed and released early
 ```
+
+Note: as on the local path, `sendClaudeSessionMessage` first consults `findSenderDropEntry(body)` from `@slopus/happy-wire`; matched records (skill-body raw user messages and standalone `<local-command-caveat>` blocks) are dropped before mapping or queuing onto the outbox.
 
 ### Remote turn-close behavior
 
