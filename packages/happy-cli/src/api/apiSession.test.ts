@@ -8,7 +8,10 @@ const {
     mockAxiosGet,
     mockAxiosPost,
     mockBackoff,
-    mockDelay
+    mockDelay,
+    mockLoggerDebug,
+    mockLoggerDebugLargeJson,
+    mockMapClaudeLogMessageToSessionEnvelopes
 } = vi.hoisted(() => ({
     mockIo: vi.fn(),
     mockAxiosGet: vi.fn(),
@@ -24,7 +27,10 @@ const {
         }
         throw lastError;
     }),
-    mockDelay: vi.fn(async () => undefined)
+    mockDelay: vi.fn(async () => undefined),
+    mockLoggerDebug: vi.fn(),
+    mockLoggerDebugLargeJson: vi.fn(),
+    mockMapClaudeLogMessageToSessionEnvelopes: vi.fn()
 }));
 
 vi.mock('socket.io-client', () => ({
@@ -46,10 +52,22 @@ vi.mock('@/configuration', () => ({
 
 vi.mock('@/ui/logger', () => ({
     logger: {
-        debug: vi.fn(),
-        debugLargeJson: vi.fn()
+        debug: mockLoggerDebug,
+        debugLargeJson: mockLoggerDebugLargeJson
     }
 }));
+
+vi.mock('@/claude/utils/sessionProtocolMapper', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@/claude/utils/sessionProtocolMapper')>();
+
+    return {
+        ...actual,
+        mapClaudeLogMessageToSessionEnvelopes: ((...args: Parameters<typeof actual.mapClaudeLogMessageToSessionEnvelopes>) => {
+            mockMapClaudeLogMessageToSessionEnvelopes(...args);
+            return actual.mapClaudeLogMessageToSessionEnvelopes(...args);
+        })
+    };
+});
 
 vi.mock('@/api/rpc/RpcHandlerManager', () => ({
     RpcHandlerManager: class {
@@ -93,6 +111,15 @@ function makeSession() {
 
 function encryptContent(session: ReturnType<typeof makeSession>, content: unknown): string {
     return encodeBase64(encrypt(session.encryptionKey, session.encryptionVariant, content));
+}
+
+function decryptPostedMessage(session: ReturnType<typeof makeSession>, index = 0, callIndex = 0): any {
+    const payload = mockAxiosPost.mock.calls[callIndex][1];
+    return decrypt(
+        session.encryptionKey,
+        session.encryptionVariant,
+        decodeBase64(payload.messages[index].content)
+    );
 }
 
 function createNewMessageUpdate(seq: number, encryptedContent: string): Update {
@@ -341,6 +368,188 @@ describe('ApiSessionClient v3 messages API migration', () => {
             }
         });
         expect(typeof (sessionUser as any).content.time).toBe('number');
+    });
+
+    it('drops SKILL-shaped raw Claude user messages before mapper and outbox', () => {
+        const client = new ApiSessionClient('fake-token', session);
+
+        client.sendClaudeSessionMessage({
+            type: 'user',
+            message: {
+                content: [
+                    {
+                        type: 'text',
+                        text: 'Base directory for this skill: C:\\Users\\foo\\.claude\\skills\\demo\n\n# Demo Skill\n\nInstructions'
+                    }
+                ]
+            },
+            isSidechain: false,
+            isMeta: false
+        } as any);
+
+        expect(mockMapClaudeLogMessageToSessionEnvelopes).not.toHaveBeenCalled();
+        expect(mockAxiosPost).not.toHaveBeenCalled();
+        expect((client as any).pendingOutbox).toHaveLength(0);
+        expect(mockLoggerDebug).toHaveBeenCalledWith(
+            '[SOCKET] Dropped non-renderable claude message',
+            { class: 'skill-body' }
+        );
+    });
+
+    it('drops standalone local-command-caveat user messages before mapper and outbox', () => {
+        const client = new ApiSessionClient('fake-token', session);
+
+        client.sendClaudeSessionMessage({
+            type: 'user',
+            message: {
+                content: '<local-command-caveat>Use the local shell carefully.</local-command-caveat>'
+            },
+            isSidechain: false,
+            isMeta: false
+        } as any);
+
+        expect(mockMapClaudeLogMessageToSessionEnvelopes).not.toHaveBeenCalled();
+        expect(mockAxiosPost).not.toHaveBeenCalled();
+        expect((client as any).pendingOutbox).toHaveLength(0);
+        expect(mockLoggerDebug).toHaveBeenCalledWith(
+            '[SOCKET] Dropped non-renderable claude message',
+            { class: 'local-command-caveat' }
+        );
+    });
+
+    it('keeps user messages that mention the SKILL prefix mid-paragraph', async () => {
+        const client = new ApiSessionClient('fake-token', session);
+        mockAxiosPost.mockResolvedValueOnce({
+            data: {
+                messages: [{ id: 'msg-1', seq: 1, localId: 'local-1', createdAt: 1, updatedAt: 1 }]
+            }
+        });
+
+        client.sendClaudeSessionMessage({
+            type: 'user',
+            message: {
+                content: 'Please explain this line: Base directory for this skill: C:\\tmp\n\n# Not injected'
+            },
+            isSidechain: false,
+            isMeta: false
+        } as any);
+
+        await waitForCheck(() => {
+            expect(mockAxiosPost).toHaveBeenCalledTimes(1);
+        });
+        expect(mockMapClaudeLogMessageToSessionEnvelopes).toHaveBeenCalledTimes(1);
+        expect(decryptPostedMessage(session)).toMatchObject({
+            role: 'session',
+            content: {
+                role: 'user',
+                ev: {
+                    t: 'text',
+                    text: 'Please explain this line: Base directory for this skill: C:\\tmp\n\n# Not injected'
+                }
+            }
+        });
+    });
+
+    it('keeps user messages that quote local-command-caveat inside a paragraph or code block', async () => {
+        const client = new ApiSessionClient('fake-token', session);
+        mockAxiosPost.mockResolvedValueOnce({
+            data: {
+                messages: [{ id: 'msg-1', seq: 1, localId: 'local-1', createdAt: 1, updatedAt: 1 }]
+            }
+        });
+        const text = 'Example:\n```xml\n<local-command-caveat>quoted</local-command-caveat>\n```';
+
+        client.sendClaudeSessionMessage({
+            type: 'user',
+            message: { content: text },
+            isSidechain: false,
+            isMeta: false
+        } as any);
+
+        await waitForCheck(() => {
+            expect(mockAxiosPost).toHaveBeenCalledTimes(1);
+        });
+        expect(mockMapClaudeLogMessageToSessionEnvelopes).toHaveBeenCalledTimes(1);
+        expect(decryptPostedMessage(session)).toMatchObject({
+            role: 'session',
+            content: {
+                role: 'user',
+                ev: { t: 'text', text }
+            }
+        });
+    });
+
+    it('keeps standalone system-reminder user messages because the entry is receiver-only', async () => {
+        const client = new ApiSessionClient('fake-token', session);
+        mockAxiosPost.mockResolvedValueOnce({
+            data: {
+                messages: [{ id: 'msg-1', seq: 1, localId: 'local-1', createdAt: 1, updatedAt: 1 }]
+            }
+        });
+
+        client.sendClaudeSessionMessage({
+            type: 'user',
+            message: { content: '<system-reminder>Remember this.</system-reminder>' },
+            isSidechain: false,
+            isMeta: false
+        } as any);
+
+        await waitForCheck(() => {
+            expect(mockAxiosPost).toHaveBeenCalledTimes(1);
+        });
+        expect(mockMapClaudeLogMessageToSessionEnvelopes).toHaveBeenCalledTimes(1);
+        expect(decryptPostedMessage(session)).toMatchObject({
+            role: 'session',
+            content: {
+                role: 'user',
+                ev: { t: 'text', text: '<system-reminder>Remember this.</system-reminder>' }
+            }
+        });
+    });
+
+    it('keeps assistant thinking content blocks on the wire', async () => {
+        const client = new ApiSessionClient('fake-token', session);
+        mockAxiosPost.mockImplementation(async (_url: string, body: { messages: Array<{ localId: string }> }) => ({
+            data: {
+                messages: body.messages.map((message, index) => ({
+                    id: `msg-${index + 1}`,
+                    seq: index + 1,
+                    localId: message.localId,
+                    createdAt: index + 1,
+                    updatedAt: index + 1
+                }))
+            }
+        }));
+
+        client.sendClaudeSessionMessage({
+            type: 'assistant',
+            uuid: 'assistant-thinking-1',
+            message: {
+                role: 'assistant',
+                content: [
+                    {
+                        type: 'thinking',
+                        thinking: 'private reasoning summary'
+                    }
+                ]
+            }
+        } as any);
+
+        await waitForCheck(() => {
+            expect(mockAxiosPost).toHaveBeenCalledTimes(2);
+        });
+        expect(mockMapClaudeLogMessageToSessionEnvelopes).toHaveBeenCalledTimes(1);
+        expect(decryptPostedMessage(session, 0, 1)).toMatchObject({
+            role: 'session',
+            content: {
+                role: 'agent',
+                ev: {
+                    t: 'text',
+                    text: 'private reasoning summary',
+                    thinking: true
+                }
+            }
+        });
     });
 
     it('sends session protocol messages through enqueueMessage with session envelope', async () => {

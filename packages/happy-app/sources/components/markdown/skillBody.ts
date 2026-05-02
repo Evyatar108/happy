@@ -1,3 +1,5 @@
+import { skillBodyEntry } from '@slopus/happy-wire';
+
 // Detects the verbatim SKILL.md body Claude Code injects right after every
 // `Skill` tool_use/tool_result pair. The injected message is a copy of the
 // skill's SKILL.md, prefixed with a single line that names the resolved plugin
@@ -23,7 +25,7 @@
 // the strongest minimal signal that distinguishes Claude-Code-injected skill
 // bodies from anything a real user would type. We deliberately do NOT match
 // stray mentions of "Base directory for this skill" elsewhere in a message.
-const SKILL_BODY_PATTERN = /^Base directory for this skill: \S[^\r\n]*\r?\n\r?\n# /;
+const SKILL_BODY_PATTERN = skillBodyEntry.receiverPrefix!;
 
 export function isSkillBodyMessage(text: string | null | undefined): boolean {
     if (!text) {

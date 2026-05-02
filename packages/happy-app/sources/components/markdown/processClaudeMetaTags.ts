@@ -1,3 +1,5 @@
+import { forkBoilerplateEntry, localCommandCaveatEntry, systemReminderEntry } from '@slopus/happy-wire';
+
 import { t } from '@/text';
 
 type Logger = (message: string) => void;
@@ -12,12 +14,6 @@ const COMMAND_TAG_SEQUENCE_RE = /(?:<(?:command-name|command-message|command-arg
 const COMMAND_TAG_RE = /<(command-name|command-message|command-args)(?:\s[^>]*)?>([\s\S]*?)<\/\1>/gi;
 const STDOUT_TAG_RE = /<local-command-stdout(?:\s[^>]*)?>([\s\S]*?)<\/local-command-stdout>/gi;
 const STDERR_TAG_RE = /<local-command-stderr(?:\s[^>]*)?>([\s\S]*?)<\/local-command-stderr>/gi;
-const CAVEAT_TAG_RE = /<local-command-caveat(?:\s[^>]*)?>[\s\S]*?<\/local-command-caveat>/gi;
-const CAVEAT_STANDALONE_LINE_RE = /(^|\n)<local-command-caveat(?:\s[^>]*)?>[\s\S]*?<\/local-command-caveat>(\n|$)/gi;
-const SYSTEM_REMINDER_TAG_RE = /<system-reminder(?:\s[^>]*)?>[\s\S]*?<\/system-reminder>/gi;
-const SYSTEM_REMINDER_STANDALONE_LINE_RE = /(^|\n)<system-reminder(?:\s[^>]*)?>[\s\S]*?<\/system-reminder>(\n|$)/gi;
-const FORK_BOILERPLATE_TAG_RE = /<fork-boilerplate(?:\s[^>]*)?>[\s\S]*?<\/fork-boilerplate>/gi;
-const FORK_BOILERPLATE_STANDALONE_LINE_RE = /(^|\n)<fork-boilerplate(?:\s[^>]*)?>[\s\S]*?<\/fork-boilerplate>(\n|$)/gi;
 const ANY_TAG_RE = /<\/?([a-z][a-z0-9-]*)(?:\s[^>]*)?>/gi;
 const FENCE_COLLISION_RE = /```/g;
 const FENCE_COLLISION_ESCAPE = '``\u200B`';
@@ -218,15 +214,18 @@ function stripWellFormedWrapper(raw: string, standaloneLineRe: RegExp, inlineRe:
 }
 
 function stripLocalCommandCaveats(raw: string) {
-    return stripWellFormedWrapper(raw, CAVEAT_STANDALONE_LINE_RE, CAVEAT_TAG_RE);
+    const regexes = localCommandCaveatEntry.receiverRegexes!;
+    return stripWellFormedWrapper(raw, regexes.buildStandaloneLineRe(), regexes.buildInlineRe());
 }
 
 function stripSystemReminders(raw: string) {
-    return stripWellFormedWrapper(raw, SYSTEM_REMINDER_STANDALONE_LINE_RE, SYSTEM_REMINDER_TAG_RE);
+    const regexes = systemReminderEntry.receiverRegexes!;
+    return stripWellFormedWrapper(raw, regexes.buildStandaloneLineRe(), regexes.buildInlineRe());
 }
 
 function stripForkBoilerplate(raw: string) {
-    return stripWellFormedWrapper(raw, FORK_BOILERPLATE_STANDALONE_LINE_RE, FORK_BOILERPLATE_TAG_RE);
+    const regexes = forkBoilerplateEntry.receiverRegexes!;
+    return stripWellFormedWrapper(raw, regexes.buildStandaloneLineRe(), regexes.buildInlineRe());
 }
 
 function collapseCommandTriplets(raw: string) {
