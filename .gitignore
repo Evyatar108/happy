@@ -90,3 +90,4 @@ docs/competition/opencode/traces/
 # happy-server runtime log directory (rich pino logs from the running service).
 # Contents are time-stamped per-process; not source-controlled.
 packages/happy-server/logs/
+.ralph/reviews/
