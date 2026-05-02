@@ -91,6 +91,9 @@ export const localCommandCaveatEntry: NonRenderableEntry = makeWrappedTagEntry('
 export const systemReminderEntry: NonRenderableEntry = makeWrappedTagEntry('system-reminder');
 export const forkBoilerplateEntry: NonRenderableEntry = makeWrappedTagEntry('fork-boilerplate');
 
+// Do not add a thinking-block entry here. Extended thinking is renderable user
+// value, and the optional renderer plan depends on keeping those blocks on the
+// wire: docs/plans/render-extended-thinking-optional.md.
 export const nonRenderableEntries: readonly NonRenderableEntry[] = [
   skillBodyEntry,
   localCommandCaveatEntry,
@@ -98,9 +101,6 @@ export const nonRenderableEntries: readonly NonRenderableEntry[] = [
   forkBoilerplateEntry,
 ];
 
-// Do not add a thinking-block entry here. Extended thinking is renderable user
-// value, and the optional renderer plan depends on keeping those blocks on the
-// wire: docs/plans/render-extended-thinking-optional.md.
 export function findSenderDropEntry(raw: unknown): NonRenderableEntry | null {
   if (!isMatchInput(raw)) {
     return null;
