@@ -35,6 +35,28 @@ describe('non-renderable content policy', () => {
     expect(entry?.name).toBe('local-command-caveat');
   });
 
+  it('does not drop a string-content user message that begins with the SKILL prefix', () => {
+    const entry = findSenderDropEntry({
+      type: 'user',
+      message: {
+        content: 'Base directory for this skill: C:\\tmp\n\n# Not injected',
+      },
+    });
+
+    expect(entry).toBeNull();
+  });
+
+  it('does not drop a length-1 text-array user message whose body is a bare local-command-caveat tag', () => {
+    const entry = findSenderDropEntry({
+      type: 'user',
+      message: {
+        content: [{ type: 'text', text: '<local-command-caveat>Use the shell carefully.</local-command-caveat>' }],
+      },
+    });
+
+    expect(entry).toBeNull();
+  });
+
   it('does not match a SKILL prefix mentioned mid-paragraph', () => {
     const entry = findSenderDropEntry({
       type: 'user',
