@@ -91,3 +91,12 @@ docs/competition/opencode/traces/
 # Contents are time-stamped per-process; not source-controlled.
 packages/happy-server/logs/
 .ralph/reviews/
+
+# Workspace junctions (per-machine; created by `mklink /J`) — never tracked.
+# Each developer creates these locally to navigate the multi-repo workspace.
+# See plans/codexu-roadmap.md → "Active session pickup" → step 9.
+/codex
+/ralph
+/options-mode
+/inspirations/
+
