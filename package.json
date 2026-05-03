@@ -2,11 +2,11 @@
     "name": "monorepo",
     "private": true,
     "scripts": {
-        "cli": "pnpm --filter happy cli",
+        "cli": "pnpm --filter codexu cli",
         "release": "node ./scripts/release.cjs",
-        "web": "pnpm --filter happy-app web",
+        "web": "pnpm --filter codexu-app web",
         "codium": "pnpm --filter codium dev",
-        "app-logs": "pnpm --filter happy-app-logs start",
+        "app-logs": "pnpm --filter codexu-app-logs start",
         "postinstall": "node ./scripts/postinstall.cjs",
         "env:new": "tsx environments/environments.ts new",
         "env:list": "tsx environments/environments.ts list",
@@ -26,12 +26,13 @@
     },
     "workspaces": {
         "packages": [
-            "packages/happy-app",
-            "packages/happy-agent",
-            "packages/happy-cli",
-            "packages/happy-server",
-            "packages/happy-wire",
-            "packages/happy-app-logs",
+            "packages/codexu-app",
+            "packages/codexu-agent",
+            "packages/codexu-cli",
+            "packages/codexu-server",
+            "packages/codexu-wire",
+            "packages/codexu-app-logs",
+            "packages/codexu-plugin",
             "packages/codium"
         ]
     },
