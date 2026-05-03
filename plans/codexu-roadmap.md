@@ -1,27 +1,45 @@
 # codexu — codex multi-device + multi-agent stack roadmap
 
-*Living doc. First captured 2026-05-02. Holistic 3-way review (Claude × Claude × Codex) applied 2026-05-02. Project rename to "codexu" + workspace consolidation in flight 2026-05-02. Update as decisions land or evidence shifts.*
+*Living doc. First captured 2026-05-02. Holistic 3-way review (Claude × Claude × Codex) applied 2026-05-02. Project rename to "codexu" + workspace consolidation completed 2026-05-02. Update as decisions land or evidence shifts.*
 
-## 🚀 Active session pickup — fresh agents start here
+## 🚀 Status — fresh agents start here
 
 **Project name:** **codexu** — umbrella brand for the multi-device +
 multi-agent codex stack.
 
-**Rename + consolidation IN FLIGHT** (committed but not yet executed in
-the repo trees). Body of this doc still references "happy", "happy-cli",
-etc. — that's expected. Execute the rename per "Next action sequence"
-below; then search-replace this doc accordingly (step 8).
+**Rename + consolidation COMPLETED 2026-05-02.** Repo, packages,
+binaries, npm names, and `@slopus/happy-wire` imports renamed in two
+commits on the codexu repo (bootstrap + rebrand). README reframed.
+This doc's path citations + package paths search-replaced. **Internal
+symbols** (function names like `spawnHappyCLI`), **schema field names**
+(`happyHomeDir`), **env vars** (`HAPPY_VARIANT`), **runtime state
+directories** (`~/.happy/`), **tmux session names**, and **brand
+references in docs/skills** intentionally **left as-is** — those carry
+runtime + wire-compat with existing user installs and need per-symbol
+review before renaming.
 
-### Component name mapping (executes in step 3 below)
+### What's where
 
-| Currently | Renames to |
-|---|---|
-| `Evyatar108/happy` GitHub repo | **`Evyatar108/codexu`** (rename via GitHub UI; preserves stars + redirects old URL) |
-| `packages/happy-cli` | `packages/codexu-cli` |
-| `packages/happy-app` | `packages/codexu-app` |
-| `packages/happy-server` | `packages/codexu-server` |
-| (new) | `packages/codexu-plugin` — personal codex plugin (subdir of codexu monorepo) |
-| `codex/plans/codex-stack-roadmap.md` (this file) | `codexu/plans/codexu-roadmap.md` |
+| Component | Location | Repo |
+|---|---|---|
+| codexu monorepo (cli/app/server/agent/wire/app-logs/plugin) | `C:/harness-efforts/codexu/` | `Evyatar108/codexu` |
+| Personal codex plugin | `C:/harness-efforts/codexu/packages/codexu-plugin/` | (in codexu monorepo) |
+| Codex engine fork | `C:/harness-efforts/codex/` | `Evyatar108/codex-patched` |
+| Roadmap (this file) | `C:/harness-efforts/codexu/plans/codexu-roadmap.md` | (in codexu monorepo) |
+
+Workspace junctions inside `C:/harness-efforts/codexu/`:
+
+```
+codexu/codex          → C:/harness-efforts/codex
+codexu/ralph          → C:/ai-developer-toolkit/plugins/ralph
+codexu/options-mode   → C:/ai-developer-toolkit/plugins/options-mode
+codexu/inspirations/oh-my-codex      → C:/harness-efforts/oh-my-codex
+codexu/inspirations/just-every-code  → C:/harness-efforts/just-every-code
+codexu/inspirations/claude-code      → C:/harness-efforts/claude-code/worktrees/main
+```
+
+These are per-machine (gitignored). `mklink /J` recipe lives in
+README — replicate on a fresh machine before working in this tree.
 
 **Codex fork stays separate.** Engine remains at
 `Evyatar108/codex-patched`, consumed as Cargo / git dep by codexu-cli.
@@ -38,69 +56,42 @@ patches go in `codexu-rs/`.
   style). Goal: keep upstream merges clean.
 - **Decision #4 (consensus model):** keep cross-vendor 3-way via
   shell scripts (claude-exec.sh + codex-via-role + copilot-exec.sh).
-- **Happy fork stops tracking upstream `slopus/happy` (or wherever
-  upstream lives).** Direction change to GitHub-OAuth + Microsoft Dev
-  Tunnels (per `github-auth-via-vscode-tunnels.md`) is too large.
-  Rename to codexu absorbs this direction.
+- **codexu fork stops tracking upstream `slopus/happy`.** Direction
+  change to GitHub-OAuth + Microsoft Dev Tunnels (per
+  `github-auth-via-vscode-tunnels.md`) is too large. Rename to codexu
+  absorbs this direction.
 - **Personal plugin lives as subdir** `packages/codexu-plugin/` of
   codexu monorepo. Single source of truth.
-- **Roadmap moves** to `codexu/plans/codexu-roadmap.md` with 1-line
+- **Roadmap moved** to `codexu/plans/codexu-roadmap.md` with 1-line
   stub redirect at old `codex/plans/codex-stack-roadmap.md`.
 - **Workspace consolidation:** the codexu monorepo IS the workspace.
   Junction codex fork + ralph plugin + options-mode plugin +
   inspirations into the codexu working tree for navigation
   convenience.
 
-### Next action sequence (fresh agent: execute in this order)
+### Standing rules
 
-1. **GitHub UI rename:** `Evyatar108/happy` → `Evyatar108/codexu`.
-   Preserves git history + redirects old URL.
-2. **Local clone setup:** clone the renamed repo to
-   `C:/harness-efforts/codexu/`. (Old `C:/harness-efforts/happy/` dir
-   can be deleted after verifying.)
-3. **Internal package refactor in codexu monorepo:**
-   `packages/happy-{cli,app,server}` → `packages/codexu-{cli,app,server}`.
-   Touches package.json names, imports, path references. Bounded
-   mechanical refactor; run grep + tests after.
-4. **Add personal plugin scaffold:** `packages/codexu-plugin/` per
-   Phase 1c spec.
-5. **Move roadmap:** `C:/harness-efforts/codex/plans/codex-stack-roadmap.md`
-   → `C:/harness-efforts/codexu/plans/codexu-roadmap.md`. Leave 1-line
-   stub at old path pointing to new location.
-6. **Commit on codexu repo.** Then small stub commit on codex repo.
-7. **Update codexu README.md:** reframe from happy to codexu —
-   multi-device + agent stack.
-8. **Doc rename pass on this file:** search-replace "happy" → contextual
-   ("codexu" / "codexu-cli" / etc.) once the rename has executed. Verify
-   citations still resolve.
-9. **Workspace junctions** (Windows `mklink /J`):
-   ```
-   codexu/codex          → C:/harness-efforts/codex
-   codexu/ralph          → C:/ai-developer-toolkit/plugins/ralph
-   codexu/options-mode   → C:/ai-developer-toolkit/plugins/options-mode
-   codexu/inspirations/oh-my-codex      → C:/harness-efforts/oh-my-codex
-   codexu/inspirations/just-every-code  → C:/harness-efforts/just-every-code
-   codexu/inspirations/claude-code      → C:/harness-efforts/claude-code/worktrees/main
-   ```
-10. **Then start Phase 1c — personal codex plugin scaffolding** (first
-    real story per "Execution approach" section below).
-
-### Standing rules across this doc
-
-- "happy" / "happy-cli" / "happy-server" / "happy-app" / "Evyatar108/happy"
-  references in the body below are PRE-RENAME. Read as
-  codexu / codexu-cli / etc. until step 8 above completes.
 - The codex fork repo at `Evyatar108/codex-patched` is NOT being
   renamed. References to `codex` / `codex-rs` / `codex-patched` stay.
 - Codexu = brand, the consumer-facing multi-device stack.
   Codex (or codex-patched) = the engine, separate fork.
+- Internal `happy*` symbols, env vars, schema fields, and `~/.happy/`
+  directories remain — wire-compat. Rename per-symbol after the relevant
+  user-facing breaking change lands (e.g., schema bump, env-var migration
+  helper, etc.).
+- Upstream-derived doc/skill references to "Happy Coder", `slopus/happy`,
+  and `happy.engineering` are HISTORICAL and stay as-is.
+
+### Next: Phase 1c — personal codex plugin scaffolding
+
+`packages/codexu-plugin/` skeleton already exists (created during the
+rename). Phase 1c continues from that scaffold — author starter
+SKILL.md, install via `codex plugin marketplace add`, smoke-test that
+the skill appears in `/skills` picker. See Phase 1c spec below.
 
 ---
 
 # Roadmap (existing content below)
-
-*The pre-rename body of the roadmap follows. Will be search-replaced
-during step 8 of the rename sequence.*
 
 **Goal:** consolidate on a codex-only stack. Codex is the runtime,
 codexu-cli is the multi-device transport, ralph-orchestration and
@@ -120,8 +111,8 @@ of them.
 
 After all phases ship, the user-visible result is:
 
-- **From any device** (laptop terminal, native codex `--remote` TUI, happy
-  ink renderer, or phone via happy app) the user sees the SAME conversation,
+- **From any device** (laptop terminal, native codex `--remote` TUI, codexu
+  ink renderer, or phone via codexu app) the user sees the SAME conversation,
   same agent state, same approval prompts, same skill catalog. Walk away
   from the laptop, pick up the phone, walk back — no mode switch, no
   reattach ceremony, no lost in-flight work.
@@ -148,11 +139,11 @@ Windows-flavored:
   filesystem behavior (works on NTFS without surprise)
 - `.claude/skills/` discovery via plugin-registered roots may need
   `mklink /D` symlink fallback if plugin scope semantics misbehave
-- happy's smoke tests verified against `codex-cli 0.125.0-copilot-api.8`
+- codexu's smoke tests verified against `codex-cli 0.125.0-copilot-api.8`
   on Windows 10.0.26200, 2026-05-02
 - **Currently installed `codex` version (probed 2026-05-02): `codex-cli
-  0.128.0-copilot-api.1`** — slight drift since happy's Phase 0 baseline.
-  Re-run happy's verification scripts before Phase 1b sub-task 1 if more
+  0.128.0-copilot-api.1`** — slight drift since codexu's Phase 0 baseline.
+  Re-run codexu's verification scripts before Phase 1b sub-task 1 if more
   time elapses.
 
 The stack is not Windows-only — Linux and macOS should work — but Windows
@@ -189,8 +180,8 @@ Read in order, ~20 minutes:
    assume needs forking is already in upstream codex.
 2. `C:/harness-efforts/codex/CLAUDE.md` — the codex working tree's
    overview (what `gim-home/codex` adds vs upstream openai/codex).
-3. `C:/harness-efforts/happy/docs/plans/codex-fork-extension-strategy.md`
-   and `codex-seamless-multi-device.md` — happy's perspective. Phase 1b
+3. `C:/harness-efforts/codexu/docs/plans/codex-fork-extension-strategy.md`
+   and `codex-seamless-multi-device.md` — codexu's perspective. Phase 1b
    here is just executing the latter; do not re-derive.
 4. `C:/harness-efforts/just-every-code/code-rs/core/src/agent_tool.rs`
    and `agent_defaults.rs` — read once for the cross-vendor agent
@@ -208,7 +199,7 @@ Read in order, ~20 minutes:
 | Component | Working tree | Origin remote | Role |
 |---|---|---|---|
 | codex (patched) | `C:/harness-efforts/codex/` | `gim-home/codex.git` | runtime fork (wraps `external/repos/codex-patched/` submodule). Already routes to Copilot API; ditches non-LLM network paths. |
-| happy | `C:/harness-efforts/happy/` | `Evyatar108/happy` | multi-device transport fork |
+| codexu | `C:/harness-efforts/codexu/` | `Evyatar108/codexu` | multi-device transport fork |
 | ralph plugin | `C:/ai-developer-toolkit/plugins/ralph/` | `gim-home/ai-developer-toolkit` | autonomous-loop workflow driver (Claude Code plugin → codex plugin) |
 | options-mode plugin | `C:/ai-developer-toolkit/plugins/options-mode/` | `gim-home/ai-developer-toolkit` | structured-choice prompt mode (Claude Code plugin → codex plugin); collapses into Phase 2d's AskUserQuestion primitive |
 | personal codex plugin | TBD | TBD | private content + conventions |
@@ -227,9 +218,9 @@ no engine selection, no version pinning per consumer.
 ## Architecture
 
 ```
-SURFACES:        [phone] [native codex --remote TUI] [happy ink] [bare codex CLI]
+SURFACES:        [phone] [native codex --remote TUI] [codexu ink] [bare codex CLI]
                               ↓
-MULTI-DEVICE:                Happy bridge (encrypted relay + happy CLI)
+MULTI-DEVICE:                codexu bridge (encrypted relay + codexu CLI)
                               ↓
 RUNTIME:                  codex app-server (JSON-RPC, persistent, loopback ws)
                           ┌───┼───┬───────┬─────────┬──────────┐
@@ -246,7 +237,7 @@ CONTENT:                  ↑   ↑   ↑
 - Codex agent roles (`[agents.<role>]`) spawn **sub-threads on the same
   app-server**, not new codex processes. `apply_role_to_config` (role.rs:40)
   applies the role's config layer to a freshly-allocated thread. Same
-  process, same RPC server, same lifecycle. Visible in happy.
+  process, same RPC server, same lifecycle. visible in codexu.
 - Cross-vendor workers (claude-cli, copilot-cli, gemini-cli) DO get spawned
   as separate processes via shell scripts — they're external vendors, no
   way around it. No `agent_tool.rs` port needed.
@@ -303,7 +294,7 @@ These are already in upstream codex; future agents should NOT re-implement:
 - **App-server JSON-RPC over multiple transports** — `stdio://`,
   `unix://`, `ws://`, `off`. **`wss://` is NOT a listen transport**
   (was incorrectly listed in earlier drafts; only outbound to ChatGPT's
-  remote-control endpoint). Multi-client supported (verified by happy
+  remote-control endpoint). Multi-client supported (verified by codexu
   2026-05-02).
 - **Native `codex --remote ws://...`** — TUI client to remote app-server.
 - **`request_user_input` tool (PLAN-MODE-SCOPED, root-thread-only).**
@@ -359,7 +350,7 @@ The user has explicitly committed to the following — do not relitigate
 without new evidence:
 
 - **Drop Claude Code as a maintained surface.** Reach for codex via
-  happy or via the migrated plugins instead. Phase 5 makes this
+  codexu or via the migrated plugins instead. Phase 5 makes this
   permanent. (User: *"my goal is to ditch claude code and use only
   codex."*)
 - **Codex installed = the patched fork.** No engine selection, no
@@ -384,13 +375,13 @@ without new evidence:
   `[agents.<role>]` spawn already does this — sub-thread on the same
   app-server, NOT a new codex process. Replace ralph's `codex-exec.sh`
   invocation pattern with native role spawn (Phase 3d). Side benefit:
-  spawned codex workers become visible in happy and resumable as
+  spawned codex workers become visible in codexu and resumable as
   long-lived teammates if desired. (User: *"I want spawned agents, at
   least when they are codex based, to be using the daemon/app-server
   we will have so we can also have the option to integrate them with
-  happy or make them long lived teammates if we want."*)
+  codexu or make them long lived teammates if we want."*)
 - **AskUserQuestion is integrated into core, not MCP.** Want first-class
-  TUI affordance and unified app-server fan-out (so phone via happy
+  TUI affordance and unified app-server fan-out (so phone via codexu
   renders properly). Borrow Claude's TS schema verbatim. **Implementation:
   see Phase 2d** — sibling tool `ask_user_question` reusing
   `request_user_input` infrastructure with broader gating + Claude-style
@@ -467,7 +458,7 @@ questions** (drill-in items requiring research) at #3, #6, #8, #9.
 
    **Recommendation:** (c) — ship in fork to unblock Phase 3, then PR.
 6. **App-server idle-timeout default** — when the last client disconnects,
-   how long before app-server exits? Happy's seamless-multi-device plan
+   how long before app-server exits? codexu's seamless-multi-device plan
    defers this to its Phase 2; the tunnels plan adds another wrinkle
    (heartbeat lifecycle for the directory entry). Surface both here so
    it isn't forgotten.
@@ -526,7 +517,7 @@ These are NOT goals; do not propose them as additions:
   becomes a real requirement, the security model (loopback-only, no
   auth tokens) breaks and the design changes.
 - **Cross-machine codex backends.** One app-server per cwd, on one
-  machine. Phone reaches it via happy's encrypted relay; another laptop
+  machine. Phone reaches it via codexu's encrypted relay; another laptop
   doesn't connect directly. Out-of-scope unless the relay model is
   re-thought.
 - **Browser integration.** just-every/code's `code-rs/browser` crate
@@ -539,8 +530,8 @@ These are NOT goals; do not propose them as additions:
 - **Project-memory MCP / session-notepad MCP.** Explicitly rejected.
   Project knowledge lives as markdown in repos. Ralph's per-job
   `.ralph/jobs/<name>/notepad.md` covers the in-flight need.
-- **Tool registry centralization across codex + happy + ralph.** Each
-  layer keeps its own tool model. Happy's permission handler bridges to
+- **Tool registry centralization across codex + codexu + ralph.** Each
+  layer keeps its own tool model. codexu's permission handler bridges to
   codex's approvals; ralph's `[agents.<role>]` invocations bridge to
   codex's spawn tool. No grand unified tool surface.
 - **Vendor adapters beyond Phase 7's Claude-via-Copilot.** Don't
@@ -564,11 +555,11 @@ These are NOT goals; do not propose them as additions:
 #### 1a. Codex fork strategy commit
 
 Decide between options under "Decisions still open #1" and document.
-Cross-reference: happy's
+Cross-reference: codexu's
 `docs/plans/codex-fork-extension-strategy.md` covers the *consumer*
-side of fork strategy — what happy assumes about the codex fork's
+side of fork strategy — what codexu assumes about the codex fork's
 release cadence + protocol contract. Read it before committing to a
-strategy here so we don't pick something happy can't track against.
+strategy here so we don't pick something codexu can't track against.
 
 **Files to update:**
 - `C:/harness-efforts/codex/docs/implementation/architecture.md` — add a
@@ -578,31 +569,31 @@ strategy here so we don't pick something happy can't track against.
   via-Copilot adapter.
 - `C:/harness-efforts/codex/CLAUDE.md` — top-level pointer to this
   roadmap.
-- `C:/harness-efforts/happy/docs/plans/codex-fork-extension-strategy.md`
+- `C:/harness-efforts/codexu/docs/plans/codex-fork-extension-strategy.md`
   — read-only reference; no edits expected, but if our chosen strategy
-  invalidates an assumption there, surface to happy maintainer.
+  invalidates an assumption there, surface to codexu maintainer.
 
 
-#### 1b. Happy: continue stdio→ws transport plan
+#### 1b. Codexu: continue stdio→ws transport plan
 
-Not new work. Execute happy's existing
+Not new work. Execute codexu's existing
 `docs/plans/codex-seamless-multi-device.md` plan. Phase 0 verified
 2026-05-02; sub-tasks 1-5 to ship.
 
 **🔑 Read alongside `github-auth-via-vscode-tunnels.md`** (also in
-happy's `docs/plans/`). That doc replaces the encrypted-relay
+codexu's `docs/plans/`). That doc replaces the encrypted-relay
 assumption underpinning seamless-multi-device. Sub-tasks 1-2
 (transport refactor + discovery file) port unchanged. Sub-task 3+
 (relay-dependent flows: pairing, E2E messages, mobile reconnect) need
 re-reading against the tunnels plan before implementation; the relay
 becomes a Microsoft devtunnel + GitHub-OAuth identity instead of
-happy-server-relayed E2E.
+codexu-server-relayed E2E.
 
 **Files to track (read-only here):**
-- `C:/harness-efforts/happy/docs/plans/codex-seamless-multi-device.md`
-- `C:/harness-efforts/happy/docs/plans/github-auth-via-vscode-tunnels.md`
-- `C:/harness-efforts/happy/packages/happy-cli/src/codex/codexAppServerClient.ts`
-- `C:/harness-efforts/happy/packages/happy-cli/src/codex/runCodex.ts`
+- `C:/harness-efforts/codexu/docs/plans/codex-seamless-multi-device.md`
+- `C:/harness-efforts/codexu/docs/plans/github-auth-via-vscode-tunnels.md`
+- `C:/harness-efforts/codexu/packages/codexu-cli/src/codex/codexAppServerClient.ts`
+- `C:/harness-efforts/codexu/packages/codexu-cli/src/codex/runCodex.ts`
 
 Independent of codex/plugin work; runs in parallel.
 
@@ -820,7 +811,7 @@ broad (sessions, turn context, MCP, handlers, skills watcher, tools).
 
 **Why:** options-mode workflow + general clarification needs a typed
 structured-choice tool with proper TUI affordance + cross-surface
-fan-out (codex TUI, happy ink, phone). MCP elicitation works but
+fan-out (codex TUI, codexu ink, phone). MCP elicitation works but
 doesn't get rich UI.
 
 **Naming convention.** `ask_user_question` (lowercase snake-case) is
@@ -851,7 +842,7 @@ duplicate. The existing tool has a clear, deliberate scope; preserve it.
 This is the *implementation manifestation* of the user's decision in
 **Decisions made**: "*AskUserQuestion is integrated into core, not MCP.
 Want first-class TUI affordance and unified app-server fan-out (so phone
-via happy renders properly).*" Building a sibling tool with broader
+via codexu renders properly).*" Building a sibling tool with broader
 gating + Claude-style schema is how that decision lands without
 disturbing plan-mode `request_user_input`.
 
@@ -877,7 +868,7 @@ parallel implementation:
   lines"; that was wrong. Decide upfront whether to clone (~3500-4500
   LOC) or extract a shared base (~1000-1500 LOC; higher regression
   risk on existing tool))
-- New happy bridge (sibling to existing `requestUserInput` handler)
+- New codexu bridge (sibling to existing `requestUserInput` handler)
 
 **What is genuinely reusable (patterns, not code):**
 - The handler-registration shape — see `core/src/tools/spec.rs:168, 244`
@@ -886,7 +877,7 @@ parallel implementation:
   `core/src/session/mod.rs:2145`)
 - The app-server bridge shape in `bespoke_event_handling.rs`
 - The TUI overlay-with-keyboard-driven-options pattern
-- The happy permission-handler-style mobile bridge
+- The codexu permission-handler-style mobile bridge
 
 **What's new for `ask_user_question`:**
 - Tool definition with broader gating (any `ModeKind`, any thread depth
@@ -901,7 +892,7 @@ parallel implementation:
   pattern; not a new behavior.
 - Multi-question count bumped from 3 to 4 (matching Claude's API)
 - TUI card variant with side-by-side preview layout
-- Happy mobile UI variant
+- codexu mobile UI variant
 
 **🔴 Spawned-agent attribution is a BLOCKER, not a deferrable risk.**
 The existing `Session::request_user_input` keys its blocking-oneshot
@@ -992,15 +983,15 @@ mode/thread depth.
   (any mode, any thread depth)
 - Integration test for the full flow including from-spawned-agent path
 
-**Files in happy that need updating:**
-- `packages/happy-cli/src/codex/codexAppServerClient.ts` — handle the
+**Files in codexu packages that need updating:**
+- `packages/codexu-cli/src/codex/codexAppServerClient.ts` — handle the
   new server-initiated request, route through permission-handler-like
   pipeline (mirrors how it handles `requestUserInput` today)
-- `packages/happy-cli/src/codex/utils/permissionHandler.ts` — add an
+- `packages/codexu-cli/src/codex/utils/permissionHandler.ts` — add an
   `ask_user_question` handler alongside permission handlers
-- `packages/happy-cli/src/codex/sessionProtocolMapper.ts` — map the new
+- `packages/codexu-cli/src/codex/sessionProtocolMapper.ts` — map the new
   RPC to a `UserQuestionEnvelope` for mobile rendering
-- happy phone app: `UserQuestionCard.tsx` mirroring `PermissionFooter`
+- codexu phone app: `UserQuestionCard.tsx` mirroring `PermissionFooter`
   pattern; supports preview side-by-side, multi-select, multi-question
 
 **Cost shape:** the existing `request_user_input` implementation is
@@ -1151,7 +1142,7 @@ verifier). Separate process, separate app-server, no continuity.
 
 **After:** ralph orchestrator skill calls native spawn-agent-role tool
 for codex-based workers. Each becomes a sub-thread on the SAME
-app-server happy is connected to. Visible in happy. Resumable via
+app-server codexu is connected to. visible in codexu. Resumable via
 `thread/resume`. Optional long-lived teammate (Phase 6).
 
 **3d-i. Compatibility audit FIRST.** `multi_agents_v2/spawn.rs`
@@ -1225,7 +1216,7 @@ or (c) stay on `codex-exec.sh` as a justified fallback.
 - Each role lives as a `[agents.<role>]` entry from 3b-i.
 - Incompatible cases: keep on `codex-exec.sh` with a note.
 
-**Side benefit:** migrated workers become first-class in happy. User on
+**Side benefit:** migrated workers become first-class in codexu. User on
 phone can inspect/interact with them mid-flight. Worker thread can be
 archived or kept alive (`inactivity_timeout` config; future Phase 6
 keepalive flag).
@@ -1451,13 +1442,13 @@ options-mode") defers parity risk to dogfood.
 
 End-to-end tests across the full stack:
 
-- 4a. **codex from happy works** — `happy codex` spawns the patched
+- 4a. **codex from codexu works** — `codexu codex` spawns the patched
   codex via app-server, ws transport, multi-client. Smoke test.
 - 4b. **ralph from codex works** — invoke `$implement-with-ralph` in
   a codex session; ralph orchestrator skill spawns codex-based
   reviewer agents (Phase 3d) and cross-vendor reviewers (3e); merged
   results land in working tree.
-- 4c. **ralph + happy combined** — start `happy codex` on laptop,
+- 4c. **ralph + codexu combined** — start `codexu codex` on laptop,
   attach phone, invoke `$implement-with-ralph` from phone. Watch ralph
   progress on phone via the relay; answer approvals from either
   surface; spawned codex worker threads visible as cards on phone.
@@ -1470,13 +1461,13 @@ End-to-end tests across the full stack:
   merges back into the codex thread. Multi-vendor billing visible
   per-worker.
 - 4f. **AskUserQuestion fan-out** — codex agent calls
-  `ask_user_question`; both codex TUI and happy phone receive the
+  `ask_user_question`; both codex TUI and codexu phone receive the
   request; first-answer-wins; "Other" free-text path works.
 - 4g. **App-server lifecycle** — close all clients; observe app-server
-  exit (or idle-timeout-driven exit). Reattach via `happy codex` on
+  exit (or idle-timeout-driven exit). Reattach via `codexu codex` on
   the same cwd; thread state preserved.
 - 4h. **End-to-end trace IDs** — a single user action correlates
-  across `~/.codex/logs/{app-server,ralph,happy}/<session>/` log
+  across `~/.codex/logs/{app-server,ralph,codexu}/<session>/` log
   directories.
 - 4i. **Pre-Phase-3 ralph state migrates** — take a `.ralph/jobs/<name>/`
   directory created by Claude-Code-era ralph; resume / inspect it via
@@ -1547,7 +1538,7 @@ What's missing for a polished teammate UX:
   opt out of auto-pruning
 - Workflow conventions ("ping teammate Researcher with question Y"
   without spawning a new role each time)
-- Happy phone UI: an "active teammates" tab listing resumable threads
+- codexu phone UI: an "active teammates" tab listing resumable threads
   with last-activity timestamps
 - Documentation patterns for teammate types (e.g., "Researcher" stays
   pinned as a long-lived background agent; "Code-Fixer" is one-shot)
@@ -1603,8 +1594,8 @@ below:
    observe streaming chunks render correctly (no garbled output).
 7. **Tool error / retry:** force a tool error (write to nonexistent
    path); observe whether Claude handles the error response correctly.
-8. **App-server surface:** repeat steps 3-4 via `happy codex`
-   (i.e., `codex` driven from happy's app-server) — verify the same
+8. **App-server surface:** repeat steps 3-4 via `codexu codex`
+   (i.e., `codex` driven from codexu's app-server) — verify the same
    prompt works through the full stack, not just `codex exec`.
 9. **Spawned-agent surface:** define `[agents.claude-reviewer]` with the
    Claude slug; spawn it from a parent codex session; verify it runs.
@@ -1657,7 +1648,7 @@ don't allow it, Phase 7 is dead and cross-vendor stays on
 
 **Why this matters (assuming spike resolves favorably):**
 - True in-process cross-vendor — Claude becomes a model in codex's
-  registry, spawnable as an agent role, visible in happy, resumable as a
+  registry, spawnable as an agent role, visible in codexu, resumable as a
   teammate
 - Simplifies ralph's review fan-out: instead of `claude-exec.sh`
   shell-out, define `[agents.claude-reviewer]` with `model =
@@ -1712,7 +1703,7 @@ Specifically:
   Anthropic-API-key requirement
 - **Spawn pattern unifies** — Claude becomes a model in codex's registry,
   spawnable as `[agents.claude-reviewer] { model = "claude-opus-4.6" }`,
-  visible in happy as a sub-thread
+  visible in codexu as a sub-thread
 - **Cross-vendor consensus is NOT lost.** Even routed through one
   provider, Claude / GPT / Codex are still distinct model FAMILIES with
   different blind spots. 3-way ralph review preserves its consensus
@@ -1744,7 +1735,7 @@ Defer until Phases 1-5 are stable.
 
 ## Cross-cutting concerns
 
-**Versioning.** Pin a specific codex-patched rev in happy's `codexCli`
+**Versioning.** Pin a specific codex-patched rev in codexu's `codexCli`
 dep and in any ralph plugin scripts that reference codex behavior. Bump
 in coordination. Define an **RPC contract version** in
 `external/repos/codex-patched/codex-rs/protocol/src/` (specific file TBD
@@ -1752,7 +1743,7 @@ during Phase 1a) so consumers detect incompatible runtimes on
 `initialize`. Document the version-bump policy in
 `docs/implementation/patch-surface.md`.
 
-**Logs.** Consolidate to `~/.codex/logs/{app-server,ralph,happy}/<session>/`.
+**Logs.** Consolidate to `~/.codex/logs/{app-server,ralph,codexu}/<session>/`.
 Each tool writes to its subdir. A single user action should be
 correlatable across all three via end-to-end trace IDs (decide format —
 W3C TraceContext? Codex-specific?). Add to Phase 4h verification.
@@ -1761,9 +1752,9 @@ W3C TraceContext? Codex-specific?). Add to Phase 4h verification.
 
 **Hard invariant (post-tunnels-plan refinement):** Codex app-server
 must bind only loopback and must never be directly exposed; any
-remote/mobile access terminates at happy-cli's authenticated
+remote/mobile access terminates at codexu-cli's authenticated
 tunnel-facing server, which is a separate client of the loopback
-codex app-server. Happy-cli's WS server MAY be exposed via Microsoft
+codex app-server. codexu-cli's WS server MAY be exposed via Microsoft
 devtunnel per `github-auth-via-vscode-tunnels.md` — that is an
 authenticated-tunnel hop, not a non-loopback bind on codex.
 
@@ -1771,26 +1762,26 @@ Worker CLIs (claude, copilot, gemini) handle their own auth via their
 respective configs. After Phase 7, Claude-via-Copilot routes through
 codex's Copilot auth — single auth chain.
 
-**Updates.** Three install paths today (codex npm, happy npm, ralph +
+**Updates.** Three install paths today (codex npm, codexu npm, ralph +
 options-mode + personal plugins via `codex plugin marketplace add`). Acceptable;
 revisit only if it causes pain.
 
-**Identity.** Same auth identity across surfaces. happy's relay handles
+**Identity.** Same auth identity across surfaces. codexu's relay handles
 this for cross-machine; on-machine is just the user account.
 
 **Disaster recovery.** When something goes wrong:
 - Corrupted thread state: `~/.codex/sessions/<thread-id>.jsonl` is the
   source of truth; can be replayed via `thread/resume`
 - Hung app-server: kill PID from discovery file at
-  `~/.codex/runtime/active-${cwdHash}.json`; happy will reattach on
-  next `happy codex` invocation (per Phase 1b plan)
+  `~/.codex/runtime/active-${cwdHash}.json`; codexu will reattach on
+  next `codexu codex` invocation (per Phase 1b plan)
 - Stuck ralph job: state at `.ralph/jobs/<name>/job-state.json`;
   manual intervention via `list-jobs` skill or direct file edit
-- Force-restart fallback path documented per happy's existing
+- Force-restart fallback path documented per codexu's existing
   `runCodex.ts:265-280` abort flow
 
 **Observability across layers.** When debugging:
-1. Start with happy's mobile-side trace (`~/.happy-dev/logs/`)
+1. Start with codexu's mobile-side trace (`~/.happy-dev/logs/`)
 2. Cross-reference codex app-server log
    (`~/.codex/logs/app-server/<session>/`)
 3. Drill into ralph's per-job artifacts
@@ -1826,26 +1817,24 @@ billing, single auth.
 **Fresh-machine bootstrap appendix** (TBD — populate after Phase 1c
 solidifies):
 1. Install `codex` npm package (the patched fork via `gim-home/codex`)
-2. Install `happy` npm package
+2. Install `codexu` npm package
 3. `git submodule update --init --recursive` if codex repo uses
    submodules
 4. `codex plugin marketplace add <catalog-source>` to install ralph + options-mode + personal plugins from the catalog. Then run
    options-mode + personal
 5. `~/.codex/config.toml` — add `[agents.<role>]` entries from each
    plugin's documentation
-6. `happy login` — auth chain
-7. Verify: `codex` opens; `/skills` shows installed skills; `happy
-   codex` starts; phone pairs
+6. `codexu login` — auth chain
+7. Verify: `codex` opens; `/skills` shows installed skills; `codexu codex` starts; phone pairs
 
 **App-server lifecycle acceptance tests** (Phase 4g):
 - Idle exit: all clients disconnect; app-server eventually exits per
   configured idle timeout
-- Reattach: app-server alive; new `happy codex` reattaches via
+- Reattach: app-server alive; new `codexu codex` reattaches via
   discovery file; missed turns catch up via `thread/turns/list`
 - Orphan child: app-server exits with running background bash; the
   bash should NOT survive (avoid orphan processes)
-- Discovery file staleness: dead PID in discovery file; new `happy
-  codex` deletes stale entry, spawns fresh
+- Discovery file staleness: dead PID in discovery file; new `codexu codex` deletes stale entry, spawns fresh
 
 **Reviewer fan-out contract.** When ralph fans out 3 reviewers (or any
 multi-agent spawn writing back to a parent thread), prevent races.
@@ -2057,13 +2046,13 @@ Grouped by topic.
   `unix://`, `ws://`, `off`. `wss://` only outbound to ChatGPT
   remote-control endpoint.
 - **Don't bind non-loopback addresses for the app-server.** Refined
-  invariant: codex app-server stays loopback; happy-cli's WS server
+  invariant: codex app-server stays loopback; codexu-cli's WS server
   may be exposed via Microsoft devtunnel per the tunnels plan — that
   is an authenticated-tunnel hop, not a non-loopback bind on codex.
-- **Per-cwd discovery file is the right reattach mechanism.** Happy's
+- **Per-cwd discovery file is the right reattach mechanism.** codexu's
   `codex-seamless-multi-device.md` Phase 1 sub-task 2 already nails
   this. Don't propose alternatives without concrete reason.
-- **App-server lifecycle is not a detail.** Happy + long ralph jobs
+- **App-server lifecycle is not a detail.** Codexu + long ralph jobs
   means process exit, reattach, orphan children, log/session identity
   all need acceptance tests (Phase 4g).
 
@@ -2087,42 +2076,42 @@ Grouped by topic.
 
 Ordered by Phase-1 relevance:
 
-- `C:/harness-efforts/happy/docs/plans/codex-seamless-multi-device.md`
+- `C:/harness-efforts/codexu/docs/plans/codex-seamless-multi-device.md`
   — multi-device session plan; the Phase 1b deliverable here is just
   executing that plan (sub-tasks 1-2 stay; sub-task 3+ refactored per
   the tunnels plan below).
-- `C:/harness-efforts/happy/docs/plans/github-auth-via-vscode-tunnels.md`
-  — **load-bearing for Phase 1b sub-task 3+.** Major happy architecture
-  change: replaces happy's E2E-encrypted relay model with GitHub-OAuth
+- `C:/harness-efforts/codexu/docs/plans/github-auth-via-vscode-tunnels.md`
+  — **load-bearing for Phase 1b sub-task 3+.** Major codexu architecture
+  change: replaces codexu's E2E-encrypted relay model with GitHub-OAuth
   identity + Microsoft Dev Tunnels (`devtunnel`) transport +
-  happy-server demoted to a directory service. Phone connects via
+  codexu-server demoted to a directory service. Phone connects via
   authenticated WS to `*.tunnels.api.visualstudio.com` → tunnel host →
-  happy-cli's local WS server.
+  codexu-cli's local WS server.
 
   **Intersections with this roadmap:**
   - Codex app-server stays loopback-only (the hard invariant from
     `codex-seamless-multi-device.md`, refined in this roadmap's
-    Cross-cutting "Auth" section) — only happy's relay role moves
+    Cross-cutting "Auth" section) — only codexu's relay role moves
     behind a tunnel, NOT the codex backend.
-  - happy-cli becomes both a codex-app-server client (loopback) AND a
+  - codexu-cli becomes both a codex-app-server client (loopback) AND a
     WS server for the phone (exposed via devtunnel).
   - Drops E2E encryption in favor of GitHub-authenticated TLS via
     Microsoft tunnel relay. Strictly weaker but much simpler trust
     model. The cross-cutting "trust model for cross-vendor workers"
     section in this roadmap is about WORKER subprocesses (Anthropic
     key, Copilot OAuth per-CLI) — different axis from the
-    happy↔phone trust model. The happy↔phone model is covered by the
+    codexu↔phone trust model. The codexu↔phone model is covered by the
     tunnels plan; not duplicated here.
   - Backward compatibility: none. Existing pairings/sessions on
-    happy-server intentionally dropped per that plan.
+    codexu-server intentionally dropped per that plan.
 
-  Treat as the canonical happy-side architecture going forward; the
+  Treat as the canonical codexu-side architecture going forward; the
   earlier `codex-seamless-multi-device.md` plan describes the
   multi-device UX shape, this one describes the transport shape that
   underpins it post-migration.
 
-- `C:/harness-efforts/happy/docs/plans/codex-fork-extension-strategy.md`
-  — happy-side strategic doc covering codex integration evolution.
+- `C:/harness-efforts/codexu/docs/plans/codex-fork-extension-strategy.md`
+  — codexu-side strategic doc covering codex integration evolution.
 - `C:/harness-efforts/codex/docs/implementation/architecture.md` —
   codex-patched fork architecture overview.
 - `C:/harness-efforts/codex/docs/implementation/patch-surface.md` —
@@ -2175,7 +2164,7 @@ codex + ralph for remaining work.
    smallest concrete deliverable, validates marketplace-add path)
 2. **Phase 2a** — verify upstream features end-to-end
 3. **Phase 2b** — `.claude/skills` discovery via plugin roots
-4. **Phase 1b** — happy continuation (read against tunnels plan first)
+4. **Phase 1b** — codexu continuation (read against tunnels plan first)
 5. **Phase 3a-h** — ralph migration (start ralph autonomy here)
 6. **Phase 2c** — plugin scoping (biggest core fork patch)
 7. **Phase 2d** — `ask_user_question` (second biggest, blocker on
