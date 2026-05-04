@@ -163,6 +163,31 @@ canonical-current state.
 - Upstream-derived doc/skill references to "Happy Coder", `slopus/happy`,
   and `happy.engineering` are HISTORICAL and stay as-is.
 
+### Phase 2a — verify upstream features end-to-end (status 2026-05-03)
+
+Verified via `codex-cli 0.128.0-copilot-api.1` smoke tests. Detail
+captured in `C:/harness-efforts/codex/docs/implementation/regression-history.md`
+under "Phase 2a smoke-test verification".
+
+- ✅ **Test 1** — `~/.agents/skills/` user-skill discovery. Dropped
+  `~/.agents/skills/codexu-test-skill/SKILL.md`; verified via
+  `codex debug prompt-input` that codex picks it up alongside the 5
+  `.system/` skills with the correct file path attribution.
+- ✅ **Test 2** — agent role spawn. Defined `[agents.researcher]` with
+  `config_file = "./agents/researcher.toml"` and a custom
+  `developer_instructions`. Spawned via `codex exec`; researcher
+  returned the literal probe sentence — confirms role registration +
+  config_file resolution + developer_instructions plumbing.
+- ⏸ **Test 3** — execpolicy sandbox denial. DEFERRED. Local config has
+  `sandbox_mode = "danger-full-access"`; `-c sandbox_mode="read-only"`
+  override didn't switch at runtime (overlay layering issue). Re-verify
+  later in a non-trusted dir or with the actual config flipped to a
+  restrictive sandbox.
+
+Phase 2a verdict: 2 of 3 tests verified, 1 deferred. No regressions
+from the fork baseline. Agent role + skill discovery primitives both
+work as the roadmap assumes.
+
 ### Phase 1c — personal codex plugin scaffolding (status 2026-05-03)
 
 - ✅ **Plugin scaffold** at `packages/codexu-plugin/` (commit `5ed14a13`):
