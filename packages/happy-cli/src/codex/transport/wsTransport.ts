@@ -151,20 +151,23 @@ export class WsTransport implements JsonRpcConnection {
         this.closeHandler = handler;
     }
 
-    async close(): Promise<void> {
+    async close(timeoutMs = 2_000): Promise<void> {
         const ws = this.ws;
         this.ws = null;
         if (!ws || ws.readyState === WebSocket.CLOSED) return;
 
         await new Promise<void>((resolve) => {
             let settled = false;
+            let timer: ReturnType<typeof setTimeout> | undefined;
             const done = () => {
                 if (settled) return;
                 settled = true;
+                clearTimeout(timer);
                 ws.off('close', done);
                 ws.off('error', done);
                 resolve();
             };
+            timer = setTimeout(done, timeoutMs);
             ws.once('close', done);
             ws.once('error', done);
             try {

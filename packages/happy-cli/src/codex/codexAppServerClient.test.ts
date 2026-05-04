@@ -1166,4 +1166,57 @@ describe('CodexAppServerClient sandbox integration', () => {
 
         expect(mockCloseSync).toHaveBeenCalledWith(fakeLogFd);
     });
+
+    it('disconnect resolves within the close-timeout window when the ws server never emits close', async () => {
+        // Build a WS server that silently absorbs the close handshake but never
+        // sends its own close frame back, so the socket stays half-open forever.
+        const wss = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+        activeWsServers.push(wss);
+        await new Promise<void>((resolve) => wss.once('listening', resolve));
+        const { port } = wss.address() as AddressInfo;
+
+        // Prevent the server socket from completing the closing handshake.
+        wss.on('connection', (socket) => {
+            activeWsSockets.push(socket);
+            socket.on('message', (data) => {
+                const msg = JSON.parse(data.toString()) as MockRpcMessage;
+                if (msg.method === 'initialize' && msg.id != null) {
+                    socket.send(JSON.stringify({ id: msg.id, result: { userAgent: 'test' } }));
+                }
+            });
+            // Intercept 'close' so the server-side socket never echoes close back.
+            socket.on('close', () => { /* swallow — never re-emit to client */ });
+        });
+
+        const proc = Object.assign(new EventEmitter(), {
+            pid: 9900,
+            kill: vi.fn((signal?: NodeJS.Signals) => {
+                queueMicrotask(() => proc.emit('exit', signal === 'SIGKILL' ? 1 : 0, signal ?? null));
+                return true;
+            }),
+        });
+
+        mockPickFreeLoopbackPort.mockResolvedValueOnce(port);
+        mockSpawn.mockImplementationOnce(() => proc);
+        mockOpenSync.mockReturnValueOnce(88);
+
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+        await client.connect();
+
+        // Start disconnect and advance fake timers past the 2 s close-timeout
+        // so the transport falls through without waiting for the server close frame.
+        const disconnectPromise = client.disconnect();
+        await vi.advanceTimersByTimeAsync(3_000);
+
+        const start = Date.now();
+        await disconnectPromise;
+        // Should have resolved promptly once timers advanced, not hung indefinitely.
+        expect(Date.now() - start).toBeLessThan(500);
+
+        // The child process must have received SIGTERM so the WS server process is cleaned up.
+        expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
+    });
 });
