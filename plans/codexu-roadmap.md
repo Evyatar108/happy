@@ -178,7 +178,11 @@ reuse the running app-server for same-worktree reconnects.
 **Shipped vs deferred:**
 - Shipped: `JsonRpcConnection`, extracted stdio transport, ws transport,
   `--codex-transport`, configuration.logsDir app-server logs, and the
-  sandbox+ws->stdio override.
+  sandbox+ws->stdio override. Also landed alongside US-005: a test-infra
+  fix in `environments/environments.ts` switching `spawnSync('tsx', ...)`
+  to `spawnSync('pnpm', ['exec', 'tsx', ...])` so the
+  `codex.integration.test.ts` environment-migration setup runs on Windows
+  (tsx not on global PATH).
 - Deferred: sub-tasks 2-5, full sandbox+ws integration, stdio sunsetting,
   and stronger `isCodexAppServerAvailable` version-gate behavior.
 

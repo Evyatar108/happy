@@ -304,6 +304,7 @@ export async function createEnvironment(opts?: { noSwitch?: boolean }): Promise<
     console.log(`Running database migration for ${name}...`);
     const migrationEnv = buildEnvVars(envDir, serverPort, expoPort);
     const standaloneTs = path.join(REPO_ROOT, "packages", "happy-server", "sources", "standalone.ts");
+    // pnpm exec wraps tsx so the tsx binary resolves via pnpm's PATH on Windows (tsx not on global PATH)
     const result = spawnSync(
         "pnpm",
         ["exec", "tsx", standaloneTs, "migrate"],
