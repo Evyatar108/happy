@@ -456,7 +456,7 @@ export class CodexAppServerClient {
     }
 
     private createWsConnection(command: string, args: string[], env: Record<string, string>, logFilePath: string): JsonRpcConnection {
-        const logFd = openSync(logFilePath, 'a');
+        const logFd = openSync(logFilePath, 'a', 0o600);
         this.wsLogFd = logFd;
         this.wsChildExited = false;
         this.wsChildStderr = '';
