@@ -163,6 +163,36 @@ canonical-current state.
 - Upstream-derived doc/skill references to "Happy Coder", `slopus/happy`,
   and `happy.engineering` are HISTORICAL and stay as-is.
 
+### Phase 2b — `.claude/skills` discovery via junctions (status 2026-05-03)
+
+Implementation NOTE — diverged from roadmap's original sketch: codex's
+plugin manifest `skills` field supports only ONE path inside plugin
+root (verified against `core-plugins/src/loader.rs:678`
+`plugin_skill_roots()`). NO support for arbitrary absolute paths or
+multi-root arrays. The "personal plugin's `plugin_skill_roots` includes
+`~/.claude/skills`" idea doesn't match the actual code.
+
+Working approach instead: **Windows junctions** mirror Claude Code skill
+locations under codex's existing `~/.agents/skills/` user-skill
+discovery root (which Phase 2a Test 1 already proved works).
+
+- ✅ User-wide: `~/.claude/skills/` → `~/.agents/skills/` junction.
+- ✅ Per-repo smoke test: `~/.agents/skills/codexu-agent-browser/` →
+  `C:/harness-efforts/codexu/.claude/skills/agent-browser/`. Verified
+  via `codex debug prompt-input` — skill appears with frontmatter `name:`
+  and real underlying path. Claude-specific frontmatter fields
+  (`allowed-tools`) silently tolerated; no warnings in
+  `~/.codex/log/codex-tui.log`.
+
+Recipe documented in `packages/codexu-plugin/README.md` under
+"Discovering Claude Code skills" section.
+
+Per-cwd `.claude/skills/<name>` discovery requires explicit junction
+setup per skill — the codex CLI doesn't auto-discover repo-local
+skill roots. Acceptable cost for the codexu use case (only the
+codexu repo carries a `.claude/skills/`); document + apply junctions
+on demand.
+
 ### Phase 2a — verify upstream features end-to-end (status 2026-05-03)
 
 Verified via `codex-cli 0.128.0-copilot-api.1` smoke tests. Detail
