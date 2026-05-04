@@ -1,19 +1,39 @@
 # codexu — codex multi-device + multi-agent stack roadmap
 
-*Living doc. First captured 2026-05-02. Holistic 3-way review (Claude × Claude × Codex) applied 2026-05-02. Project rename to "codexu" + workspace consolidation completed 2026-05-02. Update as decisions land or evidence shifts.*
+*Living doc. First captured 2026-05-02. Holistic 3-way review (Claude × Claude × Codex) applied 2026-05-02. Project rename to "codexu" attempted 2026-05-02; **package-level rebrand REVERTED 2026-05-03** to enable clean upstream merge with `slopus/happy`. Update as decisions land or evidence shifts.*
 
 ## 🚀 Status — fresh agents start here
 
 **Project name:** **codexu** — umbrella brand for the multi-device +
-multi-agent codex stack.
+multi-agent codex stack. The repo + monorepo are named `codexu`. The
+NEW `packages/codexu-plugin/` is named `codexu-plugin`. **Internal
+package directories `packages/happy-{cli,app,server,agent,wire,app-logs}`
+intentionally KEEP their `happy-*` names** to preserve clean upstream
+merges from `slopus/happy`.
 
-**Rename + consolidation COMPLETED 2026-05-02.** Repo, packages,
-binaries, npm names, and `@slopus/happy-wire` imports renamed in two
-commits on the codexu repo (bootstrap + rebrand). README reframed.
-This doc's path citations + package paths search-replaced. **Internal
-symbols** (function names like `spawnHappyCLI`), **schema field names**
-(`happyHomeDir`), **env vars** (`HAPPY_VARIANT`), **runtime state
-directories** (`~/.happy/`), **tmux session names**, and **brand
+**Rebrand status (2026-05-03):**
+- ✅ GitHub repo renamed `Evyatar108/happy` → `Evyatar108/codexu`
+- ✅ Local dir renamed `C:/harness-efforts/happy` → `C:/harness-efforts/codexu`
+- ✅ NEW `packages/codexu-plugin/` scaffold added
+- ✅ Roadmap moved to `codexu/plans/codexu-roadmap.md`
+- ✅ Workspace junctions (`codexu/codex`, `codexu/ralph`, etc.) created
+- ❌ Package-level rebrand (happy-cli → codexu-cli, npm names, bin
+   names, `@slopus/happy-wire` → `codexu-wire`) was applied then
+   **REVERTED** 2026-05-03. Reason: 79 upstream commits + 1971-file diff
+   with `slopus/happy` would conflict heavily on renamed paths.
+   Re-attempt deferred until upstream tracking is dropped or merge
+   cadence stabilizes.
+
+**Decision change:** the earlier "codexu fork stops tracking upstream
+slopus/happy" decision is **partially reversed**. Resume one-time-or-
+periodic merges from `slopus/happy` to absorb upstream improvements
+(codium plugins, theme system, model adds, init-hang fix). Long-term
+divergence direction (codex-only, GitHub-OAuth + Microsoft Dev Tunnels)
+is unchanged.
+
+**Internal symbols** (function names like `spawnHappyCLI`), **schema
+field names** (`happyHomeDir`), **env vars** (`HAPPY_VARIANT`), **runtime
+state directories** (`~/.happy/`), **tmux session names**, and **brand
 references in docs/skills** intentionally **left as-is** — those carry
 runtime + wire-compat with existing user installs and need per-symbol
 review before renaming.
@@ -22,9 +42,10 @@ review before renaming.
 
 | Component | Location | Repo |
 |---|---|---|
-| codexu monorepo (cli/app/server/agent/wire/app-logs/plugin) | `C:/harness-efforts/codexu/` | `Evyatar108/codexu` |
+| codexu monorepo (`packages/happy-{cli,app,server,agent,wire,app-logs}` + `packages/codexu-plugin` + `packages/codium`) | `C:/harness-efforts/codexu/` | `Evyatar108/codexu` |
 | Personal codex plugin | `C:/harness-efforts/codexu/packages/codexu-plugin/` | (in codexu monorepo) |
-| Codex engine fork | `C:/harness-efforts/codex/` | `Evyatar108/codex-patched` |
+| Codex engine fork | `C:/harness-efforts/codex/` | `Evyatar108/codex-patched` (canonical name; currently stale; sync in Phase 1a) |
+| Upstream (resumed tracking) | n/a | `slopus/happy` |
 | Roadmap (this file) | `C:/harness-efforts/codexu/plans/codexu-roadmap.md` | (in codexu monorepo) |
 
 Workspace junctions inside `C:/harness-efforts/codexu/`:
@@ -66,10 +87,13 @@ canonical-current state.
   style). Goal: keep upstream merges clean.
 - **Decision #4 (consensus model):** keep cross-vendor 3-way via
   shell scripts (claude-exec.sh + codex-via-role + copilot-exec.sh).
-- **codexu fork stops tracking upstream `slopus/happy`.** Direction
-  change to GitHub-OAuth + Microsoft Dev Tunnels (per
-  `github-auth-via-vscode-tunnels.md`) is too large. Rename to codexu
-  absorbs this direction.
+- **codexu fork resumed tracking upstream `slopus/happy` (revised 2026-05-03).**
+  Earlier decision to stop tracking was reversed when 79 upstream commits
+  worth absorbing (codium plugins, theme system, model adds, init-hang
+  fix) made the rebrand-blocking-merge tradeoff untenable. Long-term
+  divergence direction (codex-only, GitHub-OAuth + Microsoft Dev Tunnels
+  per `github-auth-via-vscode-tunnels.md`) is unchanged; tracking is for
+  pulling improvements, not for following slopus's product direction.
 - **Personal plugin lives as subdir** `packages/codexu-plugin/` of
   codexu monorepo. Single source of truth.
 - **Roadmap moved** to `codexu/plans/codexu-roadmap.md` with 1-line

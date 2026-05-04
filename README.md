@@ -5,29 +5,39 @@
 > [codex](https://github.com/Evyatar108/codex-patched) fork as the
 > runtime.
 
+> **Rebrand status (2026-05-03):** package-level rebrand from
+> `happy-*` → `codexu-*` was attempted then reverted to enable a clean
+> upstream merge with `slopus/happy`. Internal package directories
+> (`packages/happy-{cli,app,server,agent,wire,app-logs}`) are
+> intentionally back to their `happy-*` names. Re-attempt deferred until
+> upstream merge cadence stabilizes (or until tracking is dropped). The
+> NEW `packages/codexu-plugin/` and the `codexu` repo name itself stay.
+
 ## What this is
 
 Codexu is the consumer-facing surface for a personal AI-coding stack:
 
-- **codexu-cli** — terminal entry point + ink renderer; talks to a
-  codex app-server over stdio/ws.
-- **codexu-app** — mobile + web client (Expo / React Native) that
+- **happy-cli** (npm: `happy`) — terminal entry point + ink renderer;
+  talks to a codex app-server over stdio/ws.
+- **happy-app** — mobile + web client (Expo / React Native) that
   attaches to the same app-server from any device.
-- **codexu-server** — backend for cross-device sync, push, voice,
+- **happy-server** — backend for cross-device sync, push, voice,
   artifacts.
-- **codexu-agent** — remote agent control CLI (create, send, monitor
+- **happy-agent** — remote agent control CLI (create, send, monitor
   sessions).
-- **codexu-wire** — shared zod schemas + message types.
-- **codexu-plugin** — personal codex plugin (skills, hooks, AskUserQuestion-using
-  workflows). Installed via `codex plugin marketplace add`.
+- **happy-wire** (npm: `@slopus/happy-wire`) — shared zod schemas +
+  message types.
+- **codexu-plugin** — personal codex plugin (skills, hooks,
+  AskUserQuestion-using workflows). Installed via `codex plugin
+  marketplace add`. NEW; not part of upstream slopus/happy.
 
 The codex engine itself lives in a separate repo
 ([Evyatar108/codex-patched](https://github.com/Evyatar108/codex-patched))
 — this monorepo consumes it.
 
-> **Sync note (2026-05-03):** active codex patches currently live on a
-> separate working fork; `codex-patched` is the canonical public mirror
-> that periodic sync will keep up to date. Pinning codexu-cli at a
+> **Codex sync note (2026-05-03):** active codex patches currently live
+> on a separate working fork; `codex-patched` is the canonical public
+> mirror that periodic sync will keep up to date. Pinning happy-cli at a
 > specific `codex-patched` revision (and the sync workflow itself) lands
 > in roadmap Phase 1a.
 
@@ -51,11 +61,10 @@ The big picture lives in
 Codexu is a fork of [slopus/happy](https://github.com/slopus/happy)
 diverging toward a codex-only direction (GitHub-OAuth via Microsoft Dev
 Tunnels replacing the encrypted relay; codex app-server replacing the
-Claude Code wrapper as the primary runtime). Tracking upstream stopped
-at the rename. Internal package symbols, schema field names, and user-
-state directories (`~/.happy/`) still use `happy` — those carry runtime
-+ wire-compat with existing installs and rename incrementally per the
-roadmap.
+Claude Code wrapper as the primary runtime). Active upstream tracking
+resumed 2026-05-03 to absorb upstream improvements (codium plugin
+system, theme system, model adds, init-hang fix, etc.); long-term
+divergence direction unchanged.
 
 ## Status
 

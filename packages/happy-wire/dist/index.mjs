@@ -286,26 +286,26 @@ function isRecord(value) {
 function isMatchInput(raw) {
   return isRecord(raw) && typeof raw.type === "string" && isRecord(raw.message) && "content" in raw.message;
 }
-function getUserText(raw) {
+function getUserContentShape(raw) {
   if (raw.type !== "user") {
     return null;
   }
   const { content } = raw.message;
   if (typeof content === "string") {
-    return content;
+    return { shape: "string", text: content };
   }
   if (Array.isArray(content) && content.length === 1) {
     const [block] = content;
     if (isRecord(block) && block.type === "text" && typeof block.text === "string") {
-      return block.text;
+      return { shape: "array1", text: block.text };
     }
   }
   return null;
 }
-function makeWrappedTagEntry(tagName) {
+function makeWrappedTagEntry(tagName, opts) {
   const inlineSource = `<${tagName}(?:\\s[^>]*)?>[\\s\\S]*?<\\/${tagName}>`;
   const standaloneLineSource = `(^|\\n)<${tagName}(?:\\s[^>]*)?>[\\s\\S]*?<\\/${tagName}>(\\n|$)`;
-  return {
+  const entry = {
     name: tagName,
     receiverMatchSite: "wrapped-tag",
     receiverRegexes: {
@@ -313,23 +313,25 @@ function makeWrappedTagEntry(tagName) {
       buildStandaloneLineRe: () => new RegExp(standaloneLineSource, "gi")
     }
   };
+  if (opts?.enableSender) {
+    const fullStringRe = new RegExp("^\\s*" + inlineSource + "\\s*$", "i");
+    entry.senderPredicate = (raw) => {
+      const shaped = getUserContentShape(raw);
+      return shaped !== null && shaped.shape === "string" && fullStringRe.test(shaped.text);
+    };
+  }
+  return entry;
 }
 const skillBodyEntry = {
   name: "skill-body",
   receiverMatchSite: "skill-body-prefix",
   receiverPrefix: SKILL_BODY_PREFIX_RE,
   senderPredicate: (raw) => {
-    const text = getUserText(raw);
-    return text !== null && SKILL_BODY_PREFIX_RE.test(text);
+    const shaped = getUserContentShape(raw);
+    return shaped !== null && shaped.shape === "array1" && SKILL_BODY_PREFIX_RE.test(shaped.text);
   }
 };
-const localCommandCaveatEntry = {
-  ...makeWrappedTagEntry("local-command-caveat"),
-  senderPredicate: (raw) => {
-    const text = getUserText(raw);
-    return text !== null && /^\s*<local-command-caveat(?:\s[^>]*)?>[\s\S]*?<\/local-command-caveat>\s*$/i.test(text);
-  }
-};
+const localCommandCaveatEntry = makeWrappedTagEntry("local-command-caveat", { enableSender: true });
 const systemReminderEntry = makeWrappedTagEntry("system-reminder");
 const forkBoilerplateEntry = makeWrappedTagEntry("fork-boilerplate");
 const nonRenderableEntries = [

@@ -3772,7 +3772,9 @@ interface NonRenderableEntry {
     receiverPrefix?: RegExp;
     receiverMatchSite: 'skill-body-prefix' | 'wrapped-tag';
 }
-declare function makeWrappedTagEntry(tagName: string): NonRenderableEntry;
+declare function makeWrappedTagEntry(tagName: string, opts?: {
+    enableSender?: boolean;
+}): NonRenderableEntry;
 declare const skillBodyEntry: NonRenderableEntry;
 declare const localCommandCaveatEntry: NonRenderableEntry;
 declare const systemReminderEntry: NonRenderableEntry;
