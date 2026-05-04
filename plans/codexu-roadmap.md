@@ -43,16 +43,33 @@ sidebarMode 3-state (alongside upstream's sidebarCollapsed boolean),
 `publishPermissionMode`, `AnimatedDiffText`/`AnimatedMarkdownText`
 font-scaling path, `CollapsibleDiffPreview` `maxVisibleLines` path.
 
-**Hybrid merges — follow-up cleanup queued:**
-- **`ToolDiffView.tsx` dual-path:** codex callers route through
-  `PierreDiffView`, Edit/MultiEdit/GeminiEdit through legacy
-  `DiffView`. **Next: port `maxVisibleLines` collapse-diff into
-  PierreDiffView, drop the legacy DiffView path** (in flight).
-- **`runClaude.ts`** has parallel `currentMode` + `currentRunMode`
+**Hybrid merges — follow-up cleanup status:**
+- ✅ **`ToolDiffView.tsx` dual-path** — DONE 2026-05-03 (commit
+  `1c978964`). Collapse-diff (`maxVisibleLines`) ported into
+  `PierreDiffView`. ToolDiffView now uses a single PierreDiff path for
+  both fork (Edit/MultiEdit) and codex (CodexDiff/CodexPatch) callers.
+  Native still routes through DiffView under the hood (with hunks +
+  maxVisibleLines forwarded); web wraps in `maxHeight` for clipping.
+- ⬜ **`runClaude.ts`** has parallel `currentMode` + `currentRunMode`
   vars (each consumed in different code paths). Consolidate later.
-- **`MarkdownView.tsx`** absorbed upstream's row-based table layout
+- ⬜ **`MarkdownView.tsx`** absorbed upstream's row-based table layout
   but kept `AnimatedMarkdownText` for font scaling — visual review
   TBD on tablet.
+
+**Pre-existing test failures from upstream merge** (NOT from rename
+revert or collapse-diff port; introduced by the upstream merge itself
+on 2026-05-03). 7 tests failing across 5 files:
+- `sources/sync/modeHacks.test.ts` — 3 tests (lowercase plan/build,
+  duplicated labels, hacks across mode arrays)
+- `sources/components/modelModeOptions.test.ts` — 2 tests (codex model
+  fallbacks, hacks to metadata-provided operating modes)
+- `sources/sync/settings.spec.ts` — 1 test (`settingsDefaults` —
+  likely from re-adding `compactSessionView` during the merge)
+- `sources/hooks/useSessionQuickActions.test.tsx` — 1 test (resume
+  permission mode copy)
+- `sources/-session/SessionView.sendWhenIdle.test.tsx` — file-level fail
+
+Triage + fix in a follow-up pass; not blocking other work.
 
 **Internal symbols** (function names like `spawnHappyCLI`), **schema
 field names** (`happyHomeDir`), **env vars** (`HAPPY_VARIANT`), **runtime
