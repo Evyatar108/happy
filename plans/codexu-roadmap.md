@@ -163,6 +163,40 @@ canonical-current state.
 - Upstream-derived doc/skill references to "Happy Coder", `slopus/happy`,
   and `happy.engineering` are HISTORICAL and stay as-is.
 
+### Right now (2026-05-03): starting Phase 1b sub-task 1
+
+**Next concrete deliverable:** stdio → loopback WebSocket transport
+refactor in `packages/happy-cli/src/codex/codexAppServerClient.ts`
+(~1215 LOC) + test adaptation in `codexAppServerClient.test.ts`
+(~1100 LOC). 1-2 days.
+
+**Read for full context** (in this order, ~25 min):
+1. This Status block (you're here).
+2. Roadmap §"Phase 1b kickoff context for fresh agents" (sub-task list,
+   classification, recommended ralph command, risk hotspots).
+3. `docs/plans/codex-seamless-multi-device.md` — sub-task 1 spec at
+   "Phase 1 — Persistent multi-client app-server with reattach". The
+   tunnels-supersedes callout at the top of that file lists what NOT to
+   apply to sub-tasks 3+.
+4. `docs/plans/github-auth-via-vscode-tunnels.md` — only the "Why this
+   doc exists" section + "Phasing" section to understand WHY sub-tasks
+   3+ are paused.
+5. The actual files: `packages/happy-cli/src/codex/codexAppServerClient.ts`
+   and `packages/happy-cli/src/codex/runCodex.ts`.
+
+**Recommended ralph workflow:**
+```
+cd C:/harness-efforts/codexu
+/plan-with-ralph "Phase 1b sub-task 1 — codex app-server transport refactor stdio → loopback WebSocket per docs/plans/codex-seamless-multi-device.md sub-task 1, with --codex-transport=stdio|ws fallback flag (default ws), preserving processEpoch lifecycle + force-restart semantics from current packages/happy-cli/src/codex/codexAppServerClient.ts. Use packages/happy-cli/src/openclaw/OpenClawSocket.ts as in-fork ws-client precedent. Adapt packages/happy-cli/src/codex/codexAppServerClient.test.ts mocks accordingly. Read first: plans/codexu-roadmap.md §'Right now' + §'Phase 1b kickoff context for fresh agents'."
+```
+
+After plan approval: `/implement-with-ralph --from-plan plans/...`
+
+**Pause-point:** stop after sub-task 2 ships (discovery file + reattach).
+Sub-tasks 3, 4, 5 are blocked on the tunnels Phase 0 spike result
+(`docs/spikes/devtunnel-auth-result.md` — does not exist yet) AND on
+tunnels' four pre-implementation decisions.
+
 ### Phase 2b — `.claude/skills` discovery via junctions (status 2026-05-03)
 
 Implementation NOTE — diverged from roadmap's original sketch: codex's
@@ -745,10 +779,87 @@ codexu-server-relayed E2E.
 **Files to track (read-only here):**
 - `C:/harness-efforts/codexu/docs/plans/codex-seamless-multi-device.md`
 - `C:/harness-efforts/codexu/docs/plans/github-auth-via-vscode-tunnels.md`
-- `C:/harness-efforts/codexu/packages/codexu-cli/src/codex/codexAppServerClient.ts`
-- `C:/harness-efforts/codexu/packages/codexu-cli/src/codex/runCodex.ts`
+- `C:/harness-efforts/codexu/packages/happy-cli/src/codex/codexAppServerClient.ts`
+- `C:/harness-efforts/codexu/packages/happy-cli/src/codex/runCodex.ts`
 
 Independent of codex/plugin work; runs in parallel.
+
+##### Phase 1b kickoff context for fresh agents (2026-05-03)
+
+Digest of the two plans (committed via plan agent's read+classify pass)
+plus current state of the actual code:
+
+**Sub-task list (`codex-seamless-multi-device.md` Phase 1):**
+1. Transport refactor — stdio → loopback WebSocket in
+   `codexAppServerClient.ts` (~1215 LOC) + test adaptation
+   (`codexAppServerClient.test.ts` ~1100 LOC). 1-2 days.
+2. Discovery + reattach — write
+   `${configuration.happyHomeDir}/codex-active-${cwdHash}.json`,
+   reuse running app-server. 1 day.
+3. Discoverability — terminal-startup multi-device hint. 0.5 day.
+   **Blocked on tunnels.**
+4. Conflict-resolution UX — multi-client approval fan-out. 0.5-1 day.
+   **Blocked on tunnels.**
+5. Walkthrough verification — manual end-to-end. 1 day. **Blocked on
+   tunnels.**
+
+**Classification (verified 2026-05-03):**
+- Sub-tasks 1, 2 → **PORTS UNCHANGED.** Pure local plumbing, loopback-
+  only, no relay/E2E/pairing dependence.
+- Sub-tasks 3, 4, 5 → **NEEDS TUNNELS-AWARE RE-DERIVATION.** Block on
+  the tunnels Phase 0 spike (`docs/spikes/devtunnel-auth-result.md` —
+  does not exist yet) AND on the tunnels companion's pre-implementation
+  decisions (OAuth app vs GitHub app, token contract, access path
+  (a)/(b), local WS port policy).
+
+**Recommended starting point:** sub-task 1. Nothing blocks it. Hard
+pause-point lands cleanly between sub-task 2 and sub-task 3. After
+sub-task 2 ships, run the tunnels Phase 0 spike + resolve the four
+pre-implementation decisions before continuing.
+
+**Risk hotspots — read these before starting:**
+- **Line numbers in `codex-seamless-multi-device.md` are stale** after
+  the upstream merge (commit `25fe2cf3`, 2026-05-03) and after Phase 1c
+  + 2a + 2b work. Use `grep` to locate spawn sites, request handlers,
+  etc. (e.g., `grep -n 'crossSpawn\|app-server\|--listen\|stdin.write'
+  packages/happy-cli/src/codex/codexAppServerClient.ts` confirms the
+  spawn at line 432 is still accurate, but other line refs may have
+  drifted).
+- **Path drift fixed 2026-05-03:** the original plan and tunnels
+  companion both cited `D:/harness-efforts/happy/...`. Both files have
+  been search-replaced to `C:/harness-efforts/codexu/...`.
+- **`Credentials` shape will change.** Sub-task 3 references "check via
+  the existing pairing/auth state in `Credentials`". Tunnels plan §
+  "happy-server"/Phase 2 rewrites `~/.happy/credentials.json` to hold
+  `{ githubAccessToken, login, machineId, tunnelId }`. Sub-task 3
+  cannot use today's `Credentials` shape; it must read whichever post-
+  tunnels shape exists at implementation time. Possible cross-phase
+  ordering hazard.
+- **Walkthrough Step 5 fan-out semantics shift layer.** Plan assumes
+  codex `app-server` fans out RPC events to attached clients including
+  the relay-forwarded phone path. Under tunnels, phone attaches
+  directly to CLI's local Socket.IO server (not relay). Whether codex
+  app-server's native fan-out covers this or whether CLI's lifted
+  `rpcHandler` must broadcast — re-derive when sub-task 4 starts.
+
+**Recommended ralph workflow for sub-task 1:**
+
+The transport refactor is design-y at the interface boundary
+(stdio↔ws abstraction) but mechanical at the test-adaptation boundary
+(~1100 LOC of mock plumbing rewrites). Recommend:
+
+```
+/plan-with-ralph "Phase 1b sub-task 1 — codex app-server transport refactor stdio → loopback WebSocket per codexu/docs/plans/codex-seamless-multi-device.md sub-task 1, with --codex-transport=stdio|ws fallback flag (default ws), preserving processEpoch lifecycle + force-restart semantics from current codexAppServerClient.ts. Use OpenClawSocket.ts as the in-fork ws-client precedent. Adapt codexAppServerClient.test.ts mocks accordingly."
+```
+
+Once plan looks good:
+
+```
+/implement-with-ralph
+```
+
+Sub-task 2 (discovery file) is small enough for direct interactive
+implementation OR `/implement-with-ralph` with a 1-paragraph PRD.
 
 #### 1c. Personal codex plugin scaffolding
 
@@ -1137,15 +1248,16 @@ mode/thread depth.
 - Integration test for the full flow including from-spawned-agent path
 
 **Files in codexu packages that need updating:**
-- `packages/codexu-cli/src/codex/codexAppServerClient.ts` — handle the
+- `packages/happy-cli/src/codex/codexAppServerClient.ts` — handle the
   new server-initiated request, route through permission-handler-like
   pipeline (mirrors how it handles `requestUserInput` today)
-- `packages/codexu-cli/src/codex/utils/permissionHandler.ts` — add an
+- `packages/happy-cli/src/codex/utils/permissionHandler.ts` — add an
   `ask_user_question` handler alongside permission handlers
-- `packages/codexu-cli/src/codex/sessionProtocolMapper.ts` — map the new
+- `packages/happy-cli/src/codex/sessionProtocolMapper.ts` — map the new
   RPC to a `UserQuestionEnvelope` for mobile rendering
-- codexu phone app: `UserQuestionCard.tsx` mirroring `PermissionFooter`
-  pattern; supports preview side-by-side, multi-select, multi-question
+- happy-app phone app: `UserQuestionCard.tsx` mirroring
+  `PermissionFooter` pattern; supports preview side-by-side, multi-
+  select, multi-question
 
 **Cost shape:** the existing `request_user_input` implementation is
 ~4194 LOC across protocol/handler/TUI/app-server. The sibling tool

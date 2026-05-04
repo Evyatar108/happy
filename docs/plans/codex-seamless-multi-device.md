@@ -1,5 +1,47 @@
 # Codex Seamless Multi-Device Sessions
 
+> **⚠️ Read first — context updates as of 2026-05-03 (codexu integration):**
+>
+> - **Project rename:** the repo formerly known as `slopus/happy` is now
+>   `Evyatar108/codexu` at `C:/harness-efforts/codexu/`. Internal package
+>   directories KEEP their `happy-*` names (`packages/happy-cli`,
+>   `happy-app`, `happy-server`) — package-level rebrand was attempted and
+>   reverted to enable clean upstream merges. See
+>   `C:/harness-efforts/codexu/plans/codexu-roadmap.md` "Status" section.
+>
+> - **Tunnels companion supersedes sub-tasks 3+.** Read this plan
+>   alongside `github-auth-via-vscode-tunnels.md` (sibling file in this
+>   directory). The encrypted-relay assumption underpinning the original
+>   sub-tasks 3, 4, and 5 (and the Walkthrough section) has been replaced
+>   by Microsoft Dev Tunnels + GitHub OAuth. **Sub-tasks 1 and 2 (transport
+>   refactor + discovery file) port unchanged** — pure local plumbing,
+>   loopback-only, unaffected. **Sub-tasks 3, 4, 5** must be re-derived
+>   against the tunnels plan before implementation:
+>   - Sub-task 3's "paired Happy app exists via Credentials" gating signal
+>     becomes "user signed into GitHub AND has at least one app instance
+>     in the directory" (see tunnels plan §"happy-server" + §"Phasing").
+>   - Sub-task 4's relay-mediated fan-out becomes a property of CLI's
+>     local Socket.IO server with phone attached as a direct client
+>     through the devtunnel — fan-out semantics shift layer.
+>   - Sub-task 5's Walkthrough explicitly references the encrypted relay;
+>     re-author the 7-step scenario against tunnel-direct WS.
+>
+> - **Hard pause point:** sub-tasks 3+ are blocked on the tunnels Phase 0
+>   spike result (`docs/spikes/devtunnel-auth-result.md` — does not exist
+>   yet) AND on tunnels' pre-implementation decisions (OAuth-app-vs-
+>   GitHub-app, token contract, access path (a)/(b), local WS port
+>   policy). Sub-tasks 1 and 2 do NOT depend on any of these and can ship
+>   first.
+>
+> - **Line numbers cited in this doc are stale** after the upstream
+>   merge (2026-05-03, `25fe2cf3`). Use `grep` rather than line numbers
+>   when locating spawn sites, request handlers, etc.
+>
+> - **Phase 0 verification (lines 250-269):** confirmed green 2026-05-02
+>   against `codex-cli 0.125.0-copilot-api.8`. Currently installed codex
+>   is `0.128.0-copilot-api.1`; re-run the verification scripts before
+>   sub-task 1 if more time elapses or behavior diverges.
+
 ## Overview
 
 Enable a Codex session to be **continuously usable from any active client** (laptop terminal or phone app) without explicit mode switching, in-flight work loss, or stuck states. The user can walk away from the laptop mid-conversation, pick up the phone, answer Codex's questions, and continue — and walk back later — all against the same live session, with background tasks surviving the surface change.
@@ -54,7 +96,7 @@ Save as `verify-rpc.cjs`:
 ```javascript
 // require.resolve trick so the script works from any cwd
 const WebSocket = require(require('node:path').join(
-    require('node:child_process').execSync('pnpm root', { cwd: 'D:/harness-efforts/happy/packages/happy-cli', encoding: 'utf8' }).trim(),
+    require('node:child_process').execSync('pnpm root', { cwd: 'C:/harness-efforts/codexu/packages/happy-cli', encoding: 'utf8' }).trim(),
     'ws',
 ));  // adjust path
 const ws = new WebSocket('ws://127.0.0.1:51234');
@@ -79,7 +121,7 @@ Save as `verify-multiclient.cjs`:
 ```javascript
 // require.resolve trick so the script works from any cwd
 const WebSocket = require(require('node:path').join(
-    require('node:child_process').execSync('pnpm root', { cwd: 'D:/harness-efforts/happy/packages/happy-cli', encoding: 'utf8' }).trim(),
+    require('node:child_process').execSync('pnpm root', { cwd: 'C:/harness-efforts/codexu/packages/happy-cli', encoding: 'utf8' }).trim(),
     'ws',
 ));
 const url = 'ws://127.0.0.1:51234';
@@ -120,7 +162,7 @@ Save as `discover-methods.cjs`:
 ```javascript
 // require.resolve trick so the script works from any cwd
 const WebSocket = require(require('node:path').join(
-    require('node:child_process').execSync('pnpm root', { cwd: 'D:/harness-efforts/happy/packages/happy-cli', encoding: 'utf8' }).trim(),
+    require('node:child_process').execSync('pnpm root', { cwd: 'C:/harness-efforts/codexu/packages/happy-cli', encoding: 'utf8' }).trim(),
     'ws',
 ));
 const ws = new WebSocket('ws://127.0.0.1:51234');
@@ -155,7 +197,7 @@ Save as `verify-approval-fanout.cjs`:
 
 ```javascript
 const WebSocket = require(require('node:path').join(
-    require('node:child_process').execSync('pnpm root', { cwd: 'D:/harness-efforts/happy/packages/happy-cli', encoding: 'utf8' }).trim(),
+    require('node:child_process').execSync('pnpm root', { cwd: 'C:/harness-efforts/codexu/packages/happy-cli', encoding: 'utf8' }).trim(),
     'ws',
 ));
 

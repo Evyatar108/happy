@@ -1,7 +1,7 @@
 # GitHub-auth via VS Code / dev tunnels: replace pairing + E2E with tunnel-direct WS
 
 > **Status:** plan, not yet implemented. Captured 2026-05-02.
-> **Worktree:** main worktree at `D:\harness-efforts\happy` (branch `main`). All three packages live in `packages/` of this single worktree — no sibling worktrees needed.
+> **Worktree:** main worktree at `C:\\harness-efforts\\codexu` (branch `main`). All three packages live in `packages/` of this single worktree — no sibling worktrees needed.
 > **Scope:** breaking architecture change. Replaces secret-key device pairing + end-to-end-encrypted relay with: GitHub OAuth identity, Microsoft Dev Tunnels as transport, happy-server demoted to a tiny directory service.
 > **Backward compatibility:** none. Existing pairings, sessions, messages, artifacts on happy-server are intentionally dropped (data migration is out of scope — the user accepted this in planning).
 
@@ -66,7 +66,7 @@ This trips people up — call it out in the README too.
 
 ## File map (where the work lands)
 
-All paths relative to `D:\harness-efforts\happy`.
+All paths relative to `C:\\harness-efforts\\codexu`.
 
 ### happy-server: `packages/happy-server/`
 
@@ -408,7 +408,7 @@ These checks require physical hardware and a human eye on the result. They are *
 
 ## Documentation to update (per global CLAUDE.md guidance)
 
-All paths under `D:\harness-efforts\happy\`:
+All paths under `C:\\harness-efforts\\codexu\`:
 
 - `README.md` — update high-level pitch: drop "end-to-end encrypted", add "sign in with GitHub, runs on your machine via a Microsoft Dev Tunnel."
 - `docs/encryption.md` — **delete** or convert to a one-paragraph stub pointing at `docs/security-model.md` (new) which describes the GitHub-auth + tunnel transport trust boundary.
