@@ -540,7 +540,6 @@ export class CodexAppServerClient {
             env.MSYS_NO_PATHCONV = '1';
         }
 
-        const epoch = ++this.processEpoch;
         let connection: JsonRpcConnection;
         if (transport === 'ws') {
             const port = await pickFreeLoopbackPort();
@@ -552,6 +551,7 @@ export class CodexAppServerClient {
             logger.debug(`[CodexAppServer] Spawning: ${command} ${args.join(' ')}`);
             connection = createStdioTransport({ command, args, env });
         }
+        const epoch = ++this.processEpoch;
         this.connection = connection;
 
         connection.onError((err) => {
