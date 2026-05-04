@@ -314,14 +314,14 @@ What this implies for Phase 1: even less Happy-side work than the previous draft
 
 Codex's CLI already exposes the multi-client primitive we want:
 
-- **`codex app-server --listen <URL>`** supports `stdio://` (current Happy default), `unix://PATH`, `ws://IP:PORT`, and `wss://...`. Multi-client transports are first-class.
+- **`codex app-server --listen <URL>`** supports `stdio://`, `unix://PATH`, `ws://IP:PORT` (current Happy default after Phase 1b sub-task 1), and `wss://...`. Multi-client transports are first-class.
 - **`codex --remote ws://host:port`** connects the **native Codex TUI** to a running remote app-server. The CLI help reads literally: *"Connect the TUI to a remote app server websocket endpoint."*
 - **`--remote-auth-token-env <ENV_VAR>`** for per-session authentication on the websocket
 - **`codex app-server proxy --sock <PATH>`** as an alternate stdio→unix-socket adapter for clients that want stdio framing against a socket-listening backend
 
 This means: a single shared `codex app-server` can have Happy CLI as one client, the **actual native Codex TUI as another client**, and the phone app (via Happy's relay) as a third client — all seeing the same conversation, all able to send messages, all able to answer prompts. We don't need to chase TUI feature parity in our ink renderer; we can just expose the option of running Codex's polished native TUI alongside Happy's renderer, both connected to the same backend.
 
-This is a materially better Phase 1 scope than the original draft assumed. Most of "build the seamless multi-device experience" reduces to "switch the listener from `stdio://` to `ws://127.0.0.1:N` and support spawning `codex --remote` as an opt-in client."
+This is a materially better Phase 1 scope than the original draft assumed. Most of "build the seamless multi-device experience" reduces to "switch the listener from `stdio://` to `ws://127.0.0.1:N` and support spawning `codex --remote` as an opt-in client." The listener switch landed in Phase 1b sub-task 1 (ws is now the default; `--codex-transport stdio` is the opt-out, and sandbox on non-Windows still forces stdio). Spawning `codex --remote` as an opt-in client remains future work.
 
 ## Verified RPC surface (codex-cli 0.125.0-copilot-api.8, 2026-05-02)
 
@@ -698,7 +698,7 @@ If the `--use-codex-tui` flag is added, also test:
 
 ### App-server doesn't start
 
-Logs: stdout/stderr of the spawned `codex app-server`. In Happy's flow today, this is captured via stdio pipes. After Phase 1, since stdio is no longer used for IPC, route the app-server's stdout/stderr to a log file at `~/.happy-dev/logs/codex-app-server-<sid>.log`.
+Logs: stdout/stderr of the spawned `codex app-server`. In Happy's flow after Phase 1b sub-task 1, the default ws transport routes the app-server's stdout/stderr to a log file (since stdio pipes are no longer used for IPC); the stdio fallback continues to capture stdout/stderr on the parent's pipes as before. The intended log location is `~/.happy-dev/logs/codex-app-server-<sid>.log`.
 
 Common causes:
 - Codex CLI not installed (`codex --version` fails)
