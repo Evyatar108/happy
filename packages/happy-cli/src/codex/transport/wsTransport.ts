@@ -110,11 +110,27 @@ export class WsTransport implements JsonRpcConnection {
         if (!ws || ws.readyState === WebSocket.CLOSED) return;
 
         await new Promise<void>((resolve) => {
-            const done = () => resolve();
-            ws.once('close', done);
-            ws.close();
-            if (ws.readyState === WebSocket.CLOSED) {
+            let settled = false;
+            const done = () => {
+                if (settled) return;
+                settled = true;
+                ws.off('close', done);
+                ws.off('error', done);
                 resolve();
+            };
+            ws.once('close', done);
+            ws.once('error', done);
+            try {
+                if (ws.readyState === WebSocket.CONNECTING) {
+                    ws.terminate();
+                } else {
+                    ws.close();
+                }
+            } catch {
+                done();
+            }
+            if (ws.readyState === WebSocket.CLOSED) {
+                done();
             }
         });
     }

@@ -1,8 +1,11 @@
 import { EventEmitter } from 'node:events';
+import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { WebSocketServer, type WebSocket } from 'ws';
 import type { SandboxConfig } from '@/persistence';
+import type { CodexAppServerTransport } from './codexAppServerClient';
 
 const {
     mockExecSync,
@@ -48,45 +51,6 @@ vi.mock('@/utils/pickFreeLoopbackPort', () => ({
     pickFreeLoopbackPort: mockPickFreeLoopbackPort,
 }));
 
-vi.mock('ws', () => {
-    class MockWebSocket {
-        static OPEN = 1;
-        static CLOSED = 3;
-        readyState = 0;
-        private handlers = new Map<string, Array<(...args: any[]) => void>>();
-        constructor(public readonly url: string) {
-        }
-        once(event: string, handler: (...args: any[]) => void) {
-            const wrapped = (...args: any[]) => {
-                this.handlers.set(event, (this.handlers.get(event) ?? []).filter((entry) => entry !== wrapped));
-                handler(...args);
-            };
-            return this.on(event, wrapped);
-        }
-        on(event: string, handler: (...args: any[]) => void) {
-            this.handlers.set(event, [...(this.handlers.get(event) ?? []), handler]);
-            return this;
-        }
-        off(event: string, handler: (...args: any[]) => void) {
-            this.handlers.set(event, (this.handlers.get(event) ?? []).filter((entry) => entry !== handler));
-            return this;
-        }
-        emit(event: string, ...args: any[]) {
-            for (const handler of this.handlers.get(event) ?? []) {
-                handler(...args);
-            }
-        }
-        send(_data: string, callback: (error?: Error) => void) {
-            callback();
-        }
-        close() {
-            this.readyState = MockWebSocket.CLOSED;
-            queueMicrotask(() => this.emit('close', 1000, Buffer.from('')));
-        }
-    }
-    return { default: MockWebSocket };
-});
-
 vi.mock('../package.json', () => ({
     default: { version: '0.0.1-test' },
 }));
@@ -101,6 +65,14 @@ type MockRpcMessage = {
 function pushJsonLine(stdout: NodeJS.ReadableStream & { push: (chunk: string) => void }, payload: unknown) {
     stdout.push(JSON.stringify(payload) + '\n');
 }
+
+type SendJson = (payload: unknown) => void;
+
+type MockAppServerOptions = {
+    pid?: number;
+    initializeDelayMs?: number;
+    onRequest?: (msg: MockRpcMessage, send: SendJson) => void;
+};
 
 // Mock child process with stdin/stdout/stderr
 function createMockProcess(opts?: {
@@ -137,6 +109,78 @@ function createMockProcess(opts?: {
     };
     return proc;
 }
+
+const activeWsServers: WebSocketServer[] = [];
+const activeWsSockets: WebSocket[] = [];
+
+async function closeWsServer(wss: WebSocketServer): Promise<void> {
+    for (const client of wss.clients) {
+        try { client.close(); } catch { /* ignore */ }
+    }
+    await new Promise<void>((resolve) => {
+        wss.close(() => resolve());
+    });
+}
+
+async function createMockWsAppServer(opts?: MockAppServerOptions) {
+    const initializeDelayMs = opts?.initializeDelayMs ?? 5;
+    const wss = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+    activeWsServers.push(wss);
+    await new Promise<void>((resolve) => wss.once('listening', resolve));
+    const address = wss.address() as AddressInfo;
+
+    const proc = Object.assign(new EventEmitter(), {
+        pid: opts?.pid ?? 12345,
+        kill: vi.fn((signal?: NodeJS.Signals) => {
+            queueMicrotask(() => proc.emit('exit', signal === 'SIGKILL' ? 1 : 0, signal ?? null));
+            return true;
+        }),
+    });
+
+    wss.on('connection', (socket) => {
+        activeWsSockets.push(socket);
+        socket.on('message', (data) => {
+            const send = (payload: unknown) => socket.send(JSON.stringify(payload));
+            try {
+                const msg = JSON.parse(data.toString()) as MockRpcMessage;
+                if (msg.method === 'initialize' && msg.id != null) {
+                    setTimeout(() => {
+                        send({ id: msg.id, result: { userAgent: 'test' } });
+                    }, initializeDelayMs);
+                }
+                opts?.onRequest?.(msg, send);
+            } catch {}
+        });
+    });
+
+    return { port: address.port, proc, wss };
+}
+
+async function mockNextAppServer(transport: CodexAppServerTransport, opts?: MockAppServerOptions) {
+    if (transport === 'stdio') {
+        const proc = createMockProcess({
+            ...opts,
+            onRequest: opts?.onRequest
+                ? (msg, stdout) => opts.onRequest?.(msg, (payload) => pushJsonLine(stdout, payload))
+                : undefined,
+        });
+        mockSpawn.mockImplementationOnce(() => proc);
+        return { proc, port: null };
+    }
+
+    const server = await createMockWsAppServer(opts);
+    mockPickFreeLoopbackPort.mockResolvedValueOnce(server.port);
+    mockSpawn.mockImplementationOnce(() => server.proc);
+    return { proc: server.proc, port: server.port };
+}
+
+afterEach(async () => {
+    vi.useRealTimers();
+    for (const socket of activeWsSockets.splice(0)) {
+        try { socket.close(); } catch { /* ignore */ }
+    }
+    await Promise.all(activeWsServers.splice(0).map((server) => closeWsServer(server)));
+});
 
 async function waitFor(predicate: () => boolean, timeoutMs: number = 1000): Promise<void> {
     const deadline = Date.now() + timeoutMs;
@@ -306,41 +350,41 @@ describe('CodexAppServerClient sandbox integration', () => {
         await client.disconnect();
     });
 
-    it('ignores stale process exit during reconnect initialize', async () => {
-        const proc1 = createMockProcess({ pid: 1001, initializeDelayMs: 5 });
-        const proc2 = createMockProcess({ pid: 1002, initializeDelayMs: 50 });
-        mockSpawn
-            .mockImplementationOnce(() => proc1)
-            .mockImplementationOnce(() => proc2);
-
+    it.each([{ transport: 'stdio' as const }, { transport: 'ws' as const }])(
+        'ignores stale process exit during reconnect initialize over $transport',
+        async ({ transport }) => {
+        const proc1 = await mockNextAppServer(transport, { pid: 1001, initializeDelayMs: 5 });
+        await mockNextAppServer(transport, { pid: 1002, initializeDelayMs: 50 });
         const { CodexAppServerClient } = await import('./codexAppServerClient');
-        const client = new CodexAppServerClient();
+        const client = new CodexAppServerClient(undefined, { transport });
 
         await client.connect();
         await client.disconnect();
 
         const reconnect = client.connect();
         setTimeout(() => {
-            proc1.emit('exit', 0, null);
+            proc1.proc.emit('exit', 0, null);
         }, 10);
 
         await expect(reconnect).resolves.toBeUndefined();
         await client.disconnect();
     });
 
-    it('reconnects and resumes the same thread after forced restart timeout', async () => {
+    it.each([{ transport: 'stdio' as const }, { transport: 'ws' as const }])(
+        'reconnects and resumes the same thread after forced restart timeout over $transport',
+        async ({ transport }) => {
         const firstProcessRequests: MockRpcMessage[] = [];
         const secondProcessRequests: MockRpcMessage[] = [];
         type CapturedEvent = { type: string; [key: string]: unknown };
 
-        const proc1 = createMockProcess({
+        await mockNextAppServer(transport, {
             pid: 2001,
-            onRequest: (msg, stdout) => {
+            onRequest: (msg, send) => {
                 firstProcessRequests.push(msg);
 
                 if (msg.method === 'thread/start' && msg.id != null) {
                     setTimeout(() => {
-                        pushJsonLine(stdout, {
+                        send({
                             id: msg.id,
                             result: {
                                 thread: { id: 'thread-1', path: '/tmp/thread-1' },
@@ -357,8 +401,8 @@ describe('CodexAppServerClient sandbox integration', () => {
 
                 if (msg.method === 'turn/start' && msg.id != null) {
                     setTimeout(() => {
-                        pushJsonLine(stdout, { id: msg.id, result: {} });
-                        pushJsonLine(stdout, {
+                        send({ id: msg.id, result: {} });
+                        send({
                             method: 'codex/event',
                             params: { msg: { type: 'task_started', turn_id: 'turn-1' } },
                         });
@@ -367,20 +411,20 @@ describe('CodexAppServerClient sandbox integration', () => {
 
                 if (msg.method === 'turn/interrupt' && msg.id != null) {
                     setTimeout(() => {
-                        pushJsonLine(stdout, { id: msg.id, result: { abortReason: 'interrupted' } });
+                        send({ id: msg.id, result: { abortReason: 'interrupted' } });
                     }, 0);
                 }
             },
         });
 
-        const proc2 = createMockProcess({
+        await mockNextAppServer(transport, {
             pid: 2002,
-            onRequest: (msg, stdout) => {
+            onRequest: (msg, send) => {
                 secondProcessRequests.push(msg);
 
                 if (msg.method === 'thread/resume' && msg.id != null) {
                     setTimeout(() => {
-                        pushJsonLine(stdout, {
+                        send({
                             id: msg.id,
                             result: {
                                 thread: { id: 'thread-1', path: '/tmp/thread-1' },
@@ -397,12 +441,12 @@ describe('CodexAppServerClient sandbox integration', () => {
 
                 if (msg.method === 'turn/start' && msg.id != null) {
                     setTimeout(() => {
-                        pushJsonLine(stdout, { id: msg.id, result: {} });
-                        pushJsonLine(stdout, {
+                        send({ id: msg.id, result: {} });
+                        send({
                             method: 'codex/event',
                             params: { msg: { type: 'task_started', turn_id: 'turn-2' } },
                         });
-                        pushJsonLine(stdout, {
+                        send({
                             method: 'codex/event',
                             params: { msg: { type: 'task_complete', turn_id: 'turn-2' } },
                         });
@@ -411,12 +455,8 @@ describe('CodexAppServerClient sandbox integration', () => {
             },
         });
 
-        mockSpawn
-            .mockImplementationOnce(() => proc1)
-            .mockImplementationOnce(() => proc2);
-
         const { CodexAppServerClient } = await import('./codexAppServerClient');
-        const client = new CodexAppServerClient();
+        const client = new CodexAppServerClient(undefined, { transport });
         const events: CapturedEvent[] = [];
         client.setEventHandler((msg) => {
             events.push(msg as CapturedEvent);
@@ -468,16 +508,18 @@ describe('CodexAppServerClient sandbox integration', () => {
         await client.disconnect();
     });
 
-    it('maps raw item notifications into legacy events and deduplicates turn completion', async () => {
+    it.each([{ transport: 'stdio' as const }, { transport: 'ws' as const }])(
+        'maps raw item notifications into legacy events and deduplicates turn completion over $transport',
+        async ({ transport }) => {
         const requests: MockRpcMessage[] = [];
-        const proc = createMockProcess({
+        await mockNextAppServer(transport, {
             pid: 3001,
-            onRequest: (msg, stdout) => {
+            onRequest: (msg, send) => {
                 requests.push(msg);
 
                 if (msg.method === 'thread/start' && msg.id != null) {
                     setTimeout(() => {
-                        pushJsonLine(stdout, {
+                        send({
                             id: msg.id,
                             result: {
                                 thread: { id: 'thread-raw-1', path: '/tmp/thread-raw-1' },
@@ -494,24 +536,19 @@ describe('CodexAppServerClient sandbox integration', () => {
 
                 if (msg.method === 'turn/start' && msg.id != null) {
                     setTimeout(() => {
-                        pushJsonLine(stdout, {
-                            id: msg.id,
-                            result: {
-                                turn: { id: 'turn-raw-1', items: [], status: 'inProgress', error: null },
-                            },
-                        });
-                        pushJsonLine(stdout, {
+                        send({ id: msg.id, result: { turn: { id: 'turn-raw-1', items: [], status: 'inProgress', error: null } } });
+                        send({
                             method: 'thread/status/changed',
                             params: { threadId: 'thread-raw-1', status: { type: 'active', activeFlags: [] } },
                         });
-                        pushJsonLine(stdout, {
+                        send({
                             method: 'turn/started',
                             params: {
                                 threadId: 'thread-raw-1',
                                 turn: { id: 'turn-raw-1', items: [], status: 'inProgress', error: null },
                             },
                         });
-                        pushJsonLine(stdout, {
+                        send({
                             method: 'item/started',
                             params: {
                                 threadId: 'thread-raw-1',
@@ -525,7 +562,7 @@ describe('CodexAppServerClient sandbox integration', () => {
                                 },
                             },
                         });
-                        pushJsonLine(stdout, {
+                        send({
                             method: 'item/completed',
                             params: {
                                 threadId: 'thread-raw-1',
@@ -542,7 +579,7 @@ describe('CodexAppServerClient sandbox integration', () => {
                                 },
                             },
                         });
-                        pushJsonLine(stdout, {
+                        send({
                             method: 'item/completed',
                             params: {
                                 threadId: 'thread-raw-1',
@@ -555,11 +592,11 @@ describe('CodexAppServerClient sandbox integration', () => {
                                 },
                             },
                         });
-                        pushJsonLine(stdout, {
+                        send({
                             method: 'thread/status/changed',
                             params: { threadId: 'thread-raw-1', status: { type: 'idle' } },
                         });
-                        pushJsonLine(stdout, {
+                        send({
                             method: 'turn/completed',
                             params: {
                                 threadId: 'thread-raw-1',
@@ -571,10 +608,8 @@ describe('CodexAppServerClient sandbox integration', () => {
             },
         });
 
-        mockSpawn.mockImplementation(() => proc);
-
         const { CodexAppServerClient } = await import('./codexAppServerClient');
-        const client = new CodexAppServerClient();
+        const client = new CodexAppServerClient(undefined, { transport });
         const events: Array<Record<string, unknown>> = [];
         client.setEventHandler((msg) => {
             events.push(msg as Record<string, unknown>);
@@ -601,13 +636,15 @@ describe('CodexAppServerClient sandbox integration', () => {
         await client.disconnect();
     });
 
-    it('maps raw file change items into legacy patch events', async () => {
-        const proc = createMockProcess({
+    it.each([{ transport: 'stdio' as const }, { transport: 'ws' as const }])(
+        'maps raw file change items into legacy patch events over $transport',
+        async ({ transport }) => {
+        await mockNextAppServer(transport, {
             pid: 3003,
-            onRequest: (msg, stdout) => {
+            onRequest: (msg, send) => {
                 if (msg.method === 'thread/start' && msg.id != null) {
                     setTimeout(() => {
-                        pushJsonLine(stdout, {
+                        send({
                             id: msg.id,
                             result: {
                                 thread: { id: 'thread-raw-3', path: '/tmp/thread-raw-3' },
@@ -624,20 +661,20 @@ describe('CodexAppServerClient sandbox integration', () => {
 
                 if (msg.method === 'turn/start' && msg.id != null) {
                     setTimeout(() => {
-                        pushJsonLine(stdout, {
+                        send({
                             id: msg.id,
                             result: {
                                 turn: { id: 'turn-raw-3', items: [], status: 'inProgress', error: null },
                             },
                         });
-                        pushJsonLine(stdout, {
+                        send({
                             method: 'turn/started',
                             params: {
                                 threadId: 'thread-raw-3',
                                 turn: { id: 'turn-raw-3', items: [], status: 'inProgress', error: null },
                             },
                         });
-                        pushJsonLine(stdout, {
+                        send({
                             method: 'item/started',
                             params: {
                                 threadId: 'thread-raw-3',
@@ -654,7 +691,7 @@ describe('CodexAppServerClient sandbox integration', () => {
                                 },
                             },
                         });
-                        pushJsonLine(stdout, {
+                        send({
                             method: 'item/completed',
                             params: {
                                 threadId: 'thread-raw-3',
@@ -671,7 +708,7 @@ describe('CodexAppServerClient sandbox integration', () => {
                                 },
                             },
                         });
-                        pushJsonLine(stdout, {
+                        send({
                             method: 'item/completed',
                             params: {
                                 threadId: 'thread-raw-3',
@@ -689,10 +726,8 @@ describe('CodexAppServerClient sandbox integration', () => {
             },
         });
 
-        mockSpawn.mockImplementation(() => proc);
-
         const { CodexAppServerClient } = await import('./codexAppServerClient');
-        const client = new CodexAppServerClient();
+        const client = new CodexAppServerClient(undefined, { transport });
         const events: Array<Record<string, unknown>> = [];
         client.setEventHandler((msg) => {
             events.push(msg as Record<string, unknown>);
@@ -729,14 +764,16 @@ describe('CodexAppServerClient sandbox integration', () => {
         await client.disconnect();
     });
 
-    it('hydrates v2 file change approvals from raw item metadata', async () => {
+    it.each([{ transport: 'stdio' as const }, { transport: 'ws' as const }])(
+        'hydrates v2 file change approvals from raw item metadata over $transport',
+        async ({ transport }) => {
         const approvals: Array<Record<string, unknown>> = [];
-        const proc = createMockProcess({
+        await mockNextAppServer(transport, {
             pid: 3004,
-            onRequest: (msg, stdout) => {
+            onRequest: (msg, send) => {
                 if (msg.method === 'thread/start' && msg.id != null) {
                     setTimeout(() => {
-                        pushJsonLine(stdout, {
+                        send({
                             id: msg.id,
                             result: {
                                 thread: { id: 'thread-raw-4', path: '/tmp/thread-raw-4' },
@@ -748,7 +785,7 @@ describe('CodexAppServerClient sandbox integration', () => {
                                 reasoningEffort: null,
                             },
                         });
-                        pushJsonLine(stdout, {
+                        send({
                             method: 'item/started',
                             params: {
                                 threadId: 'thread-raw-4',
@@ -765,7 +802,7 @@ describe('CodexAppServerClient sandbox integration', () => {
                                 },
                             },
                         });
-                        pushJsonLine(stdout, {
+                        send({
                             id: 99,
                             method: 'item/fileChange/requestApproval',
                             params: {
@@ -781,10 +818,8 @@ describe('CodexAppServerClient sandbox integration', () => {
             },
         });
 
-        mockSpawn.mockImplementation(() => proc);
-
         const { CodexAppServerClient } = await import('./codexAppServerClient');
-        const client = new CodexAppServerClient();
+        const client = new CodexAppServerClient(undefined, { transport });
         client.setApprovalHandler(async (params) => {
             approvals.push(params as Record<string, unknown>);
             return 'approved';
@@ -815,13 +850,15 @@ describe('CodexAppServerClient sandbox integration', () => {
         await client.disconnect();
     });
 
-    it('falls back to final answer completion when raw turn/completed is missing', async () => {
-        const proc = createMockProcess({
+    it.each([{ transport: 'stdio' as const }, { transport: 'ws' as const }])(
+        'falls back to final answer completion when raw turn/completed is missing over $transport',
+        async ({ transport }) => {
+        await mockNextAppServer(transport, {
             pid: 3002,
-            onRequest: (msg, stdout) => {
+            onRequest: (msg, send) => {
                 if (msg.method === 'thread/start' && msg.id != null) {
                     setTimeout(() => {
-                        pushJsonLine(stdout, {
+                        send({
                             id: msg.id,
                             result: {
                                 thread: { id: 'thread-raw-2', path: '/tmp/thread-raw-2' },
@@ -838,20 +875,20 @@ describe('CodexAppServerClient sandbox integration', () => {
 
                 if (msg.method === 'turn/start' && msg.id != null) {
                     setTimeout(() => {
-                        pushJsonLine(stdout, {
+                        send({
                             id: msg.id,
                             result: {
                                 turn: { id: 'turn-raw-2', items: [], status: 'inProgress', error: null },
                             },
                         });
-                        pushJsonLine(stdout, {
+                        send({
                             method: 'turn/started',
                             params: {
                                 threadId: 'thread-raw-2',
                                 turn: { id: 'turn-raw-2', items: [], status: 'inProgress', error: null },
                             },
                         });
-                        pushJsonLine(stdout, {
+                        send({
                             method: 'item/completed',
                             params: {
                                 threadId: 'thread-raw-2',
@@ -869,10 +906,8 @@ describe('CodexAppServerClient sandbox integration', () => {
             },
         });
 
-        mockSpawn.mockImplementation(() => proc);
-
         const { CodexAppServerClient } = await import('./codexAppServerClient');
-        const client = new CodexAppServerClient();
+        const client = new CodexAppServerClient(undefined, { transport });
         const events: Array<Record<string, unknown>> = [];
         client.setEventHandler((msg) => {
             events.push(msg as Record<string, unknown>);
@@ -896,16 +931,18 @@ describe('CodexAppServerClient sandbox integration', () => {
         await client.disconnect();
     });
 
-    it('responds to MCP elicitation requests with an action payload', async () => {
+    it.each([{ transport: 'stdio' as const }, { transport: 'ws' as const }])(
+        'responds to MCP elicitation requests with an action payload over $transport',
+        async ({ transport }) => {
         const approvals: Array<Record<string, unknown>> = [];
         const requests: MockRpcMessage[] = [];
-        const proc = createMockProcess({
+        await mockNextAppServer(transport, {
             pid: 3007,
-            onRequest: (msg, stdout) => {
+            onRequest: (msg, send) => {
                 requests.push(msg);
                 if (msg.method === 'thread/start' && msg.id != null) {
                     setTimeout(() => {
-                        pushJsonLine(stdout, {
+                        send({
                             id: msg.id,
                             result: {
                                 thread: { id: 'thread-raw-7', path: '/tmp/thread-raw-7' },
@@ -917,7 +954,7 @@ describe('CodexAppServerClient sandbox integration', () => {
                                 reasoningEffort: null,
                             },
                         });
-                        pushJsonLine(stdout, {
+                        send({
                             id: 77,
                             method: 'mcpServer/elicitation/request',
                             params: {
@@ -943,10 +980,8 @@ describe('CodexAppServerClient sandbox integration', () => {
             },
         });
 
-        mockSpawn.mockImplementation(() => proc);
-
         const { CodexAppServerClient } = await import('./codexAppServerClient');
-        const client = new CodexAppServerClient();
+        const client = new CodexAppServerClient(undefined, { transport });
         client.setApprovalHandler(async (params) => {
             approvals.push(params as Record<string, unknown>);
             return 'approved';
@@ -982,5 +1017,85 @@ describe('CodexAppServerClient sandbox integration', () => {
         ]));
 
         await client.disconnect();
+    });
+
+    it('cleans up pending requests when transport send rejects', async () => {
+        vi.useFakeTimers();
+        const sendError = new Error('send failed');
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient();
+        const send = vi.fn().mockRejectedValue(sendError);
+
+        (client as any).connection = {
+            open: vi.fn(),
+            send,
+            onMessage: vi.fn(),
+            onError: vi.fn(),
+            onClose: vi.fn(),
+            close: vi.fn(),
+        };
+
+        await expect((client as any).request('thread/start', {})).rejects.toThrow('send failed');
+        expect(send).toHaveBeenCalledTimes(1);
+        expect((client as any).pending.size).toBe(0);
+
+        await vi.advanceTimersByTimeAsync(30_001);
+        expect((client as any).pending.size).toBe(0);
+    });
+
+    it('rejects ws connect when the open handshake times out', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const sockets: Array<{ destroy: () => void }> = [];
+        const server = createServer((socket) => {
+            sockets.push(socket);
+        });
+        await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+        const address = server.address() as AddressInfo;
+        mockPickFreeLoopbackPort.mockResolvedValueOnce(address.port);
+        const proc = Object.assign(new EventEmitter(), {
+            pid: 6001,
+            kill: vi.fn((signal?: NodeJS.Signals) => {
+                queueMicrotask(() => proc.emit('exit', 0, signal ?? null));
+                return true;
+            }),
+        });
+        mockSpawn.mockImplementationOnce(() => proc);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, {
+            transport: 'ws',
+            logFilePath: join(tmpdir(), 'codex-app-server-timeout-test.log'),
+        });
+
+        try {
+            await expect(client.connect()).rejects.toThrow('Timed out opening Codex app-server ws transport after 5000ms');
+        } finally {
+            for (const socket of sockets) socket.destroy();
+            await new Promise<void>((resolve) => server.close(() => resolve()));
+        }
+    }, 10_000);
+
+    it('surfaces a ws port-pick failure and connects after a subsequent resolved pick', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        mockPickFreeLoopbackPort.mockRejectedValueOnce(new Error('Failed to pick free loopback port after 3 attempts'));
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const firstClient = new CodexAppServerClient(undefined, {
+            transport: 'ws',
+            logFilePath: join(tmpdir(), 'codex-app-server-port-failure-test.log'),
+        });
+
+        await expect(firstClient.connect()).rejects.toThrow('Failed to pick free loopback port after 3 attempts');
+        expect(mockSpawn).not.toHaveBeenCalled();
+
+        await mockNextAppServer('ws', { pid: 6002 });
+        const secondClient = new CodexAppServerClient(undefined, {
+            transport: 'ws',
+            logFilePath: join(tmpdir(), 'codex-app-server-port-success-test.log'),
+        });
+
+        await expect(secondClient.connect()).resolves.toBeUndefined();
+        expect(mockPickFreeLoopbackPort).toHaveBeenCalledTimes(2);
+        await secondClient.disconnect();
     });
 });
