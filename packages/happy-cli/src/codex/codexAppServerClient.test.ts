@@ -114,8 +114,10 @@ const sandboxConfig: SandboxConfig = {
 
 describe('CodexAppServerClient sandbox integration', () => {
     const originalRustLog = process.env.RUST_LOG;
+    const originalPlatform = process.platform;
 
     beforeEach(() => {
+        Object.defineProperty(process, 'platform', { value: 'linux' });
         vi.clearAllMocks();
         process.env.RUST_LOG = originalRustLog;
         mockExecSync.mockReturnValue('codex-cli 0.107.0');
@@ -126,6 +128,7 @@ describe('CodexAppServerClient sandbox integration', () => {
 
     afterAll(() => {
         process.env.RUST_LOG = originalRustLog;
+        Object.defineProperty(process, 'platform', { value: originalPlatform });
     });
 
     it('wraps transport when sandbox is enabled', async () => {

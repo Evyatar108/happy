@@ -13,9 +13,7 @@
  * app-server wrapper or approval callbacks. See docs/plans/codex-app-server-migration.md.
  */
 
-import { execSync, type ChildProcess } from 'node:child_process';
-import { spawn as crossSpawn } from 'cross-spawn';
-import { createInterface, type Interface as ReadlineInterface } from 'node:readline';
+import { execSync } from 'node:child_process';
 import { logger } from '@/ui/logger';
 import type {
     InitializeParams,
@@ -37,6 +35,8 @@ import type {
 import type { SandboxConfig } from '@/persistence';
 import { initializeSandbox, wrapForMcpTransport } from '@/sandbox/manager';
 import packageJson from '../../package.json';
+import type { JsonRpcConnection, JsonRpcMessage } from './transport/JsonRpcConnection';
+import { createStdioTransport } from './transport/stdioTransport';
 
 type PendingRequest = {
     resolve: (result: unknown) => void;
@@ -46,6 +46,12 @@ type PendingRequest = {
 };
 
 type LegacyPatchChanges = Record<string, Record<string, unknown>>;
+
+export type CodexAppServerTransport = 'stdio' | 'ws';
+
+export type CodexAppServerClientOptions = {
+    transport?: CodexAppServerTransport;
+};
 
 export type ApprovalHandler = (params: {
     type: 'exec' | 'patch' | 'mcp';
@@ -108,8 +114,7 @@ function normalizeRawFileChangeList(changes: unknown): LegacyPatchChanges | unde
 }
 
 export class CodexAppServerClient {
-    private process: ChildProcess | null = null;
-    private readline: ReadlineInterface | null = null;
+    private connection: JsonRpcConnection | null = null;
     private nextId = 1;
     private pending = new Map<number, PendingRequest>();
     private processEpoch = 0;
@@ -146,9 +151,11 @@ export class CodexAppServerClient {
     // Handlers set by the consumer (runCodex.ts)
     private eventHandler: ((msg: EventMsg) => void) | null = null;
     private approvalHandler: ApprovalHandler | null = null;
+    private transport: CodexAppServerTransport;
 
-    constructor(sandboxConfig?: SandboxConfig) {
+    constructor(sandboxConfig?: SandboxConfig, options: CodexAppServerClientOptions = {}) {
         this.sandboxConfig = sandboxConfig;
+        this.transport = options.transport ?? 'stdio';
     }
 
     get threadId(): string | null {
@@ -390,6 +397,11 @@ export class CodexAppServerClient {
             );
         }
 
+        const transport = this.transport;
+        if (transport === 'ws') {
+            throw new Error('ws transport not yet implemented');
+        }
+
         let command = 'codex';
         let args = ['app-server', '--listen', 'stdio://'];
         this.sandboxEnabled = false;
@@ -427,23 +439,16 @@ export class CodexAppServerClient {
         logger.debug(`[CodexAppServer] Spawning: ${command} ${args.join(' ')}`);
 
         const epoch = ++this.processEpoch;
-        // Use cross-spawn so npm-installed wrappers (codex.cmd / codex.ps1) resolve on Windows.
-        // Native child_process.spawn fails with ENOENT for .cmd shims (issues #980, #1016).
-        const proc = crossSpawn(command, args, {
-            stdio: ['pipe', 'pipe', 'pipe'],
-            env,
-            windowsHide: true,
-        });
-        this.process = proc;
+        const connection = createStdioTransport({ command, args, env });
+        this.connection = connection;
 
-        proc.on('error', (err) => {
+        connection.onError((err) => {
             logger.debug('[CodexAppServer] Process error:', err);
         });
 
-        proc.on('exit', (code, signal) => {
+        connection.onClose((code, signal) => {
             logger.debug(`[CodexAppServer] Process exited: code=${code} signal=${signal}`);
-            // Ignore stale process exits from prior generations during reconnect.
-            if (this.process !== proc || this.processEpoch !== epoch) {
+            if (this.connection !== connection || this.processEpoch !== epoch) {
                 logger.debug('[CodexAppServer] Ignoring stale process exit');
                 return;
             }
@@ -458,19 +463,12 @@ export class CodexAppServerClient {
             this.resolvePendingTurn(true);
         });
 
-        // Pipe stderr for debug logging
-        proc.stderr?.on('data', (chunk: Buffer) => {
-            if (this.process !== proc || this.processEpoch !== epoch) return;
-            const text = chunk.toString().trim();
-            if (text) logger.debug(`[CodexAppServer:stderr] ${text}`);
+        connection.onMessage((msg) => {
+            if (this.connection !== connection || this.processEpoch !== epoch) return;
+            this.handleMessage(msg, epoch);
         });
 
-        // Parse newline-delimited JSON from stdout
-        this.readline = createInterface({ input: proc.stdout! });
-        this.readline.on('line', (line) => {
-            if (this.process !== proc || this.processEpoch !== epoch) return;
-            this.handleLine(line, epoch);
-        });
+        await connection.open();
 
         // Perform initialize handshake
         const initParams: InitializeParams = {
@@ -490,33 +488,17 @@ export class CodexAppServerClient {
     }
 
     private async disconnectInternal(opts?: { preserveThreadState?: boolean }): Promise<void> {
-        if (!this.connected && !this.process) return;
+        if (!this.connected && !this.connection) return;
 
-        const proc = this.process;
-        const pid = proc?.pid;
+        const connection = this.connection;
         const epoch = this.processEpoch;
-        logger.debug(`[CodexAppServer] Disconnecting; pid=${pid ?? 'none'}`);
-
-        this.readline?.close();
-        this.readline = null;
+        logger.debug('[CodexAppServer] Disconnecting');
 
         try {
-            proc?.stdin?.end();
-            proc?.kill('SIGTERM');
+            await connection?.close();
         } catch { /* ignore */ }
 
-        // Force kill after 2s (unref so timer doesn't block process exit)
-        if (pid) {
-            const killTimer = setTimeout(() => {
-                try {
-                    process.kill(pid, 0); // check alive
-                    process.kill(pid, 'SIGKILL');
-                } catch { /* already dead */ }
-            }, 2000);
-            killTimer.unref();
-        }
-
-        this.process = null;
+        this.connection = null;
         this.connected = false;
         this._turnId = null;
         this.notificationProtocol = 'unknown';
@@ -909,16 +891,16 @@ export class CodexAppServerClient {
     /** Default timeout for RPC requests (ms). */
     private static readonly REQUEST_TIMEOUT_MS = 30_000;
 
-    private request(method: string, params?: unknown, timeoutMs?: number): Promise<unknown> {
+    private async request(method: string, params?: unknown, timeoutMs?: number): Promise<unknown> {
         const timeout = timeoutMs ?? CodexAppServerClient.REQUEST_TIMEOUT_MS;
-        return new Promise((resolve, reject) => {
-            if (!this.process?.stdin?.writable) {
-                reject(new Error(`Cannot send ${method}: stdin not writable`));
-                return;
-            }
-            const id = this.nextId++;
+        if (!this.connection) {
+            throw new Error(`Cannot send ${method}: transport not connected`);
+        }
 
-            const timer = setTimeout(() => {
+        const id = this.nextId++;
+        let timer: ReturnType<typeof setTimeout>;
+        const response = new Promise<unknown>((resolve, reject) => {
+            timer = setTimeout(() => {
                 this.pending.delete(id);
                 reject(new Error(`${method} timed out after ${timeout}ms (id=${id})`));
             }, timeout);
@@ -929,29 +911,40 @@ export class CodexAppServerClient {
                 method,
                 epoch: this.processEpoch,
             });
-
-            const msg: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
-            const line = JSON.stringify(msg) + '\n';
-            logger.debug(`[CodexAppServer] → ${method} (id=${id})`);
-            this.process.stdin.write(line);
         });
+
+        const msg: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
+        logger.debug(`[CodexAppServer] → ${method} (id=${id})`);
+        try {
+            await this.connection.send(msg);
+        } catch (error) {
+            const pending = this.pending.get(id);
+            this.pending.delete(id);
+            pending?.reject(error instanceof Error ? error : new Error(String(error)));
+        }
+
+        return response;
     }
 
     private notify(method: string, params?: unknown): void {
-        if (!this.process?.stdin?.writable) return;
+        if (!this.connection) return;
         const msg: JsonRpcRequest = { jsonrpc: '2.0', method, params };
-        this.process.stdin.write(JSON.stringify(msg) + '\n');
+        this.connection.send(msg).catch((err) => {
+            logger.debug(`[CodexAppServer] Failed to send ${method} notification:`, err);
+        });
         logger.debug(`[CodexAppServer] → ${method} (notification)`);
     }
 
     private respond(id: number, result: unknown): void {
-        if (!this.process?.stdin?.writable) return;
+        if (!this.connection) return;
         const msg: JsonRpcResponse = { jsonrpc: '2.0', id, result };
-        this.process.stdin.write(JSON.stringify(msg) + '\n');
+        this.connection.send(msg).catch((err) => {
+            logger.debug(`[CodexAppServer] Failed to send response (id=${id}):`, err);
+        });
         logger.debug(`[CodexAppServer] → response (id=${id})`);
     }
 
-    private handleLine(line: string, sourceEpoch: number = this.processEpoch): void {
+    private handleRawLine(line: string, sourceEpoch: number = this.processEpoch): void {
         if (sourceEpoch !== this.processEpoch) {
             return;
         }
@@ -965,6 +958,13 @@ export class CodexAppServerClient {
             return;
         }
 
+        this.handleMessage(msg, sourceEpoch);
+    }
+
+    private handleMessage(msg: JsonRpcMessage, sourceEpoch: number = this.processEpoch): void {
+        if (sourceEpoch !== this.processEpoch) {
+            return;
+        }
         // Response to our request
         if (msg.id != null && (msg.result !== undefined || msg.error !== undefined)) {
             const pending = this.pending.get(msg.id);
