@@ -163,12 +163,24 @@ canonical-current state.
 - Upstream-derived doc/skill references to "Happy Coder", `slopus/happy`,
   and `happy.engineering` are HISTORICAL and stay as-is.
 
-### Right now (2026-05-03): starting Phase 1b sub-task 1
+### Right now (2026-05-04): Phase 1b sub-task 1 complete; start sub-task 2
 
-**Next concrete deliverable:** stdio → loopback WebSocket transport
-refactor in `packages/happy-cli/src/codex/codexAppServerClient.ts`
-(~1215 LOC) + test adaptation in `codexAppServerClient.test.ts`
-(~1100 LOC). 1-2 days.
+**Phase 1b sub-task 1 shipped:** Codex app-server transport refactor
+from stdio-only to the transport interface + stdio extraction + loopback
+WebSocket adapter, with `--codex-transport=stdio|ws`, ws as the default,
+and sandbox-enabled non-Windows sessions forced back to stdio for this
+phase.
+
+**Next concrete deliverable:** Phase 1b sub-task 2, Discovery + reattach.
+Write `${configuration.happyHomeDir}/codex-active-${cwdHash}.json` and
+reuse the running app-server for same-worktree reconnects.
+
+**Shipped vs deferred:**
+- Shipped: `JsonRpcConnection`, extracted stdio transport, ws transport,
+  `--codex-transport`, configuration.logsDir app-server logs, and the
+  sandbox+ws->stdio override.
+- Deferred: sub-tasks 2-5, full sandbox+ws integration, stdio sunsetting,
+  and stronger `isCodexAppServerAvailable` version-gate behavior.
 
 **Read for full context** (in this order, ~25 min):
 1. This Status block (you're here).
@@ -812,10 +824,10 @@ plus current state of the actual code:
   decisions (OAuth app vs GitHub app, token contract, access path
   (a)/(b), local WS port policy).
 
-**Recommended starting point:** sub-task 1. Nothing blocks it. Hard
-pause-point lands cleanly between sub-task 2 and sub-task 3. After
-sub-task 2 ships, run the tunnels Phase 0 spike + resolve the four
-pre-implementation decisions before continuing.
+**Recommended starting point:** sub-task 2, Discovery + reattach. Sub-task
+1 is complete. Hard pause-point lands cleanly between sub-task 2 and
+sub-task 3. After sub-task 2 ships, run the tunnels Phase 0 spike +
+resolve the four pre-implementation decisions before continuing.
 
 **Risk hotspots — read these before starting:**
 - **Line numbers in `codex-seamless-multi-device.md` are stale** after

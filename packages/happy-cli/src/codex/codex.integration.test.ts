@@ -15,7 +15,7 @@
 
 import { afterEach, describe, it, expect } from "vitest";
 import { execSync } from "child_process";
-import { CodexAppServerClient } from "./codexAppServerClient";
+import { CodexAppServerClient, type CodexAppServerTransport } from "./codexAppServerClient";
 import type { ReviewDecision, EventMsg } from "./codexAppServerTypes";
 import { getIntegrationEnv } from "@/testing/currentIntegrationEnv";
 
@@ -74,8 +74,10 @@ class CodexDriver {
     permissionPolicy: PermissionPolicy = "approve";
     permissionCount = 0;
 
-    constructor() {
-        this.client = new CodexAppServerClient();
+    constructor(transport?: CodexAppServerTransport) {
+        this.client = transport === undefined
+            ? new CodexAppServerClient()
+            : new CodexAppServerClient(undefined, { transport });
 
         this.client.setEventHandler((msg: EventMsg) => {
             this.events.push({ type: msg.type, data: msg });
@@ -211,6 +213,10 @@ describe.skipIf(!(await isCodexAppServerAvailable()))(
     { timeout: 180_000 },
     () => {
         let driver: CodexDriver | null = null;
+        const transportCases: Array<{ transport: CodexAppServerTransport; clientTransport?: CodexAppServerTransport }> = [
+            { transport: "ws" },
+            { transport: "stdio", clientTransport: "stdio" },
+        ];
 
         afterEach(async () => {
             if (driver) {
@@ -219,8 +225,8 @@ describe.skipIf(!(await isCodexAppServerAvailable()))(
             }
         });
 
-        it("should complete turn gracefully after permission cancel", async () => {
-            driver = new CodexDriver();
+        it.each(transportCases)("should complete turn gracefully after permission cancel over $transport", async ({ clientTransport }) => {
+            driver = new CodexDriver(clientTransport);
             await driver.connect();
 
             driver.permissionPolicy = "cancel";
@@ -237,8 +243,8 @@ describe.skipIf(!(await isCodexAppServerAvailable()))(
             expect(result.aborted).toBe(false);
         });
 
-        it("should preserve context when continuing after cancel", async () => {
-            driver = new CodexDriver();
+        it.each(transportCases)("should preserve context when continuing after cancel over $transport", async ({ clientTransport }) => {
+            driver = new CodexDriver(clientTransport);
             await driver.connect();
 
             // Turn 1: establish context with a mundane phrase
@@ -271,8 +277,8 @@ describe.skipIf(!(await isCodexAppServerAvailable()))(
             expect(text).toContain("blue-falcon-42");
         });
 
-        it("should abort turn via interruptTurn while permission is pending", async () => {
-            driver = new CodexDriver();
+        it.each(transportCases)("should abort turn via interruptTurn while permission is pending over $transport", async ({ clientTransport }) => {
+            driver = new CodexDriver(clientTransport);
             await driver.connect();
 
             // Hold permissions — simulates user not responding to approval
@@ -299,8 +305,8 @@ describe.skipIf(!(await isCodexAppServerAvailable()))(
             expect(result.elapsed_ms).toBeLessThan(30_000);
         });
 
-        it("should preserve context after backend reconnect and thread/resume", async () => {
-            driver = new CodexDriver();
+        it.each(transportCases)("should preserve context after backend reconnect and thread/resume over $transport", async ({ clientTransport }) => {
+            driver = new CodexDriver(clientTransport);
             await driver.connect();
 
             driver.permissionPolicy = "approve";
@@ -322,8 +328,8 @@ describe.skipIf(!(await isCodexAppServerAvailable()))(
             expect(text).toContain("steady-orchid-19");
         });
 
-        it("should preserve context when continuing after interruptTurn abort", async () => {
-            driver = new CodexDriver();
+        it.each(transportCases)("should preserve context when continuing after interruptTurn abort over $transport", async ({ clientTransport }) => {
+            driver = new CodexDriver(clientTransport);
             await driver.connect();
 
             // Turn 1: establish context with a mundane phrase

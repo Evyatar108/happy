@@ -18,32 +18,68 @@ export class WsTransport implements JsonRpcConnection {
 
     async open(): Promise<void> {
         const timeoutMs = this.options.handshakeTimeoutMs ?? 5_000;
-        const ws = new WebSocket(this.options.url);
-        this.ws = ws;
+        const retryDelayMs = 100;
+        let openedWs: WebSocket | undefined;
 
         await new Promise<void>((resolve, reject) => {
             let settled = false;
+            let activeWs: WebSocket | null = null;
             let removeChildExitHandler: (() => void) | undefined;
+            let retryTimer: ReturnType<typeof setTimeout> | undefined;
             let timeout: ReturnType<typeof setTimeout>;
-            const handleOpen = () => {
-                finish(resolve);
+            const cleanupWs = (target: WebSocket, handleOpen: () => void, handleError: (error: Error) => void, handleClose: () => void) => {
+                target.off('open', handleOpen);
+                target.off('error', handleError);
+                target.off('close', handleClose);
             };
-            const handleError = (error: Error) => {
-                this.errorHandler?.(error instanceof Error ? error : new Error(String(error)));
-                finish(() => reject(error instanceof Error ? error : new Error(String(error))));
-            };
-            const cleanup = () => {
+            const cleanup = (opened = false) => {
                 clearTimeout(timeout);
+                if (retryTimer) clearTimeout(retryTimer);
                 removeChildExitHandler?.();
-                ws.off('open', handleOpen);
-                ws.off('error', handleError);
+                if (!opened && activeWs && activeWs.readyState !== WebSocket.CLOSED) {
+                    try { activeWs.terminate(); } catch { /* ignore */ }
+                }
             };
-            const finish = (fn: () => void) => {
+            const finish = (fn: () => void, opened = false) => {
                 if (settled) return;
                 settled = true;
-                cleanup();
+                cleanup(opened);
                 fn();
             };
+            const attempt = () => {
+                if (settled) return;
+                const candidate = new WebSocket(this.options.url);
+                activeWs = candidate;
+                this.ws = candidate;
+
+                const handleOpen = () => {
+                    openedWs = candidate;
+                    cleanupWs(candidate, handleOpen, handleError, handleClose);
+                    finish(resolve, true);
+                };
+                const handleError = (error: Error) => {
+                    cleanupWs(candidate, handleOpen, handleError, handleClose);
+                    if ((error as NodeJS.ErrnoException).code === 'ECONNREFUSED' && Date.now() < deadline) {
+                        retryTimer = setTimeout(attempt, retryDelayMs);
+                        return;
+                    }
+                    this.errorHandler?.(error instanceof Error ? error : new Error(String(error)));
+                    finish(() => reject(error instanceof Error ? error : new Error(String(error))));
+                };
+                const handleClose = () => {
+                    cleanupWs(candidate, handleOpen, handleError, handleClose);
+                    if (Date.now() < deadline) {
+                        retryTimer = setTimeout(attempt, retryDelayMs);
+                        return;
+                    }
+                    finish(() => reject(new Error(`Timed out opening Codex app-server ws transport after ${timeoutMs}ms`)));
+                };
+
+                candidate.once('open', handleOpen);
+                candidate.once('error', handleError);
+                candidate.once('close', handleClose);
+            };
+            const deadline = Date.now() + timeoutMs;
             timeout = setTimeout(() => {
                 finish(() => reject(new Error(`Timed out opening Codex app-server ws transport after ${timeoutMs}ms`)));
             }, timeoutMs);
@@ -52,11 +88,15 @@ export class WsTransport implements JsonRpcConnection {
                 finish(() => reject(new Error('Codex app-server exited during ws handshake')));
             });
 
-            ws.once('open', handleOpen);
-            ws.once('error', handleError);
+            attempt();
         });
 
-        ws.on('message', (data: WebSocket.RawData) => {
+        const socket = openedWs as WebSocket | undefined;
+        if (!socket) {
+            throw new Error(`Timed out opening Codex app-server ws transport after ${timeoutMs}ms`);
+        }
+
+        socket.on('message', (data: WebSocket.RawData) => {
             let msg: JsonRpcMessage;
             try {
                 msg = JSON.parse(data.toString()) as JsonRpcMessage;
@@ -67,11 +107,11 @@ export class WsTransport implements JsonRpcConnection {
             this.messageHandler?.(msg);
         });
 
-        ws.on('error', (error) => {
+        socket.on('error', (error: Error) => {
             this.errorHandler?.(error instanceof Error ? error : new Error(String(error)));
         });
 
-        ws.on('close', (code) => {
+        socket.on('close', (code: number) => {
             if (this.closeEmitted) return;
             this.closeEmitted = true;
             this.closeHandler?.(code, null);

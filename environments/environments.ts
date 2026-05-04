@@ -305,8 +305,8 @@ export async function createEnvironment(opts?: { noSwitch?: boolean }): Promise<
     const migrationEnv = buildEnvVars(envDir, serverPort, expoPort);
     const standaloneTs = path.join(REPO_ROOT, "packages", "happy-server", "sources", "standalone.ts");
     const result = spawnSync(
-        "tsx",
-        [standaloneTs, "migrate"],
+        "pnpm",
+        ["exec", "tsx", standaloneTs, "migrate"],
         {
             cwd: path.join(REPO_ROOT, "packages", "happy-server"),
             env: { ...process.env, ...migrationEnv },

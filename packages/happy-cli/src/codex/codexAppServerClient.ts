@@ -168,7 +168,7 @@ export class CodexAppServerClient {
 
     constructor(sandboxConfig?: SandboxConfig, options: CodexAppServerClientOptions = {}) {
         this.sandboxConfig = sandboxConfig;
-        this.transport = options.transport ?? 'stdio';
+        this.transport = options.transport ?? 'ws';
         this.logFilePath = options.logFilePath;
     }
 
@@ -535,6 +535,9 @@ export class CodexAppServerClient {
         }
         if (this.sandboxEnabled) {
             env.CODEX_SANDBOX = 'seatbelt';
+        }
+        if (process.platform === 'win32') {
+            env.MSYS_NO_PATHCONV = '1';
         }
 
         const epoch = ++this.processEpoch;
