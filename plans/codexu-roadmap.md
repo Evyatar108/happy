@@ -163,12 +163,29 @@ canonical-current state.
 - Upstream-derived doc/skill references to "Happy Coder", `slopus/happy`,
   and `happy.engineering` are HISTORICAL and stay as-is.
 
-### Next: Phase 1c — personal codex plugin scaffolding
+### Phase 1c — personal codex plugin scaffolding (status 2026-05-03)
 
-`packages/codexu-plugin/` skeleton already exists (created during the
-rename). Phase 1c continues from that scaffold — author starter
-SKILL.md, install via `codex plugin marketplace add`, smoke-test that
-the skill appears in `/skills` picker. See Phase 1c spec below.
+- ✅ **Plugin scaffold** at `packages/codexu-plugin/` (commit `5ed14a13`):
+  `.codex-plugin/plugin.json`, `skills/hello-world/SKILL.md`, README.
+- ✅ **Marketplace catalog** at `packages/codexu-plugin/.agents/plugins/marketplace.json`
+  (commit `2e824210`). Lists single codexu-plugin entry with
+  `source: { source: local, path: "." }`.
+- ✅ **Marketplace registered** via `codex plugin marketplace add
+  C:/harness-efforts/codexu/packages/codexu-plugin`. Stored in
+  `~/.codex/config.toml` as `[marketplaces.codexu]`.
+- ✅ **Junction** `~/.codex/plugins/codexu-plugin → packages/codexu-plugin`
+  established for direct manifest discovery.
+- ✅ **Per-user defaults** at `~/.codex/AGENTS.md` (outside this repo;
+  lives per Phase 1c step 5 caveat).
+- ⏸ **Plugin install + enable in TUI** — manual step. The codex CLI
+  exposes only `plugin marketplace add/upgrade/remove`; actual plugin
+  install (which makes plugin-provided skills appear in `/skills`
+  picker) happens via the TUI plugin picker or via app-server RPC.
+  Smoke test: open codex TUI → plugins picker → enable codexu-plugin →
+  verify `hello-world` appears in `/skills` picker.
+
+Phase 1c work-as-roadmap: ~90% done. Remaining is interactive TUI
+verification — not blocking other roadmap items.
 
 ---
 
