@@ -62,9 +62,9 @@ Codexu is a fork of [slopus/happy](https://github.com/slopus/happy)
 diverging toward a codex-only direction (GitHub-OAuth via Microsoft Dev
 Tunnels replacing the encrypted relay; codex app-server replacing the
 Claude Code wrapper as the primary runtime). Active upstream tracking
-resumed 2026-05-03 to absorb upstream improvements (codium plugin
-system, theme system, model adds, init-hang fix, etc.); long-term
-divergence direction unchanged.
+resumed 2026-05-03 — first sync absorbed 79 commits (codium plugin
+system, theme system, Codex OAuth, `@pierre/diffs` rendering, model
+adds, init-hang fix). Long-term divergence direction unchanged.
 
 ## Status
 

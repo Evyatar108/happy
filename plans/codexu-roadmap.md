@@ -31,6 +31,29 @@ periodic merges from `slopus/happy` to absorb upstream improvements
 divergence direction (codex-only, GitHub-OAuth + Microsoft Dev Tunnels)
 is unchanged.
 
+**Upstream merge 2026-05-03 (commit `25fe2cf3`):** absorbed 79 upstream
+commits / 1971 files / 25 conflicts. All 5 typechecks green post-merge.
+Headline upstream additions: codium plugin system + plugin-host
+inference, codium theme system (55 presets) + picker, Codex OAuth via
+PKCE in-process, Streamdown rendering, model adds (Opus 4.7, GPT 5.5),
+**`@pierre/diffs` as canonical diff renderer**, init-ready-hang fix,
+EAS submit profiles. Fork divergences kept: BOOX/Firebase release SKILL,
+sidebarMode 3-state (alongside upstream's sidebarCollapsed boolean),
+1.1.8-evy.10 version suffix, `mergeSDKInitMetadata` helper,
+`publishPermissionMode`, `AnimatedDiffText`/`AnimatedMarkdownText`
+font-scaling path, `CollapsibleDiffPreview` `maxVisibleLines` path.
+
+**Hybrid merges — follow-up cleanup queued:**
+- **`ToolDiffView.tsx` dual-path:** codex callers route through
+  `PierreDiffView`, Edit/MultiEdit/GeminiEdit through legacy
+  `DiffView`. **Next: port `maxVisibleLines` collapse-diff into
+  PierreDiffView, drop the legacy DiffView path** (in flight).
+- **`runClaude.ts`** has parallel `currentMode` + `currentRunMode`
+  vars (each consumed in different code paths). Consolidate later.
+- **`MarkdownView.tsx`** absorbed upstream's row-based table layout
+  but kept `AnimatedMarkdownText` for font scaling — visual review
+  TBD on tablet.
+
 **Internal symbols** (function names like `spawnHappyCLI`), **schema
 field names** (`happyHomeDir`), **env vars** (`HAPPY_VARIANT`), **runtime
 state directories** (`~/.happy/`), **tmux session names**, and **brand
