@@ -1,13 +1,14 @@
 import { authAndSetupMachineIfNeeded } from '@/ui/auth'
 import { runCodex } from '@/codex/runCodex'
-import { extractCodexResumeFlag } from '@/codex/cliArgs'
+import { extractCodexResumeFlag, extractCodexTransportFlag } from '@/codex/cliArgs'
 import { extractNoSandboxFlag } from '@/utils/sandboxFlags'
 import { ensureDaemonRunning } from '@/daemon/ensureDaemonRunning'
 
 export async function handleCodexCommand(args: string[]): Promise<void> {
   let startedBy: 'daemon' | 'terminal' | undefined = undefined
   const sandboxArgs = extractNoSandboxFlag(args)
-  const codexArgs = extractCodexResumeFlag(sandboxArgs.args)
+  const resumeArgs = extractCodexResumeFlag(sandboxArgs.args)
+  const codexArgs = extractCodexTransportFlag(resumeArgs.args)
 
   for (let i = 0; i < codexArgs.args.length; i++) {
     if (codexArgs.args[i] === '--started-by') {
@@ -22,6 +23,7 @@ export async function handleCodexCommand(args: string[]): Promise<void> {
     credentials,
     startedBy,
     noSandbox: sandboxArgs.noSandbox,
-    resumeThreadId: codexArgs.resumeThreadId ?? undefined,
+    resumeThreadId: resumeArgs.resumeThreadId ?? undefined,
+    codexTransport: codexArgs.transport,
   })
 }

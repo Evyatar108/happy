@@ -2,6 +2,7 @@ import { render } from "ink";
 import React from "react";
 import { ApiClient } from '@/api/api';
 import { CodexAppServerClient } from './codexAppServerClient';
+import type { CodexTransportFlag } from './cliArgs';
 import { CodexPermissionHandler } from './utils/permissionHandler';
 import { ReasoningProcessor } from './utils/reasoningProcessor';
 import { DiffProcessor } from './utils/diffProcessor';
@@ -58,6 +59,7 @@ export async function runCodex(opts: {
     startedBy?: 'daemon' | 'terminal';
     noSandbox?: boolean;
     resumeThreadId?: string;
+    codexTransport?: CodexTransportFlag | undefined;
 }): Promise<void> {
     // Early check: ensure Codex CLI is installed before proceeding
     try {
@@ -465,6 +467,7 @@ export async function runCodex(opts: {
     //
 
     client = new CodexAppServerClient(sandboxConfig, {
+        transport: opts.codexTransport,
         logFilePath: join(configuration.logsDir, `codex-app-server-${sessionTag}.log`),
     });
 
