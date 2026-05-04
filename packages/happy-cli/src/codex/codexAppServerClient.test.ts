@@ -307,7 +307,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         expect(mockSpawn).toHaveBeenCalledWith(
             'codex',
             ['app-server', '--listen', 'ws://127.0.0.1:30123'],
-            expect.objectContaining({ stdio: ['ignore', expect.any(Number), expect.any(Number)] }),
+            expect.objectContaining({ stdio: ['ignore', expect.any(Number), 'pipe'] }),
         );
     });
 
@@ -1132,6 +1132,51 @@ describe('CodexAppServerClient sandbox integration', () => {
         await expect(secondClient.connect()).resolves.toBeUndefined();
         expect(mockPickFreeLoopbackPort).toHaveBeenCalledTimes(2);
         await secondClient.disconnect();
+    });
+
+    it('retries pick+spawn when first ws child exits with a bind error in stderr', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+
+        // First spawn: child exits immediately, stderr contains a bind-error indicator.
+        const failProc = Object.assign(new EventEmitter(), {
+            pid: 8001,
+            kill: vi.fn(),
+            stderr: new (require('stream').PassThrough)(),
+        });
+        const failPort = 39999;
+        mockPickFreeLoopbackPort.mockResolvedValueOnce(failPort);
+        mockSpawn.mockImplementationOnce(() => failProc);
+
+        // Second spawn: real ws server that handles the initialize handshake.
+        const { proc: successProc, wss } = await createMockWsAppServer({ pid: 8002 });
+        mockPickFreeLoopbackPort.mockResolvedValueOnce((wss.address() as AddressInfo).port);
+        mockSpawn.mockImplementationOnce(() => successProc);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, {
+            transport: 'ws',
+            logFilePath: join(tmpdir(), 'codex-app-server-bind-retry-test.log'),
+        });
+
+        const connectPromise = client.connect();
+
+        // Emit bind-error on stderr then exit the first child.
+        queueMicrotask(() => {
+            failProc.stderr.push('error binding address: address already in use\n');
+            failProc.stderr.push(null);
+            queueMicrotask(() => failProc.emit('exit', 1, null));
+        });
+
+        await expect(connectPromise).resolves.toBeUndefined();
+        expect(mockPickFreeLoopbackPort).toHaveBeenCalledTimes(2);
+        expect(mockSpawn).toHaveBeenCalledTimes(2);
+        expect(mockSpawn).toHaveBeenNthCalledWith(1,
+            'codex',
+            ['app-server', '--listen', `ws://127.0.0.1:${failPort}`],
+            expect.objectContaining({ stdio: ['ignore', expect.any(Number), 'pipe'] }),
+        );
+
+        await client.disconnect();
     });
 
     it('opens the ws log file at the configuration.logsDir-derived path and closes the fd on disconnect', async () => {

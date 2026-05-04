@@ -163,6 +163,7 @@ export class CodexAppServerClient {
     private logFilePath?: string;
     private wsChild: ChildProcess | null = null;
     private wsChildExited = false;
+    private wsChildStderr = '';
     private wsLogFd: number | null = null;
     private wsChildExitHandlers = new Set<() => void>();
 
@@ -458,13 +459,18 @@ export class CodexAppServerClient {
         const logFd = openSync(logFilePath, 'a');
         this.wsLogFd = logFd;
         this.wsChildExited = false;
+        this.wsChildStderr = '';
 
         const child = crossSpawn(command, args, {
-            stdio: ['ignore', logFd, logFd],
+            stdio: ['ignore', logFd, 'pipe'],
             env,
             windowsHide: true,
         });
         this.wsChild = child;
+
+        child.stderr?.on('data', (chunk: Buffer | string) => {
+            this.wsChildStderr += typeof chunk === 'string' ? chunk : chunk.toString();
+        });
 
         child.once('error', (error) => {
             logger.debug('[CodexAppServer] WS process error:', error);
@@ -482,6 +488,11 @@ export class CodexAppServerClient {
             url: args[2],
             onChildExit: (handler) => this.registerWsChildExitHandler(handler),
         });
+    }
+
+    private isWsBindError(): boolean {
+        const s = this.wsChildStderr.toLowerCase();
+        return s.includes('eaddrinuse') || s.includes('address already in use') || s.includes('bind failed');
     }
 
     async connect(): Promise<void> {
@@ -540,58 +551,95 @@ export class CodexAppServerClient {
             env.MSYS_NO_PATHCONV = '1';
         }
 
-        let connection: JsonRpcConnection;
+        const WS_SPAWN_MAX_RETRIES = 2;
         if (transport === 'ws') {
-            const port = await pickFreeLoopbackPort();
-            args = ['app-server', '--listen', `ws://127.0.0.1:${port}`];
             const logFilePath = this.logFilePath ?? join(tmpdir(), `codex-app-server-${randomUUID()}.log`);
-            logger.debug(`[CodexAppServer] Spawning: ${command} ${args.join(' ')}`);
-            connection = this.createWsConnection(command, args, env, logFilePath);
+            for (let attempt = 1; attempt <= WS_SPAWN_MAX_RETRIES; attempt += 1) {
+                const port = await pickFreeLoopbackPort();
+                args = ['app-server', '--listen', `ws://127.0.0.1:${port}`];
+                logger.debug(`[CodexAppServer] Spawning (attempt ${attempt}): ${command} ${args.join(' ')}`);
+                const candidate = this.createWsConnection(command, args, env, logFilePath);
+                const epoch = ++this.processEpoch;
+                this.connection = candidate;
+
+                candidate.onError((err) => {
+                    logger.debug('[CodexAppServer] Process error:', err);
+                });
+
+                candidate.onClose((code, signal) => {
+                    logger.debug(`[CodexAppServer] Process exited: code=${code} signal=${signal}`);
+                    if (this.connection !== candidate || this.processEpoch !== epoch) {
+                        logger.debug('[CodexAppServer] Ignoring stale process exit');
+                        return;
+                    }
+                    this.connected = false;
+                    for (const [id, req] of this.pending) {
+                        if (req.epoch !== epoch) continue;
+                        req.reject(new Error(`Codex process exited (code=${code}) while waiting for ${req.method}`));
+                        this.pending.delete(id);
+                    }
+                    this.resolvePendingTurn(true);
+                    void this.closeWsChild();
+                });
+
+                candidate.onMessage((msg) => {
+                    if (this.connection !== candidate || this.processEpoch !== epoch) return;
+                    this.handleMessage(msg, epoch);
+                });
+
+                try {
+                    await candidate.open();
+                    break;
+                } catch (error) {
+                    await candidate.close().catch(() => undefined);
+                    await this.closeWsChild();
+                    this.connection = null;
+                    if (attempt < WS_SPAWN_MAX_RETRIES && this.isWsBindError()) {
+                        logger.warn(`[CodexAppServer] Bind error on port ${port}; retrying with a new port`);
+                        continue;
+                    }
+                    throw error;
+                }
+            }
         } else {
             logger.debug(`[CodexAppServer] Spawning: ${command} ${args.join(' ')}`);
-            connection = createStdioTransport({ command, args, env });
-        }
-        const epoch = ++this.processEpoch;
-        this.connection = connection;
+            const stdioConn = createStdioTransport({ command, args, env });
 
-        connection.onError((err) => {
-            logger.debug('[CodexAppServer] Process error:', err);
-        });
+            const epoch = ++this.processEpoch;
+            this.connection = stdioConn;
 
-        connection.onClose((code, signal) => {
-            logger.debug(`[CodexAppServer] Process exited: code=${code} signal=${signal}`);
-            if (this.connection !== connection || this.processEpoch !== epoch) {
-                logger.debug('[CodexAppServer] Ignoring stale process exit');
-                return;
-            }
-            this.connected = false;
-            // Reject all pending requests
-            for (const [id, req] of this.pending) {
-                if (req.epoch !== epoch) continue;
-                req.reject(new Error(`Codex process exited (code=${code}) while waiting for ${req.method}`));
-                this.pending.delete(id);
-            }
-            // Resolve pending turn completion (treat as abort)
-            this.resolvePendingTurn(true);
-            if (transport === 'ws') {
-                void this.closeWsChild();
-            }
-        });
+            stdioConn.onError((err) => {
+                logger.debug('[CodexAppServer] Process error:', err);
+            });
 
-        connection.onMessage((msg) => {
-            if (this.connection !== connection || this.processEpoch !== epoch) return;
-            this.handleMessage(msg, epoch);
-        });
+            stdioConn.onClose((code, signal) => {
+                logger.debug(`[CodexAppServer] Process exited: code=${code} signal=${signal}`);
+                if (this.connection !== stdioConn || this.processEpoch !== epoch) {
+                    logger.debug('[CodexAppServer] Ignoring stale process exit');
+                    return;
+                }
+                this.connected = false;
+                // Reject all pending requests
+                for (const [id, req] of this.pending) {
+                    if (req.epoch !== epoch) continue;
+                    req.reject(new Error(`Codex process exited (code=${code}) while waiting for ${req.method}`));
+                    this.pending.delete(id);
+                }
+                // Resolve pending turn completion (treat as abort)
+                this.resolvePendingTurn(true);
+            });
 
-        try {
-            await connection.open();
-        } catch (error) {
-            if (transport === 'ws') {
-                await connection.close().catch(() => undefined);
-                await this.closeWsChild();
+            stdioConn.onMessage((msg) => {
+                if (this.connection !== stdioConn || this.processEpoch !== epoch) return;
+                this.handleMessage(msg, epoch);
+            });
+
+            try {
+                await stdioConn.open();
+            } catch (error) {
+                this.connection = null;
+                throw error;
             }
-            this.connection = null;
-            throw error;
         }
 
         // Perform initialize handshake
