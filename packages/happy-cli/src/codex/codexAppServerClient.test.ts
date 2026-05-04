@@ -1,3 +1,6 @@
+import { EventEmitter } from 'node:events';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SandboxConfig } from '@/persistence';
 
@@ -7,12 +10,20 @@ const {
     mockWrapForMcpTransport,
     mockSandboxCleanup,
     mockSpawn,
+    mockPickFreeLoopbackPort,
+    mockLogger,
 } = vi.hoisted(() => ({
     mockExecSync: vi.fn(),
     mockInitializeSandbox: vi.fn(),
     mockWrapForMcpTransport: vi.fn(),
     mockSandboxCleanup: vi.fn(),
     mockSpawn: vi.fn(),
+    mockPickFreeLoopbackPort: vi.fn(),
+    mockLogger: {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+    },
 }));
 
 vi.mock('node:child_process', () => ({
@@ -30,12 +41,51 @@ vi.mock('@/sandbox/manager', () => ({
 }));
 
 vi.mock('@/ui/logger', () => ({
-    logger: {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-    },
+    logger: mockLogger,
 }));
+
+vi.mock('@/utils/pickFreeLoopbackPort', () => ({
+    pickFreeLoopbackPort: mockPickFreeLoopbackPort,
+}));
+
+vi.mock('ws', () => {
+    class MockWebSocket {
+        static OPEN = 1;
+        static CLOSED = 3;
+        readyState = 0;
+        private handlers = new Map<string, Array<(...args: any[]) => void>>();
+        constructor(public readonly url: string) {
+        }
+        once(event: string, handler: (...args: any[]) => void) {
+            const wrapped = (...args: any[]) => {
+                this.handlers.set(event, (this.handlers.get(event) ?? []).filter((entry) => entry !== wrapped));
+                handler(...args);
+            };
+            return this.on(event, wrapped);
+        }
+        on(event: string, handler: (...args: any[]) => void) {
+            this.handlers.set(event, [...(this.handlers.get(event) ?? []), handler]);
+            return this;
+        }
+        off(event: string, handler: (...args: any[]) => void) {
+            this.handlers.set(event, (this.handlers.get(event) ?? []).filter((entry) => entry !== handler));
+            return this;
+        }
+        emit(event: string, ...args: any[]) {
+            for (const handler of this.handlers.get(event) ?? []) {
+                handler(...args);
+            }
+        }
+        send(_data: string, callback: (error?: Error) => void) {
+            callback();
+        }
+        close() {
+            this.readyState = MockWebSocket.CLOSED;
+            queueMicrotask(() => this.emit('close', 1000, Buffer.from('')));
+        }
+    }
+    return { default: MockWebSocket };
+});
 
 vi.mock('../package.json', () => ({
     default: { version: '0.0.1-test' },
@@ -121,6 +171,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         vi.clearAllMocks();
         process.env.RUST_LOG = originalRustLog;
         mockExecSync.mockReturnValue('codex-cli 0.107.0');
+        mockPickFreeLoopbackPort.mockResolvedValue(30123);
         mockInitializeSandbox.mockResolvedValue(mockSandboxCleanup);
         mockWrapForMcpTransport.mockResolvedValue({ command: 'sh', args: ['-c', 'wrapped codex app-server'] });
         mockSpawn.mockImplementation(() => createMockProcess());
@@ -153,6 +204,53 @@ describe('CodexAppServerClient sandbox integration', () => {
         expect(client.sandboxEnabled).toBe(true);
 
         await client.disconnect();
+    });
+
+    it('forces stdio transport when sandbox is enabled and ws is requested', async () => {
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(sandboxConfig, { transport: 'ws' });
+
+        await client.connect();
+
+        expect(mockPickFreeLoopbackPort).not.toHaveBeenCalled();
+        expect(mockWrapForMcpTransport).toHaveBeenCalledWith('codex', ['app-server', '--listen', 'stdio://']);
+        expect(mockSpawn).toHaveBeenCalledWith(
+            'sh',
+            ['-c', 'wrapped codex app-server'],
+            expect.objectContaining({
+                env: expect.objectContaining({
+                    CODEX_SANDBOX: 'seatbelt',
+                }),
+            }),
+        );
+        expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('forcing stdio transport instead of ws'));
+
+        await client.disconnect();
+    });
+
+    it('rejects ws connect when the app-server exits during handshake', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const proc = Object.assign(new EventEmitter(), {
+            pid: 5001,
+            kill: vi.fn(),
+        });
+        mockSpawn.mockImplementation(() => proc);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, {
+            transport: 'ws',
+            logFilePath: join(tmpdir(), 'codex-app-server-test.log'),
+        });
+
+        const connect = client.connect();
+        queueMicrotask(() => proc.emit('exit', 1, null));
+
+        await expect(connect).rejects.toThrow('Codex app-server exited during ws handshake');
+        expect(mockSpawn).toHaveBeenCalledWith(
+            'codex',
+            ['app-server', '--listen', 'ws://127.0.0.1:30123'],
+            expect.objectContaining({ stdio: ['ignore', expect.any(Number), expect.any(Number)] }),
+        );
     });
 
     it('falls back to non-sandbox transport when sandbox initialization fails', async () => {

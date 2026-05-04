@@ -9,6 +9,7 @@ import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { randomBytes, createHash } from 'crypto';
 import { CodexAuthTokens, PKCECodes } from './types';
 import { openBrowser } from '@/utils/browser';
+import { pickFreeLoopbackPort } from '@/utils/pickFreeLoopbackPort';
 
 // Configuration
 const CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann';
@@ -53,19 +54,6 @@ function parseJWT(token: string): any {
 
     const payload = Buffer.from(parts[1], 'base64url').toString();
     return JSON.parse(payload);
-}
-
-/**
- * Find an available port for the callback server
- */
-async function findAvailablePort(): Promise<number> {
-    return new Promise((resolve) => {
-        const server = createServer();
-        server.listen(0, '127.0.0.1', () => {
-            const port = (server.address() as any).port;
-            server.close(() => resolve(port));
-        });
-    });
 }
 
 /**
@@ -231,7 +219,7 @@ export async function authenticateCodex(): Promise<CodexAuthTokens> {
 
     if (!portAvailable) {
         // console.log(`Port ${port} is in use, finding an available port...`);
-        port = await findAvailablePort();
+        port = await pickFreeLoopbackPort();
     }
 
     // console.log(`📡 Using callback port: ${port}`);

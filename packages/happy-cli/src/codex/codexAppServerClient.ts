@@ -13,7 +13,12 @@
  * app-server wrapper or approval callbacks. See docs/plans/codex-app-server-migration.md.
  */
 
-import { execSync } from 'node:child_process';
+import { execSync, type ChildProcess } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { closeSync, openSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawn as crossSpawn } from 'cross-spawn';
 import { logger } from '@/ui/logger';
 import type {
     InitializeParams,
@@ -35,8 +40,10 @@ import type {
 import type { SandboxConfig } from '@/persistence';
 import { initializeSandbox, wrapForMcpTransport } from '@/sandbox/manager';
 import packageJson from '../../package.json';
+import { pickFreeLoopbackPort } from '@/utils/pickFreeLoopbackPort';
 import type { JsonRpcConnection, JsonRpcMessage } from './transport/JsonRpcConnection';
 import { createStdioTransport } from './transport/stdioTransport';
+import { createWsTransport } from './transport/wsTransport';
 
 type PendingRequest = {
     resolve: (result: unknown) => void;
@@ -51,6 +58,7 @@ export type CodexAppServerTransport = 'stdio' | 'ws';
 
 export type CodexAppServerClientOptions = {
     transport?: CodexAppServerTransport;
+    logFilePath?: string;
 };
 
 export type ApprovalHandler = (params: {
@@ -152,10 +160,16 @@ export class CodexAppServerClient {
     private eventHandler: ((msg: EventMsg) => void) | null = null;
     private approvalHandler: ApprovalHandler | null = null;
     private transport: CodexAppServerTransport;
+    private logFilePath?: string;
+    private wsChild: ChildProcess | null = null;
+    private wsChildExited = false;
+    private wsLogFd: number | null = null;
+    private wsChildExitHandlers = new Set<() => void>();
 
     constructor(sandboxConfig?: SandboxConfig, options: CodexAppServerClientOptions = {}) {
         this.sandboxConfig = sandboxConfig;
         this.transport = options.transport ?? 'stdio';
+        this.logFilePath = options.logFilePath;
     }
 
     get threadId(): string | null {
@@ -384,6 +398,92 @@ export class CodexAppServerClient {
 
     // ─── Lifecycle ──────────────────────────────────────────────
 
+    private registerWsChildExitHandler(handler: () => void): () => void {
+        if (this.wsChildExited) {
+            queueMicrotask(handler);
+            return () => undefined;
+        }
+        this.wsChildExitHandlers.add(handler);
+        return () => {
+            this.wsChildExitHandlers.delete(handler);
+        };
+    }
+
+    private closeWsLogFd(): void {
+        const fd = this.wsLogFd;
+        this.wsLogFd = null;
+        if (fd === null) return;
+        try { closeSync(fd); } catch { /* ignore */ }
+    }
+
+    private waitForWsChildExit(timeoutMs: number): Promise<boolean> {
+        if (!this.wsChild || this.wsChildExited) {
+            return Promise.resolve(true);
+        }
+
+        return new Promise((resolve) => {
+            const timeout = setTimeout(() => {
+                cleanup();
+                resolve(false);
+            }, timeoutMs);
+            const cleanup = this.registerWsChildExitHandler(() => {
+                clearTimeout(timeout);
+                cleanup();
+                resolve(true);
+            });
+        });
+    }
+
+    private async closeWsChild(): Promise<void> {
+        const child = this.wsChild;
+        if (!child) {
+            this.closeWsLogFd();
+            return;
+        }
+
+        if (!this.wsChildExited) {
+            try { child.kill('SIGTERM'); } catch { /* ignore */ }
+            const exitedAfterTerm = await this.waitForWsChildExit(2_000);
+            if (!exitedAfterTerm && !this.wsChildExited) {
+                try { child.kill('SIGKILL'); } catch { /* ignore */ }
+                await this.waitForWsChildExit(1_000);
+            }
+        }
+
+        this.wsChild = null;
+        this.closeWsLogFd();
+    }
+
+    private createWsConnection(command: string, args: string[], env: Record<string, string>, logFilePath: string): JsonRpcConnection {
+        const logFd = openSync(logFilePath, 'a');
+        this.wsLogFd = logFd;
+        this.wsChildExited = false;
+
+        const child = crossSpawn(command, args, {
+            stdio: ['ignore', logFd, logFd],
+            env,
+            windowsHide: true,
+        });
+        this.wsChild = child;
+
+        child.once('error', (error) => {
+            logger.debug('[CodexAppServer] WS process error:', error);
+        });
+        child.once('exit', () => {
+            this.wsChildExited = true;
+            for (const handler of [...this.wsChildExitHandlers]) {
+                handler();
+            }
+            this.wsChildExitHandlers.clear();
+            this.closeWsLogFd();
+        });
+
+        return createWsTransport({
+            url: args[2],
+            onChildExit: (handler) => this.registerWsChildExitHandler(handler),
+        });
+    }
+
     async connect(): Promise<void> {
         if (this.connected) return;
 
@@ -397,9 +497,10 @@ export class CodexAppServerClient {
             );
         }
 
-        const transport = this.transport;
-        if (transport === 'ws') {
-            throw new Error('ws transport not yet implemented');
+        let transport = this.transport;
+        if (this.sandboxConfig?.enabled && process.platform !== 'win32' && transport === 'ws') {
+            logger.warn('[CodexAppServer] Sandbox enabled on non-Windows; forcing stdio transport instead of ws');
+            transport = 'stdio';
         }
 
         let command = 'codex';
@@ -436,10 +537,18 @@ export class CodexAppServerClient {
             env.CODEX_SANDBOX = 'seatbelt';
         }
 
-        logger.debug(`[CodexAppServer] Spawning: ${command} ${args.join(' ')}`);
-
         const epoch = ++this.processEpoch;
-        const connection = createStdioTransport({ command, args, env });
+        let connection: JsonRpcConnection;
+        if (transport === 'ws') {
+            const port = await pickFreeLoopbackPort();
+            args = ['app-server', '--listen', `ws://127.0.0.1:${port}`];
+            const logFilePath = this.logFilePath ?? join(tmpdir(), `codex-app-server-${randomUUID()}.log`);
+            logger.debug(`[CodexAppServer] Spawning: ${command} ${args.join(' ')}`);
+            connection = this.createWsConnection(command, args, env, logFilePath);
+        } else {
+            logger.debug(`[CodexAppServer] Spawning: ${command} ${args.join(' ')}`);
+            connection = createStdioTransport({ command, args, env });
+        }
         this.connection = connection;
 
         connection.onError((err) => {
@@ -468,7 +577,16 @@ export class CodexAppServerClient {
             this.handleMessage(msg, epoch);
         });
 
-        await connection.open();
+        try {
+            await connection.open();
+        } catch (error) {
+            if (transport === 'ws') {
+                await connection.close().catch(() => undefined);
+                await this.closeWsChild();
+            }
+            this.connection = null;
+            throw error;
+        }
 
         // Perform initialize handshake
         const initParams: InitializeParams = {
@@ -497,6 +615,8 @@ export class CodexAppServerClient {
         try {
             await connection?.close();
         } catch { /* ignore */ }
+
+        await this.closeWsChild();
 
         this.connection = null;
         this.connected = false;

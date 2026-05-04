@@ -464,7 +464,9 @@ export async function runCodex(opts: {
     // Start Context 
     //
 
-    client = new CodexAppServerClient(sandboxConfig);
+    client = new CodexAppServerClient(sandboxConfig, {
+        logFilePath: join(configuration.logsDir, `codex-app-server-${sessionTag}.log`),
+    });
 
     permissionHandler = new CodexPermissionHandler(session);
     reasoningProcessor = new ReasoningProcessor((message) => {
