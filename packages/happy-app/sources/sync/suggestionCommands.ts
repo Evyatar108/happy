@@ -35,6 +35,43 @@ export const NATIVE_PROMPT_COMMANDS = new Set([
     'commit-push-pr',
 ]);
 
+// Commands to ignore/filter out (upstream-side allowlist; preserved for callers
+// that may consult it, but not consumed locally — local classification uses
+// NATIVE_PROMPT_COMMANDS above).
+export const IGNORED_COMMANDS = [
+    "add-dir",
+    "agents",
+    "config",
+    "statusline",
+    "bashes",
+    "settings",
+    "cost",
+    "doctor",
+    "exit",
+    "help",
+    "ide",
+    "init",
+    "install-github-app",
+    "memory",
+    "migrate-installer",
+    "model",
+    "pr-comments",
+    "release-notes",
+    "resume",
+    "status",
+    "bug",
+    "review",
+    "security-review",
+    "terminal-setup",
+    "upgrade",
+    "vim",
+    "permissions",
+    "hooks",
+    "export",
+    "logout",
+    "login"
+];
+
 const DEFAULT_COMMANDS: CommandItem[] = [
     { command: 'clear', description: 'Clear the conversation.', source: 'native-local' },
     { command: 'compact', description: 'Compact the conversation history.', source: 'native-local' },

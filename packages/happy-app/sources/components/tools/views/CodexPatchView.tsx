@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { View } from 'react-native';
+import { View, Text } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Octicons } from '@expo/vector-icons';
 import { ToolCall } from '@/sync/typesMessage';
@@ -7,8 +7,7 @@ import { ToolSectionView } from '../ToolSectionView';
 import { Metadata } from '@/sync/storageTypes';
 import { resolvePath } from '@/utils/pathUtils';
 import { ToolDiffView } from '@/components/tools/ToolDiffView';
-import { useSetting } from '@/sync/storage';
-import { parseUnifiedDiff } from '@/utils/codexUnifiedDiff';
+import { getDiffStats, getPatchDiffStats } from '@/components/diff/calculateDiff';
 import { AnimatedText } from '@/components/StyledText';
 import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
 
@@ -45,36 +44,23 @@ function getPatchChanges(input: any): Record<string, CodexPatchEntry> | null {
     return null;
 }
 
-function getPatchTexts(change: CodexPatchEntry): { oldText: string; newText: string } | null {
-    if (change.modify) {
-        return {
-            oldText: change.modify.old_content || '',
-            newText: change.modify.new_content || '',
-        };
-    }
+type PatchInput =
+    | { kind: 'patch'; patch: string }
+    | { kind: 'pair'; oldText: string; newText: string };
 
-    if (change.add) {
-        return {
-            oldText: '',
-            newText: change.add.content || '',
-        };
-    }
-
-    if (change.delete) {
-        return {
-            oldText: change.delete.content || '',
-            newText: '',
-        };
-    }
-
+function getPatchInput(change: CodexPatchEntry): PatchInput | null {
     if (typeof change.diff === 'string') {
-        const parsed = parseUnifiedDiff(change.diff);
-        return {
-            oldText: parsed.oldText,
-            newText: parsed.newText,
-        };
+        return { kind: 'patch', patch: change.diff };
     }
-
+    if (change.modify) {
+        return { kind: 'pair', oldText: change.modify.old_content || '', newText: change.modify.new_content || '' };
+    }
+    if (change.add) {
+        return { kind: 'pair', oldText: '', newText: change.add.content || '' };
+    }
+    if (change.delete) {
+        return { kind: 'pair', oldText: change.delete.content || '', newText: '' };
+    }
     return null;
 }
 
@@ -96,7 +82,6 @@ export const CodexPatchView = React.memo<CodexPatchViewProps>(({ tool, metadata 
     const animatedFilePathStyle = useChatScaleAnimatedTextStyle(styles.filePath.fontSize);
     const animatedKindLabelStyle = useChatScaleAnimatedTextStyle(styles.kindLabel.fontSize);
     const animatedMovePathStyle = useChatScaleAnimatedTextStyle(styles.movePath.fontSize);
-    const showLineNumbersInToolViews = useSetting('showLineNumbersInToolViews');
     const { input } = tool;
     const changes = getPatchChanges(input);
 
@@ -110,10 +95,15 @@ export const CodexPatchView = React.memo<CodexPatchViewProps>(({ tool, metadata 
         <>
             {entries.map(([file, change]) => {
                 const filePath = resolvePath(file, metadata);
-                const texts = getPatchTexts(change);
+                const diffInput = getPatchInput(change);
                 const kindLabel = getPatchKindLabel(change);
                 const movePath = change.kind?.move_path ? resolvePath(change.kind.move_path, metadata) : null;
-                const hasDiff = !!texts && (texts.oldText.length > 0 || texts.newText.length > 0);
+                const fileName = file.split('/').pop() ?? file;
+                const stats = !diffInput
+                    ? null
+                    : diffInput.kind === 'patch'
+                        ? getPatchDiffStats(diffInput.patch)
+                        : getDiffStats(diffInput.oldText, diffInput.newText);
 
                 return (
                     <ToolSectionView key={file} fullWidth>
@@ -123,15 +113,22 @@ export const CodexPatchView = React.memo<CodexPatchViewProps>(({ tool, metadata 
                                     <Octicons name="file-diff" size={16} color={theme.colors.textSecondary} />
                                     <AnimatedText style={[styles.filePath, animatedFilePathStyle]}>{filePath}</AnimatedText>
                                     {kindLabel ? <AnimatedText style={[styles.kindLabel, animatedKindLabelStyle]}>{kindLabel}</AnimatedText> : null}
+                                    {stats && (stats.additions > 0 || stats.deletions > 0) ? (
+                                        <View style={styles.stats}>
+                                            {stats.additions > 0 ? <Text style={styles.added}>+{stats.additions}</Text> : null}
+                                            {stats.deletions > 0 ? <Text style={styles.removed}>-{stats.deletions}</Text> : null}
+                                        </View>
+                                    ) : null}
                                 </View>
                                 {movePath ? <AnimatedText style={[styles.movePath, animatedMovePathStyle]}>{movePath}</AnimatedText> : null}
                             </View>
-                            {hasDiff ? (
+                            {diffInput?.kind === 'patch' ? (
+                                <ToolDiffView patch={diffInput.patch} fileName={fileName} />
+                            ) : diffInput?.kind === 'pair' && (diffInput.oldText.length > 0 || diffInput.newText.length > 0) ? (
                                 <ToolDiffView
-                                    oldText={texts.oldText}
-                                    newText={texts.newText}
-                                    showLineNumbers={showLineNumbersInToolViews}
-                                    showPlusMinusSymbols={showLineNumbersInToolViews}
+                                    oldText={diffInput.oldText}
+                                    newText={diffInput.newText}
+                                    fileName={fileName}
                                 />
                             ) : null}
                         </View>
@@ -176,5 +173,19 @@ const styles = StyleSheet.create((theme) => ({
         fontSize: 12,
         color: theme.colors.textSecondary,
         fontFamily: 'monospace',
+    },
+    stats: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    added: {
+        fontSize: 12,
+        fontFamily: 'monospace',
+        color: '#34C759',
+    },
+    removed: {
+        fontSize: 12,
+        fontFamily: 'monospace',
+        color: '#FF3B30',
     },
 }));

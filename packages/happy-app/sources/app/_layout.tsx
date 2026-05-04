@@ -33,6 +33,8 @@ import { AsyncLock } from '@/utils/lock';
 import { getSessionRouteFromNotificationResponse } from '@/utils/notificationRouting';
 import { navigateToSession } from '@/hooks/useNavigateToSession';
 import { applyVoiceUpsellOverride } from '@/realtime/voiceExperiment';
+import { useTauriZoom } from '@/hooks/useTauriZoom';
+import { useTauriDrag } from '@/hooks/useTauriDrag';
 
 // Configure notification handler for foreground notifications
 Notifications.setNotificationHandler({
@@ -193,6 +195,8 @@ function getDevWebQueryCredentials(): AuthCredentials | null {
 }
 
 export default function RootLayout() {
+    useTauriZoom();
+    useTauriDrag();
     const router = useRouter();
     const { theme } = useUnistyles();
     const navigationTheme = React.useMemo(() => {
@@ -375,7 +379,7 @@ export default function RootLayout() {
 
     let providers = (
         <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-            <KeyboardProvider>
+            <KeyboardProvider preload={false}>
                 <GestureHandlerRootView style={{ flex: 1 }}>
                     <AuthProvider initialCredentials={initState.credentials}>
                         <ThemeProvider value={navigationTheme}>

@@ -227,6 +227,40 @@ export function saveSessionPermissionModeUserChosen(flags: Record<string, boolea
     mmkv.set('session-permission-mode-user-chosen', JSON.stringify(flags));
 }
 
+export function loadSessionModelModes(): Record<string, string> {
+    const modes = mmkv.getString('session-model-modes');
+    if (modes) {
+        try {
+            return JSON.parse(modes);
+        } catch (e) {
+            console.error('Failed to parse session model modes', e);
+            return {};
+        }
+    }
+    return {};
+}
+
+export function saveSessionModelModes(modes: Record<string, string>) {
+    mmkv.set('session-model-modes', JSON.stringify(modes));
+}
+
+export function loadSessionEffortLevels(): Record<string, string> {
+    const levels = mmkv.getString('session-effort-levels');
+    if (levels) {
+        try {
+            return JSON.parse(levels);
+        } catch (e) {
+            console.error('Failed to parse session effort levels', e);
+            return {};
+        }
+    }
+    return {};
+}
+
+export function saveSessionEffortLevels(levels: Record<string, string>) {
+    mmkv.set('session-effort-levels', JSON.stringify(levels));
+}
+
 export function loadProfile(): Profile {
     const profile = mmkv.getString('profile');
     if (profile) {

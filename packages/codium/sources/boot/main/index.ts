@@ -1,9 +1,32 @@
-import { app, BrowserWindow, ipcMain, nativeTheme, shell } from 'electron'
+import {
+    app,
+    BrowserWindow,
+    dialog,
+    ipcMain,
+    nativeTheme,
+    shell,
+} from 'electron'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import { join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { basename, extname, join } from 'node:path'
 import { homedir } from 'node:os'
 import { randomUUID } from 'node:crypto'
 import * as pty from 'node-pty'
+import {
+    cancelLogin as cancelCodexLogin,
+    getStatus as getCodexStatus,
+    login as codexLogin,
+    logout as codexLogout,
+} from './codex-oauth'
+import { registerAgentIpc } from './agent-worker/host'
+import { registerChatStoreIpc } from './chat-store'
+
+registerAgentIpc()
+registerChatStoreIpc()
+
+if (is.dev) {
+    app.commandLine.appendSwitch('remote-debugging-port', '9224')
+}
 
 type ThemeSource = 'system' | 'light' | 'dark'
 const themeState = () => ({
@@ -16,6 +39,37 @@ ipcMain.handle('theme:set', (_, source: ThemeSource) => {
     nativeTheme.themeSource = source
     return themeState()
 })
+ipcMain.on(
+    'theme:set-opaque',
+    (e, args: { opaque: boolean; surface?: string } | boolean) => {
+        const win = BrowserWindow.fromWebContents(e.sender)
+        if (!win || process.platform !== 'darwin') return
+        // Backwards-compat: legacy callers send a bare boolean.
+        const opaque = typeof args === 'boolean' ? args : !!args?.opaque
+        const surface = typeof args === 'object' ? args?.surface : undefined
+        try {
+            if (opaque) {
+                // Disable macOS vibrancy and set the actual theme surface as the
+                // window's solid background. Without setBackgroundColor, the
+                // initial transparent backing remains and the body shows through.
+                win.setVibrancy(null)
+                win.setBackgroundColor(surface || '#ffffff')
+            } else {
+                win.setVibrancy('sidebar')
+                // Transparent so the vibrancy material shows through.
+                win.setBackgroundColor('#00000000')
+            }
+        } catch {
+            /* not all macOS versions accept all vibrancies */
+        }
+    }
+)
+/* ─────────── Codex OAuth (PKCE flow, no CLI dependency) ─────────── */
+ipcMain.handle('codex:auth:status', () => getCodexStatus())
+ipcMain.handle('codex:auth:login', () => codexLogin())
+ipcMain.handle('codex:auth:logout', () => codexLogout())
+ipcMain.on('codex:auth:cancel-login', () => cancelCodexLogin())
+
 nativeTheme.on('updated', () => {
     const state = themeState()
     for (const win of BrowserWindow.getAllWindows()) {
@@ -96,6 +150,68 @@ app.on('before-quit', () => {
 ipcMain.on('win:sync:is-fullscreen', (e) => {
     const win = BrowserWindow.fromWebContents(e.sender)
     e.returnValue = win?.isFullScreen() ?? false
+})
+
+const IMAGE_MIME: Record<string, string> = {
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    svg: 'image/svg+xml',
+    heic: 'image/heic',
+}
+
+ipcMain.handle('files:pick', async (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    if (!win) return []
+    const result = await dialog.showOpenDialog(win, {
+        properties: ['openFile', 'multiSelections'],
+        filters: [
+            {
+                name: 'Images',
+                extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'heic'],
+            },
+            {
+                name: 'Documents',
+                extensions: ['pdf', 'txt', 'md', 'json', 'csv', 'rtf', 'docx'],
+            },
+            { name: 'All Files', extensions: ['*'] },
+        ],
+    })
+    if (result.canceled) return []
+    return result.filePaths.map((p) => ({
+        path: p,
+        name: basename(p),
+        ext: extname(p).toLowerCase().slice(1),
+    }))
+})
+
+ipcMain.handle('files:pick-directory', async (e) => {
+    const win = BrowserWindow.fromWebContents(e.sender)
+    if (!win) return null
+    const result = await dialog.showOpenDialog(win, {
+        properties: ['openDirectory'],
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    const path = result.filePaths[0]
+    return {
+        path,
+        name: basename(path),
+        ext: 'folder',
+    }
+})
+
+ipcMain.handle('files:read-data-url', async (_e, filePath: string) => {
+    const ext = extname(filePath).toLowerCase().slice(1)
+    const mime = IMAGE_MIME[ext]
+    if (!mime) return null
+    try {
+        const buf = await readFile(filePath)
+        return `data:${mime};base64,${buf.toString('base64')}`
+    } catch {
+        return null
+    }
 })
 
 function createWindow(): void {

@@ -49,6 +49,9 @@ export const MetadataSchema = z.object({
         source: z.string().optional(),
     })).optional(),
     outputStyle: z.string().optional(),
+    // mcpServers accepts: HEAD's SDKSystemMessage record-shape (claude-code metadata)
+    // OR upstream's {name, status} array (codium plugin system) OR HEAD's name-only
+    // array shape — passthrough on each variant keeps unknown fields tolerable.
     mcpServers: z.union([
         z.record(z.object({
             command: z.string().optional(),
@@ -57,6 +60,7 @@ export const MetadataSchema = z.object({
         }).passthrough()),
         z.array(z.object({
             name: z.string(),
+            status: z.string().optional(),
         }).passthrough()),
     ]).optional(),
     homeDir: z.string().optional(), // User's home directory on the machine

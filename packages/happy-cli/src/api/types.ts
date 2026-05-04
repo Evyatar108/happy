@@ -292,6 +292,9 @@ export type Metadata = {
     source?: string
   }>,
   outputStyle?: SDKSystemMessage['output_style'],
+  // Note: SDKSystemMessage['mcp_servers'] is the canonical Claude Code shape.
+  // Upstream's `Array<{name, status}>` codium variant is supported via the
+  // server-side passthrough on the storageTypes union (sources/sync/storageTypes.ts).
   mcpServers?: SDKSystemMessage['mcp_servers'],
   homeDir: string,
   happyHomeDir: string,

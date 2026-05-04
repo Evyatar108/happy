@@ -100,3 +100,6 @@ packages/happy-server/logs/
 /options-mode
 /inspirations/
 
+# scratch tooling (upstream)
+.cdp-scripts/
+happy-workspaces/

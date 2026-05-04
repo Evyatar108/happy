@@ -28,7 +28,7 @@ import { LocalSettings, applyLocalSettings } from "./localSettings";
 import { Purchases, customerInfoToPurchases } from "./purchases";
 import { Profile } from "./profile";
 import { UserProfile, RelationshipUpdatedEvent } from "./friendTypes";
-import { loadSettings, loadLocalSettings, saveLocalSettings, saveSettings, loadPurchases, savePurchases, loadProfile, saveProfile, loadSessionDrafts, saveSessionDrafts, loadSessionPermissionModes, saveSessionPermissionModes, loadSessionPermissionModeUserChosen, saveSessionPermissionModeUserChosen } from "./persistence";
+import { loadSettings, loadLocalSettings, saveLocalSettings, saveSettings, loadPurchases, savePurchases, loadProfile, saveProfile, loadSessionDrafts, saveSessionDrafts, loadSessionPermissionModes, saveSessionPermissionModes, loadSessionPermissionModeUserChosen, saveSessionPermissionModeUserChosen, loadSessionModelModes, saveSessionModelModes, loadSessionEffortLevels, saveSessionEffortLevels } from "./persistence";
 import type { PermissionModeKey } from '@/components/PermissionModeSelector';
 import type { CustomerInfo } from './revenueCat/types';
 import React from "react";
@@ -177,6 +177,7 @@ interface StorageState {
     friendsLoaded: boolean;  // True after initial friends fetch
     realtimeStatus: 'disconnected' | 'connecting' | 'connected' | 'error';
     realtimeMode: 'idle' | 'agent-speaking' | 'user-speaking';
+    voiceSessionGeneration: number;
     socketStatus: 'disconnected' | 'connecting' | 'connected' | 'error';
     socketLastConnectedAt: number | null;
     socketLastDisconnectedAt: number | null;
@@ -232,6 +233,7 @@ interface StorageState {
     setRealtimeStatus: (status: 'disconnected' | 'connecting' | 'connected' | 'error') => void;
     setRealtimeMode: (mode: 'idle' | 'agent-speaking' | 'user-speaking', immediate?: boolean) => void;
     clearRealtimeModeDebounce: () => void;
+    incrementVoiceSessionGeneration: () => void;
     setSocketStatus: (status: 'disconnected' | 'connecting' | 'connected' | 'error') => void;
     getActiveSessions: () => Session[];
     updateSessionDraft: (sessionId: string, draft: string | null) => void;
@@ -371,6 +373,8 @@ export const storage = create<StorageState>()((set, get) => {
     let sessionDrafts = loadSessionDrafts();
     let sessionPermissionModes = loadSessionPermissionModes();
     let sessionPermissionModeUserChosen = loadSessionPermissionModeUserChosen();
+    let sessionModelModes = loadSessionModelModes();
+    let sessionEffortLevels = loadSessionEffortLevels();
     return {
         settings,
         settingsVersion: version,
@@ -396,6 +400,7 @@ export const storage = create<StorageState>()((set, get) => {
         sessionFileCache: {},
         realtimeStatus: 'disconnected',
         realtimeMode: 'idle',
+        voiceSessionGeneration: 0,
         socketStatus: 'disconnected',
         socketLastConnectedAt: null,
         socketLastDisconnectedAt: null,
@@ -422,9 +427,12 @@ export const storage = create<StorageState>()((set, get) => {
         },
         applySessions: (sessions: IncomingSession[]) => set((state) => {
             // Load drafts and permission modes if sessions are empty (initial load)
-            const savedDrafts = Object.keys(state.sessions).length === 0 ? sessionDrafts : {};
-            const savedPermissionModes = Object.keys(state.sessions).length === 0 ? sessionPermissionModes : {};
-            const savedPermissionModeUserChosen = Object.keys(state.sessions).length === 0 ? sessionPermissionModeUserChosen : {};
+            const isInitialLoad = Object.keys(state.sessions).length === 0;
+            const savedDrafts = isInitialLoad ? sessionDrafts : {};
+            const savedPermissionModes = isInitialLoad ? sessionPermissionModes : {};
+            const savedPermissionModeUserChosen = isInitialLoad ? sessionPermissionModeUserChosen : {};
+            const savedModelModes = isInitialLoad ? sessionModelModes : {};
+            const savedEffortLevels = isInitialLoad ? sessionEffortLevels : {};
 
             // Merge new sessions with existing ones
             const mergedSessions: Record<string, Session> = { ...state.sessions };
@@ -448,12 +456,21 @@ export const storage = create<StorageState>()((set, get) => {
                     (session.permissionMode && session.permissionMode !== 'default' ? session.permissionMode : undefined) ||
                     defaultPermissionMode;
 
+                // Restore model mode / effort level from MMKV on first load — server
+                // does not sync these, and they used to reset on every app restart (#1028).
+                const existingModelMode = state.sessions[session.id]?.modelMode;
+                const resolvedModelMode = existingModelMode ?? savedModelModes[session.id] ?? session.modelMode ?? null;
+                const existingEffortLevel = state.sessions[session.id]?.effortLevel;
+                const resolvedEffortLevel = existingEffortLevel ?? savedEffortLevels[session.id] ?? session.effortLevel ?? null;
+
                 mergedSessions[session.id] = {
                     ...session,
                     presence,
                     draft: existingDraft || savedDraft || session.draft || null,
                     permissionMode: resolvedPermissionMode,
-                    permissionModeUserChosen: existingPermissionModeUserChosen ?? savedUserChosen ?? session.permissionModeUserChosen ?? false
+                    permissionModeUserChosen: existingPermissionModeUserChosen ?? savedUserChosen ?? session.permissionModeUserChosen ?? false,
+                    modelMode: resolvedModelMode,
+                    effortLevel: resolvedEffortLevel,
                 };
             });
 
@@ -1121,6 +1138,10 @@ export const storage = create<StorageState>()((set, get) => {
                 realtimeModeDebounceTimer = null;
             }
         },
+        incrementVoiceSessionGeneration: () => set((state) => ({
+            ...state,
+            voiceSessionGeneration: state.voiceSessionGeneration + 1
+        })),
         setSocketStatus: (status: 'disconnected' | 'connecting' | 'connected' | 'error') => set((state) => {
             const now = Date.now();
             const updates: Partial<StorageState> = {
@@ -1225,6 +1246,16 @@ export const storage = create<StorageState>()((set, get) => {
                 }
             };
 
+            // Persist model modes so the selection survives app restart (#1028).
+            // Only non-default values are kept — matches the permissionMode pattern above.
+            const allModes: Record<string, string> = {};
+            Object.entries(updatedSessions).forEach(([id, sess]) => {
+                if (sess.modelMode && sess.modelMode !== 'default') {
+                    allModes[id] = sess.modelMode;
+                }
+            });
+            saveSessionModelModes(allModes);
+
             // No need to rebuild sessionListViewData since model mode doesn't affect the list display
             return {
                 ...state,
@@ -1242,6 +1273,15 @@ export const storage = create<StorageState>()((set, get) => {
                     effortLevel: level
                 }
             };
+
+            // Persist effort levels so the selection survives app restart (#1028).
+            const allLevels: Record<string, string> = {};
+            Object.entries(updatedSessions).forEach(([id, sess]) => {
+                if (sess.effortLevel) {
+                    allLevels[id] = sess.effortLevel;
+                }
+            });
+            saveSessionEffortLevels(allLevels);
 
             return {
                 ...state,
@@ -1357,11 +1397,11 @@ export const storage = create<StorageState>()((set, get) => {
             const { [sessionId]: _gitStatusFiles, ...remainingGitStatusFiles } = state.sessionGitStatusFiles;
             const { [sessionId]: _fileCache, ...remainingFileCache } = state.sessionFileCache;
 
-            // Clear drafts and permission modes from persistent storage
+            // Clear drafts, permission modes, model modes, effort levels from persistent storage
             const drafts = loadSessionDrafts();
             delete drafts[sessionId];
             saveSessionDrafts(drafts);
-            
+
             const modes = loadSessionPermissionModes();
             delete modes[sessionId];
             sessionPermissionModes = modes;
@@ -1371,6 +1411,14 @@ export const storage = create<StorageState>()((set, get) => {
             delete flags[sessionId];
             sessionPermissionModeUserChosen = flags;
             saveSessionPermissionModeUserChosen(flags);
+
+            const modelModes = loadSessionModelModes();
+            delete modelModes[sessionId];
+            saveSessionModelModes(modelModes);
+
+            const effortLevels = loadSessionEffortLevels();
+            delete effortLevels[sessionId];
+            saveSessionEffortLevels(effortLevels);
             
             // Rebuild sessionListViewData without the deleted session
             const sessionListViewData = buildSessionListViewData(remainingSessions);
@@ -1680,6 +1728,10 @@ export function useRealtimeStatus(): 'disconnected' | 'connecting' | 'connected'
 
 export function useRealtimeMode(): 'idle' | 'agent-speaking' | 'user-speaking' {
     return storage(useShallow((state) => state.realtimeMode));
+}
+
+export function useVoiceSessionGeneration(): number {
+    return storage(useShallow((state) => state.voiceSessionGeneration));
 }
 
 export function useSocketStatus() {

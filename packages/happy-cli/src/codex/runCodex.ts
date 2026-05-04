@@ -23,6 +23,8 @@ import { CodexDisplay } from "@/ui/ink/CodexDisplay";
 import { trimIdent } from "@/utils/trimIdent";
 import { CHANGE_TITLE_INSTRUCTION } from '@/gemini/constants';
 import { notifyDaemonSessionStarted } from "@/daemon/controlClient";
+import { encodeBase64, decodeBase64 } from '@/api/encryption';
+import type { Session as ApiSession } from '@/api/types';
 import { registerKillSessionHandler } from "@/claude/registerKillSessionHandler";
 import { connectionState } from '@/utils/serverConnectionErrors';
 import { setupOfflineReconnection } from '@/utils/setupOfflineReconnection';
@@ -32,6 +34,21 @@ import { resolveCodexExecutionPolicy } from './executionPolicy';
 import { mapCodexMcpMessageToSessionEnvelopes, mapCodexProcessorMessageToSessionEnvelopes } from './utils/sessionProtocolMapper';
 import { resumeExistingThread } from './resumeExistingThread';
 import { emitReadyIfIdle } from './emitReadyIfIdle';
+
+/**
+ * Extracts a human-readable error from a codex task_complete/turn_aborted event.
+ * Returns null if the event represents a successful/clean completion.
+ */
+function describeCodexFailure(msg: any): string | null {
+    const hasFailure = msg?.status === 'failed' || (msg?.error !== undefined && msg?.error !== null);
+    if (!hasFailure) return null;
+    const err = msg.error;
+    if (typeof err === 'string' && err.length > 0) return err;
+    if (err && typeof err === 'object' && typeof err.message === 'string' && err.message.length > 0) {
+        return err.message;
+    }
+    return 'Unknown error';
+}
 
 /**
  * Main entry point for the codex command with ink UI
@@ -105,7 +122,31 @@ export async function runCodex(opts: {
         startedBy: opts.startedBy,
         sandbox: sandboxConfig,
     });
-    const response = await api.getOrCreateSession({ tag: sessionTag, metadata, state });
+
+    // Check for session reconnection env vars (set by daemon for resume-in-place)
+    const reconnectSessionId = process.env.HAPPY_RECONNECT_SESSION_ID;
+    const reconnectKeyBase64 = process.env.HAPPY_RECONNECT_ENCRYPTION_KEY;
+    const reconnectVariant = process.env.HAPPY_RECONNECT_ENCRYPTION_VARIANT as 'legacy' | 'dataKey' | undefined;
+    const reconnectSeq = process.env.HAPPY_RECONNECT_SEQ;
+    const reconnectMetadataVersion = process.env.HAPPY_RECONNECT_METADATA_VERSION;
+    const reconnectAgentStateVersion = process.env.HAPPY_RECONNECT_AGENT_STATE_VERSION;
+
+    let response: ApiSession | null;
+    if (reconnectSessionId && reconnectKeyBase64 && reconnectVariant) {
+        logger.debug(`[START] Reconnecting to existing session ${reconnectSessionId}`);
+        response = {
+            id: reconnectSessionId,
+            seq: parseInt(reconnectSeq || '0', 10),
+            encryptionKey: decodeBase64(reconnectKeyBase64),
+            encryptionVariant: reconnectVariant,
+            metadata,
+            metadataVersion: parseInt(reconnectMetadataVersion || '0', 10),
+            agentState: state,
+            agentStateVersion: parseInt(reconnectAgentStateVersion || '0', 10),
+        };
+    } else {
+        response = await api.getOrCreateSession({ tag: sessionTag, metadata, state });
+    }
 
     // Handle server unreachable case - create offline stub with hot reconnection
     let session: ApiSessionClient;
@@ -132,11 +173,28 @@ export async function runCodex(opts: {
     session = initialSession;
     const lastPublishedPermissionModeCode = { current: undefined as string | undefined };
 
+    // On reconnect, un-archive the session and skip replaying old messages.
+    if (reconnectSessionId) {
+        session.suppressNextArchiveSignal();
+        session.skipExistingMessages();
+        session.updateMetadata((meta) => ({
+            ...meta,
+            lifecycleState: 'running',
+            archivedBy: undefined,
+        }));
+    }
+
     // Always report to daemon if it exists (skip if offline)
     if (response) {
         try {
             logger.debug(`[START] Reporting session ${response.id} to daemon`);
-            const result = await notifyDaemonSessionStarted(response.id, metadata);
+            const result = await notifyDaemonSessionStarted(response.id, metadata, {
+                encryptionKey: encodeBase64(response.encryptionKey),
+                encryptionVariant: response.encryptionVariant,
+                seq: response.seq,
+                metadataVersion: response.metadataVersion,
+                agentStateVersion: response.agentStateVersion,
+            });
             if (result.error) {
                 logger.debug(`[START] Failed to report to daemon (may not be running):`, result.error);
             } else {
@@ -157,14 +215,35 @@ export async function runCodex(opts: {
     let currentPermissionMode: import('@/api/types').PermissionMode | undefined = undefined;
     let currentModel: string | undefined = undefined;
 
+    // Valid Codex permission modes from remote messages. Matches the modes
+    // the mobile UI exposes for Codex sessions (see modelModeOptions.ts:
+    // getCodexPermissionModes) and mirrors the Gemini validation pattern at
+    // runGemini.ts:222. Anything outside this set is silently ignored — the
+    // previous code blindly cast `message.meta.permissionMode as PermissionMode`
+    // at runtime, meaning a crafted value like `'totally_unsafe'` would be
+    // accepted and then fall through to the `default` branch in
+    // resolveCodexExecutionPolicy() — or worse, an attacker-chosen valid value
+    // could escalate sandbox scope (issue #1092).
+    const VALID_REMOTE_PERMISSION_MODES: readonly PermissionMode[] = [
+        'default',
+        'read-only',
+        'safe-yolo',
+        'yolo',
+    ];
+
     session.onUserMessage((message) => {
-        // Resolve permission mode (accept all modes, will be mapped in switch statement)
+        // Resolve permission mode (validate against Codex-native modes)
         let messagePermissionMode = currentPermissionMode;
         if (message.meta?.permissionMode) {
-            messagePermissionMode = message.meta.permissionMode as import('@/api/types').PermissionMode;
-            currentPermissionMode = messagePermissionMode;
-            logger.debug(`[Codex] Permission mode updated from user message to: ${currentPermissionMode}`);
-            void publishPermissionModeIfChanged(session, metadata, messagePermissionMode, lastPublishedPermissionModeCode);
+            const incoming = message.meta.permissionMode as PermissionMode;
+            if (VALID_REMOTE_PERMISSION_MODES.includes(incoming)) {
+                messagePermissionMode = incoming;
+                currentPermissionMode = messagePermissionMode;
+                logger.debug(`[Codex] Permission mode updated from user message to: ${currentPermissionMode}`);
+                void publishPermissionModeIfChanged(session, metadata, messagePermissionMode, lastPublishedPermissionModeCode);
+            } else {
+                logger.debug(`[Codex] Ignoring invalid permission mode from user message: ${String(message.meta.permissionMode)}`);
+            }
         } else {
             logger.debug(`[Codex] User message received with no permission mode override, using current: ${currentPermissionMode ?? 'default (effective)'}`);
         }
@@ -449,9 +528,21 @@ export async function runCodex(opts: {
         } else if (msg.type === 'task_complete') {
             // Ready is emitted from the main loop's idle check so pushes only fire once
             // after the queue is actually drained.
-            messageBuffer.addMessage('Task completed', 'status');
+            const failure = describeCodexFailure(msg);
+            if (failure) {
+                messageBuffer.addMessage(`Task failed: ${failure}`, 'status');
+                session.sendSessionEvent({ type: 'message', message: `Codex error: ${failure}` });
+            } else {
+                messageBuffer.addMessage('Task completed', 'status');
+            }
         } else if (msg.type === 'turn_aborted') {
-            messageBuffer.addMessage('Turn aborted', 'status');
+            const failure = describeCodexFailure(msg);
+            if (failure) {
+                messageBuffer.addMessage(`Turn aborted: ${failure}`, 'status');
+                session.sendSessionEvent({ type: 'message', message: `Codex error: ${failure}` });
+            } else {
+                messageBuffer.addMessage('Turn aborted', 'status');
+            }
         }
 
         if (msg.type === 'task_started') {

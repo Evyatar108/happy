@@ -192,6 +192,11 @@ cd /d/h/packages/happy-app && pnpm exec expo run:android
 
 `packages/happy-app/package.json` `"version"` is `1.0.0` and not bumped on the fork — the upstream EAS pipeline used a remote version source, so the local field is inert. The user-facing "Version N" string is the integer counter in `CHANGELOG.md`, which is parsed into the in-app "What's new" sheet. Bump that, regenerate the JSON, commit, and stop. No `git tag` for app releases on the fork.
 
+    App Store Connect App IDs:
+    Production:   6748571505  (com.ex3ndr.happy)
+    Preview:      6749025570  (com.slopus.happy.preview)
+    Development:  6748984254  (com.slopus.happy.dev)
+
 ---
 
 ## Web Release

@@ -21,6 +21,7 @@ export const LocalSettingsSchema = z.object({
     verboseLogging: z.boolean().describe('Log all network requests and responses'),
     // Tablet UX
     sidebarMode: z.enum(['expanded', 'collapsed', 'hidden']).describe('Permanent tablet sidebar mode: expanded (full list), collapsed (72px icon rail), hidden (off — max focus)'),
+    sidebarCollapsed: z.boolean().describe('Whether the right file-diffs sidebar is collapsed on desktop'),
     // CLI version acknowledgments - keyed by machineId
     acknowledgedCliVersions: z.record(z.string(), z.string()).describe('Acknowledged CLI versions per machine'),
 });
@@ -53,6 +54,7 @@ export const localSettingsDefaults: LocalSettings = {
     consoleLoggingEnabled: false,
     verboseLogging: false,
     sidebarMode: 'expanded',
+    sidebarCollapsed: false,
     acknowledgedCliVersions: {},
 };
 Object.freeze(localSettingsDefaults);

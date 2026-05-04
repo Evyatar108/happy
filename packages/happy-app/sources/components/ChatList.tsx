@@ -69,6 +69,7 @@ const ChatListInternal = React.memo((props: {
     const chatPaginatedScroll = useLocalSetting('chatPaginatedScroll');
     const chatFontScale = useLocalSetting('chatFontScale');
     const { body: chatBodyWidth } = useChatWidth();
+    const isNearBottom = React.useRef(true);
     const [preBoundaryExpanded, setPreBoundaryExpanded] = React.useState(false);
     const latestBoundaryKey = getLatestBoundaryKey(props.latestBoundary);
 
@@ -172,6 +173,14 @@ const ChatListInternal = React.memo((props: {
         const offsetY = e.nativeEvent.contentOffset.y;
         currentOffsetRef.current = offsetY;
         setShowScrollButton(offsetY > SCROLL_THRESHOLD);
+        // Track near-bottom state for auto-scroll on new content
+        isNearBottom.current = offsetY < 100;
+    }, []);
+
+    const onContentSizeChange = useCallback(() => {
+        if (isNearBottom.current) {
+            flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+        }
     }, []);
 
     const scrollToBottom = useCallback(() => {
@@ -180,6 +189,21 @@ const ChatListInternal = React.memo((props: {
 
     const handleLayout = React.useCallback((event: LayoutChangeEvent) => {
         setViewportHeight(event.nativeEvent.layout.height);
+    }, []);
+
+    // On macOS/web, Shift+wheel swaps deltaX/deltaY — restore vertical scrolling
+    React.useEffect(() => {
+        if (Platform.OS !== 'web') return;
+        const node = (flatListRef.current as any)?.getScrollableNode?.() as HTMLElement | undefined;
+        if (!node) return;
+        const handler = (e: WheelEvent) => {
+            if (e.shiftKey && Math.abs(e.deltaX) > 0 && Math.abs(e.deltaY) < 1) {
+                node.scrollTop += e.deltaX;
+                e.preventDefault();
+            }
+        };
+        node.addEventListener('wheel', handler, { passive: false });
+        return () => node.removeEventListener('wheel', handler);
     }, []);
 
     const handleContentSizeChange = React.useCallback((_: number, height: number) => {
