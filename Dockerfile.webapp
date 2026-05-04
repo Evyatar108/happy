@@ -38,7 +38,7 @@ ENV EXPO_PUBLIC_REVENUE_CAT_STRIPE=$REVENUE_CAT_STRIPE
 COPY packages/happy-wire ./packages/happy-wire
 COPY packages/happy-app ./packages/happy-app
 
-RUN pnpm --filter codexu-wire build
+RUN pnpm --filter @slopus/happy-wire build
 RUN pnpm --filter happy-app exec expo export --platform web --output-dir dist
 
 # Stage 3: runtime with Nginx

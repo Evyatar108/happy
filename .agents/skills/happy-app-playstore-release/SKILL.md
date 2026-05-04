@@ -395,10 +395,10 @@ checked in; this list is here so a future regression / fresh worktree
    directly. Don't revert this without also fixing the upstream bug.
 4. **Don't `subst H: D:\harness-efforts\happy` to shorten paths.**
    Metro's pnpm-workspace module resolution breaks under a virtual
-   drive — it can't find `codexu-wire` because the
+   drive — it can't find `@slopus/happy-wire` because the
    workspace-root walk hits a different layout via the substituted
    drive. Tested 2026-04-30, build failed with
-   `Unable to resolve module codexu-wire`. The Windows
+   `Unable to resolve module @slopus/happy-wire`. The Windows
    MAX_PATH issue is solved differently — see pitfall #6.
 5. **Production build with no `keystore.properties` is now BLOCKED**
    (since 2026-04-30). `build.gradle` throws a `GradleException`

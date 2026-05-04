@@ -1,16 +1,16 @@
 # happy-wire
 
-This document describes the shared wire package: `codexu-wire`.
+This document describes the shared wire package: `@slopus/happy-wire`.
 
 ## Why this package exists
 
 Before `happy-wire`, wire-level message and session-protocol schemas were duplicated across packages (CLI, app, server, and agent). That caused drift risk and made protocol evolution harder.
 
-`codexu-wire` centralizes those shared schemas and types so all clients and services agree on the same wire contract.
+`@slopus/happy-wire` centralizes those shared schemas and types so all clients and services agree on the same wire contract.
 
 ## Package identity
 
-- npm name: `codexu-wire`
+- npm name: `@slopus/happy-wire`
 - workspace path: `packages/happy-wire`
 - package type: publishable library (not private)
 - versioned dependency in consumers: `^0.1.0`
@@ -19,7 +19,7 @@ Before `happy-wire`, wire-level message and session-protocol schemas were duplic
 
 ### 1. Wire message schemas
 
-Shared from `codexu-wire`:
+Shared from `@slopus/happy-wire`:
 - from `messages.ts`: `SessionMessageContentSchema`, `SessionMessageSchema`, `MessageMetaSchema`, `SessionProtocolMessageSchema`, `MessageContentSchema` (top-level `role` union: `user|agent|session`), `UpdateNewMessageBodySchema`, `UpdateSessionBodySchema`, `UpdateMachineBodySchema`, `CoreUpdateContainerSchema`
 - from `legacyProtocol.ts`: `UserMessageSchema` (`role: 'user'`), `AgentMessageSchema` (`role: 'agent'`), `LegacyMessageContentSchema` (`role`-discriminated union for legacy only)
 
@@ -27,7 +27,7 @@ These are used for encrypted message/update contracts (`new-message`, `update-se
 
 ### 2. Session protocol schema
 
-Shared from `codexu-wire`:
+Shared from `@slopus/happy-wire`:
 - `sessionEventSchema`
 - `sessionEnvelopeSchema`
 - `createEnvelope(...)`
@@ -50,7 +50,7 @@ Current session wire payload shape (decrypted message body):
 
 ### 3. Non-renderable content registry
 
-Shared from `codexu-wire` (re-exported from `nonRenderablePolicy.ts`):
+Shared from `@slopus/happy-wire` (re-exported from `nonRenderablePolicy.ts`):
 - types: `NonRenderableEntry`, `RawClaudeMessageMatchInput`, `ReceiverRegexFactory`
 - entries: `skillBodyEntry`, `localCommandCaveatEntry`, `systemReminderEntry`, `forkBoilerplateEntry`
 - aggregate: `nonRenderableEntries`
@@ -72,13 +72,13 @@ For consumer-side details see `packages/happy-cli/CLAUDE.md` and `packages/happy
 
 ### CLI (`packages/happy-cli`)
 
-- Session protocol imports now reference `codexu-wire` directly.
-- `src/sessionProtocol/types.ts` now re-exports from `codexu-wire` as compatibility shim.
-- API wire schemas in `src/api/types.ts` now source shared message/update schemas from `codexu-wire`.
+- Session protocol imports now reference `@slopus/happy-wire` directly.
+- `src/sessionProtocol/types.ts` now re-exports from `@slopus/happy-wire` as compatibility shim.
+- API wire schemas in `src/api/types.ts` now source shared message/update schemas from `@slopus/happy-wire`.
 
 ### App (`packages/happy-app`)
 
-- Shared API message/update schemas in `sources/sync/apiTypes.ts` now import these from `codexu-wire`:
+- Shared API message/update schemas in `sources/sync/apiTypes.ts` now import these from `@slopus/happy-wire`:
   - `ApiMessageSchema`
   - `ApiUpdateNewMessageSchema`
   - `ApiUpdateSessionStateSchema`
@@ -86,22 +86,22 @@ For consumer-side details see `packages/happy-cli/CLAUDE.md` and `packages/happy
 
 ### Server (`packages/happy-server`)
 
-- Prisma JSON message content type now references `SessionMessageContent` from `codexu-wire`.
+- Prisma JSON message content type now references `SessionMessageContent` from `@slopus/happy-wire`.
 - Event router uses shared `SessionMessageContent` type for `new-message` payload typing.
 
 ### Agent (`packages/happy-agent`)
 
-- `RawMessage` now aliases `SessionMessage` from `codexu-wire`.
+- `RawMessage` now aliases `SessionMessage` from `@slopus/happy-wire`.
 
 ## Versioning model
 
-All other workspace packages now declare a versioned dependency on `codexu-wire`.
+All other workspace packages now declare a versioned dependency on `@slopus/happy-wire`.
 
 This intentionally mirrors post-publish consumption and reduces hidden coupling to workspace-local files.
 
 ## Build and release
 
-`codexu-wire` is configured the same way as existing publishable libraries in this repo:
+`@slopus/happy-wire` is configured the same way as existing publishable libraries in this repo:
 
 - ESM/CJS/types outputs via `pkgroll`
 - `build`: typecheck + bundle
@@ -120,16 +120,16 @@ yarn release
 or:
 
 ```bash
-yarn workspace codexu-wire release
+yarn workspace @slopus/happy-wire release
 ```
 
-When building workspaces from a clean checkout, build `codexu-wire` first so dependent packages can resolve generated `dist` outputs.
+When building workspaces from a clean checkout, build `@slopus/happy-wire` first so dependent packages can resolve generated `dist` outputs.
 
 ## Publish checklist (maintainer)
 
 1. Ensure all workspace builds/tests are green.
 2. Confirm wire schema changes are backward-compatible or documented.
-3. Bump and release `codexu-wire`.
+3. Bump and release `@slopus/happy-wire`.
 4. Update downstream package versions if needed.
 5. Publish dependent package updates only after the new `happy-wire` version is available.
 
