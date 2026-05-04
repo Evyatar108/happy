@@ -32,6 +32,7 @@ describe('modelModeOptions', () => {
         const models = getCodexModelModes();
         expect(models.map((model) => model.key)).toEqual([
             'default',
+            'gpt-5.5',
             'gpt-5.4',
             'gpt-5.3-codex',
             'gpt-5.2-codex',
@@ -40,7 +41,7 @@ describe('modelModeOptions', () => {
             'gpt-5.1-codex-mini',
         ]);
         expect(models[0].name).toBe('default model');
-        expect(models[1].name).toBe('gpt-5.4');
+        expect(models[1].name).toBe('gpt-5.5');
     });
 
     it('prefers metadata models over hardcoded fallbacks', () => {

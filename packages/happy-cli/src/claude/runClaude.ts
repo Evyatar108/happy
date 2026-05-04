@@ -330,7 +330,6 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
     let currentAppendSystemPrompt: string | undefined = undefined; // Track current append system prompt
     let currentAllowedTools: string[] | undefined = undefined; // Track current allowed tools
     let currentDisallowedTools: string[] | undefined = undefined; // Track current disallowed tools
-    let currentRunMode: 'local' | 'remote' = options.startingMode ?? 'local';
     // Exit when session is archived from web/mobile
     session.on('archived', () => {
         logger.debug('[loop] Session archived from web/mobile, cleaning up...');
@@ -461,7 +460,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
 
         if (specialCommand.type === 'mcp' || specialCommand.type === 'skills') {
             // In local mode, let Claude Code handle these commands natively
-            if (currentRunMode === 'local') {
+            if (currentMode === 'local') {
                 logger.debug(`[start] /${specialCommand.type} in local mode — passing through to Claude Code`);
             } else {
                 logger.debug(`[start] Detected /${specialCommand.type} command in remote mode`);
@@ -582,7 +581,6 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         allowedTools: happyServer.toolNames.map(toolName => `mcp__happy__${toolName}`),
         onModeChange: (newMode) => {
             currentMode = newMode;
-            currentRunMode = newMode;
             session.sendSessionEvent({ type: 'switch', mode: newMode });
             session.updateAgentState((currentState) => ({
                 ...currentState,

@@ -167,6 +167,8 @@ describe('useSessionQuickActions resume permission mode copy', () => {
         expect(shared.machineResumeSessionMock).toHaveBeenCalledWith({
             machineId: 'machine-1',
             sessionId: 'source-session',
+            model: undefined,
+            permissionMode: 'bypassPermissions',
         });
     });
 });
