@@ -573,6 +573,9 @@ export class CodexAppServerClient {
             }
             // Resolve pending turn completion (treat as abort)
             this.resolvePendingTurn(true);
+            if (transport === 'ws') {
+                void this.closeWsChild();
+            }
         });
 
         connection.onMessage((msg) => {

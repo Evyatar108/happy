@@ -15,6 +15,8 @@ const {
     mockSpawn,
     mockPickFreeLoopbackPort,
     mockLogger,
+    mockOpenSync,
+    mockCloseSync,
 } = vi.hoisted(() => ({
     mockExecSync: vi.fn(),
     mockInitializeSandbox: vi.fn(),
@@ -27,6 +29,8 @@ const {
         info: vi.fn(),
         warn: vi.fn(),
     },
+    mockOpenSync: vi.fn(),
+    mockCloseSync: vi.fn(),
 }));
 
 vi.mock('node:child_process', () => ({
@@ -37,6 +41,15 @@ vi.mock('node:child_process', () => ({
 vi.mock('cross-spawn', () => ({
     spawn: mockSpawn,
 }));
+
+vi.mock('node:fs', async (importActual) => {
+    const actual = await importActual<typeof import('node:fs')>();
+    return {
+        ...actual,
+        openSync: mockOpenSync,
+        closeSync: mockCloseSync,
+    };
+});
 
 vi.mock('@/sandbox/manager', () => ({
     initializeSandbox: mockInitializeSandbox,
@@ -219,6 +232,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         mockInitializeSandbox.mockResolvedValue(mockSandboxCleanup);
         mockWrapForMcpTransport.mockResolvedValue({ command: 'sh', args: ['-c', 'wrapped codex app-server'] });
         mockSpawn.mockImplementation(() => createMockProcess());
+        mockOpenSync.mockReturnValue(99);
     });
 
     afterAll(() => {
@@ -1075,6 +1089,27 @@ describe('CodexAppServerClient sandbox integration', () => {
         }
     }, 10_000);
 
+    it('kills the ws child process when the ws socket closes unexpectedly', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const { proc, wss } = await createMockWsAppServer({ pid: 7001 });
+        mockPickFreeLoopbackPort.mockResolvedValueOnce((wss.address() as AddressInfo).port);
+        mockSpawn.mockImplementationOnce(() => proc);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, {
+            transport: 'ws',
+            logFilePath: join(tmpdir(), 'codex-app-server-onclose-kill-test.log'),
+        });
+
+        await client.connect();
+        expect(proc.kill).not.toHaveBeenCalled();
+
+        await closeWsServer(wss);
+
+        await waitFor(() => (proc.kill as ReturnType<typeof vi.fn>).mock.calls.length > 0);
+        expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
+    });
+
     it('surfaces a ws port-pick failure and connects after a subsequent resolved pick', async () => {
         Object.defineProperty(process, 'platform', { value: 'win32' });
         mockPickFreeLoopbackPort.mockRejectedValueOnce(new Error('Failed to pick free loopback port after 3 attempts'));
@@ -1097,5 +1132,38 @@ describe('CodexAppServerClient sandbox integration', () => {
         await expect(secondClient.connect()).resolves.toBeUndefined();
         expect(mockPickFreeLoopbackPort).toHaveBeenCalledTimes(2);
         await secondClient.disconnect();
+    });
+
+    it('opens the ws log file at the configuration.logsDir-derived path and closes the fd on disconnect', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+
+        // Simulate how runCodex.ts derives the log path from configuration.logsDir:
+        //   join(configuration.logsDir, `codex-app-server-${sessionTag}.log`)
+        // where configuration.logsDir = join(HAPPY_HOME_DIR, 'logs')
+        const fakeHappyHomeDir = '/fake-happy-home';
+        const fakeLogsDir = join(fakeHappyHomeDir, 'logs');
+        const expectedLogPath = join(fakeLogsDir, 'codex-app-server-ac12.log');
+        const fakeLogFd = 42;
+
+        mockOpenSync.mockReturnValueOnce(fakeLogFd);
+        mockCloseSync.mockReturnValue(undefined);
+
+        const { proc, wss } = await createMockWsAppServer({ pid: 9001 });
+        mockPickFreeLoopbackPort.mockResolvedValueOnce((wss.address() as AddressInfo).port);
+        mockSpawn.mockImplementationOnce(() => proc);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, {
+            transport: 'ws',
+            logFilePath: expectedLogPath,
+        });
+
+        await client.connect();
+
+        expect(mockOpenSync).toHaveBeenCalledWith(expectedLogPath, 'a');
+
+        await client.disconnect();
+
+        expect(mockCloseSync).toHaveBeenCalledWith(fakeLogFd);
     });
 });
