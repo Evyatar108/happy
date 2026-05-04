@@ -53,12 +53,12 @@ The two agents have **fundamentally different event-source architectures**, whic
 
 **Implication:** the source of truth for Claude conversations *survives* happy-cli's lifetime. The catch-up problem is "happy-cli failed to read it," not "the data doesn't exist anywhere."
 
-### Codex — child-process JSON-RPC stdio
+### Codex — child-process JSON-RPC over stdio or loopback ws
 
-- happy-cli spawns `codex app-server --listen stdio://` as a child process and speaks JSON-RPC over stdio (`packages/happy-cli/src/codex/codexAppServerClient.ts:393`, `:432`, `:469`, `:954`).
-- Events arrive only while the child is alive. **The child is happy-cli's own process** — when happy-cli exits, the app-server child is killed too (`codexAppServerClient.ts:504-517`).
-- Codex's underlying binary persists conversation rollouts to `~/.codex/sessions/...` independently (the `persistExtendedHistory: true` flag at `codexAppServerClient.ts:594`), but happy-cli does not read those rollout files.
-- happy-cli stores `metadata.codexThreadId` server-side after thread start (`runCodex.ts:608-611`); resume via `happy resume <id>` re-attaches a fresh app-server to the same thread (`resumeExistingThread.ts:29-33`).
+- happy-cli spawns `codex app-server` as a child process and speaks JSON-RPC over either newline-delimited stdio or a loopback WebSocket (`ws://127.0.0.1:<port>`), selected by the `transport` option on `CodexAppServerClient` and adapted via `createStdioTransport` / `createWsTransport` in `packages/happy-cli/src/codex/transport/`. The `connect()` method dispatches on transport, with a sandbox+ws→stdio override for non-Windows sandboxed runs.
+- Events arrive only while the child is alive. **The child is happy-cli's own process** — when happy-cli exits, the app-server child is killed too (see `CodexAppServerClient.disconnectInternal` and `closeWsChild` in `codexAppServerClient.ts`).
+- Codex's underlying binary persists conversation rollouts to `~/.codex/sessions/...` independently (via the `persistExtendedHistory: true` flag passed during `newConversation` in `codexAppServerClient.ts`), but happy-cli does not read those rollout files.
+- happy-cli stores `metadata.codexThreadId` server-side after thread start (`runCodex.ts`); resume via `happy resume <id>` re-attaches a fresh app-server to the same thread (`resumeExistingThread.ts`).
 
 **Implication:** the source of truth for Codex conversations *dies with happy-cli's process*. There is no way for happy-cli to "miss events while offline" because there's no event stream when happy-cli isn't running. The actual gap is different — see below.
 
