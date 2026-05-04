@@ -12,6 +12,7 @@ import type { DiffHunk, DiffLine } from '@/components/diff/calculateDiff';
 
 vi.mock('react-native', () => ({
     Pressable: 'Pressable',
+    Platform: { OS: 'ios' },
     ScrollView: 'ScrollView',
     StyleSheet: {
         flatten: (style: unknown) => style,

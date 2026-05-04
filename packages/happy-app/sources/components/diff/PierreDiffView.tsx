@@ -1,8 +1,12 @@
 import * as React from 'react';
 import { Platform, Text, View } from 'react-native';
 import { useUnistyles } from 'react-native-unistyles';
+import type { DiffHunk } from '@/components/diff/calculateDiff';
 import { DiffView } from '@/components/diff/DiffView';
 import { Typography } from '@/constants/Typography';
+
+/** Approximate line height in pixels for collapse-diff height calculation on the web path. */
+const COLLAPSE_LINE_HEIGHT_PX = 20;
 
 export interface PierreDiffViewProps {
     oldFile?: { name: string; contents: string };
@@ -18,6 +22,14 @@ export interface PierreDiffViewProps {
     theme?: 'dark' | 'light';
     /** Replace Pierre's default header with custom React content. Web-only. */
     renderCustomHeader?: (fileDiff: any) => React.ReactNode;
+    /** Pre-computed hunks. Native path forwards to DiffView; web path ignores (pierre/diffs renders from oldFile/newFile or patch). */
+    hunks?: DiffHunk[];
+    /**
+     * Collapse-diff cap. When set, content is clipped to roughly this many visible lines.
+     * Native: forwarded to legacy DiffView (exact line truncation).
+     * Web: container wrapped in maxHeight = maxVisibleLines × line-height with overflow: hidden.
+     */
+    maxVisibleLines?: number;
 }
 
 export const PierreDiffView = React.memo(function PierreDiffView(props: PierreDiffViewProps) {
@@ -90,15 +102,23 @@ const PierreDiffViewWeb = React.memo(function PierreDiffViewWeb(props: PierreDif
         disableFileHeader: props.disableFileHeader,
     };
 
+    let inner: React.ReactNode;
     if (props.patch) {
-        return <PatchFilesWeb bundle={bundle} patch={props.patch} options={options} renderCustomHeader={props.renderCustomHeader} />;
+        inner = <PatchFilesWeb bundle={bundle} patch={props.patch} options={options} renderCustomHeader={props.renderCustomHeader} />;
+    } else if (props.oldFile && props.newFile) {
+        inner = <FileDiffFromFiles bundle={bundle} oldFile={props.oldFile} newFile={props.newFile} options={options} renderCustomHeader={props.renderCustomHeader} />;
+    } else {
+        inner = <View />;
     }
 
-    if (props.oldFile && props.newFile) {
-        return <FileDiffFromFiles bundle={bundle} oldFile={props.oldFile} newFile={props.newFile} options={options} renderCustomHeader={props.renderCustomHeader} />;
+    if (props.maxVisibleLines !== undefined) {
+        return (
+            <View style={{ maxHeight: props.maxVisibleLines * COLLAPSE_LINE_HEIGHT_PX, overflow: 'hidden' }}>
+                {inner}
+            </View>
+        );
     }
-
-    return <View />;
+    return inner as React.ReactElement;
 });
 
 function PatchFilesWeb({
@@ -181,6 +201,8 @@ const PierreDiffViewNative = React.memo(function PierreDiffViewNative(props: Pie
             <DiffView
                 oldText={props.oldFile.contents}
                 newText={props.newFile.contents}
+                hunks={props.hunks}
+                maxVisibleLines={props.maxVisibleLines}
                 showLineNumbers={!props.disableLineNumbers}
                 wrapLines={props.overflow === 'wrap'}
             />
