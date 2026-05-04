@@ -1,0 +1,15 @@
+{
+  "name": "codexu",
+  "interface": {
+    "displayName": "codexu"
+  },
+  "plugins": [
+    {
+      "name": "codexu-plugin",
+      "source": {
+        "source": "local",
+        "path": "."
+      }
+    }
+  ]
+}
