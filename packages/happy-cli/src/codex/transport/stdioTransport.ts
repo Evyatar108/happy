@@ -16,10 +16,17 @@ export class StdioTransport implements JsonRpcConnection {
     private messageHandler: ((msg: JsonRpcMessage) => void) | null = null;
     private errorHandler: ((error: Error) => void) | null = null;
     private closeHandler: ((code: number | null, signal: NodeJS.Signals | null) => void) | null = null;
+    private openPromise: Promise<void> | null = null;
 
     constructor(private readonly options: StdioTransportOptions) {}
 
-    async open(): Promise<void> {
+    open(): Promise<void> {
+        if (this.openPromise) return this.openPromise;
+        this.openPromise = this._open();
+        return this.openPromise;
+    }
+
+    private async _open(): Promise<void> {
         const proc = crossSpawn(this.options.command, this.options.args, {
             stdio: ['pipe', 'pipe', 'pipe'],
             env: this.options.env,

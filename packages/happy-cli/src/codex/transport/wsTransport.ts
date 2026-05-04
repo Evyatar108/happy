@@ -13,10 +13,17 @@ export class WsTransport implements JsonRpcConnection {
     private errorHandler: ((error: Error) => void) | null = null;
     private closeHandler: ((code: number | null, signal: NodeJS.Signals | null) => void) | null = null;
     private closeEmitted = false;
+    private openPromise: Promise<void> | null = null;
 
     constructor(private readonly options: WsTransportOptions) {}
 
-    async open(): Promise<void> {
+    open(): Promise<void> {
+        if (this.openPromise) return this.openPromise;
+        this.openPromise = this._open();
+        return this.openPromise;
+    }
+
+    private async _open(): Promise<void> {
         const timeoutMs = this.options.handshakeTimeoutMs ?? 5_000;
         const retryDelayMs = 100;
         let openedWs: WebSocket | undefined;
