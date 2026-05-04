@@ -4,12 +4,12 @@
 
 ## Decision
 
-Happy specializes as the **mobile-and-multi-device experience for Codex**. Multi-agent support (Claude, Gemini, OpenClaw, etc.) moves to maintenance mode — it keeps working for existing users but new architectural investments go to codex only.
+Codexu specializes as the **mobile-and-multi-device experience for Codex**. Multi-agent support (Claude, Gemini, OpenClaw, etc.) moves to maintenance mode — it keeps working for existing users but new architectural investments go to codex only.
 
 The end-state architecture:
-- Phone app speaks codex JSON-RPC natively (no Happy translation schema in the wire path)
+- Phone app speaks codex JSON-RPC natively (no Codexu translation schema in the wire path)
 - Codex's `app-server` is canonical for conversation state and tool execution
-- Happy server becomes auth + encrypted relay (and optionally an encrypted cache for cross-machine convenience)
+- Codexu server becomes auth + encrypted relay (and optionally an encrypted cache for cross-machine convenience)
 - Codex fork extensions are first-class investments because they directly improve the phone experience
 - Phone maintains a local cache for offline reads (standard chat-app pattern)
 
@@ -19,9 +19,9 @@ The decision wasn't arbitrary. It emerged from a multi-day architectural investi
 
 ### Claude's architecture fights us at every turn
 
-Documented during the investigation (see `packages/happy-cli/CLAUDE.md` "v1 limitation — pendingSwitch" note and `docs/plans/codex-seamless-multi-device.md` Background section):
+Documented during the investigation (see `packages/codexu-cli/CLAUDE.md` "v1 limitation — pendingSwitch" note and `docs/plans/codex-seamless-multi-device.md` Background section):
 
-- Claude binary owns its own TUI; Happy can't intercept input prompts (permission, AskUserQuestion, plan-mode confirms) without fragile PTY/screen-scraping
+- Claude binary owns its own TUI; Codexu can't intercept input prompts (permission, AskUserQuestion, plan-mode confirms) without fragile PTY/screen-scraping
 - Stdin is inherited (`claudeLocal.ts:295`) — no programmatic input channel
 - Tool state lives in JSONL; SDK's `--resume` doesn't replay orphaned `tool_use` reliably
 - Local→remote switch is process-kill-and-restart, killing background bashes
@@ -48,8 +48,8 @@ The deferred-switch UX we wanted to build for Claude is essentially trivial in C
 
 During the design discussion, two separate questions both pointed at the same answer:
 
-1. *"Should Happy speak codex's protocol end-to-end instead of translating?"* — yes, if Happy specializes on Codex.
-2. *"Should we lean on codex's storage as canonical instead of duplicating in Happy?"* — yes, if Happy specializes on Codex.
+1. *"Should Codexu speak codex's protocol end-to-end instead of translating?"* — yes, if Codexu specializes on Codex.
+2. *"Should we lean on codex's storage as canonical instead of duplicating in Codexu?"* — yes, if Codexu specializes on Codex.
 
 Both are independent technical decisions, but both are gated on the strategic-narrowing question. When two unrelated architectural questions both resolve to the same condition, that's signal the condition is the real decision.
 
@@ -57,38 +57,38 @@ Both are independent technical decisions, but both are gated on the strategic-na
 
 ### Wire protocol
 
-Today: phone ↔ Happy server (Happy schema, encrypted) ↔ Happy CLI (translation layer) ↔ codex app-server (codex JSON-RPC)
+Today: phone ↔ Codexu server (Codexu schema, encrypted) ↔ Codexu CLI (translation layer) ↔ codex app-server (codex JSON-RPC)
 
-End-state: phone ↔ Happy server (codex JSON-RPC, encrypted) ↔ Happy CLI (transparent relay) ↔ codex app-server (codex JSON-RPC)
+End-state: phone ↔ Codexu server (codex JSON-RPC, encrypted) ↔ Codexu CLI (transparent relay) ↔ codex app-server (codex JSON-RPC)
 
 Practical changes:
 - Phone imports the OSS TypeScript bindings from `codex-rs/app-server-protocol/schema/typescript/`. Schema drift becomes impossible.
-- `packages/happy-cli/src/codex/codexAppServerClient.ts` and `packages/happy-cli/src/codex/utils/sessionProtocolMapper.ts` shrink dramatically — most of their job (translating codex events into Happy session envelopes) goes away.
-- Happy server's role narrows to authenticating clients, encrypting transport, and routing messages between phone and the appropriate Happy CLI.
+- `packages/codexu-cli/src/codex/codexAppServerClient.ts` and `packages/codexu-cli/src/codex/utils/sessionProtocolMapper.ts` shrink dramatically — most of their job (translating codex events into Codexu session envelopes) goes away.
+- Codexu server's role narrows to authenticating clients, encrypting transport, and routing messages between phone and the appropriate Codexu CLI.
 
 ### Data persistence
 
-Today: codex stores `~/.codex/sessions/*.jsonl`; Happy stores encrypted copies on Happy server; both are sources of truth and can drift.
+Today: codex stores `~/.codex/sessions/*.jsonl`; Codexu stores encrypted copies on Codexu server; both are sources of truth and can drift.
 
-End-state: codex's storage is canonical. Happy server may keep an encrypted cache for cross-machine convenience (TBD per migration phase). Phone maintains a local cache for offline reads.
+End-state: codex's storage is canonical. Codexu server may keep an encrypted cache for cross-machine convenience (TBD per migration phase). Phone maintains a local cache for offline reads.
 
 Practical changes:
-- Drift between Happy's view and codex's view becomes impossible (or, with cache, eventually-consistent rather than indefinitely-divergent).
-- Direct `codex` invocations outside Happy (the user runs `codex resume` in a terminal) reflect in the phone view automatically on next sync.
-- The set of Happy-server-stored "conversation message envelopes" shrinks; eventually deprecates entirely for codex sessions.
+- Drift between Codexu's view and codex's view becomes impossible (or, with cache, eventually-consistent rather than indefinitely-divergent).
+- Direct `codex` invocations outside Codexu (the user runs `codex resume` in a terminal) reflect in the phone view automatically on next sync.
+- The set of Codexu-server-stored "conversation message envelopes" shrinks; eventually deprecates entirely for codex sessions.
 
 ### Codex fork extensions
 
 Become first-class investments. Specifically:
 - Cancel-loser semantics on approvals (so multi-client coordination is clean)
-- Reconnect logic on `transport/websocket.rs` (so phone-app reconnect is upstream, not Happy-side reinvented)
+- Reconnect logic on `transport/websocket.rs` (so phone-app reconnect is upstream, not Codexu-side reinvented)
 - Background terminal `list/kill/output` protocol methods (so phone can manage them)
 - Client presence events (so the phone can show "laptop is online" or "laptop just disconnected")
 
-The previous discussion landed on doing the cancel-loser, reconnect, and presence work on the **Happy side** to avoid fork rebase friction. Under codex specialization, that calculus shifts: doing them in codex itself is preferable because:
+The previous discussion landed on doing the cancel-loser, reconnect, and presence work on the **Codexu side** to avoid fork rebase friction. Under codex specialization, that calculus shifts: doing them in codex itself is preferable because:
 - The phone speaks codex protocol directly, so codex-side fixes benefit the phone for free
 - Native `codex --remote` TUI clients (a real option once we're codex-specialized) get the same fixes
-- Happy CLI stays thin
+- Codexu CLI stays thin
 
 The trade-off becomes the rebase tax against upstream codex, which we mitigate via additive patterns (new files for new logic, minimal touches to upstream-shared files, `#[experimental]` gating).
 
@@ -96,9 +96,9 @@ The trade-off becomes the rebase tax against upstream codex, which we mitigate v
 
 ### Positioning
 
-Today: "Happy is your phone interface for any AI coding agent."
+Today: "Codexu is your phone interface for any AI coding agent."
 
-End-state: "Happy is the best mobile experience for Codex." Multi-agent support exists but isn't the headline.
+End-state: "Codexu is the best mobile experience for Codex." Multi-agent support exists but isn't the headline.
 
 This is a real positioning shift. It affects:
 - README, marketing pages, blog posts
@@ -108,14 +108,14 @@ This is a real positioning shift. It affects:
 
 ### Existing Claude / Gemini / OpenClaw users
 
-They keep working. The Happy CLI's Claude/Gemini/OpenClaw runners stay functional. They just don't get new features. Specifically:
+They keep working. The Codexu CLI's Claude/Gemini/OpenClaw runners stay functional. They just don't get new features. Specifically:
 
 - Bug fixes: yes, when affecting basic functionality
 - New protocol features (deferred switch, etc.): no, unless trivial
 - UI parity with codex sessions: no, deliberate divergence
 
 The honest version of this requires telling existing users. Either:
-- A release note: "Going forward, Happy will focus on Codex. Existing Claude support continues to work but won't gain new features."
+- A release note: "Going forward, Codexu will focus on Codex. Existing Claude support continues to work but won't gain new features."
 - A migration guide for users who'd benefit from switching to Codex
 - Or both
 
@@ -129,11 +129,11 @@ Onboarding defaults to Codex. The "first-time launch" experience assumes you're 
 
 ### Removed or shrunk
 
-- Most of `packages/happy-cli/src/codex/codexAppServerClient.ts`'s translation logic
-- `packages/happy-cli/src/codex/utils/sessionProtocolMapper.ts` (most of it)
-- Happy server's conversation-message storage layer (eventually; possibly kept as encrypted cache)
-- The Happy session-envelope schema for codex events specifically
-- `packages/happy-app/sources/sync/`'s codex-specific normalization (replaced by direct codex bindings)
+- Most of `packages/codexu-cli/src/codex/codexAppServerClient.ts`'s translation logic
+- `packages/codexu-cli/src/codex/utils/sessionProtocolMapper.ts` (most of it)
+- Codexu server's conversation-message storage layer (eventually; possibly kept as encrypted cache)
+- The Codexu session-envelope schema for codex events specifically
+- `packages/codexu-app/sources/sync/`'s codex-specific normalization (replaced by direct codex bindings)
 
 ### Added
 
@@ -141,7 +141,7 @@ Onboarding defaults to Codex. The "first-time launch" experience assumes you're 
 - A direct codex-JSON-RPC WebSocket client in the phone app
 - Phone-side cache for offline reads (storage strategy: probably MMKV for the metadata, encrypted-blob for thread content)
 - Codex fork extension PRs (cancel-loser, reconnect, background-terminal CRUD, presence events)
-- Migration scripts/tools to convert existing Happy-stored Claude conversations if we want to preserve them when narrowing UI focus
+- Migration scripts/tools to convert existing Codexu-stored Claude conversations if we want to preserve them when narrowing UI focus
 
 ### Untouched
 
@@ -153,37 +153,37 @@ Onboarding defaults to Codex. The "first-time launch" experience assumes you're 
 
 The decision isn't "delete Claude support." It's "don't invest in evolving it." Concretely:
 
-- Claude/Gemini/OpenClaw runners in `packages/happy-cli/src/` stay functional
-- The current Happy schema for non-codex agents stays as the wire format for those sessions
+- Claude/Gemini/OpenClaw runners in `packages/codexu-cli/src/` stay functional
+- The current Codexu schema for non-codex agents stays as the wire format for those sessions
 - Bug-fix parity with codex isn't required (e.g., new codex features don't need a Claude equivalent)
 - Eventually some of the legacy code gets quietly removed if it's clearly unused (telemetry would inform this)
 
-Risk: this creates internal inconsistency in the Happy CLI codebase — codex sessions on the new architecture, Claude sessions on the old one. Acceptable as a transition state. Not acceptable indefinitely.
+Risk: this creates internal inconsistency in the Codexu CLI codebase — codex sessions on the new architecture, Claude sessions on the old one. Acceptable as a transition state. Not acceptable indefinitely.
 
 ## Migration sequence (proposed, refine on contact with reality)
 
 ### Phase A — Decide and document (now)
 
 - This document
-- Updates to `packages/happy-cli/CLAUDE.md` documenting the strategic direction
+- Updates to `packages/codexu-cli/CLAUDE.md` documenting the strategic direction
 - A note in the README signaling the focus shift (later, when we've actually moved)
 
 ### Phase B — Multi-device codex (the existing plan)
 
 - Execute `docs/plans/codex-seamless-multi-device.md` Phase 1
-- Some of this gets done Happy-side, some upstream — TBD when we hit it
+- Some of this gets done Codexu-side, some upstream — TBD when we hit it
 - Validates that the Codex direction actually delivers the user-visible win
 
 ### Phase C — End-to-end protocol migration
 
-- Make Happy CLI a transparent relay for codex sessions (stop translating)
+- Make Codexu CLI a transparent relay for codex sessions (stop translating)
 - Phone app imports codex TS bindings, switches over to native codex envelope rendering for codex sessions
-- Translate existing Happy schema for codex events into a deprecation-friendly form
+- Translate existing Codexu schema for codex events into a deprecation-friendly form
 - Multi-agent paths still go through translation in this phase
 
 ### Phase D — Storage migration
 
-- Codex sessions' conversation history moves to "codex canonical, Happy server cache" (Path C from the architectural discussion)
+- Codex sessions' conversation history moves to "codex canonical, Codexu server cache" (Path C from the architectural discussion)
 - Phone's local cache implementation
 - Cross-machine sync via codex's RPCs
 
@@ -223,7 +223,7 @@ Hedge: communicate the direction openly. Release notes, blog post, in-app banner
 
 ### Risk: We commit to codex specialization and then OpenAI sherlocks the differentiator
 
-E.g., OpenAI ships a first-party "Codex Mobile" app that does everything Happy does, better.
+E.g., OpenAI ships a first-party "Codex Mobile" app that does everything Codexu does, better.
 
 Hedge: the differentiator becomes things OpenAI doesn't prioritize — power-user features (declarative approval rules), niche workflows (BOOX e-ink optimization, multi-machine session routing), or polish (terminal UX features OpenAI's app skips). Lean into Happy's existing maintainer-as-power-user identity.
 
@@ -238,9 +238,9 @@ Hedge: the Phases above are independently shippable. Phase B (multi-device) ship
 ## Open questions
 
 1. **Claude communication strategy**: blog post? release note? in-app banner? Decide before Phase E (when removal becomes visible).
-2. **Telemetry**: do we have any signal about which agents Happy users actually use? If most Happy usage is already Codex, this decision validates retroactively. If it's split or Claude-heavy, the migration is more disruptive.
+2. **Telemetry**: do we have any signal about which agents Codexu users actually use? If most Codexu usage is already Codex, this decision validates retroactively. If it's split or Claude-heavy, the migration is more disruptive.
 3. **Phone app cache strategy**: MMKV-only, encrypted-blob storage, or something more sophisticated? Affects Phase D scope.
-4. **Cross-machine sync model**: do we replicate via Happy server cache (Path C from the architectural discussion) or pure phone-cache + on-demand-fetch (Path B')? Affects how the phone behaves when laptop is asleep. Decide during Phase D.
+4. **Cross-machine sync model**: do we replicate via Codexu server cache (Path C from the architectural discussion) or pure phone-cache + on-demand-fetch (Path B')? Affects how the phone behaves when laptop is asleep. Decide during Phase D.
 5. **Fork-vs-upstream for codex changes**: cancel-loser feels upstream-able; declarative rules might not be. Decide per-extension during Phase E.
 6. **Codex-as-product hedge**: how much do we soften the strategic commitment in case Codex itself becomes shaky? 0% (full bet) or 20% (keep escape hatches) or 50% (parallel architectures)? Default toward 20% — minimal hedge, mostly via the rendering-layer abstraction noted in the Risks section.
 
@@ -253,11 +253,11 @@ Hedge: the Phases above are independently shippable. Phase B (multi-device) ship
 
 ### Code touchpoints (for future migration work)
 
-- `packages/happy-cli/src/codex/codexAppServerClient.ts` — translation layer, shrinks during Phase C
-- `packages/happy-cli/src/codex/utils/sessionProtocolMapper.ts` — translation layer, mostly removed during Phase C
-- `packages/happy-cli/src/codex/runCodex.ts` — entrypoint, simplifies as schemas align
-- `packages/happy-app/sources/sync/typesRaw.ts` — schema definitions; codex envelopes stop going through this for codex sessions
-- `packages/happy-app/sources/sync/sync.ts` — message-send path; eventually direct-codex for codex sessions
+- `packages/codexu-cli/src/codex/codexAppServerClient.ts` — translation layer, shrinks during Phase C
+- `packages/codexu-cli/src/codex/utils/sessionProtocolMapper.ts` — translation layer, mostly removed during Phase C
+- `packages/codexu-cli/src/codex/runCodex.ts` — entrypoint, simplifies as schemas align
+- `packages/codexu-app/sources/sync/typesRaw.ts` — schema definitions; codex envelopes stop going through this for codex sessions
+- `packages/codexu-app/sources/sync/sync.ts` — message-send path; eventually direct-codex for codex sessions
 - `D:/harness-efforts/codex/external/repos/codex-patched/codex-rs/app-server-protocol/schema/typescript/` — TS bindings to import in the phone app
 
 ### Conversation history that informed this
@@ -267,7 +267,7 @@ This decision emerged over a multi-day session that included:
 - Empirical verification of Codex's multi-client primitives (verified working with 2 simultaneous WebSocket clients)
 - Discovery that Codex's protocol RPC surface (~50 methods) covers most multi-device use cases natively
 - Brainstorm exchanges with Codex-reviewer and Copilot-reviewer agents that consistently pointed at "Codex is structurally what you want; Claude is structurally fighting you"
-- Recognition that two independent architectural questions (end-to-end protocol vs. translation; codex storage vs. Happy storage) both gate on the same strategic direction
+- Recognition that two independent architectural questions (end-to-end protocol vs. translation; codex storage vs. Codexu storage) both gate on the same strategic direction
 
 The convergence is the signal. The decision lands here.
 
@@ -276,7 +276,7 @@ The convergence is the signal. The decision lands here.
 - [x] Decision recorded (this document)
 - [ ] Reviewed by maintainer after sleep / distance
 - [ ] Communicated to existing users (post Phase B, before Phase C)
-- [ ] `packages/happy-cli/CLAUDE.md` updated to reflect strategic direction
+- [ ] `packages/codexu-cli/CLAUDE.md` updated to reflect strategic direction
 - [ ] README updated to reflect positioning shift (post Phase C or D)
 - [ ] Phase B (multi-device) executed
 - [ ] Phase C (protocol migration) executed

@@ -25,6 +25,12 @@ The codex engine itself lives in a separate repo
 ([Evyatar108/codex-patched](https://github.com/Evyatar108/codex-patched))
 — this monorepo consumes it.
 
+> **Sync note (2026-05-03):** active codex patches currently live on a
+> separate working fork; `codex-patched` is the canonical public mirror
+> that periodic sync will keep up to date. Pinning codexu-cli at a
+> specific `codex-patched` revision (and the sync workflow itself) lands
+> in roadmap Phase 1a.
+
 ## Roadmap
 
 The big picture lives in

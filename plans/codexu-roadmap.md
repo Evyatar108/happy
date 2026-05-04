@@ -41,13 +41,23 @@ codexu/inspirations/claude-code      → C:/harness-efforts/claude-code/worktree
 These are per-machine (gitignored). `mklink /J` recipe lives in
 README — replicate on a fresh machine before working in this tree.
 
-**Codex fork stays separate.** Engine remains at
-`Evyatar108/codex-patched`, consumed as Cargo / git dep by codexu-cli.
-Codex fork structure to evolve per just-every/code's pattern:
-`codex-rs/` as read-only mirror of upstream codex + `codexu-rs/` (or
-similar name) as fork-divergence dir. **Hard rule:** never edit
-`codex-rs/` files directly — minimizes upstream-merge conflicts. All
-patches go in `codexu-rs/`.
+**Codex fork stays separate.** Canonical public engine reference is
+`Evyatar108/codex-patched` — the public fork that codexu-cli pins to
+as a Cargo / git dep. Codex fork structure to evolve per
+just-every/code's pattern: `codex-rs/` as read-only mirror of upstream
+codex + `codexu-rs/` (or similar name) as fork-divergence dir. **Hard
+rule:** never edit `codex-rs/` files directly — minimizes upstream-merge
+conflicts. All patches go in `codexu-rs/`.
+
+**Engine fork sync status (2026-05-03).** Active codex dev currently
+happens on a SEPARATE working fork (`origin` of the local `codex` git
+worktree, distinct from `Evyatar108/codex-patched`). The active fork
+holds all custom patches (Copilot routing, plans/, CLAUDE.md, etc.); the
+public `Evyatar108/codex-patched` mirror is currently stale relative to
+that. **Periodic sync from active-fork → `codex-patched`** is a Phase 1a
+deliverable. Until that sync ships, treat references to
+`codex-patched` in codexu docs as canonical-target naming, not
+canonical-current state.
 
 ### Settled decisions — do NOT relitigate
 

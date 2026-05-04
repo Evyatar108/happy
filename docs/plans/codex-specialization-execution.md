@@ -118,19 +118,19 @@ So the question is **not** "do we brainstorm or plan?" — it's "is the existing
 
 ## Step 4 — Plan Phase C (protocol migration) with `/plan-with-ralph`
 
-**Why**: end-to-end codex JSON-RPC (phone speaks the protocol natively, Happy CLI becomes a transparent relay) is the next architectural shift after multi-device works. It's substantial enough to deserve its own plan with its own research + review cycle.
+**Why**: end-to-end codex JSON-RPC (phone speaks the protocol natively, Codexu CLI becomes a transparent relay) is the next architectural shift after multi-device works. It's substantial enough to deserve its own plan with its own research + review cycle.
 
 **Skill invocation**:
 
 ```
 # fresh planning, NOT --improve, since this is a new plan doc
-/plan-with-ralph "Migrate phone app to speak codex JSON-RPC end-to-end. Happy CLI becomes a transparent byte-relay for codex sessions; phone imports OSS TypeScript bindings from codex-rs/app-server-protocol/schema/typescript/. Replaces sessionProtocolMapper.ts and most of codexAppServerClient.ts's translation logic. See docs/plans/codex-specialization.md Phase C for the strategic context. Multi-agent (Claude/Gemini) sessions stay on translation layer."
+/plan-with-ralph "Migrate phone app to speak codex JSON-RPC end-to-end. Codexu CLI becomes a transparent byte-relay for codex sessions; phone imports OSS TypeScript bindings from codex-rs/app-server-protocol/schema/typescript/. Replaces sessionProtocolMapper.ts and most of codexAppServerClient.ts's translation logic. See docs/plans/codex-specialization.md Phase C for the strategic context. Multi-agent (Claude/Gemini) sessions stay on translation layer."
 ```
 
 **Expected outcomes**:
 
 - New plan doc at `docs/plans/codex-protocol-end-to-end.md`
-- Sub-tasks: phone TypeScript binding integration, Happy CLI relay refactor, gradual migration of session types
+- Sub-tasks: phone TypeScript binding integration, Codexu CLI relay refactor, gradual migration of session types
 - Testing approach for end-to-end protocol behavior
 - Estimate: ~1-2 weeks of work per the strategic doc, but this number is a guess — the planning pass will refine it
 
@@ -160,7 +160,7 @@ Same pattern as Step 2: Ralph loop, PRD generation, per-story execution, review,
 **Skill invocations**:
 
 ```
-/plan-with-ralph "Migrate codex sessions' conversation history to be backed by codex's app-server storage as the source of truth, with Happy server as an encrypted cache and phone-side local cache for offline reads. Replaces Happy server's per-message storage layer for codex sessions. See docs/plans/codex-specialization.md Phase D for the strategic context. Multi-agent (Claude/Gemini) sessions keep using Happy server storage."
+/plan-with-ralph "Migrate codex sessions' conversation history to be backed by codex's app-server storage as the source of truth, with Codexu server as an encrypted cache and phone-side local cache for offline reads. Replaces Codexu server's per-message storage layer for codex sessions. See docs/plans/codex-specialization.md Phase D for the strategic context. Multi-agent (Claude/Gemini) sessions keep using Codexu server storage."
 ```
 
 Then:
@@ -174,7 +174,7 @@ Then:
 **Decision gate**:
 
 - **Phase D works**: codex specialization is now real and stable. Proceed to Phase E (fork extensions) or pause and dogfood again.
-- **Phase D reveals storage-correctness issues**: real-time multi-client coordination is harder than estimated; may need to revisit Phase C's design or commit to Path C from the architectural discussion (Happy server as cache, not pure pass-through).
+- **Phase D reveals storage-correctness issues**: real-time multi-client coordination is harder than estimated; may need to revisit Phase C's design or commit to Path C from the architectural discussion (Codexu server as cache, not pure pass-through).
 
 ---
 
@@ -223,7 +223,7 @@ Each is roughly 50-150 LOC. They can ship as 4 separate PRs against the patched 
 **When you're ready**:
 
 ```
-/plan-with-ralph "Determine which multi-agent legacy code to remove vs. retain in maintenance mode. Audit Happy CLI for Claude/Gemini/OpenClaw runners and identify what can be safely deleted vs. what's still in active user paths. Factor in: <usage telemetry if available>, communication strategy from codex-specialization.md, and minimum-viable maintenance burden."
+/plan-with-ralph "Determine which multi-agent legacy code to remove vs. retain in maintenance mode. Audit Codexu CLI for Claude/Gemini/OpenClaw runners and identify what can be safely deleted vs. what's still in active user paths. Factor in: <usage telemetry if available>, communication strategy from codex-specialization.md, and minimum-viable maintenance burden."
 ```
 
 But be honest about whether this needs to happen at all. "Quietly maintains old code" is a perfectly fine end state.
@@ -301,4 +301,4 @@ When all of Steps 0-7 are checked, the codex specialization is real and stable. 
 - [`docs/plans/codex-specialization.md`](./codex-specialization.md) — strategic direction record (decision context for everything in this file)
 - [`docs/plans/codex-seamless-multi-device.md`](./codex-seamless-multi-device.md) — operational plan for Phase B
 - [`docs/plans/codex-app-server-migration.md`](./codex-app-server-migration.md) — historical context for the existing codex integration
-- `packages/happy-cli/CLAUDE.md` — fork-wide architecture overview; will be updated to reflect codex specialization at Step 5+ time
+- `packages/codexu-cli/CLAUDE.md` — fork-wide architecture overview; will be updated to reflect codex specialization at Step 5+ time
