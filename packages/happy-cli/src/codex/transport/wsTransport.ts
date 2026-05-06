@@ -1,8 +1,10 @@
 import WebSocket from 'ws';
+import type { ClientRequest, IncomingMessage } from 'http';
 import type { JsonRpcConnection, JsonRpcMessage } from './JsonRpcConnection';
 
 type WsTransportOptions = {
     url: string;
+    authToken?: string;
     handshakeTimeoutMs?: number;
     onChildExit?: (handler: () => void) => () => void;
 };
@@ -34,10 +36,17 @@ export class WsTransport implements JsonRpcConnection {
             let removeChildExitHandler: (() => void) | undefined;
             let retryTimer: ReturnType<typeof setTimeout> | undefined;
             let timeout: ReturnType<typeof setTimeout>;
-            const cleanupWs = (target: WebSocket, handleOpen: () => void, handleError: (error: Error) => void, handleClose: () => void) => {
+            const cleanupWs = (
+                target: WebSocket,
+                handleOpen: () => void,
+                handleError: (error: Error) => void,
+                handleClose: () => void,
+                handleUnexpectedResponse: (_request: ClientRequest, response: IncomingMessage) => void,
+            ) => {
                 target.off('open', handleOpen);
                 target.off('error', handleError);
                 target.off('close', handleClose);
+                target.off('unexpected-response', handleUnexpectedResponse);
             };
             const cleanup = (opened = false) => {
                 clearTimeout(timeout);
@@ -55,17 +64,19 @@ export class WsTransport implements JsonRpcConnection {
             };
             const attempt = () => {
                 if (settled) return;
-                const candidate = new WebSocket(this.options.url);
+                const candidate = this.options.authToken
+                    ? new WebSocket(this.options.url, { headers: { Authorization: `Bearer ${this.options.authToken}` } })
+                    : new WebSocket(this.options.url);
                 activeWs = candidate;
                 this.ws = candidate;
 
                 const handleOpen = () => {
                     openedWs = candidate;
-                    cleanupWs(candidate, handleOpen, handleError, handleClose);
+                    cleanupWs(candidate, handleOpen, handleError, handleClose, handleUnexpectedResponse);
                     finish(resolve, true);
                 };
                 const handleError = (error: Error) => {
-                    cleanupWs(candidate, handleOpen, handleError, handleClose);
+                    cleanupWs(candidate, handleOpen, handleError, handleClose, handleUnexpectedResponse);
                     if ((error as NodeJS.ErrnoException).code === 'ECONNREFUSED' && Date.now() < deadline) {
                         retryTimer = setTimeout(attempt, retryDelayMs);
                         return;
@@ -74,17 +85,24 @@ export class WsTransport implements JsonRpcConnection {
                     finish(() => reject(error instanceof Error ? error : new Error(String(error))));
                 };
                 const handleClose = () => {
-                    cleanupWs(candidate, handleOpen, handleError, handleClose);
+                    cleanupWs(candidate, handleOpen, handleError, handleClose, handleUnexpectedResponse);
                     if (Date.now() < deadline) {
                         retryTimer = setTimeout(attempt, retryDelayMs);
                         return;
                     }
                     finish(() => reject(new Error(`Timed out opening Codex app-server ws transport after ${timeoutMs}ms`)));
                 };
+                const handleUnexpectedResponse = (_request: ClientRequest, response: IncomingMessage) => {
+                    cleanupWs(candidate, handleOpen, handleError, handleClose, handleUnexpectedResponse);
+                    response.resume();
+                    const status = response.statusCode ?? 'unknown';
+                    finish(() => reject(new Error(`Codex app-server ws auth failed (HTTP ${status})`)));
+                };
 
                 candidate.once('open', handleOpen);
                 candidate.once('error', handleError);
                 candidate.once('close', handleClose);
+                candidate.once('unexpected-response', handleUnexpectedResponse);
             };
             const deadline = Date.now() + timeoutMs;
             timeout = setTimeout(() => {
