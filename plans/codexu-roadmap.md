@@ -185,6 +185,21 @@ reuse the running app-server for same-worktree reconnects.
   (tsx not on global PATH).
 - Deferred: sub-tasks 2-5, full sandbox+ws integration, stdio sunsetting,
   and stronger `isCodexAppServerAvailable` version-gate behavior.
+- **Deferred to replan (security regression):** the default ws transport
+  binds `127.0.0.1:<random_port>` with no authentication, no Origin
+  check, and no token — any local OS account on the same host can
+  connect to the loopback ws server, drive the codex thread under the
+  user's credentials, and approve its own exec/patch requests. The
+  prior stdio transport was process-isolated; ws is a real local-trust
+  regression on shared/CI hosts running with sandbox off. Sandbox auto-
+  overrides to stdio on non-Windows, mitigating it there. Fix surface:
+  per-spawn shared secret on the ws URL (query param or first-message
+  handshake) — likely needs upstream codex `app-server` cooperation,
+  or gate the ws default behind a "multi-user host" setting. Tracked
+  as Phase 5c F-002 (Medium, prd-worthy) from the codex-appserver-
+  transport-refactor security review; see
+  `.ralph/jobs/codex-appserver-transport-refactor/notepad.md`
+  §Replan Queue for the full reviewer write-up.
 
 **Read for full context** (in this order, ~25 min):
 1. This Status block (you're here).
