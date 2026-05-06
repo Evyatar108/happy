@@ -55,9 +55,11 @@ type PendingRequest = {
 type LegacyPatchChanges = Record<string, Record<string, unknown>>;
 
 export type CodexAppServerTransport = 'stdio' | 'ws';
+export type CodexAppServerTransportSource = 'explicit' | 'default';
 
 export type CodexAppServerClientOptions = {
     transport?: CodexAppServerTransport;
+    transportSource?: CodexAppServerTransportSource;
     logFilePath?: string;
 };
 
@@ -86,6 +88,20 @@ function isAppServerAvailable(): boolean {
         const [major, minor] = ver.split('.').map(Number);
         // app-server available in recent versions
         return major > 0 || minor >= 100;
+    } catch {
+        return false;
+    }
+}
+
+function isWsAuthAvailable(): boolean {
+    try {
+        const helpOutput = execSync('codex app-server --help', {
+            encoding: 'utf8',
+            windowsHide: true,
+            timeout: 3000,
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        return helpOutput.includes('--ws-auth');
     } catch {
         return false;
     }
@@ -164,16 +180,20 @@ export class CodexAppServerClient {
     private eventHandler: ((msg: EventMsg) => void) | null = null;
     private approvalHandler: ApprovalHandler | null = null;
     private transport: CodexAppServerTransport;
+    private transportSource: CodexAppServerTransportSource;
     private logFilePath?: string;
     private wsChild: ChildProcess | null = null;
     private wsChildExited = false;
     private wsChildStderr = '';
     private wsLogFd: number | null = null;
     private wsChildExitHandlers = new Set<() => void>();
+    private wsAuthProbeResult: boolean | null = null;
+    private wsAuthFallbackWarned = false;
 
     constructor(sandboxConfig?: SandboxConfig, options: CodexAppServerClientOptions = {}) {
         this.sandboxConfig = sandboxConfig;
         this.transport = options.transport ?? 'ws';
+        this.transportSource = options.transportSource ?? (options.transport ? 'explicit' : 'default');
         this.logFilePath = options.logFilePath;
     }
 
@@ -500,6 +520,13 @@ export class CodexAppServerClient {
         return s.includes('eaddrinuse') || s.includes('address already in use') || s.includes('bind failed');
     }
 
+    private getWsAuthAvailability(): boolean {
+        if (this.wsAuthProbeResult === null) {
+            this.wsAuthProbeResult = isWsAuthAvailable();
+        }
+        return this.wsAuthProbeResult;
+    }
+
     async connect(): Promise<void> {
         if (this.connected) return;
 
@@ -516,6 +543,20 @@ export class CodexAppServerClient {
         let transport = this.transport;
         if (this.sandboxConfig?.enabled && process.platform !== 'win32' && transport === 'ws') {
             logger.warn('[CodexAppServer] Sandbox enabled on non-Windows; forcing stdio transport instead of ws');
+            transport = 'stdio';
+        }
+
+        if (transport === 'ws' && !this.getWsAuthAvailability()) {
+            if (this.transportSource === 'explicit') {
+                throw new Error(
+                    'Installed codex lacks --ws-auth support required by --codex-transport=ws. ' +
+                    'Please upgrade codex, or omit --codex-transport=ws to use the stdio fallback.',
+                );
+            }
+            if (!this.wsAuthFallbackWarned) {
+                logger.warn('[CodexAppServer] Installed codex lacks --ws-auth; falling back to stdio transport. Upgrade codex to enable ws transport.');
+                this.wsAuthFallbackWarned = true;
+            }
             transport = 'stdio';
         }
 

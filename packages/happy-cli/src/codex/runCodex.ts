@@ -468,6 +468,7 @@ export async function runCodex(opts: {
 
     client = new CodexAppServerClient(sandboxConfig, {
         transport: opts.codexTransport ?? 'ws',
+        transportSource: opts.codexTransport ? 'explicit' : 'default',
         logFilePath: join(configuration.logsDir, `codex-app-server-${sessionTag}.log`),
     });
 

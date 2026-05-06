@@ -239,7 +239,11 @@ describe('CodexAppServerClient sandbox integration', () => {
         Object.defineProperty(process, 'platform', { value: 'linux' });
         vi.clearAllMocks();
         process.env.RUST_LOG = originalRustLog;
-        mockExecSync.mockReturnValue('codex-cli 0.107.0');
+        mockExecSync.mockImplementation((cmd: string) => {
+            if (cmd === 'codex --version') return 'codex-cli 0.107.0';
+            if (cmd === 'codex app-server --help') return 'Usage: codex app-server --listen <URL> --ws-auth capability-token';
+            return 'codex-cli 0.107.0';
+        });
         mockPickFreeLoopbackPort.mockResolvedValue(30123);
         mockInitializeSandbox.mockResolvedValue(mockSandboxCleanup);
         mockWrapForMcpTransport.mockResolvedValue({ command: 'sh', args: ['-c', 'wrapped codex app-server'] });
@@ -294,6 +298,81 @@ describe('CodexAppServerClient sandbox integration', () => {
             }),
         );
         expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('forcing stdio transport instead of ws'));
+
+        await client.disconnect();
+    });
+
+    it('falls back to stdio once when default ws transport lacks auth support', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        mockExecSync.mockImplementation((cmd: string) => {
+            if (cmd === 'codex --version') return 'codex-cli 0.107.0';
+            if (cmd === 'codex app-server --help') return 'Usage: codex app-server --listen <URL>';
+            return 'codex-cli 0.107.0';
+        });
+        await mockNextAppServer('stdio', { pid: 4101 });
+        await mockNextAppServer('stdio', { pid: 4102 });
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient();
+
+        await client.connect();
+        await client.disconnect();
+        await client.connect();
+
+        expect(mockExecSync).toHaveBeenCalledWith('codex app-server --help', {
+            encoding: 'utf8',
+            windowsHide: true,
+            timeout: 3000,
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        expect(mockExecSync.mock.calls.filter(([cmd]) => cmd === 'codex app-server --help')).toHaveLength(1);
+        expect(mockSpawn).toHaveBeenCalledTimes(2);
+        expect(mockSpawn).toHaveBeenNthCalledWith(1,
+            'codex',
+            ['app-server', '--listen', 'stdio://'],
+            expect.any(Object),
+        );
+        expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+        expect(mockLogger.warn).toHaveBeenCalledWith('[CodexAppServer] Installed codex lacks --ws-auth; falling back to stdio transport. Upgrade codex to enable ws transport.');
+
+        await client.disconnect();
+    });
+
+    it('fails closed for explicit ws transport when codex lacks auth support', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        mockExecSync.mockImplementation((cmd: string) => {
+            if (cmd === 'codex --version') return 'codex-cli 0.107.0';
+            if (cmd === 'codex app-server --help') return 'Usage: codex app-server --listen <URL>';
+            return 'codex-cli 0.107.0';
+        });
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+
+        await expect(client.connect()).rejects.toThrow(/Installed codex lacks --ws-auth.*--codex-transport=ws.*upgrade codex.*omit --codex-transport=ws.*stdio fallback/i);
+        expect(mockSpawn).not.toHaveBeenCalled();
+        expect(mockPickFreeLoopbackPort).not.toHaveBeenCalled();
+    });
+
+    it('does not probe ws auth for explicit stdio transport', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        mockExecSync.mockImplementation((cmd: string) => {
+            if (cmd === 'codex --version') return 'codex-cli 0.107.0';
+            if (cmd === 'codex app-server --help') throw new Error('should not probe');
+            return 'codex-cli 0.107.0';
+        });
+        await mockNextAppServer('stdio', { pid: 4201 });
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'stdio' });
+
+        await expect(client.connect()).resolves.toBeUndefined();
+        expect(mockExecSync.mock.calls.some(([cmd]) => cmd === 'codex app-server --help')).toBe(false);
+        expect(mockSpawn).toHaveBeenCalledWith(
+            'codex',
+            ['app-server', '--listen', 'stdio://'],
+            expect.any(Object),
+        );
 
         await client.disconnect();
     });
