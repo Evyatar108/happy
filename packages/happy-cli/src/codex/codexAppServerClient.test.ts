@@ -219,6 +219,18 @@ const sandboxConfig: SandboxConfig = {
     allowLocalBinding: true,
 };
 
+function expectWsSpawnArgs(listenUrl: string) {
+    return [
+        'app-server',
+        '--listen',
+        listenUrl,
+        '--ws-auth',
+        'capability-token',
+        '--ws-token-sha256',
+        expect.stringMatching(/^[a-f0-9]{64}$/),
+    ];
+}
+
 describe('CodexAppServerClient sandbox integration', () => {
     const originalRustLog = process.env.RUST_LOG;
     const originalPlatform = process.platform;
@@ -306,7 +318,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         await expect(connect).rejects.toThrow('Codex app-server exited during ws handshake');
         expect(mockSpawn).toHaveBeenCalledWith(
             'codex',
-            ['app-server', '--listen', 'ws://127.0.0.1:30123'],
+            expectWsSpawnArgs('ws://127.0.0.1:30123'),
             expect.objectContaining({ stdio: ['ignore', expect.any(Number), 'pipe'] }),
         );
     });
@@ -1172,7 +1184,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         expect(mockSpawn).toHaveBeenCalledTimes(2);
         expect(mockSpawn).toHaveBeenNthCalledWith(1,
             'codex',
-            ['app-server', '--listen', `ws://127.0.0.1:${failPort}`],
+            expectWsSpawnArgs(`ws://127.0.0.1:${failPort}`),
             expect.objectContaining({ stdio: ['ignore', expect.any(Number), 'pipe'] }),
         );
 
@@ -1205,7 +1217,7 @@ describe('CodexAppServerClient sandbox integration', () => {
 
         await client.connect();
 
-        expect(mockOpenSync).toHaveBeenCalledWith(expectedLogPath, 'a');
+        expect(mockOpenSync).toHaveBeenCalledWith(expectedLogPath, 'a', 0o600);
 
         await client.disconnect();
 

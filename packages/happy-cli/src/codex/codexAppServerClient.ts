@@ -14,7 +14,7 @@
  */
 
 import { execSync, type ChildProcess } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { closeSync, openSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -89,6 +89,10 @@ function isAppServerAvailable(): boolean {
     } catch {
         return false;
     }
+}
+
+function sha256hex(value: string): string {
+    return createHash('sha256').update(value).digest('hex');
 }
 
 function normalizeRawFileChangeList(changes: unknown): LegacyPatchChanges | undefined {
@@ -455,7 +459,7 @@ export class CodexAppServerClient {
         this.closeWsLogFd();
     }
 
-    private createWsConnection(command: string, args: string[], env: Record<string, string>, logFilePath: string, listenUrl: string): JsonRpcConnection {
+    private createWsConnection(command: string, args: string[], env: Record<string, string>, logFilePath: string, listenUrl: string, authToken: string): JsonRpcConnection {
         const logFd = openSync(logFilePath, 'a', 0o600);
         this.wsLogFd = logFd;
         this.wsChildExited = false;
@@ -486,6 +490,7 @@ export class CodexAppServerClient {
 
         return createWsTransport({
             url: listenUrl,
+            authToken,
             onChildExit: (handler) => this.registerWsChildExitHandler(handler),
         });
     }
@@ -557,9 +562,11 @@ export class CodexAppServerClient {
             for (let attempt = 1; attempt <= WS_SPAWN_MAX_RETRIES; attempt += 1) {
                 const port = await pickFreeLoopbackPort();
                 const listenUrl = `ws://127.0.0.1:${port}`;
-                args = ['app-server', '--listen', listenUrl];
+                const wsAuthToken = randomBytes(32).toString('base64url');
+                const wsTokenSha256 = sha256hex(wsAuthToken);
+                args = ['app-server', '--listen', listenUrl, '--ws-auth', 'capability-token', '--ws-token-sha256', wsTokenSha256];
                 logger.debug(`[CodexAppServer] Spawning (attempt ${attempt}): ${command} ${args.join(' ')}`);
-                const candidate = this.createWsConnection(command, args, env, logFilePath, listenUrl);
+                const candidate = this.createWsConnection(command, args, env, logFilePath, listenUrl, wsAuthToken);
                 const epoch = ++this.processEpoch;
                 this.connection = candidate;
 
