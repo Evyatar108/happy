@@ -1,4 +1,6 @@
 import { EventEmitter } from 'node:events';
+import { createHash } from 'node:crypto';
+import type { IncomingHttpHeaders } from 'node:http';
 import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -80,11 +82,16 @@ function pushJsonLine(stdout: NodeJS.ReadableStream & { push: (chunk: string) =>
 }
 
 type SendJson = (payload: unknown) => void;
+type VerifyClient = (
+    info: { req: { headers: IncomingHttpHeaders } },
+    done: (result: boolean, code?: number, name?: string) => void,
+) => void;
 
 type MockAppServerOptions = {
     pid?: number;
     initializeDelayMs?: number;
     onRequest?: (msg: MockRpcMessage, send: SendJson) => void;
+    verifyClient?: VerifyClient;
 };
 
 // Mock child process with stdin/stdout/stderr
@@ -137,7 +144,7 @@ async function closeWsServer(wss: WebSocketServer): Promise<void> {
 
 async function createMockWsAppServer(opts?: MockAppServerOptions) {
     const initializeDelayMs = opts?.initializeDelayMs ?? 5;
-    const wss = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+    const wss = new WebSocketServer({ host: '127.0.0.1', port: 0, verifyClient: opts?.verifyClient });
     activeWsServers.push(wss);
     await new Promise<void>((resolve) => wss.once('listening', resolve));
     const address = wss.address() as AddressInfo;
@@ -231,6 +238,27 @@ function expectWsSpawnArgs(listenUrl: string) {
     ];
 }
 
+function getSpawnWsTokenSha256(spawnCallIndex: number): string {
+    const args = mockSpawn.mock.calls[spawnCallIndex]?.[1] as string[] | undefined;
+    const tokenArgIndex = args?.indexOf('--ws-token-sha256') ?? -1;
+    if (!args || tokenArgIndex < 0) {
+        throw new Error(`No --ws-token-sha256 argument in spawn call ${spawnCallIndex}`);
+    }
+    return args[tokenArgIndex + 1];
+}
+
+function sha256hex(value: string): string {
+    return createHash('sha256').update(value).digest('hex');
+}
+
+function bearerToken(headers: IncomingHttpHeaders): string {
+    const value = headers.authorization;
+    if (typeof value !== 'string' || !value.startsWith('Bearer ')) {
+        throw new Error(`Missing bearer Authorization header: ${String(value)}`);
+    }
+    return value.slice('Bearer '.length);
+}
+
 describe('CodexAppServerClient sandbox integration', () => {
     const originalRustLog = process.env.RUST_LOG;
     const originalPlatform = process.platform;
@@ -288,6 +316,9 @@ describe('CodexAppServerClient sandbox integration', () => {
 
         expect(mockPickFreeLoopbackPort).not.toHaveBeenCalled();
         expect(mockWrapForMcpTransport).toHaveBeenCalledWith('codex', ['app-server', '--listen', 'stdio://']);
+        const wrappedArgs = mockWrapForMcpTransport.mock.calls[0][1] as string[];
+        expect(wrappedArgs).not.toContain('--ws-auth');
+        expect(wrappedArgs).not.toContain('--ws-token-sha256');
         expect(mockSpawn).toHaveBeenCalledWith(
             'sh',
             ['-c', 'wrapped codex app-server'],
@@ -302,6 +333,55 @@ describe('CodexAppServerClient sandbox integration', () => {
         await client.disconnect();
     });
 
+    it('sends ws bearer auth whose token hashes to the spawn argv digest', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const capturedHeaders: IncomingHttpHeaders[] = [];
+        const { proc, wss } = await createMockWsAppServer({
+            pid: 4301,
+            verifyClient: (info, done) => {
+                capturedHeaders.push(info.req.headers);
+                done(true);
+            },
+        });
+        const port = (wss.address() as AddressInfo).port;
+        mockPickFreeLoopbackPort.mockResolvedValueOnce(port);
+        mockSpawn.mockImplementationOnce(() => proc);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+
+        await client.connect();
+
+        expect(capturedHeaders).toHaveLength(1);
+        const token = bearerToken(capturedHeaders[0]);
+        expect(capturedHeaders[0].authorization).toBe(`Bearer ${token}`);
+        expect(sha256hex(token)).toBe(getSpawnWsTokenSha256(0));
+
+        await client.disconnect();
+    });
+
+    it('rejects ws auth failure immediately without retrying the spawn loop', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const capturedHeaders: IncomingHttpHeaders[] = [];
+        const { proc, wss } = await createMockWsAppServer({
+            pid: 4302,
+            verifyClient: (info, done) => {
+                capturedHeaders.push(info.req.headers);
+                done(false, 401, 'Unauthorized');
+            },
+        });
+        mockPickFreeLoopbackPort.mockResolvedValueOnce((wss.address() as AddressInfo).port);
+        mockSpawn.mockImplementationOnce(() => proc);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+
+        await expect(client.connect()).rejects.toThrow(/Codex app-server ws auth failed \(HTTP 401\)/);
+        expect(capturedHeaders).toHaveLength(1);
+        expect(mockSpawn).toHaveBeenCalledTimes(1);
+        expect(mockPickFreeLoopbackPort).toHaveBeenCalledTimes(1);
+    });
+
     it('falls back to stdio once when default ws transport lacks auth support', async () => {
         Object.defineProperty(process, 'platform', { value: 'win32' });
         mockExecSync.mockImplementation((cmd: string) => {
@@ -313,7 +393,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         await mockNextAppServer('stdio', { pid: 4102 });
 
         const { CodexAppServerClient } = await import('./codexAppServerClient');
-        const client = new CodexAppServerClient();
+        const client = new CodexAppServerClient(undefined, { transport: 'ws', transportSource: 'default' });
 
         await client.connect();
         await client.disconnect();
@@ -347,7 +427,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         });
 
         const { CodexAppServerClient } = await import('./codexAppServerClient');
-        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+        const client = new CodexAppServerClient(undefined, { transport: 'ws', transportSource: 'explicit' });
 
         await expect(client.connect()).rejects.toThrow(/Installed codex lacks --ws-auth.*--codex-transport=ws.*upgrade codex.*omit --codex-transport=ws.*stdio fallback/i);
         expect(mockSpawn).not.toHaveBeenCalled();
@@ -364,7 +444,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         await mockNextAppServer('stdio', { pid: 4201 });
 
         const { CodexAppServerClient } = await import('./codexAppServerClient');
-        const client = new CodexAppServerClient(undefined, { transport: 'stdio' });
+        const client = new CodexAppServerClient(undefined, { transport: 'stdio', transportSource: 'explicit' });
 
         await expect(client.connect()).resolves.toBeUndefined();
         expect(mockExecSync.mock.calls.some(([cmd]) => cmd === 'codex app-server --help')).toBe(false);
@@ -472,6 +552,65 @@ describe('CodexAppServerClient sandbox integration', () => {
         }, 10);
 
         await expect(reconnect).resolves.toBeUndefined();
+        await client.disconnect();
+    });
+
+    it('regenerates ws auth token hashes across reconnects', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        await mockNextAppServer('ws', { pid: 4401 });
+        await mockNextAppServer('ws', { pid: 4402 });
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+
+        await client.connect();
+        await client.disconnect();
+        await client.connect();
+
+        expect(mockSpawn).toHaveBeenCalledTimes(2);
+        const firstHash = getSpawnWsTokenSha256(0);
+        const secondHash = getSpawnWsTokenSha256(1);
+        expect(firstHash).toMatch(/^[a-f0-9]{64}$/);
+        expect(secondHash).toMatch(/^[a-f0-9]{64}$/);
+        expect(secondHash).not.toBe(firstHash);
+
+        await client.disconnect();
+    });
+
+    it('does not leak raw ws auth tokens through spawn argv, env, or logger output', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const capturedHeaders: IncomingHttpHeaders[] = [];
+        for (const pid of [4501, 4502]) {
+            const { proc, wss } = await createMockWsAppServer({
+                pid,
+                verifyClient: (info, done) => {
+                    capturedHeaders.push(info.req.headers);
+                    done(true);
+                },
+            });
+            mockPickFreeLoopbackPort.mockResolvedValueOnce((wss.address() as AddressInfo).port);
+            mockSpawn.mockImplementationOnce(() => proc);
+        }
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+
+        await client.connect();
+        await client.disconnect();
+        await client.connect();
+
+        expect(capturedHeaders).toHaveLength(2);
+        const tokens = capturedHeaders.map(bearerToken);
+        expect(tokens[1]).not.toBe(tokens[0]);
+
+        const spawnSurface = mockSpawn.mock.calls.map(([, args, options]) => ({ args, env: options?.env }));
+        const loggerSurface = [mockLogger.debug, mockLogger.info, mockLogger.warn]
+            .flatMap((fn) => fn.mock.calls);
+        for (const token of tokens) {
+            expect(JSON.stringify(spawnSurface)).not.toContain(token);
+            expect(JSON.stringify(loggerSurface)).not.toContain(token);
+        }
+
         await client.disconnect();
     });
 
@@ -1148,6 +1287,67 @@ describe('CodexAppServerClient sandbox integration', () => {
         expect((client as any).pending.size).toBe(0);
     });
 
+    it('ignores stale completion from an interrupted turn while the next turn is starting', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const events: Array<Record<string, unknown>> = [];
+        await mockNextAppServer('stdio', {
+            pid: 4601,
+            onRequest: (msg, send) => {
+                if (msg.method === 'thread/start' && msg.id != null) {
+                    setTimeout(() => {
+                        send({
+                            id: msg.id,
+                            result: {
+                                thread: { id: 'thread-stale-1', path: '/tmp/thread-stale-1' },
+                                model: 'gpt-test',
+                                modelProvider: 'openai',
+                                cwd: '/tmp/project',
+                                approvalPolicy: 'never',
+                                sandbox: { type: 'dangerFullAccess' },
+                                reasoningEffort: null,
+                            },
+                        });
+                    }, 0);
+                }
+
+                if (msg.method === 'turn/start' && msg.id != null) {
+                    send({
+                        method: 'turn/completed',
+                        params: { threadId: 'thread-stale-1', turn: { id: 'old-turn', status: 'completed', error: null } },
+                    });
+                    setTimeout(() => {
+                        send({ id: msg.id, result: { turn: { id: 'new-turn', items: [], status: 'inProgress', error: null } } });
+                        send({
+                            method: 'item/completed',
+                            params: {
+                                threadId: 'thread-stale-1',
+                                turnId: 'new-turn',
+                                item: { type: 'agentMessage', id: 'msg-new', text: 'new turn finished', phase: 'final_answer' },
+                            },
+                        });
+                    }, 0);
+                }
+            },
+        });
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'stdio' });
+        client.setEventHandler((msg) => events.push(msg as Record<string, unknown>));
+
+        await client.connect();
+        await client.startThread({ model: 'gpt-test', approvalPolicy: 'never', sandbox: 'danger-full-access' });
+        (client as any)._turnId = 'old-turn';
+        (client as any).pendingInterrupt = Promise.resolve();
+
+        await expect(client.sendTurnAndWait('continue after interrupt')).resolves.toEqual({ aborted: false });
+        expect(events).toEqual(expect.arrayContaining([
+            expect.objectContaining({ type: 'task_complete', turn_id: 'old-turn' }),
+            expect.objectContaining({ type: 'agent_message', message: 'new turn finished' }),
+        ]));
+
+        await client.disconnect();
+    });
+
     it('rejects ws connect when the open handshake times out', async () => {
         Object.defineProperty(process, 'platform', { value: 'win32' });
         const sockets: Array<{ destroy: () => void }> = [];
@@ -1266,6 +1466,11 @@ describe('CodexAppServerClient sandbox integration', () => {
             expectWsSpawnArgs(`ws://127.0.0.1:${failPort}`),
             expect.objectContaining({ stdio: ['ignore', expect.any(Number), 'pipe'] }),
         );
+        const firstHash = getSpawnWsTokenSha256(0);
+        const secondHash = getSpawnWsTokenSha256(1);
+        expect(firstHash).toMatch(/^[a-f0-9]{64}$/);
+        expect(secondHash).toMatch(/^[a-f0-9]{64}$/);
+        expect(secondHash).not.toBe(firstHash);
 
         await client.disconnect();
     });

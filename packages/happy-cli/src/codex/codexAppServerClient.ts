@@ -167,6 +167,7 @@ export class CodexAppServerClient {
     private pendingTurnCompletion: {
         resolve: (aborted: boolean) => void;
         turnId: string | null;
+        ignoredTurnIds: Set<string>;
     } | null = null;
 
     // Tracks in-flight interruptTurn() RPCs so sendTurnAndWait can wait for them
@@ -894,6 +895,13 @@ export class CodexAppServerClient {
         const pending = this.pendingTurnCompletion;
         if (!pending) return;
 
+        if (turnId && pending.ignoredTurnIds.has(turnId)) {
+            logger.debug(
+                `[CodexAppServer] Ignoring ${source} for stale turn ${turnId}`,
+            );
+            return;
+        }
+
         // Guard against stale completion notifications from a *different* turn.
         // We use turn ID matching instead of the `started` flag because Codex
         // can skip the turn/started notification entirely for fast turns,
@@ -1038,6 +1046,7 @@ export class CodexAppServerClient {
         effort?: ReasoningEffort;
         turnTimeoutMs?: number;
     }): Promise<{ aborted: boolean }> {
+        const ignoredTurnId = this._turnId;
         // Wait for any in-flight interruptTurn() to complete before starting a new
         // turn. Otherwise the stale turn/interrupt RPC can reach Codex after our
         // turn/start and abort the wrong turn.
@@ -1056,6 +1065,7 @@ export class CodexAppServerClient {
             this.pendingTurnCompletion = {
                 resolve,
                 turnId: null,
+                ignoredTurnIds: ignoredTurnId ? new Set([ignoredTurnId]) : new Set(),
             };
 
             timer = setTimeout(() => {

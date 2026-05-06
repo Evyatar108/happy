@@ -49,6 +49,31 @@ async function isCodexAppServerAvailable(): Promise<boolean> {
     }
 }
 
+async function isWsAuthAvailable(): Promise<boolean> {
+    try {
+        const helpOutput = execSync("codex app-server --help", {
+            encoding: "utf8",
+            windowsHide: true,
+            timeout: 3000,
+            stdio: ["ignore", "pipe", "pipe"],
+        });
+        return helpOutput.includes("--ws-auth");
+    } catch {
+        return false;
+    }
+}
+
+const codexAppServerAvailable = await isCodexAppServerAvailable();
+const wsAuthAvailable = codexAppServerAvailable ? await isWsAuthAvailable() : false;
+if (codexAppServerAvailable && !wsAuthAvailable) {
+    console.warn("[integration] ws cases skipped: installed codex lacks --ws-auth");
+}
+
+const transportCases: Array<{ transport: CodexAppServerTransport; clientTransport: CodexAppServerTransport }> = [
+    ...(wsAuthAvailable ? [{ transport: "ws" as const, clientTransport: "ws" as const }] : []),
+    { transport: "stdio", clientTransport: "stdio" },
+];
+
 // ── CodexDriver ──────────────────────────────────────────────────────────────
 
 interface TurnResult {
@@ -208,15 +233,11 @@ class CodexDriver {
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 
-describe.skipIf(!(await isCodexAppServerAvailable()))(
+describe.skipIf(!codexAppServerAvailable)(
     "Codex Integration (app-server)",
     { timeout: 180_000 },
     () => {
         let driver: CodexDriver | null = null;
-        const transportCases: Array<{ transport: CodexAppServerTransport; clientTransport?: CodexAppServerTransport }> = [
-            { transport: "ws" },
-            { transport: "stdio", clientTransport: "stdio" },
-        ];
 
         afterEach(async () => {
             if (driver) {
@@ -345,7 +366,7 @@ describe.skipIf(!(await isCodexAppServerAvailable()))(
             driver.permissionPolicy = "hold";
 
             const abortedTurn = driver.continue(
-                'Run this exact shell command: printf "test" > /tmp/codex-interrupt-context.txt',
+                'Create a file called /tmp/codex-interrupt-context.txt with the text "test". Use a shell command.',
                 { approvalPolicy: "on-request", sandbox: "read-only" }
             );
 
@@ -365,7 +386,7 @@ describe.skipIf(!(await isCodexAppServerAvailable()))(
             driver.clearEvents();
             driver.permissionPolicy = "approve";
             await driver.continue(
-                "What was the project codename I mentioned earlier? Reply with just the codename."
+                "What was the project codename I mentioned earlier? Reply with just the codename. Do NOT use any tools or run any commands."
             );
 
             const text = driver.getMessages().join(" ").toLowerCase();

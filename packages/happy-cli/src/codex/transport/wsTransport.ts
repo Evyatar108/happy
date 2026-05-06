@@ -53,6 +53,7 @@ export class WsTransport implements JsonRpcConnection {
                 if (retryTimer) clearTimeout(retryTimer);
                 removeChildExitHandler?.();
                 if (!opened && activeWs && activeWs.readyState !== WebSocket.CLOSED) {
+                    activeWs.once('error', () => undefined);
                     try { activeWs.terminate(); } catch { /* ignore */ }
                 }
             };
