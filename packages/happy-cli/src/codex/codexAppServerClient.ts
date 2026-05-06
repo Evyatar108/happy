@@ -455,7 +455,7 @@ export class CodexAppServerClient {
         this.closeWsLogFd();
     }
 
-    private createWsConnection(command: string, args: string[], env: Record<string, string>, logFilePath: string): JsonRpcConnection {
+    private createWsConnection(command: string, args: string[], env: Record<string, string>, logFilePath: string, listenUrl: string): JsonRpcConnection {
         const logFd = openSync(logFilePath, 'a', 0o600);
         this.wsLogFd = logFd;
         this.wsChildExited = false;
@@ -485,7 +485,7 @@ export class CodexAppServerClient {
         });
 
         return createWsTransport({
-            url: args[2],
+            url: listenUrl,
             onChildExit: (handler) => this.registerWsChildExitHandler(handler),
         });
     }
@@ -556,9 +556,10 @@ export class CodexAppServerClient {
             const logFilePath = this.logFilePath ?? join(tmpdir(), `codex-app-server-${randomUUID()}.log`);
             for (let attempt = 1; attempt <= WS_SPAWN_MAX_RETRIES; attempt += 1) {
                 const port = await pickFreeLoopbackPort();
-                args = ['app-server', '--listen', `ws://127.0.0.1:${port}`];
+                const listenUrl = `ws://127.0.0.1:${port}`;
+                args = ['app-server', '--listen', listenUrl];
                 logger.debug(`[CodexAppServer] Spawning (attempt ${attempt}): ${command} ${args.join(' ')}`);
-                const candidate = this.createWsConnection(command, args, env, logFilePath);
+                const candidate = this.createWsConnection(command, args, env, logFilePath, listenUrl);
                 const epoch = ++this.processEpoch;
                 this.connection = candidate;
 
