@@ -46,10 +46,25 @@ vi.mock('cross-spawn', () => ({
 
 vi.mock('node:fs', async (importActual) => {
     const actual = await importActual<typeof import('node:fs')>();
+    const realFds = new Set<number>();
+    const shouldUseRealFd = (path: unknown) =>
+        typeof path === 'string' && (path.endsWith('.lock') || /codex-active-[a-f0-9]{64}\.json$/.test(path));
     return {
         ...actual,
-        openSync: mockOpenSync,
-        closeSync: mockCloseSync,
+        openSync: ((path: Parameters<typeof actual.openSync>[0], ...args: any[]) => {
+            if (shouldUseRealFd(path)) {
+                const fd = actual.openSync(path, ...(args as [any, any?]));
+                realFds.add(fd);
+                return fd;
+            }
+            return mockOpenSync(path, ...args);
+        }) as typeof actual.openSync,
+        closeSync: ((fd: number) => {
+            if (realFds.delete(fd)) {
+                return actual.closeSync(fd);
+            }
+            return mockCloseSync(fd);
+        }) as typeof actual.closeSync,
     };
 });
 

@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+    acquireDiscoveryLock,
     cwdHash,
     deleteDiscovery,
     deleteDiscoveryIfMatches,
@@ -186,5 +187,50 @@ describe('codex app-server discovery paths', () => {
         const deadPid = await exitedChildPid();
 
         expect(isPidAlive(deadPid)).toBe(false);
+    });
+
+    it('reclaims a lock file held by a dead PID and acquires the lock', async () => {
+        const path = lockFilePath(tempRoot);
+        const deadPid = await exitedChildPid();
+        writeFileSync(path, JSON.stringify({ pid: deadPid, startedAt: '2026-05-07T12:00:00.000Z' }));
+
+        const lock = await acquireDiscoveryLock(path, { timeoutMs: 200 });
+
+        try {
+            const holder = JSON.parse(readFileSync(path, 'utf8')) as { pid: number; startedAt: string };
+            expect(holder.pid).toBe(process.pid);
+            expect(holder.startedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+        } finally {
+            await lock.release();
+        }
+
+        expect(existsSync(path)).toBe(false);
+    });
+
+    it('does not time-reclaim a lock file held by a live PID', async () => {
+        const path = lockFilePath(tempRoot);
+        writeFileSync(path, JSON.stringify({ pid: process.pid, startedAt: '2026-05-07T12:00:00.000Z' }));
+
+        await expect(acquireDiscoveryLock(path, { timeoutMs: 200 })).rejects.toThrow('startup-in-progress');
+        expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({
+            pid: process.pid,
+            startedAt: '2026-05-07T12:00:00.000Z',
+        });
+    });
+
+    it('creates and releases a real .lock file on disk', async () => {
+        const path = lockFilePath(tempRoot);
+
+        const lock = await acquireDiscoveryLock(path);
+
+        expect(path.endsWith('.lock')).toBe(true);
+        expect(existsSync(path)).toBe(true);
+        expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual(
+            expect.objectContaining({ pid: process.pid, startedAt: expect.any(String) }),
+        );
+
+        await lock.release();
+
+        expect(existsSync(path)).toBe(false);
     });
 });
