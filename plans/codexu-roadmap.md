@@ -163,13 +163,22 @@ canonical-current state.
 - Upstream-derived doc/skill references to "Happy Coder", `slopus/happy`,
   and `happy.engineering` are HISTORICAL and stay as-is.
 
-### Right now (2026-05-04): Phase 1b sub-task 1 complete; start sub-task 2
+### Right now (2026-05-06): Phase 1b sub-task 1 complete; start sub-task 2
 
 **Phase 1b sub-task 1 shipped:** Codex app-server transport refactor
 from stdio-only to the transport interface + stdio extraction + loopback
 WebSocket adapter, with `--codex-transport=stdio|ws`, ws as the default,
 and sandbox-enabled non-Windows sessions forced back to stdio for this
 phase.
+
+**Phase 1b sub-task 1 security follow-up shipped:** the default ws
+transport now uses upstream-native per-spawn capability-token auth. Each
+spawn attempt passes `--ws-auth capability-token --ws-token-sha256
+<64-hex-sha256>` to `codex app-server`; the raw token stays in memory
+and is sent only as `Authorization: Bearer <token>` on the ws upgrade.
+Happy probes `codex app-server --help` once per client instance for
+`--ws-auth`: explicit `--codex-transport=ws` fails closed when unsupported,
+while the implicit default falls back to stdio with one warning.
 
 **Next concrete deliverable:** Phase 1b sub-task 2, Discovery + reattach.
 Write `${configuration.happyHomeDir}/codex-active-${cwdHash}.json` and
@@ -185,21 +194,12 @@ reuse the running app-server for same-worktree reconnects.
   (tsx not on global PATH).
 - Deferred: sub-tasks 2-5, full sandbox+ws integration, stdio sunsetting,
   and stronger `isCodexAppServerAvailable` version-gate behavior.
-- **Deferred to replan (security regression):** the default ws transport
-  binds `127.0.0.1:<random_port>` with no authentication, no Origin
-  check, and no token — any local OS account on the same host can
-  connect to the loopback ws server, drive the codex thread under the
-  user's credentials, and approve its own exec/patch requests. The
-  prior stdio transport was process-isolated; ws is a real local-trust
-  regression on shared/CI hosts running with sandbox off. Sandbox auto-
-  overrides to stdio on non-Windows, mitigating it there. Fix surface:
-  per-spawn shared secret on the ws URL (query param or first-message
-  handshake) — likely needs upstream codex `app-server` cooperation,
-  or gate the ws default behind a "multi-user host" setting. Tracked
-  as Phase 5c F-002 (Medium, prd-worthy) from the codex-appserver-
-  transport-refactor security review; see
-  `.ralph/jobs/codex-appserver-transport-refactor/notepad.md`
-  §Replan Queue for the full reviewer write-up.
+- **Deferred to replan: resolved.** Phase 5c F-002 is closed by
+  upstream-native per-spawn ws auth (`--ws-auth capability-token`,
+  `--ws-token-sha256 <hex>`, and client `Authorization: Bearer <token>`).
+  Phase 5c F-003 is closed by passing the explicit `listenUrl` into
+  `createWsConnection` / `createWsTransport` instead of reading `args[2]`.
+  The invariant remains: app-server ws listeners bind only loopback.
 
 **Read for full context** (in this order, ~25 min):
 1. This Status block (you're here).
@@ -514,7 +514,10 @@ These are already in upstream codex; future agents should NOT re-implement:
   (was incorrectly listed in earlier drafts; only outbound to ChatGPT's
   remote-control endpoint). Multi-client supported (verified by codexu
   2026-05-02).
-- **Native `codex --remote ws://...`** — TUI client to remote app-server.
+- **Native `codex --remote ws://...`** — TUI client to remote app-server;
+  with Happy's per-spawn ws auth, this needs an upstream-supported way to
+  supply the matching client credential without raw-token leakage before
+  it becomes a Happy feature.
 - **`request_user_input` tool (PLAN-MODE-SCOPED, root-thread-only).**
   `core/src/tools/handlers/request_user_input.rs` is the existing
   structured-input tool. Two intentional restrictions:
@@ -732,8 +735,9 @@ These are NOT goals; do not propose them as additions:
 
 - **Multi-user collaboration** — different humans on the same session.
   This stack is "one user, multiple personal devices." If multi-user
-  becomes a real requirement, the security model (loopback-only, no
-  auth tokens) breaks and the design changes.
+  becomes a real requirement, the security model (loopback-only,
+  per-spawn ws auth, and relay-mediated cross-device access) must be
+  re-derived.
 - **Cross-machine codex backends.** One app-server per cwd, on one
   machine. Phone reaches it via codexu's encrypted relay; another laptop
   doesn't connect directly. Out-of-scope unless the relay model is

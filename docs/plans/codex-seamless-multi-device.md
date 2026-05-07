@@ -264,18 +264,18 @@ While the app-server is running and at least one ws client is attached:
 
 If the connection doesn't recover gracefully, Phase 1 needs explicit reconnect logic in `wsTransport.ts`. If it does recover, the standard WebSocket keep-alive is sufficient.
 
-### Step 7: Real native-TUI multi-client test (manual, requires two terminals)
+### Step 7: Real native-TUI multi-client test (manual, requires upstream remote-client auth)
 
-This requires a TTY-attached terminal — can't be scripted.
+This requires a TTY-attached terminal and a supported way to pass the per-spawn capability token to `codex --remote` without putting the raw token in argv, env, URLs, or logs. If upstream only supports URL-only `codex --remote ws://...`, skip this test until the remote-client auth path exists.
 
 ```bash
 # Terminal 1 (already running app-server from Step 1)
 
-# Terminal 2:
-codex --remote ws://127.0.0.1:51234
+# Terminal 2, using the upstream-supported remote auth mechanism:
+codex --remote ws://127.0.0.1:51234 <auth-mechanism>
 
 # Terminal 3 (separate):
-codex --remote ws://127.0.0.1:51234
+codex --remote ws://127.0.0.1:51234 <auth-mechanism>
 ```
 
 In Terminal 2: send a message. Verify Terminal 3's TUI shows the same message in real-time. Then send a message from Terminal 3; verify Terminal 2 sees it. If both work, the multi-client UX is real, not just the connection layer.
@@ -315,8 +315,8 @@ What this implies for Phase 1: even less Happy-side work than the previous draft
 Codex's CLI already exposes the multi-client primitive we want:
 
 - **`codex app-server --listen <URL>`** supports `stdio://`, `unix://PATH`, `ws://IP:PORT` (current Happy default after Phase 1b sub-task 1), and `wss://...`. Multi-client transports are first-class.
-- **`codex --remote ws://host:port`** connects the **native Codex TUI** to a running remote app-server. The CLI help reads literally: *"Connect the TUI to a remote app server websocket endpoint."*
-- **`--remote-auth-token-env <ENV_VAR>`** for per-session authentication on the websocket
+- **`codex --remote ws://host:port`** connects the **native Codex TUI** to a running remote app-server. With Happy's per-spawn app-server auth, native TUI attach is usable only when upstream provides a way to supply the matching client credential without leaking it through argv/env/URL/log surfaces.
+- **`--remote-auth-token-env <ENV_VAR>`** exists in upstream help for websocket authentication, but Happy's local app-server path must still avoid raw-token env leaks unless the token lifetime and process exposure model are explicitly re-derived.
 - **`codex app-server proxy --sock <PATH>`** as an alternate stdio→unix-socket adapter for clients that want stdio framing against a socket-listening backend
 
 This means: a single shared `codex app-server` can have Happy CLI as one client, the **actual native Codex TUI as another client**, and the phone app (via Happy's relay) as a third client — all seeing the same conversation, all able to send messages, all able to answer prompts. We don't need to chase TUI feature parity in our ink renderer; we can just expose the option of running Codex's polished native TUI alongside Happy's renderer, both connected to the same backend.
@@ -389,28 +389,22 @@ If the upstream protocol changes, re-run Step 4 of the verification and update t
 
 ## Security model
 
-**Loopback-only is the trust boundary. No per-session auth tokens; user-account isolation suffices.**
+**Loopback-only is the network trust boundary; every ws spawn is still per-spawn authenticated.**
 
-The codex `app-server` will bind only to `127.0.0.1`. Per upstream's `--ws-auth` semantics, loopback listeners accept any local connection without token authentication — and this plan deliberately relies on that, because:
+The codex `app-server` binds only to `127.0.0.1`, and Happy never exposes that listener directly to phones, LAN clients, public addresses, or tunnels. The local ws hop is authenticated with upstream-native capability tokens: every spawn attempt generates a fresh raw token in memory, passes only `--ws-auth capability-token --ws-token-sha256 <64-hex-sha256>` in argv, and sends the raw token only as `Authorization: Bearer <token>` on the WebSocket upgrade request.
 
-| What a malicious local process running as the user could do via the ws listener | What they can already do without it |
-|----|----|
-| Read in-flight conversation | Read `~/.codex/sessions/*.jsonl` directly |
-| Send messages to the agent | Spawn their own `codex` CLI as the same user |
-| Approve permission prompts | Send keystrokes to the user's terminal via OS automation |
-| Kill the agent process | `kill <pid>` against the codex app-server PID |
-
-On a single-user developer machine, the security boundary is the **user account**, not the process. The marginal risk from an unauthenticated loopback listener is approximately zero — any process with the same user identity could already cause equivalent harm via different paths (file reads, signal sends, keystroke injection, spawning peer codex instances).
+If the installed codex does not advertise `--ws-auth`, explicit `--codex-transport=ws` fails closed. The implicit/default ws transport falls back to stdio with one warning for that client instance. This keeps the default path usable on older codex builds without silently weakening an explicitly requested ws transport.
 
 ### Hard invariants
 
-1. **Never bind a non-loopback address.** No `0.0.0.0`, no LAN IPs, no public IPs. Reject (refuse to start) if a config option ever tries to. The instant we cross the user-account/network boundary, auth becomes mandatory and the design changes.
+1. **Never bind a non-loopback address.** No `0.0.0.0`, no LAN IPs, no public IPs. Reject (refuse to start) if a config option ever tries to. The instant we cross the loopback boundary, the design changes.
 2. **Phone never connects directly to the app-server.** Phone → Happy server (E2E encrypted via libsodium) → Happy CLI on laptop → local app-server. The Happy auth chain already covers the cross-machine portion; the local hop is IPC.
-3. **`--use-codex-tui` (when implemented) passes the port via argv to its spawned `codex --remote` child** — no env var, no token. The child only needs to know the loopback port.
+3. **Raw ws capability tokens stay out of argv, env, URLs, and logs.** Only the SHA-256 digest goes in app-server argv; the raw token is sent in memory through the ws upgrade Authorization header.
+4. **`--use-codex-tui` (when implemented) cannot attach with only a port.** It must either receive a brokered in-memory token path or use a first-class upstream remote-client auth mechanism; never document a tokenless loopback attach path.
 
-### When auth WOULD be required (out of scope for this plan)
+### Direct app-server clients remain out of scope
 
-If we ever wanted phones (or other devices) to connect directly to the app-server without going through Happy's encrypted relay — e.g., for lower-latency direct LAN connections, or for browser-based clients hitting the app-server URL — that crosses the local boundary and requires `--ws-auth signed-bearer-token` + `--ws-token-file` (or `--ws-token-sha256`). At that point we'd need to design a token-issuance + secure-distribution model. Explicitly deferred; not blocked by Phase 1.
+If we ever wanted phones (or other devices) to connect directly to the app-server without going through Happy's encrypted relay — e.g., for lower-latency direct LAN connections, or for browser-based clients hitting the app-server URL — that crosses the current boundary and requires a separate token-issuance and secure-distribution model. The shipped per-spawn token protects Happy CLI's local app-server connection; it is not a general remote-client credential distribution system.
 
 ## Prior art
 
@@ -508,16 +502,16 @@ Likely gaps based on the current code:
 
 ### Phase 0 — Verify multi-client app-server (~1-2 hours)
 
-Confirm the documented `codex app-server --listen ws://...` + `codex --remote ws://...` multi-client behavior works as claimed:
+Confirm the documented `codex app-server --listen ws://...` + remote-client multi-client behavior works as claimed, using the same ws auth constraints as the Security model:
 
-1. Start `codex app-server --listen ws://127.0.0.1:PORT --analytics-default-enabled` directly (no Happy involvement)
-2. From a second terminal, run `codex --remote ws://127.0.0.1:PORT` — the native Codex TUI connecting as a client
+1. Start `codex app-server --listen ws://127.0.0.1:PORT --ws-auth capability-token --ws-token-sha256 <hex> --analytics-default-enabled` directly (no Happy involvement)
+2. From a second terminal, connect the native Codex TUI as a client only if an upstream-supported auth mechanism can supply the matching raw token without argv/env/URL/log leakage
 3. Send a message from this client; verify the conversation history is recorded in `~/.codex/sessions/`
-4. From a third terminal, run a SECOND `codex --remote ws://127.0.0.1:PORT` against the same backend
+4. From a third terminal, connect a SECOND authenticated client against the same backend
 5. Confirm both clients see each other's messages in real time
 6. Trigger a Bash approval — verify both clients receive the approval prompt; check what happens when one client approves first (does the other's prompt dismiss?)
 7. Disconnect one client (Ctrl+C its TUI); verify the other stays connected and the app-server keeps running
-8. ~~Verify per-session auth~~ — REMOVED. Plan now uses unauthenticated loopback (see Security model section). If you ever bind a non-loopback address, that's when auth becomes mandatory; this plan explicitly forbids that.
+8. Verify per-spawn ws auth: capture the upgrade request and confirm it carries `Authorization: Bearer <token>`, while app-server argv contains only `--ws-auth capability-token --ws-token-sha256 <hex>`.
 
 If all of these work as documented, Phase 1 scope reduces dramatically — most of the "seamless multi-device" feature is already in Codex; Happy's job is mostly to wire up the listener type, manage app-server lifecycle, and offer the TUI client as an opt-in.
 
@@ -541,7 +535,7 @@ Original Phase 0 sweep — covers single-client `happy codex` behaviors. Run onl
 
 #### Sub-task 1: Transport refactor — stdio → loopback WebSocket (1-2 days)
 
-Switch the IPC between Happy CLI and codex `app-server` from stdio to loopback WebSocket. No auth flags (see Security model section above — loopback + user-account isolation suffices).
+Switch the IPC between Happy CLI and codex `app-server` from stdio to loopback WebSocket with per-spawn capability-token auth (see Security model section above).
 
 **File: `packages/happy-cli/src/codex/codexAppServerClient.ts`**
 
@@ -558,9 +552,12 @@ const port = await pickFreeLoopbackPort();  // helper to add in src/utils/
 let args = [
     'app-server',
     '--listen', `ws://127.0.0.1:${port}`,
+    '--ws-auth', 'capability-token',
+    '--ws-token-sha256', wsTokenSha256,
 ];
-// NO auth flags. See SECURITY MODEL section above. Loopback + user-account isolation.
 ```
+
+The raw `wsAuthToken` is generated per spawn attempt, kept out of argv/env/URL/logs, and passed only to the ws transport so it can set the upgrade `Authorization: Bearer <token>` header.
 
 The harder part is reworking the IPC layer. The current implementation is tightly coupled to stdio:
 - `request()` at line 936 uses `this.process.stdin.write(...)`
@@ -648,7 +645,7 @@ Sub-task 5: 1 day, including bug-fixing.
 
 ### Phase 2 — UX polish + native TUI option
 
-- **`--use-codex-tui` opt-in flag** — after `app-server` starts (and the discovery file is written), spawn `codex --remote ws://127.0.0.1:${port}` as a child process inheriting stdio (no token needed — loopback). The child's exit signals end-of-session for that client; Happy CLI's own ink renderer is skipped. Happy CLI itself stays alive in the background to relay between phone app and the same backend. Demoted from earlier drafts of Phase 1.
+- **`--use-codex-tui` opt-in flag** — after `app-server` starts (and the discovery file is written), spawn a local Codex TUI client only if there is a first-class way to give it the per-spawn capability token without putting the raw token in argv, env, URLs, or logs. The child's exit signals end-of-session for that client; Happy CLI's own ink renderer is skipped. Happy CLI itself stays alive in the background to relay between phone app and the same backend. Demoted from earlier drafts of Phase 1.
 - **Banner-style "session is live; answer here too"** when app users are away from foreground
 - **Push notification** when a Codex session needs attention and no client is foregrounded
 - **Persistence cleanup** — closing all clients triggers a configurable timeout (e.g., 30 minutes) before `app-server` exits. Survives "I'm just switching laptops" without leaking forever. Open question: what's the right default?
@@ -754,8 +751,8 @@ Verify with: spawn a `sleep 60` background bash via Codex; observe `thread/backg
 
 ### Hard invariants (not questions — already decided)
 
-- **Never bind non-loopback addresses.** `0.0.0.0`, LAN IPs, public IPs are all hard rejects. The instant we bind non-loopback the security model changes (auth becomes mandatory). Out of scope for this plan.
-- **No auth flags on the `--listen ws://127.0.0.1:N` listener.** Loopback + user-account isolation is sufficient (see Security model section).
+- **Never bind non-loopback addresses.** `0.0.0.0`, LAN IPs, public IPs are all hard rejects. The instant we bind non-loopback the security model changes. Out of scope for this plan.
+- **Every `--listen ws://127.0.0.1:N` spawn uses per-spawn capability-token auth.** Use `--ws-auth capability-token --ws-token-sha256 <hex>` and send the raw token only through the ws upgrade Authorization header (see Security model section).
 - **Phone never connects directly to app-server.** Always via Happy's encrypted relay.
 
 ## References
