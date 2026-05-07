@@ -239,6 +239,7 @@ afterEach(async () => {
         try { socket.close(); } catch { /* ignore */ }
     }
     await Promise.all(activeWsServers.splice(0).map((server) => closeWsServer(server)));
+    (process.kill as typeof process.kill & { mockRestore?: () => void }).mockRestore?.();
 });
 
 async function waitFor(predicate: () => boolean, timeoutMs: number = 1000): Promise<void> {
@@ -321,7 +322,24 @@ describe('CodexAppServerClient sandbox integration', () => {
     beforeEach(() => {
         mockConfiguration.happyHomeDir = mkdtempSync(join(tmpdir(), 'happy-codex-discovery-'));
         Object.defineProperty(process, 'platform', { value: 'linux' });
-        vi.clearAllMocks();
+        mockExecSync.mockReset();
+        mockInitializeSandbox.mockReset();
+        mockWrapForMcpTransport.mockReset();
+        mockSandboxCleanup.mockReset();
+        mockSpawn.mockReset();
+        mockPickFreeLoopbackPort.mockReset();
+        mockOpenSync.mockReset();
+        mockCloseSync.mockReset();
+        mockLogger.debug.mockClear();
+        mockLogger.info.mockClear();
+        mockLogger.warn.mockClear();
+        mockWriteDiscoveryRecord.mockReset();
+        mockWriteDiscoveryRecord.mockImplementation((path: string, record: CodexDiscoveryRecord) => {
+            const fs = require('node:fs') as typeof import('node:fs');
+            const pathModule = require('node:path') as typeof import('node:path');
+            fs.mkdirSync(pathModule.dirname(path), { recursive: true });
+            fs.writeFileSync(path, `${JSON.stringify(record, null, 2)}\n`, { mode: 0o600 });
+        });
         process.env.RUST_LOG = originalRustLog;
         mockExecSync.mockImplementation((cmd: string) => {
             if (cmd === 'codex --version') return 'codex-cli 0.107.0';
@@ -479,6 +497,240 @@ describe('CodexAppServerClient sandbox integration', () => {
         expect(existsSync(lockFilePath())).toBe(false);
 
         closeSpy.mockRestore();
+    });
+
+    it('reattaches to a persisted ws app-server using the recorded token', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const requests: MockRpcMessage[] = [];
+        const token = 'persisted-token';
+        const { wss } = await createMockWsAppServer({
+            pid: 4321,
+            verifyClient: (info, done) => done(bearerToken(info.req.headers) === token),
+            onRequest: (msg) => requests.push(msg),
+        });
+        const record = testDiscoveryRecord({
+            pid: 4321,
+            port: (wss.address() as AddressInfo).port,
+            capabilityToken: token,
+            capabilityTokenSha256: sha256hex(token),
+        });
+        writeDiscoveryRecord(discoveryFilePath(), record);
+        let terminated = false;
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: string | number) => {
+            if (pid !== record.pid) return true;
+            if (signal === 'SIGTERM') {
+                terminated = true;
+                return true;
+            }
+            if (signal === 0 && terminated) {
+                const error = new Error('dead') as NodeJS.ErrnoException;
+                error.code = 'ESRCH';
+                throw error;
+            }
+            return true;
+        }) as typeof process.kill);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+
+        await client.connect();
+
+        expect(mockSpawn).not.toHaveBeenCalled();
+        expect(requests.filter((msg) => msg.method === 'initialize')).toHaveLength(1);
+        expect((client as any).wsAppServerOwner).toBe('attached');
+        expect((client as any).currentDiscovery).toEqual(record);
+        expect((client as any).processEpoch).toBe(1);
+
+        await client.disconnect({ terminateAppServer: true });
+        expect(killSpy).toHaveBeenCalledWith(record.pid, 'SIGTERM');
+        expect(existsSync(discoveryFilePath())).toBe(false);
+        killSpy.mockRestore();
+    });
+
+    it('falls through to spawn when a persisted PID is dead without sending a reattach initialize', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const record = testDiscoveryRecord({ pid: 4322 });
+        writeDiscoveryRecord(discoveryFilePath(), record);
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: string | number) => {
+            if (pid === record.pid && signal === 0) {
+                const error = new Error('dead') as NodeJS.ErrnoException;
+                error.code = 'ESRCH';
+                throw error;
+            }
+            return true;
+        }) as typeof process.kill);
+        const spawnedRequests: MockRpcMessage[] = [];
+        await mockNextAppServer('ws', { pid: 4323, onRequest: (msg) => spawnedRequests.push(msg) });
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+
+        await client.connect();
+
+        expect(mockSpawn).toHaveBeenCalledTimes(1);
+        expect(spawnedRequests.filter((msg) => msg.method === 'initialize')).toHaveLength(1);
+        expect(readDiscoveryRecord(discoveryFilePath())?.pid).toBe(4323);
+
+        await client.disconnect();
+        killSpy.mockRestore();
+    });
+
+    it('deletes probe-failed discovery records and falls through to spawn without throwing', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const denied = await createMockWsAppServer({
+            pid: 4324,
+            verifyClient: (_info, done) => done(false, 401, 'Unauthorized'),
+        });
+        const record = testDiscoveryRecord({ pid: 4324, port: (denied.wss.address() as AddressInfo).port });
+        writeDiscoveryRecord(discoveryFilePath(), record);
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: string | number) => {
+            if (pid === record.pid && signal === 0) return true;
+            return true;
+        }) as typeof process.kill);
+        await mockNextAppServer('ws', { pid: 4325 });
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+
+        await expect(client.connect()).resolves.toBeUndefined();
+
+        expect(mockSpawn).toHaveBeenCalledTimes(1);
+        expect(readDiscoveryRecord(discoveryFilePath())?.pid).toBe(4325);
+
+        await client.disconnect();
+        killSpy.mockRestore();
+    });
+
+    it('deletes ws-refused discovery records and falls through to spawn without throwing', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const closedServer = createServer();
+        await new Promise<void>((resolve) => closedServer.listen(0, '127.0.0.1', resolve));
+        const refusedPort = (closedServer.address() as AddressInfo).port;
+        await new Promise<void>((resolve) => closedServer.close(() => resolve()));
+        const record = testDiscoveryRecord({ pid: 4332, port: refusedPort });
+        writeDiscoveryRecord(discoveryFilePath(), record);
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: string | number) => {
+            if (pid === record.pid && signal === 0) return true;
+            return true;
+        }) as typeof process.kill);
+        await mockNextAppServer('ws', { pid: 4333 });
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+
+        await expect(client.connect()).resolves.toBeUndefined();
+
+        expect(mockSpawn).toHaveBeenCalledTimes(1);
+        expect(readDiscoveryRecord(discoveryFilePath())?.pid).toBe(4333);
+
+        await client.disconnect();
+        killSpy.mockRestore();
+    });
+
+    it('falls through to spawn when reattach initialize times out and terminates the old PID', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const reattachRequests: MockRpcMessage[] = [];
+        const attached = await createMockWsAppServer({
+            pid: 4326,
+            initializeDelayMs: 5_000,
+            onRequest: (msg) => reattachRequests.push(msg),
+        });
+        const record = testDiscoveryRecord({ pid: 4326, port: (attached.wss.address() as AddressInfo).port });
+        writeDiscoveryRecord(discoveryFilePath(), record);
+        let terminated = false;
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: string | number) => {
+            if (pid !== record.pid) return true;
+            if (signal === 'SIGTERM') {
+                terminated = true;
+                return true;
+            }
+            if (signal === 0 && terminated) {
+                const error = new Error('dead') as NodeJS.ErrnoException;
+                error.code = 'ESRCH';
+                throw error;
+            }
+            return true;
+        }) as typeof process.kill);
+        const spawnedRequests: MockRpcMessage[] = [];
+        await mockNextAppServer('ws', { pid: 4327, onRequest: (msg) => spawnedRequests.push(msg) });
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+
+        await client.connect();
+
+        expect(reattachRequests.filter((msg) => msg.method === 'initialize')).toHaveLength(1);
+        expect(spawnedRequests.filter((msg) => msg.method === 'initialize')).toHaveLength(1);
+        expect(killSpy).toHaveBeenCalledWith(record.pid, 'SIGTERM');
+        expect(readDiscoveryRecord(discoveryFilePath())?.pid).toBe(4327);
+
+        await client.disconnect();
+        killSpy.mockRestore();
+    }, 8_000);
+
+    it('terminates alive version-mismatched records without initialize before spawning', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const reattachRequests: MockRpcMessage[] = [];
+        const attached = await createMockWsAppServer({ pid: 4328, onRequest: (msg) => reattachRequests.push(msg) });
+        const record = testDiscoveryRecord({
+            pid: 4328,
+            port: (attached.wss.address() as AddressInfo).port,
+            happyCliVersion: '0.0.0-old',
+        });
+        writeDiscoveryRecord(discoveryFilePath(), record);
+        let terminated = false;
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: string | number) => {
+            if (pid !== record.pid) return true;
+            if (signal === 'SIGTERM') {
+                terminated = true;
+                return true;
+            }
+            if (signal === 0 && terminated) {
+                const error = new Error('dead') as NodeJS.ErrnoException;
+                error.code = 'ESRCH';
+                throw error;
+            }
+            return true;
+        }) as typeof process.kill);
+        await mockNextAppServer('ws', { pid: 4329 });
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+
+        await client.connect();
+
+        expect(reattachRequests.filter((msg) => msg.method === 'initialize')).toHaveLength(0);
+        expect(killSpy).toHaveBeenCalledWith(record.pid, 'SIGTERM');
+        expect(readDiscoveryRecord(discoveryFilePath())?.pid).toBe(4329);
+
+        await client.disconnect();
+        killSpy.mockRestore();
+    });
+
+    it('deletes dead version-mismatched records before spawning', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const record = testDiscoveryRecord({ pid: 4330, happyCliVersion: '0.0.0-old' });
+        writeDiscoveryRecord(discoveryFilePath(), record);
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: string | number) => {
+            if (pid === record.pid && signal === 0) {
+                const error = new Error('dead') as NodeJS.ErrnoException;
+                error.code = 'ESRCH';
+                throw error;
+            }
+            return true;
+        }) as typeof process.kill);
+        await mockNextAppServer('ws', { pid: 4331 });
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+
+        await client.connect();
+
+        expect(mockSpawn).toHaveBeenCalledTimes(1);
+        expect(readDiscoveryRecord(discoveryFilePath())?.pid).toBe(4331);
+
+        await client.disconnect();
+        killSpy.mockRestore();
     });
 
     it('rejects ws auth failure immediately without retrying the spawn loop', async () => {
@@ -1706,7 +1958,13 @@ describe('CodexAppServerClient sandbox integration', () => {
         const failPort = 39999;
         const bindRetryLogPath = join(tmpdir(), 'codex-app-server-bind-retry-test.log');
         mockPickFreeLoopbackPort.mockResolvedValueOnce(failPort);
-        mockSpawn.mockImplementationOnce(() => failProc);
+        mockSpawn.mockImplementationOnce(() => {
+            queueMicrotask(() => {
+                writeFileSync(bindRetryLogPath, 'error binding address: address already in use\n');
+                failProc.emit('exit', 1, null);
+            });
+            return failProc;
+        });
 
         // Second spawn: real ws server that handles the initialize handshake.
         const { proc: successProc, wss } = await createMockWsAppServer({ pid: 8002 });
@@ -1719,15 +1977,7 @@ describe('CodexAppServerClient sandbox integration', () => {
             logFilePath: bindRetryLogPath,
         });
 
-        const connectPromise = client.connect();
-
-        // Emit bind-error into the log file then exit the first child.
-        queueMicrotask(() => {
-            writeFileSync(bindRetryLogPath, 'error binding address: address already in use\n');
-            queueMicrotask(() => failProc.emit('exit', 1, null));
-        });
-
-        await expect(connectPromise).resolves.toBeUndefined();
+        await expect(client.connect()).resolves.toBeUndefined();
         expect(mockPickFreeLoopbackPort).toHaveBeenCalledTimes(2);
         expect(mockSpawn).toHaveBeenCalledTimes(2);
         expect(mockSpawn).toHaveBeenNthCalledWith(1,
