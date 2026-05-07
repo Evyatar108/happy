@@ -49,6 +49,7 @@ import {
     deleteDiscoveryIfMatches,
     DISCOVERY_FILE_VERSION,
     discoveryFilePath,
+    type DiscoveryLock,
     isPidAlive,
     lockFilePath,
     readDiscoveryRecord,
@@ -72,6 +73,16 @@ export type CodexAppServerClientOptions = {
     transport?: CodexAppServerTransport;
     transportSource?: CodexAppServerTransportSource;
     logFilePath?: string;
+};
+
+type ConnectOptions = {
+    skipDiscovery?: boolean;
+    heldLock?: DiscoveryLock;
+};
+
+type ReconnectOptions = {
+    terminateAppServer?: boolean;
+    skipDiscovery?: boolean;
 };
 
 export type ApprovalHandler = (params: {
@@ -698,7 +709,11 @@ export class CodexAppServerClient {
         }
     }
 
-    async connect(): Promise<void> {
+    async connect(opts?: ConnectOptions): Promise<void> {
+        const skipDiscovery = opts?.skipDiscovery ?? false;
+        if (opts?.heldLock && !skipDiscovery) {
+            throw new Error('connect({ heldLock }) requires skipDiscovery: true');
+        }
         if (this.connected) return;
 
         if (!isAppServerAvailable()) {
@@ -781,11 +796,14 @@ export class CodexAppServerClient {
 
         const WS_SPAWN_MAX_RETRIES = 2;
         let spawnedDiscoveryRecord: CodexDiscoveryRecord | null = null;
-        const discoveryLock = transport === 'ws' ? await acquireDiscoveryLock(lockFilePath()) : null;
+        const ownsDiscoveryLock = transport === 'ws' && !opts?.heldLock;
+        const discoveryLock = transport === 'ws'
+            ? opts?.heldLock ?? await acquireDiscoveryLock(lockFilePath())
+            : null;
         let failureAlreadyCleanedUp = false;
         try {
             if (transport === 'ws') {
-                if (await this.tryReattach(initParams)) {
+                if (!skipDiscovery && await this.tryReattach(initParams)) {
                     return;
                 }
 
@@ -914,7 +932,9 @@ export class CodexAppServerClient {
             this.connected = true;
             logger.debug('[CodexAppServer] Connected and initialized');
         } finally {
-            await discoveryLock?.release();
+            if (ownsDiscoveryLock) {
+                await discoveryLock?.release();
+            }
         }
     }
 
@@ -1083,10 +1103,17 @@ export class CodexAppServerClient {
         return { threadId: result.thread.id, model: result.model };
     }
 
-    async reconnectAndResumeThread(): Promise<boolean> {
+    async reconnectAndResumeThread(opts?: ReconnectOptions): Promise<boolean> {
         const threadId = this._threadId;
-        await this.disconnectInternal({ preserveThreadState: !!threadId });
-        await this.connect();
+        const terminateAppServer = opts?.terminateAppServer ?? false;
+        const skipDiscovery = opts?.skipDiscovery ?? false;
+        const lock = this.transport === 'ws' && skipDiscovery ? await acquireDiscoveryLock(lockFilePath()) : null;
+        try {
+            await this.disconnectInternal({ preserveThreadState: !!threadId, terminateAppServer });
+            await this.connect(lock ? { skipDiscovery, heldLock: lock } : { skipDiscovery });
+        } finally {
+            await lock?.release();
+        }
 
         if (!threadId) {
             return false;
@@ -1204,7 +1231,7 @@ export class CodexAppServerClient {
                 forced_restart: true,
             });
         }
-        const resumedThread = await this.reconnectAndResumeThread();
+        const resumedThread = await this.reconnectAndResumeThread({ terminateAppServer: true, skipDiscovery: true });
         return { hadActiveTurn: true, aborted: true, forcedRestart: true, resumedThread };
     }
 

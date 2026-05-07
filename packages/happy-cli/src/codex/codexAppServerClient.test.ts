@@ -9,7 +9,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import WebSocket, { WebSocketServer, type WebSocket as ServerWebSocket } from 'ws';
 import type { SandboxConfig } from '@/persistence';
 import type { CodexAppServerTransport } from './codexAppServerClient';
-import { deleteDiscoveryIfMatches, discoveryFilePath, lockFilePath, readDiscoveryRecord, writeDiscoveryRecord, type CodexDiscoveryRecord } from './codexAppServerDiscovery';
+import { acquireDiscoveryLock, deleteDiscoveryIfMatches, discoveryFilePath, lockFilePath, readDiscoveryRecord, writeDiscoveryRecord, type CodexDiscoveryRecord } from './codexAppServerDiscovery';
 import packageJson from '../../package.json';
 
 const {
@@ -731,6 +731,130 @@ describe('CodexAppServerClient sandbox integration', () => {
 
         await client.disconnect({ terminateAppServer: true });
         killSpy.mockRestore();
+    });
+
+    it('force-restarts from attached state under the held discovery lock and respawns', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const attached = await createMockWsAppServer({ pid: 4334 });
+        const record = testDiscoveryRecord({ pid: 4334, port: (attached.wss.address() as AddressInfo).port });
+        writeDiscoveryRecord(discoveryFilePath(), record);
+        let terminated = false;
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: string | number) => {
+            if (pid !== record.pid) return true;
+            if (signal === 'SIGTERM') {
+                terminated = true;
+                return true;
+            }
+            if (signal === 0 && terminated) {
+                const error = new Error('dead') as NodeJS.ErrnoException;
+                error.code = 'ESRCH';
+                throw error;
+            }
+            return true;
+        }) as typeof process.kill);
+        await mockNextAppServer('ws', { pid: 4335 });
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+        await client.connect();
+        expect(mockSpawn).not.toHaveBeenCalled();
+
+        await client.reconnectAndResumeThread({ terminateAppServer: true, skipDiscovery: true });
+
+        expect(killSpy).toHaveBeenCalledWith(record.pid, 'SIGTERM');
+        expect(mockSpawn).toHaveBeenCalledTimes(1);
+        expect(readDiscoveryRecord(discoveryFilePath())?.pid).toBe(4335);
+
+        await client.disconnect({ terminateAppServer: true });
+        killSpy.mockRestore();
+    });
+
+    it('forwards reconnect options and the held discovery lock into inner lifecycle calls', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+        const disconnectSpy = vi.spyOn(client as any, 'disconnectInternal').mockResolvedValue(undefined);
+        const connectSpy = vi.spyOn(client, 'connect').mockResolvedValue(undefined);
+
+        await client.reconnectAndResumeThread({ terminateAppServer: true, skipDiscovery: true });
+
+        expect(disconnectSpy).toHaveBeenCalledWith({ preserveThreadState: false, terminateAppServer: true });
+        expect(connectSpy).toHaveBeenCalledWith({
+            skipDiscovery: true,
+            heldLock: expect.objectContaining({ release: expect.any(Function) }),
+        });
+        expect(existsSync(lockFilePath())).toBe(false);
+    });
+
+    it('blocks a concurrent connect on the force-restart lock until respawn writes discovery', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        let markDisconnectStarted!: () => void;
+        const disconnectStarted = new Promise<void>((resolve) => {
+            markDisconnectStarted = resolve;
+        });
+        let disconnectCanFinish!: () => void;
+        const disconnectPause = new Promise<void>((resolve) => {
+            disconnectCanFinish = resolve;
+        });
+        await mockNextAppServer('ws', { pid: 4336 });
+        let terminated = false;
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: string | number) => {
+            if (pid !== 4336) return true;
+            if (signal === 'SIGTERM') {
+                terminated = true;
+                return true;
+            }
+            if (signal === 0 && terminated) {
+                const error = new Error('dead') as NodeJS.ErrnoException;
+                error.code = 'ESRCH';
+                throw error;
+            }
+            return true;
+        }) as typeof process.kill);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const clientA = new CodexAppServerClient(undefined, { transport: 'ws' });
+        const clientB = new CodexAppServerClient(undefined, { transport: 'ws' });
+        vi.spyOn(clientA as any, 'disconnectInternal').mockImplementation(async () => {
+            markDisconnectStarted();
+            await disconnectPause;
+        });
+
+        const forceRestart = clientA.reconnectAndResumeThread({ terminateAppServer: true, skipDiscovery: true });
+        await disconnectStarted;
+        expect(existsSync(lockFilePath())).toBe(true);
+
+        const blockedConnect = clientB.connect();
+        const earlyResult = await Promise.race([
+            blockedConnect.then(() => 'connected'),
+            new Promise<'blocked'>((resolve) => setTimeout(() => resolve('blocked'), 100)),
+        ]);
+        expect(earlyResult).toBe('blocked');
+        expect(mockSpawn).not.toHaveBeenCalled();
+
+        disconnectCanFinish();
+        await forceRestart;
+        await blockedConnect;
+
+        expect(mockSpawn).toHaveBeenCalledTimes(1);
+        expect(readDiscoveryRecord(discoveryFilePath())?.pid).toBe(4336);
+
+        await clientA.disconnect({ terminateAppServer: false });
+        await clientB.disconnect({ terminateAppServer: true });
+        killSpy.mockRestore();
+    });
+
+    it('rejects connect when a held discovery lock is supplied without skipDiscovery', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const lock = await acquireDiscoveryLock(lockFilePath());
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+
+        try {
+            await expect(client.connect({ heldLock: lock, skipDiscovery: false })).rejects.toThrow(/requires skipDiscovery: true/);
+        } finally {
+            await lock.release();
+        }
     });
 
     it('rejects ws auth failure immediately without retrying the spawn loop', async () => {
