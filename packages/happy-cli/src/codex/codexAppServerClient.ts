@@ -479,6 +479,14 @@ export class CodexAppServerClient {
         try { closeSync(fd); } catch { /* ignore */ }
     }
 
+    private clearWsChildState(): void {
+        this.wsChild?.removeAllListeners();
+        this.wsChildExitHandlers.clear();
+        this.wsChild = null;
+        this.wsChildExited = true;
+        this.closeWsLogFd();
+    }
+
     private waitForWsChildExit(timeoutMs: number): Promise<boolean> {
         if (!this.wsChild || this.wsChildExited) {
             return Promise.resolve(true);
@@ -529,7 +537,11 @@ export class CodexAppServerClient {
         const exitedAfterTerm = await this.waitForPidExit(record.pid, 2_000);
         if (!exitedAfterTerm) {
             try { process.kill(record.pid, 'SIGKILL'); } catch { /* ignore */ }
-            await this.waitForPidExit(record.pid, 1_000).catch(() => false);
+            const exitedAfterKill = await this.waitForPidExit(record.pid, 1_000).catch(() => false);
+            if (!exitedAfterKill) {
+                logger.warn(`[CodexAppServer] Failed to confirm PID ${record.pid} dead after SIGKILL grace; preserving discovery for probe-and-reclaim`);
+                throw new Error(`terminateAttachedAppServer: PID ${record.pid} did not exit after SIGKILL grace`);
+            }
         }
         deleteDiscoveryIfMatches(discoveryFilePath(), { pid: record.pid, startedAt: record.startedAt });
     }
@@ -549,7 +561,12 @@ export class CodexAppServerClient {
             const exitedAfterTerm = await this.waitForWsChildExit(2_000);
             if (!exitedAfterTerm && !this.wsChildExited) {
                 try { child.kill('SIGKILL'); } catch { /* ignore */ }
-                await this.waitForWsChildExit(1_000);
+                const exitedAfterKill = await this.waitForWsChildExit(1_000);
+                if (!exitedAfterKill && !this.wsChildExited) {
+                    const pidLabel = typeof child.pid === 'number' ? child.pid : 'unknown';
+                    logger.warn(`[CodexAppServer] Failed to confirm spawned ws child PID ${pidLabel} dead after SIGKILL grace; preserving discovery for probe-and-reclaim`);
+                    throw new Error(`closeWsChild: spawned PID ${pidLabel} did not exit after SIGKILL grace`);
+                }
             }
         }
 
@@ -626,7 +643,10 @@ export class CodexAppServerClient {
             this.resolvePendingTurn(true);
             this.wsAppServerOwner = null;
             this.currentDiscovery = null;
-            void this.closeWsChild();
+            void this.closeWsChild().catch((err) => {
+                logger.warn('[CodexAppServer] closeWsChild failed in onClose:', err);
+                this.clearWsChildState();
+            });
         });
 
         candidate.onMessage((msg) => {
@@ -676,11 +696,12 @@ export class CodexAppServerClient {
             try {
                 await probe.open();
                 await probe.close().catch(() => undefined);
-                await this.terminateAttachedAppServer(record);
             } catch {
                 await probe.close().catch(() => undefined);
                 deleteStaleRecord();
+                return false;
             }
+            await this.terminateAttachedAppServer(record);
             return false;
         }
 
@@ -720,14 +741,17 @@ export class CodexAppServerClient {
             const killTarget = { pid: record.pid, startedAt: record.startedAt };
             this.wsIntentionalClose = true;
             try {
-                this.rejectPendingForEpoch(epoch, 'initialize', error instanceof Error ? error : new Error(String(error)));
-                await candidate.close().catch(() => undefined);
-                await this.terminateAttachedAppServer(record);
-                deleteDiscoveryIfMatches(discoveryFilePath(), killTarget);
-                this.connection = null;
-                this.wsAppServerOwner = null;
-                this.currentDiscovery = null;
-                this.connected = false;
+                try {
+                    this.rejectPendingForEpoch(epoch, 'initialize', error instanceof Error ? error : new Error(String(error)));
+                    await candidate.close().catch(() => undefined);
+                    await this.terminateAttachedAppServer(record);
+                    deleteDiscoveryIfMatches(discoveryFilePath(), killTarget);
+                } finally {
+                    this.connection = null;
+                    this.wsAppServerOwner = null;
+                    this.currentDiscovery = null;
+                    this.connected = false;
+                }
             } finally {
                 this.wsIntentionalClose = false;
             }
@@ -866,7 +890,14 @@ export class CodexAppServerClient {
                         break;
                     } catch (error) {
                         await candidate.close().catch(() => undefined);
-                        await this.closeWsChild();
+                        try {
+                            await this.closeWsChild();
+                        } catch (killError) {
+                            this.clearWsChildState();
+                            this.wsAppServerOwner = null;
+                            this.connection = null;
+                            throw killError;
+                        }
                         this.wsAppServerOwner = null;
                         this.connection = null;
                         if (attempt < WS_SPAWN_MAX_RETRIES && this.isWsBindError()) {
@@ -948,7 +979,15 @@ export class CodexAppServerClient {
             } catch (error) {
                 if (!failureAlreadyCleanedUp) {
                     await this.connection?.close().catch(() => undefined);
-                    await this.closeWsChild();
+                    try {
+                        await this.closeWsChild();
+                    } catch (killError) {
+                        this.clearWsChildState();
+                        this.wsAppServerOwner = null;
+                        this.currentDiscovery = null;
+                        this.connection = null;
+                        throw killError;
+                    }
                     this.wsAppServerOwner = null;
                     this.currentDiscovery = null;
                     this.connection = null;
@@ -998,39 +1037,41 @@ export class CodexAppServerClient {
             }
         } finally {
             this.wsIntentionalClose = false;
-        }
+            this.connection = null;
+            this.wsAppServerOwner = null;
+            this.currentDiscovery = null;
+            this.connected = false;
+            this._turnId = null;
+            this.notificationProtocol = 'unknown';
+            this.completedTurnIds.clear();
+            if (!opts?.preserveThreadState) {
+                this._threadId = null;
+                this.threadDefaults = null;
+            }
 
-        this.connection = null;
-        this.wsAppServerOwner = null;
-        this.currentDiscovery = null;
-        this.connected = false;
-        this._turnId = null;
-        this.notificationProtocol = 'unknown';
-        this.completedTurnIds.clear();
-        if (!opts?.preserveThreadState) {
-            this._threadId = null;
-            this.threadDefaults = null;
-        }
+            this.clearWsChildState();
 
-        // Fail in-flight requests from this process generation.
-        for (const [id, req] of this.pending) {
-            if (req.epoch !== epoch) continue;
-            req.reject(new Error(`Codex process disconnected while waiting for ${req.method}`));
-            this.pending.delete(id);
-        }
+            for (const [id, req] of this.pending) {
+                if (req.epoch !== epoch) continue;
+                req.reject(new Error(`Codex process disconnected while waiting for ${req.method}`));
+                this.pending.delete(id);
+            }
 
-        // Resolve pending turn completion (treat as abort)
-        this.resolvePendingTurn(true);
+            this.resolvePendingTurn(true);
 
-        if (this.sandboxCleanup) {
-            try { await this.sandboxCleanup(); } catch { /* ignore */ }
-            this.sandboxCleanup = null;
+            if (this.sandboxCleanup) {
+                try { await this.sandboxCleanup(); } catch { /* ignore */ }
+                this.sandboxCleanup = null;
+            }
+            this.sandboxEnabled = false;
         }
-        this.sandboxEnabled = false;
 
         logger.debug('[CodexAppServer] Disconnected');
     }
 
+    /**
+     * May reject if terminateAppServer: true and the OS PID cannot be confirmed dead within SIGKILL grace; the discovery file is preserved for the next invocation to probe-and-reclaim. In-memory state is fully cleared regardless.
+     */
     async disconnect(opts?: { terminateAppServer?: boolean }): Promise<void> {
         await this.disconnectInternal(opts);
     }

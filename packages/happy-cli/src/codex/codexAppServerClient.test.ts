@@ -2169,6 +2169,205 @@ describe('CodexAppServerClient sandbox integration', () => {
         killSpy.mockRestore();
     });
 
+    it('throws and preserves discovery when an attached PID cannot be confirmed dead', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const record = testDiscoveryRecord({ pid: 7502 });
+        writeDiscoveryRecord(discoveryFilePath(), record);
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation((() => true) as typeof process.kill);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+        vi.spyOn(client as any, 'waitForPidExit').mockResolvedValue(false);
+
+        await expect((client as any).terminateAttachedAppServer(record)).rejects.toThrow(/PID 7502 did not exit/);
+        expect(existsSync(discoveryFilePath())).toBe(true);
+        expect(killSpy).toHaveBeenCalledWith(record.pid, 'SIGTERM');
+        expect(killSpy).toHaveBeenCalledWith(record.pid, 'SIGKILL');
+        killSpy.mockRestore();
+    });
+
+    it('rejects disconnect, preserves discovery, and clears state when attached termination fails', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const record = testDiscoveryRecord({ pid: 7503 });
+        writeDiscoveryRecord(discoveryFilePath(), record);
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation((() => true) as typeof process.kill);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+        vi.spyOn(client as any, 'waitForPidExit').mockResolvedValue(false);
+        (client as any).connected = true;
+        (client as any).connection = { close: vi.fn().mockResolvedValue(undefined) };
+        (client as any).wsAppServerOwner = 'attached';
+        (client as any).currentDiscovery = record;
+
+        await expect(client.disconnect({ terminateAppServer: true })).rejects.toThrow(/PID 7503 did not exit/);
+        expect(existsSync(discoveryFilePath())).toBe(true);
+        expect((client as any).connected).toBe(false);
+        expect((client as any).wsAppServerOwner).toBeNull();
+        expect((client as any).currentDiscovery).toBeNull();
+        expect((client as any).connection).toBeNull();
+        killSpy.mockRestore();
+    });
+
+    it('rejects force-restart, releases the lock, and preserves discovery when attached termination fails', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const record = testDiscoveryRecord({ pid: 7504 });
+        writeDiscoveryRecord(discoveryFilePath(), record);
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation((() => true) as typeof process.kill);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+        vi.spyOn(client as any, 'waitForPidExit').mockResolvedValue(false);
+        (client as any).connected = true;
+        (client as any).connection = { close: vi.fn().mockResolvedValue(undefined) };
+        (client as any).wsAppServerOwner = 'attached';
+        (client as any).currentDiscovery = record;
+
+        await expect(client.reconnectAndResumeThread({ terminateAppServer: true, skipDiscovery: true })).rejects.toThrow(/PID 7504 did not exit/);
+        const lock = await acquireDiscoveryLockWithin(200);
+        await lock.release();
+        expect(existsSync(discoveryFilePath())).toBe(true);
+        killSpy.mockRestore();
+    });
+
+    it('propagates version-mismatch termination failure without replacing preserved discovery', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const attached = await createMockWsAppServer({ pid: 7505 });
+        const record = testDiscoveryRecord({
+            pid: 7505,
+            port: (attached.wss.address() as AddressInfo).port,
+            happyCliVersion: '0.0.0-old',
+        });
+        writeDiscoveryRecord(discoveryFilePath(), record);
+        mockWriteDiscoveryRecord.mockClear();
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: string | number) => {
+            if (pid === record.pid && signal === 0) return true;
+            return true;
+        }) as typeof process.kill);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+        vi.spyOn(client as any, 'waitForPidExit').mockResolvedValue(false);
+
+        await expect(client.connect()).rejects.toThrow(/PID 7505 did not exit/);
+        expect(mockSpawn).not.toHaveBeenCalled();
+        expect(mockWriteDiscoveryRecord).not.toHaveBeenCalled();
+        expect(readDiscoveryRecord(discoveryFilePath())).toEqual(record);
+        killSpy.mockRestore();
+    });
+
+    it('keeps probe-failure version-mismatch behavior: delete stale record and spawn without throwing', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const denied = await createMockWsAppServer({
+            pid: 7506,
+            verifyClient: (_info, done) => done(false, 401, 'Unauthorized'),
+        });
+        const record = testDiscoveryRecord({
+            pid: 7506,
+            port: (denied.wss.address() as AddressInfo).port,
+            happyCliVersion: '0.0.0-old',
+        });
+        writeDiscoveryRecord(discoveryFilePath(), record);
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: string | number) => {
+            if (pid === record.pid && signal === 0) return true;
+            return true;
+        }) as typeof process.kill);
+        await mockNextAppServer('ws', { pid: 7507 });
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+
+        await expect(client.connect()).resolves.toBeUndefined();
+        expect(mockSpawn).toHaveBeenCalledTimes(1);
+        expect(readDiscoveryRecord(discoveryFilePath())?.pid).toBe(7507);
+
+        await client.disconnect({ terminateAppServer: true });
+        killSpy.mockRestore();
+    });
+
+    it('propagates reattach initialize termination failure and clears candidate state', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const attached = await createMockWsAppServer({
+            pid: 7508,
+            autoInitialize: false,
+            onRequest: (msg, send) => {
+                if (msg.method === 'initialize' && msg.id != null) {
+                    send({ id: msg.id, error: { code: -32000, message: 'initialize failed' } });
+                }
+            },
+        });
+        const record = testDiscoveryRecord({ pid: 7508, port: (attached.wss.address() as AddressInfo).port });
+        writeDiscoveryRecord(discoveryFilePath(), record);
+        mockWriteDiscoveryRecord.mockClear();
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: string | number) => {
+            if (pid === record.pid && signal === 0) return true;
+            return true;
+        }) as typeof process.kill);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+        const originalCreate = (client as any).createAttachedWsConnection;
+        let closeSpy: ReturnType<typeof vi.spyOn> | undefined;
+        vi.spyOn(client as any, 'createAttachedWsConnection').mockImplementation((candidateRecord: unknown) => {
+            const candidate = originalCreate.call(client, candidateRecord as CodexDiscoveryRecord);
+            closeSpy = vi.spyOn(candidate, 'close');
+            return candidate;
+        });
+        vi.spyOn(client as any, 'waitForPidExit').mockResolvedValue(false);
+
+        await expect(client.connect()).rejects.toThrow(/PID 7508 did not exit/);
+        expect(closeSpy).toHaveBeenCalled();
+        expect(mockWriteDiscoveryRecord).not.toHaveBeenCalled();
+        expect(mockSpawn).not.toHaveBeenCalled();
+        expect((client as any).connection).toBeNull();
+        expect((client as any).wsAppServerOwner).toBeNull();
+        expect((client as any).currentDiscovery).toBeNull();
+        expect((client as any).connected).toBe(false);
+        killSpy.mockRestore();
+    });
+
+    it('rejects spawned-owner kill failures, preserves discovery, clears state, and releases reconnect lock', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation((() => true) as typeof process.kill);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+
+        const first = await createMockWsAppServer({ pid: 7509 });
+        first.proc.kill.mockImplementation(() => true);
+        mockPickFreeLoopbackPort.mockResolvedValueOnce((first.wss.address() as AddressInfo).port);
+        mockSpawn.mockImplementationOnce(() => first.proc);
+        const disconnectClient = new CodexAppServerClient(undefined, { transport: 'ws' });
+        await disconnectClient.connect();
+        const firstRecord = readDiscoveryRecord(discoveryFilePath());
+        vi.spyOn(disconnectClient as any, 'waitForWsChildExit').mockResolvedValue(false);
+
+        await expect(disconnectClient.disconnect({ terminateAppServer: true })).rejects.toThrow(/spawned PID 7509 did not exit/);
+        expect(readDiscoveryRecord(discoveryFilePath())).toEqual(firstRecord);
+        expect((disconnectClient as any).connection).toBeNull();
+        expect((disconnectClient as any).wsAppServerOwner).toBeNull();
+        expect((disconnectClient as any).currentDiscovery).toBeNull();
+        expect((disconnectClient as any).connected).toBe(false);
+
+        const second = await createMockWsAppServer({ pid: 7510 });
+        second.proc.kill.mockImplementation(() => true);
+        mockPickFreeLoopbackPort.mockResolvedValueOnce((second.wss.address() as AddressInfo).port);
+        mockSpawn.mockImplementationOnce(() => second.proc);
+        const reconnectClient = new CodexAppServerClient(undefined, { transport: 'ws' });
+        await reconnectClient.connect({ skipDiscovery: true });
+        const secondRecord = readDiscoveryRecord(discoveryFilePath());
+        vi.spyOn(reconnectClient as any, 'waitForWsChildExit').mockResolvedValue(false);
+
+        await expect(reconnectClient.reconnectAndResumeThread({ terminateAppServer: true, skipDiscovery: true })).rejects.toThrow(/spawned PID 7510 did not exit/);
+        const lock = await acquireDiscoveryLockWithin(200);
+        await lock.release();
+        expect(readDiscoveryRecord(discoveryFilePath())).toEqual(secondRecord);
+        expect((reconnectClient as any).connection).toBeNull();
+        expect((reconnectClient as any).wsAppServerOwner).toBeNull();
+        expect((reconnectClient as any).currentDiscovery).toBeNull();
+        expect((reconnectClient as any).connected).toBe(false);
+        killSpy.mockRestore();
+    });
+
     it('surfaces a ws port-pick failure and connects after a subsequent resolved pick', async () => {
         Object.defineProperty(process, 'platform', { value: 'win32' });
         mockPickFreeLoopbackPort.mockRejectedValueOnce(new Error('Failed to pick free loopback port after 3 attempts'));
