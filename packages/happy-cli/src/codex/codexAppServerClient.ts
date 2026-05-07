@@ -493,8 +493,12 @@ export class CodexAppServerClient {
         });
         this.wsChild = child;
 
+        const WS_STDERR_CAP = 65_536;
         child.stderr?.on('data', (chunk: Buffer | string) => {
             this.wsChildStderr += typeof chunk === 'string' ? chunk : chunk.toString();
+            if (this.wsChildStderr.length > WS_STDERR_CAP) {
+                this.wsChildStderr = this.wsChildStderr.slice(-WS_STDERR_CAP);
+            }
         });
 
         child.once('error', (error) => {
@@ -703,8 +707,15 @@ export class CodexAppServerClient {
                 experimentalApi: true,
             },
         };
-        await this.request('initialize', initParams);
-        this.notify('initialized');
+        try {
+            await this.request('initialize', initParams);
+            this.notify('initialized');
+        } catch (error) {
+            await this.connection?.close().catch(() => undefined);
+            await this.closeWsChild();
+            this.connection = null;
+            throw error;
+        }
         this.connected = true;
         logger.debug('[CodexAppServer] Connected and initialized');
     }
@@ -1177,23 +1188,6 @@ export class CodexAppServerClient {
         logger.debug(`[CodexAppServer] → response (id=${id})`);
     }
 
-    private handleRawLine(line: string, sourceEpoch: number = this.processEpoch): void {
-        if (sourceEpoch !== this.processEpoch) {
-            return;
-        }
-        if (!line.trim()) return;
-
-        let msg: any;
-        try {
-            msg = JSON.parse(line);
-        } catch {
-            logger.debug('[CodexAppServer] Non-JSON line:', line.substring(0, 200));
-            return;
-        }
-
-        this.handleMessage(msg, sourceEpoch);
-    }
-
     private handleMessage(msg: JsonRpcMessage, sourceEpoch: number = this.processEpoch): void {
         if (sourceEpoch !== this.processEpoch) {
             return;
@@ -1233,11 +1227,6 @@ export class CodexAppServerClient {
         logger.debug('[CodexAppServer] Unhandled message:', JSON.stringify(msg).substring(0, 300));
     }
 
-    /**
-     * Map our internal ReviewDecision to the wire format the server expects.
-     * Server uses: accept, acceptForSession, decline, cancel
-     * Our handler uses: approved, approved_for_session, denied, abort
-     */
     /**
      * Map our internal ReviewDecision to the wire format codex expects.
      * v2 methods (item/*) use: accept/acceptForSession/decline/cancel
