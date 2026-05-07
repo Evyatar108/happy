@@ -85,6 +85,10 @@ Our internal types use `approved`/`denied`/`abort`. The wire protocol uses `acce
 - `runCodex.ts` — Main loop, event/approval handler wiring
 - `executionPolicy.ts` — Maps permission modes to approval/sandbox policies
 - `sessionProtocolMapper.ts` — Events → session protocol envelopes (shared with old code)
+- `transport/JsonRpcConnection.ts` — Transport interface (`open` / `send` / `onMessage` / `onError` / `onClose` / `close`) plus the shared `JsonRpcMessage` type used by both adapters
+- `transport/stdioTransport.ts` — `StdioTransport` / `createStdioTransport`: spawns `codex app-server --listen stdio://` via `cross-spawn`, frames newline-delimited JSON over the child's stdin/stdout, drains stderr to the debug logger, and tears the child down on `close()` with a SIGTERM → SIGKILL grace
+- `transport/wsTransport.ts` — `WsTransport` / `createWsTransport`: opens a `ws://127.0.0.1:<port>` client (using the `ws` package, not the Node 22 built-in), sends the per-spawn capability token as `Authorization: Bearer <token>`, retries `ECONNREFUSED` until the handshake deadline, fails fast on `unexpected-response` (auth rejection), and bridges `message`/`error`/`close` events to the `JsonRpcConnection` callbacks
+- `utils/pickFreeLoopbackPort.ts` — Ephemeral 127.0.0.1 port helper used by the ws spawn loop: binds port `0` on `127.0.0.1` (IPv4 only), reads the assigned port, closes the listener, and retries up to 3 times on `EADDRINUSE` before throwing
 
 ## What we don't handle yet
 
