@@ -1,15 +1,18 @@
 import { EventEmitter } from 'node:events';
 import { createHash } from 'node:crypto';
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import type { IncomingHttpHeaders } from 'node:http';
 import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { WebSocketServer, type WebSocket } from 'ws';
+import WebSocket, { WebSocketServer, type WebSocket as ServerWebSocket } from 'ws';
 import type { SandboxConfig } from '@/persistence';
 import type { CodexAppServerTransport } from './codexAppServerClient';
+import { discoveryFilePath, writeDiscoveryRecord, type CodexDiscoveryRecord } from './codexAppServerDiscovery';
 
 const {
+    mockConfiguration,
     mockExecSync,
     mockInitializeSandbox,
     mockWrapForMcpTransport,
@@ -20,6 +23,9 @@ const {
     mockOpenSync,
     mockCloseSync,
 } = vi.hoisted(() => ({
+    mockConfiguration: {
+        happyHomeDir: require('node:fs').mkdtempSync(require('node:path').join(require('node:os').tmpdir(), 'happy-codex-discovery-')),
+    },
     mockExecSync: vi.fn(),
     mockInitializeSandbox: vi.fn(),
     mockWrapForMcpTransport: vi.fn(),
@@ -33,6 +39,10 @@ const {
     },
     mockOpenSync: vi.fn(),
     mockCloseSync: vi.fn(),
+}));
+
+vi.mock('@/configuration', () => ({
+    configuration: mockConfiguration,
 }));
 
 vi.mock('node:child_process', () => ({
@@ -126,6 +136,7 @@ function createMockProcess(opts?: {
         stderr,
         pid: opts?.pid ?? 12345,
         kill: vi.fn(),
+        unref: vi.fn(),
     });
     // Send initialize response immediately when stdin is written to
     const origWrite = stdin.write.bind(stdin);
@@ -146,7 +157,7 @@ function createMockProcess(opts?: {
 }
 
 const activeWsServers: WebSocketServer[] = [];
-const activeWsSockets: WebSocket[] = [];
+const activeWsSockets: ServerWebSocket[] = [];
 
 async function closeWsServer(wss: WebSocketServer): Promise<void> {
     for (const client of wss.clients) {
@@ -166,6 +177,7 @@ async function createMockWsAppServer(opts?: MockAppServerOptions) {
 
     const proc = Object.assign(new EventEmitter(), {
         pid: opts?.pid ?? 12345,
+        unref: vi.fn(),
         kill: vi.fn((signal?: NodeJS.Signals) => {
             queueMicrotask(() => proc.emit('exit', signal === 'SIGKILL' ? 1 : 0, signal ?? null));
             return true;
@@ -266,6 +278,22 @@ function sha256hex(value: string): string {
     return createHash('sha256').update(value).digest('hex');
 }
 
+function testDiscoveryRecord(overrides: Partial<CodexDiscoveryRecord> = {}): CodexDiscoveryRecord {
+    const token = 'test-token';
+    return {
+        version: 1,
+        pid: 98765,
+        port: 43210,
+        startedAt: new Date(0).toISOString(),
+        happyCliVersion: '0.0.1-test',
+        cwd: process.cwd(),
+        capabilityToken: token,
+        capabilityTokenSha256: sha256hex(token),
+        transport: 'ws',
+        ...overrides,
+    };
+}
+
 function bearerToken(headers: IncomingHttpHeaders): string {
     const value = headers.authorization;
     if (typeof value !== 'string' || !value.startsWith('Bearer ')) {
@@ -279,6 +307,7 @@ describe('CodexAppServerClient sandbox integration', () => {
     const originalPlatform = process.platform;
 
     beforeEach(() => {
+        mockConfiguration.happyHomeDir = mkdtempSync(join(tmpdir(), 'happy-codex-discovery-'));
         Object.defineProperty(process, 'platform', { value: 'linux' });
         vi.clearAllMocks();
         process.env.RUST_LOG = originalRustLog;
@@ -477,6 +506,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         const proc = Object.assign(new EventEmitter(), {
             pid: 5001,
             kill: vi.fn(),
+            unref: vi.fn(),
         });
         mockSpawn.mockImplementation(() => proc);
 
@@ -493,7 +523,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         expect(mockSpawn).toHaveBeenCalledWith(
             'codex',
             expectWsSpawnArgs('ws://127.0.0.1:30123'),
-            expect.objectContaining({ stdio: ['ignore', expect.any(Number), 'pipe'] }),
+            expect.objectContaining({ detached: true, stdio: ['ignore', expect.any(Number), expect.any(Number)] }),
         );
     });
 
@@ -1377,6 +1407,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         mockPickFreeLoopbackPort.mockResolvedValueOnce(address.port);
         const proc = Object.assign(new EventEmitter(), {
             pid: 6001,
+            unref: vi.fn(),
             kill: vi.fn((signal?: NodeJS.Signals) => {
                 queueMicrotask(() => proc.emit('exit', 0, signal ?? null));
                 return true;
@@ -1419,6 +1450,149 @@ describe('CodexAppServerClient sandbox integration', () => {
         expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
     });
 
+    it('spawns ws app-server detached and unrefs the child handle', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const { proc, wss } = await createMockWsAppServer({ pid: 7101 });
+        mockPickFreeLoopbackPort.mockResolvedValueOnce((wss.address() as AddressInfo).port);
+        mockSpawn.mockImplementationOnce(() => proc);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+
+        await client.connect();
+
+        expect(mockSpawn).toHaveBeenCalledWith(
+            'codex',
+            expectWsSpawnArgs(`ws://127.0.0.1:${(wss.address() as AddressInfo).port}`),
+            expect.objectContaining({
+                detached: true,
+                stdio: ['ignore', expect.any(Number), expect.any(Number)],
+                windowsHide: true,
+            }),
+        );
+        expect(proc.unref).toHaveBeenCalledTimes(1);
+
+        await client.disconnect();
+    });
+
+    it('preserves a detached ws app-server without retaining the child handle', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const { proc, wss } = await createMockWsAppServer({ pid: 7201 });
+        const port = (wss.address() as AddressInfo).port;
+        mockPickFreeLoopbackPort.mockResolvedValueOnce(port);
+        mockSpawn.mockImplementationOnce(() => proc);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+
+        await client.connect();
+        await (client as any).disconnectInternal({ terminateAppServer: false });
+
+        expect((client as any).wsChild).toBeNull();
+        expect((process as any)._getActiveHandles?.().includes(proc)).toBe(false);
+        expect(proc.kill).not.toHaveBeenCalled();
+
+        const freshSocket = new WebSocket(`ws://127.0.0.1:${port}`);
+        activeWsSockets.push(freshSocket as unknown as ServerWebSocket);
+        await new Promise<void>((resolve, reject) => {
+            freshSocket.once('open', () => resolve());
+            freshSocket.once('error', reject);
+        });
+        await expect(Promise.race([
+            new Promise((resolve) => setTimeout(resolve, 0)),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('event loop did not drain')), 1_500)),
+        ])).resolves.toBeUndefined();
+    });
+
+    it('does not double-kill on intentional disconnect close, but does kill on unsolicited close', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const first = await createMockWsAppServer({ pid: 7301 });
+        mockPickFreeLoopbackPort.mockResolvedValueOnce((first.wss.address() as AddressInfo).port);
+        mockSpawn.mockImplementationOnce(() => first.proc);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const intentionalClient = new CodexAppServerClient(undefined, { transport: 'ws' });
+        await intentionalClient.connect();
+        await intentionalClient.disconnect();
+
+        expect(first.proc.kill).toHaveBeenCalledTimes(1);
+        expect(first.proc.kill).toHaveBeenCalledWith('SIGTERM');
+
+        const second = await createMockWsAppServer({ pid: 7302 });
+        mockPickFreeLoopbackPort.mockResolvedValueOnce((second.wss.address() as AddressInfo).port);
+        mockSpawn.mockImplementationOnce(() => second.proc);
+        const unsolicitedClient = new CodexAppServerClient(undefined, { transport: 'ws' });
+        await unsolicitedClient.connect();
+
+        await closeWsServer(second.wss);
+
+        await waitFor(() => (second.proc.kill as ReturnType<typeof vi.fn>).mock.calls.length > 0);
+        expect(second.proc.kill).toHaveBeenCalledWith('SIGTERM');
+    });
+
+    it('clears attached discovery state before unsolicited close cleanup', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const { proc, wss } = await createMockWsAppServer({ pid: 7401 });
+        mockPickFreeLoopbackPort.mockResolvedValueOnce((wss.address() as AddressInfo).port);
+        mockSpawn.mockImplementationOnce(() => proc);
+        const record = testDiscoveryRecord({ pid: 7401, port: (wss.address() as AddressInfo).port });
+        writeDiscoveryRecord(discoveryFilePath(), record);
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: string | number) => {
+            if (pid === record.pid && signal === 0) return true;
+            if (pid === record.pid) throw new Error('should not kill orphaned attached PID');
+            return true;
+        }) as typeof process.kill);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+        await client.connect();
+        (client as any).wsAppServerOwner = 'attached';
+        (client as any).currentDiscovery = record;
+        (client as any).wsChild = null;
+
+        await closeWsServer(wss);
+        await waitFor(() => (client as any).currentDiscovery === null);
+
+        expect((client as any).wsAppServerOwner).toBeNull();
+        expect((client as any).currentDiscovery).toBeNull();
+        await client.disconnect({ terminateAppServer: true });
+        expect(killSpy).not.toHaveBeenCalledWith(record.pid, 'SIGTERM');
+        killSpy.mockRestore();
+    });
+
+    it('terminates attached app-server PIDs and deletes only the matching discovery record', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const record = testDiscoveryRecord({ pid: 7501 });
+        writeDiscoveryRecord(discoveryFilePath(), record);
+        let terminated = false;
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: string | number) => {
+            if (pid !== record.pid) return true;
+            if (signal === 'SIGTERM') {
+                terminated = true;
+                return true;
+            }
+            if (signal === 0 && terminated) {
+                const error = new Error('dead') as NodeJS.ErrnoException;
+                error.code = 'ESRCH';
+                throw error;
+            }
+            return true;
+        }) as typeof process.kill);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+        (client as any).connected = true;
+        (client as any).connection = { close: vi.fn().mockResolvedValue(undefined) };
+        (client as any).wsAppServerOwner = 'attached';
+        (client as any).currentDiscovery = record;
+
+        await client.disconnect({ terminateAppServer: true });
+
+        expect(killSpy).toHaveBeenCalledWith(record.pid, 'SIGTERM');
+        expect(existsSync(discoveryFilePath())).toBe(false);
+        killSpy.mockRestore();
+    });
+
     it('surfaces a ws port-pick failure and connects after a subsequent resolved pick', async () => {
         Object.defineProperty(process, 'platform', { value: 'win32' });
         mockPickFreeLoopbackPort.mockRejectedValueOnce(new Error('Failed to pick free loopback port after 3 attempts'));
@@ -1443,16 +1617,17 @@ describe('CodexAppServerClient sandbox integration', () => {
         await secondClient.disconnect();
     });
 
-    it('retries pick+spawn when first ws child exits with a bind error in stderr', async () => {
+    it('retries pick+spawn when first ws child exits with a bind error in the log file', async () => {
         Object.defineProperty(process, 'platform', { value: 'win32' });
 
-        // First spawn: child exits immediately, stderr contains a bind-error indicator.
+        // First spawn: child exits immediately, log file contains a bind-error indicator.
         const failProc = Object.assign(new EventEmitter(), {
             pid: 8001,
             kill: vi.fn(),
-            stderr: new (require('stream').PassThrough)(),
+            unref: vi.fn(),
         });
         const failPort = 39999;
+        const bindRetryLogPath = join(tmpdir(), 'codex-app-server-bind-retry-test.log');
         mockPickFreeLoopbackPort.mockResolvedValueOnce(failPort);
         mockSpawn.mockImplementationOnce(() => failProc);
 
@@ -1464,15 +1639,14 @@ describe('CodexAppServerClient sandbox integration', () => {
         const { CodexAppServerClient } = await import('./codexAppServerClient');
         const client = new CodexAppServerClient(undefined, {
             transport: 'ws',
-            logFilePath: join(tmpdir(), 'codex-app-server-bind-retry-test.log'),
+            logFilePath: bindRetryLogPath,
         });
 
         const connectPromise = client.connect();
 
-        // Emit bind-error on stderr then exit the first child.
+        // Emit bind-error into the log file then exit the first child.
         queueMicrotask(() => {
-            failProc.stderr.push('error binding address: address already in use\n');
-            failProc.stderr.push(null);
+            writeFileSync(bindRetryLogPath, 'error binding address: address already in use\n');
             queueMicrotask(() => failProc.emit('exit', 1, null));
         });
 
@@ -1482,7 +1656,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         expect(mockSpawn).toHaveBeenNthCalledWith(1,
             'codex',
             expectWsSpawnArgs(`ws://127.0.0.1:${failPort}`),
-            expect.objectContaining({ stdio: ['ignore', expect.any(Number), 'pipe'] }),
+            expect.objectContaining({ detached: true, stdio: ['ignore', expect.any(Number), expect.any(Number)] }),
         );
         const firstHash = getSpawnWsTokenSha256(0);
         const secondHash = getSpawnWsTokenSha256(1);
@@ -1549,6 +1723,7 @@ describe('CodexAppServerClient sandbox integration', () => {
 
         const proc = Object.assign(new EventEmitter(), {
             pid: 9900,
+            unref: vi.fn(),
             kill: vi.fn((signal?: NodeJS.Signals) => {
                 queueMicrotask(() => proc.emit('exit', signal === 'SIGKILL' ? 1 : 0, signal ?? null));
                 return true;
