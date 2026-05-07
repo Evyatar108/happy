@@ -163,7 +163,7 @@ canonical-current state.
 - Upstream-derived doc/skill references to "Happy Coder", `slopus/happy`,
   and `happy.engineering` are HISTORICAL and stay as-is.
 
-### Right now (2026-05-06): Phase 1b sub-task 1 complete; start sub-task 2
+### Right now (2026-05-07): Phase 1b sub-task 2 shipped; pause before sub-task 3
 
 **Phase 1b sub-task 1 shipped:** Codex app-server transport refactor
 from stdio-only to the transport interface + stdio extraction + loopback
@@ -180,20 +180,34 @@ Happy probes `codex app-server --help` once per client instance for
 `--ws-auth`: explicit `--codex-transport=ws` fails closed when unsupported,
 while the implicit default falls back to stdio with one warning.
 
-**Next concrete deliverable:** Phase 1b sub-task 2, Discovery + reattach.
-Write `${configuration.happyHomeDir}/codex-active-${cwdHash}.json` and
-reuse the running app-server for same-worktree reconnects.
+**Phase 1b sub-task 2 shipped:** Discovery + reattach now writes
+`${configuration.happyHomeDir}/codex-active-${cwdHash}.json` plus the
+matching `.lock`, preserves detached ws app-servers across foreground
+`happy codex` exits, reattaches same-realpath(cwd) invocations to the
+running backend, and holds the lock across force-restart terminate ->
+delete -> respawn -> discovery-write. Real-Codex integration acceptance
+for ws reattach, force-restart non-hang behavior, and stdio discovery
+skip is green. Branch: `ralph/codex-discovery-reattach`; PR link:
+<https://github.com/Evyatar108/codexu/pull/new/ralph/codex-discovery-reattach>.
+
+**Next concrete deliverable:** tunnels Phase 0 spike + pre-
+implementation decisions before Phase 1b sub-task 3. Do not continue
+with discoverability, conflict-resolution UX, or walkthrough work until
+`docs/spikes/devtunnel-auth-result.md` exists and the tunnels companion's
+OAuth app vs GitHub app, token contract, access path, and local WS port
+policy decisions are settled.
 
 **Shipped vs deferred:**
 - Shipped: `JsonRpcConnection`, extracted stdio transport, ws transport,
-  `--codex-transport`, configuration.logsDir app-server logs, and the
-  sandbox+ws->stdio override. Also landed alongside US-005: a test-infra
-  fix in `environments/environments.ts` switching `spawnSync('tsx', ...)`
-  to `spawnSync('pnpm', ['exec', 'tsx', ...])` so the
-  `codex.integration.test.ts` environment-migration setup runs on Windows
-  (tsx not on global PATH).
-- Deferred: sub-tasks 2-5, full sandbox+ws integration, stdio sunsetting,
-  and stronger `isCodexAppServerAvailable` version-gate behavior.
+  `--codex-transport`, configuration.logsDir app-server logs, sandbox+
+  ws->stdio override, per-spawn ws auth, detached ws spawn, discovery
+  record + lock helpers, reattach-before-spawn, preserve-by-default
+  foreground disconnect, and held-lock force restart. Also landed
+  Windows integration cleanup for detached Codex process trees and
+  generated-environment removal retries.
+- Deferred: sub-tasks 3-5, daemon ownership integration, full sandbox+ws
+  integration, stdio sunsetting, and stronger
+  `isCodexAppServerAvailable` version-gate behavior.
 - **Deferred to replan: resolved.** Phase 5c F-002 is closed by
   upstream-native per-spawn ws auth (`--ws-auth capability-token`,
   `--ws-token-sha256 <hex>`, and client `Authorization: Bearer <token>`).
@@ -223,8 +237,8 @@ cd C:/harness-efforts/codexu
 
 After plan approval: `/implement-with-ralph --from-plan plans/...`
 
-**Pause-point:** stop after sub-task 2 ships (discovery file + reattach).
-Sub-tasks 3, 4, 5 are blocked on the tunnels Phase 0 spike result
+**Pause-point:** reached. Sub-task 2 has shipped, so stop here until
+the tunnels plan is ready. Sub-tasks 3, 4, 5 are blocked on the tunnels Phase 0 spike result
 (`docs/spikes/devtunnel-auth-result.md` — does not exist yet) AND on
 tunnels' four pre-implementation decisions.
 
@@ -847,10 +861,9 @@ plus current state of the actual code:
   decisions (OAuth app vs GitHub app, token contract, access path
   (a)/(b), local WS port policy).
 
-**Recommended starting point:** sub-task 2, Discovery + reattach. Sub-task
-1 is complete. Hard pause-point lands cleanly between sub-task 2 and
-sub-task 3. After sub-task 2 ships, run the tunnels Phase 0 spike +
-resolve the four pre-implementation decisions before continuing.
+**Current starting point:** sub-task 2 is complete. The hard pause-point
+now sits between sub-task 2 and sub-task 3. Run the tunnels Phase 0 spike
+and resolve the four pre-implementation decisions before continuing.
 
 **Risk hotspots — read these before starting:**
 - **Line numbers in `codex-seamless-multi-device.md` are stale** after

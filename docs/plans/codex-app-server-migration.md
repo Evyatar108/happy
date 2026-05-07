@@ -81,6 +81,8 @@ Our internal types use `approved`/`denied`/`abort`. The wire protocol uses `acce
 ## Files
 
 - `codexAppServerClient.ts` — JSON-RPC client, turn tracking, approval handling
+- `codexAppServerDiscovery.ts` — per-realpath(cwd) discovery records, atomic read/write/delete helpers, PID liveness checks, and lockfile acquisition for spawn/reattach/force-restart serialization
+- `codexAppServerDiscovery.test.ts` — discovery record, atomic IO, guarded delete, PID liveness, and lockfile coverage
 - `codexAppServerTypes.ts` — Cherry-picked types from the protocol
 - `runCodex.ts` — Main loop, event/approval handler wiring
 - `executionPolicy.ts` — Maps permission modes to approval/sandbox policies

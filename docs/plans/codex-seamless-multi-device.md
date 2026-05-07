@@ -580,6 +580,8 @@ For the `ws` client library: the existing in-fork precedent is `packages/happy-c
 
 #### Sub-task 2: Discovery + reattach (1 day)
 
+**Status (2026-05-07): shipped on branch `ralph/codex-discovery-reattach` through commit `81abd896`; PR link: <https://github.com/Evyatar108/codexu/pull/new/ralph/codex-discovery-reattach>.** This landed with detached ws app-server spawn, per-cwd discovery + lock files, reattach-before-spawn, preserve-by-default foreground disconnect, held-lock force restart, and real-Codex integration acceptance. Daemon ownership remains deferred to Phase 1.5.
+
 When `happy codex` is invoked, check whether an `app-server` is already running for this user and reattach instead of spawning a fresh one.
 
 **Discovery file** at `${configuration.happyHomeDir}/codex-active-${cwdHash}.json`:
@@ -590,20 +592,23 @@ When `happy codex` is invoked, check whether an `app-server` is already running 
     "port": 51234,          // ws port
     "startedAt": "...",     // ISO timestamp
     "happyCliVersion": "1.1.8-evy.10",
-    "cwd": "C:\\Users\\..."
+    "cwd": "C:\\Users\\...",
+    "capabilityToken": "...",          // raw token, user-profile ACL only
+    "capabilityTokenSha256": "...",    // 64-char digest passed to app-server
+    "transport": "ws"
 }
 ```
 
-The `cwdHash` keyer scopes per-project so two projects on the same machine don't collide.
+The `cwdHash` keyer is the SHA-256 of `realpathSync(process.cwd())`, so symlink-equivalent project paths collapse to the same record and unrelated projects do not collide. A companion lock file at `${configuration.happyHomeDir}/codex-active-${cwdHash}.lock` serializes discovery read/spawn/write and force-restart delete/respawn flows.
 
 On `happy codex` startup:
 1. Read the discovery file if it exists
 2. Check if PID is alive (`kill(pid, 0)` on POSIX; `tasklist /FI "PID eq <pid>"` on Windows)
 3. If alive AND `ws://127.0.0.1:port` accepts a connection AND `initialize` succeeds → reattach (skip spawning a new `app-server`)
 4. Otherwise (stale file, dead PID, refused connection) → delete the file, spawn fresh, write new file
-5. On clean shutdown of `app-server` (orchestrated, not crash), delete the file
+5. On explicit terminate (`disconnect({ terminateAppServer: true })`, kill-session, or force restart), delete the file only if the on-disk `{ pid, startedAt }` still matches the snapshot being terminated
 
-**Lifecycle ownership**: today `runCodex.ts` calls `client.disconnect()` at lines 330 and 676. After Phase 1, that should NOT terminate `app-server` — only Happy CLI's own connection. The `app-server` child process is owned by the daemon, not by the foreground `happy codex` invocation.
+**Lifecycle ownership**: foreground `client.disconnect()` now preserves the detached ws app-server by default and closes only Happy CLI's connection. Terminate-intent paths must call `disconnect({ terminateAppServer: true })`; attached servers are terminated by the discovered PID and guarded discovery identity, while spawned servers use the retained child handle. Stdio remains process-owned by the foreground client and skips discovery.
 
 **Daemon integration**: the existing daemon (`packages/happy-cli/src/daemon/run.ts`) already manages long-lived processes; Codex's app-server should plug into that pattern. If integration is non-trivial, ship Phase 1 with a simpler "happy codex spawns app-server detached, daemon optional" model and revisit daemon integration in Phase 1.5.
 
