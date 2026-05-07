@@ -15,7 +15,7 @@
 
 import { execSync, type ChildProcess } from 'node:child_process';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { closeSync, openSync, readFileSync } from 'node:fs';
+import { closeSync, openSync, readFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn as crossSpawn } from 'cross-spawn';
@@ -45,9 +45,13 @@ import type { JsonRpcConnection, JsonRpcMessage } from './transport/JsonRpcConne
 import { createStdioTransport } from './transport/stdioTransport';
 import { createWsTransport } from './transport/wsTransport';
 import {
+    acquireDiscoveryLock,
     deleteDiscoveryIfMatches,
+    DISCOVERY_FILE_VERSION,
     discoveryFilePath,
+    lockFilePath,
     type CodexDiscoveryRecord,
+    writeDiscoveryRecord,
 } from './codexAppServerDiscovery';
 
 type PendingRequest = {
@@ -638,132 +642,177 @@ export class CodexAppServerClient {
         }
 
         const WS_SPAWN_MAX_RETRIES = 2;
-        if (transport === 'ws') {
-            const logFilePath = this.logFilePath ?? join(tmpdir(), `codex-app-server-${randomUUID()}.log`);
-            for (let attempt = 1; attempt <= WS_SPAWN_MAX_RETRIES; attempt += 1) {
-                const port = await pickFreeLoopbackPort();
-                const listenUrl = `ws://127.0.0.1:${port}`;
-                const wsAuthToken = randomBytes(32).toString('base64url');
-                const wsTokenSha256 = sha256hex(wsAuthToken);
-                args = ['app-server', '--listen', listenUrl, '--ws-auth', 'capability-token', '--ws-token-sha256', wsTokenSha256];
-                logger.debug(`[CodexAppServer] Spawning (attempt ${attempt}): ${command} ${args.join(' ')}`);
-                const candidate = this.createWsConnection(command, args, env, logFilePath, listenUrl, wsAuthToken);
-                const epoch = ++this.processEpoch;
-                this.connection = candidate;
+        let spawnedDiscoveryRecord: CodexDiscoveryRecord | null = null;
+        const discoveryLock = transport === 'ws' ? await acquireDiscoveryLock(lockFilePath()) : null;
+        let failureAlreadyCleanedUp = false;
+        try {
+            if (transport === 'ws') {
+                const logFilePath = this.logFilePath ?? join(tmpdir(), `codex-app-server-${randomUUID()}.log`);
+                for (let attempt = 1; attempt <= WS_SPAWN_MAX_RETRIES; attempt += 1) {
+                    const port = await pickFreeLoopbackPort();
+                    const listenUrl = `ws://127.0.0.1:${port}`;
+                    const wsAuthToken = randomBytes(32).toString('base64url');
+                    const wsTokenSha256 = sha256hex(wsAuthToken);
+                    args = ['app-server', '--listen', listenUrl, '--ws-auth', 'capability-token', '--ws-token-sha256', wsTokenSha256];
+                    logger.debug(`[CodexAppServer] Spawning (attempt ${attempt}): ${command} ${args.join(' ')}`);
+                    const candidate = this.createWsConnection(command, args, env, logFilePath, listenUrl, wsAuthToken);
+                    const epoch = ++this.processEpoch;
+                    this.connection = candidate;
 
-                candidate.onError((err) => {
+                    candidate.onError((err) => {
+                        logger.debug('[CodexAppServer] Process error:', err);
+                    });
+
+                    candidate.onClose((code, signal) => {
+                        logger.debug(`[CodexAppServer] Process exited: code=${code} signal=${signal}`);
+                        if (this.connection !== candidate || this.processEpoch !== epoch) {
+                            logger.debug('[CodexAppServer] Ignoring stale process exit');
+                            return;
+                        }
+                        if (this.wsIntentionalClose) {
+                            return;
+                        }
+                        this.connected = false;
+                        for (const [id, req] of this.pending) {
+                            if (req.epoch !== epoch) continue;
+                            req.reject(new Error(`Codex process exited (code=${code}) while waiting for ${req.method}`));
+                            this.pending.delete(id);
+                        }
+                        this.resolvePendingTurn(true);
+                        this.wsAppServerOwner = null;
+                        this.currentDiscovery = null;
+                        void this.closeWsChild();
+                    });
+
+                    candidate.onMessage((msg) => {
+                        if (this.connection !== candidate || this.processEpoch !== epoch) return;
+                        this.handleMessage(msg, epoch);
+                    });
+
+                    try {
+                        await candidate.open();
+                        const pid = this.wsChild?.pid;
+                        if (typeof pid !== 'number') {
+                            throw new Error('Codex app-server ws child did not expose a PID');
+                        }
+                        spawnedDiscoveryRecord = {
+                            version: DISCOVERY_FILE_VERSION,
+                            pid,
+                            port,
+                            startedAt: new Date().toISOString(),
+                            happyCliVersion: packageJson.version,
+                            cwd: realpathSync(process.cwd()),
+                            capabilityToken: wsAuthToken,
+                            capabilityTokenSha256: wsTokenSha256,
+                            transport: 'ws',
+                        };
+                        break;
+                    } catch (error) {
+                        await candidate.close().catch(() => undefined);
+                        await this.closeWsChild();
+                        this.wsAppServerOwner = null;
+                        this.connection = null;
+                        if (attempt < WS_SPAWN_MAX_RETRIES && this.isWsBindError()) {
+                            logger.warn(`[CodexAppServer] Bind error on port ${port}; retrying with a new port`);
+                            continue;
+                        }
+                        throw error;
+                    }
+                }
+            } else {
+                logger.debug(`[CodexAppServer] Spawning: ${command} ${args.join(' ')}`);
+                const stdioConn = createStdioTransport({ command, args, env });
+
+                const epoch = ++this.processEpoch;
+                this.connection = stdioConn;
+
+                stdioConn.onError((err) => {
                     logger.debug('[CodexAppServer] Process error:', err);
                 });
 
-                candidate.onClose((code, signal) => {
+                stdioConn.onClose((code, signal) => {
                     logger.debug(`[CodexAppServer] Process exited: code=${code} signal=${signal}`);
-                    if (this.connection !== candidate || this.processEpoch !== epoch) {
+                    if (this.connection !== stdioConn || this.processEpoch !== epoch) {
                         logger.debug('[CodexAppServer] Ignoring stale process exit');
                         return;
                     }
-                    if (this.wsIntentionalClose) {
-                        return;
-                    }
                     this.connected = false;
+                    this.wsAppServerOwner = null;
+                    this.currentDiscovery = null;
+                    // Reject all pending requests
                     for (const [id, req] of this.pending) {
                         if (req.epoch !== epoch) continue;
                         req.reject(new Error(`Codex process exited (code=${code}) while waiting for ${req.method}`));
                         this.pending.delete(id);
                     }
+                    // Resolve pending turn completion (treat as abort)
                     this.resolvePendingTurn(true);
-                    this.wsAppServerOwner = null;
-                    this.currentDiscovery = null;
-                    void this.closeWsChild();
                 });
 
-                candidate.onMessage((msg) => {
-                    if (this.connection !== candidate || this.processEpoch !== epoch) return;
+                stdioConn.onMessage((msg) => {
+                    if (this.connection !== stdioConn || this.processEpoch !== epoch) return;
                     this.handleMessage(msg, epoch);
                 });
 
                 try {
-                    await candidate.open();
-                    this.wsAppServerOwner = 'spawned';
-                    break;
+                    await stdioConn.open();
                 } catch (error) {
-                    await candidate.close().catch(() => undefined);
-                    await this.closeWsChild();
-                    this.wsAppServerOwner = null;
                     this.connection = null;
-                    if (attempt < WS_SPAWN_MAX_RETRIES && this.isWsBindError()) {
-                        logger.warn(`[CodexAppServer] Bind error on port ${port}; retrying with a new port`);
-                        continue;
-                    }
                     throw error;
                 }
             }
-        } else {
-            logger.debug(`[CodexAppServer] Spawning: ${command} ${args.join(' ')}`);
-            const stdioConn = createStdioTransport({ command, args, env });
 
-            const epoch = ++this.processEpoch;
-            this.connection = stdioConn;
-
-            stdioConn.onError((err) => {
-                logger.debug('[CodexAppServer] Process error:', err);
-            });
-
-            stdioConn.onClose((code, signal) => {
-                logger.debug(`[CodexAppServer] Process exited: code=${code} signal=${signal}`);
-                if (this.connection !== stdioConn || this.processEpoch !== epoch) {
-                    logger.debug('[CodexAppServer] Ignoring stale process exit');
-                    return;
-                }
-                this.connected = false;
-                this.wsAppServerOwner = null;
-                this.currentDiscovery = null;
-                // Reject all pending requests
-                for (const [id, req] of this.pending) {
-                    if (req.epoch !== epoch) continue;
-                    req.reject(new Error(`Codex process exited (code=${code}) while waiting for ${req.method}`));
-                    this.pending.delete(id);
-                }
-                // Resolve pending turn completion (treat as abort)
-                this.resolvePendingTurn(true);
-            });
-
-            stdioConn.onMessage((msg) => {
-                if (this.connection !== stdioConn || this.processEpoch !== epoch) return;
-                this.handleMessage(msg, epoch);
-            });
-
+            // Perform initialize handshake
+            const initParams: InitializeParams = {
+                clientInfo: {
+                    name: 'happy-codex',
+                    title: 'Happy Codex Client',
+                    version: packageJson.version,
+                },
+                capabilities: {
+                    experimentalApi: true,
+                },
+            };
             try {
-                await stdioConn.open();
+                await this.request('initialize', initParams);
+                if (spawnedDiscoveryRecord) {
+                    try {
+                        await writeDiscoveryRecord(discoveryFilePath(), spawnedDiscoveryRecord);
+                        this.wsAppServerOwner = 'spawned';
+                        this.currentDiscovery = spawnedDiscoveryRecord;
+                    } catch (writeError) {
+                        failureAlreadyCleanedUp = true;
+                        this.wsIntentionalClose = true;
+                        const connection = this.connection;
+                        this.connection = null;
+                        try {
+                            await this.closeWsChild();
+                            await connection?.close().catch(() => undefined);
+                            this.wsAppServerOwner = null;
+                            this.currentDiscovery = null;
+                            this.connected = false;
+                        } finally {
+                            this.wsIntentionalClose = false;
+                        }
+                        throw writeError;
+                    }
+                }
+                this.notify('initialized');
             } catch (error) {
-                this.connection = null;
+                if (!failureAlreadyCleanedUp) {
+                    await this.connection?.close().catch(() => undefined);
+                    await this.closeWsChild();
+                    this.wsAppServerOwner = null;
+                    this.currentDiscovery = null;
+                    this.connection = null;
+                }
                 throw error;
             }
+            this.connected = true;
+            logger.debug('[CodexAppServer] Connected and initialized');
+        } finally {
+            await discoveryLock?.release();
         }
-
-        // Perform initialize handshake
-        const initParams: InitializeParams = {
-            clientInfo: {
-                name: 'happy-codex',
-                title: 'Happy Codex Client',
-                version: packageJson.version,
-            },
-            capabilities: {
-                experimentalApi: true,
-            },
-        };
-        try {
-            await this.request('initialize', initParams);
-            this.notify('initialized');
-        } catch (error) {
-            await this.connection?.close().catch(() => undefined);
-            await this.closeWsChild();
-            this.wsAppServerOwner = null;
-            this.currentDiscovery = null;
-            this.connection = null;
-            throw error;
-        }
-        this.connected = true;
-        logger.debug('[CodexAppServer] Connected and initialized');
     }
 
     private async disconnectInternal(opts?: { preserveThreadState?: boolean; terminateAppServer?: boolean }): Promise<void> {
@@ -788,6 +837,9 @@ export class CodexAppServerClient {
                     await this.terminateAttachedAppServer(discovery);
                 } else {
                     await this.closeWsChild();
+                    if (discovery) {
+                        deleteDiscoveryIfMatches(discoveryFilePath(), { pid: discovery.pid, startedAt: discovery.startedAt });
+                    }
                 }
             } else {
                 child?.removeAllListeners();
