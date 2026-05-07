@@ -13,15 +13,23 @@
  *   npx vitest run src/codex/codex.integration.test.ts
  */
 
-import { afterEach, describe, it, expect } from "vitest";
+import { afterAll, afterEach, describe, it, expect } from "vitest";
 import { execSync } from "child_process";
+import { existsSync } from "node:fs";
 import { CodexAppServerClient, type CodexAppServerTransport } from "./codexAppServerClient";
+import {
+    deleteDiscovery,
+    discoveryFilePath,
+    isPidAlive,
+    readDiscoveryRecord,
+} from "./codexAppServerDiscovery";
 import type { ReviewDecision, EventMsg } from "./codexAppServerTypes";
 import { getIntegrationEnv } from "@/testing/currentIntegrationEnv";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const DEFAULT_MODEL = "gpt-5.2-codex";
+const testFileCwd = process.cwd();
 const integrationEnv = getIntegrationEnv();
 
 type PermissionPolicy = "approve" | "deny" | "cancel" | "hold";
@@ -91,7 +99,7 @@ interface CodexEvent {
  * Tracks events, permissions, and provides a simple send/continue API.
  */
 class CodexDriver {
-    private client: CodexAppServerClient;
+    readonly client: CodexAppServerClient;
     private threadStarted = false;
     private heldApprovals: Array<(decision: ReviewDecision) => void> = [];
 
@@ -148,7 +156,7 @@ class CodexDriver {
             throw new Error("No active thread — call send() first");
         }
 
-        const resumed = await this.client.reconnectAndResumeThread();
+        const resumed = await this.client.reconnectAndResumeThread({ terminateAppServer: true, skipDiscovery: true });
         if (!resumed) {
             throw new Error("Expected reconnectAndResumeThread() to resume the existing thread");
         }
@@ -238,15 +246,42 @@ describe.skipIf(!codexAppServerAvailable)(
     { timeout: 180_000 },
     () => {
         let driver: CodexDriver | null = null;
+        let originalCwd: string | null = null;
+
+        const useProjectCwd = () => {
+            originalCwd ??= testFileCwd;
+            process.chdir(integrationEnv.projectPath);
+        };
+
+        const waitForDeadPid = async (pid: number) => {
+            const deadline = Date.now() + 5_000;
+            while (Date.now() < deadline) {
+                if (!isPidAlive(pid)) return;
+                await new Promise((r) => setTimeout(r, 100));
+            }
+            expect(isPidAlive(pid)).toBe(false);
+        };
 
         afterEach(async () => {
-            if (driver) {
-                await driver.close();
-                driver = null;
+            try {
+                if (driver) {
+                    await driver.close();
+                    driver = null;
+                }
+            } finally {
+                if (originalCwd) {
+                    process.chdir(originalCwd);
+                    originalCwd = null;
+                }
             }
         });
 
+        afterAll(() => {
+            process.chdir(testFileCwd);
+        });
+
         it.each(transportCases)("should complete turn gracefully after permission cancel over $transport", async ({ clientTransport }) => {
+            useProjectCwd();
             driver = new CodexDriver(clientTransport);
             await driver.connect();
 
@@ -265,6 +300,7 @@ describe.skipIf(!codexAppServerAvailable)(
         });
 
         it.each(transportCases)("should preserve context when continuing after cancel over $transport", async ({ clientTransport }) => {
+            useProjectCwd();
             driver = new CodexDriver(clientTransport);
             await driver.connect();
 
@@ -299,6 +335,7 @@ describe.skipIf(!codexAppServerAvailable)(
         });
 
         it.each(transportCases)("should abort turn via interruptTurn while permission is pending over $transport", async ({ clientTransport }) => {
+            useProjectCwd();
             driver = new CodexDriver(clientTransport);
             await driver.connect();
 
@@ -317,18 +354,42 @@ describe.skipIf(!codexAppServerAvailable)(
             }
             expect(driver.permissionCount).toBeGreaterThan(0);
 
-            // Simulate the web app abort button: abort held approvals + interrupt turn.
-            // Codex v2: approval cancel = decline, model may finish before interrupt
-            // lands. The key invariant: the turn must NOT hang.
-            await driver.interrupt();
+            // Simulate the web app abort button with force-restart fallback.
+            const abortStart = Date.now();
+            const abortResult = await driver.client.abortTurnWithFallback({
+                forceRestartOnTimeout: true,
+                gracePeriodMs: 200,
+            });
+            driver.resolveHeldApprovals("abort");
 
             const result = await turnPromise;
+            expect(Date.now() - abortStart).toBeLessThan(30_000);
             expect(result.elapsed_ms).toBeLessThan(30_000);
+            expect(abortResult.hadActiveTurn).toBe(true);
+            expect(abortResult.aborted).toBe(true);
+
+            driver.clearEvents();
+            driver.permissionPolicy = "approve";
+            const followUp = await driver.continue(
+                "Reply with exactly: ready",
+                { approvalPolicy: "on-request", sandbox: "read-only" }
+            );
+            expect(followUp.elapsed_ms).toBeLessThan(30_000);
         });
 
         it.each(transportCases)("should preserve context after backend reconnect and thread/resume over $transport", async ({ clientTransport }) => {
+            useProjectCwd();
+            deleteDiscovery(discoveryFilePath());
+            expect(existsSync(discoveryFilePath())).toBe(false);
+
             driver = new CodexDriver(clientTransport);
             await driver.connect();
+
+            if (clientTransport === "ws") {
+                expect(readDiscoveryRecord(discoveryFilePath())).not.toBeNull();
+            } else {
+                expect(existsSync(discoveryFilePath())).toBe(false);
+            }
 
             driver.permissionPolicy = "approve";
             await driver.send(
@@ -336,6 +397,56 @@ describe.skipIf(!codexAppServerAvailable)(
                 { approvalPolicy: "on-request", sandbox: "read-only", cwd: integrationEnv.projectPath }
             );
             expect(driver.getMessages().join(" ").toLowerCase()).toContain("steady-orchid-19");
+
+            if (clientTransport === "ws") {
+                const capturedThreadId = driver.client.threadId;
+                const capturedRecord = readDiscoveryRecord(discoveryFilePath());
+                expect(capturedThreadId).not.toBeNull();
+                expect(capturedRecord).not.toBeNull();
+                if (!capturedThreadId || !capturedRecord) {
+                    throw new Error("Expected ws discovery record and thread id before preserve disconnect");
+                }
+
+                await driver.client.disconnect();
+                expect(isPidAlive(capturedRecord.pid)).toBe(true);
+                expect(existsSync(discoveryFilePath())).toBe(true);
+
+                const freshClient = new CodexAppServerClient(undefined, { transport: "ws" });
+                freshClient.setEventHandler((msg: EventMsg) => {
+                    driver?.events.push({ type: msg.type, data: msg });
+                });
+                freshClient.setApprovalHandler(async () => "approved");
+
+                try {
+                    await freshClient.connect();
+                    const afterConnectRecord = readDiscoveryRecord(discoveryFilePath());
+                    expect(afterConnectRecord?.pid).toBe(capturedRecord.pid);
+                    expect(afterConnectRecord?.port).toBe(capturedRecord.port);
+                    expect(afterConnectRecord?.capabilityToken).toBe(capturedRecord.capabilityToken);
+
+                    await freshClient.resumeThread({
+                        threadId: capturedThreadId,
+                        cwd: integrationEnv.projectPath,
+                        approvalPolicy: "on-request",
+                        sandbox: "read-only",
+                    });
+                    await freshClient.sendTurnAndWait(
+                        "What was the project codename I mentioned earlier? Reply with just the codename.",
+                        { approvalPolicy: "on-request", sandbox: "read-only" }
+                    );
+
+                    const text = driver.getMessages().join(" ").toLowerCase();
+                    expect(text).toContain("steady-orchid-19");
+                } finally {
+                    await freshClient.disconnect({ terminateAppServer: true });
+                }
+
+                await driver.close();
+                driver = null;
+                await waitForDeadPid(capturedRecord.pid);
+                expect(existsSync(discoveryFilePath())).toBe(false);
+                return;
+            }
 
             driver.clearEvents();
             await driver.restartBackendAndResume();
@@ -350,6 +461,7 @@ describe.skipIf(!codexAppServerAvailable)(
         });
 
         it.each(transportCases)("should preserve context when continuing after interruptTurn abort over $transport", async ({ clientTransport }) => {
+            useProjectCwd();
             driver = new CodexDriver(clientTransport);
             await driver.connect();
 

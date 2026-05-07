@@ -501,7 +501,17 @@ export class CodexAppServerClient {
         return false;
     }
 
+    private terminateWindowsProcessTree(pid: number): void {
+        if (process.platform !== 'win32') return;
+        try {
+            execSync(`taskkill /PID ${pid} /T /F`, { stdio: 'ignore', windowsHide: true });
+        } catch {
+            // The wrapper may have already exited; fall back to the normal kill path.
+        }
+    }
+
     private async terminateAttachedAppServer(record: CodexDiscoveryRecord): Promise<void> {
+        this.terminateWindowsProcessTree(record.pid);
         try { process.kill(record.pid, 'SIGTERM'); } catch { /* ignore */ }
         const exitedAfterTerm = await this.waitForPidExit(record.pid, 2_000);
         if (!exitedAfterTerm) {
@@ -519,6 +529,9 @@ export class CodexAppServerClient {
         }
 
         if (!this.wsChildExited) {
+            if (typeof child.pid === 'number') {
+                this.terminateWindowsProcessTree(child.pid);
+            }
             try { child.kill('SIGTERM'); } catch { /* ignore */ }
             const exitedAfterTerm = await this.waitForWsChildExit(2_000);
             if (!exitedAfterTerm && !this.wsChildExited) {

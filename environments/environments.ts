@@ -535,7 +535,30 @@ export function removeEnvironment(name: string): void {
     if (currentConfig?.current === name && fs.existsSync(CURRENT_ENV_PATH)) {
         fs.unlinkSync(CURRENT_ENV_PATH);
     }
-    fs.rmSync(envDir, { recursive: true, force: true });
+    const resolvedEnvDir = path.resolve(envDir);
+    const resolvedCwd = path.resolve(process.cwd());
+    if (resolvedCwd === resolvedEnvDir || resolvedCwd.startsWith(resolvedEnvDir + path.sep)) {
+        process.chdir(REPO_ROOT);
+    }
+
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+            fs.rmSync(envDir, { recursive: true, force: true });
+            lastError = null;
+            break;
+        } catch (error) {
+            lastError = error;
+            const code = (error as NodeJS.ErrnoException).code;
+            if (code !== "EBUSY" && code !== "ENOTEMPTY" && code !== "EPERM") {
+                throw error;
+            }
+            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100 * (attempt + 1));
+        }
+    }
+    if (lastError) {
+        throw lastError;
+    }
     console.log(`Removed environment: ${name}`);
 }
 
