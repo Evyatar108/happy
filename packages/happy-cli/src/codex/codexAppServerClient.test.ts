@@ -609,6 +609,9 @@ describe('CodexAppServerClient sandbox integration', () => {
         for (const token of tokens) {
             expect(JSON.stringify(spawnSurface)).not.toContain(token);
             expect(JSON.stringify(loggerSurface)).not.toContain(token);
+            for (const [, args] of mockSpawn.mock.calls) {
+                expect(args[2]).not.toContain(token);
+            }
         }
 
         await client.disconnect();
