@@ -55,7 +55,12 @@ If you've just been handed this plan and the prior conversation is gone, read in
 1. **This whole file** end-to-end (~10 min). Don't skip the verification scripts or the failure modes — they capture context that would otherwise be lost.
 2. **`packages/happy-cli/CLAUDE.md`** — fork-wide architecture overview. Especially the **"Codex exclusion"** paragraph and the existing daemon/release/iteration skill memos. The "v1 limitation — pendingSwitch" note in the Claude section is the failure case this plan supersedes.
 3. **`packages/happy-cli/src/codex/runCodex.ts`** — main entrypoint for `happy codex`. Read top-to-bottom; ~700 lines. Pay attention to `abortInProgress` (lines 258-296), `permissionHandler` registration, the lifecycle teardown around lines 538-703 (this is where Phase 1's persistent-app-server change concentrates), and the `client.disconnect()` calls at 330 and 676.
-4. **`packages/happy-cli/src/codex/codexAppServerClient.ts`** — JSON-RPC client. Read lines 1-100 for the protocol overview comment, then jump to `handleServerRequest` (lines 1079-1123) for approval routing. The `--listen stdio://` arg is at line 394.
+4. **`packages/happy-cli/src/codex/codexAppServerClient.ts`** — JSON-RPC client. Skim the file-header comment for the protocol overview, then grep `handleServerRequest` for approval routing. After Phase 1b sub-task 1 there is no static `--listen stdio://` in the spawn site — args are built inside `CodexAppServerClient.connect()` per resolved transport. To trace the spawn flow, grep these symbols (line numbers drift; rely on names):
+   - `CodexAppServerClient.connect()` — single entry point that resolves the effective transport, then dispatches to either the ws spawn loop or the stdio branch.
+   - `createWsConnection` (private helper on the client) and `createWsTransport` (factory in `src/codex/transport/wsTransport.ts`) — build the ws child + WebSocket adapter; argv carries only `--ws-auth capability-token --ws-token-sha256 <hex>` and the raw token rides the upgrade `Authorization` header.
+   - `createStdioTransport` (factory in `src/codex/transport/stdioTransport.ts`) — newline-delimited JSON-RPC over the child's stdio; this is the legacy path and the forced path under sandbox-on-non-Windows.
+   - `isWsAuthAvailable` / `getWsAuthAvailability` — probes `codex app-server --help` for `--ws-auth`. Explicit `--codex-transport=ws` fails closed if missing; implicit/default ws falls back to stdio with a one-time warning.
+   - The sandbox→stdio override at the top of `connect()` (search for `sandboxConfig?.enabled` and `forcing stdio transport`) — when Happy sandboxing is on and the platform is non-Windows, ws is downgraded to stdio before any spawn args are built.
 5. **`packages/happy-cli/src/codex/utils/permissionHandler.ts`** — `CodexPermissionHandler`. ~300 lines. This is where multi-client coordination would live if Phase 0 reveals fan-out gaps.
 6. **`docs/plans/codex-app-server-migration.md`** — sibling plan that documents the migration to `app-server` (already complete). Provides historical context for why the architecture is shaped the way it is.
 7. **Run the reproducible verification** (next section) on your machine. ~5 minutes. Confirms the architectural primitive still works on whatever Codex CLI version is installed (it's evolving).
@@ -430,7 +435,7 @@ We spent a session investigating "deferred switch when idle" for Claude and disc
 
 Codex avoids ALL of these by design:
 
-- `codex app-server` runs as a long-lived JSON-RPC subprocess (`codexAppServerClient.ts:394` — `args = ['app-server', '--listen', 'stdio://']`)
+- `codex app-server` runs as a long-lived JSON-RPC subprocess spawned by `CodexAppServerClient.connect()` (`codexAppServerClient.ts`). Spawn args are dispatched on the resolved transport: ws (default) → `['app-server', '--listen', 'ws://127.0.0.1:<port>', '--ws-auth', 'capability-token', '--ws-token-sha256', <hex>]`; stdio (sandbox-on-non-Windows or explicit `--codex-transport stdio`) → `['app-server', '--listen', 'stdio://']`
 - ALL approvals/permissions/elicitations route through a single uniform RPC path (`codexAppServerClient.ts:1095-1122`)
 - Terminal display is already a Happy-managed React/ink renderer (`runCodex.ts:21-22` — `MessageBuffer` + `CodexDisplay`), NOT a Codex-binary TUI
 - `CodexPermissionHandler` already forwards every approval to the app via `permission` RPC; the same handler answers from terminal or phone
