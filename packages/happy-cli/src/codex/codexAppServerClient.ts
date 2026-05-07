@@ -222,6 +222,19 @@ export class CodexAppServerClient {
         this.logFilePath = options.logFilePath;
     }
 
+    private resolveEffectiveTransport(): 'stdio' | 'ws' {
+        // MUST stay in sync with connect():742-760 transport-resolution rules
+        if (this.sandboxConfig?.enabled && process.platform !== 'win32' && this.transport === 'ws') {
+            return 'stdio';
+        }
+
+        if (this.transport === 'ws' && !this.getWsAuthAvailability() && this.transportSource !== 'explicit') {
+            return 'stdio';
+        }
+
+        return this.transport;
+    }
+
     get threadId(): string | null {
         return this._threadId;
     }
