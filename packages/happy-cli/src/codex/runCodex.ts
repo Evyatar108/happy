@@ -408,7 +408,7 @@ export async function runCodex(opts: {
 
             // Force close Codex transport (best-effort) so we don't leave stray processes
             try {
-                await client.disconnect();
+                await client.disconnect({ terminateAppServer: true });
             } catch (e) {
                 logger.debug('[Codex] Error disconnecting Codex during termination', e);
             }

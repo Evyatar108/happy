@@ -227,7 +227,7 @@ class CodexDriver {
     }
 
     async close(): Promise<void> {
-        await this.client.disconnect();
+        await this.client.disconnect({ terminateAppServer: true });
     }
 }
 

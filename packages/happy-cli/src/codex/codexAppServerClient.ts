@@ -923,7 +923,7 @@ export class CodexAppServerClient {
 
         const connection = this.connection;
         const epoch = this.processEpoch;
-        const terminateAppServer = opts?.terminateAppServer ?? true;
+        const terminateAppServer = opts?.terminateAppServer ?? false;
         const owner = this.wsAppServerOwner;
         const discovery = this.currentDiscovery;
         const child = this.wsChild;

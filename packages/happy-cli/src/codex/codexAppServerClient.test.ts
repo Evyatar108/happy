@@ -9,7 +9,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import WebSocket, { WebSocketServer, type WebSocket as ServerWebSocket } from 'ws';
 import type { SandboxConfig } from '@/persistence';
 import type { CodexAppServerTransport } from './codexAppServerClient';
-import { discoveryFilePath, lockFilePath, readDiscoveryRecord, writeDiscoveryRecord, type CodexDiscoveryRecord } from './codexAppServerDiscovery';
+import { deleteDiscoveryIfMatches, discoveryFilePath, lockFilePath, readDiscoveryRecord, writeDiscoveryRecord, type CodexDiscoveryRecord } from './codexAppServerDiscovery';
 import packageJson from '../../package.json';
 
 const {
@@ -379,7 +379,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         );
         expect(client.sandboxEnabled).toBe(true);
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
     });
 
     it('forces stdio transport when sandbox is enabled and ws is requested', async () => {
@@ -404,7 +404,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         );
         expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('forcing stdio transport instead of ws'));
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
     });
 
     it('sends ws bearer auth whose token hashes to the spawn argv digest', async () => {
@@ -431,7 +431,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         expect(capturedHeaders[0].authorization).toBe(`Bearer ${token}`);
         expect(sha256hex(token)).toBe(getSpawnWsTokenSha256(0));
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
     });
 
     it('writes a discovery record after successful ws initialize', async () => {
@@ -469,7 +469,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         expect((client as any).wsAppServerOwner).toBe('spawned');
         expect((client as any).currentDiscovery).toEqual(record);
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
         expect(existsSync(discoveryFilePath())).toBe(false);
     });
 
@@ -571,7 +571,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         expect(spawnedRequests.filter((msg) => msg.method === 'initialize')).toHaveLength(1);
         expect(readDiscoveryRecord(discoveryFilePath())?.pid).toBe(4323);
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
         killSpy.mockRestore();
     });
 
@@ -597,7 +597,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         expect(mockSpawn).toHaveBeenCalledTimes(1);
         expect(readDiscoveryRecord(discoveryFilePath())?.pid).toBe(4325);
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
         killSpy.mockRestore();
     });
 
@@ -623,7 +623,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         expect(mockSpawn).toHaveBeenCalledTimes(1);
         expect(readDiscoveryRecord(discoveryFilePath())?.pid).toBe(4333);
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
         killSpy.mockRestore();
     });
 
@@ -664,7 +664,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         expect(killSpy).toHaveBeenCalledWith(record.pid, 'SIGTERM');
         expect(readDiscoveryRecord(discoveryFilePath())?.pid).toBe(4327);
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
         killSpy.mockRestore();
     }, 8_000);
 
@@ -703,7 +703,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         expect(killSpy).toHaveBeenCalledWith(record.pid, 'SIGTERM');
         expect(readDiscoveryRecord(discoveryFilePath())?.pid).toBe(4329);
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
         killSpy.mockRestore();
     });
 
@@ -729,7 +729,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         expect(mockSpawn).toHaveBeenCalledTimes(1);
         expect(readDiscoveryRecord(discoveryFilePath())?.pid).toBe(4331);
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
         killSpy.mockRestore();
     });
 
@@ -769,7 +769,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         const client = new CodexAppServerClient(undefined, { transport: 'ws', transportSource: 'default' });
 
         await client.connect();
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
         await client.connect();
 
         expect(mockExecSync).toHaveBeenCalledWith('codex app-server --help', {
@@ -788,7 +788,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         expect(mockLogger.warn).toHaveBeenCalledTimes(1);
         expect(mockLogger.warn).toHaveBeenCalledWith('[CodexAppServer] Installed codex lacks --ws-auth; falling back to stdio transport. Upgrade codex to enable ws transport.');
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
     });
 
     it('fails closed for explicit ws transport when codex lacks auth support', async () => {
@@ -827,7 +827,7 @@ describe('CodexAppServerClient sandbox integration', () => {
             expect.any(Object),
         );
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
     });
 
     it('rejects ws connect when the app-server exits during handshake', async () => {
@@ -875,7 +875,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         );
         expect(client.sandboxEnabled).toBe(false);
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
     });
 
     it('resets sandbox on disconnect', async () => {
@@ -883,7 +883,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         const client = new CodexAppServerClient(sandboxConfig);
 
         await client.connect();
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
 
         expect(mockSandboxCleanup).toHaveBeenCalledTimes(1);
         expect(client.sandboxEnabled).toBe(false);
@@ -906,7 +906,7 @@ describe('CodexAppServerClient sandbox integration', () => {
             }),
         );
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
     });
 
     it.each([{ transport: 'stdio' as const }, { transport: 'ws' as const }])(
@@ -918,7 +918,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         const client = new CodexAppServerClient(undefined, { transport });
 
         await client.connect();
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
 
         const reconnect = client.connect();
         setTimeout(() => {
@@ -926,7 +926,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         }, 10);
 
         await expect(reconnect).resolves.toBeUndefined();
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
     });
 
     it('regenerates ws auth token hashes across reconnects', async () => {
@@ -938,7 +938,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         const client = new CodexAppServerClient(undefined, { transport: 'ws' });
 
         await client.connect();
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
         await client.connect();
 
         expect(mockSpawn).toHaveBeenCalledTimes(2);
@@ -948,7 +948,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         expect(secondHash).toMatch(/^[a-f0-9]{64}$/);
         expect(secondHash).not.toBe(firstHash);
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
     });
 
     it('does not leak raw ws auth tokens through spawn argv, env, or logger output', async () => {
@@ -970,7 +970,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         const client = new CodexAppServerClient(undefined, { transport: 'ws' });
 
         await client.connect();
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
         await client.connect();
 
         expect(capturedHeaders).toHaveLength(2);
@@ -988,7 +988,7 @@ describe('CodexAppServerClient sandbox integration', () => {
             }
         }
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
     });
 
     it.each([{ transport: 'stdio' as const }, { transport: 'ws' as const }])(
@@ -1126,7 +1126,7 @@ describe('CodexAppServerClient sandbox integration', () => {
 
         await expect(client.sendTurnAndWait('follow up after reconnect')).resolves.toEqual({ aborted: false });
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
     });
 
     it.each([{ transport: 'stdio' as const }, { transport: 'ws' as const }])(
@@ -1254,7 +1254,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         ]));
         expect(events.filter((event) => event.type === 'task_complete')).toHaveLength(1);
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
     });
 
     it.each([{ transport: 'stdio' as const }, { transport: 'ws' as const }])(
@@ -1382,7 +1382,7 @@ describe('CodexAppServerClient sandbox integration', () => {
             }),
         ]));
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
     });
 
     it.each([{ transport: 'stdio' as const }, { transport: 'ws' as const }])(
@@ -1468,7 +1468,7 @@ describe('CodexAppServerClient sandbox integration', () => {
             reason: null,
         }));
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
     });
 
     it.each([{ transport: 'stdio' as const }, { transport: 'ws' as const }])(
@@ -1549,7 +1549,7 @@ describe('CodexAppServerClient sandbox integration', () => {
             expect.objectContaining({ type: 'task_complete', turn_id: 'turn-raw-2' }),
         ]));
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
     });
 
     it.each([{ transport: 'stdio' as const }, { transport: 'ws' as const }])(
@@ -1637,7 +1637,7 @@ describe('CodexAppServerClient sandbox integration', () => {
             }),
         ]));
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
     });
 
     it('cleans up pending requests when transport send rejects', async () => {
@@ -1722,7 +1722,7 @@ describe('CodexAppServerClient sandbox integration', () => {
             expect.objectContaining({ type: 'agent_message', message: 'new turn finished' }),
         ]));
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
     });
 
     it('rejects ws connect when the open handshake times out', async () => {
@@ -1801,7 +1801,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         );
         expect(proc.unref).toHaveBeenCalledTimes(1);
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
     });
 
     it('preserves a detached ws app-server without retaining the child handle', async () => {
@@ -1815,7 +1815,9 @@ describe('CodexAppServerClient sandbox integration', () => {
         const client = new CodexAppServerClient(undefined, { transport: 'ws' });
 
         await client.connect();
-        await (client as any).disconnectInternal({ terminateAppServer: false });
+        const preservedRecord = readDiscoveryRecord(discoveryFilePath());
+        expect(preservedRecord).not.toBeNull();
+        await client.disconnect();
 
         expect((client as any).wsChild).toBeNull();
         expect((process as any)._getActiveHandles?.().includes(proc)).toBe(false);
@@ -1831,6 +1833,13 @@ describe('CodexAppServerClient sandbox integration', () => {
             new Promise((resolve) => setTimeout(resolve, 0)),
             new Promise((_, reject) => setTimeout(() => reject(new Error('event loop did not drain')), 1_500)),
         ])).resolves.toBeUndefined();
+
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation((() => true) as typeof process.kill);
+        process.kill(preservedRecord!.pid, 'SIGTERM');
+        deleteDiscoveryIfMatches(discoveryFilePath(), { pid: preservedRecord!.pid, startedAt: preservedRecord!.startedAt });
+        expect(killSpy).toHaveBeenCalledWith(7201, 'SIGTERM');
+        expect(existsSync(discoveryFilePath())).toBe(false);
+        killSpy.mockRestore();
     });
 
     it('does not double-kill on intentional disconnect close, but does kill on unsolicited close', async () => {
@@ -1842,7 +1851,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         const { CodexAppServerClient } = await import('./codexAppServerClient');
         const intentionalClient = new CodexAppServerClient(undefined, { transport: 'ws' });
         await intentionalClient.connect();
-        await intentionalClient.disconnect();
+        await intentionalClient.disconnect({ terminateAppServer: true });
 
         expect(first.proc.kill).toHaveBeenCalledTimes(1);
         expect(first.proc.kill).toHaveBeenCalledWith('SIGTERM');
@@ -1943,7 +1952,7 @@ describe('CodexAppServerClient sandbox integration', () => {
 
         await expect(secondClient.connect()).resolves.toBeUndefined();
         expect(mockPickFreeLoopbackPort).toHaveBeenCalledTimes(2);
-        await secondClient.disconnect();
+        await secondClient.disconnect({ terminateAppServer: true });
     });
 
     it('retries pick+spawn when first ws child exits with a bind error in the log file', async () => {
@@ -1991,7 +2000,7 @@ describe('CodexAppServerClient sandbox integration', () => {
         expect(secondHash).toMatch(/^[a-f0-9]{64}$/);
         expect(secondHash).not.toBe(firstHash);
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
     });
 
     it('opens the ws log file at the configuration.logsDir-derived path and closes the fd on disconnect', async () => {
@@ -2022,7 +2031,7 @@ describe('CodexAppServerClient sandbox integration', () => {
 
         expect(mockOpenSync).toHaveBeenCalledWith(expectedLogPath, 'a', 0o600);
 
-        await client.disconnect();
+        await client.disconnect({ terminateAppServer: true });
 
         expect(mockCloseSync).toHaveBeenCalledWith(fakeLogFd);
     });
@@ -2069,7 +2078,7 @@ describe('CodexAppServerClient sandbox integration', () => {
 
         // Start disconnect and advance fake timers past the 2 s close-timeout
         // so the transport falls through without waiting for the server close frame.
-        const disconnectPromise = client.disconnect();
+        const disconnectPromise = client.disconnect({ terminateAppServer: true });
         await vi.advanceTimersByTimeAsync(3_000);
 
         const start = Date.now();
