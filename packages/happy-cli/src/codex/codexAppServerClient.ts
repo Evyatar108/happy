@@ -1133,7 +1133,7 @@ export class CodexAppServerClient {
         const threadId = this._threadId;
         const terminateAppServer = opts?.terminateAppServer ?? false;
         const skipDiscovery = opts?.skipDiscovery ?? false;
-        const lock = this.transport === 'ws' && skipDiscovery ? await acquireDiscoveryLock(lockFilePath()) : null;
+        const lock = this.resolveEffectiveTransport() === 'ws' && skipDiscovery ? await acquireDiscoveryLock(lockFilePath()) : null;
         try {
             await this.disconnectInternal({ preserveThreadState: !!threadId, terminateAppServer });
             await this.connect(lock ? { skipDiscovery, heldLock: lock } : { skipDiscovery });

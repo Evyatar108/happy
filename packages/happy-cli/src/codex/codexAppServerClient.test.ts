@@ -127,6 +127,7 @@ type VerifyClient = (
 type MockAppServerOptions = {
     pid?: number;
     initializeDelayMs?: number;
+    autoInitialize?: boolean;
     onRequest?: (msg: MockRpcMessage, send: SendJson) => void;
     verifyClient?: VerifyClient;
 };
@@ -135,6 +136,7 @@ type MockAppServerOptions = {
 function createMockProcess(opts?: {
     pid?: number;
     initializeDelayMs?: number;
+    autoInitialize?: boolean;
     onRequest?: (msg: MockRpcMessage, stdout: NodeJS.ReadableStream & { push: (chunk: string) => void }) => void;
 }) {
     const { Readable, Writable } = require('stream');
@@ -155,7 +157,7 @@ function createMockProcess(opts?: {
     stdin.write = (data: any, ...args: any[]) => {
         try {
             const msg = JSON.parse(typeof data === 'string' ? data : data.toString());
-            if (msg.method === 'initialize' && msg.id != null) {
+            if (msg.method === 'initialize' && msg.id != null && opts?.autoInitialize !== false) {
                 // Send response on next tick
                 setTimeout(() => {
                     pushJsonLine(stdout, { id: msg.id, result: { userAgent: 'test' } });
@@ -202,7 +204,7 @@ async function createMockWsAppServer(opts?: MockAppServerOptions) {
             const send = (payload: unknown) => socket.send(JSON.stringify(payload));
             try {
                 const msg = JSON.parse(data.toString()) as MockRpcMessage;
-                if (msg.method === 'initialize' && msg.id != null) {
+                if (msg.method === 'initialize' && msg.id != null && opts?.autoInitialize !== false) {
                     setTimeout(() => {
                         send({ id: msg.id, result: { userAgent: 'test' } });
                     }, initializeDelayMs);
@@ -250,6 +252,13 @@ async function waitFor(predicate: () => boolean, timeoutMs: number = 1000): Prom
         }
         await new Promise((resolve) => setTimeout(resolve, 10));
     }
+}
+
+async function acquireDiscoveryLockWithin(timeoutMs: number = 200): Promise<Awaited<ReturnType<typeof acquireDiscoveryLock>>> {
+    return await Promise.race([
+        acquireDiscoveryLock(lockFilePath()),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`Timed out acquiring discovery lock after ${timeoutMs}ms`)), timeoutMs)),
+    ]);
 }
 
 const sandboxConfig: SandboxConfig = {
@@ -784,6 +793,111 @@ describe('CodexAppServerClient sandbox integration', () => {
             heldLock: expect.objectContaining({ release: expect.any(Function) }),
         });
         expect(existsSync(lockFilePath())).toBe(false);
+    });
+
+    it('does not acquire the force-restart lock when sandbox forces configured ws to stdio', async () => {
+        let releaseInitialize!: () => void;
+        let markInitializeObserved!: () => void;
+        const initializeObserved = new Promise<void>((resolve) => {
+            markInitializeObserved = resolve;
+        });
+        await mockNextAppServer('stdio', {
+            pid: 4337,
+            autoInitialize: false,
+            onRequest: (msg, send) => {
+                if (msg.method !== 'initialize' || msg.id == null) return;
+                expect(existsSync(lockFilePath())).toBe(false);
+                releaseInitialize = () => send({ id: msg.id, result: { userAgent: 'test' } });
+                markInitializeObserved();
+            },
+        });
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(sandboxConfig, { transport: 'ws' });
+        const reconnect = client.reconnectAndResumeThread({ skipDiscovery: true });
+
+        await initializeObserved;
+        expect(existsSync(lockFilePath())).toBe(false);
+        const lock = await acquireDiscoveryLockWithin(200);
+        await lock.release();
+        releaseInitialize();
+
+        await expect(reconnect).resolves.toBe(false);
+        expect(existsSync(lockFilePath())).toBe(false);
+
+        await client.disconnect({ terminateAppServer: true });
+    });
+
+    it('does not acquire the force-restart lock when default ws falls back to stdio without ws auth', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        mockExecSync.mockImplementation((cmd: string) => {
+            if (cmd === 'codex --version') return 'codex-cli 0.107.0';
+            if (cmd === 'codex app-server --help') return 'Usage: codex app-server --listen <URL>';
+            return 'codex-cli 0.107.0';
+        });
+        let releaseInitialize!: () => void;
+        let markInitializeObserved!: () => void;
+        const initializeObserved = new Promise<void>((resolve) => {
+            markInitializeObserved = resolve;
+        });
+        await mockNextAppServer('stdio', {
+            pid: 4338,
+            autoInitialize: false,
+            onRequest: (msg, send) => {
+                if (msg.method !== 'initialize' || msg.id == null) return;
+                expect(existsSync(lockFilePath())).toBe(false);
+                releaseInitialize = () => send({ id: msg.id, result: { userAgent: 'test' } });
+                markInitializeObserved();
+            },
+        });
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws', transportSource: 'default' });
+        const reconnect = client.reconnectAndResumeThread({ skipDiscovery: true });
+
+        await initializeObserved;
+        expect(existsSync(lockFilePath())).toBe(false);
+        const lock = await acquireDiscoveryLockWithin(200);
+        await lock.release();
+        releaseInitialize();
+
+        await expect(reconnect).resolves.toBe(false);
+        expect(existsSync(lockFilePath())).toBe(false);
+        expect(mockExecSync.mock.calls.filter(([cmd]) => cmd === 'codex app-server --help')).toHaveLength(1);
+
+        await client.disconnect({ terminateAppServer: true });
+    });
+
+    it('acquires and releases the force-restart lock when effective transport remains ws', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        let releaseInitialize!: () => void;
+        let markInitializeObserved!: () => void;
+        const initializeObserved = new Promise<void>((resolve) => {
+            markInitializeObserved = resolve;
+        });
+        await mockNextAppServer('ws', {
+            pid: 4339,
+            autoInitialize: false,
+            onRequest: (msg, send) => {
+                if (msg.method !== 'initialize' || msg.id == null) return;
+                expect(existsSync(lockFilePath())).toBe(true);
+                releaseInitialize = () => send({ id: msg.id, result: { userAgent: 'test' } });
+                markInitializeObserved();
+            },
+        });
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'ws' });
+        const reconnect = client.reconnectAndResumeThread({ skipDiscovery: true });
+
+        await initializeObserved;
+        expect(existsSync(lockFilePath())).toBe(true);
+        releaseInitialize();
+
+        await expect(reconnect).resolves.toBe(false);
+        expect(existsSync(lockFilePath())).toBe(false);
+
+        await client.disconnect({ terminateAppServer: true });
     });
 
     it('blocks a concurrent connect on the force-restart lock until respawn writes discovery', async () => {
