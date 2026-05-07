@@ -221,6 +221,8 @@ The sandbox override is still authoritative: when Happy sandboxing is enabled on
 
 The default transport is ws, but only when the installed `codex app-server --help` advertises `--ws-auth`. Explicit `--codex-transport=ws` fails closed if `--ws-auth` is missing and tells the user to upgrade codex or omit the flag for stdio fallback. Implicit/default ws falls back to stdio for that client instance and emits the one-time warning from `CodexAppServerClient`.
 
+The `--ws-auth` probe result is cached for the lifetime of the `CodexAppServerClient` instance; restart happy (or the daemon) after upgrading the installed codex binary so the new capability is detected.
+
 **`session-fork-resume` is remote-mode only.** The boundary emit on `claude --resume` lives at `claude/claudeRemoteLauncher.ts:363-375`, gated by the live `system.init` SDK message. **Local mode (`claudeLocalLauncher.ts`) does NOT emit `session-fork-resume` AT ALL**, even when Happy IS running and the fork happens live. Move the emit into a shared helper called from both launchers' `onSessionFound` if you touch this area.
 
 Full research, verified findings (file:line), brainstorm history, candidate solutions, and per-agent fix bundles are captured in `docs/plans/offline-catchup-and-sync-architecture.md`. **Read that before proposing any catch-up code change.** The doc identifies four Claude fixes (C-1 persisted scanner offsets, C-2 cold-start orphan-JSONL enumeration, C-3 local-mode `session-fork-resume` parity, C-4 deterministic localId for catch-up) and three Codex fixes (X-1 durable Happy outbox, X-2 thread history import on resume, X-3 local cache of `codexThreadId`), with effort estimates and open decision questions.
