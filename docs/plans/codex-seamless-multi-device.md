@@ -436,7 +436,7 @@ We spent a session investigating "deferred switch when idle" for Claude and disc
 Codex avoids ALL of these by design:
 
 - `codex app-server` runs as a long-lived JSON-RPC subprocess spawned by `CodexAppServerClient.connect()` (`codexAppServerClient.ts`). Spawn args are dispatched on the resolved transport: ws (default) → `['app-server', '--listen', 'ws://127.0.0.1:<port>', '--ws-auth', 'capability-token', '--ws-token-sha256', <hex>]`; stdio (sandbox-on-non-Windows or explicit `--codex-transport stdio`) → `['app-server', '--listen', 'stdio://']`
-- ALL approvals/permissions/elicitations route through a single uniform RPC path (`codexAppServerClient.ts:1095-1122`)
+- ALL approvals/permissions/elicitations route through a single uniform RPC path (`codexAppServerClient.ts:1637-1684`)
 - Terminal display is already a Happy-managed React/ink renderer (`runCodex.ts:21-22` — `MessageBuffer` + `CodexDisplay`), NOT a Codex-binary TUI
 - `CodexPermissionHandler` already forwards every approval to the app via `permission` RPC; the same handler answers from terminal or phone
 - Background tasks live inside the same `app-server` process across "mode" changes — there are no mode changes architecturally
@@ -476,9 +476,9 @@ Each step in this walkthrough names a Phase 1 deliverable. If any step doesn't w
 - `codex app-server` is a long-lived child process owning all agent state and spawned shells
 - Terminal display is React/ink-based (`CodexDisplay.tsx`); not the Codex binary's TUI
 - All three approval flavors route through `CodexPermissionHandler` to app:
-  - `item/commandExecution/requestApproval` (Bash-equivalent) → `codexAppServerClient.ts:1095`
-  - `item/fileChange/requestApproval` (file edits) → `codexAppServerClient.ts:1110`
-  - `mcpServer/elicitation/request` (AskUserQuestion-analog for MCP tools) → `codexAppServerClient.ts:1080`
+  - `item/commandExecution/requestApproval` (Bash-equivalent) → `codexAppServerClient.ts:1652`
+  - `item/fileChange/requestApproval` (file edits) → `codexAppServerClient.ts:1667`
+  - `mcpServer/elicitation/request` (AskUserQuestion-analog for MCP tools) → `codexAppServerClient.ts:1637`
 - App users can answer permissions via existing `sessionAllow` / `sessionDeny` RPCs
 - Abort flow with grace period + force-restart fallback (`runCodex.ts:265-280`)
 - Resume-thread on app-server force-restart preserves conversation state
