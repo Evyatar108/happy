@@ -223,7 +223,7 @@ export class CodexAppServerClient {
     }
 
     private resolveEffectiveTransport(): 'stdio' | 'ws' {
-        // MUST stay in sync with connect():742-760 transport-resolution rules
+        // MUST stay in sync with connect():778-795 transport-resolution rules
         if (this.sandboxConfig?.enabled && process.platform !== 'win32' && this.transport === 'ws') {
             return 'stdio';
         }
@@ -960,7 +960,7 @@ export class CodexAppServerClient {
             try {
                 await this.request('initialize', initParams);
                 if (spawnedDiscoveryRecord) {
-                    // notify() is fire-and-forget per notify():1436; this invariant is invocation-ordering, not delivery-confirmation.
+                    // notify() is fire-and-forget per notify():1508; this invariant is invocation-ordering, not delivery-confirmation.
                     this.notify('initialized');
                     try {
                         await writeDiscoveryRecord(discoveryFilePath(), spawnedDiscoveryRecord);
