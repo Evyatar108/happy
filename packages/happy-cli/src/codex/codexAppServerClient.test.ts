@@ -958,6 +958,39 @@ describe('CodexAppServerClient sandbox integration', () => {
         killSpy.mockRestore();
     });
 
+    it('connects two concurrent ws clients with one spawn and one reattach', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const pid = 4340;
+        const requests: MockRpcMessage[] = [];
+        await mockNextAppServer('ws', { pid, onRequest: (msg) => requests.push(msg) });
+        const killSpy = vi.spyOn(process, 'kill').mockImplementation(((targetPid: number, signal?: string | number) => {
+            if (targetPid === pid && signal === 0) return true;
+            return true;
+        }) as typeof process.kill);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const clientA = new CodexAppServerClient(undefined, { transport: 'ws' });
+        const clientB = new CodexAppServerClient(undefined, { transport: 'ws' });
+
+        await Promise.all([clientA.connect(), clientB.connect()]);
+
+        const owners = [(clientA as any).wsAppServerOwner, (clientB as any).wsAppServerOwner];
+        const discoveryA = (clientA as any).currentDiscovery as CodexDiscoveryRecord | null;
+        const discoveryB = (clientB as any).currentDiscovery as CodexDiscoveryRecord | null;
+        expect(mockSpawn).toHaveBeenCalledTimes(1);
+        expect((clientA as any).connected).toBe(true);
+        expect((clientB as any).connected).toBe(true);
+        expect(owners.sort()).toEqual(['attached', 'spawned']);
+        expect(discoveryA?.pid).toBe(pid);
+        expect(discoveryB?.pid).toBe(pid);
+        expect(discoveryA?.startedAt).toBe(discoveryB?.startedAt);
+        expect(requests.filter((msg) => msg.method === 'initialize')).toHaveLength(2);
+
+        await clientA.disconnect();
+        await clientB.disconnect();
+        killSpy.mockRestore();
+    });
+
     it('rejects connect when a held discovery lock is supplied without skipDiscovery', async () => {
         Object.defineProperty(process, 'platform', { value: 'win32' });
         const lock = await acquireDiscoveryLock(lockFilePath());
