@@ -889,22 +889,27 @@ export class CodexAppServerClient {
                         };
                         break;
                     } catch (error) {
-                        await candidate.close().catch(() => undefined);
+                        this.intentionalClose = true;
                         try {
-                            await this.closeWsChild();
-                        } catch (killError) {
-                            this.clearWsChildState();
+                            await candidate.close().catch(() => undefined);
+                            try {
+                                await this.closeWsChild();
+                            } catch (killError) {
+                                this.clearWsChildState();
+                                this.wsAppServerOwner = null;
+                                this.connection = null;
+                                throw killError;
+                            }
                             this.wsAppServerOwner = null;
                             this.connection = null;
-                            throw killError;
+                            if (attempt < WS_SPAWN_MAX_RETRIES && this.isWsBindError()) {
+                                logger.warn(`[CodexAppServer] Bind error on port ${port}; retrying with a new port`);
+                                continue;
+                            }
+                            throw error;
+                        } finally {
+                            this.intentionalClose = false;
                         }
-                        this.wsAppServerOwner = null;
-                        this.connection = null;
-                        if (attempt < WS_SPAWN_MAX_RETRIES && this.isWsBindError()) {
-                            logger.warn(`[CodexAppServer] Bind error on port ${port}; retrying with a new port`);
-                            continue;
-                        }
-                        throw error;
                     }
                 }
             } else {
@@ -988,19 +993,24 @@ export class CodexAppServerClient {
                 }
             } catch (error) {
                 if (!failureAlreadyCleanedUp) {
-                    await this.connection?.close().catch(() => undefined);
+                    this.intentionalClose = true;
                     try {
-                        await this.closeWsChild();
-                    } catch (killError) {
-                        this.clearWsChildState();
+                        await this.connection?.close().catch(() => undefined);
+                        try {
+                            await this.closeWsChild();
+                        } catch (killError) {
+                            this.clearWsChildState();
+                            this.wsAppServerOwner = null;
+                            this.currentDiscovery = null;
+                            this.connection = null;
+                            throw killError;
+                        }
                         this.wsAppServerOwner = null;
                         this.currentDiscovery = null;
                         this.connection = null;
-                        throw killError;
+                    } finally {
+                        this.intentionalClose = false;
                     }
-                    this.wsAppServerOwner = null;
-                    this.currentDiscovery = null;
-                    this.connection = null;
                 }
                 throw error;
             }
