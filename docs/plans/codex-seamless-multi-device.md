@@ -612,10 +612,10 @@ On `happy codex` startup:
 
 ##### Post-review invariants
 
-- Per-cwd discovery lock acquisition in reconnectAndResumeThread is gated on the post-downgrade effective transport returned by resolveEffectiveTransport() (capturing both sandbox forcing AND ws-auth-not-available fallback), not the configured this.transport.
-- Both terminateAttachedAppServer and closeWsChild throw on kill-fail; all non-fire-and-forget callers propagate; only :616 fire-and-forget WS onClose swallows + calls clearWsChildState().
-- notify() is fire-and-forget at codexAppServerClient.ts:1436; the invariant is invocation-ordering, not delivery-confirmation.
-- intentionalClose (renamed from wsIntentionalClose) gates BOTH ws and stdio onClose handlers; both short-circuit when set.
+- **Effective-transport-before-lock**: "Per-cwd discovery lock acquisition in `reconnectAndResumeThread` is gated on the post-downgrade effective transport returned by `resolveEffectiveTransport()` (capturing both sandbox forcing AND ws-auth-not-available fallback), not the configured `this.transport`."
+- **Confirm-dead-before-delete**: "Both `terminateAttachedAppServer` (attached-owner path) and `closeWsChild` (spawned-owner path) throw if the OS PID/child cannot be confirmed dead after SIGKILL grace; discovery is deleted only on confirmed-dead. All non-fire-and-forget callers (version-mismatch, reattach init-failure, public `disconnect({ terminateAppServer: true })`, `reconnectAndResumeThread`, spawn-retry cleanup, initialize-failure outer catch, writeDiscoveryRecord-failure cleanup post-Story-4) propagate the throw — no caller falls through to spawn-fresh while the old server may still be alive. Discovery is preserved on disk for the next invocation to probe-and-reclaim. Only the fire-and-forget `void this.closeWsChild()` in the WS `onClose` handler swallows + calls `clearWsChildState()` (cannot propagate from a fire-and-forget context)."
+- **Persist-on-initialized-invocation**: "`connect()` writes the discovery record only after `notify('initialized')` has been invoked. The notification is fire-and-forget (`notify()` at `codexAppServerClient.ts:1436` returns `void` and the underlying `connection.send()` swallows failures), so the invariant is invocation-ordering, not delivery-confirmation. Reordering still narrows the failure window: an in-flight write failure no longer leaves the discovery file pointing at a session that never sent `initialized`."
+- **Shared intentional-close gate**: "`intentionalClose` (renamed from `wsIntentionalClose`) gates BOTH ws and stdio `onClose` handlers; both short-circuit when set."
 
 **Daemon integration**: the existing daemon (`packages/happy-cli/src/daemon/run.ts`) already manages long-lived processes; Codex's app-server should plug into that pattern. If integration is non-trivial, ship Phase 1 with a simpler "happy codex spawns app-server detached, daemon optional" model and revisit daemon integration in Phase 1.5.
 
