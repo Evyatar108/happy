@@ -954,6 +954,8 @@ export class CodexAppServerClient {
             try {
                 await this.request('initialize', initParams);
                 if (spawnedDiscoveryRecord) {
+                    // notify() is fire-and-forget per notify():1436; this invariant is invocation-ordering, not delivery-confirmation.
+                    this.notify('initialized');
                     try {
                         await writeDiscoveryRecord(discoveryFilePath(), spawnedDiscoveryRecord);
                         this.wsAppServerOwner = 'spawned';
@@ -963,19 +965,24 @@ export class CodexAppServerClient {
                         this.wsIntentionalClose = true;
                         const connection = this.connection;
                         this.connection = null;
+                        let killError: Error | null = null;
                         try {
                             await this.closeWsChild();
-                            await connection?.close().catch(() => undefined);
-                            this.wsAppServerOwner = null;
-                            this.currentDiscovery = null;
-                            this.connected = false;
-                        } finally {
-                            this.wsIntentionalClose = false;
+                        } catch (err) {
+                            killError = err as Error;
+                            logger.warn('[CodexAppServer] writeDiscoveryRecord failed AND closeWsChild kill-fail; spawned ws child PID likely orphaned', { writeError, killError });
+                            this.clearWsChildState();
                         }
-                        throw writeError;
+                        await connection?.close().catch(() => undefined);
+                        this.wsAppServerOwner = null;
+                        this.currentDiscovery = null;
+                        this.connected = false;
+                        this.wsIntentionalClose = false;
+                        throw killError ?? writeError;
                     }
+                } else {
+                    this.notify('initialized');
                 }
-                this.notify('initialized');
             } catch (error) {
                 if (!failureAlreadyCleanedUp) {
                     await this.connection?.close().catch(() => undefined);

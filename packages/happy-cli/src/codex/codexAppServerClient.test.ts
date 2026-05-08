@@ -2368,6 +2368,67 @@ describe('CodexAppServerClient sandbox integration', () => {
         killSpy.mockRestore();
     });
 
+    it('kills the spawned child and skips discovery write when initialized notification throws', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const { proc, wss } = await createMockWsAppServer({ pid: 7511 });
+        mockPickFreeLoopbackPort.mockResolvedValueOnce((wss.address() as AddressInfo).port);
+        mockSpawn.mockImplementationOnce(() => proc);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, {
+            transport: 'ws',
+            logFilePath: join(tmpdir(), 'codex-app-server-notify-throws-test.log'),
+        });
+        vi.spyOn(client as any, 'notify').mockImplementation((method: unknown) => {
+            if (method === 'initialized') throw new Error('initialized notify failed');
+        });
+
+        await expect(client.connect()).rejects.toThrow('initialized notify failed');
+
+        expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
+        expect(mockWriteDiscoveryRecord).not.toHaveBeenCalled();
+        expect(existsSync(discoveryFilePath())).toBe(false);
+        expect((client as any).connection).toBeNull();
+        expect((client as any).wsChild).toBeNull();
+        expect((client as any).wsAppServerOwner).toBeNull();
+        expect((client as any).currentDiscovery).toBeNull();
+        expect((client as any).connected).toBe(false);
+    });
+
+    it('surfaces closeWsChild kill failure over discovery write failure and clears spawned state', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        vi.spyOn(process, 'kill').mockImplementation((() => true) as typeof process.kill);
+        const { proc, wss } = await createMockWsAppServer({ pid: 7512 });
+        proc.kill.mockImplementation(() => true);
+        mockPickFreeLoopbackPort.mockResolvedValueOnce((wss.address() as AddressInfo).port);
+        mockSpawn.mockImplementationOnce(() => proc);
+        const writeError = new Error('write failed');
+        mockWriteDiscoveryRecord.mockRejectedValueOnce(writeError);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, {
+            transport: 'ws',
+            logFilePath: join(tmpdir(), 'codex-app-server-write-kill-fail-test.log'),
+        });
+        vi.spyOn(client as any, 'waitForWsChildExit').mockResolvedValue(false);
+
+        await expect(client.connect()).rejects.toThrow('closeWsChild: spawned PID 7512 did not exit after SIGKILL grace');
+
+        expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
+        expect(proc.kill).toHaveBeenCalledWith('SIGKILL');
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+            '[CodexAppServer] writeDiscoveryRecord failed AND closeWsChild kill-fail; spawned ws child PID likely orphaned',
+            expect.objectContaining({ writeError, killError: expect.any(Error) }),
+        );
+        expect(existsSync(discoveryFilePath())).toBe(false);
+        expect((client as any).connection).toBeNull();
+        expect((client as any).wsChild).toBeNull();
+        expect((client as any).wsAppServerOwner).toBeNull();
+        expect((client as any).currentDiscovery).toBeNull();
+        expect((client as any).connected).toBe(false);
+        expect(mockCloseSync).toHaveBeenCalledWith(99);
+    });
+
     it('surfaces a ws port-pick failure and connects after a subsequent resolved pick', async () => {
         Object.defineProperty(process, 'platform', { value: 'win32' });
         mockPickFreeLoopbackPort.mockRejectedValueOnce(new Error('Failed to pick free loopback port after 3 attempts'));
