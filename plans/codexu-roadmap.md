@@ -2086,8 +2086,9 @@ this for cross-machine; on-machine is just the user account.
 - Corrupted thread state: `~/.codex/sessions/<thread-id>.jsonl` is the
   source of truth; can be replayed via `thread/resume`
 - Hung app-server: kill PID from discovery file at
-  `~/.codex/runtime/active-${cwdHash}.json`; codexu will reattach on
-  next `codexu codex` invocation (per Phase 1b plan)
+  `~/.happy/codex-active-${cwdHash}.json` (or
+  `$HAPPY_HOME_DIR/codex-active-${cwdHash}.json`); codexu will reattach
+  on next `codexu codex` invocation (per Phase 1b plan)
 - Stuck ralph job: state at `.ralph/jobs/<name>/job-state.json`;
   manual intervention via `list-jobs` skill or direct file edit
 - Force-restart fallback path documented per codexu's existing
