@@ -542,6 +542,15 @@ export function removeEnvironment(name: string): void {
     }
 
     let lastError: unknown = null;
+    // stopEnvironment() sends SIGTERM without waiting, while spawnService creates
+    // detached processes whose log file descriptors live under envDir. Even after
+    // moving cwd back to REPO_ROOT above, Windows can briefly report
+    // EBUSY/ENOTEMPTY/EPERM while those handles drain. removeEnvironment is
+    // synchronous, including its destroyIntegrationEnvironment consumer in
+    // packages/happy-cli/src/testing/integrationEnvironment.ts, so Atomics.wait on
+    // a throwaway SharedArrayBuffer is the bounded sleep primitive here instead of
+    // converting every CLI env command to async. Retry at most 5 times, sleeping
+    // 100..500ms.
     for (let attempt = 0; attempt < 5; attempt++) {
         try {
             fs.rmSync(envDir, { recursive: true, force: true });
