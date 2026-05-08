@@ -437,7 +437,7 @@ Codex avoids ALL of these by design:
 
 - `codex app-server` runs as a long-lived JSON-RPC subprocess spawned by `CodexAppServerClient.connect()` (`codexAppServerClient.ts`). Spawn args are dispatched on the resolved transport: ws (default) → `['app-server', '--listen', 'ws://127.0.0.1:<port>', '--ws-auth', 'capability-token', '--ws-token-sha256', <hex>]`; stdio (sandbox-on-non-Windows or explicit `--codex-transport stdio`) → `['app-server', '--listen', 'stdio://']`
 - ALL approvals/permissions/elicitations route through a single uniform RPC path (`codexAppServerClient.ts:1637-1684`)
-- Terminal display is already a Happy-managed React/ink renderer (`runCodex.ts:21-22` — `MessageBuffer` + `CodexDisplay`), NOT a Codex-binary TUI
+- Terminal display is already a Happy-managed React/ink renderer (`runCodex.ts:22-23` — `MessageBuffer` + `CodexDisplay`), NOT a Codex-binary TUI
 - `CodexPermissionHandler` already forwards every approval to the app via `permission` RPC; the same handler answers from terminal or phone
 - Background tasks live inside the same `app-server` process across "mode" changes — there are no mode changes architecturally
 - `client.abortTurnWithFallback` already provides graceful interrupt + force-restart with thread resume on timeout (`runCodex.ts:265-280`)
