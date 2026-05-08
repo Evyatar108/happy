@@ -610,6 +610,13 @@ On `happy codex` startup:
 
 **Lifecycle ownership**: foreground `client.disconnect()` now preserves the detached ws app-server by default and closes only Happy CLI's connection. Terminate-intent paths must call `disconnect({ terminateAppServer: true })`; attached servers are terminated by the discovered PID and guarded discovery identity, while spawned servers use the retained child handle. Stdio remains process-owned by the foreground client and skips discovery.
 
+##### Post-review invariants
+
+- Per-cwd discovery lock acquisition in reconnectAndResumeThread is gated on the post-downgrade effective transport returned by resolveEffectiveTransport() (capturing both sandbox forcing AND ws-auth-not-available fallback), not the configured this.transport.
+- Both terminateAttachedAppServer and closeWsChild throw on kill-fail; all non-fire-and-forget callers propagate; only :616 fire-and-forget WS onClose swallows + calls clearWsChildState().
+- notify() is fire-and-forget at codexAppServerClient.ts:1436; the invariant is invocation-ordering, not delivery-confirmation.
+- intentionalClose (renamed from wsIntentionalClose) gates BOTH ws and stdio onClose handlers; both short-circuit when set.
+
 **Daemon integration**: the existing daemon (`packages/happy-cli/src/daemon/run.ts`) already manages long-lived processes; Codex's app-server should plug into that pattern. If integration is non-trivial, ship Phase 1 with a simpler "happy codex spawns app-server detached, daemon optional" model and revisit daemon integration in Phase 1.5.
 
 #### Sub-task 3: Discoverability — surface multi-device on terminal startup (0.5 day)

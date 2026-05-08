@@ -231,6 +231,13 @@ The cwd key is always computed by the no-arg discovery helpers from `realpathSyn
 
 `disconnect()` now preserves the ws app-server by default. Use `disconnect({ terminateAppServer: true })` for cleanup, kill-session, tests, and any restart path that intends to stop the backend. Use bare `disconnect()` for foreground CLI exit when the backend should remain discoverable. Force restart must call `reconnectAndResumeThread({ terminateAppServer: true, skipDiscovery: true })` so the already-held discovery lock covers terminate -> guarded delete -> respawn -> discovery write.
 
+## Force-Restart and Termination Invariants
+
+- Per-cwd discovery lock acquisition in reconnectAndResumeThread is gated on the post-downgrade effective transport returned by resolveEffectiveTransport() (capturing both sandbox forcing AND ws-auth-not-available fallback), not the configured this.transport.
+- Both terminateAttachedAppServer and closeWsChild throw on kill-fail; all non-fire-and-forget callers propagate; only :616 fire-and-forget WS onClose swallows + calls clearWsChildState().
+- notify() is fire-and-forget at codexAppServerClient.ts:1436; the invariant is invocation-ordering, not delivery-confirmation.
+- intentionalClose (renamed from wsIntentionalClose) gates BOTH ws and stdio onClose handlers; both short-circuit when set.
+
 **`session-fork-resume` is remote-mode only.** The boundary emit on `claude --resume` lives at `claude/claudeRemoteLauncher.ts:363-375`, gated by the live `system.init` SDK message. **Local mode (`claudeLocalLauncher.ts`) does NOT emit `session-fork-resume` AT ALL**, even when Happy IS running and the fork happens live. Move the emit into a shared helper called from both launchers' `onSessionFound` if you touch this area.
 
 Full research, verified findings (file:line), brainstorm history, candidate solutions, and per-agent fix bundles are captured in `docs/plans/offline-catchup-and-sync-architecture.md`. **Read that before proposing any catch-up code change.** The doc identifies four Claude fixes (C-1 persisted scanner offsets, C-2 cold-start orphan-JSONL enumeration, C-3 local-mode `session-fork-resume` parity, C-4 deterministic localId for catch-up) and three Codex fixes (X-1 durable Happy outbox, X-2 thread history import on resume, X-3 local cache of `codexThreadId`), with effort estimates and open decision questions.
