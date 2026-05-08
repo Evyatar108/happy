@@ -93,7 +93,11 @@ export function writeDiscoveryRecord(path: string, record: CodexDiscoveryRecord)
 export function deleteDiscoveryIfMatches(path: string, identity: Pick<CodexDiscoveryRecord, 'pid' | 'startedAt'>): void {
     const record = readDiscoveryRecord(path);
     if (record?.pid === identity.pid && record.startedAt === identity.startedAt) {
-        unlinkSync(path);
+        try {
+            unlinkSync(path);
+        } catch (err) {
+            if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+        }
     }
 }
 

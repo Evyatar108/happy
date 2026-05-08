@@ -27,15 +27,31 @@ import {
     writeDiscoveryRecord,
 } from './codexAppServerDiscovery';
 
-const { mockConfiguration } = vi.hoisted(() => ({
+const { mockConfiguration, mockUnlinkSyncError } = vi.hoisted(() => ({
     mockConfiguration: {
         happyHomeDir: '',
     },
+    mockUnlinkSyncError: { value: null as NodeJS.ErrnoException | null },
 }));
 
 vi.mock('@/configuration', () => ({
     configuration: mockConfiguration,
 }));
+
+vi.mock('node:fs', async (importActual) => {
+    const actual = await importActual<typeof import('node:fs')>();
+    return {
+        ...actual,
+        unlinkSync: (path: Parameters<typeof actual.unlinkSync>[0]) => {
+            if (mockUnlinkSyncError.value !== null) {
+                const err = mockUnlinkSyncError.value;
+                mockUnlinkSyncError.value = null;
+                throw err;
+            }
+            return actual.unlinkSync(path);
+        },
+    };
+});
 
 function testRecord(overrides: Partial<CodexDiscoveryRecord> = {}): CodexDiscoveryRecord {
     return {
@@ -169,6 +185,20 @@ describe('codex app-server discovery paths', () => {
 
         deleteDiscoveryIfMatches(path, { pid: newRecord.pid, startedAt: newRecord.startedAt });
         expect(existsSync(path)).toBe(false);
+    });
+
+    it('does not throw when unlinkSync hits ENOENT due to a concurrent deletion race', () => {
+        const path = discoveryFilePath(tempRoot);
+        const record = testRecord();
+        writeDiscoveryRecord(path, record);
+
+        mockUnlinkSyncError.value = Object.assign(new Error('ENOENT: no such file or directory, unlink'), {
+            code: 'ENOENT',
+        }) as NodeJS.ErrnoException;
+
+        expect(() =>
+            deleteDiscoveryIfMatches(path, { pid: record.pid, startedAt: record.startedAt }),
+        ).not.toThrow();
     });
 
     it('unconditionally deletes a discovery record when present', () => {
