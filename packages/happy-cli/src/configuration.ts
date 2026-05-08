@@ -5,7 +5,7 @@
  * Environment files should be loaded using Node's --env-file flag
  */
 
-import { existsSync, mkdirSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import packageJson from '../package.json'
@@ -65,7 +65,10 @@ class Configuration {
     }
 
     if (!existsSync(this.happyHomeDir)) {
-      mkdirSync(this.happyHomeDir, { recursive: true })
+      mkdirSync(this.happyHomeDir, { recursive: true, mode: 0o700 })
+    }
+    if (process.platform !== 'win32') {
+      chmodSync(this.happyHomeDir, 0o700)
     }
     // Ensure directories exist
     if (!existsSync(this.logsDir)) {
