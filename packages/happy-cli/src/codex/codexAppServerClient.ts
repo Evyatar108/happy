@@ -170,7 +170,7 @@ export class CodexAppServerClient {
     private processEpoch = 0;
     private wsAppServerOwner: 'attached' | 'spawned' | null = null;
     private currentDiscovery: CodexDiscoveryRecord | null = null;
-    private wsIntentionalClose = false;
+    private intentionalClose = false;
     private connected = false;
     private sandboxConfig?: SandboxConfig;
     private sandboxCleanup: (() => Promise<void>) | null = null;
@@ -631,7 +631,7 @@ export class CodexAppServerClient {
                 logger.debug('[CodexAppServer] Ignoring stale process exit');
                 return;
             }
-            if (this.wsIntentionalClose) {
+            if (this.intentionalClose) {
                 return;
             }
             this.connected = false;
@@ -739,7 +739,7 @@ export class CodexAppServerClient {
         } catch (error) {
             if (timeout) clearTimeout(timeout);
             const killTarget = { pid: record.pid, startedAt: record.startedAt };
-            this.wsIntentionalClose = true;
+            this.intentionalClose = true;
             try {
                 try {
                     this.rejectPendingForEpoch(epoch, 'initialize', error instanceof Error ? error : new Error(String(error)));
@@ -753,7 +753,7 @@ export class CodexAppServerClient {
                     this.connected = false;
                 }
             } finally {
-                this.wsIntentionalClose = false;
+                this.intentionalClose = false;
             }
             return false;
         }
@@ -924,6 +924,9 @@ export class CodexAppServerClient {
                         logger.debug('[CodexAppServer] Ignoring stale process exit');
                         return;
                     }
+                    if (this.intentionalClose) {
+                        return;
+                    }
                     this.connected = false;
                     this.wsAppServerOwner = null;
                     this.currentDiscovery = null;
@@ -962,7 +965,7 @@ export class CodexAppServerClient {
                         this.currentDiscovery = spawnedDiscoveryRecord;
                     } catch (writeError) {
                         failureAlreadyCleanedUp = true;
-                        this.wsIntentionalClose = true;
+                        this.intentionalClose = true;
                         const connection = this.connection;
                         this.connection = null;
                         let killError: Error | null = null;
@@ -977,7 +980,7 @@ export class CodexAppServerClient {
                         this.wsAppServerOwner = null;
                         this.currentDiscovery = null;
                         this.connected = false;
-                        this.wsIntentionalClose = false;
+                        this.intentionalClose = false;
                         throw killError ?? writeError;
                     }
                 } else {
@@ -1021,7 +1024,7 @@ export class CodexAppServerClient {
         const child = this.wsChild;
         logger.debug('[CodexAppServer] Disconnecting');
 
-        this.wsIntentionalClose = true;
+        this.intentionalClose = true;
         try {
             try {
                 await connection?.close();
@@ -1043,7 +1046,7 @@ export class CodexAppServerClient {
                 this.closeWsLogFd();
             }
         } finally {
-            this.wsIntentionalClose = false;
+            this.intentionalClose = false;
             this.connection = null;
             this.wsAppServerOwner = null;
             this.currentDiscovery = null;

@@ -2050,6 +2050,75 @@ describe('CodexAppServerClient sandbox integration', () => {
         expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
     });
 
+    it('does not reject pending stdio requests from onClose during intentional disconnect', async () => {
+        const { proc } = await mockNextAppServer('stdio');
+        proc.pid = undefined;
+        proc.kill = vi.fn(() => {
+            proc.emit('exit', 0, null);
+            return true;
+        });
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, { transport: 'stdio' });
+
+        await client.connect();
+        const resolvePendingTurnSpy = vi.spyOn(client as any, 'resolvePendingTurn');
+        const pending = (client as any).request('thread/turn', {}, 10_000).catch((error: Error) => error);
+
+        await client.disconnect();
+
+        await expect(pending).resolves.toMatchObject({
+            message: 'Codex process disconnected while waiting for thread/turn',
+        });
+        expect(resolvePendingTurnSpy).toHaveBeenCalledTimes(1);
+        expect(resolvePendingTurnSpy).toHaveBeenCalledWith(true);
+    });
+
+    it('warns and clears ws child state when ws onClose closeWsChild kill confirmation fails', async () => {
+        Object.defineProperty(process, 'platform', { value: 'win32' });
+        const unhandledRejections: unknown[] = [];
+        const onUnhandledRejection = (reason: unknown) => {
+            unhandledRejections.push(reason);
+        };
+        process.on('unhandledRejection', onUnhandledRejection);
+
+        const { proc, wss } = await createMockWsAppServer({ pid: 7002 });
+        proc.kill = vi.fn(() => true);
+        mockPickFreeLoopbackPort.mockResolvedValueOnce((wss.address() as AddressInfo).port);
+        mockSpawn.mockImplementationOnce(() => proc);
+
+        const { CodexAppServerClient } = await import('./codexAppServerClient');
+        const client = new CodexAppServerClient(undefined, {
+            transport: 'ws',
+            logFilePath: join(tmpdir(), 'codex-app-server-onclose-kill-fail-test.log'),
+        });
+        const waitForWsChildExitSpy = vi.spyOn(client as any, 'waitForWsChildExit').mockResolvedValue(false);
+
+        try {
+            await client.connect();
+
+            await closeWsServer(wss);
+
+            await waitFor(() => mockLogger.warn.mock.calls.some((call) => String(call[0]).includes('closeWsChild failed in onClose')));
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
+            expect(proc.kill).toHaveBeenCalledWith('SIGKILL');
+            expect(waitForWsChildExitSpy).toHaveBeenCalledTimes(2);
+            expect(mockLogger.warn).toHaveBeenCalledWith(
+                '[CodexAppServer] closeWsChild failed in onClose:',
+                expect.objectContaining({ message: 'closeWsChild: spawned PID 7002 did not exit after SIGKILL grace' }),
+            );
+            expect((client as any).wsChild).toBeNull();
+            expect(mockCloseSync).toHaveBeenCalledWith(99);
+            expect(unhandledRejections).toHaveLength(0);
+
+            await expect(client.disconnect()).resolves.toBeUndefined();
+        } finally {
+            process.off('unhandledRejection', onUnhandledRejection);
+        }
+    });
+
     it('spawns ws app-server detached and unrefs the child handle', async () => {
         Object.defineProperty(process, 'platform', { value: 'win32' });
         const { proc, wss } = await createMockWsAppServer({ pid: 7101 });
