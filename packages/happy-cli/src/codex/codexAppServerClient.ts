@@ -738,14 +738,12 @@ export class CodexAppServerClient {
             return true;
         } catch (error) {
             if (timeout) clearTimeout(timeout);
-            const killTarget = { pid: record.pid, startedAt: record.startedAt };
             this.intentionalClose = true;
             try {
                 try {
                     this.rejectPendingForEpoch(epoch, 'initialize', error instanceof Error ? error : new Error(String(error)));
                     await candidate.close().catch(() => undefined);
                     await this.terminateAttachedAppServer(record);
-                    deleteDiscoveryIfMatches(discoveryFilePath(), killTarget);
                 } finally {
                     this.connection = null;
                     this.wsAppServerOwner = null;
