@@ -294,7 +294,7 @@ The only weak conceptual link is **`thread/fork`** UX: an OMX-style multi-agent 
 Files to touch (in approximate dependency order):
 
 1. `packages/happy-cli/src/codex/codexAppServerTypes.ts` — add `ThreadRollbackParams/Response`, optionally `ThreadForkParams/Response`, extend `Thread` with `forkedFromId`.
-2. `packages/happy-cli/src/codex/codexAppServerClient.ts` — add `rollbackThread()`, optionally `forkThread()`. ~line 605 is the existing `resumeThread()` to mirror.
+2. `packages/happy-cli/src/codex/codexAppServerClient.ts` — add `rollbackThread()`, optionally `forkThread()`. ~line 1150 is the existing `resumeThread()` to mirror.
 3. `packages/happy-cli/src/codex/codexAppServerClient.test.ts` — unit tests for new client methods.
 4. `packages/happy-cli/src/codex/runCodex.ts` — register new RPC handler; coordinate with `handleAbort` (~lines 248-295).
 5. `packages/happy-cli/src/codex/utils/sessionProtocolMapper.ts` — handle history-reset semantics if needed.
