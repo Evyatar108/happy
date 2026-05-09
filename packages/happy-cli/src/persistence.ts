@@ -79,6 +79,7 @@ export interface DaemonLocallyPersistedState {
 
 export interface MachineLocallyPersistedState {
   port: number;
+  tunnelUrl?: string;
 }
 
 export async function readSettings(): Promise<Settings> {
@@ -304,7 +305,10 @@ export async function readMachineState(): Promise<MachineLocallyPersistedState |
     if (typeof parsed.port !== 'number' || !Number.isInteger(parsed.port) || parsed.port <= 0 || parsed.port > 65535) {
       return null;
     }
-    return { port: parsed.port };
+    return {
+      port: parsed.port,
+      tunnelUrl: typeof parsed.tunnelUrl === 'string' ? parsed.tunnelUrl : undefined,
+    };
   } catch {
     return null;
   }
@@ -466,4 +470,3 @@ export function persistSession(sessionId: string, session: PersistedSession): vo
     logger.debug(`[PERSISTENCE] Failed to persist session ${sessionId}:`, error);
   }
 }
-

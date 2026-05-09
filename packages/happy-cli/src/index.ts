@@ -33,6 +33,7 @@ import { extractNoSandboxFlag } from './utils/sandboxFlags'
 import { handleResumeCommand } from '@/resume/handleResumeCommand'
 import { ensureDaemonRunning } from './daemon/ensureDaemonRunning'
 import { handleCodexCommand } from './commands/codexCommand'
+import { runInitCommand } from '@/tunnel/tunnelManager'
 
 
 (async () => {
@@ -61,6 +62,17 @@ import { handleCodexCommand } from './commands/codexCommand'
       process.exit(0)
     }
     await runDoctorCommand();
+    return;
+  } else if (subcommand === 'init') {
+    try {
+      await runInitCommand();
+    } catch (error) {
+      console.error(chalk.red('Error:'), error instanceof Error ? error.message : 'Unknown error')
+      if (process.env.DEBUG) {
+        console.error(error)
+      }
+      process.exit(1)
+    }
     return;
   } else if (subcommand === 'auth') {
     // Handle auth subcommands

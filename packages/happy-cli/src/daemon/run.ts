@@ -31,6 +31,7 @@ import { detectResumeSupport } from '@/resume/localHappyAgentAuth';
 import { encodeBase64, decodeBase64, decrypt } from '@/api/encryption';
 import { pickFreeLoopbackPort } from '@/utils/pickFreeLoopbackPort';
 import { loadOrCreateTofuKeypairs } from '@/tofu/keypairManager';
+import { TunnelManager } from '@/tunnel/tunnelManager';
 
 // Prepare initial metadata
 // Suffix host with `-dev` for the HAPPY_VARIANT=dev variant so the dev daemon
@@ -182,6 +183,11 @@ export async function startDaemon(): Promise<void> {
     });
     await embeddedServer.start();
     logger.debug(`[DAEMON RUN] Embedded happy-server started on 127.0.0.1:${embeddedServerPort}`);
+
+    const tunnelManager = new TunnelManager();
+    const tunnelConfig = await tunnelManager.loadForDaemon(embeddedServerPort);
+    tunnelManager.startHost(tunnelConfig, embeddedServerPort);
+    logger.debug(`[DAEMON RUN] Dev Tunnel host started for ${tunnelConfig.tunnelUrl}`);
 
     // Setup state - key by PID
     const pidToTrackedSession = new Map<number, TrackedSession>();
@@ -818,7 +824,10 @@ export async function startDaemon(): Promise<void> {
     // Get or create machine
     const machine = await api.getOrCreateMachine({
       machineId,
-      metadata: initialMachineMetadata,
+      metadata: {
+        ...initialMachineMetadata,
+        tunnelUrl: tunnelConfig.tunnelUrl,
+      },
       daemonState: initialDaemonState
     });
     logger.debug(`[DAEMON RUN] Machine registered: ${machine.id}`);
@@ -891,6 +900,7 @@ export async function startDaemon(): Promise<void> {
         // isDaemonRunningCurrentlyInstalledHappyVersion() === true, and exits —
         // leaving nothing running once we also exit.
         apiMachine.shutdown();
+        tunnelManager.stop();
         await embeddedServer.stop();
         await stopControlServer();
         await cleanupDaemonState();
@@ -960,6 +970,7 @@ export async function startDaemon(): Promise<void> {
       await new Promise(resolve => setTimeout(resolve, 100));
 
       apiMachine.shutdown();
+      tunnelManager.stop();
       await embeddedServer.stop();
       await stopControlServer();
       await cleanupDaemonState();
@@ -977,6 +988,9 @@ export async function startDaemon(): Promise<void> {
     await cleanupAndShutdown(shutdownRequest.source, shutdownRequest.errorMessage);
   } catch (error) {
     logger.debug('[DAEMON RUN][FATAL] Failed somewhere unexpectedly - exiting with code 1', error);
+    if (error instanceof Error && error.message.includes('happy init')) {
+      console.error(error.message);
+    }
     process.exit(1);
   }
 }

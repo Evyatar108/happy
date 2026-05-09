@@ -44,6 +44,10 @@ Happy CLI (`handy-cli`) is a command-line tool that wraps Claude Code to enable 
 - Console output only for user-facing messages
 - Special handling for large JSON objects with truncation
 
+### Dev Tunnels
+- `src/tunnel/tunnelManager.ts` owns Microsoft Dev Tunnel CLI calls. Keep subprocess access injectable through `CommandRunner`/`ProcessSpawner` so renewal and reuse behavior can be unit-tested without creating real tunnels.
+- The Dev Tunnels CLI uses `--port-number` for both `devtunnel port create` and `devtunnel host`; `--port` is not accepted by current Windows builds.
+
 ## Architecture & Key Components
 
 ### 1. API Module (`/src/api/`)
