@@ -13,10 +13,10 @@ Happy redesigned from multi-tenant cloud relay to server-per-machine product. Ea
 - Machine discovery: mobile lists `happy-*` tunnels via Dev Tunnels API, shows 0/1/N picker
 - Connect JWT: real Dev Tunnels JWT stored per machine, used for tunnel-level auth on all requests; refresh logic in `refreshConnectTokenIfNeeded()`
 
+- Connect token refresh: wired into `syncInit` and AppState foreground handler
+
 ### Still remaining from tunnel research doc
-- **Connect token expiry on reconnect** — `refreshConnectTokenIfNeeded()` exists but is not yet called in sync init or on 401. Needs wiring into `syncRestore()` / `syncInit()`.
-- **Poll on foreground resume** — Re-discover tunnels every 30s on app foreground (AppState listener).
-- **`happy://` deep link handler** — Not needed for current GitHub device flow path (mobile-side, no server proxy), but required if Entra MSAL is added later.
+- **`happy://` deep link handler** — Not needed for current GitHub device flow path, but required if Entra MSAL is added later.
 - **Entra MSAL** — Deferred. Requires `pnpm prebuild` (currently stubbed to error). GitHub device flow is the only mobile auth path for now.
 - **Prisma migration** — Schema was rewritten but no migration file committed. Human must run `pnpm migrate` against production Postgres.
 

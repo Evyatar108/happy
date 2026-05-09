@@ -14,9 +14,9 @@
 - ✅ Tunnel created without `--allow-anonymous` (tunnel edge enforces access)
 - ✅ TOFU keypairs, Ed25519-signed claims, X25519 ECDH session keys
 - ✅ 0/1/N machine picker
-- ✅ `refreshConnectTokenIfNeeded()` implemented (not yet wired into sync init)
-- ⏳ Connect token refresh on 401 / sync init — pending
-- ⏳ Foreground poll (30s AppState listener) — pending
+- ✅ `refreshConnectTokenIfNeeded()` wired into `syncInit` and AppState foreground handler
+- ⏳ Connect token refresh on 401 (mid-session expiry) — pending
+- ⏳ Entra MSAL — deferred (`pnpm prebuild` stubbed)
 - ⏳ Entra MSAL — deferred (requires `pnpm prebuild`)
 
 Note: auth files (`authQRStart.ts`, `authQRWait.ts`, etc.) referenced in the "Centralized Tunnel Transport Layer" section were deleted in D-003. The `happyFetch()` approach was not needed — all api*.ts files already use `getMachineAuthHeaders(credentials)` which injects `X-Tunnel-Authorization` on every request.
