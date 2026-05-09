@@ -16,7 +16,7 @@ Happy uses one Socket.IO endpoint at `/v1/updates` and three connection scopes:
 - `machine-scoped`: one daemon for one machine
 
 On the server:
-- `socket.ts` authenticates the handshake, tags the socket with `userId` and scope metadata, and enables the Redis streams adapter when `REDIS_URL` is set.
+- `socket.ts` authenticates the handshake by validating the unsigned tunnel claim sent in the `X-Tunnel-Authorization` header (`tunnel <base64url-json>`) — the claim's `sub` must equal the embedded server's `localUserId` and its `iat` must be within the last 24 hours. There is no Bearer/userId token verification anymore. After validation it tags the socket with `socket.data.userId` (always the configured `localUserId` in the per-machine architecture), `clientType`, scope metadata, and the embedded server's TOFU public keys (`socket.data.tofuPublicKeys`), then enables the Redis streams adapter when `REDIS_URL` is set. On `connection`, if TOFU public keys are configured the server immediately emits a `tofu-pubkeys` event so the client can pin them.
 - `eventRouter.ts` handles fan-out for normal realtime updates.
 - `rpcHandler.ts` handles `rpc-register`, `rpc-unregister`, and `rpc-call`.
 
