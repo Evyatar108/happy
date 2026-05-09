@@ -103,6 +103,11 @@ export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { lo
             next(new Error('Unauthorized'));
             return;
         }
+        const iat = (payload as Record<string, unknown>).iat;
+        if (typeof iat !== 'number' || Math.floor(Date.now() / 1000) - iat > 86400) {
+            next(new Error('Unauthorized'));
+            return;
+        }
 
         const clientType = socket.handshake.auth.clientType as 'session-scoped' | 'user-scoped' | 'machine-scoped' | undefined;
         const sessionId = socket.handshake.auth.sessionId as string | undefined;

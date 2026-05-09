@@ -80,6 +80,10 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
         ) {
             return reply.code(401).send({ error: 'invalid_tunnel_claim' });
         }
+        const iat = (payload as Record<string, unknown>).iat;
+        if (typeof iat !== 'number' || Math.floor(Date.now() / 1000) - iat > 86400) {
+            return reply.code(401).send({ error: 'tunnel_claim_expired' });
+        }
         request.userId = tofuConfig.localUserId;
     });
 
