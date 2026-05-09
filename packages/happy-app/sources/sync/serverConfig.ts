@@ -5,7 +5,7 @@ const serverConfigStorage = new MMKV({ id: 'server-config' });
 
 const SERVER_KEY = 'custom-server-url';
 const LOG_SERVER_KEY = 'log-server-url';
-const DEFAULT_SERVER_URL = 'https://api.cluster-fluster.com';
+const DEFAULT_SERVER_URL = 'http://127.0.0.1:3005';
 const MACHINE_SERVER_PREFIX = 'machine-server-url:';
 
 export function getServerUrl(): string {

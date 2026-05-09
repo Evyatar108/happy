@@ -35,6 +35,7 @@ function encodeTunnelJwt(payload: unknown): string {
 async function fetchGitHubUser(accessToken: string): Promise<GitHubUser> {
     const response = await fetch("https://api.github.com/user", {
         headers: {
+            // GitHub device-flow OAuth access token; not a Happy relay credential.
             Authorization: `Bearer ${accessToken}`,
             Accept: "application/vnd.github.v3+json",
         },

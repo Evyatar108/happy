@@ -67,6 +67,7 @@ async function hasActiveSubscription(userId: string): Promise<boolean> {
             {
                 method: "GET",
                 headers: {
+                    // RevenueCat REST API key; not a Happy relay credential.
                     "Authorization": `Bearer ${revenueCatApiKey}`,
                 },
             }

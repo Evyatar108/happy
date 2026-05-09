@@ -92,8 +92,8 @@ happy connect status
 
 | Variable | Description |
 |----------|-------------|
-| `HAPPY_SERVER_URL` | Custom server URL (default: `https://api.cluster-fluster.com`) |
-| `HAPPY_WEBAPP_URL` | Custom web app URL (default: `https://app.happy.engineering`) |
+| `HAPPY_SERVER_URL` | Custom server URL (default: `http://127.0.0.1:3005`) |
+| `HAPPY_WEBAPP_URL` | Custom web app URL (default: same as `HAPPY_SERVER_URL`) |
 | `HAPPY_HOME_DIR` | Custom home directory for Happy data (default: `~/.happy`) |
 | `HAPPY_DISABLE_CAFFEINATE` | Disable macOS sleep prevention |
 | `HAPPY_EXPERIMENTAL` | Enable experimental features |

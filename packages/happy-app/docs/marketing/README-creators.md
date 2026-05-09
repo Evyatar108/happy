@@ -70,4 +70,3 @@ Happy Coder is an open-source mobile app that lets developers control AI coding 
 - Website: https://happy.engineering
 - iOS App: https://apps.apple.com/us/app/happy-claude-code-client/id6748571505
 - Android App: https://play.google.com/store/apps/details?id=com.ex3ndr.happy
-- Web App: https://app.happy.engineering/
