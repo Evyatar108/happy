@@ -172,17 +172,19 @@ export async function startDaemon(): Promise<void> {
     const embeddedServerPort = await resolveEmbeddedServerPort();
     const tunnelManager = new TunnelManager();
     const tunnelConfig = await tunnelManager.loadForDaemon(embeddedServerPort);
+    const tofuPublicKeysConfig = {
+      ed25519PublicKey: tofuKeypairs.ed25519PublicKey,
+      x25519PublicKey: tofuKeypairs.ecdhPublicKey,
+      x25519SecretKey: tofuKeypairs.ecdhPrivateKey,
+      ed25519Fingerprint: tofuKeypairs.ed25519Fingerprint,
+    };
     const embeddedServer: HappyServerHandle = createHappyServer({
       dataDir: configuration.happyHomeDir,
       port: embeddedServerPort,
       machineKey: tofuKeypairs.ed25519PublicKey,
       localUserId: machineId,
       publicUrl: tunnelConfig.tunnelUrl,
-      tofuPublicKeys: {
-        ed25519PublicKey: tofuKeypairs.ed25519PublicKey,
-        x25519PublicKey: tofuKeypairs.ecdhPublicKey,
-        ed25519Fingerprint: tofuKeypairs.ed25519Fingerprint,
-      },
+      tofuPublicKeys: tofuPublicKeysConfig,
     });
     await embeddedServer.start();
     logger.debug(`[DAEMON RUN] Embedded happy-server started on 127.0.0.1:${embeddedServerPort}`);
@@ -646,13 +648,13 @@ export async function startDaemon(): Promise<void> {
       return sessionIdToFinishedSession.get(happySessionId);
     };
 
-    const localTunnelClaim = `tunnel ${Buffer.from(JSON.stringify({ sub: machineId, iat: Math.floor(Date.now() / 1000) })).toString('base64url')}`;
+    const getLocalTunnelClaim = () => `tunnel ${Buffer.from(JSON.stringify({ sub: machineId, iat: Math.floor(Date.now() / 1000) })).toString('base64url')}`;
 
     const fetchServerSessionMetadata = async (sessionId: string, encryptionKey: Uint8Array, encryptionVariant: 'legacy' | 'dataKey'): Promise<Metadata | null> => {
       try {
         const response = await axios.get(`http://127.0.0.1:${embeddedServerPort}/v1/sessions`, {
           timeout: 10_000,
-          headers: { 'X-Tunnel-Authorization': localTunnelClaim },
+          headers: { 'X-Tunnel-Authorization': getLocalTunnelClaim() },
         });
         const sessions = (response.data as { sessions: { id: string; metadata: string }[] }).sessions;
         const matched = sessions.find(s => s.id === sessionId);
