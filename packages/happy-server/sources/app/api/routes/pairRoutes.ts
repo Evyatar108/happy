@@ -253,22 +253,15 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
         };
     });
 
+    // /pair/connect — tunnel-level auth (X-Tunnel-Authorization with real Dev Tunnels connect JWT)
+    // is the security gate. No GitHub token required here — Dev Tunnels already verified identity.
     app.post("/pair/connect", {
         schema: {
             body: z.object({
-                githubToken: z.string(),
                 mobileEcdhPublicKey: z.string().optional(),
             }),
         },
     }, async (request, reply) => {
-        if (isPairRateLimited(request.ip, Date.now())) {
-            return reply.code(429).send({ error: "rate_limited" });
-        }
-        const githubUser = await fetchGitHubUser(request.body.githubToken);
-        const expectedOwner = process.env.HAPPY_TUNNEL_GITHUB_OWNER;
-        if (expectedOwner && expectedOwner.toLowerCase() !== githubUser.login.toLowerCase()) {
-            return reply.code(403).send({ error: "github_identity_does_not_own_tunnel" });
-        }
         if (!tofuConfig.tofuPublicKeys || !tofuConfig.ed25519SecretKey) {
             return reply.code(503).send({ error: "tofu_public_keys_unavailable" });
         }
@@ -282,7 +275,7 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
 
         const tunnelUrl = tofuConfig.publicUrl || process.env.PUBLIC_URL || `http://127.0.0.1:${process.env.PORT ?? "3005"}`;
         const tunnelClaim = await encodeTunnelClaim(
-            { sub: tofuConfig.localUserId, gh: githubUser.login, iat: Math.floor(Date.now() / 1000) },
+            { sub: tofuConfig.localUserId, iat: Math.floor(Date.now() / 1000) },
             tofuConfig.ed25519SecretKey,
         );
         return {

@@ -1,3 +1,4 @@
+import * as WebBrowser from 'expo-web-browser';
 import { RoundButton } from "@/components/RoundButton";
 import { useAuth } from "@/auth/AuthContext";
 import { Text, View, Image, Platform, FlatList } from "react-native";
@@ -12,7 +13,7 @@ import { MainView } from "@/components/MainView";
 import { t } from '@/text';
 import {
     createX25519KeyPair, credentialsFromPairMachine, connectMachine,
-    openGitHubDeviceFlow, pollPairing, startPairing,
+    startDeviceTunnelFlow, pollDeviceTunnelFlow, listHappyTunnels, fetchTunnelConnectToken,
     type DiscoveredMachine, type PairMachine,
 } from '@/auth/pairing';
 import { Modal } from '@/modal';
@@ -48,7 +49,11 @@ function NotAuthenticated() {
     const [pendingPairing, setPendingPairing] = React.useState<PendingPairing | null>(null);
     const [connecting, setConnecting] = React.useState(false);
 
-    const completePairing = async (machine: PairMachine, localKeyPair: ReturnType<typeof createX25519KeyPair>) => {
+    const completePairing = async (
+        machine: PairMachine,
+        localKeyPair: ReturnType<typeof createX25519KeyPair>,
+        tunnelAuth?: { connectToken: string; connectTokenExpiry: number; githubToken: string; tunnelId: string },
+    ) => {
         const trustedMachines = await TokenStorage.getCredentialsList();
         const existingMachine = trustedMachines.find(item => item.machineId === machine.machineId);
         if (existingMachine && existingMachine.pinnedPubkey !== machine.ed25519PublicKey) {
@@ -65,67 +70,77 @@ function NotAuthenticated() {
             { confirmText: t('welcome.trust'), cancelText: t('common.cancel') }
         );
         if (!trusted) return;
-        const credentials = credentialsFromPairMachine(machine, localKeyPair);
+        const credentials = {
+            ...credentialsFromPairMachine(machine, localKeyPair),
+            ...tunnelAuth,
+        };
         await auth.login(credentials);
         trackAccountCreated();
     };
 
     const pairMachine = async () => {
         try {
-            const pairing = await startPairing();
-            await openGitHubDeviceFlow(pairing);
+            // Direct GitHub device flow using devtunnel's GitHub App (no server proxy needed)
+            const flow = await startDeviceTunnelFlow();
+            await WebBrowser.openBrowserAsync(flow.verification_uri_complete ?? flow.verification_uri);
 
             const localKeyPair = createX25519KeyPair();
-            const deadline = Date.now() + pairing.expires_in * 1000;
+            const deadline = Date.now() + flow.expires_in * 1000;
+            let githubToken: string | null = null;
             while (Date.now() < deadline) {
-                await new Promise(resolve => setTimeout(resolve, Math.max(pairing.interval, 1) * 1000));
-                const status = await pollPairing(pairing.device_code, localKeyPair);
-                if (status.status !== 'authorized') continue;
+                await new Promise(resolve => setTimeout(resolve, Math.max(flow.interval, 1) * 1000));
+                githubToken = await pollDeviceTunnelFlow(flow.device_code);
+                if (githubToken) break;
+            }
+            if (!githubToken) throw new Error(t('welcome.deviceAuthorizationExpired'));
 
-                const primaryMachine = status.machines?.[0];
-                if (!primaryMachine) throw new Error(t('welcome.noMachinesForIdentity'));
+            // Enumerate happy-* tunnels via Dev Tunnels API
+            const discovered = await listHappyTunnels(githubToken);
+            if (discovered.length === 0) throw new Error(t('welcome.noMachinesForIdentity'));
 
-                const discovered = status.discoveredMachines ?? [];
-                if (discovered.length > 0) {
-                    setPendingPairing({
-                        primaryMachine,
-                        discoveredMachines: discovered,
-                        localKeyPair,
-                        githubToken: status.githubToken ?? '',
-                        githubLogin: status.githubLogin ?? '',
-                    });
-                    return;
-                }
-
-                await completePairing(primaryMachine, localKeyPair);
+            if (discovered.length > 1) {
+                setPendingPairing({
+                    primaryMachine: null as never,  // no primary yet — user must pick
+                    discoveredMachines: discovered,
+                    localKeyPair,
+                    githubToken,
+                    githubLogin: '',
+                });
                 return;
             }
-            throw new Error(t('welcome.deviceAuthorizationExpired'));
+
+            // Single machine — auto-connect
+            await connectAndPair(discovered[0]!, githubToken, localKeyPair);
         } catch (error) {
             console.error('Error pairing machine', error);
             Modal.alert(t('common.error'), error instanceof Error ? error.message : t('welcome.pairingFailed'));
         }
     };
 
-    const handleSelectPrimary = async () => {
-        if (!pendingPairing || connecting) return;
-        setConnecting(true);
-        try {
-            await completePairing(pendingPairing.primaryMachine, pendingPairing.localKeyPair);
-            setPendingPairing(null);
-        } catch (error) {
-            Modal.alert(t('common.error'), error instanceof Error ? error.message : t('welcome.pairingFailed'));
-        } finally {
-            setConnecting(false);
-        }
+    const connectAndPair = async (
+        machine: DiscoveredMachine,
+        githubToken: string,
+        localKeyPair: ReturnType<typeof createX25519KeyPair>,
+    ) => {
+        // Get real Dev Tunnels connect JWT — this is the tunnel-level auth credential
+        const { connectToken, connectTokenExpiry } = await fetchTunnelConnectToken(machine.tunnelId, githubToken);
+
+        // Pair with the machine via /pair/connect (tunnel auth is the gate, no GitHub token needed)
+        const paired = await connectMachine(machine.tunnelUrl, connectToken, localKeyPair);
+
+        await completePairing(paired, localKeyPair, {
+            connectToken,
+            connectTokenExpiry,
+            githubToken,
+            tunnelId: machine.tunnelId,
+        });
     };
 
     const handleSelectDiscovered = async (machine: DiscoveredMachine) => {
         if (!pendingPairing || connecting) return;
         setConnecting(true);
         try {
-            const paired = await connectMachine(machine.tunnelUrl, pendingPairing.githubToken, pendingPairing.localKeyPair);
-            await completePairing(paired, pendingPairing.localKeyPair);
+            await connectAndPair(machine, pendingPairing.githubToken, pendingPairing.localKeyPair);
             setPendingPairing(null);
         } catch (error) {
             Modal.alert(t('common.error'), error instanceof Error ? error.message : t('welcome.pairingFailed'));
@@ -144,22 +159,6 @@ function NotAuthenticated() {
                         {t('welcome.selectMachineSubtitle', { login: pendingPairing.githubLogin })}
                     </Text>
                     <View style={styles.machineListContainer}>
-                        <View style={styles.machineItem}>
-                            <View style={styles.machineInfo}>
-                                <Text style={styles.machineName}>
-                                    {pendingPairing.primaryMachine.machineId}
-                                </Text>
-                                <Text style={styles.machineTag}>{t('welcome.thisServer')}</Text>
-                            </View>
-                            <View style={styles.machineButton}>
-                                <RoundButton
-                                    title={connecting ? '...' : t('welcome.connectTo')}
-                                    size="normal"
-                                    action={handleSelectPrimary}
-                                    disabled={connecting}
-                                />
-                            </View>
-                        </View>
                         {pendingPairing.discoveredMachines.map(machine => (
                             <View key={machine.tunnelId} style={styles.machineItem}>
                                 <View style={styles.machineInfo}>
@@ -172,7 +171,6 @@ function NotAuthenticated() {
                                     <RoundButton
                                         title={connecting ? '...' : t('welcome.connectTo')}
                                         size="normal"
-                                        display="inverted"
                                         action={() => handleSelectDiscovered(machine)}
                                         disabled={connecting}
                                     />

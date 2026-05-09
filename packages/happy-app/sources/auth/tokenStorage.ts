@@ -10,6 +10,13 @@ export interface AuthCredentials {
     pinnedPubkey: string;
     sessionKey: string;
     firstSeenAt: number;
+    // Real Dev Tunnels connect JWT (preferred over tunnelClaim for tunnel-level auth)
+    connectToken?: string;
+    connectTokenExpiry?: number;   // unix ms
+    // GitHub token for connect token refresh (stored securely)
+    githubToken?: string;
+    // Tunnel ID for connect token refresh
+    tunnelId?: string;
 }
 
 interface StoredMachineCredentials {
