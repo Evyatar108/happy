@@ -50,6 +50,20 @@ Working notes from investigating P1 bugs in `docs/experimental/roadmap.md`. Each
 - `packages/happy-app/sources/components/tools/ToolView.tsx:281` — PermissionFooter render gate
 - `packages/happy-app/sources/components/tools/PermissionFooter.tsx:411-472` — ExitPlanMode-specific buttons
 
+## Path resolution on Windows — FIXED
+
+**Symptom:** Tool views (Edit, MultiEdit, Write, etc.) show full absolute Windows paths like `C:\Users\alice\project\src\file.ts` instead of the relative `src\file.ts` shortened display.
+
+**Root cause:** `resolvePath()` in `packages/happy-app/sources/utils/pathUtils.ts` only checked `remainder.startsWith('/')` for the path separator after the metadata-path prefix. Windows paths use `\` as the separator, so `remainder = "\src\file.ts"` failed the check and the function returned the full absolute path unchanged.
+
+**Fix:** Recognize both `/` and `\\` as valid post-prefix separators. Function now correctly shortens Windows paths to their project-relative form.
+
+**Files changed:**
+- `packages/happy-app/sources/utils/pathUtils.ts` — `resolvePath` recognizes both separators
+- `packages/happy-app/sources/utils/pathUtils.spec.ts` — added 3 Windows path tests
+
+Verified: 37 tests pass (3 new + 34 existing).
+
 ## Task management tools rendering — FIXED
 
 **Symptom:** `TaskOutput`, `TaskStop`, `TaskList`, `TaskGet`, `TaskUpdate` tool calls render with raw JSON input/output instead of a clean tool UI.

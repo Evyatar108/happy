@@ -176,6 +176,34 @@ describe('pathUtils', () => {
                 .toBe('/Users/steve/Develop/slopus/happy-server/sources/types/index.ts');
         });
 
+        it('should resolve Windows paths with backslash separators', () => {
+            const metadata = {
+                path: 'C:\\Users\\alice\\project',
+                host: 'localhost',
+                homeDir: 'C:\\Users\\alice'
+            };
+            expect(resolvePath('C:\\Users\\alice\\project\\src\\file.ts', metadata)).toBe('src\\file.ts');
+        });
+
+        it('should return <root> for exact Windows metadata path', () => {
+            const metadata = {
+                path: 'C:\\Users\\alice\\project',
+                host: 'localhost',
+                homeDir: 'C:\\Users\\alice'
+            };
+            expect(resolvePath('C:\\Users\\alice\\project', metadata)).toBe('<root>');
+        });
+
+        it('should not resolve Windows sibling directory paths that start with metadata path', () => {
+            const metadata = {
+                path: 'C:\\Users\\alice\\project',
+                host: 'localhost',
+                homeDir: 'C:\\Users\\alice'
+            };
+            expect(resolvePath('C:\\Users\\alice\\project-v2\\src\\main.ts', metadata))
+                .toBe('C:\\Users\\alice\\project-v2\\src\\main.ts');
+        });
+
         it('should handle edge case where metadata path is a substring of another path', () => {
             const metadata = {
                 path: '/home/user/app',

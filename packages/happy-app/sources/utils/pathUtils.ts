@@ -15,13 +15,15 @@ export function resolvePath(path: string, metadata: Metadata | null): string {
     }
     if (path.toLowerCase().startsWith(metadata.path.toLowerCase())) {
         // Check that the path is actually within the metadata path by ensuring
-        // there's either an exact match or a path separator after the metadata path
+        // there's either an exact match or a path separator (Unix or Windows)
+        // after the metadata path. Without the backslash check, Windows paths
+        // like C:\Users\alice\project\src\file.ts never get shortened — the
+        // remainder "\src\file.ts" failed remainder.startsWith('/') and the
+        // full absolute path was returned.
         const remainder = path.slice(metadata.path.length);
-        if (remainder === '' || remainder.startsWith('/')) {
-            let out = remainder;
-            if (out.startsWith('/')) {
-                out = out.slice(1);
-            }
+        const isSeparator = remainder.startsWith('/') || remainder.startsWith('\\');
+        if (remainder === '' || isSeparator) {
+            const out = isSeparator ? remainder.slice(1) : remainder;
             if (out === '') {
                 return '<root>';
             }
