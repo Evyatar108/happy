@@ -98,6 +98,16 @@ export function getLanguageEnglishName(code: SupportedLanguage): string {
  */
 export const SUPPORTED_LANGUAGE_CODES: SupportedLanguage[] = Object.keys(SUPPORTED_LANGUAGES) as SupportedLanguage[];
 
+export const SERVER_PER_MACHINE_I18N_SECTIONS = [
+    'welcome',
+    'newSession',
+    'settings',
+    'status',
+    'sessionInfo',
+    'machineLauncher',
+    'machine',
+] as const;
+
 /**
  * Default language code
  */

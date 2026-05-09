@@ -12,6 +12,7 @@ import { MainView } from "@/components/MainView";
 import { t } from '@/text';
 import { credentialsFromPairMachine, openGitHubDeviceFlow, pollPairing, startPairing } from '@/auth/pairing';
 import { Modal } from '@/modal';
+import { TokenStorage } from '@/auth/tokenStorage';
 
 export default function Home() {
     const auth = useAuth();
@@ -51,9 +52,22 @@ function NotAuthenticated() {
                     throw new Error(t('welcome.noMachinesForIdentity'));
                 }
 
+                const trustedMachines = await TokenStorage.getCredentialsList();
+                const existingMachine = trustedMachines.find(item => item.machineId === machine.machineId);
+                if (existingMachine && existingMachine.pinnedPubkey !== machine.ed25519PublicKey) {
+                    const acceptedRotation = await Modal.confirm(
+                        t('welcome.pubkeyRotationTitle'),
+                        t('welcome.pubkeyRotationWarning'),
+                        { confirmText: t('welcome.trust'), cancelText: t('common.cancel'), destructive: true }
+                    );
+                    if (!acceptedRotation) {
+                        return;
+                    }
+                }
+
                 const trusted = await Modal.confirm(
                     t('welcome.trustMachine'),
-                    `Ed25519 fingerprint:\n${machine.ed25519Fingerprint ?? machine.ed25519PublicKey}`,
+                    t('welcome.ed25519Fingerprint', { fingerprint: machine.ed25519Fingerprint ?? machine.ed25519PublicKey }),
                     { confirmText: t('welcome.trust'), cancelText: t('common.cancel') }
                 );
                 if (!trusted) {
