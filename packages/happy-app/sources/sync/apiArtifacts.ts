@@ -1,5 +1,5 @@
 import { AuthCredentials } from '@/auth/tokenStorage';
-import { getMachineAuthHeaders } from '@/auth/machineAuth';
+import { tunnelFetch } from '@/auth/machineAuth';
 import { backoff } from '@/utils/time';
 import { getHappyClientId } from './apiSocket';
 import { Artifact, ArtifactCreateRequest, ArtifactUpdateRequest, ArtifactUpdateResponse } from './artifactTypes';
@@ -11,11 +11,10 @@ export async function fetchArtifacts(credentials: AuthCredentials): Promise<Arti
     const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
-        const response = await fetch(`${API_ENDPOINT}/v1/artifacts`, {
+        const response = await tunnelFetch(`${API_ENDPOINT}/v1/artifacts`, credentials, {
             headers: {
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
             }
         });
 
@@ -35,11 +34,10 @@ export async function fetchArtifact(credentials: AuthCredentials, artifactId: st
     const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
-        const response = await fetch(`${API_ENDPOINT}/v1/artifacts/${artifactId}`, {
+        const response = await tunnelFetch(`${API_ENDPOINT}/v1/artifacts/${artifactId}`, credentials, {
             headers: {
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
             }
         });
 
@@ -65,12 +63,11 @@ export async function createArtifact(
     const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
-        const response = await fetch(`${API_ENDPOINT}/v1/artifacts`, {
+        const response = await tunnelFetch(`${API_ENDPOINT}/v1/artifacts`, credentials, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
             },
             body: JSON.stringify(request)
         });
@@ -98,12 +95,11 @@ export async function updateArtifact(
     const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
-        const response = await fetch(`${API_ENDPOINT}/v1/artifacts/${artifactId}`, {
+        const response = await tunnelFetch(`${API_ENDPOINT}/v1/artifacts/${artifactId}`, credentials, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
             },
             body: JSON.stringify(request)
         });
@@ -130,11 +126,10 @@ export async function deleteArtifact(
     const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
-        const response = await fetch(`${API_ENDPOINT}/v1/artifacts/${artifactId}`, {
+        const response = await tunnelFetch(`${API_ENDPOINT}/v1/artifacts/${artifactId}`, credentials, {
             method: 'DELETE',
             headers: {
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
             }
         });
 

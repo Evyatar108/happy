@@ -1,5 +1,5 @@
 import { AuthCredentials } from '@/auth/tokenStorage';
-import { getMachineAuthHeaders } from '@/auth/machineAuth';
+import { tunnelFetch } from '@/auth/machineAuth';
 import { backoff } from '@/utils/time';
 import { getHappyClientId } from './apiSocket';
 import {
@@ -22,13 +22,13 @@ export async function searchUsersByUsername(
     const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
-        const response = await fetch(
+        const response = await tunnelFetch(
             `${API_ENDPOINT}/v1/user/search?${new URLSearchParams({ query: username })}`,
+            credentials,
             {
                 method: 'GET',
                 headers: {
                     'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
                 }
             }
         );
@@ -61,13 +61,13 @@ export async function getUserProfile(
     const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
-        const response = await fetch(
+        const response = await tunnelFetch(
             `${API_ENDPOINT}/v1/user/${userId}`,
+            credentials,
             {
                 method: 'GET',
                 headers: {
                     'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
                 }
             }
         );
@@ -117,12 +117,11 @@ export async function sendFriendRequest(
     const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
-        const response = await fetch(`${API_ENDPOINT}/v1/friends/add`, {
+        const response = await tunnelFetch(`${API_ENDPOINT}/v1/friends/add`, credentials, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
             },
             body: JSON.stringify({ uid: recipientId })
         });
@@ -160,11 +159,10 @@ export async function getFriendsList(
     const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
-        const response = await fetch(`${API_ENDPOINT}/v1/friends`, {
+        const response = await tunnelFetch(`${API_ENDPOINT}/v1/friends`, credentials, {
             method: 'GET',
             headers: {
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
             }
         });
 
@@ -193,12 +191,11 @@ export async function removeFriend(
     const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
-        const response = await fetch(`${API_ENDPOINT}/v1/friends/remove`, {
+        const response = await tunnelFetch(`${API_ENDPOINT}/v1/friends/remove`, credentials, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
             },
             body: JSON.stringify({ uid: friendId })
         });

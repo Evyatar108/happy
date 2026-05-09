@@ -1,5 +1,5 @@
 import { AuthCredentials } from '@/auth/tokenStorage';
-import { getMachineAuthHeaders } from '@/auth/machineAuth';
+import { tunnelFetch } from '@/auth/machineAuth';
 import { backoff } from '@/utils/time';
 import { getHappyClientId } from './apiSocket';
 
@@ -31,12 +31,11 @@ export async function queryUsage(
     const API_ENDPOINT = credentials.tunnelUrl;
     
     return await backoff(async () => {
-        const response = await fetch(`${API_ENDPOINT}/v1/usage/query`, {
+        const response = await tunnelFetch(`${API_ENDPOINT}/v1/usage/query`, credentials, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
             },
             body: JSON.stringify(params)
         });

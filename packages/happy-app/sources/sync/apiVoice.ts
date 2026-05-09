@@ -5,7 +5,7 @@ import {
     type VoiceUsageResponse,
 } from '@slopus/happy-wire';
 import { AuthCredentials } from '@/auth/tokenStorage';
-import { getMachineAuthHeaders } from '@/auth/machineAuth';
+import { tunnelFetch } from '@/auth/machineAuth';
 import { getHappyClientId } from './apiSocket';
 import { config } from '@/config';
 
@@ -23,12 +23,11 @@ export async function fetchVoiceCredentials(
         throw new Error('Agent ID not configured');
     }
 
-    const response = await fetch(`${serverUrl}/v1/voice/conversations`, {
+    const response = await tunnelFetch(`${serverUrl}/v1/voice/conversations`, credentials, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
         },
         body: JSON.stringify({
             agentId
@@ -47,11 +46,10 @@ export async function fetchVoiceUsage(
 ): Promise<VoiceUsageResponse> {
     const serverUrl = credentials.tunnelUrl;
 
-    const response = await fetch(`${serverUrl}/v1/voice/usage`, {
+    const response = await tunnelFetch(`${serverUrl}/v1/voice/usage`, credentials, {
         method: 'GET',
         headers: {
             'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
         },
     });
 

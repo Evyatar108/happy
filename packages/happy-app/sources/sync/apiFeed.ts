@@ -1,5 +1,5 @@
 import { AuthCredentials } from '@/auth/tokenStorage';
-import { getMachineAuthHeaders } from '@/auth/machineAuth';
+import { tunnelFetch } from '@/auth/machineAuth';
 import { backoff } from '@/utils/time';
 import { getHappyClientId } from './apiSocket';
 import { FeedResponse, FeedResponseSchema, FeedItem } from './feedTypes';
@@ -27,11 +27,10 @@ export async function fetchFeed(
         const url = `${API_ENDPOINT}/v1/feed${params.toString() ? `?${params}` : ''}`;
         log.log(`📰 Fetching feed: ${url}`);
         
-        const response = await fetch(url, {
+        const response = await tunnelFetch(url, credentials, {
             method: 'GET',
             headers: {
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
             }
         });
 

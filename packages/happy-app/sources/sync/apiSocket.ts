@@ -4,7 +4,7 @@ import Constants from 'expo-constants';
 import { AuthCredentials, TokenStorage } from '@/auth/tokenStorage';
 import { Encryption } from './encryption/encryption';
 import { storage } from './storage';
-import { getMachineAuthHeaders } from '@/auth/machineAuth';
+import { tunnelFetch } from '@/auth/machineAuth';
 import { buildTunnelSocketOptions } from './tunnelTransport';
 import { localizeSessionPath, parseCompositeSessionId } from './machineSessionId';
 import {
@@ -223,13 +223,12 @@ class ApiSocket {
         const credentials = (await TokenStorage.getCredentialsList()).find(item => item.machineId === machineId)
             ?? connection.config.credentials;
         const url = `${connection.config.endpoint}${path}`;
-        const headers = {
+        const headers: Record<string, string> = {
             'X-Happy-Client': getHappyClientId(),
-            ...getMachineAuthHeaders(credentials),
-            ...options?.headers
+            ...(options?.headers as Record<string, string> | undefined),
         };
 
-        return fetch(url, {
+        return tunnelFetch(url, credentials, {
             ...options,
             headers
         });

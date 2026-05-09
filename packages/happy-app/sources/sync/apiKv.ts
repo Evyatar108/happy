@@ -1,5 +1,5 @@
 import { AuthCredentials } from '@/auth/tokenStorage';
-import { getMachineAuthHeaders } from '@/auth/machineAuth';
+import { tunnelFetch } from '@/auth/machineAuth';
 import { backoff } from '@/utils/time';
 import { getHappyClientId } from './apiSocket';
 
@@ -74,10 +74,9 @@ export async function kvGet(
     const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
-        const response = await fetch(`${API_ENDPOINT}/v1/kv/${encodeURIComponent(key)}`, {
+        const response = await tunnelFetch(`${API_ENDPOINT}/v1/kv/${encodeURIComponent(key)}`, credentials, {
             headers: {
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
             }
         });
 
@@ -116,10 +115,9 @@ export async function kvList(
         : `${API_ENDPOINT}/v1/kv`;
 
     return await backoff(async () => {
-        const response = await fetch(url, {
+        const response = await tunnelFetch(url, credentials, {
             headers: {
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
             }
         });
 
@@ -150,12 +148,11 @@ export async function kvBulkGet(
     const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
-        const response = await fetch(`${API_ENDPOINT}/v1/kv/bulk`, {
+        const response = await tunnelFetch(`${API_ENDPOINT}/v1/kv/bulk`, credentials, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
             },
             body: JSON.stringify({ keys })
         });
@@ -189,12 +186,11 @@ export async function kvMutate(
     const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
-        const response = await fetch(`${API_ENDPOINT}/v1/kv`, {
+        const response = await tunnelFetch(`${API_ENDPOINT}/v1/kv`, credentials, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
             },
             body: JSON.stringify({ mutations })
         });

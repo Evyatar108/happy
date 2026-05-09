@@ -1,5 +1,5 @@
 import { AuthCredentials } from '@/auth/tokenStorage';
-import { getMachineAuthHeaders } from '@/auth/machineAuth';
+import { tunnelFetch } from '@/auth/machineAuth';
 import { backoff } from '@/utils/time';
 import { getHappyClientId } from './apiSocket';
 
@@ -14,12 +14,11 @@ export async function connectService(
     const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
-        const response = await fetch(`${API_ENDPOINT}/v1/connect/${service}/register`, {
+        const response = await tunnelFetch(`${API_ENDPOINT}/v1/connect/${service}/register`, credentials, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
             },
             body: JSON.stringify({ token: JSON.stringify(token) })
         });
@@ -42,11 +41,10 @@ export async function disconnectService(credentials: AuthCredentials, service: s
     const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
-        const response = await fetch(`${API_ENDPOINT}/v1/connect/${service}`, {
+        const response = await tunnelFetch(`${API_ENDPOINT}/v1/connect/${service}`, credentials, {
             method: 'DELETE',
             headers: {
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
             }
         });
 

@@ -1,5 +1,5 @@
 import { AuthCredentials } from '@/auth/tokenStorage';
-import { getMachineAuthHeaders } from '@/auth/machineAuth';
+import { tunnelFetch } from '@/auth/machineAuth';
 import { backoff } from '@/utils/time';
 import { getHappyClientId } from './apiSocket';
 
@@ -28,12 +28,11 @@ export async function getGitHubOAuthParams(credentials: AuthCredentials): Promis
     const API_ENDPOINT = credentials.tunnelUrl;
     
     return await backoff(async () => {
-        const response = await fetch(`${API_ENDPOINT}/v1/connect/github/params`, {
+        const response = await tunnelFetch(`${API_ENDPOINT}/v1/connect/github/params`, credentials, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
             }
         });
 
@@ -57,12 +56,11 @@ export async function getAccountProfile(credentials: AuthCredentials): Promise<A
     const API_ENDPOINT = credentials.tunnelUrl;
     
     return await backoff(async () => {
-        const response = await fetch(`${API_ENDPOINT}/v1/account/profile`, {
+        const response = await tunnelFetch(`${API_ENDPOINT}/v1/account/profile`, credentials, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
             }
         });
 
@@ -82,11 +80,10 @@ export async function disconnectGitHub(credentials: AuthCredentials): Promise<vo
     const API_ENDPOINT = credentials.tunnelUrl;
     
     return await backoff(async () => {
-        const response = await fetch(`${API_ENDPOINT}/v1/connect/github`, {
+        const response = await tunnelFetch(`${API_ENDPOINT}/v1/connect/github`, credentials, {
             method: 'DELETE',
             headers: {
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
             }
         });
 

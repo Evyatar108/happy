@@ -1,5 +1,5 @@
 import { AuthCredentials } from '@/auth/tokenStorage';
-import { getMachineAuthHeaders } from '@/auth/machineAuth';
+import { tunnelFetch } from '@/auth/machineAuth';
 import { backoff } from '@/utils/time';
 import { z } from 'zod';
 import { getHappyClientId } from './apiSocket';
@@ -20,12 +20,11 @@ export type PushToken = z.infer<typeof PushTokenSchema>;
 export async function registerPushToken(credentials: AuthCredentials, token: string): Promise<void> {
     const API_ENDPOINT = credentials.tunnelUrl;
     await backoff(async () => {
-        const response = await fetch(`${API_ENDPOINT}/push/register`, {
+        const response = await tunnelFetch(`${API_ENDPOINT}/push/register`, credentials, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
             },
             body: JSON.stringify({
                 expoPushToken: token,
@@ -47,12 +46,11 @@ export async function registerPushToken(credentials: AuthCredentials, token: str
 export async function fetchPushTokens(credentials: AuthCredentials): Promise<PushToken[]> {
     const API_ENDPOINT = credentials.tunnelUrl;
     return backoff(async () => {
-        const response = await fetch(`${API_ENDPOINT}/v1/push-tokens`, {
+        const response = await tunnelFetch(`${API_ENDPOINT}/v1/push-tokens`, credentials, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
             }
         });
 
@@ -68,12 +66,11 @@ export async function fetchPushTokens(credentials: AuthCredentials): Promise<Pus
 export async function unregisterPushToken(credentials: AuthCredentials, token: string): Promise<void> {
     const API_ENDPOINT = credentials.tunnelUrl;
     await backoff(async () => {
-        const response = await fetch(`${API_ENDPOINT}/v1/push-tokens/${encodeURIComponent(token)}`, {
+        const response = await tunnelFetch(`${API_ENDPOINT}/v1/push-tokens/${encodeURIComponent(token)}`, credentials, {
             method: 'DELETE',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(credentials),
             }
         });
 
