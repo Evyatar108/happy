@@ -272,6 +272,28 @@ const ApiUpdateMachineStateSchema = UpdateMachineBodySchema;
 const UpdateBodySchema = UpdateNewMessageBodySchema;
 const UpdateSchema = CoreUpdateContainerSchema;
 
+const TofuPublicKeysSchema = z__namespace.object({
+  ed25519PublicKey: z__namespace.string().min(1),
+  x25519PublicKey: z__namespace.string().min(1),
+  ed25519Fingerprint: z__namespace.string().min(1).optional()
+});
+const TofuPubkeysEventSchema = z__namespace.object({
+  t: z__namespace.literal("tofu-pubkeys"),
+  keys: TofuPublicKeysSchema
+});
+const TofuSessionKeyExchangeSchema = z__namespace.object({
+  t: z__namespace.literal("tofu-session-key"),
+  machineId: z__namespace.string().min(1),
+  mobileX25519PublicKey: z__namespace.string().min(1),
+  serverX25519PublicKey: z__namespace.string().min(1),
+  sessionKey: z__namespace.string().min(1),
+  firstSeenAt: z__namespace.number()
+});
+const TofuHandshakeMessageSchema = z__namespace.discriminatedUnion("t", [
+  TofuPubkeysEventSchema,
+  TofuSessionKeyExchangeSchema
+]);
+
 const VoiceConversationGrantedSchema = z__namespace.object({
   allowed: z__namespace.literal(true),
   conversationToken: z__namespace.string(),
@@ -383,6 +405,10 @@ exports.SessionMessageRangeRequestSchema = SessionMessageRangeRequestSchema;
 exports.SessionMessageRangeResponseSchema = SessionMessageRangeResponseSchema;
 exports.SessionMessageSchema = SessionMessageSchema;
 exports.SessionProtocolMessageSchema = SessionProtocolMessageSchema;
+exports.TofuHandshakeMessageSchema = TofuHandshakeMessageSchema;
+exports.TofuPubkeysEventSchema = TofuPubkeysEventSchema;
+exports.TofuPublicKeysSchema = TofuPublicKeysSchema;
+exports.TofuSessionKeyExchangeSchema = TofuSessionKeyExchangeSchema;
 exports.UpdateBodySchema = UpdateBodySchema;
 exports.UpdateMachineBodySchema = UpdateMachineBodySchema;
 exports.UpdateNewMessageBodySchema = UpdateNewMessageBodySchema;

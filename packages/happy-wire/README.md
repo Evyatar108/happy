@@ -122,6 +122,7 @@ The goal is to keep CLI/app/server/agent on the same wire contract and avoid sch
 - `src/messages.ts`
 - `src/legacyProtocol.ts`
 - `src/sessionProtocol.ts`
+- `src/tofu.ts`
 - `src/nonRenderablePolicy.ts`
 
 ### `messages.ts` exports
@@ -205,6 +206,18 @@ Schemas + inferred types:
 - `SessionEnvelope`
 - `CreateEnvelopeOptions`
 - `createEnvelope(...)`
+
+### `tofu.ts` exports
+
+Schemas + inferred types for server-per-machine pairing and trust-on-first-use handshakes:
+- `TofuPublicKeysSchema`
+- `TofuPublicKeys`
+- `TofuPubkeysEventSchema`
+- `TofuPubkeysEvent`
+- `TofuSessionKeyExchangeSchema`
+- `TofuSessionKeyExchange`
+- `TofuHandshakeMessageSchema`
+- `TofuHandshakeMessage`
 
 ### `nonRenderablePolicy.ts` exports
 

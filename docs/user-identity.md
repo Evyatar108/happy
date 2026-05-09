@@ -1,72 +1,65 @@
-# User Identity Across Systems
+# User Identity
 
-How a single Happy user is identified across every external service.
+Happy is now single-tenant per operator machine. The local daemon owns the embedded server, local data directory, Dev Tunnel, push registration, and pairing state for that machine. There is no central Happy account service in the normal path.
 
-## Primary ID: Happy Account CUID
+## Primary Identity
 
-- **Type:** CUID (collision-resistant unique ID, string)
-- **Created:** On first auth via public-key signature verification (`Account.upsert` by `publicKey`)
-- **Stored:** `Account.id` in Prisma, JWT payload (`{ user: CUID }`)
-- **In code:** `request.userId` on server, `sync.serverID` on mobile
-- **Visible in app:** Settings > Developer > Purchases page shows `sync.serverID`
+The operator proves identity through GitHub device flow during mobile pairing:
 
-## Identity Map
+1. Mobile calls the machine tunnel's `/pair/start` endpoint.
+2. The embedded server starts GitHub device flow and returns the user code.
+3. Mobile polls `/pair/status` against the same machine tunnel.
+4. After GitHub authorizes the flow, the server fetches the GitHub login.
+5. If `HAPPY_TUNNEL_GITHUB_OWNER` is set, the login must match it.
+6. The server returns the local machine entry, tunnel URL, tunnel JWT, and TOFU public keys.
 
-```
-Happy Account CUID (e.g. cm4x7k2...)
-│
-├─► ElevenLabs ── u_{base64url(HMAC-SHA256(CUID, MASTER_SECRET))}
-│                 Derived on every request, never stored.
-│                 voiceRoutes.ts:deriveElevenUserId()
-│
-├─► RevenueCat ── Same CUID, passed directly as appUserID
-│                 Set once on mobile: RevenueCat.configure({ appUserID: serverID })
-│                 Server queries RevenueCat API with the same CUID
-│
-├─► GitHub ────── External GitHub integer ID → stored in Account.githubUserId
-│                 Linked via OAuth in githubConnect.ts
-│                 Also stores encrypted access token in GithubUser.token
-│
-└─► AI Vendors ── ServiceAccountToken { accountId: CUID, vendor, token }
-   (OpenAI,       User's own API keys, encrypted at rest.
-    Anthropic,    connectRoutes.ts: POST /v1/connect/:vendor/register
-    Gemini)
-```
+GitHub identity is used to prove that the person pairing the phone controls the expected GitHub login. It is not converted into a Happy-hosted user record.
 
-## Auth Flow
+## Local Machine Identity
+
+The daemon's machine id is the local tenant boundary. Server routes decorate requests with the local machine identity, and server-owned state such as push tokens is scoped to that machine.
 
 ```
-Client keypair (libsodium/NaCl)
-  │
-  ├─ sign challenge with private key
-  │
-  ▼
-POST /v1/auth { publicKey, challenge, signature }
-  │
-  ├─ server verifies signature (tweetnacl)
-  ├─ Account.upsert({ where: { publicKey } })  →  CUID
-  ├─ auth.createToken(CUID)  →  JWT (signed with HANDY_MASTER_SECRET)
-  │
-  ▼
-Client stores JWT, sends as Authorization header on all requests
-Server extracts CUID from JWT via app.authenticate decorator
+GitHub device-flow login
+  -> pairing authorization
+  -> local machine id
+  -> tunnel JWT for this machine
+  -> mobile SecureStore machine credentials
 ```
 
-## Key Design Decisions
+The mobile app can pair with multiple operator machines. It stores each machine separately and renders app-local composite session ids in the form `${machineId}:${localSessionId}` so sessions from different machines do not collide.
 
-| System | ID Type | Why |
-|--------|---------|-----|
-| ElevenLabs | HMAC-derived | Privacy — raw Happy ID never sent to ElevenLabs |
-| RevenueCat | Pass-through | Direct correlation needed for subscription API calls |
-| GitHub | Stored foreign key | Enables profile linking and account recovery via OAuth |
-| AI vendors | Stored encrypted | User-owned keys, need to be retrievable |
+## External Services
 
-## Local Scripting
+| Service | Identity Used | Notes |
+| --- | --- | --- |
+| Microsoft Dev Tunnels | GitHub login through `devtunnel user login -g` | Creates and hosts the named tunnel for the local machine. |
+| GitHub device flow | GitHub login | Authorizes mobile pairing to the machine tunnel. |
+| Expo push | `{ machineId, deviceId }` | Mobile registers the Expo token once per paired machine. |
+| RevenueCat | Mobile app user id | Preserved for subscription checks; it is not the machine pairing authority. |
+| ElevenLabs | HMAC-derived voice id | Voice routes continue to avoid exposing raw local ids to ElevenLabs. |
+| AI vendors | Local CLI config | Vendor API keys are stored and used on the operator machine. |
 
-To derive an ElevenLabs user ID from a Happy CUID locally:
+## Mobile Credential Shape
 
-```python
-import hmac, hashlib, base64
-digest = hmac.new(MASTER_SECRET.encode(), happy_cuid.encode(), hashlib.sha256).digest()
-eleven_id = "u_" + base64.b64encode(digest).decode().replace("+","-").replace("/","_").rstrip("=")
+After pairing, mobile stores machine credentials in SecureStore:
+
+```ts
+{
+  machineId: string;
+  tunnelUrl: string;
+  tunnelJwt: string;
+  pinnedPubkey: string;
+  sessionKey: string;
+  firstSeenAt: number;
+}
 ```
+
+`pinnedPubkey` is the trusted Ed25519 machine public key. `sessionKey` is derived from X25519 ECDH and is scoped to that machine.
+
+## Operational Implications
+
+- Losing a machine means losing that machine's local server state unless `~/.happy/` is backed up.
+- Rotating `server-key.*` intentionally changes the trusted machine identity and requires mobile re-confirmation.
+- Rotating `ecdh-key.*` intentionally changes the ECDH identity and requires mobile session-key refresh.
+- Deleting `tunnel.json` forces tunnel recreation; existing mobile credentials should be refreshed through pairing.
