@@ -5,6 +5,7 @@ import path from "path";
 export interface TofuPublicKeys {
     ed25519PublicKey: string | Uint8Array;
     x25519PublicKey: string | Uint8Array;
+    x25519SecretKey?: Uint8Array;
     ed25519Fingerprint?: string;
 }
 
@@ -89,6 +90,7 @@ export function createHappyServer(config: HappyServerConfig): HappyServerHandle 
                 x25519PublicKey: publicKeyToBase64(config.tofuPublicKeys.x25519PublicKey),
                 ed25519Fingerprint: config.tofuPublicKeys.ed25519Fingerprint,
             } : undefined,
+            x25519SecretKey: config.tofuPublicKeys?.x25519SecretKey,
         });
         isConfigured = true;
     }

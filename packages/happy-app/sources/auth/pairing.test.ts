@@ -55,7 +55,11 @@ describe('pairing', () => {
         const status = await pollPairing(start.device_code);
 
         expect(global.fetch).toHaveBeenNthCalledWith(1, 'https://machine.example.test/pair/start');
-        expect(global.fetch).toHaveBeenNthCalledWith(2, 'https://machine.example.test/pair/status?device_code=device-1');
+        expect(global.fetch).toHaveBeenNthCalledWith(2, 'https://machine.example.test/pair/status', expect.objectContaining({
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: expect.stringContaining('"device_code":"device-1"'),
+        }));
         expect(status).toMatchObject({
             status: 'authorized',
             machines: [{ machineId: 'machine-1', tunnelUrl: 'https://machine.example.test' }],

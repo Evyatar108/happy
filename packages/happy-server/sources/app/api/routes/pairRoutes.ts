@@ -1,4 +1,5 @@
 import { z } from "zod";
+import nacl from "tweetnacl";
 import { type Fastify } from "../types";
 import { type TofuHandshakeConfig } from "../api";
 
@@ -81,16 +82,17 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
         return await response.json() as DeviceCodeResponse;
     });
 
-    app.get('/pair/status', {
+    app.post('/pair/status', {
         schema: {
-            querystring: z.object({
+            body: z.object({
                 device_code: z.string(),
+                mobileEcdhPublicKey: z.string().optional(),
             }),
         },
     }, async (request, reply) => {
-        const body = new URLSearchParams({
+        const githubBody = new URLSearchParams({
             client_id: getGitHubClientId(),
-            device_code: request.query.device_code,
+            device_code: request.body.device_code,
             grant_type: "urn:ietf:params:oauth:grant-type:device_code",
         });
         const response = await fetch("https://github.com/login/oauth/access_token", {
@@ -99,7 +101,7 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
                 Accept: "application/json",
                 "Content-Type": "application/x-www-form-urlencoded",
             },
-            body: body.toString(),
+            body: githubBody.toString(),
         });
         if (!response.ok) {
             throw new Error(`GitHub device flow poll failed: ${response.status}`);
@@ -121,6 +123,11 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
 
         if (!tofuConfig.tofuPublicKeys) {
             return reply.code(503).send({ error: "tofu_public_keys_unavailable" });
+        }
+
+        if (request.body.mobileEcdhPublicKey && tofuConfig.x25519SecretKey) {
+            const mobilePublicKeyBytes = Buffer.from(request.body.mobileEcdhPublicKey, "base64");
+            tofuConfig.mobileSharedSecret = nacl.box.before(mobilePublicKeyBytes, tofuConfig.x25519SecretKey);
         }
 
         const tunnelUrl = tofuConfig.publicUrl || process.env.PUBLIC_URL || `http://127.0.0.1:${process.env.PORT ?? "3005"}`;

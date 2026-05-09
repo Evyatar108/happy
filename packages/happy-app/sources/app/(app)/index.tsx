@@ -10,7 +10,7 @@ import { trackAccountCreated } from '@/track';
 import { HomeHeaderNotAuth } from "@/components/HomeHeader";
 import { MainView } from "@/components/MainView";
 import { t } from '@/text';
-import { credentialsFromPairMachine, openGitHubDeviceFlow, pollPairing, startPairing } from '@/auth/pairing';
+import { createX25519KeyPair, credentialsFromPairMachine, openGitHubDeviceFlow, pollPairing, startPairing } from '@/auth/pairing';
 import { Modal } from '@/modal';
 import { TokenStorage } from '@/auth/tokenStorage';
 
@@ -39,10 +39,11 @@ function NotAuthenticated() {
             const pairing = await startPairing();
             await openGitHubDeviceFlow(pairing);
 
+            const localKeyPair = createX25519KeyPair();
             const deadline = Date.now() + pairing.expires_in * 1000;
             while (Date.now() < deadline) {
                 await new Promise(resolve => setTimeout(resolve, Math.max(pairing.interval, 1) * 1000));
-                const status = await pollPairing(pairing.device_code);
+                const status = await pollPairing(pairing.device_code, localKeyPair);
                 if (status.status !== 'authorized') {
                     continue;
                 }
@@ -74,7 +75,7 @@ function NotAuthenticated() {
                     return;
                 }
 
-                const credentials = credentialsFromPairMachine(machine);
+                const credentials = credentialsFromPairMachine(machine, localKeyPair);
                 await auth.login(credentials);
                 trackAccountCreated();
                 return;
