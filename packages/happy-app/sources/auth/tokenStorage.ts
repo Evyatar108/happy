@@ -12,15 +12,63 @@ export interface AuthCredentials {
     firstSeenAt: number;
 }
 
+interface StoredMachineCredentials {
+    primaryMachineId: string;
+    machines: AuthCredentials[];
+}
+
+function isStoredMachineCredentials(value: unknown): value is StoredMachineCredentials {
+    if (!value || typeof value !== 'object') {
+        return false;
+    }
+    const candidate = value as Partial<StoredMachineCredentials>;
+    return typeof candidate.primaryMachineId === 'string' && Array.isArray(candidate.machines);
+}
+
+function parseStoredCredentials(stored: string | null): StoredMachineCredentials | null {
+    if (!stored) {
+        return null;
+    }
+    const parsed = JSON.parse(stored) as AuthCredentials | StoredMachineCredentials;
+    if (isStoredMachineCredentials(parsed)) {
+        return parsed;
+    }
+    const legacy = parsed as AuthCredentials;
+    if (!legacy.machineId) {
+        return null;
+    }
+    return {
+        primaryMachineId: legacy.machineId,
+        machines: [legacy],
+    };
+}
+
+function serializeCredentials(credentials: StoredMachineCredentials): string {
+    return JSON.stringify(credentials);
+}
+
 export const TokenStorage = {
     async getCredentials(): Promise<AuthCredentials | null> {
+        const stored = await this.getStoredCredentials();
+        if (!stored) {
+            return null;
+        }
+        return stored.machines.find(machine => machine.machineId === stored.primaryMachineId) ?? stored.machines[0] ?? null;
+    },
+
+    async getCredentialsList(): Promise<AuthCredentials[]> {
+        const stored = await this.getStoredCredentials();
+        return stored?.machines ?? [];
+    },
+
+    async getStoredCredentials(): Promise<StoredMachineCredentials | null> {
         if (Platform.OS === 'web') {
             const stored = localStorage.getItem(AUTH_KEY);
-            return stored ? JSON.parse(stored) as AuthCredentials : null;
+            return parseStoredCredentials(stored);
         }
         try {
             const stored = await SecureStore.getItemAsync(AUTH_KEY);
-            return stored ? JSON.parse(stored) as AuthCredentials : null;
+            return parseStoredCredentials(stored);
         } catch (error) {
             console.error('Error getting credentials:', error);
             return null;
@@ -28,12 +76,19 @@ export const TokenStorage = {
     },
 
     async setCredentials(credentials: AuthCredentials): Promise<boolean> {
+        const existing = await this.getStoredCredentials();
+        const machines = existing?.machines.filter(machine => machine.machineId !== credentials.machineId) ?? [];
+        machines.push(credentials);
+        const next: StoredMachineCredentials = {
+            primaryMachineId: credentials.machineId,
+            machines,
+        };
         if (Platform.OS === 'web') {
-            localStorage.setItem(AUTH_KEY, JSON.stringify(credentials));
+            localStorage.setItem(AUTH_KEY, serializeCredentials(next));
             return true;
         }
         try {
-            await SecureStore.setItemAsync(AUTH_KEY, JSON.stringify(credentials));
+            await SecureStore.setItemAsync(AUTH_KEY, serializeCredentials(next));
             return true;
         } catch (error) {
             console.error('Error setting credentials:', error);

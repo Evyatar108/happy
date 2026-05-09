@@ -33,7 +33,10 @@ describe('TokenStorage', () => {
 
         expect(secureStore.setItemAsync).toHaveBeenCalledWith(
             'machine_credentials',
-            JSON.stringify(credentials)
+            JSON.stringify({
+                primaryMachineId: 'machine-1',
+                machines: [credentials],
+            })
         );
     });
 
@@ -41,5 +44,34 @@ describe('TokenStorage', () => {
         secureStore.getItemAsync.mockResolvedValue(JSON.stringify(credentials));
 
         await expect(TokenStorage.getCredentials()).resolves.toEqual(credentials);
+    });
+
+    it('appends additional trusted machines and returns the full paired list', async () => {
+        const second: AuthCredentials = {
+            ...credentials,
+            machineId: 'machine-2',
+            tunnelUrl: 'https://machine-2.example.test',
+            tunnelJwt: 'jwt-2',
+        };
+        secureStore.getItemAsync.mockResolvedValueOnce(JSON.stringify({
+            primaryMachineId: 'machine-1',
+            machines: [credentials],
+        }));
+
+        await expect(TokenStorage.setCredentials(second)).resolves.toBe(true);
+
+        expect(secureStore.setItemAsync).toHaveBeenCalledWith(
+            'machine_credentials',
+            JSON.stringify({
+                primaryMachineId: 'machine-2',
+                machines: [credentials, second],
+            })
+        );
+    });
+
+    it('loads legacy single-machine storage as a one-entry credential list', async () => {
+        secureStore.getItemAsync.mockResolvedValue(JSON.stringify(credentials));
+
+        await expect(TokenStorage.getCredentialsList()).resolves.toEqual([credentials]);
     });
 });

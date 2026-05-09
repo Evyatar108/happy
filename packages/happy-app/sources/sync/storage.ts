@@ -38,6 +38,7 @@ import { isMutableTool } from "@/components/tools/knownTools";
 import { projectManager } from "./projectManager";
 import { DecryptedArtifact } from "./artifactTypes";
 import { FeedItem } from "./feedTypes";
+import { parseCompositeSessionId } from "./machineSessionId";
 
 // Debounce timer for realtimeMode changes
 let realtimeModeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -102,13 +103,14 @@ export interface SessionRowData {
     hasDraft: boolean;
     active: boolean;
     machineId: string | null;
+    machineName: string | null;
     path: string | null;
     homeDir: string | null;
     completedTodosCount: number;
     totalTodosCount: number;
 }
 
-function buildSessionRowData(session: Session): SessionRowData {
+function buildSessionRowData(session: Session, machines: Record<string, Machine> = {}): SessionRowData {
     const isOnline = session.presence === "online";
     const hasPermissions = !!(session.agentState?.requests && Object.keys(session.agentState.requests).length > 0);
 
@@ -123,6 +125,8 @@ function buildSessionRowData(session: Session): SessionRowData {
         state = 'waiting';
     }
 
+    const machineId = (session.metadata?.machineId ?? parseCompositeSessionId(session.id, '').machineId) || null;
+    const machine = machineId ? machines[machineId] : null;
     return {
         id: session.id,
         name: getSessionName(session),
@@ -133,7 +137,8 @@ function buildSessionRowData(session: Session): SessionRowData {
         ...(!session.active && { activeAt: session.activeAt, createdAt: session.createdAt }),
         hasDraft: !!session.draft,
         active: session.active,
-        machineId: session.metadata?.machineId ?? null,
+        machineId,
+        machineName: machine?.metadata?.displayName ?? machine?.metadata?.host ?? machineId,
         path: session.metadata?.path ?? null,
         homeDir: session.metadata?.homeDir ?? null,
         completedTodosCount: session.todos?.filter(todo => todo.status === 'completed').length ?? 0,
@@ -185,6 +190,7 @@ interface StorageState {
     nativeUpdateStatus: { available: boolean; updateUrl?: string } | null;
     applySessions: (sessions: IncomingSession[]) => void;
     applyMachines: (machines: Machine[], replace?: boolean) => void;
+    markMachineDisconnected: (machineId: string, lastSeenAt: number) => void;
     deleteMachine: (machineId: string) => void;
     applyLoaded: () => void;
     applyReady: () => void;
@@ -271,7 +277,8 @@ interface StorageState {
 
 // Helper function to build unified list view data from sessions and machines
 function buildSessionListViewData(
-    sessions: Record<string, Session>
+    sessions: Record<string, Session>,
+    machines: Record<string, Machine> = {}
 ): SessionListViewItem[] {
     // Separate active and inactive sessions
     const activeSessions: Session[] = [];
@@ -285,16 +292,15 @@ function buildSessionListViewData(
         }
     });
 
-    // Sort by creation date (newest first) — matches applySessions behavior
-    activeSessions.sort((a, b) => b.createdAt - a.createdAt);
-    inactiveSessions.sort((a, b) => b.createdAt - a.createdAt);
+    activeSessions.sort((a, b) => b.updatedAt - a.updatedAt);
+    inactiveSessions.sort((a, b) => b.updatedAt - a.updatedAt);
 
     // Build unified list view data
     const listData: SessionListViewItem[] = [];
 
     // Add active sessions as a single item at the top (if any)
     if (activeSessions.length > 0) {
-        listData.push({ type: 'active-sessions', sessions: activeSessions.map(buildSessionRowData) });
+        listData.push({ type: 'active-sessions', sessions: activeSessions.map(session => buildSessionRowData(session, machines)) });
     }
 
     // Group inactive sessions by date
@@ -328,7 +334,7 @@ function buildSessionListViewData(
 
                 listData.push({ type: 'header', title: headerTitle });
                 currentDateGroup.forEach(sess => {
-                    listData.push({ type: 'session', session: buildSessionRowData(sess) });
+                    listData.push({ type: 'session', session: buildSessionRowData(sess, machines) });
                 });
             }
 
@@ -358,7 +364,7 @@ function buildSessionListViewData(
 
         listData.push({ type: 'header', title: headerTitle });
         currentDateGroup.forEach(sess => {
-            listData.push({ type: 'session', session: buildSessionRowData(sess) });
+            listData.push({ type: 'session', session: buildSessionRowData(sess, machines) });
         });
     }
 
@@ -604,7 +610,8 @@ export const storage = create<StorageState>()((set, get) => {
 
             // Build new unified list view data
             const sessionListViewData = buildSessionListViewData(
-                mergedSessions
+                mergedSessions,
+                state.machines
             );
 
             // Update project manager with current sessions and machines
@@ -1193,7 +1200,7 @@ export const storage = create<StorageState>()((set, get) => {
             return {
                 ...state,
                 sessions: updatedSessions,
-                sessionListViewData: buildSessionListViewData(updatedSessions)
+                sessionListViewData: buildSessionListViewData(updatedSessions, state.machines)
             };
         }),
         updateSessionPermissionMode: (sessionId: string, mode: string, userChosen: boolean) => set((state) => {
@@ -1321,13 +1328,40 @@ export const storage = create<StorageState>()((set, get) => {
 
             // Rebuild sessionListViewData to reflect machine changes
             const sessionListViewData = buildSessionListViewData(
-                state.sessions
+                state.sessions,
+                mergedMachines
             );
 
             return {
                 ...state,
                 machines: mergedMachines,
                 sessionListViewData
+            };
+        }),
+        markMachineDisconnected: (machineId: string, lastSeenAt: number) => set((state) => {
+            const updatedSessions: Record<string, Session> = {};
+            let changed = false;
+            for (const [sessionId, session] of Object.entries(state.sessions)) {
+                const sessionMachineId = session.metadata?.machineId ?? parseCompositeSessionId(sessionId, '').machineId;
+                if (sessionMachineId !== machineId) {
+                    updatedSessions[sessionId] = session;
+                    continue;
+                }
+                changed = true;
+                updatedSessions[sessionId] = {
+                    ...session,
+                    active: false,
+                    activeAt: lastSeenAt,
+                    presence: lastSeenAt,
+                };
+            }
+            if (!changed) {
+                return state;
+            }
+            return {
+                ...state,
+                sessions: updatedSessions,
+                sessionListViewData: buildSessionListViewData(updatedSessions, state.machines),
             };
         }),
         deleteMachine: (machineId: string) => set((state) => {
@@ -1338,7 +1372,7 @@ export const storage = create<StorageState>()((set, get) => {
             return {
                 ...state,
                 machines: remaining,
-                sessionListViewData: buildSessionListViewData(state.sessions)
+                sessionListViewData: buildSessionListViewData(state.sessions, remaining)
             };
         }),
         // Artifact methods
@@ -1421,7 +1455,7 @@ export const storage = create<StorageState>()((set, get) => {
             saveSessionEffortLevels(effortLevels);
             
             // Rebuild sessionListViewData without the deleted session
-            const sessionListViewData = buildSessionListViewData(remainingSessions);
+            const sessionListViewData = buildSessionListViewData(remainingSessions, state.machines);
             
             return {
                 ...state,
