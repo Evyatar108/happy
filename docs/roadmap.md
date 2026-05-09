@@ -17,7 +17,7 @@ Happy redesigned from multi-tenant cloud relay to server-per-machine product. Ea
 
 ### Still remaining
 - **Entra MSAL** — Deferred. Requires `pnpm prebuild` (currently stubbed to error). GitHub device flow is the only mobile auth path for now.
-- **Prisma migration** — Schema was rewritten but no migration file committed. Human must run `pnpm migrate` against production Postgres.
+- **Prisma migration** — Run `pnpm migrate` in `packages/happy-server` before deploying to production Postgres. Not needed for dev (PGlite auto-applies).
 
 ## Next Up
 
