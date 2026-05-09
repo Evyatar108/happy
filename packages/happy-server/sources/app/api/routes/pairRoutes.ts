@@ -25,6 +25,54 @@ type GitHubUser = {
     login: string;
 };
 
+type DevTunnelItem = {
+    clusterId: string;
+    tunnelId: string;
+    status?: { value: string };
+};
+
+async function fetchHappyTunnels(githubToken: string, excludeTunnelId: string | null): Promise<DevTunnelItem[]> {
+    try {
+        const response = await fetch(
+            "https://global.rel.tunnels.api.visualstudio.com/api/v1/tunnels?limit=50",
+            {
+                headers: {
+                    // GitHub OAuth token from device flow; not a Happy relay credential.
+                    Authorization: `github ${githubToken}`,
+                    "X-Tunnel-User-Agent": "happy-server/1.0",
+                    Accept: "application/json",
+                },
+            }
+        );
+        if (!response.ok) return [];
+        const tunnels = await response.json() as DevTunnelItem[];
+        if (!Array.isArray(tunnels)) return [];
+        return tunnels.filter(
+            t => typeof t.tunnelId === "string"
+                && t.tunnelId.startsWith("happy-")
+                && t.tunnelId !== excludeTunnelId
+        );
+    } catch {
+        return [];
+    }
+}
+
+function parseTunnelIdFromUrl(url: string): string | null {
+    try {
+        const hostname = new URL(url).hostname;
+        return hostname.split(".")[0] ?? null;
+    } catch {
+        return null;
+    }
+}
+
+function displayNameFromTunnelId(tunnelId: string): string {
+    // happy-<hostname>-<machineId> → extract hostname
+    const withoutPrefix = tunnelId.replace(/^happy-/, "");
+    const lastDash = withoutPrefix.lastIndexOf("-");
+    return lastDash > 0 ? withoutPrefix.slice(0, lastDash) : withoutPrefix;
+}
+
 function getGitHubClientId(): string {
     const clientId = process.env.GITHUB_CLIENT_ID;
     if (!clientId) {
@@ -178,9 +226,20 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
             { sub: tofuConfig.localUserId, gh: githubUser.login, iat: Math.floor(Date.now() / 1000) },
             tofuConfig.ed25519SecretKey,
         );
+
+        const currentTunnelId = parseTunnelIdFromUrl(tunnelUrl);
+        const otherTunnels = await fetchHappyTunnels(tokenData.access_token, currentTunnelId);
+        const discoveredMachines = otherTunnels.map(t => ({
+            tunnelId: t.tunnelId,
+            tunnelUrl: `https://${t.tunnelId}.devtunnels.ms`,
+            displayName: displayNameFromTunnelId(t.tunnelId),
+            isOnline: t.status?.value === "host-connected",
+        }));
+
         return {
             status: "authorized" as const,
             githubLogin: githubUser.login,
+            githubToken: tokenData.access_token,
             machines: [{
                 machineId: tofuConfig.localUserId,
                 tunnelUrl,
@@ -190,6 +249,50 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
                 tunnelClaim,
                 mobileSharedSecret,
             }],
+            discoveredMachines,
+        };
+    });
+
+    app.post("/pair/connect", {
+        schema: {
+            body: z.object({
+                githubToken: z.string(),
+                mobileEcdhPublicKey: z.string().optional(),
+            }),
+        },
+    }, async (request, reply) => {
+        if (isPairRateLimited(request.ip, Date.now())) {
+            return reply.code(429).send({ error: "rate_limited" });
+        }
+        const githubUser = await fetchGitHubUser(request.body.githubToken);
+        const expectedOwner = process.env.HAPPY_TUNNEL_GITHUB_OWNER;
+        if (expectedOwner && expectedOwner.toLowerCase() !== githubUser.login.toLowerCase()) {
+            return reply.code(403).send({ error: "github_identity_does_not_own_tunnel" });
+        }
+        if (!tofuConfig.tofuPublicKeys || !tofuConfig.ed25519SecretKey) {
+            return reply.code(503).send({ error: "tofu_public_keys_unavailable" });
+        }
+
+        let mobileSharedSecret: string | undefined;
+        if (request.body.mobileEcdhPublicKey && tofuConfig.x25519SecretKey) {
+            const mobilePublicKeyBytes = Buffer.from(request.body.mobileEcdhPublicKey, "base64");
+            const sharedSecret = nacl.box.before(mobilePublicKeyBytes, tofuConfig.x25519SecretKey);
+            mobileSharedSecret = Buffer.from(sharedSecret).toString("base64");
+        }
+
+        const tunnelUrl = tofuConfig.publicUrl || process.env.PUBLIC_URL || `http://127.0.0.1:${process.env.PORT ?? "3005"}`;
+        const tunnelClaim = await encodeTunnelClaim(
+            { sub: tofuConfig.localUserId, gh: githubUser.login, iat: Math.floor(Date.now() / 1000) },
+            tofuConfig.ed25519SecretKey,
+        );
+        return {
+            machineId: tofuConfig.localUserId,
+            tunnelUrl,
+            ed25519PublicKey: tofuConfig.tofuPublicKeys.ed25519PublicKey,
+            x25519PublicKey: tofuConfig.tofuPublicKeys.x25519PublicKey,
+            ed25519Fingerprint: tofuConfig.tofuPublicKeys.ed25519Fingerprint,
+            tunnelClaim,
+            mobileSharedSecret,
         };
     });
 }

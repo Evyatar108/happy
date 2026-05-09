@@ -836,7 +836,13 @@ export const zhHant: TranslationStructure = {
         pubkeyRotationWarning: '這台裝置提供的公開金鑰與您之前信任的不同。只有在您重新安裝或重設了該電腦上的 Happy 時才繼續。',
         noMachinesForIdentity: '沒有為此 GitHub 身分返回任何裝置',
         deviceAuthorizationExpired: 'GitHub 裝置授權已過期',
-        pairingFailed: '裝置配對失敗',
+        pairingFailed: 'Failed to pair machine',
+        selectMachine: 'Select a machine',
+        selectMachineSubtitle: ({ login }: { login: string }) => `Signed in as @${login}. Choose a machine to connect.`,
+        thisServer: 'This server',
+        connectTo: 'Connect',
+        online: 'Online',
+        offline: 'Offline',
     },
 
     review: {

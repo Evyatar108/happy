@@ -837,7 +837,13 @@ export const zhHans: TranslationStructure = {
         pubkeyRotationWarning: '这台设备提供的公钥与您之前信任的不同。只有在您重新安装或重置了该电脑上的 Happy 时才继续。',
         noMachinesForIdentity: '没有为此 GitHub 身份返回任何设备',
         deviceAuthorizationExpired: 'GitHub 设备授权已过期',
-        pairingFailed: '设备配对失败',
+        pairingFailed: 'Failed to pair machine',
+        selectMachine: 'Select a machine',
+        selectMachineSubtitle: ({ login }: { login: string }) => `Signed in as @${login}. Choose a machine to connect.`,
+        thisServer: 'This server',
+        connectTo: 'Connect',
+        online: 'Online',
+        offline: 'Offline',
     },
 
     review: {

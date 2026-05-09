@@ -837,7 +837,13 @@ export const ja: TranslationStructure = {
         pubkeyRotationWarning: 'このマシンは、以前信頼したものとは異なる公開鍵を提示しています。そのコンピューターで Happy を再インストールまたはリセットした場合のみ続行してください。',
         noMachinesForIdentity: 'この GitHub ID のマシンは返されませんでした',
         deviceAuthorizationExpired: 'GitHub デバイス認証の期限が切れました',
-        pairingFailed: 'マシンのペアリングに失敗しました',
+        pairingFailed: 'Failed to pair machine',
+        selectMachine: 'Select a machine',
+        selectMachineSubtitle: ({ login }: { login: string }) => `Signed in as @${login}. Choose a machine to connect.`,
+        thisServer: 'This server',
+        connectTo: 'Connect',
+        online: 'Online',
+        offline: 'Offline',
     },
 
     review: {

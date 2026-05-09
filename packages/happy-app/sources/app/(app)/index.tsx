@@ -1,6 +1,6 @@
 import { RoundButton } from "@/components/RoundButton";
 import { useAuth } from "@/auth/AuthContext";
-import { Text, View, Image, Platform } from "react-native";
+import { Text, View, Image, Platform, FlatList } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as React from 'react';
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
@@ -10,7 +10,11 @@ import { trackAccountCreated } from '@/track';
 import { HomeHeaderNotAuth } from "@/components/HomeHeader";
 import { MainView } from "@/components/MainView";
 import { t } from '@/text';
-import { createX25519KeyPair, credentialsFromPairMachine, openGitHubDeviceFlow, pollPairing, startPairing } from '@/auth/pairing';
+import {
+    createX25519KeyPair, credentialsFromPairMachine, connectMachine,
+    openGitHubDeviceFlow, pollPairing, startPairing,
+    type DiscoveredMachine, type PairMachine,
+} from '@/auth/pairing';
 import { Modal } from '@/modal';
 import { TokenStorage } from '@/auth/tokenStorage';
 
@@ -28,11 +32,43 @@ function Authenticated() {
     return <MainView variant="phone" />;
 }
 
+type PendingPairing = {
+    primaryMachine: PairMachine;
+    discoveredMachines: DiscoveredMachine[];
+    localKeyPair: ReturnType<typeof createX25519KeyPair>;
+    githubToken: string;
+    githubLogin: string;
+};
+
 function NotAuthenticated() {
     const { theme } = useUnistyles();
     const auth = useAuth();
     const isLandscape = useIsLandscape();
     const insets = useSafeAreaInsets();
+    const [pendingPairing, setPendingPairing] = React.useState<PendingPairing | null>(null);
+    const [connecting, setConnecting] = React.useState(false);
+
+    const completePairing = async (machine: PairMachine, localKeyPair: ReturnType<typeof createX25519KeyPair>) => {
+        const trustedMachines = await TokenStorage.getCredentialsList();
+        const existingMachine = trustedMachines.find(item => item.machineId === machine.machineId);
+        if (existingMachine && existingMachine.pinnedPubkey !== machine.ed25519PublicKey) {
+            const acceptedRotation = await Modal.confirm(
+                t('welcome.pubkeyRotationTitle'),
+                t('welcome.pubkeyRotationWarning'),
+                { confirmText: t('welcome.trust'), cancelText: t('common.cancel'), destructive: true }
+            );
+            if (!acceptedRotation) return;
+        }
+        const trusted = await Modal.confirm(
+            t('welcome.trustMachine'),
+            t('welcome.ed25519Fingerprint', { fingerprint: machine.ed25519Fingerprint ?? machine.ed25519PublicKey }),
+            { confirmText: t('welcome.trust'), cancelText: t('common.cancel') }
+        );
+        if (!trusted) return;
+        const credentials = credentialsFromPairMachine(machine, localKeyPair);
+        await auth.login(credentials);
+        trackAccountCreated();
+    };
 
     const pairMachine = async () => {
         try {
@@ -44,40 +80,24 @@ function NotAuthenticated() {
             while (Date.now() < deadline) {
                 await new Promise(resolve => setTimeout(resolve, Math.max(pairing.interval, 1) * 1000));
                 const status = await pollPairing(pairing.device_code, localKeyPair);
-                if (status.status !== 'authorized') {
-                    continue;
-                }
+                if (status.status !== 'authorized') continue;
 
-                const machine = status.machines?.[0];
-                if (!machine) {
-                    throw new Error(t('welcome.noMachinesForIdentity'));
-                }
+                const primaryMachine = status.machines?.[0];
+                if (!primaryMachine) throw new Error(t('welcome.noMachinesForIdentity'));
 
-                const trustedMachines = await TokenStorage.getCredentialsList();
-                const existingMachine = trustedMachines.find(item => item.machineId === machine.machineId);
-                if (existingMachine && existingMachine.pinnedPubkey !== machine.ed25519PublicKey) {
-                    const acceptedRotation = await Modal.confirm(
-                        t('welcome.pubkeyRotationTitle'),
-                        t('welcome.pubkeyRotationWarning'),
-                        { confirmText: t('welcome.trust'), cancelText: t('common.cancel'), destructive: true }
-                    );
-                    if (!acceptedRotation) {
-                        return;
-                    }
-                }
-
-                const trusted = await Modal.confirm(
-                    t('welcome.trustMachine'),
-                    t('welcome.ed25519Fingerprint', { fingerprint: machine.ed25519Fingerprint ?? machine.ed25519PublicKey }),
-                    { confirmText: t('welcome.trust'), cancelText: t('common.cancel') }
-                );
-                if (!trusted) {
+                const discovered = status.discoveredMachines ?? [];
+                if (discovered.length > 0) {
+                    setPendingPairing({
+                        primaryMachine,
+                        discoveredMachines: discovered,
+                        localKeyPair,
+                        githubToken: status.githubToken ?? '',
+                        githubLogin: status.githubLogin ?? '',
+                    });
                     return;
                 }
 
-                const credentials = credentialsFromPairMachine(machine, localKeyPair);
-                await auth.login(credentials);
-                trackAccountCreated();
+                await completePairing(primaryMachine, localKeyPair);
                 return;
             }
             throw new Error(t('welcome.deviceAuthorizationExpired'));
@@ -85,6 +105,92 @@ function NotAuthenticated() {
             console.error('Error pairing machine', error);
             Modal.alert(t('common.error'), error instanceof Error ? error.message : t('welcome.pairingFailed'));
         }
+    };
+
+    const handleSelectPrimary = async () => {
+        if (!pendingPairing || connecting) return;
+        setConnecting(true);
+        try {
+            await completePairing(pendingPairing.primaryMachine, pendingPairing.localKeyPair);
+            setPendingPairing(null);
+        } catch (error) {
+            Modal.alert(t('common.error'), error instanceof Error ? error.message : t('welcome.pairingFailed'));
+        } finally {
+            setConnecting(false);
+        }
+    };
+
+    const handleSelectDiscovered = async (machine: DiscoveredMachine) => {
+        if (!pendingPairing || connecting) return;
+        setConnecting(true);
+        try {
+            const paired = await connectMachine(machine.tunnelUrl, pendingPairing.githubToken, pendingPairing.localKeyPair);
+            await completePairing(paired, pendingPairing.localKeyPair);
+            setPendingPairing(null);
+        } catch (error) {
+            Modal.alert(t('common.error'), error instanceof Error ? error.message : t('welcome.pairingFailed'));
+        } finally {
+            setConnecting(false);
+        }
+    };
+
+    if (pendingPairing) {
+        return (
+            <>
+                <HomeHeaderNotAuth />
+                <View style={styles.pickerContainer}>
+                    <Text style={styles.pickerTitle}>{t('welcome.selectMachine')}</Text>
+                    <Text style={styles.pickerSubtitle}>
+                        {t('welcome.selectMachineSubtitle', { login: pendingPairing.githubLogin })}
+                    </Text>
+                    <View style={styles.machineListContainer}>
+                        <View style={styles.machineItem}>
+                            <View style={styles.machineInfo}>
+                                <Text style={styles.machineName}>
+                                    {pendingPairing.primaryMachine.machineId}
+                                </Text>
+                                <Text style={styles.machineTag}>{t('welcome.thisServer')}</Text>
+                            </View>
+                            <View style={styles.machineButton}>
+                                <RoundButton
+                                    title={connecting ? '...' : t('welcome.connectTo')}
+                                    size="normal"
+                                    action={handleSelectPrimary}
+                                    disabled={connecting}
+                                />
+                            </View>
+                        </View>
+                        {pendingPairing.discoveredMachines.map(machine => (
+                            <View key={machine.tunnelId} style={styles.machineItem}>
+                                <View style={styles.machineInfo}>
+                                    <Text style={styles.machineName}>{machine.displayName}</Text>
+                                    <Text style={[styles.machineStatus, machine.isOnline ? styles.online : styles.offline]}>
+                                        {machine.isOnline ? t('welcome.online') : t('welcome.offline')}
+                                    </Text>
+                                </View>
+                                <View style={styles.machineButton}>
+                                    <RoundButton
+                                        title={connecting ? '...' : t('welcome.connectTo')}
+                                        size="normal"
+                                        display="inverted"
+                                        action={() => handleSelectDiscovered(machine)}
+                                        disabled={connecting}
+                                    />
+                                </View>
+                            </View>
+                        ))}
+                    </View>
+                    <View style={styles.cancelButton}>
+                        <RoundButton
+                            title={t('common.cancel')}
+                            size="normal"
+                            display="inverted"
+                            onPress={() => setPendingPairing(null)}
+                        />
+                    </View>
+                </View>
+            </>
+        );
     }
 
     const portraitLayout = (
@@ -100,25 +206,12 @@ function NotAuthenticated() {
             <Text style={styles.subtitle}>
                 {t('welcome.subtitle')}
             </Text>
-            {Platform.OS !== 'android' && Platform.OS !== 'ios' ? (
-                <>
-                    <View style={styles.buttonContainer}>
-                        <RoundButton
-                            title={t('welcome.pairMachine')}
-                            action={pairMachine}
-                        />
-                    </View>
-                </>
-            ) : (
-                <>
-                    <View style={styles.buttonContainer}>
-                        <RoundButton
-                            title={t('welcome.pairMachine')}
-                            action={pairMachine}
-                        />
-                    </View>
-                </>
-            )}
+            <View style={styles.buttonContainer}>
+                <RoundButton
+                    title={t('welcome.pairMachine')}
+                    action={pairMachine}
+                />
+            </View>
         </View>
     );
 
@@ -139,24 +232,12 @@ function NotAuthenticated() {
                     <Text style={styles.landscapeSubtitle}>
                         {t('welcome.subtitle')}
                     </Text>
-                    {Platform.OS !== 'android' && Platform.OS !== 'ios'
-                        ? (<>
-                            <View style={styles.landscapeButtonContainer}>
-                                <RoundButton
-                                    title={t('welcome.pairMachine')}
-                                    action={pairMachine}
-                                />
-                            </View>
-                        </>)
-                        : (<>
-                            <View style={styles.landscapeButtonContainer}>
-                                <RoundButton
-                                    title={t('welcome.pairMachine')}
-                                    action={pairMachine}
-                                />
-                            </View>
-                        </>)
-                    }
+                    <View style={styles.landscapeButtonContainer}>
+                        <RoundButton
+                            title={t('welcome.pairMachine')}
+                            action={pairMachine}
+                        />
+                    </View>
                 </View>
             </View>
         </View>
@@ -171,6 +252,74 @@ function NotAuthenticated() {
 }
 
 const styles = StyleSheet.create((theme) => ({
+    // Machine picker styles
+    pickerContainer: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 24,
+    },
+    pickerTitle: {
+        ...Typography.default('semiBold'),
+        fontSize: 22,
+        color: theme.colors.text,
+        textAlign: 'center',
+        marginBottom: 8,
+    },
+    pickerSubtitle: {
+        ...Typography.default(),
+        fontSize: 14,
+        color: theme.colors.textSecondary,
+        textAlign: 'center',
+        marginBottom: 24,
+    },
+    machineListContainer: {
+        width: '100%',
+        maxWidth: 360,
+        gap: 12,
+        marginBottom: 24,
+    },
+    machineItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: theme.colors.surface,
+        borderRadius: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        gap: 12,
+    },
+    machineInfo: {
+        flex: 1,
+        gap: 2,
+    },
+    machineName: {
+        ...Typography.mono(),
+        fontSize: 13,
+        color: theme.colors.text,
+    },
+    machineTag: {
+        ...Typography.default(),
+        fontSize: 12,
+        color: theme.colors.textSecondary,
+    },
+    machineStatus: {
+        ...Typography.default(),
+        fontSize: 12,
+    },
+    online: {
+        color: theme.colors.status.connected,
+    },
+    offline: {
+        color: theme.colors.textSecondary,
+    },
+    machineButton: {
+        minWidth: 90,
+    },
+    cancelButton: {
+        width: '100%',
+        maxWidth: 360,
+    },
+
     // NotAuthenticated styles
     portraitContainer: {
         flex: 1,

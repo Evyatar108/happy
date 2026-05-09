@@ -850,6 +850,12 @@ export const en: TranslationStructure = {
         noMachinesForIdentity: 'No machines returned for this GitHub identity',
         deviceAuthorizationExpired: 'GitHub device authorization expired',
         pairingFailed: 'Failed to pair machine',
+        selectMachine: 'Select a machine',
+        selectMachineSubtitle: ({ login }: { login: string }) => `Signed in as @${login}. Choose a machine to connect.`,
+        thisServer: 'This server',
+        connectTo: 'Connect',
+        online: 'Online',
+        offline: 'Offline',
     },
 
     review: {

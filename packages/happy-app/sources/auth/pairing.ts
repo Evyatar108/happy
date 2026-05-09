@@ -25,9 +25,19 @@ export type PairMachine = {
     tunnelClaim: string;
 };
 
+export type DiscoveredMachine = {
+    tunnelId: string;
+    tunnelUrl: string;
+    displayName: string;
+    isOnline: boolean;
+};
+
 export type PairStatusResponse = {
     status: 'pending' | 'authorized';
+    githubLogin?: string;
+    githubToken?: string;
     machines?: PairMachine[];
+    discoveredMachines?: DiscoveredMachine[];
 };
 
 export async function startPairing(): Promise<PairStartResponse> {
@@ -53,6 +63,23 @@ export async function pollPairing(deviceCode: string, localKeyPair?: ReturnType<
 
 export async function openGitHubDeviceFlow(pairing: PairStartResponse): Promise<void> {
     await WebBrowser.openBrowserAsync(pairing.verification_uri_complete ?? pairing.verification_uri);
+}
+
+export async function connectMachine(
+    tunnelUrl: string,
+    githubToken: string,
+    localKeyPair?: ReturnType<typeof createX25519KeyPair>,
+): Promise<PairMachine> {
+    const mobileEcdhPublicKey = localKeyPair ? encodeBase64(localKeyPair.publicKey, 'base64') : undefined;
+    const response = await fetch(`${tunnelUrl}/pair/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ githubToken, mobileEcdhPublicKey }),
+    });
+    if (!response.ok) {
+        throw new Error(`Failed to connect to machine: ${response.status}`);
+    }
+    return await response.json() as PairMachine;
 }
 
 export function credentialsFromPairMachine(machine: PairMachine, localKeyPair: ReturnType<typeof createX25519KeyPair>): AuthCredentials {

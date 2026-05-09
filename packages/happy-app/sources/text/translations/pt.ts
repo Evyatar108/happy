@@ -835,7 +835,13 @@ export const pt: TranslationStructure = {
         pubkeyRotationWarning: 'Esta máquina está apresentando uma chave pública diferente daquela em que você confiou antes. Continue somente se você reinstalou ou redefiniu o Happy nesse computador.',
         noMachinesForIdentity: 'Nenhuma máquina retornada para esta identidade do GitHub',
         deviceAuthorizationExpired: 'A autorização do dispositivo do GitHub expirou',
-        pairingFailed: 'Falha ao parear a máquina',
+        pairingFailed: 'Failed to pair machine',
+        selectMachine: 'Select a machine',
+        selectMachineSubtitle: ({ login }: { login: string }) => `Signed in as @${login}. Choose a machine to connect.`,
+        thisServer: 'This server',
+        connectTo: 'Connect',
+        online: 'Online',
+        offline: 'Offline',
     },
 
     review: {

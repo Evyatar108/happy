@@ -840,7 +840,13 @@ export const ru: TranslationStructure = {
         pubkeyRotationWarning: 'Эта машина предъявляет другой публичный ключ, не тот, которому вы доверяли раньше. Продолжайте только если вы переустановили или сбросили Happy на этом компьютере.',
         noMachinesForIdentity: 'Для этой личности GitHub не вернулись машины',
         deviceAuthorizationExpired: 'Авторизация устройства GitHub истекла',
-        pairingFailed: 'Не удалось сопрячь машину',
+        pairingFailed: 'Failed to pair machine',
+        selectMachine: 'Select a machine',
+        selectMachineSubtitle: ({ login }: { login: string }) => `Signed in as @${login}. Choose a machine to connect.`,
+        thisServer: 'This server',
+        connectTo: 'Connect',
+        online: 'Online',
+        offline: 'Offline',
     },
 
     review: {
