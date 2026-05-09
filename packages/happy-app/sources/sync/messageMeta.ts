@@ -24,8 +24,8 @@ function toWirePermissionMode(mode: string | null | undefined): PermissionModeKe
 }
 
 export function resolveMessageModeMeta(
-    session: Pick<Session, 'permissionMode' | 'modelMode' | 'metadata' | 'permissionModeUserChosen'>,
-): { permissionMode?: PermissionModeKey; model: string | null } {
+    session: Pick<Session, 'permissionMode' | 'modelMode' | 'effortLevel' | 'metadata' | 'permissionModeUserChosen'>,
+): { permissionMode?: PermissionModeKey; model: string | null; thinkingLevel?: string } {
     const sandboxEnabled = isSandboxEnabled(session.metadata);
     const wireFromUser = session.permissionModeUserChosen
         ? toWirePermissionMode(session.permissionMode)
@@ -38,5 +38,6 @@ export function resolveMessageModeMeta(
     return {
         ...(permissionMode !== undefined && { permissionMode }),
         model,
+        ...(session.effortLevel != null && { thinkingLevel: session.effortLevel }),
     };
 }

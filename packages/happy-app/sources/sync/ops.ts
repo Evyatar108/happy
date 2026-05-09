@@ -5,6 +5,7 @@
 
 import { apiSocket } from './apiSocket';
 import { sync } from './sync';
+import { storage } from './storage';
 import type { MachineMetadata, Metadata } from './storageTypes';
 
 // Strict type definitions for all operations
@@ -391,7 +392,7 @@ export async function sessionUpdateMetadata(
 
             currentMetadata = {
                 ...latestMetadata,
-                summary: metadata.summary
+                ...metadata
             };
 
             retryCount++;
@@ -405,6 +406,34 @@ export async function sessionUpdateMetadata(
     }
 
     throw new Error('Unexpected error in sessionUpdateMetadata');
+}
+
+export async function sessionEmitAgentConfiguration({
+    sessionId,
+    permissionMode,
+    model,
+    thinkingLevel,
+}: {
+    sessionId: string;
+    permissionMode?: string;
+    model?: string;
+    thinkingLevel?: string;
+}): Promise<{ version: number; metadata: string }> {
+    const session = storage.getState().sessions[sessionId];
+    if (!session || !session.metadata) {
+        throw new Error(`Session metadata not found for ${sessionId}`);
+    }
+
+    return sessionUpdateMetadata(
+        sessionId,
+        {
+            ...session.metadata,
+            ...(model !== undefined && { currentModelCode: model }),
+            ...(permissionMode !== undefined && { currentPermissionModeCode: permissionMode }),
+            ...(thinkingLevel !== undefined && { currentThoughtLevelCode: thinkingLevel }),
+        },
+        session.metadataVersion,
+    );
 }
 
 /**

@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Metadata } from './storageTypes';
 
+const mockSessions = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
+
 vi.mock('./apiSocket', () => ({
     apiSocket: {
         emitWithAck: vi.fn(),
@@ -19,8 +21,14 @@ vi.mock('./sync', () => ({
     }
 }));
 
+vi.mock('./storage', () => ({
+    storage: {
+        getState: () => ({ sessions: mockSessions.value }),
+    },
+}));
+
 import { apiSocket } from './apiSocket';
-import { cancelPendingSwitch, requestSwitch, sessionUpdateMetadata } from './ops';
+import { cancelPendingSwitch, requestSwitch, sessionEmitAgentConfiguration, sessionUpdateMetadata } from './ops';
 import { sync } from './sync';
 
 describe('sessionUpdateMetadata', () => {
@@ -35,6 +43,7 @@ describe('sessionUpdateMetadata', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        mockSessions.value = {};
     });
 
     it('encrypts metadata, retries on version mismatch, and emits update-metadata with the bumped version', async () => {
@@ -92,6 +101,83 @@ describe('sessionUpdateMetadata', () => {
             sid: 'session-1',
             metadata: 'encrypted-v8',
             expectedVersion: 8,
+        });
+    });
+});
+
+describe('sessionEmitAgentConfiguration', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mockSessions.value = {
+            'session-1': {
+                metadata: {
+                    path: '/workspace/project',
+                    host: 'devbox',
+                    currentModelCode: 'claude-sonnet',
+                    currentPermissionModeCode: 'default',
+                    currentThoughtLevelCode: 'medium',
+                },
+                metadataVersion: 4,
+            },
+        };
+    });
+
+    it('layers supplied config fields over current metadata and emits update-metadata', async () => {
+        const encryptMetadata = vi.fn().mockResolvedValue('encrypted-v4');
+        vi.mocked(sync.encryption.getSessionEncryption).mockReturnValue({
+            encryptMetadata,
+            decryptMetadata: vi.fn(),
+        } as never);
+        vi.mocked(apiSocket.emitWithAck).mockResolvedValue({
+            result: 'success',
+            version: 5,
+            metadata: 'encrypted-v4',
+        });
+
+        const result = await sessionEmitAgentConfiguration({
+            sessionId: 'session-1',
+            model: 'gpt-5-high',
+            thinkingLevel: 'high',
+        });
+
+        expect(result).toEqual({ version: 5, metadata: 'encrypted-v4' });
+        expect(encryptMetadata).toHaveBeenCalledWith({
+            path: '/workspace/project',
+            host: 'devbox',
+            currentModelCode: 'gpt-5-high',
+            currentPermissionModeCode: 'default',
+            currentThoughtLevelCode: 'high',
+        });
+        expect(apiSocket.emitWithAck).toHaveBeenCalledWith('update-metadata', {
+            sid: 'session-1',
+            metadata: 'encrypted-v4',
+            expectedVersion: 4,
+        });
+    });
+
+    it('updates only the supplied fields', async () => {
+        const encryptMetadata = vi.fn().mockResolvedValue('encrypted-v4');
+        vi.mocked(sync.encryption.getSessionEncryption).mockReturnValue({
+            encryptMetadata,
+            decryptMetadata: vi.fn(),
+        } as never);
+        vi.mocked(apiSocket.emitWithAck).mockResolvedValue({
+            result: 'success',
+            version: 5,
+            metadata: 'encrypted-v4',
+        });
+
+        await sessionEmitAgentConfiguration({
+            sessionId: 'session-1',
+            permissionMode: 'bypassPermissions',
+        });
+
+        expect(encryptMetadata).toHaveBeenCalledWith({
+            path: '/workspace/project',
+            host: 'devbox',
+            currentModelCode: 'claude-sonnet',
+            currentPermissionModeCode: 'bypassPermissions',
+            currentThoughtLevelCode: 'medium',
         });
     });
 });
