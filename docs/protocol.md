@@ -22,7 +22,15 @@ The protocol is designed to stay minimal, explicit, and resilient under intermit
 If a new protocol field or event is proposed, it should answer: does this create a durable sync primitive, or can it be encoded inside existing encrypted payloads without expanding the API surface?
 
 ## Authentication
-Most endpoints require `Authorization: Bearer <token>`. The same token is also used in the Socket.IO handshake. Full auth flows and endpoints are documented in `api.md`.
+The embedded `happy-server` runs per machine and is reached over a Microsoft Dev Tunnel. Mobile clients authenticate to the tunnel by presenting an unsigned tunnel claim — a base64url-encoded JSON payload containing the local machine's `sub` and `iat` — issued during pairing and stored in `AuthCredentials.tunnelClaim`.
+
+The claim is sent on every request as the HTTP header:
+
+```
+X-Tunnel-Authorization: tunnel <base64url(claim)>
+```
+
+The server rejects connections that omit the header, present a malformed or non-JSON claim, do not match the local user (`sub`), or carry an `iat` older than 24 hours. End-to-end encryption of payload contents is layered on top of this transport via the per-machine session key derived during pairing; see `encryption.md`. For the HTTP endpoint catalog and pairing flows, see `api.md`.
 
 ## WebSocket connection
 ### Handshake
@@ -30,16 +38,22 @@ Connect with Socket.IO using:
 
 ```
 path: "/v1/updates"
+extraHeaders: {
+  "X-Tunnel-Authorization": "tunnel <base64url(claim)>"
+}
 auth: {
-  token: "<bearer token>",
   clientType: "user-scoped" | "session-scoped" | "machine-scoped",
   sessionId?: "<session id>",
-  machineId?: "<machine id>"
+  machineId?: "<machine id>",
+  tunnelAuthorization?: "tunnel <base64url(claim)>"
 }
 ```
 
+Clients that cannot set custom WebSocket headers may pass the same value through `auth.tunnelAuthorization`; the server reads either source.
+
 Rules enforced server-side:
-- `token` is required.
+- `X-Tunnel-Authorization` (or `auth.tunnelAuthorization`) is required and must start with `tunnel `.
+- The decoded claim must parse as JSON, match the local user `sub`, and have an `iat` no older than 24 hours.
 - `session-scoped` requires `sessionId`.
 - `machine-scoped` requires `machineId`.
 
