@@ -54,16 +54,20 @@ function ExpandToggleButton(props: {
 
     return (
         <Pressable style={styles.toggleButton} onPress={props.onPress}>
-            <View style={styles.toggleAccent} />
             <Text style={styles.toggleLabel}>{label}</Text>
         </Pressable>
     );
 }
 
+// Note: this component previously had a 4px-wide left-edge bar in theme.colors.text
+// (black/white) borrowed from the e-ink-friendly tappable-options pattern in
+// packages/happy-app/CLAUDE.md. The pattern is intended for <options>/AskUserQuestion
+// choice cards where ambiguity-of-tappability is the concern. The diff toggle is a
+// single button with an obvious surrounding border + filled background — the 1D
+// accent stripe was redundant and rendered as a "black stripe" artifact on standard
+// displays for any edit/diff over 10 lines (CollapsibleDiffPreview's collapse cap).
 const styles = StyleSheet.create((theme, runtime) => ({
     toggleButton: {
-        position: 'relative',
-        overflow: 'hidden',
         minHeight: 44,
         justifyContent: 'center',
         backgroundColor: theme.colors.userMessageBackground,
@@ -72,14 +76,6 @@ const styles = StyleSheet.create((theme, runtime) => ({
         borderRadius: 8,
         paddingVertical: 10,
         paddingHorizontal: 16,
-    },
-    toggleAccent: {
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        bottom: 0,
-        width: 4,
-        backgroundColor: theme.colors.text,
     },
     toggleLabel: {
         ...Typography.default(),

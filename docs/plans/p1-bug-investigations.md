@@ -50,6 +50,20 @@ Working notes from investigating P1 bugs in `docs/experimental/roadmap.md`. Each
 - `packages/happy-app/sources/components/tools/ToolView.tsx:281` — PermissionFooter render gate
 - `packages/happy-app/sources/components/tools/PermissionFooter.tsx:411-472` — ExitPlanMode-specific buttons
 
+## Black stripe artifact in file-edit rendering — FIXED
+
+**Symptom:** A black stripe appears at the left edge of the "Show N more lines / Collapse" toggle button on file-edit tool calls (Edit, MultiEdit) longer than 10 lines.
+
+**Root cause:** `CollapsibleDiffPreview.tsx` had a 4px-wide accent bar (`toggleAccent`) using `theme.colors.text` (black in light mode, white in dark) borrowed from the e-ink-friendly tappable-options pattern documented in `packages/happy-app/CLAUDE.md`. That pattern is meant for `<options>`/AskUserQuestion choice cards where tappability is ambiguous — it's overkill for a single show/hide toggle that already has an obvious 2px border + filled background.
+
+**Fix:** Removed `toggleAccent` view and its style. Toggle now relies on the existing border + background fill, which is sufficient on standard displays. Added an inline comment explaining why the e-ink pattern was deliberately not reused here, in case a future reader is tempted to re-add it.
+
+**Files changed:** `packages/happy-app/sources/components/diff/CollapsibleDiffPreview.tsx`
+
+Verified: `pnpm --filter happy-app typecheck` clean, 7 existing CollapsibleDiffPreview tests pass.
+
+**Note:** This is a P3 fix from `docs/experimental/roadmap.md`, not P1. Tackled because it was code-only investigatable. The remaining P3 file-edit rendering items ("multi-file rendering", "duplicated plan presentation") still need live investigation.
+
 ## Path resolution on Windows — FIXED
 
 **Symptom:** Tool views (Edit, MultiEdit, Write, etc.) show full absolute Windows paths like `C:\Users\alice\project\src\file.ts` instead of the relative `src\file.ts` shortened display.
