@@ -174,6 +174,7 @@ export async function startDaemon(): Promise<void> {
     const tunnelConfig = await tunnelManager.loadForDaemon(embeddedServerPort);
     const tofuPublicKeysConfig = {
       ed25519PublicKey: tofuKeypairs.ed25519PublicKey,
+      ed25519SecretKey: tofuKeypairs.ed25519PrivateKey,
       x25519PublicKey: tofuKeypairs.ecdhPublicKey,
       x25519SecretKey: tofuKeypairs.ecdhPrivateKey,
       ed25519Fingerprint: tofuKeypairs.ed25519Fingerprint,

@@ -1,7 +1,11 @@
 import { z } from "zod";
 import nacl from "tweetnacl";
+import * as ed from "@noble/ed25519";
+import { sha512 } from "@noble/hashes/sha2.js";
 import { type Fastify } from "../types";
 import { type TofuHandshakeConfig } from "../api";
+
+ed.hashes.sha512 = (message: Uint8Array) => sha512(message);
 
 type DeviceCodeResponse = {
     device_code: string;
@@ -53,10 +57,13 @@ function isPairRateLimited(ip: string, now: number): boolean {
     return false;
 }
 
-// Produces an unsigned base64url-encoded JSON claim (not a signed JWT).
-// Named "claim" deliberately — callers must not assume cryptographic verification.
-function encodeTunnelClaim(payload: unknown): string {
-    return Buffer.from(JSON.stringify(payload)).toString("base64url");
+// Produces a signed claim envelope: base64url(JSON({ p: base64url(payload), s: hex(signature) })).
+// The Ed25519 signature binds the claim to the embedded server's TOFU keypair.
+async function encodeTunnelClaim(payload: unknown, ed25519SecretKey: Uint8Array): Promise<string> {
+    const payloadEncoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
+    const signature = await ed.signAsync(Buffer.from(payloadEncoded), ed25519SecretKey);
+    const envelope = { p: payloadEncoded, s: Buffer.from(signature).toString("hex") };
+    return Buffer.from(JSON.stringify(envelope)).toString("base64url");
 }
 
 async function fetchGitHubUser(accessToken: string): Promise<GitHubUser> {
@@ -155,6 +162,9 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
         if (!tofuConfig.tofuPublicKeys) {
             return reply.code(503).send({ error: "tofu_public_keys_unavailable" });
         }
+        if (!tofuConfig.ed25519SecretKey) {
+            return reply.code(503).send({ error: "tunnel_signing_key_unavailable" });
+        }
 
         let mobileSharedSecret: string | undefined;
         if (request.body.mobileEcdhPublicKey && tofuConfig.x25519SecretKey) {
@@ -164,6 +174,10 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
         }
 
         const tunnelUrl = tofuConfig.publicUrl || process.env.PUBLIC_URL || `http://127.0.0.1:${process.env.PORT ?? "3005"}`;
+        const tunnelClaim = await encodeTunnelClaim(
+            { sub: tofuConfig.localUserId, gh: githubUser.login, iat: Math.floor(Date.now() / 1000) },
+            tofuConfig.ed25519SecretKey,
+        );
         return {
             status: "authorized" as const,
             githubLogin: githubUser.login,
@@ -173,7 +187,7 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
                 ed25519PublicKey: tofuConfig.tofuPublicKeys.ed25519PublicKey,
                 x25519PublicKey: tofuConfig.tofuPublicKeys.x25519PublicKey,
                 ed25519Fingerprint: tofuConfig.tofuPublicKeys.ed25519Fingerprint,
-                tunnelClaim: encodeTunnelClaim({ sub: tofuConfig.localUserId, gh: githubUser.login, iat: Math.floor(Date.now() / 1000) }),
+                tunnelClaim,
                 mobileSharedSecret,
             }],
         };
