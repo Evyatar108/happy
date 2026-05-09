@@ -29,7 +29,12 @@ function parseStoredCredentials(stored: string | null): StoredMachineCredentials
     if (!stored) {
         return null;
     }
-    const parsed = JSON.parse(stored) as AuthCredentials | StoredMachineCredentials;
+    let parsed: AuthCredentials | StoredMachineCredentials;
+    try {
+        parsed = JSON.parse(stored) as AuthCredentials | StoredMachineCredentials;
+    } catch {
+        return null;
+    }
     if (isStoredMachineCredentials(parsed)) {
         return parsed;
     }
