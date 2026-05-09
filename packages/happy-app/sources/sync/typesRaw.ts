@@ -464,6 +464,10 @@ function normalizeSessionEnvelope(
         return null;
     }
 
+    if (envelope.ev.t === 'agent-configuration-changed') {
+        return null;
+    }
+
     if (envelope.ev.t === 'context-boundary') {
         return {
             id: messageId,

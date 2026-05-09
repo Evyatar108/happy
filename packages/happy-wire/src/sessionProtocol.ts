@@ -2,7 +2,7 @@ import { createId, isCuid } from '@paralleldrive/cuid2';
 import * as z from 'zod';
 
 // Production session protocol schemas shared by happy-cli, happy-app, and happy-wire consumers.
-export const sessionRoleSchema = z.enum(['user', 'agent']);
+export const sessionRoleSchema = z.union([z.literal('user'), z.literal('agent')]);
 export type SessionRole = z.infer<typeof sessionRoleSchema>;
 
 export const sessionTextEventSchema = z.object({
@@ -94,6 +94,15 @@ export const sessionContextBoundaryEventSchema = z.object({
 });
 export type SessionContextBoundaryEvent = z.infer<typeof sessionContextBoundaryEventSchema>;
 
+export const sessionAgentConfigurationChangedEventSchema = z.object({
+  t: z.literal('agent-configuration-changed'),
+  permissionMode: z.string().nullable().optional(),
+  model: z.string().nullable().optional(),
+  thinkingLevel: z.string().nullable().optional(),
+  sandbox: z.string().nullable().optional(),
+});
+export type SessionAgentConfigurationChangedEvent = z.infer<typeof sessionAgentConfigurationChangedEventSchema>;
+
 export const sessionEventSchema = z.discriminatedUnion('t', [
   sessionTextEventSchema,
   sessionServiceMessageEventSchema,
@@ -105,6 +114,7 @@ export const sessionEventSchema = z.discriminatedUnion('t', [
   sessionTurnEndEventSchema,
   sessionStopEventSchema,
   sessionContextBoundaryEventSchema,
+  sessionAgentConfigurationChangedEventSchema,
 ]);
 
 export type SessionEvent = z.infer<typeof sessionEventSchema>;

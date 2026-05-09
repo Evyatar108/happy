@@ -86,6 +86,7 @@ describe('session protocol schemas', () => {
       { t: 'turn-end', status: 'completed' },
       { t: 'stop' },
       { t: 'context-boundary', kind: 'clear', at: 1234, triggeredBy: 'user' },
+      { t: 'agent-configuration-changed', model: 'claude-sonnet-4-6' },
     ];
 
     for (const event of events) {
@@ -102,6 +103,35 @@ describe('session protocol schemas', () => {
     expect(sessionEventSchema.safeParse({ t: 'start', title: 1 }).success).toBe(false);
     expect(sessionEventSchema.safeParse({ t: 'service' }).success).toBe(false);
     expect(sessionEventSchema.safeParse({ t: 'not-real' }).success).toBe(false);
+  });
+
+  it('accepts agent configuration changed optional field subsets', () => {
+    const events: SessionEvent[] = [
+      { t: 'agent-configuration-changed', permissionMode: 'bypassPermissions' },
+      { t: 'agent-configuration-changed', model: 'claude-sonnet-4-6' },
+      { t: 'agent-configuration-changed', thinkingLevel: 'high' },
+      { t: 'agent-configuration-changed', sandbox: 'workspace-write' },
+      {
+        t: 'agent-configuration-changed',
+        permissionMode: 'default',
+        model: 'claude-haiku-4-6',
+        thinkingLevel: null,
+        sandbox: null,
+      },
+    ];
+
+    for (const event of events) {
+      expect(sessionEventSchema.parse(event)).toEqual(event);
+    }
+  });
+
+  it('rejects unknown event discriminants', () => {
+    const parsed = sessionEventSchema.safeParse({
+      t: 'agent-configuration-updated',
+      model: 'claude-sonnet-4-6',
+    });
+
+    expect(parsed.success).toBe(false);
   });
 
   it('accepts every context boundary kind', () => {
@@ -234,5 +264,21 @@ describe('createEnvelope', () => {
 
   it('validates role/event compatibility', () => {
     expect(() => createEnvelope('user', { t: 'service', text: 'internal event' })).toThrow();
+  });
+
+  it('round-trips agent configuration changed envelopes with agent role and turn', () => {
+    const envelope = createEnvelope(
+      'agent',
+      { t: 'agent-configuration-changed', model: 'claude-opus-4-6', thinkingLevel: 'medium' },
+      { id: 'config-change-1', time: 67890, turn: 'turn-config-1' }
+    );
+
+    expect(sessionEnvelopeSchema.parse(envelope)).toEqual({
+      id: 'config-change-1',
+      time: 67890,
+      role: 'agent',
+      turn: 'turn-config-1',
+      ev: { t: 'agent-configuration-changed', model: 'claude-opus-4-6', thinkingLevel: 'medium' },
+    });
   });
 });
