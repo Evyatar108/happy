@@ -22,7 +22,7 @@ function _interopNamespaceDefault(e) {
 
 var z__namespace = /*#__PURE__*/_interopNamespaceDefault(z);
 
-const sessionRoleSchema = z__namespace.enum(["user", "agent"]);
+const sessionRoleSchema = z__namespace.union([z__namespace.literal("user"), z__namespace.literal("agent")]);
 const sessionTextEventSchema = z__namespace.object({
   t: z__namespace.literal("text"),
   text: z__namespace.string(),
@@ -93,6 +93,13 @@ const sessionContextBoundaryEventSchema = z__namespace.object({
   summaryRef: z__namespace.string().optional(),
   forkedFromSid: z__namespace.string().optional()
 });
+const sessionAgentConfigurationChangedEventSchema = z__namespace.object({
+  t: z__namespace.literal("agent-configuration-changed"),
+  permissionMode: z__namespace.string().nullable().optional(),
+  model: z__namespace.string().nullable().optional(),
+  thinkingLevel: z__namespace.string().nullable().optional(),
+  sandbox: z__namespace.string().nullable().optional()
+});
 const sessionEventSchema = z__namespace.discriminatedUnion("t", [
   sessionTextEventSchema,
   sessionServiceMessageEventSchema,
@@ -103,7 +110,8 @@ const sessionEventSchema = z__namespace.discriminatedUnion("t", [
   sessionStartEventSchema,
   sessionTurnEndEventSchema,
   sessionStopEventSchema,
-  sessionContextBoundaryEventSchema
+  sessionContextBoundaryEventSchema,
+  sessionAgentConfigurationChangedEventSchema
 ]);
 const sessionEnvelopeSchema = z__namespace.object({
   id: z__namespace.string(),
@@ -428,6 +436,7 @@ exports.forkBoilerplateEntry = forkBoilerplateEntry;
 exports.localCommandCaveatEntry = localCommandCaveatEntry;
 exports.makeWrappedTagEntry = makeWrappedTagEntry;
 exports.nonRenderableEntries = nonRenderableEntries;
+exports.sessionAgentConfigurationChangedEventSchema = sessionAgentConfigurationChangedEventSchema;
 exports.sessionContextBoundaryEventSchema = sessionContextBoundaryEventSchema;
 exports.sessionContextBoundaryKindSchema = sessionContextBoundaryKindSchema;
 exports.sessionContextBoundaryTriggeredBySchema = sessionContextBoundaryTriggeredBySchema;

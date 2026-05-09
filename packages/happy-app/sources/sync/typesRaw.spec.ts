@@ -1535,6 +1535,13 @@ describe('Zod Transform - WOLOG Content Normalization', () => {
                 kind: 'clear',
                 at: 1736300000000,
                 triggeredBy: 'user'
+            },
+            'agent-configuration-changed': {
+                t: 'agent-configuration-changed',
+                permissionMode: 'bypassPermissions',
+                model: 'claude-sonnet-4-6',
+                thinkingLevel: 'high',
+                sandbox: 'workspace-write'
             }
         } satisfies Record<SessionEvent['t'], SessionEvent>;
 
@@ -1562,7 +1569,7 @@ describe('Zod Transform - WOLOG Content Normalization', () => {
                 expect(parsed.success, `${kind} should parse through RawRecordSchema`).toBe(true);
 
                 const normalized = normalizeRawMessage(`db-contract-${kind}`, null, 1, 31, sessionProtocolMessage(kind) as any);
-                if (kind === 'turn-start' || kind === 'start' || kind === 'stop') {
+                if (kind === 'turn-start' || kind === 'start' || kind === 'stop' || kind === 'agent-configuration-changed') {
                     expect(normalized, `${kind} is accepted and intentionally non-rendered`).toBeNull();
                 } else {
                     expect(normalized, `${kind} should normalize to a rendered app message`).toBeTruthy();
@@ -1851,6 +1858,26 @@ describe('Zod Transform - WOLOG Content Normalization', () => {
                     forkedFromSid: 'old-session-id'
                 }
             });
+        });
+
+        it('skips agent configuration changed audit envelopes', () => {
+            const normalized = normalizeRawMessage('db-agent-config-1', null, 1, 42, {
+                role: 'session',
+                content: {
+                    id: 'env-agent-config-1',
+                    time: 1,
+                    role: 'user',
+                    ev: {
+                        t: 'agent-configuration-changed',
+                        permissionMode: 'bypassPermissions',
+                        model: 'claude-sonnet-4-6',
+                        thinkingLevel: 'high',
+                        sandbox: 'workspace-write'
+                    }
+                }
+            } as any);
+
+            expect(normalized).toBeNull();
         });
 
         it('normalizes file events with required size and optional image metadata', () => {
