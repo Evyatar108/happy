@@ -1,10 +1,25 @@
 # Tunnel Transport Recommendation
 
-**Status:** final
+**Status:** implemented
 **Created:** 2026-05-08
-**Last updated:** 2026-05-08 (fully validated — GitHub device flow + Entra browser flow both confirmed)
+**Last updated:** 2026-05-09 (D-003 + connect JWT flow shipped)
 **Supersedes:** `docs/research/tunnel-transport-investigation.md` (status → superseded)
 **Transport decision:** Microsoft Dev Tunnels + GitHub or Entra identity (fixed)
+
+**Implementation status (2026-05-09):**
+- ✅ GitHub device flow (mobile-side, `Iv1.e7b89e013f801f03`, no server proxy)
+- ✅ Dev Tunnels API enumeration (`/tunnels?global=true&api-version=2023-09-27-preview`)
+- ✅ Real connect JWT per machine (`/tunnels/:id?tokenScopes=connect`)
+- ✅ `X-Tunnel-Authorization: tunnel <JWT>` on all REST calls and Socket.IO
+- ✅ Tunnel created without `--allow-anonymous` (tunnel edge enforces access)
+- ✅ TOFU keypairs, Ed25519-signed claims, X25519 ECDH session keys
+- ✅ 0/1/N machine picker
+- ✅ `refreshConnectTokenIfNeeded()` implemented (not yet wired into sync init)
+- ⏳ Connect token refresh on 401 / sync init — pending
+- ⏳ Foreground poll (30s AppState listener) — pending
+- ⏳ Entra MSAL — deferred (requires `pnpm prebuild`)
+
+Note: auth files (`authQRStart.ts`, `authQRWait.ts`, etc.) referenced in the "Centralized Tunnel Transport Layer" section were deleted in D-003. The `happyFetch()` approach was not needed — all api*.ts files already use `getMachineAuthHeaders(credentials)` which injects `X-Tunnel-Authorization` on every request.
 
 ---
 

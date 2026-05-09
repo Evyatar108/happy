@@ -5,22 +5,18 @@
 ### Server-Per-Machine Architecture (D-003) — 2026-05-09
 Happy redesigned from multi-tenant cloud relay to server-per-machine product. Each machine runs embedded `happy-server` inside `happy-cli`, exposed via Microsoft Dev Tunnel, paired via GitHub device flow + TOFU pubkey pinning, push notifications direct to Expo HTTP API. Cloud relay (`app.happy.engineering`) removed.
 
-- `happy init` creates Dev Tunnel, generates Ed25519 + X25519 TOFU keypairs
+- `happy init` creates Dev Tunnel (no `--allow-anonymous`), generates Ed25519 + X25519 TOFU keypairs
 - `happy daemon start` embeds happy-server in-process, starts tunnel host
-- Mobile pairing: GitHub device flow → TOFU fingerprint → Ed25519-signed tunnel claim → X25519 ECDH session key
+- Mobile pairing: direct GitHub device flow (`Iv1.e7b89e013f801f03`) → Dev Tunnels API enumeration → real connect JWT → TOFU fingerprint dialog → X25519 ECDH session key
 - Per-machine push: happy-server calls `exp.host/--/api/v2/push/send` directly
 - Bearer auth removed from all Happy-relay call sites
-- Machine discovery: server queries Dev Tunnels API after GitHub auth, returns all `happy-*` tunnels for N-machine picker
+- Machine discovery: mobile lists `happy-*` tunnels via Dev Tunnels API, shows 0/1/N picker
+- Connect JWT: real Dev Tunnels JWT stored per machine, used for tunnel-level auth on all requests; refresh logic in `refreshConnectTokenIfNeeded()`
 
-### What's still missing from the tunnel research doc
-These items from `docs/research/tunnel-transport-recommendation.md` were NOT implemented in D-003 and are required for production correctness:
-
-- **Connect JWT (critical)** — Mobile must call `GET /tunnels/:id?tokenScopes=connect&api-version=2023-09-27-preview` to get a real Dev Tunnels JWT for `X-Tunnel-Authorization`. Currently we use a server-generated Ed25519-signed claim instead. Without `--allow-anonymous` on the tunnel, Dev Tunnels edge will reject mobile connections that lack a real connect JWT. Latent bug.
-- **Tunnel transport layer** — All 15+ REST call sites in happy-app need `X-Tunnel-Authorization` injection via shared `happyFetch()` / `happyAxiosConfig()` helpers. Currently only Socket.IO handshake injects the header. See research doc "Centralized Tunnel Transport Layer" section for full call site list.
-- **Connect token expiry handling** — JWT renewal on 401, GitHub re-auth flow on token expiry.
-- **Poll on foreground resume** — Re-discover tunnels every 30s on app foreground.
-- **devtunnel GitHub App client ID** — Research doc validated `Iv1.e7b89e013f801f03` for mobile-side device flow directly against Dev Tunnels API (no server proxy). Currently we use the server's `GITHUB_CLIENT_ID` instead.
-- **`happy://` deep link handler** — OAuth callback from server GitHub proxy. `app.config.js` has `scheme: 'happy'` but `_layout.tsx` has no handler.
+### Still remaining from tunnel research doc
+- **Connect token expiry on reconnect** — `refreshConnectTokenIfNeeded()` exists but is not yet called in sync init or on 401. Needs wiring into `syncRestore()` / `syncInit()`.
+- **Poll on foreground resume** — Re-discover tunnels every 30s on app foreground (AppState listener).
+- **`happy://` deep link handler** — Not needed for current GitHub device flow path (mobile-side, no server proxy), but required if Entra MSAL is added later.
 - **Entra MSAL** — Deferred. Requires `pnpm prebuild` (currently stubbed to error). GitHub device flow is the only mobile auth path for now.
 - **Prisma migration** — Schema was rewritten but no migration file committed. Human must run `pnpm migrate` against production Postgres.
 
@@ -127,8 +123,8 @@ Current state (post D-003): happy-server calls Expo HTTP API directly per machin
 
 ## Better Machine Management
 
-- Connect JWT flow: get real Dev Tunnels JWT for tunnel-level auth (see "What's still missing" above — critical)
-- Tunnel transport layer: inject `X-Tunnel-Authorization` on all 15+ REST call sites via `happyFetch()` helper
+- Wire `refreshConnectTokenIfNeeded()` into sync init and 401 handlers
+- Poll on foreground resume (AppState listener, 30s interval)
 - Auth transferring between devices
 
 ## Integrations (external services)
