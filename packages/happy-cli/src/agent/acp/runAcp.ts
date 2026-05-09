@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { ApiClient } from '@/api/api';
-import type { ApiSessionClient } from '@/api/apiSession';
+import type { AgentConfiguration, ApiSessionClient } from '@/api/apiSession';
 import type { AgentMessage } from '@/agent/core';
 import { AcpBackend, type AcpPermissionHandler } from './AcpBackend';
 import { DefaultTransport } from '@/agent/transport';
@@ -269,6 +269,7 @@ function formatEnvelopeForServerLog(agentName: string, envelope: SessionEnvelope
 type AcpSwitchMode = {
   permissionMode?: string;
   model?: string | null;
+  thinkingLevel?: string;
 };
 
 type AcpSelectableOption = {
@@ -321,7 +322,7 @@ function flattenSelectOptions(options: unknown): AcpSelectableOption[] {
 
 function extractConfigSelector(
   configOptions: SessionConfigOption[],
-  category: 'mode' | 'model',
+  category: 'mode' | 'model' | 'thought_level',
 ): AcpConfigSelector | null {
   const optionMatchesCategory = (option: SessionConfigOption): boolean => {
     if (option.category === category) {
@@ -332,6 +333,9 @@ function extractConfigSelector(
     const name = normalizeComparable(option.name);
     if (category === 'model') {
       return id.includes('model') || name.includes('model');
+    }
+    if (category === 'thought_level') {
+      return id.includes('thought') || id.includes('thinking') || name.includes('thought') || name.includes('thinking');
     }
     return id.includes('mode') || id.includes('permission') || name.includes('mode') || name.includes('permission');
   };
@@ -516,8 +520,10 @@ export async function runAcp(opts: {
   const messageQueue = new MessageQueue2<AcpSwitchMode>((mode) => hashObject(mode));
   let currentPermissionMode: string | undefined;
   let currentModel: string | null | undefined;
+  let currentThinkingLevel: string | undefined;
   let modeSelector: AcpConfigSelector | null = null;
   let modelSelector: AcpConfigSelector | null = null;
+  let thoughtLevelSelector: AcpConfigSelector | null = null;
   let legacyModes: SessionModeState | null = null;
   let legacyModels: SessionModelState | null = null;
   let sawSlashCommands = false;
@@ -680,6 +686,24 @@ export async function runAcp(opts: {
     }
   };
 
+  const switchThoughtLevelIfRequested = async (requestedThinkingLevel: string): Promise<void> => {
+    if (!requestedThinkingLevel || !thoughtLevelSelector) {
+      return;
+    }
+    const resolved = resolveRequestedCode(thoughtLevelSelector.options, requestedThinkingLevel);
+    if (!resolved) {
+      logger.debug(`[${opts.agentName}] Ignoring unknown ACP thought level request: ${requestedThinkingLevel}`);
+      return;
+    }
+    if (resolved === thoughtLevelSelector.currentCode) {
+      return;
+    }
+    const switched = await backend.setSessionConfigOption(thoughtLevelSelector.configId, resolved);
+    if (switched) {
+      thoughtLevelSelector.currentCode = resolved;
+    }
+  };
+
   const onBackendMessage = (msg: AgentMessage) => {
     if (verbose) {
       logAcp('muted', `Outgoing raw backend message from ${opts.agentName}: ${formatUnknownForConsole(msg, ACP_RAW_PREVIEW_CHARS)}`);
@@ -718,6 +742,7 @@ export async function runAcp(opts: {
 
         modeSelector = extractConfigSelector(configOptions, 'mode');
         modelSelector = extractConfigSelector(configOptions, 'model');
+        thoughtLevelSelector = extractConfigSelector(configOptions, 'thought_level');
         if (verbose) {
           if (modeSelector) {
             sawModes = true;
@@ -736,6 +761,14 @@ export async function runAcp(opts: {
             }
           } else {
             logAcp('muted', `Outgoing model options from ${opts.agentName}: not reported in config options`);
+          }
+          if (thoughtLevelSelector) {
+            logAcp('muted', `Outgoing thought level options from ${opts.agentName} (${thoughtLevelSelector.options.length}), current=${thoughtLevelSelector.currentCode}:`);
+            for (const option of thoughtLevelSelector.options) {
+              logAcp('muted', `  thought_level=${option.code} label=${option.value}`);
+            }
+          } else {
+            logAcp('muted', `Outgoing thought level options from ${opts.agentName}: not reported in config options`);
           }
         }
         session.updateMetadata((currentMetadata) =>
@@ -841,11 +874,34 @@ export async function runAcp(opts: {
       logger.debug(`[${opts.agentName}] Requested ACP model: ${currentModel ?? 'null'}`);
     }
 
+    if (message.meta && Object.prototype.hasOwnProperty.call(message.meta, 'thinkingLevel')) {
+      currentThinkingLevel = message.meta.thinkingLevel || undefined;
+      logger.debug(`[${opts.agentName}] Requested ACP thought level: ${currentThinkingLevel ?? 'default'}`);
+    }
+
     messageQueue.push(message.content.text, {
       permissionMode: currentPermissionMode,
       model: currentModel,
+      thinkingLevel: currentThinkingLevel,
     });
   });
+
+  if (typeof session.onAgentConfiguration === 'function') {
+    session.onAgentConfiguration((configuration: AgentConfiguration) => {
+      if (Object.prototype.hasOwnProperty.call(configuration, 'permissionMode')) {
+        currentPermissionMode = configuration.permissionMode;
+        logger.debug(`[${opts.agentName}] Requested ACP permission mode from live configuration: ${currentPermissionMode ?? 'default'}`);
+      }
+      if (Object.prototype.hasOwnProperty.call(configuration, 'model')) {
+        currentModel = configuration.model ?? null;
+        logger.debug(`[${opts.agentName}] Requested ACP model from live configuration: ${currentModel ?? 'null'}`);
+      }
+      if (Object.prototype.hasOwnProperty.call(configuration, 'thinkingLevel')) {
+        currentThinkingLevel = configuration.thinkingLevel || undefined;
+        logger.debug(`[${opts.agentName}] Requested ACP thought level from live configuration: ${currentThinkingLevel ?? 'default'}`);
+      }
+    });
+  }
   session.keepAlive(thinking, 'remote');
 
   const keepAliveInterval = setInterval(() => {
@@ -915,6 +971,9 @@ export async function runAcp(opts: {
         }
         if (typeof batch.mode.model === 'string' && batch.mode.model.length > 0) {
           await switchModelIfRequested(batch.mode.model);
+        }
+        if (typeof batch.mode.thinkingLevel === 'string' && batch.mode.thinkingLevel.length > 0) {
+          await switchThoughtLevelIfRequested(batch.mode.thinkingLevel);
         }
         await backend.sendPrompt(acpSessionId, batch.message);
         await turnEnded;

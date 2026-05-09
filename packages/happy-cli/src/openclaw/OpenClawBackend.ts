@@ -111,7 +111,7 @@ export class OpenClawBackend implements AgentBackend {
     return { sessionId };
   }
 
-  async sendPrompt(sessionId: SessionId, prompt: string): Promise<void> {
+  async sendPrompt(sessionId: SessionId, prompt: string, options?: { thinkingLevel?: string }): Promise<void> {
     if (!this.socket.isConnected()) {
       throw new Error('Not connected to OpenClaw gateway');
     }
@@ -125,7 +125,7 @@ export class OpenClawBackend implements AgentBackend {
 
     this.emit({ type: 'status', status: 'running' });
 
-    const result = await this.socket.sendMessage(sessionId, prompt);
+    const result = await this.socket.sendMessage(sessionId, prompt, { thinking: options?.thinkingLevel });
     this.log(`Sent prompt, runId: ${result.runId}`);
   }
 

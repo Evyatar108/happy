@@ -14,7 +14,7 @@ import os from 'node:os';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ApiClient } from '@/api/api';
-import type { ApiSessionClient } from '@/api/apiSession';
+import type { AgentConfiguration, ApiSessionClient } from '@/api/apiSession';
 import { AcpSessionManager } from '@/agent/acp/AcpSessionManager';
 import type { SessionEnvelope } from '@slopus/happy-wire';
 import { logger } from '@/ui/logger';
@@ -37,6 +37,10 @@ type PendingTurn = {
   resolve: () => void;
   reject: (err: Error) => void;
   timeout: NodeJS.Timeout;
+};
+
+type OpenClawMode = {
+  thinkingLevel?: string;
 };
 
 export interface RunOpenClawOptions {
@@ -195,12 +199,13 @@ export async function runOpenClaw(opts: RunOpenClawOptions): Promise<void> {
   }
 
   const sessionManager = new AcpSessionManager();
-  const messageQueue = new MessageQueue2<Record<string, never>>(() => '');
+  const messageQueue = new MessageQueue2<OpenClawMode>((mode) => mode.thinkingLevel ?? '');
   let shouldExit = false;
   let abortController = new AbortController();
   let pendingTurn: PendingTurn | null = null;
   let thinking = false;
   let inTurn = false;
+  let currentThinkingLevel: string | undefined = undefined;
 
   const clearPendingTurn = (error?: Error) => {
     if (!pendingTurn) return;
@@ -270,8 +275,21 @@ export async function runOpenClaw(opts: RunOpenClawOptions): Promise<void> {
 
   session.onUserMessage((message) => {
     if (!message.content.text) return;
-    messageQueue.push(message.content.text, {});
+    if (message.meta?.hasOwnProperty('thinkingLevel')) {
+      currentThinkingLevel = message.meta.thinkingLevel || undefined;
+      logger.debug(`[openclaw] Thinking level updated from user message: ${currentThinkingLevel || 'default'}`);
+    }
+    messageQueue.push(message.content.text, { thinkingLevel: currentThinkingLevel });
   });
+
+  if (typeof session.onAgentConfiguration === 'function') {
+    session.onAgentConfiguration((configuration: AgentConfiguration) => {
+      if (Object.prototype.hasOwnProperty.call(configuration, 'thinkingLevel')) {
+        currentThinkingLevel = configuration.thinkingLevel || undefined;
+        logger.debug(`[openclaw] Thinking level updated from live configuration for next turn: ${currentThinkingLevel || 'default'}`);
+      }
+    });
+  }
   session.keepAlive(thinking, 'remote');
 
   const keepAliveInterval = setInterval(() => {
@@ -326,7 +344,7 @@ export async function runOpenClaw(opts: RunOpenClawOptions): Promise<void> {
       sendEnvelopes(sessionManager.startTurn());
       const turnEnded = waitForTurnEnd();
       try {
-        await backend.sendPrompt(started.sessionId, batch.message);
+        await backend.sendPrompt(started.sessionId, batch.message, { thinkingLevel: batch.mode.thinkingLevel });
         await turnEnded;
         sendEnvelopes(sessionManager.endTurn('completed'));
       } catch (error) {

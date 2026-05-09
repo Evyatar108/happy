@@ -29,6 +29,7 @@ import { applySandboxPermissionPolicy, resolveInitialClaudePermissionMode } from
 import { publishPermissionModeIfChanged } from '@/utils/publishPermissionMode';
 import { decodeBase64, encodeBase64 } from '@/api/encryption';
 import type { Session as ApiSession } from '@/api/types';
+import type { AgentConfiguration } from '@/api/apiSession';
 
 /** JavaScript runtime to use for spawning Claude Code */
 export type JsRuntime = 'node' | 'bun'
@@ -313,6 +314,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
     const messageQueue = new MessageQueue2<EnhancedMode>(mode => hashObject({
         isPlan: mode.permissionMode === 'plan',
         model: mode.model,
+        thinkingLevel: mode.thinkingLevel,
         fallbackModel: mode.fallbackModel,
         customSystemPrompt: mode.customSystemPrompt,
         appendSystemPrompt: mode.appendSystemPrompt,
@@ -325,6 +327,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
     let currentPermissionMode: PermissionMode | undefined = initialPermissionMode;
     const lastPublishedPermissionModeCode = { current: initialPermissionMode };
     let currentModel = options.model; // Track current model state
+    let currentThinkingLevel: string | undefined = undefined; // Next-turn only; Claude has no mid-turn swap hook
     let currentFallbackModel: string | undefined = undefined; // Track current fallback model
     let currentCustomSystemPrompt: string | undefined = undefined; // Track current custom system prompt
     let currentAppendSystemPrompt: string | undefined = undefined; // Track current append system prompt
@@ -335,6 +338,26 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         logger.debug('[loop] Session archived from web/mobile, cleaning up...');
         cleanup();
     });
+
+    if (typeof session.onAgentConfiguration === 'function') {
+        session.onAgentConfiguration((configuration: AgentConfiguration) => {
+            if (Object.prototype.hasOwnProperty.call(configuration, 'permissionMode')) {
+                currentPermissionMode = configuration.permissionMode
+                    ? applySandboxPermissionPolicy(configuration.permissionMode as PermissionMode, sandboxEnabled)
+                    : undefined;
+                void publishPermissionModeIfChanged(session, metadata, currentPermissionMode, lastPublishedPermissionModeCode);
+                logger.debug(`[loop] Permission mode updated from live configuration for next turn: ${currentPermissionMode ?? 'default'}`);
+            }
+            if (Object.prototype.hasOwnProperty.call(configuration, 'model')) {
+                currentModel = configuration.model || undefined;
+                logger.debug(`[loop] Model updated from live configuration for next turn: ${currentModel || 'default'}`);
+            }
+            if (Object.prototype.hasOwnProperty.call(configuration, 'thinkingLevel')) {
+                currentThinkingLevel = configuration.thinkingLevel || undefined;
+                logger.debug(`[loop] Thinking level updated from live configuration for next turn: ${currentThinkingLevel || 'default'}`);
+            }
+        });
+    }
 
     session.onUserMessage((message) => {
         const taggedDeferredSwitch = message.meta?.capabilities?.deferredSwitch === true;
@@ -371,6 +394,15 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
             logger.debug(`[loop] Model updated from user message: ${messageModel || 'reset to default'}`);
         } else {
             logger.debug(`[loop] User message received with no model override, using current: ${currentModel || 'default'}`);
+        }
+
+        let messageThinkingLevel = currentThinkingLevel;
+        if (message.meta?.hasOwnProperty('thinkingLevel')) {
+            messageThinkingLevel = message.meta.thinkingLevel || undefined;
+            currentThinkingLevel = messageThinkingLevel;
+            logger.debug(`[loop] Thinking level updated from user message: ${messageThinkingLevel || 'reset to default'}`);
+        } else {
+            logger.debug(`[loop] User message received with no thinking level override, using current: ${currentThinkingLevel || 'default'}`);
         }
 
         // Resolve custom system prompt - use message.meta.customSystemPrompt if provided, otherwise use current
@@ -431,6 +463,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
             const enhancedMode: EnhancedMode = {
                 permissionMode: messagePermissionMode || 'default',
                 model: messageModel,
+                thinkingLevel: messageThinkingLevel,
                 fallbackModel: messageFallbackModel,
                 customSystemPrompt: messageCustomSystemPrompt,
                 appendSystemPrompt: messageAppendSystemPrompt,
@@ -447,6 +480,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
             const enhancedMode: EnhancedMode = {
                 permissionMode: messagePermissionMode || 'default',
                 model: messageModel,
+                thinkingLevel: messageThinkingLevel,
                 fallbackModel: messageFallbackModel,
                 customSystemPrompt: messageCustomSystemPrompt,
                 appendSystemPrompt: messageAppendSystemPrompt,
@@ -504,6 +538,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         const enhancedMode: EnhancedMode = {
             permissionMode: messagePermissionMode || 'default',
             model: messageModel,
+            thinkingLevel: messageThinkingLevel,
             fallbackModel: messageFallbackModel,
             customSystemPrompt: messageCustomSystemPrompt,
             appendSystemPrompt: messageAppendSystemPrompt,
