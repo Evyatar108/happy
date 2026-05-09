@@ -52,9 +52,11 @@ export function createHappyServer(config: HappyServerConfig): HappyServerHandle 
         await mkdir(serverDataDir, { recursive: true });
 
         process.env.HANDY_MASTER_SECRET ??= machineKeyToSeed(config.machineKey);
-        process.env.PORT ??= String(config.port);
         if (!config.enablePrettyLogs) {
             process.env.HAPPY_SERVER_QUIET_LOGGER = "true";
+        }
+        if (!process.env.GITHUB_CLIENT_ID) {
+            console.warn("GITHUB_CLIENT_ID not set — mobile pairing routes will return 500. Set GITHUB_CLIENT_ID to enable pairing.");
         }
 
         const [{ configureDb, db }, { configureFiles, loadFiles }, { configureApi }, { auth }, { initEncrypt }, { initGithub }, { startActivityCache }] = await Promise.all([
