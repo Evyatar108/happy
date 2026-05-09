@@ -1,0 +1,160 @@
+import { Ionicons } from '@expo/vector-icons';
+import * as React from 'react';
+import { Pressable, Text, View } from 'react-native';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import type { ModelMode, PermissionMode } from './PermissionModeSelector';
+import type { EffortLevel } from './modelModeOptions';
+import type { ResumeAvailability } from '@/utils/resumeAvailability';
+import { t } from '@/text';
+
+type AgentConfigurationUpdate = {
+    permissionMode?: string;
+    model?: string;
+    thinkingLevel?: string;
+};
+
+type SessionContextDrawerProps = {
+    machineName: string | null;
+    modelMode: ModelMode | null;
+    availableModels: ModelMode[];
+    permissionMode: PermissionMode | null;
+    availableModes: PermissionMode[];
+    effortLevel: EffortLevel | null;
+    availableEffortLevels: EffortLevel[];
+    canResume: boolean;
+    resumeAvailability: ResumeAvailability;
+    updatePermissionMode: (mode: PermissionMode) => void;
+    updateModelMode: (mode: ModelMode) => void;
+    updateEffortLevel: (level: EffortLevel) => void;
+    resumeSessionInline: () => Promise<unknown>;
+    sessionEmitAgentConfiguration: (config: AgentConfigurationUpdate) => Promise<unknown>;
+};
+
+export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps) => {
+    const { theme } = useUnistyles();
+    const [isExpanded, setIsExpanded] = React.useState(false);
+    const expandedProgress = useSharedValue(0);
+
+    React.useEffect(() => {
+        expandedProgress.value = withTiming(isExpanded ? 1 : 0, {
+            duration: 250,
+            easing: Easing.out(Easing.cubic),
+        });
+    }, [expandedProgress, isExpanded]);
+
+    const bodyAnimatedStyle = useAnimatedStyle(() => ({
+        height: expandedProgress.value * 0,
+        opacity: expandedProgress.value,
+        overflow: 'hidden' as const,
+    }));
+
+    return (
+        <View style={styles.container}>
+            <View style={styles.collapsedBar}>
+                <View style={styles.machineGroup}>
+                    <Ionicons name="desktop-outline" size={14} color={theme.colors.textSecondary} />
+                    <Text style={styles.machineText} numberOfLines={1}>
+                        {props.machineName ?? t('status.unknown')}
+                    </Text>
+                </View>
+                <View style={styles.chipGroup}>
+                    <ContextChip label={props.modelMode?.name ?? t('agentInput.model.title')} />
+                    <ContextChip label={props.permissionMode?.name ?? t('agentInput.permissionMode.title')} />
+                </View>
+                <Pressable
+                    onPress={() => setIsExpanded((value) => !value)}
+                    accessibilityRole="button"
+                    accessibilityLabel={isExpanded ? t('sidebar.collapse') : t('sidebar.expand')}
+                    accessibilityState={{ expanded: isExpanded }}
+                    hitSlop={8}
+                    style={({ pressed }) => [styles.chevronButton, pressed && styles.chevronButtonPressed]}
+                >
+                    <Ionicons
+                        name={isExpanded ? 'chevron-down' : 'chevron-up'}
+                        size={16}
+                        color={theme.colors.textSecondary}
+                    />
+                </Pressable>
+            </View>
+            <Animated.View style={[styles.expandedBody, bodyAnimatedStyle]} />
+        </View>
+    );
+});
+
+function ContextChip(props: { label: string }) {
+    return (
+        <View style={styles.chip}>
+            <Text style={styles.chipText} numberOfLines={1}>{props.label}</Text>
+        </View>
+    );
+}
+
+const styles = StyleSheet.create((theme) => ({
+    container: {
+        width: '100%',
+        paddingTop: 4,
+        paddingBottom: 2,
+    },
+    collapsedBar: {
+        height: 36,
+        borderRadius: 8,
+        backgroundColor: theme.colors.input.background,
+        borderWidth: 1,
+        borderColor: theme.colors.divider,
+        paddingHorizontal: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    machineGroup: {
+        minWidth: 0,
+        flexShrink: 1,
+        flexBasis: 120,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    machineText: {
+        minWidth: 0,
+        flexShrink: 1,
+        color: theme.colors.text,
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    chipGroup: {
+        minWidth: 0,
+        flex: 1,
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: 6,
+    },
+    chip: {
+        minWidth: 0,
+        maxWidth: '48%',
+        height: 24,
+        borderRadius: 8,
+        backgroundColor: theme.colors.surfacePressed,
+        paddingHorizontal: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    chipText: {
+        color: theme.colors.textSecondary,
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    chevronButton: {
+        width: 28,
+        height: 28,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    chevronButtonPressed: {
+        backgroundColor: theme.colors.surfacePressed,
+    },
+    expandedBody: {
+        width: '100%',
+    },
+}));

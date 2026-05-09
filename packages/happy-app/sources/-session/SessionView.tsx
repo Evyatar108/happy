@@ -16,6 +16,7 @@ import { ChatList } from '@/components/ChatList';
 import { Deferred } from '@/components/Deferred';
 import { EmptyMessages } from '@/components/EmptyMessages';
 import { SessionActionsAnchor, SessionActionsPopover } from '@/components/SessionActionsPopover';
+import { SessionContextDrawer } from '@/components/SessionContextDrawer';
 import { VoiceAssistantStatusBar } from '@/components/VoiceAssistantStatusBar';
 import { useChatWidth } from '@/hooks/useChatWidth';
 import { useDraft } from '@/hooks/useDraft';
@@ -25,8 +26,8 @@ import { voiceHooks } from '@/realtime/hooks/voiceHooks';
 import { getCurrentVoiceConversationId, getCurrentVoiceSessionDurationSeconds, startRealtimeSession, stopRealtimeSession } from '@/realtime/RealtimeSession';
 import { shouldShowBoundaryAdvisory, updateComposeStartAt } from './composeBoundaryAdvisory';
 import { gitStatusSync } from '@/sync/gitStatusSync';
-import { cancelPendingSwitch, requestSwitch, sessionAbort } from '@/sync/ops';
-import { storage, useIsDataReady, useLatestBoundary, useLocalSetting, useLocalSettingMutable, useRealtimeStatus, useSessionMessages, useSessionUsage, useSetting } from '@/sync/storage';
+import { cancelPendingSwitch, requestSwitch, sessionAbort, sessionEmitAgentConfiguration } from '@/sync/ops';
+import { storage, useIsDataReady, useLatestBoundary, useLocalSetting, useLocalSettingMutable, useMachine, useRealtimeStatus, useSessionMessages, useSessionUsage, useSetting } from '@/sync/storage';
 import { useSidebar } from '@/components/SidebarContext';
 import { useSession } from '@/sync/storage';
 import { Session } from '@/sync/storageTypes';
@@ -375,7 +376,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
     const alwaysShowContextSize = useSetting('alwaysShowContextSize');
     const experiments = useSetting('experiments');
     const expResumeSession = useSetting('expResumeSession');
-    const { canResume, resumeSession, resumingSession } = useSessionQuickActions(session);
+    const { canResume, resumeAvailability, resumeSession, resumeSessionInline, resumingSession } = useSessionQuickActions(session);
     const isArchivedSession = session.metadata?.lifecycleState === 'archived';
     const isDisconnected = !sessionStatus.isConnected;
     const isInactiveArchivedSession = isArchivedSession && isDisconnected;
@@ -476,6 +477,20 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
     const updateEffortLevel = React.useCallback((level: EffortLevel) => {
         storage.getState().updateSessionEffortLevel(sessionId, level.key);
     }, [sessionId]);
+
+    const emitAgentConfiguration = React.useCallback((config: {
+        permissionMode?: string;
+        model?: string;
+        thinkingLevel?: string;
+    }) => sessionEmitAgentConfiguration({ sessionId, ...config }), [sessionId]);
+
+    const sessionMachineId = session.metadata?.machineId ?? '';
+    const sessionMachine = useMachine(sessionMachineId);
+    const machineName = sessionMachine?.metadata?.displayName
+        ?? sessionMachine?.metadata?.host
+        ?? session.metadata?.host
+        ?? session.metadata?.machineId
+        ?? null;
 
     // Memoize header-dependent styles to prevent re-renders
     const headerDependentStyles = React.useMemo(() => ({
@@ -683,11 +698,33 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
         </CenteredInputWidth>
     ) : null;
 
+    const contextDrawer = (
+        <CenteredInputWidth horizontalPadding={sessionInputHorizontalPadding}>
+            <SessionContextDrawer
+                machineName={machineName}
+                modelMode={modelMode}
+                availableModels={availableModels}
+                permissionMode={permissionMode}
+                availableModes={availableModes}
+                effortLevel={effortLevel}
+                availableEffortLevels={availableEffortLevels}
+                canResume={canResume}
+                resumeAvailability={resumeAvailability}
+                updatePermissionMode={updatePermissionMode}
+                updateModelMode={updateModelMode}
+                updateEffortLevel={updateEffortLevel}
+                resumeSessionInline={resumeSessionInline}
+                sessionEmitAgentConfiguration={emitAgentConfiguration}
+            />
+        </CenteredInputWidth>
+    );
+
     const input = isInactiveArchivedSession ? (
         <>
             {archivedHint}
             {boundaryAdvisory}
             {pendingSwitchBanner}
+            {contextDrawer}
             {composer}
         </>
     ) : (
@@ -699,6 +736,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
             )}
             {boundaryAdvisory}
             {pendingSwitchBanner}
+            {contextDrawer}
             {composer}
         </>
     );
