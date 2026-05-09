@@ -13,10 +13,9 @@ Happy redesigned from multi-tenant cloud relay to server-per-machine product. Ea
 - Machine discovery: mobile lists `happy-*` tunnels via Dev Tunnels API, shows 0/1/N picker
 - Connect JWT: real Dev Tunnels JWT stored per machine, used for tunnel-level auth on all requests; refresh logic in `refreshConnectTokenIfNeeded()`
 
-- Connect token refresh: wired into `syncInit` and AppState foreground handler
+- Connect JWT refresh: wired into `syncInit`, AppState foreground, and 401 retry via `tunnelFetch()` on all REST call sites
 
-### Still remaining from tunnel research doc
-- **`happy://` deep link handler** — Not needed for current GitHub device flow path, but required if Entra MSAL is added later.
+### Still remaining
 - **Entra MSAL** — Deferred. Requires `pnpm prebuild` (currently stubbed to error). GitHub device flow is the only mobile auth path for now.
 - **Prisma migration** — Schema was rewritten but no migration file committed. Human must run `pnpm migrate` against production Postgres.
 
@@ -38,7 +37,6 @@ Happy redesigned from multi-tenant cloud relay to server-per-machine product. Ea
 ## Navigation Bugs
 
 Back navigation is broken across the app in several places:
-- Logout → restore from key doesn't pop enough screens (also errors out)
 - General back navigation inconsistency across flows
 
 ## Workspaces & Checkouts
