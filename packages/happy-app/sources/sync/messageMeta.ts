@@ -32,12 +32,13 @@ export function resolveMessageModeMeta(
         : undefined;
     const permissionMode = wireFromUser ?? (sandboxEnabled ? 'bypassPermissions' : undefined);
 
-    const modelMode = session.modelMode || 'default';
+    const modelMode = session.modelMode || session.metadata?.currentModelCode || 'default';
     const model = modelMode !== 'default' ? modelMode : null;
+    const thinkingLevel = session.effortLevel ?? session.metadata?.currentThoughtLevelCode;
 
     return {
         ...(permissionMode !== undefined && { permissionMode }),
         model,
-        ...(session.effortLevel != null && { thinkingLevel: session.effortLevel }),
+        ...(thinkingLevel != null && { thinkingLevel }),
     };
 }

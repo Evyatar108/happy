@@ -117,4 +117,22 @@ describe('resolveMessageModeMeta', () => {
         expect(nullMeta).not.toHaveProperty('thinkingLevel');
         expect(undefinedMeta).not.toHaveProperty('thinkingLevel');
     });
+
+    it('uses echoed metadata values when local model and effort are unset', () => {
+        const meta = resolveMessageModeMeta({
+            permissionMode: null,
+            permissionModeUserChosen: false,
+            modelMode: null,
+            effortLevel: null,
+            metadata: {
+                currentModelCode: 'gpt-5.5',
+                currentThoughtLevelCode: 'xhigh',
+            },
+        } as any);
+
+        expect(meta).toEqual({
+            model: 'gpt-5.5',
+            thinkingLevel: 'xhigh',
+        });
+    });
 });

@@ -3,6 +3,7 @@ import * as React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { PickerContent, type PickerItem } from './pickers';
 import type { ModelMode, PermissionMode } from './PermissionModeSelector';
 import type { EffortLevel } from './modelModeOptions';
 import type { ResumeAvailability } from '@/utils/resumeAvailability';
@@ -33,6 +34,7 @@ type SessionContextDrawerProps = {
 
 export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps) => {
     const { theme } = useUnistyles();
+    const { sessionEmitAgentConfiguration } = props;
     const [isExpanded, setIsExpanded] = React.useState(false);
     const expandedProgress = useSharedValue(0);
 
@@ -44,10 +46,26 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
     }, [expandedProgress, isExpanded]);
 
     const bodyAnimatedStyle = useAnimatedStyle(() => ({
-        height: expandedProgress.value * 0,
+        height: expandedProgress.value * 360,
         opacity: expandedProgress.value,
         overflow: 'hidden' as const,
     }));
+
+    const modelItems = React.useMemo(() => toPickerItems(props.availableModels), [props.availableModels]);
+    const permissionItems = React.useMemo(() => toPickerItems(props.availableModes), [props.availableModes]);
+    const effortItems = React.useMemo(() => toPickerItems(props.availableEffortLevels), [props.availableEffortLevels]);
+
+    const handleSelectModel = React.useCallback((key: string) => {
+        void sessionEmitAgentConfiguration({ model: key });
+    }, [sessionEmitAgentConfiguration]);
+
+    const handleSelectPermissionMode = React.useCallback((key: string) => {
+        void sessionEmitAgentConfiguration({ permissionMode: key });
+    }, [sessionEmitAgentConfiguration]);
+
+    const handleSelectEffortLevel = React.useCallback((key: string) => {
+        void sessionEmitAgentConfiguration({ thinkingLevel: key });
+    }, [sessionEmitAgentConfiguration]);
 
     return (
         <View style={styles.container}>
@@ -77,10 +95,44 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
                     />
                 </Pressable>
             </View>
-            <Animated.View style={[styles.expandedBody, bodyAnimatedStyle]} />
+            <Animated.View style={[styles.expandedBody, bodyAnimatedStyle]}>
+                <View style={styles.pickerStack}>
+                    <PickerContent
+                        title={t('agentInput.model.title')}
+                        items={modelItems}
+                        selectedKey={props.modelMode?.key ?? null}
+                        onSelect={handleSelectModel}
+                        searchPlaceholder={t('commandPalette.placeholder')}
+                    />
+                    <PickerContent
+                        title={t('agentInput.permissionMode.title')}
+                        items={permissionItems}
+                        selectedKey={props.permissionMode?.key ?? null}
+                        onSelect={handleSelectPermissionMode}
+                        searchPlaceholder={t('commandPalette.placeholder')}
+                    />
+                    {effortItems.length > 0 && (
+                        <PickerContent
+                            title={t('agentInput.effort.title')}
+                            items={effortItems}
+                            selectedKey={props.effortLevel?.key ?? null}
+                            onSelect={handleSelectEffortLevel}
+                            searchPlaceholder={t('commandPalette.placeholder')}
+                        />
+                    )}
+                </View>
+            </Animated.View>
         </View>
     );
 });
+
+function toPickerItems<T extends { key: string; name: string; description?: string | null }>(items: T[]): PickerItem[] {
+    return items.map((item) => ({
+        key: item.key,
+        label: item.name,
+        subtitle: item.description ?? undefined,
+    }));
+}
 
 function ContextChip(props: { label: string }) {
     return (
@@ -156,5 +208,10 @@ const styles = StyleSheet.create((theme) => ({
     },
     expandedBody: {
         width: '100%',
+    },
+    pickerStack: {
+        paddingTop: 8,
+        paddingBottom: 4,
+        gap: 4,
     },
 }));

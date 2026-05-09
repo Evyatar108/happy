@@ -371,6 +371,32 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
         ])
     ), [availableEffortLevels, session.effortLevel, flavor, modelKey]);
 
+    const drawerPermissionMode = React.useMemo<PermissionMode | null>(() => (
+        resolvePermissionModeForPicker(availableModes, {
+            userChosen: false,
+            sessionPermissionMode: null,
+            metadataCurrentPermissionModeCode: session.metadata?.currentPermissionModeCode,
+            metadataDangerouslySkipPermissions: session.metadata?.dangerouslySkipPermissions,
+            flavor,
+        })
+    ), [availableModes, session.metadata?.currentPermissionModeCode, session.metadata?.dangerouslySkipPermissions, flavor]);
+    const drawerModelMode = React.useMemo<ModelMode | null>(() => (
+        resolveCurrentOption(availableModels, [
+            session.metadata?.currentModelCode,
+            getDefaultModelKey(flavor),
+        ])
+    ), [availableModels, session.metadata?.currentModelCode, flavor]);
+    const drawerModelKey = drawerModelMode?.key ?? 'default';
+    const drawerAvailableEffortLevels = React.useMemo<EffortLevel[]>(() => (
+        getEffortLevelsForModel(flavor, drawerModelKey)
+    ), [flavor, drawerModelKey]);
+    const drawerEffortLevel = React.useMemo<EffortLevel | null>(() => (
+        resolveCurrentOption(drawerAvailableEffortLevels, [
+            session.metadata?.currentThoughtLevelCode,
+            getDefaultEffortKeyForModel(flavor, drawerModelKey),
+        ])
+    ), [drawerAvailableEffortLevels, session.metadata?.currentThoughtLevelCode, flavor, drawerModelKey]);
+
     const sessionStatus = useSessionStatus(session);
     const sessionUsage = useSessionUsage(sessionId);
     const alwaysShowContextSize = useSetting('alwaysShowContextSize');
@@ -702,12 +728,12 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
         <CenteredInputWidth horizontalPadding={sessionInputHorizontalPadding}>
             <SessionContextDrawer
                 machineName={machineName}
-                modelMode={modelMode}
+                modelMode={drawerModelMode}
                 availableModels={availableModels}
-                permissionMode={permissionMode}
+                permissionMode={drawerPermissionMode}
                 availableModes={availableModes}
-                effortLevel={effortLevel}
-                availableEffortLevels={availableEffortLevels}
+                effortLevel={drawerEffortLevel}
+                availableEffortLevels={drawerAvailableEffortLevels}
                 canResume={canResume}
                 resumeAvailability={resumeAvailability}
                 updatePermissionMode={updatePermissionMode}
