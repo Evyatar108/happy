@@ -2,188 +2,219 @@
 
 This document describes the Happy backend structure as implemented in `packages/happy-server`. It focuses on how the server is wired, how data flows through the system, and which subsystems handle which responsibilities.
 
+In the server-per-machine architecture, `happy-server` is no longer a multi-tenant cloud relay. Each machine runs its own embedded `happy-server` instance inside `happy-cli`, which is exposed to the operator's mobile device via a Microsoft Dev Tunnel. The standalone `main.ts` entry point is still available for running the server as a process (used in development), but the production deployment shape is "one server per machine, embedded in the CLI."
+
 ## System overview
 
 ```mermaid
 graph TB
-    subgraph Clients
-        CLI[CLI Client]
-        Mobile[Mobile App]
+    subgraph "Operator's Machine"
+        CLI[happy-cli]
+        subgraph "Embedded happy-server"
+            API[Fastify API]
+            Socket[Socket.IO]
+            Events[Event Router]
+        end
+        subgraph "Local Storage"
+            PG[(PGlite)]
+            Local[(Local files dir)]
+        end
         Daemon[Machine Daemon]
     end
 
-    subgraph "Happy Server"
-        API[Fastify API]
-        Socket[Socket.IO]
-        Events[Event Router]
+    subgraph "Microsoft Dev Tunnel"
+        Tunnel[Tunnel forward to 127.0.0.1:port]
     end
 
-    subgraph Storage
-        PG[(Postgres)]
-        Redis[(Redis)]
-        S3[(S3/MinIO)]
-    end
+    Mobile[Mobile App]
+    Expo[Expo Push Service]
 
-    CLI --> API
-    Mobile --> API
+    CLI -.creates.-> API
     Daemon --> API
-    CLI --> Socket
-    Mobile --> Socket
     Daemon --> Socket
+    Mobile -->|HTTPS via tunnel| Tunnel --> API
+    Mobile -->|WSS via tunnel| Tunnel --> Socket
 
     API --> PG
-    API --> S3
+    API --> Local
     Socket --> Events
-    Events --> Redis
     Events --> PG
+    API --> |session push events| Expo
+    Expo --> |notifications| Mobile
 ```
 
 ## At a glance
 - Runtime: Node.js + Fastify for HTTP, Socket.IO for realtime.
-- Database: Postgres via Prisma.
-- Cache/bus: Redis client is initialized (currently only pinged).
-- Blob storage: S3-compatible (MinIO) for uploaded assets.
-- Crypto: privacy-kit for auth tokens and encrypted service tokens.
+- Lifecycle: `createHappyServer()` factory in `packages/happy-server/sources/index.ts` starts Fastify in-process from `happy-cli`. A standalone `main.ts` is also retained for non-embedded use.
+- Database: PGlite (embedded Postgres) by default via Prisma; external Postgres is opt-in for the standalone deployment shape.
+- Cache/bus: Redis is optional. When `REDIS_URL` is set, the Socket.IO Redis-streams adapter is enabled for multi-process fan-out. In the embedded per-machine deployment Redis is not used.
+- Blob storage: local filesystem (`<dataDir>/files`) by default; S3-compatible storage is opt-in when `S3_HOST` and friends are set.
+- Auth: TOFU handshake middleware that verifies a `X-Tunnel-Authorization: tunnel <base64url-claim>` header against the `localUserId` and `iat` from the embedded server's configuration.
+- Crypto: privacy-kit `KeyTree` derived from the per-machine `HANDY_MASTER_SECRET` (set by `createHappyServer()` from the configured `machineKey`). Used only for server-side service-token storage.
+- Push: Expo push notifications are delivered directly from happy-server via `sendSessionPushEvent` to tokens stored per (machineId, deviceId).
 - Metrics: Prometheus-style `/metrics` server + per-request HTTP metrics.
 
 ## Process lifecycle
-Entry point: `packages/happy-server/sources/main.ts`.
+
+The primary entry point is `createHappyServer()` in `packages/happy-server/sources/index.ts`, which is called from `happy-cli` to start the server in-process. The standalone `main.ts` simply wraps this factory for the non-embedded mode.
 
 ```mermaid
 flowchart TD
-    Start([main.ts]) --> DB[Connect Postgres]
-    DB --> Cache[Init Activity Cache]
-    Cache --> Redis[Redis ping]
-    Redis --> Crypto[Init Crypto Modules]
+    Start([createHappyServer config]) --> CreateFastify[fastify with logger]
+    CreateFastify --> Handle[Return HappyServerHandle]
+    Handle --> StartCalled([handle.start])
+    StartCalled --> Configure[configure once]
 
-    subgraph Crypto Initialization
-        Crypto --> Encrypt[initEncrypt - KeyTree]
-        Crypto --> GitHub[initGithub - OAuth/Webhooks]
-        Crypto --> S3[loadFiles - S3 Bucket]
-        Crypto --> Auth[auth.init - Token Gen]
+    subgraph "Configure step"
+        Configure --> MkData[mkdir dataDir/happy-server]
+        MkData --> SetEnv[Set HANDY_MASTER_SECRET from machineKey]
+        SetEnv --> ConfigureDb[configureDb provider=pglite]
+        ConfigureDb --> ConfigureFiles[configureFiles dataDir publicUrl]
+        ConfigureFiles --> Connect[db connect]
+        Connect --> Encrypt[initEncrypt KeyTree]
+        Encrypt --> GitHub[initGithub optional]
+        GitHub --> Files[loadFiles]
+        Files --> Auth[auth init]
+        Auth --> Cache[startActivityCache]
+        Cache --> ConfigureApi[configureApi with tofuConfig]
     end
 
-    Encrypt & GitHub & S3 & Auth --> Servers[Start Servers]
-
-    subgraph Server Startup
-        Servers --> API[API Server]
-        Servers --> Metrics[Metrics Server]
-        Servers --> DBMetrics[DB Metrics Updater]
-        Servers --> Presence[Presence Timeout Loop]
-    end
-
-    API & Metrics & DBMetrics & Presence --> Running([Running])
-    Running --> |SIGTERM| Shutdown[Shutdown Hooks]
-    Shutdown --> DBDisconnect[DB Disconnect]
-    Shutdown --> FlushCache[Flush Activity Cache]
+    ConfigureApi --> Listen[app listen port host]
+    Listen --> Running([Running])
+    Running --> |handle.stop| Shutdown[Shutdown]
+    Shutdown --> Close[app close]
+    Close --> AuthDown[auth shutdown]
+    AuthDown --> CacheDown[activityCache shutdown]
+    CacheDown --> DbDown[disconnectDb]
+    DbDown --> LogDown[shutdownLogger]
 ```
 
-Startup sequence:
-1. Connect Postgres (`db.$connect()`).
-2. Init activity cache (presence) and Redis connection check (`redis.ping()`).
-3. Initialize crypto modules:
-   - `initEncrypt()` derives a KeyTree from `HANDY_MASTER_SECRET`.
-   - `initGithub()` configures GitHub App/webhooks if env vars exist.
-   - `loadFiles()` verifies S3 bucket access.
-   - `auth.init()` prepares token generator/verifier.
-4. Start API server (`startApi()`), metrics server, database metrics updater, and presence timeout loop.
-5. Remain alive until shutdown signal.
+Startup sequence (inside `handle.start()` → `configure()`):
+1. Create `<dataDir>/happy-server` and seed `HANDY_MASTER_SECRET` from the configured `machineKey` if it is not already set in the environment.
+2. Configure storage:
+   - `configureDb({ provider: "pglite", pgliteDir: <dataDir>/happy-server/pglite })` selects PGlite as the default Prisma adapter.
+   - `configureFiles({ dataDir, publicUrl })` selects local-filesystem storage by default; S3 is enabled only when an explicit `s3` config is provided.
+3. Connect Prisma (`db.$connect()`).
+4. Initialize crypto modules:
+   - `initEncrypt()` derives a KeyTree from `HANDY_MASTER_SECRET` for service-token encryption.
+   - `initGithub()` configures the GitHub App / device-flow integration if env vars exist.
+   - `loadFiles()` ensures the local files directory exists (or verifies S3 bucket access when S3 is configured).
+   - `auth.init()` prepares the legacy persistent token generator/verifier still used internally by feed/social helpers; it no longer authenticates HTTP requests.
+5. `startActivityCache()` starts the in-memory presence cache and its batch/cleanup timers.
+6. `configureApi(app, tofuConfig)` registers all routes, sockets, and the TOFU `authenticate` decorator on the Fastify instance.
+7. `app.listen({ port, host })` binds to the configured loopback address (default `127.0.0.1`).
 
-Shutdown hooks are registered for DB disconnect and activity-cache flush.
+The standalone `main.ts` additionally starts the metrics server, the database metrics updater, and the presence timeout loop, and registers shutdown hooks. The embedded path lets `happy-cli` decide whether to start those auxiliary loops.
+
+Shutdown calls `handle.stop()`, which closes the Fastify app, shuts down the auth module and activity cache, disconnects the database (and closes the PGlite instance), and flushes the logger.
 
 ## API layer
-`startApi()` in `sources/app/api/api.ts` wires the HTTP server:
-- Fastify instance with Zod validators/serializers.
+
+`configureApi()` in `sources/app/api/api.ts` wires the HTTP server:
+- Fastify instance with Zod validators/serializers (created via `createApi()`).
 - Global hooks for monitoring and error handling.
-- `authenticate` decorator that verifies Bearer tokens.
+- `authenticate` decorator that verifies the TOFU `X-Tunnel-Authorization: tunnel <claim>` header against the embedded server's `localUserId` and a 24-hour `iat` window.
+- A `/files/*` static handler when local-filesystem storage is in use.
 - Route modules under `sources/app/api/routes`.
-- Socket.IO server attached at `/v1/updates`.
+- Socket.IO server attached at `/v1/updates` with the same TOFU handshake check in its middleware.
 
 ```mermaid
 graph LR
     subgraph "Fastify Server"
         Hooks[Global Hooks]
-        Auth[authenticate decorator]
+        Auth[authenticate decorator - TOFU claim]
 
         subgraph Routes
             direction TB
-            R1[authRoutes]
+            R1[pairRoutes]
             R2[sessionRoutes]
             R3[machinesRoutes]
             R4[artifactsRoutes]
             R5[accessKeysRoutes]
             R6[kvRoutes]
-            R7[accountRoutes]
-            R8[userRoutes / feedRoutes]
-            R9[pushRoutes]
-            R10[connectRoutes / voiceRoutes]
+            R7[userRoutes / feedRoutes]
+            R8[pushRoutes]
+            R9[voiceRoutes]
+            R10[v3SessionRoutes]
+            R11[versionRoutes / devRoutes]
         end
     end
 
     SocketIO[Socket.IO /v1/updates]
 
-    Client --> Hooks --> Auth --> Routes
-    Client --> SocketIO
+    Mobile -->|tunnel claim| Hooks --> Auth --> Routes
+    Mobile -->|tunnel claim| SocketIO
 ```
 
 HTTP routes are organized by domain:
-- Auth (`authRoutes`)
-- Sessions + messages (`sessionRoutes`)
+- Pairing (`pairRoutes`) — GitHub device-flow + TOFU handshake replacement for the old auth/connect flow
+- Sessions + messages (`sessionRoutes`, `v3SessionRoutes`)
 - Machines (`machinesRoutes`)
 - Artifacts (`artifactsRoutes`)
 - Access keys (`accessKeysRoutes`)
 - Key-value store (`kvRoutes`)
-- Account + usage (`accountRoutes`)
 - Social + feed (`userRoutes`, `feedRoutes`)
 - Push tokens (`pushRoutes`)
-- Integrations (`connectRoutes`, `voiceRoutes`)
+- Voice (`voiceRoutes`)
 - Version checks (`versionRoutes`)
 - Dev-only logging (`devRoutes`)
 
-## Authentication and tokens
+The old `authRoutes`, `connectRoutes`, and `accountRoutes` have been removed entirely. Multi-tenant account creation, GitHub OAuth-via-server callback, and challenge-based Bearer issuance no longer exist on the server.
+
+## Authentication and pairing
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant Server
-    participant DB as Postgres
-    participant Cache as Token Cache
+    participant Mobile
+    participant Server as happy-server (embedded)
+    participant GH as GitHub Device Flow
 
-    Client->>Server: POST /v1/auth (signed challenge + public key)
-    Server->>DB: Upsert account by public key
-    DB-->>Server: Account record
-    Server->>Server: Generate Bearer token (privacy-kit)
-    Server->>Cache: Cache token
-    Server-->>Client: Bearer token
+    Mobile->>Server: GET /pair/start
+    Server->>GH: POST /login/device/code (client_id)
+    GH-->>Server: device_code, user_code, verification_uri
+    Server-->>Mobile: device_code, user_code, verification_uri
 
-    Note over Client,Cache: Subsequent requests
+    Note over Mobile: User enters user_code on github.com
 
-    Client->>Server: Request + Bearer token
-    Server->>Cache: Verify token
-    Cache-->>Server: Valid / Account ID
-    Server-->>Client: Response
+    Mobile->>Server: POST /pair/status (device_code, mobileEcdhPublicKey)
+    Server->>GH: POST /login/oauth/access_token
+    GH-->>Server: access_token (or pending)
+    Server->>GH: GET /user
+    GH-->>Server: { login }
+    Server->>Server: Optional: enforce HAPPY_TUNNEL_GITHUB_OWNER match
+    Server->>Server: ECDH: nacl.box.before(mobilePub, x25519SecretKey)
+    Server-->>Mobile: machines[{ machineId, tunnelUrl, ed25519PublicKey, x25519PublicKey, ed25519Fingerprint, tunnelClaim }]
+
+    Note over Mobile,Server: Subsequent requests
+
+    Mobile->>Server: Request + X-Tunnel-Authorization: tunnel <base64url-claim>
+    Server->>Server: authenticate decorator: parse claim, check sub == localUserId, iat within 24h
+    Server-->>Mobile: Response
 ```
 
-The backend does not store passwords. Instead:
-- Clients authenticate with a signed challenge (`/v1/auth`) using a public key.
-- The server upserts the account by public key and returns a Bearer token.
-- Tokens are generated and verified by privacy-kit using `HANDY_MASTER_SECRET`.
-- Tokens are cached in-memory for fast verification.
+The backend does not store accounts or passwords. Pairing happens entirely through GitHub's device flow plus TOFU pubkey pinning:
 
-GitHub OAuth uses short-lived "ephemeral" tokens to protect the callback and is separate from normal auth.
+- `GET /pair/start` proxies to GitHub's `/login/device/code` and returns the user code + verification URI.
+- `POST /pair/status` polls GitHub for the access token, fetches the GitHub user, optionally enforces `HAPPY_TUNNEL_GITHUB_OWNER`, and returns the embedded server's TOFU public keys (Ed25519 + X25519) along with an unsigned `tunnelClaim` (base64url-encoded JSON of `{ sub, gh, iat }`). The mobile client trust-on-first-use pins the Ed25519 key and stores the claim.
+- If the mobile client supplied an X25519 ECDH public key, the server completes `nacl.box.before` against its own `x25519SecretKey` and stores the resulting shared secret on the in-memory `tofuConfig` (`mobileSharedSecret`) for use as a content-encryption key.
+- All subsequent HTTP and WebSocket calls present `X-Tunnel-Authorization: tunnel <claim>`. The `authenticate` decorator and Socket.IO middleware base64url-decode the claim, require `payload.sub === tofuConfig.localUserId`, and reject claims older than 86400 seconds.
+
+The TOFU claim is deliberately unsigned. The transport security boundary is the Microsoft Dev Tunnel + the pinned TOFU public key on the mobile side; the claim is an identity assertion bound to a specific embedded server instance.
+
+The legacy `auth` module (`sources/app/auth/auth.ts`) still exists and is initialized at startup, but it is no longer used to authenticate HTTP requests. It is retained for internal helpers (e.g., the GitHub ephemeral token used by integrations) and for the standalone deployment shape.
 
 ## Realtime sync architecture
 
 ```mermaid
 graph TB
     subgraph Connections
-        U1[User Client 1]
-        U2[User Client 2]
-        S1[Session Client]
-        M1[Machine Daemon]
+        U1[Mobile Client - user-scoped]
+        S1[Mobile Client - session-scoped]
+        M1[Machine Daemon - machine-scoped]
     end
 
     subgraph "Socket.IO Server"
+        Auth[TOFU handshake middleware]
         Router[Event Router]
 
         subgraph Scopes
@@ -193,21 +224,23 @@ graph TB
         end
     end
 
-    U1 & U2 --> US
-    S1 --> SS
-    M1 --> MS
+    U1 --> Auth --> US
+    S1 --> Auth --> SS
+    M1 --> Auth --> MS
 
     US & SS & MS --> Router
 
-    Router --> |persistent update| DB[(Postgres)]
+    Router --> |persistent update| DB[(PGlite)]
     Router --> |ephemeral event| Clients((Filtered Recipients))
 ```
 
 ### Connection types
-Socket.IO connections are tagged by scope:
-- `user-scoped`: receive all user updates.
-- `session-scoped`: receive updates only for one session.
+Socket.IO connections are tagged by scope at handshake time:
+- `user-scoped`: receives all updates for the local user.
+- `session-scoped`: receives updates only for one session.
 - `machine-scoped`: daemon connections for machine state.
+
+The Socket.IO middleware in `sources/app/api/socket.ts` enforces the same TOFU claim check as the HTTP layer before any connection is accepted, then attaches `userId`, `clientType`, `sessionId`, `machineId`, and the TOFU public keys to `socket.data`. On connection, it emits a `tofu-pubkeys` event so clients that connected via Socket.IO directly can perform the TOFU pin.
 
 ### Event router
 `EventRouter` (`sources/app/events/eventRouter.ts`) maintains per-user connection sets and routes:
@@ -217,8 +250,11 @@ Socket.IO connections are tagged by scope:
 The router implements recipient filters so updates go only to interested connections (e.g., all session listeners or a specific machine).
 
 ### Update sequence numbers
-- `Account.seq` is the per-user update counter. It is incremented by `allocateUserSeq` and used as `UpdatePayload.seq`.
-- Sessions and artifacts maintain their own `seq` for per-object ordering.
+- A per-user `seq` counter is allocated by `allocateUserSeq` and used as `UpdatePayload.seq`. There is no longer an `Account` row backing it; in the single-tenant schema the counter is maintained by the seq helper.
+- Sessions, machines, and artifacts maintain their own `seq` for per-object ordering.
+
+### Multi-process Redis adapter (optional)
+When `REDIS_URL` is set, `startSocket()` attaches `@socket.io/redis-streams-adapter` so multiple server processes can share Socket.IO state and a `redisStreamLagMsGauge` metric tracks reader lag. The embedded per-machine deployment never sets `REDIS_URL`, so this code path is dormant.
 
 ## Presence and activity
 
@@ -231,7 +267,7 @@ flowchart LR
 
     subgraph "Batched Writes"
         Batch[Batch Processor]
-        DB[(Postgres)]
+        DB[(PGlite)]
     end
 
     subgraph "Timeout Loop"
@@ -248,62 +284,109 @@ flowchart LR
 ```
 
 Presence is handled in `sources/app/presence`:
-- `session-alive` and `machine-alive` events are debounced in memory (ActivityCache).
+- `session-alive` and `machine-alive` events are debounced in memory (`ActivityCache`) with a 30-second TTL and a 5-second batch interval.
 - Database writes are batched to reduce write load.
 - A timeout loop marks sessions/machines inactive after 10 minutes of silence and emits an offline ephemeral update.
 
 This splits high-frequency presence from durable storage updates.
 
 ## Storage and persistence
+
 ### Database (Prisma)
-Prisma models live in `prisma/schema.prisma`. Key tables:
+
+The schema in `prisma/schema.prisma` is single-tenant — there is no `Account`, `GithubUser`, or `AccountPushToken` model. All entities belong to the single embedded server's local user.
 
 ```mermaid
 erDiagram
-    Account ||--o{ Session : owns
-    Account ||--o{ Machine : owns
-    Account ||--o{ Artifact : owns
-    Account ||--o{ UserKVStore : owns
-    Account ||--o{ UsageReport : tracks
-    Account ||--o{ UserRelationship : has
-    Account ||--o{ UserFeedItem : receives
-
     Session ||--o{ SessionMessage : contains
     Session ||--o{ AccessKey : grants
-
+    Session ||--o{ UsageReport : tracks
     Machine ||--o{ AccessKey : receives
-
-    Account {
-        string publicKey
-        string profile
-        int seq
-    }
+    Machine ||--o{ PushToken : has
 
     Session {
+        string id
+        string tag
         string metadata
+        int metadataVersion
+        string agentState
+        bytes dataEncryptionKey
         int seq
+        bool active
+    }
+
+    SessionMessage {
+        string id
+        string sessionId
+        int seq
+        json content
     }
 
     Machine {
+        string id
         string metadata
         string daemonState
+        bytes dataEncryptionKey
+        int seq
+        bool active
+    }
+
+    PushToken {
+        string id
+        string machineId
+        string deviceId
+        string expoPushToken
     }
 
     Artifact {
-        string header
+        string id
+        bytes header
         bytes body
+        bytes dataEncryptionKey
+        int seq
+    }
+
+    AccessKey {
+        string id
+        string machineId
+        string sessionId
+        string data
+    }
+
+    UserKVStore {
+        string id
         string key
+        bytes value
+        int version
+    }
+
+    UserFeedItem {
+        string id
+        bigint counter
+        string repeatKey
+        json body
+    }
+
+    UsageReport {
+        string id
+        string key
+        string sessionId
+        json data
     }
 ```
 
-- `Account`: public key identity, profile, settings, seq counters.
+Key tables:
 - `Session` + `SessionMessage`: encrypted session metadata and message blobs.
-- `Machine`: encrypted machine metadata + daemon state.
+- `Machine`: encrypted machine metadata + daemon state for the local machine and any peer machines.
+- `PushToken`: per-`(machineId, deviceId)` Expo push tokens. The previous `AccountPushToken` model has been replaced by this single-tenant table.
 - `Artifact`: encrypted header/body + per-artifact key.
 - `AccessKey`: encrypted per-session-per-machine access keys.
 - `UserKVStore`: encrypted values with optimistic versions.
+- `UserFeedItem`: feed entries (still used for social/feed updates within the single-tenant scope).
 - `UsageReport`: usage aggregation per session/key.
-- `UserRelationship` + `UserFeedItem`: social graph and feed.
+- `TerminalAuthRequest` / `AccountAuthRequest`: legacy challenge tables retained for backward compatibility with older CLI flows; no longer participate in mobile pairing.
+- `ServiceAccountToken`: encrypted vendor tokens (OpenAI, Anthropic, Gemini, GitHub) keyed by vendor.
+- `GithubOrganization`: per-org metadata used by the GitHub integration.
 
 ### Transactions and retries
 
@@ -329,14 +412,25 @@ flowchart TD
 
 This pattern is used for multi-write operations like batch KV mutation and session deletion.
 
-### Blob storage (S3/MinIO)
-The server uses S3-compatible storage for user assets (e.g., avatars):
-- `storage/files.ts` configures the S3 client.
-- `uploadImage` processes and stores files and writes metadata to `UploadedFile`.
-- Public URLs are derived from `S3_PUBLIC_URL`.
+### Blob storage (local-first)
+The default storage backend is the local filesystem under `<dataDir>/files`:
+- `storage/files.ts` exposes `configureFiles({ dataDir, publicUrl, s3? })`. With no `s3` config, `useLocalStorage` is `true` and `loadFiles()` simply ensures the local directory exists.
+- A `/files/*` route is registered on the Fastify instance when local storage is in use, serving files within the configured directory.
+- `uploadImage` writes assets to disk and records metadata in `UploadedFile`.
 
-### Redis
-A Redis client is initialized in `main.ts` and pinged at startup. It can be expanded for caching or pub/sub if needed.
+S3-compatible storage is opt-in. Provide an `s3` block (or set `S3_HOST`/`S3_BUCKET`/`S3_PUBLIC_URL`/etc.) and the same module switches to MinIO-style uploads with public URLs derived from `S3_PUBLIC_URL`.
+
+### Redis (optional)
+A Redis client is no longer constructed at startup. Redis is consulted only by the Socket.IO multi-process adapter, which is enabled lazily when `REDIS_URL` is set. The embedded per-machine deployment runs without Redis.
+
+## Push notifications
+
+Push delivery is owned by happy-server in the per-machine architecture. The CLI no longer talks to Expo directly.
+
+- `pushRoutes` exposes `POST /push/register`, `POST /v1/push-tokens`, `DELETE /v1/push-tokens/:token`, and `GET /v1/push-tokens`. All four endpoints are gated by the `authenticate` decorator and bind tokens to the `tofuConfig.localUserId` plus a per-device `deviceId`.
+- `registerPushToken` upserts a row in the `PushToken` table keyed by `(machineId, deviceId)`.
+- `sendSessionPushEvent` (in `sources/app/push/pushNotifications.ts`) is called from session-update handlers to push a notification for `new-session`, `status-change`, `agent-message`, or `codex-finish` events. It calls `https://exp.host/--/api/v2/push/send` directly with a body that includes `to`, `title`, `body`, `sound: "default"`, `priority: "high"`, and a `data` payload with `machineId`, `sessionId`, `kind`, and a deep-link `url`.
+- Failed responses are logged but do not block the calling write transaction.
 
 ## Data confidentiality model
 
@@ -358,7 +452,7 @@ graph TB
         S4[Gemini tokens]
     end
 
-    C1 & C2 & C3 & C4 & C5 & C6 --> |opaque blobs| DB[(Postgres)]
+    C1 & C2 & C3 & C4 & C5 & C6 --> |opaque blobs| DB[(PGlite)]
     S1 & S2 & S3 & S4 --> |KeyTree from HANDY_MASTER_SECRET| DB
 
     style C1 fill:#e1f5fe
@@ -375,13 +469,13 @@ graph TB
 
 - Session metadata, agent state, daemon state, and message content are stored as opaque encrypted strings or blobs.
 - Artifacts and KV values are stored encrypted and encoded as base64 on the wire.
-- The server only encrypts/decrypts **service tokens** (GitHub OAuth tokens, vendor tokens) using the KeyTree derived from `HANDY_MASTER_SECRET`.
+- The server only encrypts/decrypts **service tokens** (GitHub OAuth tokens, vendor tokens) using the KeyTree derived from `HANDY_MASTER_SECRET`. In the embedded deployment that secret is the per-machine `machineKey` configured by `happy-cli`, not a shared cloud master.
 
 ## Integrations
-- **GitHub**: OAuth connect + webhook verification, optional if env vars are set.
-- **AI vendors**: encrypted token storage for `openai`, `anthropic`, `gemini`.
-- **Voice**: RevenueCat subscription check + ElevenLabs token minting.
-- **Push tokens**: stored for later notification delivery.
+- **GitHub**: device-flow OAuth used inside `pairRoutes` to authenticate the operator and (optionally) enforce ownership via `HAPPY_TUNNEL_GITHUB_OWNER`. The legacy multi-tenant GitHub callback / connect flow is no longer wired into HTTP routes.
+- **AI vendors**: encrypted token storage for `openai`, `anthropic`, `gemini` via `ServiceAccountToken`.
+- **Voice**: RevenueCat subscription check + ElevenLabs token minting (still bearer-based against the upstream services because those credentials are not Happy-relay credentials).
+- **Push tokens**: stored per `(machineId, deviceId)` for direct Expo delivery.
 
 ## Observability
 - `/health` route checks DB connectivity.
@@ -390,8 +484,12 @@ graph TB
 - WebSocket event counters and connection gauges are in `metrics2.ts`.
 
 ## Key implementation references
-- Entrypoint: `packages/happy-server/sources/main.ts`
+- Embedded factory: `packages/happy-server/sources/index.ts` (`createHappyServer`)
+- Standalone entrypoint: `packages/happy-server/sources/main.ts`
 - API server: `packages/happy-server/sources/app/api/api.ts`
+- TOFU handshake middleware: see `authenticate` decorator and Socket.IO `io.use` block in `app/api/api.ts` and `app/api/socket.ts`
+- Pairing routes: `packages/happy-server/sources/app/api/routes/pairRoutes.ts`
+- Push notifications: `packages/happy-server/sources/app/push/pushNotifications.ts`, `packages/happy-server/sources/app/api/routes/pushRoutes.ts`
 - Socket server: `packages/happy-server/sources/app/api/socket.ts`
 - Event routing: `packages/happy-server/sources/app/events/eventRouter.ts`
 - Presence: `packages/happy-server/sources/app/presence`
