@@ -15,7 +15,7 @@
 - ✅ TOFU keypairs, Ed25519-signed claims, X25519 ECDH session keys
 - ✅ 0/1/N machine picker
 - ✅ `refreshConnectTokenIfNeeded()` wired into `syncInit` and AppState foreground handler
-- ⏳ Connect token refresh on 401 (mid-session expiry) — pending
+- ✅ Connect token refresh on 401 — `tunnelFetch()` in `machineAuth.ts` retries with force-refreshed token; all 10 `api*.ts` REST call sites updated
 - ⏳ Entra MSAL — deferred (`pnpm prebuild` stubbed)
 - ⏳ Entra MSAL — deferred (requires `pnpm prebuild`)
 
