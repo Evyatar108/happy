@@ -425,7 +425,7 @@ const SessionItem = React.memo(({ session, selected, isFirst, isLast, isSingle }
                 </View>
 
                 <Text style={styles.sessionSubtitle} numberOfLines={1}>
-                    {session.subtitle}
+                    {session.machineName ? `${session.subtitle} · ${session.machineName}` : session.subtitle}
                 </Text>
 
                 <View style={styles.statusRow}>

@@ -113,4 +113,44 @@ describe('storage.applySessions — renderWindow / activePrefetch field preserva
         expect(after.activePrefetch?.requestId).toBe('req-survives');
         expect(after.activePrefetch?.generation).toBe(3);
     });
+
+    it('keeps composite machine session ids and marks disconnected machine sessions stale', async () => {
+        const storage = await importFreshStorage();
+        storage.getState().applySessions([
+            createSession('machine-a:session-1', {
+                updatedAt: 300,
+                activeAt: 300,
+                metadata: { path: '/a', host: 'host-a', machineId: 'machine-a' },
+            }),
+            createSession('machine-b:session-1', {
+                updatedAt: 400,
+                activeAt: 400,
+                metadata: { path: '/b', host: 'host-b', machineId: 'machine-b' },
+            }),
+        ]);
+
+        expect(Object.keys(storage.getState().sessions).sort()).toEqual([
+            'machine-a:session-1',
+            'machine-b:session-1',
+        ]);
+        expect(storage.getState().sessionListViewData?.[0]).toMatchObject({
+            type: 'active-sessions',
+            sessions: [
+                { id: 'machine-b:session-1', machineId: 'machine-b' },
+                { id: 'machine-a:session-1', machineId: 'machine-a' },
+            ],
+        });
+
+        storage.getState().markMachineDisconnected('machine-a', 999);
+
+        expect(storage.getState().sessions['machine-a:session-1']).toMatchObject({
+            active: false,
+            presence: 999,
+            activeAt: 999,
+        });
+        expect(storage.getState().sessions['machine-b:session-1']).toMatchObject({
+            active: true,
+            presence: 'online',
+        });
+    });
 });

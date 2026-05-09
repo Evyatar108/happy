@@ -5,7 +5,6 @@ import { Server } from "socket.io";
 import { createAdapter } from "@socket.io/redis-streams-adapter";
 import { Redis } from "ioredis";
 import { log } from "@/utils/log";
-import { auth } from "@/app/auth/auth";
 import { getMetricsLabelsFromSocket, redisStreamLagMsGauge, websocketConnectionsGauge, websocketEventsCounter } from "../monitoring/metrics2";
 import { usageHandler } from "./socket/usageHandler";
 import { rpcHandler } from "./socket/rpcHandler";
@@ -15,14 +14,24 @@ import { machineUpdateHandler } from "./socket/machineUpdateHandler";
 import { artifactUpdateHandler } from "./socket/artifactUpdateHandler";
 import { accessKeyHandler } from "./socket/accessKeyHandler";
 import { sessionMessageRangeHandler } from "./socket/sessionMessageRangeHandler";
+import { verifyTunnelClaim, type TofuHandshakeConfig } from "./api";
 
-export function startSocket(app: Fastify) {
+function parseCorsOrigins(): string[] {
+    const raw = process.env.HAPPY_CORS_ORIGINS;
+    if (!raw) {
+        return [];
+    }
+    return raw.split(',').map(o => o.trim()).filter(o => o.length > 0);
+}
+
+export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { localUserId: "local-user" }) {
+    const allowedOrigins = parseCorsOrigins();
     const io = new Server(app.server, {
         cors: {
-            origin: "*",
+            origin: allowedOrigins.length === 0 ? false : allowedOrigins,
             methods: ["GET", "POST", "OPTIONS"],
             credentials: true,
-            allowedHeaders: ["*"]
+            allowedHeaders: ["X-Tunnel-Authorization", "X-Happy-Client", "Content-Type"]
         },
         transports: ['websocket', 'polling'],
         pingTimeout: 45000,
@@ -76,21 +85,23 @@ export function startSocket(app: Fastify) {
     // Initialize event router with Socket.IO server instance
     eventRouter.init(io);
 
-    // Auth runs in middleware so it completes BEFORE the client's `connect`
-    // event fires. Without this, the async verifyToken in the connection
-    // callback creates a window where client events (rpc-register, rpc-call)
-    // arrive before handlers are attached — and get silently dropped.
+    // Handshake metadata is captured in middleware so it is available before
+    // client events can reach the connection handlers.
     io.use(async (socket, next) => {
-        const token = socket.handshake.auth.token as string;
+        const authHeader = (
+            socket.handshake.headers['x-tunnel-authorization'] as string | undefined
+        ) || (socket.handshake.auth.tunnelAuthorization as string | undefined);
+
+        const claim = await verifyTunnelClaim(authHeader, tofuConfig);
+        if (!claim.ok) {
+            next(new Error('Unauthorized'));
+            return;
+        }
+
         const clientType = socket.handshake.auth.clientType as 'session-scoped' | 'user-scoped' | 'machine-scoped' | undefined;
         const sessionId = socket.handshake.auth.sessionId as string | undefined;
         const machineId = socket.handshake.auth.machineId as string | undefined;
-
-        if (!token) {
-            log({ module: 'websocket' }, `No token provided`);
-            next(new Error('Missing authentication token'));
-            return;
-        }
+        const userId = socket.handshake.auth.userId as string | undefined;
 
         if (clientType === 'session-scoped' && !sessionId) {
             log({ module: 'websocket' }, `Session-scoped client missing sessionId`);
@@ -104,17 +115,11 @@ export function startSocket(app: Fastify) {
             return;
         }
 
-        const verified = await auth.verifyToken(token);
-        if (!verified) {
-            log({ module: 'websocket' }, `Invalid token provided`);
-            next(new Error('Invalid authentication token'));
-            return;
-        }
-
-        socket.data.userId = verified.userId;
+        socket.data.userId = userId || tofuConfig.localUserId;
         socket.data.clientType = clientType;
         socket.data.sessionId = sessionId;
         socket.data.machineId = machineId;
+        socket.data.tofuPublicKeys = tofuConfig.tofuPublicKeys;
         socket.data.happyClient = socket.handshake.auth.happyClient as string
             || socket.handshake.headers['x-happy-client'] as string
             || undefined;
@@ -128,7 +133,11 @@ export function startSocket(app: Fastify) {
         const machineId = socket.data.machineId as string | undefined;
         const labels = getMetricsLabelsFromSocket(socket);
 
-        log({ module: 'websocket' }, `Token verified: ${userId}, clientType: ${clientType || 'user-scoped'}, client: ${labels.client}, sessionId: ${sessionId || 'none'}, machineId: ${machineId || 'none'}, socketId: ${socket.id}`);
+        log({ module: 'websocket' }, `TOFU handshake accepted: ${userId}, clientType: ${clientType || 'user-scoped'}, client: ${labels.client}, sessionId: ${sessionId || 'none'}, machineId: ${machineId || 'none'}, socketId: ${socket.id}`);
+
+        if (tofuConfig.tofuPublicKeys) {
+            socket.emit('tofu-pubkeys', tofuConfig.tofuPublicKeys);
+        }
 
         // Store connection based on type
         const metadata = { clientType: clientType || 'user-scoped', sessionId, machineId };

@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import { apiSocket, getHappyClientId } from '@/sync/apiSocket';
-import { AuthCredentials } from '@/auth/tokenStorage';
+import { AuthCredentials, TokenStorage } from '@/auth/tokenStorage';
+import { getMachineAuthHeaders } from '@/auth/machineAuth';
 import { Encryption } from '@/sync/encryption/encryption';
 import { decodeBase64, encodeBase64 } from '@/encryption/base64';
 import { storage } from './storage';
@@ -30,7 +31,6 @@ import {
     trackPaywallRestored,
 } from '@/track';
 import type { MessageSentSource } from '@/track';
-import { parseToken } from '@/utils/parseToken';
 import { RevenueCat, LogLevel, PaywallResult } from './revenueCat';
 import { getServerUrl } from './serverConfig';
 import { config } from '@/config';
@@ -57,6 +57,7 @@ import type { DecryptedMessage } from './storageTypes';
 import { getSessionMode } from '@/utils/sessionUtils';
 import { Modal } from '@/modal';
 import { t } from '@/text';
+import { compositeSessionId, parseCompositeSessionId } from './machineSessionId';
 
 type V3GetSessionMessagesResponse = {
     messages: ApiMessage[];
@@ -97,6 +98,9 @@ class Sync {
     serverID!: string;
     anonID!: string;
     private credentials!: AuthCredentials;
+    private credentialsList: AuthCredentials[] = [];
+    private credentialsByMachineId = new Map<string, AuthCredentials>();
+    private encryptionsByMachineId = new Map<string, Encryption>();
     public encryptionCache = new EncryptionCache();
     private sessionsSync: InvalidateSync;
     private messagesSync = new Map<string, InvalidateSync>();
@@ -181,7 +185,7 @@ class Sync {
         // switch use the right key set.
         const prefetchEncryptionAdapter: PrefetchManagerEncryptionAdapter = {
             decryptMessages: async (sessionId, messages) => {
-                const encryption = this.encryption?.getSessionEncryption(sessionId);
+                const encryption = this.getEncryptionForSession(sessionId)?.getSessionEncryption(sessionId);
                 if (!encryption) {
                     throw new Error(`Session encryption not ready for ${sessionId}`);
                 }
@@ -221,6 +225,7 @@ class Sync {
                     this.failPendingOutboxMessages('Message failed to send in background after 30s. Please retry.');
                 }
                 log.log('📱 App became active');
+                apiSocket.connect();
                 this.purchasesSync.invalidate();
                 this.profileSync.invalidate();
                 this.machinesSync.invalidate();
@@ -239,11 +244,50 @@ class Sync {
         });
     }
 
+    private configureMachines(credentialsList: AuthCredentials[], encryptionsByMachineId: Map<string, Encryption>) {
+        this.credentialsList = credentialsList;
+        this.credentialsByMachineId = new Map(credentialsList.map(credentials => [credentials.machineId, credentials]));
+        this.encryptionsByMachineId = encryptionsByMachineId;
+        this.credentials = credentialsList[0];
+        const primaryEncryption = this.credentials ? encryptionsByMachineId.get(this.credentials.machineId) : null;
+        if (!this.credentials || !primaryEncryption) {
+            throw new Error('No machine credentials configured');
+        }
+        this.encryption = primaryEncryption;
+        this.anonID = primaryEncryption.anonID;
+        this.serverID = this.credentials.machineId;
+    }
+
+    private getCredentialsForMachine(machineId: string): AuthCredentials | null {
+        return this.credentialsByMachineId.get(machineId) ?? null;
+    }
+
+    private getEncryptionForMachine(machineId: string): Encryption | null {
+        return this.encryptionsByMachineId.get(machineId) ?? (this.credentials?.machineId === machineId ? this.encryption : null) ?? null;
+    }
+
+    private resolveSessionRef(sessionId: string) {
+        return parseCompositeSessionId(sessionId, this.credentials?.machineId ?? '');
+    }
+
+    private getEncryptionForSession(sessionId: string): Encryption | null {
+        return this.getEncryptionForMachine(this.resolveSessionRef(sessionId).machineId) ?? this.encryption ?? null;
+    }
+
+    private toCompositeSession(machineId: string, session: Omit<Session, 'presence' | 'permissionModeUserChosen'> & {
+        presence?: "online" | number;
+        permissionModeUserChosen?: boolean;
+    }) {
+        const id = compositeSessionId(machineId, session.id);
+        return {
+            ...session,
+            id,
+            metadata: session.metadata ? { ...session.metadata, machineId } : session.metadata,
+        };
+    }
+
     async create(credentials: AuthCredentials, encryption: Encryption) {
-        this.credentials = credentials;
-        this.encryption = encryption;
-        this.anonID = encryption.anonID;
-        this.serverID = parseToken(credentials.token);
+        this.configureMachines([credentials], new Map([[credentials.machineId, encryption]]));
         await this.#init();
 
         // Await settings sync to have fresh settings
@@ -259,10 +303,20 @@ class Sync {
     async restore(credentials: AuthCredentials, encryption: Encryption) {
         // NOTE: No awaiting anything here, we're restoring from a disk (ie app restarted)
         // Purchases sync is invalidated in #init() and will complete asynchronously
-        this.credentials = credentials;
-        this.encryption = encryption;
-        this.anonID = encryption.anonID;
-        this.serverID = parseToken(credentials.token);
+        this.configureMachines([credentials], new Map([[credentials.machineId, encryption]]));
+        await this.#init();
+    }
+
+    async createMany(credentialsList: AuthCredentials[], encryptionsByMachineId: Map<string, Encryption>) {
+        this.configureMachines(credentialsList, encryptionsByMachineId);
+        await this.#init();
+        await this.settingsSync.awaitQueue();
+        await this.profileSync.awaitQueue();
+        await this.purchasesSync.awaitQueue();
+    }
+
+    async restoreMany(credentialsList: AuthCredentials[], encryptionsByMachineId: Map<string, Encryption>) {
+        this.configureMachines(credentialsList, encryptionsByMachineId);
         await this.#init();
     }
 
@@ -482,7 +536,7 @@ class Sync {
                     return;
                 }
 
-                const encryption = this.encryption.getSessionEncryption(sessionId);
+                const encryption = this.getEncryptionForSession(sessionId)?.getSessionEncryption(sessionId);
                 if (!encryption) {
                     throw new Error(`Session encryption not ready for ${sessionId}`);
                 }
@@ -501,7 +555,8 @@ class Sync {
                     return;
                 }
 
-                const response = await apiSocket.request(
+                const response = await apiSocket.requestForSession(
+                    sessionId,
                     `/v3/sessions/${sessionId}/messages?after_seq=${pagination.afterSeq}&limit=${OLDER_MESSAGES_PAGE_SIZE}`
                 );
                 if (!response.ok) {
@@ -752,7 +807,7 @@ class Sync {
         const isWhenIdle = switchMode === 'when-idle';
 
         // Get encryption
-        const encryption = this.encryption.getSessionEncryption(sessionId);
+        const encryption = this.getEncryptionForSession(sessionId)?.getSessionEncryption(sessionId);
         if (!encryption) { // Should never happen
             console.error(`Session ${sessionId} not found`);
             if (isWhenIdle) {
@@ -834,7 +889,7 @@ class Sync {
             tagDeferredSwitch: boolean;
         }
     ) {
-        const encryption = this.encryption.getSessionEncryption(sessionId);
+        const encryption = this.getEncryptionForSession(sessionId)?.getSessionEncryption(sessionId);
         if (!encryption) {
             throw new Error(`Session ${sessionId} not found`);
         }
@@ -1081,87 +1136,95 @@ class Sync {
     //
 
     private fetchSessions = async () => {
-        if (!this.credentials) return;
+        if (this.credentialsList.length === 0) return;
 
-        const API_ENDPOINT = getServerUrl();
-        const response = await fetch(`${API_ENDPOINT}/v1/sessions`, {
-            headers: {
-                'Authorization': `Bearer ${this.credentials.token}`,
-                'Content-Type': 'application/json',
-                'X-Happy-Client': getHappyClientId(),
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error(`Failed to fetch sessions: ${response.status}`);
-        }
-
-        const data = await response.json();
-        const sessions = data.sessions as Array<{
-            id: string;
-            tag: string;
-            seq: number;
-            metadata: string;
-            metadataVersion: number;
-            agentState: string | null;
-            agentStateVersion: number;
-            dataEncryptionKey: string | null;
-            active: boolean;
-            activeAt: number;
-            createdAt: number;
-            updatedAt: number;
-            lastMessage: ApiMessage | null;
-        }>;
-
-        // Initialize all session encryptions first
-        const sessionKeys = new Map<string, Uint8Array | null>();
-        for (const session of sessions) {
-            if (session.dataEncryptionKey) {
-                let decrypted = await this.encryption.decryptEncryptionKey(session.dataEncryptionKey);
-                if (!decrypted) {
-                    console.error(`Failed to decrypt data encryption key for session ${session.id}`);
-                    continue;
-                }
-                sessionKeys.set(session.id, decrypted);
-            } else {
-                sessionKeys.set(session.id, null);
-            }
-        }
-        await this.encryption.initializeSessions(sessionKeys);
-
-        // Decrypt sessions
-        let decryptedSessions: (Omit<Session, 'presence' | 'permissionModeUserChosen'> & {
+        const decryptedSessions: (Omit<Session, 'presence' | 'permissionModeUserChosen'> & {
             presence?: "online" | number;
             permissionModeUserChosen?: boolean;
         })[] = [];
-        for (const session of sessions) {
-            // Get session encryption (should always exist after initialization)
-            const sessionEncryption = this.encryption.getSessionEncryption(session.id);
-            if (!sessionEncryption) {
-                console.error(`Session encryption not found for ${session.id} - this should never happen`);
-                continue;
+
+        await Promise.all(this.credentialsList.map(async (credentials) => {
+            const encryption = this.getEncryptionForMachine(credentials.machineId);
+            if (!encryption) {
+                return;
+            }
+            let response: Response;
+            try {
+                response = await fetch(`${credentials.tunnelUrl}/v1/sessions`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Happy-Client': getHappyClientId(),
+                        ...getMachineAuthHeaders(credentials),
+                    }
+                });
+            } catch (error) {
+                storage.getState().markMachineDisconnected(credentials.machineId, Date.now());
+                console.error(`Failed to fetch sessions for ${credentials.machineId}:`, error);
+                return;
             }
 
-            // Decrypt metadata using session-specific encryption
-            let metadata = await sessionEncryption.decryptMetadata(session.metadataVersion, session.metadata);
+            if (!response.ok) {
+                storage.getState().markMachineDisconnected(credentials.machineId, Date.now());
+                console.error(`Failed to fetch sessions for ${credentials.machineId}: ${response.status}`);
+                return;
+            }
 
-            // Decrypt agent state using session-specific encryption
-            let agentState = await sessionEncryption.decryptAgentState(session.agentStateVersion, session.agentState);
+            const data = await response.json();
+            const sessions = data.sessions as Array<{
+                id: string;
+                tag: string;
+                seq: number;
+                metadata: string;
+                metadataVersion: number;
+                agentState: string | null;
+                agentStateVersion: number;
+                dataEncryptionKey: string | null;
+                active: boolean;
+                activeAt: number;
+                createdAt: number;
+                updatedAt: number;
+                lastMessage: ApiMessage | null;
+            }>;
 
-            // Put it all together
-            const processedSession = {
-                ...session,
-                thinking: false,
-                thinkingAt: 0,
-                metadata,
-                agentState
-            };
-            decryptedSessions.push(processedSession);
-        }
+            const sessionKeys = new Map<string, Uint8Array | null>();
+            for (const session of sessions) {
+                const compositeId = compositeSessionId(credentials.machineId, session.id);
+                if (session.dataEncryptionKey) {
+                    const decrypted = await encryption.decryptEncryptionKey(session.dataEncryptionKey);
+                    if (!decrypted) {
+                        console.error(`Failed to decrypt data encryption key for session ${compositeId}`);
+                        continue;
+                    }
+                    sessionKeys.set(compositeId, decrypted);
+                } else {
+                    sessionKeys.set(compositeId, null);
+                }
+            }
+            await encryption.initializeSessions(sessionKeys);
 
-        // Apply to storage
+            for (const session of sessions) {
+                const compositeId = compositeSessionId(credentials.machineId, session.id);
+                const sessionEncryption = encryption.getSessionEncryption(compositeId);
+                if (!sessionEncryption) {
+                    console.error(`Session encryption not found for ${compositeId} - this should never happen`);
+                    continue;
+                }
+
+                const metadata = await sessionEncryption.decryptMetadata(session.metadataVersion, session.metadata);
+                const agentState = await sessionEncryption.decryptAgentState(session.agentStateVersion, session.agentState);
+
+                decryptedSessions.push(this.toCompositeSession(credentials.machineId, {
+                    ...session,
+                    thinking: false,
+                    thinkingAt: 0,
+                    metadata,
+                    agentState
+                }));
+            }
+        }));
+
         this.applySessions(decryptedSessions);
-        log.log(`📥 fetchSessions completed - processed ${decryptedSessions.length} sessions`);
+        log.log(`📥 fetchSessions completed - processed ${decryptedSessions.length} sessions across ${this.credentialsList.length} machines`);
 
     }
 
@@ -1458,111 +1521,112 @@ class Sync {
     }
 
     private fetchMachines = async () => {
-        if (!this.credentials) return;
+        if (this.credentialsList.length === 0) return;
 
         console.log('📊 Sync: Fetching machines...');
-        const API_ENDPOINT = getServerUrl();
-        const response = await fetch(`${API_ENDPOINT}/v1/machines`, {
-            headers: {
-                'Authorization': `Bearer ${this.credentials.token}`,
-                'Content-Type': 'application/json',
-                'X-Happy-Client': getHappyClientId(),
-            }
-        });
-
-        if (!response.ok) {
-            console.error(`Failed to fetch machines: ${response.status}`);
-            return;
-        }
-
-        const data = await response.json();
-        console.log(`📊 Sync: Fetched ${Array.isArray(data) ? data.length : 0} machines from server`);
-        const machines = data as Array<{
-            id: string;
-            metadata: string;
-            metadataVersion: number;
-            daemonState?: string | null;
-            daemonStateVersion?: number;
-            dataEncryptionKey?: string | null; // Add support for per-machine encryption keys
-            seq: number;
-            active: boolean;
-            activeAt: number;  // Changed from lastActiveAt
-            createdAt: number;
-            updatedAt: number;
-        }>;
-
-        // First, collect and decrypt encryption keys for all machines
-        const machineKeysMap = new Map<string, Uint8Array | null>();
-        for (const machine of machines) {
-            if (machine.dataEncryptionKey) {
-                const decryptedKey = await this.encryption.decryptEncryptionKey(machine.dataEncryptionKey);
-                if (!decryptedKey) {
-                    console.error(`Failed to decrypt data encryption key for machine ${machine.id}`);
-                    continue;
-                }
-                machineKeysMap.set(machine.id, decryptedKey);
-                this.machineDataKeys.set(machine.id, decryptedKey);
-            } else {
-                machineKeysMap.set(machine.id, null);
-            }
-        }
-
-        // Initialize machine encryptions
-        await this.encryption.initializeMachines(machineKeysMap);
-
-        // Process all machines first, then update state once
         const decryptedMachines: Machine[] = [];
 
-        for (const machine of machines) {
-            // Get machine-specific encryption (might exist from previous initialization)
-            const machineEncryption = this.encryption.getMachineEncryption(machine.id);
-            if (!machineEncryption) {
-                console.error(`Machine encryption not found for ${machine.id} - this should never happen`);
-                continue;
+        await Promise.all(this.credentialsList.map(async (credentials) => {
+            const encryption = this.getEncryptionForMachine(credentials.machineId);
+            if (!encryption) {
+                return;
             }
-
+            let response: Response;
             try {
-
-                // Use machine-specific encryption (which handles fallback internally)
-                const metadata = machine.metadata
-                    ? await machineEncryption.decryptMetadata(machine.metadataVersion, machine.metadata)
-                    : null;
-
-                const daemonState = machine.daemonState
-                    ? await machineEncryption.decryptDaemonState(machine.daemonStateVersion || 0, machine.daemonState)
-                    : null;
-
-                decryptedMachines.push({
-                    id: machine.id,
-                    seq: machine.seq,
-                    createdAt: machine.createdAt,
-                    updatedAt: machine.updatedAt,
-                    active: machine.active,
-                    activeAt: machine.activeAt,
-                    metadata,
-                    metadataVersion: machine.metadataVersion,
-                    daemonState,
-                    daemonStateVersion: machine.daemonStateVersion || 0
+                response = await fetch(`${credentials.tunnelUrl}/v1/machines`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Happy-Client': getHappyClientId(),
+                        ...getMachineAuthHeaders(credentials),
+                    }
                 });
             } catch (error) {
-                console.error(`Failed to decrypt machine ${machine.id}:`, error);
-                // Still add the machine with null metadata
-                decryptedMachines.push({
-                    id: machine.id,
-                    seq: machine.seq,
-                    createdAt: machine.createdAt,
-                    updatedAt: machine.updatedAt,
-                    active: machine.active,
-                    activeAt: machine.activeAt,
-                    metadata: null,
-                    metadataVersion: machine.metadataVersion,
-                    daemonState: null,
-                    daemonStateVersion: 0
-                });
+                console.error(`Failed to fetch machines from ${credentials.machineId}:`, error);
+                return;
             }
-        }
 
-        // Replace entire machine state with fetched machines
+            if (!response.ok) {
+                console.error(`Failed to fetch machines from ${credentials.machineId}: ${response.status}`);
+                return;
+            }
+
+            const data = await response.json();
+            const machines = data as Array<{
+                id: string;
+                metadata: string;
+                metadataVersion: number;
+                daemonState?: string | null;
+                daemonStateVersion?: number;
+                dataEncryptionKey?: string | null;
+                seq: number;
+                active: boolean;
+                activeAt: number;
+                createdAt: number;
+                updatedAt: number;
+            }>;
+
+            const machineKeysMap = new Map<string, Uint8Array | null>();
+            for (const machine of machines) {
+                if (machine.dataEncryptionKey) {
+                    const decryptedKey = await encryption.decryptEncryptionKey(machine.dataEncryptionKey);
+                    if (!decryptedKey) {
+                        console.error(`Failed to decrypt data encryption key for machine ${machine.id}`);
+                        continue;
+                    }
+                    machineKeysMap.set(machine.id, decryptedKey);
+                    this.machineDataKeys.set(machine.id, decryptedKey);
+                } else {
+                    machineKeysMap.set(machine.id, null);
+                }
+            }
+
+            await encryption.initializeMachines(machineKeysMap);
+
+            for (const machine of machines) {
+                const machineEncryption = encryption.getMachineEncryption(machine.id);
+                if (!machineEncryption) {
+                    console.error(`Machine encryption not found for ${machine.id} - this should never happen`);
+                    continue;
+                }
+
+                try {
+                    const metadata = machine.metadata
+                        ? await machineEncryption.decryptMetadata(machine.metadataVersion, machine.metadata)
+                        : null;
+                    const daemonState = machine.daemonState
+                        ? await machineEncryption.decryptDaemonState(machine.daemonStateVersion || 0, machine.daemonState)
+                        : null;
+
+                    decryptedMachines.push({
+                        id: machine.id,
+                        seq: machine.seq,
+                        createdAt: machine.createdAt,
+                        updatedAt: machine.updatedAt,
+                        active: machine.active,
+                        activeAt: machine.activeAt,
+                        metadata,
+                        metadataVersion: machine.metadataVersion,
+                        daemonState,
+                        daemonStateVersion: machine.daemonStateVersion || 0
+                    });
+                } catch (error) {
+                    console.error(`Failed to decrypt machine ${machine.id}:`, error);
+                    decryptedMachines.push({
+                        id: machine.id,
+                        seq: machine.seq,
+                        createdAt: machine.createdAt,
+                        updatedAt: machine.updatedAt,
+                        active: machine.active,
+                        activeAt: machine.activeAt,
+                        metadata: null,
+                        metadataVersion: machine.metadataVersion,
+                        daemonState: null,
+                        daemonStateVersion: 0
+                    });
+                }
+            }
+        }));
+
         storage.getState().applyMachines(decryptedMachines, true);
         log.log(`🖥️ fetchMachines completed - processed ${decryptedMachines.length} machines`);
     }
@@ -1674,7 +1738,7 @@ class Sync {
     private syncSettings = async () => {
         if (!this.credentials) return;
 
-        const API_ENDPOINT = getServerUrl();
+        const API_ENDPOINT = this.credentials.tunnelUrl;
         const maxRetries = 3;
         let retryCount = 0;
 
@@ -1693,9 +1757,9 @@ class Sync {
                         expectedVersion: version ?? 0
                     }),
                     headers: {
-                        'Authorization': `Bearer ${this.credentials.token}`,
                         'Content-Type': 'application/json',
                         'X-Happy-Client': getHappyClientId(),
+                        ...getMachineAuthHeaders(this.credentials),
                     }
                 });
                 const data = await response.json() as {
@@ -1758,9 +1822,9 @@ class Sync {
         // Run request
         const response = await fetch(`${API_ENDPOINT}/v1/account/settings`, {
             headers: {
-                'Authorization': `Bearer ${this.credentials.token}`,
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(this.credentials),
             }
         });
         if (!response.ok) {
@@ -1801,12 +1865,12 @@ class Sync {
     private fetchProfile = async () => {
         if (!this.credentials) return;
 
-        const API_ENDPOINT = getServerUrl();
+        const API_ENDPOINT = this.credentials.tunnelUrl;
         const response = await fetch(`${API_ENDPOINT}/v1/account/profile`, {
             headers: {
-                'Authorization': `Bearer ${this.credentials.token}`,
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(this.credentials),
             }
         });
 
@@ -1955,7 +2019,7 @@ class Sync {
         const controller = new AbortController();
         this.sendAbortControllers.set(sessionId, controller);
         try {
-            const response = await apiSocket.request(`/v3/sessions/${sessionId}/messages`, {
+            const response = await apiSocket.requestForSession(sessionId, `/v3/sessions/${sessionId}/messages`, {
                 method: 'POST',
                 body: JSON.stringify({
                     messages: batch.map((message) => ({
@@ -2007,7 +2071,7 @@ class Sync {
         log.log(`💬 fetchMessages starting for session ${sessionId} - acquiring lock`);
         const lock = this.getSessionMessageLock(sessionId);
         await lock.inLock(async () => {
-            const encryption = this.encryption.getSessionEncryption(sessionId);
+            const encryption = this.getEncryptionForSession(sessionId)?.getSessionEncryption(sessionId);
             if (!encryption) {
                 log.log(`💬 fetchMessages: Session encryption not ready for ${sessionId}, will retry`);
                 throw new Error(`Session encryption not ready for ${sessionId}`);
@@ -2036,7 +2100,7 @@ class Sync {
             let totalNormalized = 0;
 
             while (hasMore) {
-                const response = await apiSocket.request(`/v3/sessions/${sessionId}/messages?after_seq=${afterSeq}&limit=100`);
+                const response = await apiSocket.requestForSession(sessionId, `/v3/sessions/${sessionId}/messages?after_seq=${afterSeq}&limit=100`);
                 if (!response.ok) {
                     throw new Error(`Failed to fetch messages for ${sessionId}: ${response.status}`);
                 }
@@ -2096,9 +2160,10 @@ class Sync {
     private registerPushToken = async () => {
         log.log('registerPushToken');
         try {
-            const result = await syncCurrentPushToken(this.credentials);
+            const result = await syncCurrentPushToken(this.credentialsList);
             log.log('Push token sync result: ' + JSON.stringify({
                 registered: result.registered,
+                registeredMachines: result.registeredMachines,
                 hasToken: !!result.token,
                 permission: result.permission.status,
             }));
@@ -2112,11 +2177,14 @@ class Sync {
 
     private subscribeToUpdates = () => {
         // Subscribe to message updates
-        apiSocket.onMessage('update', this.handleUpdate.bind(this));
-        apiSocket.onMessage('ephemeral', this.handleEphemeralUpdate.bind(this));
+        apiSocket.onMessage('update', (update, machineId) => this.handleUpdate(update, false, machineId));
+        apiSocket.onMessage('ephemeral', (update, machineId) => this.handleEphemeralUpdate(update, machineId));
+        apiSocket.onMachineDisconnected((machineId, lastSeenAt) => {
+            storage.getState().markMachineDisconnected(machineId, lastSeenAt);
+        });
 
         // Subscribe to connection state changes
-        apiSocket.onReconnected(() => {
+        apiSocket.onReconnected((machineId) => {
             log.log('🔌 Socket reconnected');
             this.sessionsSync.invalidate();
             this.machinesSync.invalidate();
@@ -2145,7 +2213,7 @@ class Sync {
         });
     }
 
-    private handleUpdate = async (update: unknown, isReplay = false) => {
+    private handleUpdate = async (update: unknown, isReplay = false, sourceMachineId?: string) => {
         const validatedUpdate = ApiUpdateContainerSchema.safeParse(update);
         if (!validatedUpdate.success) {
             console.log('❌ Sync: Invalid update received:', validatedUpdate.error);
@@ -2158,8 +2226,8 @@ class Sync {
         if (updateData.body.t === 'new-message') {
 
             // Get encryption
-            const sid = updateData.body.sid;
-            const encryption = this.encryption.getSessionEncryption(sid);
+            const sid = sourceMachineId ? compositeSessionId(sourceMachineId, updateData.body.sid) : updateData.body.sid;
+            const encryption = this.getEncryptionForSession(sid)?.getSessionEncryption(sid);
             if (!encryption) {
                 if (isReplay) {
                     // We just awaited sessionsSync and encryption is still missing.
@@ -2180,7 +2248,7 @@ class Sync {
                         const pending = this.pendingNewMessages.get(sid) ?? [];
                         this.pendingNewMessages.delete(sid);
                         for (const evt of pending) {
-                            void this.handleUpdate(evt, true);
+                            void this.handleUpdate(evt, true, sourceMachineId);
                         }
                     });
                 }
@@ -2229,7 +2297,7 @@ class Sync {
                     }
 
                     // Update session
-                    const session = storage.getState().sessions[updateData.body.sid];
+                    const session = storage.getState().sessions[sid];
                     if (session) {
                         // NOTE: do not write `updateData.seq` into `session.seq`. `updateData.seq`
                         // is the account-global update sequence; `session.seq` is session-local
@@ -2251,39 +2319,39 @@ class Sync {
                     }
 
                     // Fast-path only on consecutive seq values, otherwise fetch from server.
-                    const currentLastSeq = this.sessionLastSeq.get(updateData.body.sid);
+                    const currentLastSeq = this.sessionLastSeq.get(sid);
                     const incomingSeq = updateData.body.message.seq;
                     if (lastMessage && currentLastSeq !== undefined && incomingSeq === currentLastSeq + 1) {
-                        this.enqueueMessages(updateData.body.sid, [lastMessage]);
-                        this.sessionLastSeq.set(updateData.body.sid, incomingSeq);
+                        this.enqueueMessages(sid, [lastMessage]);
+                        this.sessionLastSeq.set(sid, incomingSeq);
                         let hasMutableTool = false;
                         if (lastMessage.role === 'agent' && lastMessage.content[0] && lastMessage.content[0].type === 'tool-result') {
-                            hasMutableTool = storage.getState().isMutableToolCall(updateData.body.sid, lastMessage.content[0].tool_use_id);
+                            hasMutableTool = storage.getState().isMutableToolCall(sid, lastMessage.content[0].tool_use_id);
                         }
                         if (hasMutableTool) {
-                            gitStatusSync.invalidate(updateData.body.sid);
+                            gitStatusSync.invalidate(sid);
                         }
                     } else {
-                        this.getMessagesSync(updateData.body.sid).invalidate();
+                        this.getMessagesSync(sid).invalidate();
                     }
                 }
             }
 
             // Ping session
-            this.onSessionVisible(updateData.body.sid);
+            this.onSessionVisible(sid);
 
         } else if (updateData.body.t === 'new-session') {
             log.log('🆕 New session update received');
             this.sessionsSync.invalidate();
         } else if (updateData.body.t === 'delete-session') {
             log.log('🗑️ Delete session update received');
-            const sessionId = updateData.body.sid;
+            const sessionId = sourceMachineId ? compositeSessionId(sourceMachineId, updateData.body.sid) : updateData.body.sid;
 
             // Remove session from storage
             storage.getState().deleteSession(sessionId);
 
             // Remove encryption keys from memory
-            this.encryption.removeSessionEncryption(sessionId);
+            this.getEncryptionForSession(sessionId)?.removeSessionEncryption(sessionId);
 
             // Remove from project manager
             projectManager.removeSession(sessionId);
@@ -2311,12 +2379,13 @@ class Sync {
 
             log.log(`🗑️ Session ${sessionId} deleted from local storage`);
         } else if (updateData.body.t === 'update-session') {
-            const session = storage.getState().sessions[updateData.body.id];
+            const sessionId = sourceMachineId ? compositeSessionId(sourceMachineId, updateData.body.id) : updateData.body.id;
+            const session = storage.getState().sessions[sessionId];
             if (session) {
                 // Get session encryption
-                const sessionEncryption = this.encryption.getSessionEncryption(updateData.body.id);
+                const sessionEncryption = this.getEncryptionForSession(sessionId)?.getSessionEncryption(sessionId);
                 if (!sessionEncryption) {
-                    console.error(`Session encryption not found for ${updateData.body.id} - this should never happen`);
+                    console.error(`Session encryption not found for ${sessionId} - this should never happen`);
                     return;
                 }
 
@@ -2344,14 +2413,14 @@ class Sync {
 
                 // Invalidate git status when agent state changes (files may have been modified)
                 if (updateData.body.agentState) {
-                    gitStatusSync.invalidate(updateData.body.id);
+                    gitStatusSync.invalidate(sessionId);
 
                     // Check for new permission requests and notify voice assistant
                     if (agentState?.requests && Object.keys(agentState.requests).length > 0) {
                         const requestIds = Object.keys(agentState.requests);
                         const firstRequest = agentState.requests[requestIds[0]];
                         const toolName = firstRequest?.tool;
-                        voiceHooks.onPermissionRequested(updateData.body.id, requestIds[0], toolName, firstRequest?.arguments);
+                        voiceHooks.onPermissionRequested(sessionId, requestIds[0], toolName, firstRequest?.arguments);
                     }
 
                     // Re-fetch messages when control returns to mobile (local -> remote mode switch)
@@ -2359,8 +2428,8 @@ class Sync {
                     const wasControlledByUser = session.agentState?.controlledByUser;
                     const isNowControlledByUser = agentState?.controlledByUser;
                     if (!wasControlledByUser && isNowControlledByUser) {
-                        log.log(`🔄 Control returned to mobile for session ${updateData.body.id}, re-fetching messages`);
-                        this.onSessionVisible(updateData.body.id);
+                        log.log(`🔄 Control returned to mobile for session ${sessionId}, re-fetching messages`);
+                        this.onSessionVisible(sessionId);
                     }
                 }
             }
@@ -2428,7 +2497,8 @@ class Sync {
             };
 
             // Get machine-specific encryption (might not exist if machine wasn't initialized)
-            const machineEncryption = this.encryption.getMachineEncryption(machineId);
+            const machineEncryption = this.getEncryptionForMachine(machineId)?.getMachineEncryption(machineId)
+                ?? (sourceMachineId ? this.getEncryptionForMachine(sourceMachineId)?.getMachineEncryption(machineId) : null);
             if (!machineEncryption) {
                 console.error(`Machine encryption not found for ${machineId} - cannot decrypt updates`);
                 return;
@@ -2467,7 +2537,7 @@ class Sync {
                 log.log(`Machine ${machineId} not in storage, skipping delete`);
             } else {
                 storage.getState().deleteMachine(machineId);
-                this.encryption.removeMachineEncryption(machineId);
+                this.getEncryptionForMachine(machineId)?.removeMachineEncryption(machineId);
                 this.machineDataKeys.delete(machineId);
             }
         } else if (updateData.body.t === 'relationship-updated') {
@@ -2659,7 +2729,7 @@ class Sync {
         }
     }
 
-    private handleEphemeralUpdate = (update: unknown) => {
+    private handleEphemeralUpdate = (update: unknown, sourceMachineId?: string) => {
         const validatedUpdate = ApiEphemeralUpdateSchema.safeParse(update);
         if (!validatedUpdate.success) {
             console.log('Invalid ephemeral update received:', validatedUpdate.error);
@@ -2679,7 +2749,8 @@ class Sync {
         // Handle machine activity updates
         if (updateData.type === 'machine-activity') {
             // Update machine's active status and lastActiveAt
-            const machine = storage.getState().machines[updateData.id];
+            const machineId = updateData.id || sourceMachineId;
+            const machine = machineId ? storage.getState().machines[machineId] : null;
             if (machine) {
                 const updatedMachine: Machine = {
                     ...machine,
@@ -2768,20 +2839,30 @@ export async function syncRestore(credentials: AuthCredentials) {
 }
 
 async function syncInit(credentials: AuthCredentials, restore: boolean) {
+    const storedCredentials = await TokenStorage.getCredentialsList();
+    const credentialsList = storedCredentials.length > 0 ? storedCredentials : [credentials];
+    const encryptionsByMachineId = new Map<string, Encryption>();
+    const socketConfigs: Array<{ config: { endpoint: string; credentials: AuthCredentials }; encryption: Encryption }> = [];
 
-    // Initialize sync engine
-    const secretKey = decodeBase64(credentials.secret, 'base64url');
-    if (secretKey.length !== 32) {
-        throw new Error(`Invalid secret key length: ${secretKey.length}, expected 32`);
+    for (const machineCredentials of credentialsList) {
+        const sessionKey = decodeBase64(machineCredentials.sessionKey, 'base64url');
+        if (sessionKey.length !== 32) {
+            throw new Error(`Invalid session key length for ${machineCredentials.machineId}: ${sessionKey.length}, expected 32`);
+        }
+        const encryption = await Encryption.create(sessionKey);
+        encryptionsByMachineId.set(machineCredentials.machineId, encryption);
+        socketConfigs.push({
+            config: { endpoint: machineCredentials.tunnelUrl, credentials: machineCredentials },
+            encryption,
+        });
     }
-    const encryption = await Encryption.create(secretKey);
 
     // Initialize tracking
-    initializeTracking(encryption.anonID);
+    const primaryEncryption = encryptionsByMachineId.get(credentialsList[0].machineId)!;
+    initializeTracking(primaryEncryption.anonID);
 
     // Initialize socket connection
-    const API_ENDPOINT = getServerUrl();
-    apiSocket.initialize({ endpoint: API_ENDPOINT, token: credentials.token }, encryption);
+    apiSocket.initializeMany(socketConfigs);
 
     // Wire socket status to storage
     apiSocket.onStatusChange((status) => {
@@ -2790,8 +2871,8 @@ async function syncInit(credentials: AuthCredentials, restore: boolean) {
 
     // Initialize sessions engine
     if (restore) {
-        await sync.restore(credentials, encryption);
+        await sync.restoreMany(credentialsList, encryptionsByMachineId);
     } else {
-        await sync.create(credentials, encryption);
+        await sync.createMany(credentialsList, encryptionsByMachineId);
     }
 }

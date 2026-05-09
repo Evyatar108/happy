@@ -1,7 +1,7 @@
 import { AuthCredentials } from '@/auth/tokenStorage';
+import { getMachineAuthHeaders } from '@/auth/machineAuth';
 import { backoff } from '@/utils/time';
 import { z } from 'zod';
-import { getServerUrl } from './serverConfig';
 import { getHappyClientId } from './apiSocket';
 
 const PushTokenSchema = z.object({
@@ -18,16 +18,19 @@ const PushTokenListResponseSchema = z.object({
 export type PushToken = z.infer<typeof PushTokenSchema>;
 
 export async function registerPushToken(credentials: AuthCredentials, token: string): Promise<void> {
-    const API_ENDPOINT = getServerUrl();
+    const API_ENDPOINT = credentials.tunnelUrl;
     await backoff(async () => {
-        const response = await fetch(`${API_ENDPOINT}/v1/push-tokens`, {
+        const response = await fetch(`${API_ENDPOINT}/push/register`, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${credentials.token}`,
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(credentials),
             },
-            body: JSON.stringify({ token })
+            body: JSON.stringify({
+                expoPushToken: token,
+                deviceId: getHappyClientId(),
+            })
         });
 
         if (!response.ok) {
@@ -42,14 +45,14 @@ export async function registerPushToken(credentials: AuthCredentials, token: str
 }
 
 export async function fetchPushTokens(credentials: AuthCredentials): Promise<PushToken[]> {
-    const API_ENDPOINT = getServerUrl();
+    const API_ENDPOINT = credentials.tunnelUrl;
     return backoff(async () => {
         const response = await fetch(`${API_ENDPOINT}/v1/push-tokens`, {
             method: 'GET',
             headers: {
-                'Authorization': `Bearer ${credentials.token}`,
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(credentials),
             }
         });
 
@@ -63,14 +66,14 @@ export async function fetchPushTokens(credentials: AuthCredentials): Promise<Pus
 }
 
 export async function unregisterPushToken(credentials: AuthCredentials, token: string): Promise<void> {
-    const API_ENDPOINT = getServerUrl();
+    const API_ENDPOINT = credentials.tunnelUrl;
     await backoff(async () => {
         const response = await fetch(`${API_ENDPOINT}/v1/push-tokens/${encodeURIComponent(token)}`, {
             method: 'DELETE',
             headers: {
-                'Authorization': `Bearer ${credentials.token}`,
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(credentials),
             }
         });
 

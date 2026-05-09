@@ -4,10 +4,41 @@
   "repository": "https://github.com/slopus/happy-server.git",
   "author": "Steve Korshakov <steve@korshakov.com>",
   "license": "MIT",
-  "private": true,
+  "private": false,
   "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.cts",
+  "exports": {
+    ".": {
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      },
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      }
+    },
+    "./pglite": {
+      "require": {
+        "types": "./dist/storage/pgliteLoader.d.cts",
+        "default": "./dist/storage/pgliteLoader.cjs"
+      },
+      "import": {
+        "types": "./dist/storage/pgliteLoader.d.mts",
+        "default": "./dist/storage/pgliteLoader.mjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "prisma",
+    "package.json"
+  ],
   "scripts": {
-    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "build": "shx rm -rf dist && tsc --noEmit && pkgroll --srcdist sources:dist --input dist/index.mjs --input dist/storage/pgliteLoader.mjs",
     "build:standalone": "bun build ./sources/standalone.ts --compile --outfile dist/happy-server --target bun && find ../../node_modules/@electric-sql/pglite/dist -name 'pglite.wasm' -exec cp {} dist/ \\; && find ../../node_modules/@electric-sql/pglite/dist -name 'pglite.data' -exec cp {} dist/ \\; && cp -r prisma/migrations dist/prisma/migrations",
     "start": "tsx ./sources/main.ts",
     "standalone": "tsx ./sources/standalone.ts",
@@ -31,6 +62,8 @@
     "@types/tmp": "^0.2.6",
     "@types/uuid": "^9.0.8",
     "dotenv-cli": "^8.0.0",
+    "pkgroll": "^2.14.2",
+    "shx": "^0.3.3",
     "ts-node": "^10.9.2",
     "typescript": "5.9.3",
     "yaml": "^2.4.2"
@@ -40,6 +73,9 @@
     "@electric-sql/pglite": "^0.3.15",
     "@fastify/bearer-auth": "^10.1.1",
     "@fastify/cors": "^10.0.1",
+    "@noble/ed25519": "^3.0.0",
+    "@noble/hashes": "^2.0.1",
+    "@octokit/webhooks": "^14.2.0",
     "@prisma/client": "^6.11.1",
     "@slopus/happy-wire": "workspace:*",
     "@socket.io/redis-streams-adapter": "^0.2.2",
@@ -57,6 +93,7 @@
     "minio": "^8.0.5",
     "octokit": "^5.0.3",
     "pglite-prisma-adapter": "^0.7.2",
+    "pino": "10.3.0",
     "pino-pretty": "^13.0.0",
     "prisma": "^6.11.1",
     "prisma-json-types-generator": "^3.5.1",

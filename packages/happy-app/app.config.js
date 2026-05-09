@@ -68,7 +68,7 @@ export default {
                 NSLocalNetworkUsageDescription: "Allow $(PRODUCT_NAME) to find and connect to local devices on your network.",
                 NSBonjourServices: ["_http._tcp", "_https._tcp"]
             },
-            associatedDomains: variant === 'production' ? ["applinks:app.happy.engineering"] : []
+            associatedDomains: []
         },
         android: {
             adaptiveIcon: {
@@ -92,20 +92,7 @@ export default {
             ],
             package: bundleId,
             googleServicesFile: "./google-services.json",
-            intentFilters: variant === 'production' ? [
-                {
-                    "action": "VIEW",
-                    "autoVerify": true,
-                    "data": [
-                        {
-                            "scheme": "https",
-                            "host": "app.happy.engineering",
-                            "pathPrefix": "/"
-                        }
-                    ],
-                    "category": ["BROWSABLE", "DEFAULT"]
-                }
-            ] : []
+            intentFilters: []
         },
         web: {
             bundler: "metro",

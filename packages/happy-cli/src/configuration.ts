@@ -23,6 +23,7 @@ class Configuration {
   public readonly daemonStateFile: string
   public readonly daemonLockFile: string
   public readonly sessionsFile: string
+  public readonly machineFile: string
   public readonly currentCliVersion: string
 
   public readonly isExperimentalEnabled: boolean
@@ -30,8 +31,8 @@ class Configuration {
 
   constructor() {
     // Server configuration - priority: parameter > environment > default
-    this.serverUrl = process.env.HAPPY_SERVER_URL || 'https://api.cluster-fluster.com'
-    this.webappUrl = process.env.HAPPY_WEBAPP_URL || 'https://app.happy.engineering'
+    this.serverUrl = process.env.HAPPY_SERVER_URL || 'http://127.0.0.1:3005'
+    this.webappUrl = process.env.HAPPY_WEBAPP_URL || this.serverUrl
 
     // Check if we're running as daemon based on process args
     const args = process.argv.slice(2)
@@ -52,6 +53,7 @@ class Configuration {
     this.daemonStateFile = join(this.happyHomeDir, 'daemon.state.json')
     this.daemonLockFile = join(this.happyHomeDir, 'daemon.state.json.lock')
     this.sessionsFile = join(this.happyHomeDir, 'sessions.json')
+    this.machineFile = join(this.happyHomeDir, 'machine.json')
 
     this.isExperimentalEnabled = ['true', '1', 'yes'].includes(process.env.HAPPY_EXPERIMENTAL?.toLowerCase() || '');
     this.disableCaffeinate = ['true', '1', 'yes'].includes(process.env.HAPPY_DISABLE_CAFFEINATE?.toLowerCase() || '');

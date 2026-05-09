@@ -1,6 +1,6 @@
 import { AuthCredentials } from '@/auth/tokenStorage';
+import { getMachineAuthHeaders } from '@/auth/machineAuth';
 import { backoff } from '@/utils/time';
-import { getServerUrl } from './serverConfig';
 import { getHappyClientId } from './apiSocket';
 
 export interface UsageDataPoint {
@@ -28,15 +28,15 @@ export async function queryUsage(
     credentials: AuthCredentials,
     params: UsageQueryParams = {}
 ): Promise<UsageResponse> {
-    const API_ENDPOINT = getServerUrl();
+    const API_ENDPOINT = credentials.tunnelUrl;
     
     return await backoff(async () => {
         const response = await fetch(`${API_ENDPOINT}/v1/usage/query`, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${credentials.token}`,
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(credentials),
             },
             body: JSON.stringify(params)
         });

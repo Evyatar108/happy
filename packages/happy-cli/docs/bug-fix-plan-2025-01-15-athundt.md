@@ -97,7 +97,7 @@ if (startFrom) {
 **Problem**: Happy-CLI crashes when Happy API server is unreachable
 
 **Server Details**:
-- Default server: `https://api.cluster-fluster.com`
+- Default server: `http://127.0.0.1:3005`
 - Environment variable: `HAPPY_SERVER_URL` (overrides default)
 - Local development: `http://localhost:3005`
 - The server handles session management and real-time communication for Happy CLI

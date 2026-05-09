@@ -19,7 +19,6 @@ export async function kvBulkGet(
 ): Promise<KVBulkGetResult> {
     const results = await db.userKVStore.findMany({
         where: {
-            accountId: ctx.uid,
             key: {
                 in: keys
             },

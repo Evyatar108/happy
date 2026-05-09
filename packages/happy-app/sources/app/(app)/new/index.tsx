@@ -803,11 +803,11 @@ function NewSessionScreen() {
         }
 
         if (!selectedMachineId || !selectedMachine) {
-            Modal.alert(t('common.error'), 'Please select a machine');
+            Modal.alert(t('common.error'), t('newSession.selectMachineRequired'));
             return;
         }
         if (!isMachineOnline(selectedMachine)) {
-            Modal.alert(t('common.error'), 'Machine is offline');
+            Modal.alert(t('common.error'), t('newSession.machineOffline'));
             return;
         }
 

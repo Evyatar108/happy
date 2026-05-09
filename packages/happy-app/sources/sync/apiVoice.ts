@@ -5,7 +5,7 @@ import {
     type VoiceUsageResponse,
 } from '@slopus/happy-wire';
 import { AuthCredentials } from '@/auth/tokenStorage';
-import { getServerUrl } from './serverConfig';
+import { getMachineAuthHeaders } from '@/auth/machineAuth';
 import { getHappyClientId } from './apiSocket';
 import { config } from '@/config';
 
@@ -15,7 +15,7 @@ export async function fetchVoiceCredentials(
     credentials: AuthCredentials,
     sessionId: string
 ): Promise<VoiceConversationResponse> {
-    const serverUrl = getServerUrl();
+    const serverUrl = credentials.tunnelUrl;
 
     const agentId = config.elevenLabsAgentId;
 
@@ -26,9 +26,9 @@ export async function fetchVoiceCredentials(
     const response = await fetch(`${serverUrl}/v1/voice/conversations`, {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${credentials.token}`,
             'Content-Type': 'application/json',
             'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(credentials),
         },
         body: JSON.stringify({
             agentId
@@ -45,13 +45,13 @@ export async function fetchVoiceCredentials(
 export async function fetchVoiceUsage(
     credentials: AuthCredentials
 ): Promise<VoiceUsageResponse> {
-    const serverUrl = getServerUrl();
+    const serverUrl = credentials.tunnelUrl;
 
     const response = await fetch(`${serverUrl}/v1/voice/usage`, {
         method: 'GET',
         headers: {
-            'Authorization': `Bearer ${credentials.token}`,
             'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(credentials),
         },
     });
 

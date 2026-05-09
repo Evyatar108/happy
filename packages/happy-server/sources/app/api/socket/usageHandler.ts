@@ -48,7 +48,6 @@ export function usageHandler(userId: string, socket: Socket) {
                         const session = await db.session.findFirst({
                             where: {
                                 id: sessionId,
-                                accountId: userId
                             }
                         });
 
@@ -69,8 +68,7 @@ export function usageHandler(userId: string, socket: Socket) {
                     // Upsert the usage report
                     const report = await db.usageReport.upsert({
                         where: {
-                            accountId_sessionId_key: {
-                                accountId: userId,
+                            sessionId_key: {
                                 sessionId: sessionId || null,
                                 key
                             }
@@ -80,7 +78,6 @@ export function usageHandler(userId: string, socket: Socket) {
                             updatedAt: new Date()
                         },
                         create: {
-                            accountId: userId,
                             sessionId: sessionId || null,
                             key,
                             data: usageData

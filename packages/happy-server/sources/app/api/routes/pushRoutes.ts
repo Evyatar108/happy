@@ -1,14 +1,15 @@
 import { z } from "zod";
 import { type Fastify } from "../types";
-import { db } from "@/storage/db";
+import { type TofuHandshakeConfig } from "../api";
+import { listPushTokens, registerPushToken, unregisterPushToken } from "@/app/push/pushNotifications";
 
-export function pushRoutes(app: Fastify) {
-    
-    // Push Token Registration API
-    app.post('/v1/push-tokens', {
+export function pushRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig = { localUserId: "local-user" }) {
+
+    app.post('/push/register', {
         schema: {
             body: z.object({
-                token: z.string()
+                expoPushToken: z.string(),
+                deviceId: z.string()
             }),
             response: {
                 200: z.object({
@@ -21,24 +22,46 @@ export function pushRoutes(app: Fastify) {
         },
         preHandler: app.authenticate
     }, async (request, reply) => {
-        const userId = request.userId;
-        const { token } = request.body;
+        const { expoPushToken, deviceId } = request.body;
 
         try {
-            await db.accountPushToken.upsert({
-                where: {
-                    accountId_token: {
-                        accountId: userId,
-                        token: token
-                    }
-                },
-                update: {
-                    updatedAt: new Date()
-                },
-                create: {
-                    accountId: userId,
-                    token: token
-                }
+            await registerPushToken({
+                machineId: tofuConfig.localUserId,
+                deviceId,
+                expoPushToken,
+            });
+
+            return reply.send({ success: true });
+        } catch (error) {
+            return reply.code(500).send({ error: 'Failed to register push token' });
+        }
+    });
+    
+    // Push Token Registration API
+    app.post('/v1/push-tokens', {
+        schema: {
+            body: z.object({
+                token: z.string(),
+                deviceId: z.string().optional()
+            }),
+            response: {
+                200: z.object({
+                    success: z.literal(true)
+                }),
+                500: z.object({
+                    error: z.literal('Failed to register push token')
+                })
+            }
+        },
+        preHandler: app.authenticate
+    }, async (request, reply) => {
+        const { token, deviceId } = request.body;
+
+        try {
+            await registerPushToken({
+                machineId: tofuConfig.localUserId,
+                deviceId: deviceId ?? token,
+                expoPushToken: token,
             });
 
             return reply.send({ success: true });
@@ -64,16 +87,10 @@ export function pushRoutes(app: Fastify) {
         },
         preHandler: app.authenticate
     }, async (request, reply) => {
-        const userId = request.userId;
         const { token } = request.params;
 
         try {
-            await db.accountPushToken.deleteMany({
-                where: {
-                    accountId: userId,
-                    token: token
-                }
-            });
+            await unregisterPushToken(tofuConfig.localUserId, token);
 
             return reply.send({ success: true });
         } catch (error) {
@@ -85,22 +102,13 @@ export function pushRoutes(app: Fastify) {
     app.get('/v1/push-tokens', {
         preHandler: app.authenticate
     }, async (request, reply) => {
-        const userId = request.userId;
-
         try {
-            const tokens = await db.accountPushToken.findMany({
-                where: {
-                    accountId: userId
-                },
-                orderBy: {
-                    createdAt: 'desc'
-                }
-            });
+            const tokens = await listPushTokens(tofuConfig.localUserId);
 
             return reply.send({
                 tokens: tokens.map(t => ({
                     id: t.id,
-                    token: t.token,
+                    token: t.expoPushToken,
                     createdAt: t.createdAt.getTime(),
                     updatedAt: t.updatedAt.getTime()
                 }))

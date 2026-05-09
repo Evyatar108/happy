@@ -26,7 +26,6 @@ export function machinesRoutes(app: Fastify) {
         // Check if machine exists (like sessions do)
         const machine = await db.machine.findFirst({
             where: {
-                accountId: userId,
                 id: id
             }
         });
@@ -55,7 +54,6 @@ export function machinesRoutes(app: Fastify) {
             const newMachine = await db.machine.create({
                 data: {
                     id,
-                    accountId: userId,
                     metadata,
                     metadataVersion: 1,
                     daemonState: daemonState || null,
@@ -116,7 +114,7 @@ export function machinesRoutes(app: Fastify) {
         const userId = request.userId;
 
         const machines = await db.machine.findMany({
-            where: { accountId: userId },
+            where: {},
             orderBy: { lastActiveAt: 'desc' }
         });
 
@@ -149,7 +147,6 @@ export function machinesRoutes(app: Fastify) {
 
         const machine = await db.machine.findFirst({
             where: {
-                accountId: userId,
                 id: id
             }
         });
@@ -190,14 +187,14 @@ export function machinesRoutes(app: Fastify) {
 
         const deleted = await inTx(async (tx) => {
             const machine = await tx.machine.findFirst({
-                where: { accountId: userId, id }
+                where: { id }
             });
             if (!machine) {
                 return false;
             }
 
             await tx.accessKey.deleteMany({
-                where: { accountId: userId, machineId: id }
+                where: { machineId: id }
             });
 
             await tx.machine.delete({

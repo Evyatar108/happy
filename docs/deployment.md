@@ -1,80 +1,278 @@
 # Deployment
 
-This document describes how to deploy the Happy backend (`packages/happy-server`) and the infrastructure it expects.
+Happy now deploys as a server-per-machine product. Each operator machine runs `happy-cli`, which starts an embedded `happy-server` on loopback, hosts it through a Microsoft Dev Tunnel, and lets the mobile app pair directly to that machine. There is no Happy cloud relay in the normal path.
 
-## Runtime overview
-- **App server:** Node.js running `tsx ./sources/main.ts` (Fastify + Socket.IO).
-- **Database:** Postgres via Prisma.
-- **Cache:** Redis (currently used for connectivity and future expansion).
-- **Object storage:** S3-compatible storage for user-uploaded assets (MinIO works).
-- **Metrics:** Optional Prometheus `/metrics` server on a separate port.
+The target setup time for a new operator is under 30 minutes after Node, pnpm, and the Microsoft Dev Tunnels CLI are installed.
 
-## Required services
-1. **Postgres**
-   - Required for all persisted data.
-   - Configure via `DATABASE_URL`.
+## Architecture
 
-2. **Redis**
-   - Required by startup (`redis.ping()` is called).
-   - Configure via `REDIS_URL`.
-   - Managed by this repo: `packages/happy-server/deploy/happy-redis.yaml` (StatefulSet + redis-exporter sidecar).
+```
+happy-cli daemon
+  -> embedded happy-server on 127.0.0.1:<machine port>
+  -> Microsoft Dev Tunnel host for https://<tunnel>.devtunnels.ms
+  -> Expo push delivery directly from happy-server
 
-3. **S3-compatible storage**
-   - Used for avatars and other uploaded assets.
-   - Configure via `S3_HOST`, `S3_PORT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET`, `S3_PUBLIC_URL`, `S3_USE_SSL`.
-   - **Deployed separately** — not managed by this repo's Kubernetes manifests. In prod, the S3-compatible service (MinIO or similar) behind `S3_PUBLIC_URL` is provisioned and managed by external infrastructure. The app only consumes it via env vars: `S3_PUBLIC_URL` is set in the Deployment, and credentials come from Vault via ExternalSecret (`/handy-files`).
-   - If `S3_HOST` is unset, the server falls back to local filesystem storage (`./data/files/`).
-   - For local k8s dev, a MinIO pod is deployed via `deploy/overlays/local/minio.yaml`.
+happy mobile app
+  -> GitHub device flow against the machine tunnel
+  -> TOFU fingerprint confirmation
+  -> Socket.IO + REST over the machine tunnel
+```
 
-## Environment variables
-**Required**
-- `DATABASE_URL`: Postgres connection string.
-- `HANDY_MASTER_SECRET`: master key for auth tokens and server-side encryption.
-- `REDIS_URL`: Redis connection string.
-- `S3_HOST`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET`, `S3_PUBLIC_URL`: object storage config.
+Operator-owned state lives under `~/.happy/`:
 
-**Common**
-- `PORT`: API server port (default `3005`).
-- `METRICS_ENABLED`: set to `false` to disable metrics server.
-- `METRICS_PORT`: metrics server port (default `9090`).
-- `S3_PORT`: optional S3 port.
-- `S3_USE_SSL`: `true`/`false` (default `true`).
+- `machine.json`: machine id, embedded server port, and tunnel URL.
+- `tunnel.json`: Microsoft Dev Tunnel id and URL.
+- `server-key.pub` / `server-key.priv`: Ed25519 signing identity.
+- `ecdh-key.pub` / `ecdh-key.priv`: separate X25519 keypair for ECDH.
+- `happy-server/`: embedded server data directory.
 
-**Optional integrations**
-- GitHub OAuth/App: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `GITHUB_APP_ID`, `GITHUB_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET`, plus redirect URL/URI.
-  - `GITHUB_REDIRECT_URL` is used by the OAuth callback handler.
-  - `GITHUB_REDIRECT_URI` is used by the GitHub App initializer.
-- Voice: `ELEVENLABS_API_KEY` (required for `/v1/voice/conversations` in production).
-- Subscriptions: `REVENUECAT_API_KEY` (server-side RevenueCat key, required for voice subscription checks).
-- Debug logging: `DANGEROUSLY_LOG_TO_SERVER_FOR_AI_AUTO_DEBUGGING` (enables file logging + dev log endpoint).
+## Prerequisites
 
-## Docker image
-A production Dockerfile is provided at `Dockerfile.server`.
+- Node.js 20 or newer.
+- pnpm 10 or newer.
+- Microsoft Dev Tunnels CLI, available as `devtunnel`.
+- A GitHub account for the Dev Tunnels login and mobile device-flow identity check.
+- The Happy mobile app installed on the phone or tablet.
 
-Key notes:
-- The server defaults to port `3005` (set `PORT` explicitly in container environments).
-- The image includes FFmpeg and Python for media processing.
+## 1. Clean Install
 
-## Kubernetes manifests
-Example manifests live in `packages/happy-server/deploy`:
-- `handy.yaml`: Deployment + Service + ExternalSecrets for the server.
-- `happy-redis.yaml`: Redis StatefulSet + Service + ConfigMap.
+Install the CLI and verify `happy` plus `devtunnel` are on PATH.
 
-The deployment config expects:
-- Prometheus scraping annotations on port `9090`.
-- A secret named `handy-secrets` populated by ExternalSecrets.
-- A service mapping port `3000` to container port `3005`.
+### Windows PowerShell
 
-## Local dev helpers
-The server package includes scripts for local infrastructure:
-- `pnpm --filter happy-server db` (Postgres in Docker)
-- `pnpm --filter happy-server redis`
-- `pnpm --filter happy-server s3` + `s3:init`
+```powershell
+winget install Microsoft.DevTunnels
+corepack enable
+pnpm install -g happy
+happy --version
+devtunnel --version
+```
 
-Use `.env`/`.env.dev` to load local settings when running `pnpm --filter happy-server dev`.
+Expected output:
 
-## Implementation references
-- Entrypoint: `packages/happy-server/sources/main.ts`
-- Dockerfile: `Dockerfile.server`
-- Kubernetes manifests: `packages/happy-server/deploy`
-- Env usage: `packages/happy-server/sources` (`rg -n "process.env"`)
+```text
+happy 0.x.y
+devtunnel version 1.x.y
+```
+
+### macOS
+
+```bash
+brew install --cask devtunnel
+corepack enable
+pnpm install -g happy
+happy --version
+devtunnel --version
+```
+
+Expected output:
+
+```text
+happy 0.x.y
+devtunnel version 1.x.y
+```
+
+### Linux
+
+```bash
+curl -fsSL https://aka.ms/TunnelsCliDownload/linux-x64 -o devtunnel.tar.gz
+mkdir -p ~/.local/bin/devtunnel-cli
+tar -xzf devtunnel.tar.gz -C ~/.local/bin/devtunnel-cli
+ln -sf ~/.local/bin/devtunnel-cli/devtunnel ~/.local/bin/devtunnel
+corepack enable
+pnpm install -g happy
+happy --version
+devtunnel --version
+```
+
+Expected output:
+
+```text
+happy 0.x.y
+devtunnel version 1.x.y
+```
+
+## 2. Initialize The Machine
+
+Run `happy` once if this is a fresh profile so the CLI can create the local machine id, then run `happy init` (`happy-cli init` in package terms). The init command checks the Dev Tunnels CLI version, logs into Dev Tunnels with GitHub device flow if needed, creates or reuses a named tunnel, configures the tunnel port, and writes `~/.happy/tunnel.json`.
+
+### Windows PowerShell
+
+```powershell
+happy
+happy init
+```
+
+Expected output:
+
+```text
+To sign in, use a web browser to open https://github.com/login/device and enter code XXXX-XXXX
+Dev Tunnel ready: https://happy-myhost-machine123.devtunnels.ms
+Config written to C:\Users\you\.happy\tunnel.json
+```
+
+### macOS
+
+```bash
+happy
+happy init
+```
+
+Expected output:
+
+```text
+To sign in, use a web browser to open https://github.com/login/device and enter code XXXX-XXXX
+Dev Tunnel ready: https://happy-myhost-machine123.devtunnels.ms
+Config written to /Users/you/.happy/tunnel.json
+```
+
+### Linux
+
+```bash
+happy
+happy init
+```
+
+Expected output:
+
+```text
+To sign in, use a web browser to open https://github.com/login/device and enter code XXXX-XXXX
+Dev Tunnel ready: https://happy-myhost-machine123.devtunnels.ms
+Config written to /home/you/.happy/tunnel.json
+```
+
+## 3. Start The Daemon
+
+Start the daemon after `happy init` succeeds. The daemon reuses the saved port from `machine.json`, starts embedded `happy-server`, starts the Dev Tunnel host, and renews the tunnel when it is near expiry.
+
+### Windows PowerShell
+
+```powershell
+happy daemon start
+```
+
+Expected output on first server-key creation:
+
+```text
+Happy server Ed25519 fingerprint: SHA256:abc123...
+```
+
+Expected debug log entries:
+
+```text
+Embedded happy-server started on 127.0.0.1:62003
+Dev Tunnel host started for https://happy-myhost-machine123.devtunnels.ms
+```
+
+### macOS
+
+```bash
+happy daemon start
+```
+
+Expected output on first server-key creation:
+
+```text
+Happy server Ed25519 fingerprint: SHA256:abc123...
+```
+
+Expected debug log entries:
+
+```text
+Embedded happy-server started on 127.0.0.1:62003
+Dev Tunnel host started for https://happy-myhost-machine123.devtunnels.ms
+```
+
+### Linux
+
+```bash
+happy daemon start
+```
+
+Expected output on first server-key creation:
+
+```text
+Happy server Ed25519 fingerprint: SHA256:abc123...
+```
+
+Expected debug log entries:
+
+```text
+Embedded happy-server started on 127.0.0.1:62003
+Dev Tunnel host started for https://happy-myhost-machine123.devtunnels.ms
+```
+
+## 4. Pair The First Mobile Device
+
+This is the first mobile pair step.
+
+Open the Happy mobile app and start pairing. The app calls the machine tunnel's `/pair/start`, asks GitHub for device-flow authorization, polls `/pair/status`, then shows the machine Ed25519 fingerprint before saving credentials.
+
+### Windows Operator
+
+Expected terminal state:
+
+```text
+Dev Tunnel host started for https://happy-myhost-machine123.devtunnels.ms
+TOFU handshake accepted: machine123, clientType: user-scoped, client: android/0.x.y
+```
+
+Expected mobile state:
+
+```text
+GitHub device flow authorized
+Trust this machine
+Ed25519 fingerprint SHA256:abc123...
+```
+
+### macOS Operator
+
+Expected terminal state:
+
+```text
+Dev Tunnel host started for https://happy-macbook-machine123.devtunnels.ms
+TOFU handshake accepted: machine123, clientType: user-scoped, client: ios/0.x.y
+```
+
+Expected mobile state:
+
+```text
+GitHub device flow authorized
+Trust this machine
+Ed25519 fingerprint SHA256:abc123...
+```
+
+### Linux Operator
+
+Expected terminal state:
+
+```text
+Dev Tunnel host started for https://happy-linuxbox-machine123.devtunnels.ms
+TOFU handshake accepted: machine123, clientType: user-scoped, client: android/0.x.y
+```
+
+Expected mobile state:
+
+```text
+GitHub device flow authorized
+Trust this machine
+Ed25519 fingerprint SHA256:abc123...
+```
+
+After trust is accepted, mobile stores `{ machineId, tunnelUrl, tunnelJwt, pinnedPubkey, sessionKey, firstSeenAt }` in SecureStore and uses the saved machine list for future multi-machine sync.
+
+## Web And Desktop Tunnel Clients Deferred To V2
+
+This is the browser WebSocket `extraHeaders` limitation.
+
+The current tunnel transport depends on `X-Tunnel-Authorization: tunnel <JWT>` being set on Socket.IO WebSocket connections. React Native can pass that header through `extraHeaders`; browser WebSocket clients cannot set arbitrary WebSocket headers, and desktop wrappers that use browser networking inherit the same limitation.
+
+For v1, tunnel-backed pairing and sync are supported by the mobile app and machine-local daemon. Web and desktop tunnel clients are deferred to v2, where the transport can use a browser-compatible authorization channel such as a short-lived query token, cookie-bound upgrade, or a Dev Tunnels-specific browser auth flow.
+
+## Operations
+
+- Re-run `happy init` to recreate or reuse the named tunnel.
+- Delete `~/.happy/tunnel.json` only when intentionally rotating the Dev Tunnel id.
+- Delete `~/.happy/server-key.*` only when intentionally forcing mobile devices to see a new machine identity.
+- Delete `~/.happy/ecdh-key.*` only when intentionally rotating the ECDH identity.
+- Do not run a separate `happy-server` deployment for normal operator use; the daemon owns the embedded server lifecycle.

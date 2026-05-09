@@ -22,24 +22,17 @@ export async function feedPost(
     if (repeatKey) {
         await tx.userFeedItem.deleteMany({
             where: {
-                userId: ctx.uid,
                 repeatKey: repeatKey
             }
         });
     }
 
-    // Allocate new counter
-    const user = await tx.account.update({
-        where: { id: ctx.uid },
-        select: { feedSeq: true },
-        data: { feedSeq: { increment: 1 } }
-    });
+    const counter = await allocateUserSeq(ctx.uid);
 
     // Create new item
     const item = await tx.userFeedItem.create({
         data: {
-            counter: user.feedSeq,
-            userId: ctx.uid,
+            counter: BigInt(counter),
             repeatKey: repeatKey,
             body: body
         }

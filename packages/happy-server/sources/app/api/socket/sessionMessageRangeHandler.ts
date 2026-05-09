@@ -10,11 +10,9 @@ import { log } from "@/utils/log";
  * session-message-range socket handler.
  *
  * Responds with the encrypted-blob range [fromSeq, toSeq] for a session.
- * Mirrors the ownership and pagination semantics of v3SessionRoutes.ts:
- *  - account-scoped findFirst({ id, accountId }) — single lookup. Wrong-owner
- *    AND never-existed both collapse to a byte-identical session_not_found
- *    response so the handler does not leak information about session
- *    existence (no global-by-id lookup is ever performed).
+ * Mirrors the single-tenant pagination semantics of v3SessionRoutes.ts:
+ *  - session existence is checked through findFirst({ id }) before querying
+ *    messages, and no global findUnique fallback is performed.
  *  - hasMore semantics: hasMore === true iff messages exist with seq strictly
  *    less than `fromSeq` for this session. The client's window is always at
  *    most `limit` messages wide, so row-count overflow inside the queried
@@ -32,7 +30,7 @@ import { log } from "@/utils/log";
  * Range validation failures (toSeq < fromSeq, limit outside 1..200) collapse
  * to a single invalid_range error code.
  */
-export function sessionMessageRangeHandler(userId: string, socket: Socket) {
+export function sessionMessageRangeHandler(_userId: string, socket: Socket) {
     socket.on('session-message-range', async (data: unknown, callback?: (response: SessionMessageRangeResponse) => void) => {
         if (typeof callback !== 'function') {
             return;
@@ -66,12 +64,9 @@ export function sessionMessageRangeHandler(userId: string, socket: Socket) {
 
             const { requestId, sessionId, fromSeq, toSeq, limit } = parsed.data;
 
-            // Account-scoped lookup ONLY. Wrong-owner and never-existed both
-            // resolve to byte-identical session_not_found.
             const session = await db.session.findFirst({
                 where: {
                     id: sessionId,
-                    accountId: userId
                 },
                 select: { id: true }
             });

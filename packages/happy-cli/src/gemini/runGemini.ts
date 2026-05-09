@@ -303,9 +303,8 @@ export async function runGemini(opts: {
   const sendReady = () => {
     session.sendSessionEvent({ type: 'ready' });
     try {
-      api.push().sendSessionNotification({
+      session.sendPushEvent({
         kind: 'done',
-        metadata: session.getMetadata(),
         data: {
           sessionId: session.sessionId,
           type: 'ready',

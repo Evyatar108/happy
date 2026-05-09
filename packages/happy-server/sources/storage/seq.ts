@@ -1,20 +1,17 @@
 import { db } from "@/storage/db";
 import type { Prisma } from "@prisma/client";
 
-type SeqClient = Pick<Prisma.TransactionClient, "account" | "session">;
+type SeqClient = Pick<Prisma.TransactionClient, "session">;
+
+let updateSeq = 0;
 
 function resolveClient(tx?: SeqClient) {
     return tx ?? db;
 }
 
-export async function allocateUserSeq(accountId: string) {
-    const user = await db.account.update({
-        where: { id: accountId },
-        select: { seq: true },
-        data: { seq: { increment: 1 } }
-    });
-    const seq = user.seq;
-    return seq;
+export async function allocateUserSeq(_accountId: string) {
+    updateSeq += 1;
+    return updateSeq;
 }
 
 export async function allocateSessionSeq(sessionId: string) {

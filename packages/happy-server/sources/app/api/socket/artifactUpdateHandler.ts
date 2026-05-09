@@ -30,7 +30,6 @@ export function artifactUpdateHandler(userId: string, socket: Socket) {
             const artifact = await db.artifact.findFirst({
                 where: {
                     id: artifactId,
-                    accountId: userId
                 }
             });
 
@@ -116,7 +115,6 @@ export function artifactUpdateHandler(userId: string, socket: Socket) {
             const currentArtifact = await db.artifact.findFirst({
                 where: {
                     id: artifactId,
-                    accountId: userId
                 }
             });
 
@@ -183,7 +181,6 @@ export function artifactUpdateHandler(userId: string, socket: Socket) {
             const { count } = await db.artifact.updateMany({
                 where: {
                     id: artifactId,
-                    accountId: userId,
                     ...(header && { headerVersion: header.expectedVersion }),
                     ...(body && { bodyVersion: body.expectedVersion })
                 },
@@ -195,7 +192,6 @@ export function artifactUpdateHandler(userId: string, socket: Socket) {
                 const current = await db.artifact.findFirst({
                     where: {
                         id: artifactId,
-                        accountId: userId
                     }
                 });
 
@@ -280,14 +276,6 @@ export function artifactUpdateHandler(userId: string, socket: Socket) {
             });
 
             if (existingArtifact) {
-                // If exists for another account, return error
-                if (existingArtifact.accountId !== userId) {
-                    if (callback) {
-                        callback({ result: 'error', message: 'Artifact with this ID already exists for another account' });
-                    }
-                    return;
-                }
-
                 // If exists for same account, return existing (idempotent)
                 callback({
                     result: 'success',
@@ -309,7 +297,6 @@ export function artifactUpdateHandler(userId: string, socket: Socket) {
             const artifact = await db.artifact.create({
                 data: {
                     id,
-                    accountId: userId,
                     header: privacyKit.decodeBase64(header),
                     headerVersion: 1,
                     body: privacyKit.decodeBase64(body),
@@ -371,7 +358,6 @@ export function artifactUpdateHandler(userId: string, socket: Socket) {
             const artifact = await db.artifact.findFirst({
                 where: {
                     id: artifactId,
-                    accountId: userId
                 }
             });
 

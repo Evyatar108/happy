@@ -1,6 +1,6 @@
 import { AuthCredentials } from '@/auth/tokenStorage';
+import { getMachineAuthHeaders } from '@/auth/machineAuth';
 import { backoff } from '@/utils/time';
-import { getServerUrl } from './serverConfig';
 import { getHappyClientId } from './apiSocket';
 
 /**
@@ -11,15 +11,15 @@ export async function connectService(
     service: string,
     token: any
 ): Promise<void> {
-    const API_ENDPOINT = getServerUrl();
+    const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
         const response = await fetch(`${API_ENDPOINT}/v1/connect/${service}/register`, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${credentials.token}`,
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(credentials),
             },
             body: JSON.stringify({ token: JSON.stringify(token) })
         });
@@ -39,14 +39,14 @@ export async function connectService(
  * Disconnect a connected service from the user's account
  */
 export async function disconnectService(credentials: AuthCredentials, service: string): Promise<void> {
-    const API_ENDPOINT = getServerUrl();
+    const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
         const response = await fetch(`${API_ENDPOINT}/v1/connect/${service}`, {
             method: 'DELETE',
             headers: {
-                'Authorization': `Bearer ${credentials.token}`,
                 'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(credentials),
             }
         });
 

@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import os from 'os';
 import * as tmp from 'tmp';
 import axios from 'axios';
+import { createHappyServer, type HappyServerHandle } from 'happy-server';
 
 import { ApiClient } from '@/api/api';
 import { TrackedSession, SessionEncryptionData } from './types';
@@ -14,7 +15,7 @@ import { startCaffeinate, stopCaffeinate } from '@/utils/caffeinate';
 import packageJson from '../../package.json';
 import { getEnvironmentInfo } from '@/ui/doctor';
 import { spawnHappyCLI } from '@/utils/spawnHappyCLI';
-import { writeDaemonState, DaemonLocallyPersistedState, readDaemonState, acquireDaemonLock, releaseDaemonLock, readPersistedSessions, persistSession } from '@/persistence';
+import { writeDaemonState, DaemonLocallyPersistedState, readDaemonState, acquireDaemonLock, releaseDaemonLock, readPersistedSessions, persistSession, readMachineState, writeMachineState } from '@/persistence';
 import type { PersistedSession } from '@/persistence';
 
 import { cleanupDaemonState, isDaemonRunningCurrentlyInstalledHappyVersion, stopDaemon } from './controlClient';
@@ -28,6 +29,9 @@ import { detectCLIAvailability } from '@/utils/detectCLI';
 import { buildResumeLaunch } from '@/resume/handleResumeCommand';
 import { detectResumeSupport } from '@/resume/localHappyAgentAuth';
 import { encodeBase64, decodeBase64, decrypt } from '@/api/encryption';
+import { pickFreeLoopbackPort } from '@/utils/pickFreeLoopbackPort';
+import { loadOrCreateTofuKeypairs } from '@/tofu/keypairManager';
+import { TunnelManager } from '@/tunnel/tunnelManager';
 
 // Prepare initial metadata
 // Suffix host with `-dev` for the HAPPY_VARIANT=dev variant so the dev daemon
@@ -44,6 +48,17 @@ export const initialMachineMetadata: MachineMetadata = {
   cliAvailability: detectCLIAvailability(),
   resumeSupport: { ...detectResumeSupport(), rpcAvailable: true },
 };
+
+async function resolveEmbeddedServerPort(): Promise<number> {
+  const machineState = await readMachineState();
+  if (machineState) {
+    return machineState.port;
+  }
+
+  const port = await pickFreeLoopbackPort();
+  writeMachineState({ port });
+  return port;
+}
 
 export async function startDaemon(): Promise<void> {
   // We don't have cleanup function at the time of server construction
@@ -148,6 +163,35 @@ export async function startDaemon(): Promise<void> {
     // Ensure auth and machine registration BEFORE anything else
     const { credentials, machineId } = await authAndSetupMachineIfNeeded();
     logger.debug('[DAEMON RUN] Auth and machine setup complete');
+
+    const tofuKeypairs = await loadOrCreateTofuKeypairs(configuration.happyHomeDir);
+    if (tofuKeypairs.createdEd25519) {
+      console.log(`Happy server Ed25519 fingerprint: ${tofuKeypairs.ed25519Fingerprint}`);
+    }
+
+    const embeddedServerPort = await resolveEmbeddedServerPort();
+    const tunnelManager = new TunnelManager();
+    const tunnelConfig = await tunnelManager.loadForDaemon(embeddedServerPort);
+    const tofuPublicKeysConfig = {
+      ed25519PublicKey: tofuKeypairs.ed25519PublicKey,
+      ed25519SecretKey: tofuKeypairs.ed25519PrivateKey,
+      x25519PublicKey: tofuKeypairs.ecdhPublicKey,
+      x25519SecretKey: tofuKeypairs.ecdhPrivateKey,
+      ed25519Fingerprint: tofuKeypairs.ed25519Fingerprint,
+    };
+    const embeddedServer: HappyServerHandle = createHappyServer({
+      dataDir: configuration.happyHomeDir,
+      port: embeddedServerPort,
+      machineKey: tofuKeypairs.ed25519PublicKey,
+      localUserId: machineId,
+      publicUrl: tunnelConfig.tunnelUrl,
+      tofuPublicKeys: tofuPublicKeysConfig,
+    });
+    await embeddedServer.start();
+    logger.debug(`[DAEMON RUN] Embedded happy-server started on 127.0.0.1:${embeddedServerPort}`);
+
+    tunnelManager.startHost(tunnelConfig, embeddedServerPort);
+    logger.debug(`[DAEMON RUN] Dev Tunnel host started for ${tunnelConfig.tunnelUrl}`);
 
     // Setup state - key by PID
     const pidToTrackedSession = new Map<number, TrackedSession>();
@@ -605,11 +649,13 @@ export async function startDaemon(): Promise<void> {
       return sessionIdToFinishedSession.get(happySessionId);
     };
 
+    const getLocalTunnelClaim = () => `tunnel ${Buffer.from(JSON.stringify({ sub: machineId, iat: Math.floor(Date.now() / 1000) })).toString('base64url')}`;
+
     const fetchServerSessionMetadata = async (sessionId: string, encryptionKey: Uint8Array, encryptionVariant: 'legacy' | 'dataKey'): Promise<Metadata | null> => {
       try {
-        const response = await axios.get(`${configuration.serverUrl}/v1/sessions`, {
-          headers: { Authorization: `Bearer ${credentials.token}` },
+        const response = await axios.get(`http://127.0.0.1:${embeddedServerPort}/v1/sessions`, {
           timeout: 10_000,
+          headers: { 'X-Tunnel-Authorization': getLocalTunnelClaim() },
         });
         const sessions = (response.data as { sessions: { id: string; metadata: string }[] }).sessions;
         const matched = sessions.find(s => s.id === sessionId);
@@ -784,7 +830,10 @@ export async function startDaemon(): Promise<void> {
     // Get or create machine
     const machine = await api.getOrCreateMachine({
       machineId,
-      metadata: initialMachineMetadata,
+      metadata: {
+        ...initialMachineMetadata,
+        tunnelUrl: tunnelConfig.tunnelUrl,
+      },
       daemonState: initialDaemonState
     });
     logger.debug(`[DAEMON RUN] Machine registered: ${machine.id}`);
@@ -857,6 +906,8 @@ export async function startDaemon(): Promise<void> {
         // isDaemonRunningCurrentlyInstalledHappyVersion() === true, and exits —
         // leaving nothing running once we also exit.
         apiMachine.shutdown();
+        tunnelManager.stop();
+        await embeddedServer.stop();
         await stopControlServer();
         await cleanupDaemonState();
         await releaseDaemonLock(daemonLockHandle);
@@ -925,6 +976,8 @@ export async function startDaemon(): Promise<void> {
       await new Promise(resolve => setTimeout(resolve, 100));
 
       apiMachine.shutdown();
+      tunnelManager.stop();
+      await embeddedServer.stop();
       await stopControlServer();
       await cleanupDaemonState();
       await stopCaffeinate();
@@ -941,6 +994,9 @@ export async function startDaemon(): Promise<void> {
     await cleanupAndShutdown(shutdownRequest.source, shutdownRequest.errorMessage);
   } catch (error) {
     logger.debug('[DAEMON RUN][FATAL] Failed somewhere unexpectedly - exiting with code 1', error);
+    if (error instanceof Error && error.message.includes('happy init')) {
+      console.error(error.message);
+    }
     process.exit(1);
   }
 }

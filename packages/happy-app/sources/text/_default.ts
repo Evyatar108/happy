@@ -340,6 +340,7 @@ export const en = {
 
     newSession: {
         title: 'Start New Session',
+        selectMachineRequired: 'Please select a machine',
         machineOffline: 'Machine is offline',
         switchMachinesHint: '• Switch machines by clicking on the machine above',
     },
@@ -825,6 +826,15 @@ export const en = {
         createAccount: 'Create account',
         linkOrRestoreAccount: 'Link or restore account',
         loginWithMobileApp: 'Login with mobile app',
+        pairMachine: 'Pair machine',
+        trustMachine: 'Trust this machine?',
+        trust: 'Trust',
+        ed25519Fingerprint: ({ fingerprint }: { fingerprint: string }) => `Ed25519 fingerprint:\n${fingerprint}`,
+        pubkeyRotationTitle: 'Public key changed',
+        pubkeyRotationWarning: 'This machine is presenting a different public key than the one you trusted before. Only continue if you reinstalled or reset Happy on that computer.',
+        noMachinesForIdentity: 'No machines returned for this GitHub identity',
+        deviceAuthorizationExpired: 'GitHub device authorization expired',
+        pairingFailed: 'Failed to pair machine',
     },
 
     review: {

@@ -33,6 +33,7 @@ function formatLocalTime(timestamp?: number) {
     return `${hours}:${mins}:${secs}.${ms}`;
 }
 
+const isQuietLogger = process.env.HAPPY_SERVER_QUIET_LOGGER === 'true';
 const transports: any[] = [];
 
 // Resolve pino-pretty target - use absolute path for bundled binaries
@@ -41,16 +42,18 @@ try {
     pinoPrettyTarget = require.resolve('pino-pretty');
 } catch {}
 
-transports.push({
-    target: pinoPrettyTarget,
-    options: {
-        colorize: true,
-        translateTime: 'HH:MM:ss.l',
-        ignore: 'pid,hostname',
-        messageFormat: '{levelLabel} {msg} | [{time}]',
-        errorLikeObjectKeys: ['err', 'error'],
-    },
-});
+if (!isQuietLogger) {
+    transports.push({
+        target: pinoPrettyTarget,
+        options: {
+            colorize: true,
+            translateTime: 'HH:MM:ss.l',
+            ignore: 'pid,hostname',
+            messageFormat: '{levelLabel} {msg} | [{time}]',
+            errorLikeObjectKeys: ['err', 'error'],
+        },
+    });
+}
 
 if (process.env.DANGEROUSLY_LOG_TO_SERVER_FOR_AI_AUTO_DEBUGGING && consolidatedLogFile) {
     transports.push({
@@ -65,10 +68,11 @@ if (process.env.DANGEROUSLY_LOG_TO_SERVER_FOR_AI_AUTO_DEBUGGING && consolidatedL
 
 // Main server logger with local time formatting
 export const logger = pino({
+    enabled: !isQuietLogger,
     level: 'debug',
-    transport: {
+    transport: transports.length > 0 ? {
         targets: transports,
-    },
+    } : undefined,
     formatters: {
         log: (object: any) => {
             // Add localTime to every log entry
@@ -121,4 +125,19 @@ export function error(src: any, ...args: any[]) {
 
 export function debug(src: any, ...args: any[]) {
     logger.debug(src, ...args);
+}
+
+export function shutdownLogger() {
+    logger.flush();
+    fileConsolidatedLogger?.flush();
+    const endLogger = (target: any) => {
+        const end = target[pino.symbols.endSym];
+        if (typeof end === 'function') {
+            end.call(target);
+        }
+    };
+    endLogger(logger);
+    if (fileConsolidatedLogger) {
+        endLogger(fileConsolidatedLogger);
+    }
 }

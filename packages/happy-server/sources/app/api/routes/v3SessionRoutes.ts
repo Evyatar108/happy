@@ -57,14 +57,12 @@ export function v3SessionRoutes(app: Fastify) {
             querystring: getMessagesQuerySchema
         }
     }, async (request, reply) => {
-        const userId = request.userId;
         const { sessionId } = request.params;
         const { after_seq, limit } = request.query;
 
         const session = await db.session.findFirst({
             where: {
                 id: sessionId,
-                accountId: userId
             },
             select: { id: true }
         });
@@ -115,7 +113,6 @@ export function v3SessionRoutes(app: Fastify) {
         const session = await db.session.findFirst({
             where: {
                 id: sessionId,
-                accountId: userId
             },
             select: { id: true }
         });

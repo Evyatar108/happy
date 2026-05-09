@@ -28,6 +28,7 @@ export interface PushPermissionRequestResult {
 
 export interface SyncCurrentPushTokenResult {
     registered: boolean;
+    registeredMachines: number;
     token: string | null;
     permission: PushPermissionInfo;
 }
@@ -137,10 +138,13 @@ export async function getCurrentExpoPushToken(): Promise<string | null> {
     }
 }
 
-export async function syncCurrentPushToken(credentials: AuthCredentials): Promise<SyncCurrentPushTokenResult> {
+export async function syncCurrentPushToken(credentials: AuthCredentials | AuthCredentials[]): Promise<SyncCurrentPushTokenResult> {
+    const credentialsList = Array.isArray(credentials) ? credentials : [credentials];
+
     if (Platform.OS === 'web') {
         return {
             registered: false,
+            registeredMachines: 0,
             token: null,
             permission: {
                 status: 'unsupported',
@@ -155,6 +159,7 @@ export async function syncCurrentPushToken(credentials: AuthCredentials): Promis
         if (!permission.canAskAgain) {
             return {
                 registered: false,
+                registeredMachines: 0,
                 token: loadRegisteredPushToken(),
                 permission,
             };
@@ -164,6 +169,7 @@ export async function syncCurrentPushToken(credentials: AuthCredentials): Promis
         if (!permission.granted) {
             return {
                 registered: false,
+                registeredMachines: 0,
                 token: loadRegisteredPushToken(),
                 permission,
             };
@@ -174,6 +180,7 @@ export async function syncCurrentPushToken(credentials: AuthCredentials): Promis
     if (!projectId) {
         return {
             registered: false,
+            registeredMachines: 0,
             token: loadRegisteredPushToken(),
             permission,
         };
@@ -183,19 +190,22 @@ export async function syncCurrentPushToken(credentials: AuthCredentials): Promis
     const currentToken = tokenData.data;
     const previousToken = loadRegisteredPushToken();
 
-    await registerPushToken(credentials, currentToken);
+    await Promise.all(credentialsList.map(machineCredentials => registerPushToken(machineCredentials, currentToken)));
     saveRegisteredPushToken(currentToken);
 
     if (previousToken && previousToken !== currentToken) {
-        try {
-            await unregisterPushToken(credentials, previousToken);
-        } catch (error) {
-            console.log('Failed to unregister previous push token:', error);
-        }
+        await Promise.all(credentialsList.map(async (machineCredentials) => {
+            try {
+                await unregisterPushToken(machineCredentials, previousToken);
+            } catch (error) {
+                console.log('Failed to unregister previous push token:', error);
+            }
+        }));
     }
 
     return {
         registered: true,
+        registeredMachines: credentialsList.length,
         token: currentToken,
         permission,
     };

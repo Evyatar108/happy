@@ -37,10 +37,10 @@ export function accessKeysRoutes(app: Fastify) {
             // Verify session and machine belong to user
             const [session, machine] = await Promise.all([
                 db.session.findFirst({
-                    where: { id: sessionId, accountId: userId }
+                    where: { id: sessionId }
                 }),
                 db.machine.findFirst({
-                    where: { id: machineId, accountId: userId }
+                    where: { id: machineId }
                 })
             ]);
 
@@ -51,11 +51,7 @@ export function accessKeysRoutes(app: Fastify) {
             // Get access key
             const accessKey = await db.accessKey.findUnique({
                 where: {
-                    accountId_machineId_sessionId: {
-                        accountId: userId,
-                        machineId,
-                        sessionId
-                    }
+                    machineId_sessionId: { machineId, sessionId }
                 }
             });
 
@@ -119,10 +115,10 @@ export function accessKeysRoutes(app: Fastify) {
             // Verify session and machine belong to user
             const [session, machine] = await Promise.all([
                 db.session.findFirst({
-                    where: { id: sessionId, accountId: userId }
+                    where: { id: sessionId }
                 }),
                 db.machine.findFirst({
-                    where: { id: machineId, accountId: userId }
+                    where: { id: machineId }
                 })
             ]);
 
@@ -133,11 +129,7 @@ export function accessKeysRoutes(app: Fastify) {
             // Check if access key already exists
             const existing = await db.accessKey.findUnique({
                 where: {
-                    accountId_machineId_sessionId: {
-                        accountId: userId,
-                        machineId,
-                        sessionId
-                    }
+                    machineId_sessionId: { machineId, sessionId }
                 }
             });
 
@@ -148,7 +140,6 @@ export function accessKeysRoutes(app: Fastify) {
             // Create access key
             const accessKey = await db.accessKey.create({
                 data: {
-                    accountId: userId,
                     machineId,
                     sessionId,
                     data,
@@ -216,11 +207,7 @@ export function accessKeysRoutes(app: Fastify) {
             // Get current access key for version check
             const currentAccessKey = await db.accessKey.findUnique({
                 where: {
-                    accountId_machineId_sessionId: {
-                        accountId: userId,
-                        machineId,
-                        sessionId
-                    }
+                    machineId_sessionId: { machineId, sessionId }
                 }
             });
 
@@ -241,7 +228,6 @@ export function accessKeysRoutes(app: Fastify) {
             // Update with version check
             const { count } = await db.accessKey.updateMany({
                 where: {
-                    accountId: userId,
                     machineId,
                     sessionId,
                     dataVersion: expectedVersion
@@ -257,11 +243,7 @@ export function accessKeysRoutes(app: Fastify) {
                 // Re-fetch to get current version
                 const accessKey = await db.accessKey.findUnique({
                     where: {
-                        accountId_machineId_sessionId: {
-                            accountId: userId,
-                            machineId,
-                            sessionId
-                        }
+                        machineId_sessionId: { machineId, sessionId }
                     }
                 });
                 return reply.code(200).send({

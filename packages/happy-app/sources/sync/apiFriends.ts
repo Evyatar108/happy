@@ -1,6 +1,6 @@
 import { AuthCredentials } from '@/auth/tokenStorage';
+import { getMachineAuthHeaders } from '@/auth/machineAuth';
 import { backoff } from '@/utils/time';
-import { getServerUrl } from './serverConfig';
 import { getHappyClientId } from './apiSocket';
 import {
     UserProfile,
@@ -19,7 +19,7 @@ export async function searchUsersByUsername(
     credentials: AuthCredentials,
     username: string
 ): Promise<UserProfile[]> {
-    const API_ENDPOINT = getServerUrl();
+    const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
         const response = await fetch(
@@ -27,8 +27,8 @@ export async function searchUsersByUsername(
             {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${credentials.token}`,
                     'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(credentials),
                 }
             }
         );
@@ -58,7 +58,7 @@ export async function getUserProfile(
     credentials: AuthCredentials,
     userId: string
 ): Promise<UserProfile | null> {
-    const API_ENDPOINT = getServerUrl();
+    const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
         const response = await fetch(
@@ -66,8 +66,8 @@ export async function getUserProfile(
             {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${credentials.token}`,
                     'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(credentials),
                 }
             }
         );
@@ -114,15 +114,15 @@ export async function sendFriendRequest(
     credentials: AuthCredentials,
     recipientId: string
 ): Promise<UserProfile | null> {
-    const API_ENDPOINT = getServerUrl();
+    const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
         const response = await fetch(`${API_ENDPOINT}/v1/friends/add`, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${credentials.token}`,
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(credentials),
             },
             body: JSON.stringify({ uid: recipientId })
         });
@@ -157,14 +157,14 @@ export async function sendFriendRequest(
 export async function getFriendsList(
     credentials: AuthCredentials
 ): Promise<UserProfile[]> {
-    const API_ENDPOINT = getServerUrl();
+    const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
         const response = await fetch(`${API_ENDPOINT}/v1/friends`, {
             method: 'GET',
             headers: {
-                'Authorization': `Bearer ${credentials.token}`,
                 'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(credentials),
             }
         });
 
@@ -190,15 +190,15 @@ export async function removeFriend(
     credentials: AuthCredentials,
     friendId: string
 ): Promise<UserProfile | null> {
-    const API_ENDPOINT = getServerUrl();
+    const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
         const response = await fetch(`${API_ENDPOINT}/v1/friends/remove`, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${credentials.token}`,
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(credentials),
             },
             body: JSON.stringify({ uid: friendId })
         });

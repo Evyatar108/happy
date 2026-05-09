@@ -77,6 +77,11 @@ export interface DaemonLocallyPersistedState {
   daemonLogPath?: string;
 }
 
+export interface MachineLocallyPersistedState {
+  port: number;
+  tunnelUrl?: string;
+}
+
 export async function readSettings(): Promise<Settings> {
   if (!existsSync(configuration.settingsFile)) {
     return { ...defaultSettings }
@@ -290,6 +295,29 @@ export async function clearMachineId(): Promise<void> {
   }));
 }
 
+export async function readMachineState(): Promise<MachineLocallyPersistedState | null> {
+  try {
+    if (!existsSync(configuration.machineFile)) {
+      return null;
+    }
+    const content = await readFile(configuration.machineFile, 'utf-8');
+    const parsed = JSON.parse(content) as Partial<MachineLocallyPersistedState>;
+    if (typeof parsed.port !== 'number' || !Number.isInteger(parsed.port) || parsed.port <= 0 || parsed.port > 65535) {
+      return null;
+    }
+    return {
+      port: parsed.port,
+      tunnelUrl: typeof parsed.tunnelUrl === 'string' ? parsed.tunnelUrl : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function writeMachineState(state: MachineLocallyPersistedState): void {
+  writeFileSync(configuration.machineFile, JSON.stringify(state, null, 2), 'utf-8');
+}
+
 /**
  * Read daemon state from local file
  */
@@ -442,4 +470,3 @@ export function persistSession(sessionId: string, session: PersistedSession): vo
     logger.debug(`[PERSISTENCE] Failed to persist session ${sessionId}:`, error);
   }
 }
-

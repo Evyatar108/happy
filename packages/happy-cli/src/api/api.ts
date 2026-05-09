@@ -4,7 +4,6 @@ import type { AgentState, CreateSessionResponse, Metadata, Session, Machine, Mac
 import { ApiSessionClient } from './apiSession';
 import { ApiMachineClient } from './apiMachine';
 import { decodeBase64, encodeBase64, getRandomBytes, encrypt, decrypt, libsodiumEncryptForPublicKey } from './encryption';
-import { PushNotificationClient } from './pushNotifications';
 import { configuration } from '@/configuration';
 import chalk from 'chalk';
 import { Credentials } from '@/persistence';
@@ -17,11 +16,9 @@ export class ApiClient {
   }
 
   private readonly credential: Credentials;
-  private readonly pushClient: PushNotificationClient;
 
   private constructor(credential: Credentials) {
     this.credential = credential
-    this.pushClient = new PushNotificationClient(credential.token, configuration.serverUrl)
   }
 
   /**
@@ -281,10 +278,6 @@ export class ApiClient {
 
   machineSyncClient(machine: Machine): ApiMachineClient {
     return new ApiMachineClient(this.credential.token, machine);
-  }
-
-  push(): PushNotificationClient {
-    return this.pushClient;
   }
 
   /**

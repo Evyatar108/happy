@@ -48,7 +48,17 @@ Current session wire payload shape (decrypted message body):
 
 `context-boundary` is the shared lifecycle event for `/clear`, `/compact`, autocompact, plan-mode transitions, and `/resume` forks. Producers that need old-client compatibility follow the dual-emit contract: typed `context-boundary` envelope first, legacy fallback event second with `meta.contextBoundaryFallback: true`. New consumers suppress the flagged legacy event and use encrypted session metadata `latestBoundary` only as the cold-start side channel when the boundary row is outside the loaded page.
 
-### 3. Non-renderable content registry
+### 3. TOFU handshake schemas
+
+Shared from `@slopus/happy-wire` (re-exported from `tofu.ts`):
+- `TofuPublicKeysSchema` / `TofuPublicKeys`: the embedded server's pinned long-term keys (`ed25519PublicKey`, `x25519PublicKey`, optional `ed25519Fingerprint`)
+- `TofuPubkeysEventSchema` / `TofuPubkeysEvent`: the `t: 'tofu-pubkeys'` socket event the server emits on connect so mobile can pin keys on first contact
+- `TofuSessionKeyExchangeSchema` / `TofuSessionKeyExchange`: the `t: 'tofu-session-key'` record produced by the X25519 ECDH session-key exchange (`machineId`, `mobileX25519PublicKey`, `serverX25519PublicKey`, `sessionKey`, `firstSeenAt`)
+- `TofuHandshakeMessageSchema` / `TofuHandshakeMessage`: the discriminated union of the two handshake events above, keyed on `t`
+
+These schemas are the canonical wire contract for the per-machine TOFU pinning + ECDH session-key handshake between mobile clients and the embedded `happy-server`. The handshake replaces the deprecated cloud Bearer-token flow.
+
+### 4. Non-renderable content registry
 
 Shared from `@slopus/happy-wire` (re-exported from `nonRenderablePolicy.ts`):
 - types: `NonRenderableEntry`, `RawClaudeMessageMatchInput`, `ReceiverRegexFactory`

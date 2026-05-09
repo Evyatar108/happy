@@ -10,7 +10,6 @@ export type FeedBody = z.infer<typeof FeedBodySchema>;
 
 export interface UserFeedItem {
     id: string;
-    userId: string;
     repeatKey: string | null;
     body: FeedBody;
     createdAt: number;

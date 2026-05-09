@@ -17,7 +17,7 @@ export async function feedGet(
     const cursor = options?.cursor;
 
     // Build where clause for cursor pagination
-    const where: Prisma.UserFeedItemWhereInput = { userId: ctx.uid };
+    const where: Prisma.UserFeedItemWhereInput = {};
 
     if (cursor?.before !== undefined) {
         if (cursor.before.startsWith('0-')) {

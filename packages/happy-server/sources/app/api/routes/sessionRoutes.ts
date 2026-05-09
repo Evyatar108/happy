@@ -7,6 +7,7 @@ import { log } from "@/utils/log";
 import { randomKeyNaked } from "@/utils/randomKeyNaked";
 import { allocateUserSeq } from "@/storage/seq";
 import { sessionDelete } from "@/app/session/sessionDelete";
+import { sendSessionPushEvent } from "@/app/push/pushNotifications";
 
 export function sessionRoutes(app: Fastify) {
 
@@ -17,7 +18,7 @@ export function sessionRoutes(app: Fastify) {
         const userId = request.userId;
 
         const sessions = await db.session.findMany({
-            where: { accountId: userId },
+            where: {},
             orderBy: { updatedAt: 'desc' },
             take: 150,
             select: {
@@ -84,7 +85,6 @@ export function sessionRoutes(app: Fastify) {
 
         const sessions = await db.session.findMany({
             where: {
-                accountId: userId,
                 active: true,
                 lastActiveAt: { gt: new Date(Date.now() - 1000 * 60 * 15) /* 15 minutes */ }
             },
@@ -147,7 +147,7 @@ export function sessionRoutes(app: Fastify) {
         }
 
         // Build where clause
-        const where: Prisma.SessionWhereInput = { accountId: userId };
+        const where: Prisma.SessionWhereInput = {};
 
         // Add changedSince filter (just a filter, doesn't affect pagination)
         if (changedSince) {
@@ -232,7 +232,6 @@ export function sessionRoutes(app: Fastify) {
 
         const session = await db.session.findFirst({
             where: {
-                accountId: userId,
                 tag: tag
             }
         });
@@ -263,7 +262,6 @@ export function sessionRoutes(app: Fastify) {
             log({ module: 'session-create', userId, tag }, `Creating new session for user ${userId} with tag ${tag}`);
             const session = await db.session.create({
                 data: {
-                    accountId: userId,
                     tag: tag,
                     metadata: metadata,
                     dataEncryptionKey: dataEncryptionKey ? new Uint8Array(Buffer.from(dataEncryptionKey, 'base64')) : undefined
@@ -284,6 +282,13 @@ export function sessionRoutes(app: Fastify) {
                 userId,
                 payload: updatePayload,
                 recipientFilter: { type: 'user-scoped-only' }
+            });
+
+            await sendSessionPushEvent({
+                machineId: userId,
+                sessionId: session.id,
+                kind: "new-session",
+                summary: "New session created",
             });
 
             return reply.send({
@@ -320,7 +325,6 @@ export function sessionRoutes(app: Fastify) {
         const session = await db.session.findFirst({
             where: {
                 id: sessionId,
-                accountId: userId
             }
         });
 
@@ -367,7 +371,7 @@ export function sessionRoutes(app: Fastify) {
         const { sessionId } = request.params;
 
         const result = await db.session.updateMany({
-            where: { id: sessionId, accountId: userId },
+            where: { id: sessionId },
             data: { active: false, lastActiveAt: new Date() }
         });
 

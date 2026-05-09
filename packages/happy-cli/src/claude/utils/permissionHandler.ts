@@ -234,9 +234,8 @@ export class PermissionHandler {
             }
 
             // Send push notification
-            this.session.api.push().sendSessionNotification({
+            this.session.client.sendPushEvent({
                 kind: 'permission',
-                metadata: this.session.client.getMetadata(),
                 data: {
                     sessionId: this.session.client.sessionId,
                     requestId: id,

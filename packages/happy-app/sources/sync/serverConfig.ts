@@ -5,7 +5,8 @@ const serverConfigStorage = new MMKV({ id: 'server-config' });
 
 const SERVER_KEY = 'custom-server-url';
 const LOG_SERVER_KEY = 'log-server-url';
-const DEFAULT_SERVER_URL = 'https://api.cluster-fluster.com';
+const DEFAULT_SERVER_URL = 'http://127.0.0.1:3005';
+const MACHINE_SERVER_PREFIX = 'machine-server-url:';
 
 export function getServerUrl(): string {
     return serverConfigStorage.getString(SERVER_KEY) || 
@@ -75,4 +76,32 @@ export function validateServerUrl(url: string): { valid: boolean; error?: string
     } catch {
         return { valid: false, error: 'Invalid URL format' };
     }
+}
+
+export function getMachineServerUrl(machineId: string): string | null {
+    return serverConfigStorage.getString(`${MACHINE_SERVER_PREFIX}${machineId}`) ?? null;
+}
+
+export function setMachineServerUrl(machineId: string, url: string | null): void {
+    const key = `${MACHINE_SERVER_PREFIX}${machineId}`;
+    if (url && url.trim()) {
+        serverConfigStorage.set(key, url.trim());
+    } else {
+        serverConfigStorage.delete(key);
+    }
+}
+
+export function resolveMachineServerUrl(machineId: string, fallbackUrl: string): string {
+    return getMachineServerUrl(machineId) ?? fallbackUrl;
+}
+
+export function getConfiguredMachineServerUrls(machineIds: string[]): Record<string, string> {
+    const result: Record<string, string> = {};
+    for (const machineId of machineIds) {
+        const url = getMachineServerUrl(machineId);
+        if (url) {
+            result[machineId] = url;
+        }
+    }
+    return result;
 }

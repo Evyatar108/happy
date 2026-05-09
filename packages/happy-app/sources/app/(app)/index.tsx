@@ -3,17 +3,16 @@ import { useAuth } from "@/auth/AuthContext";
 import { Text, View, Image, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as React from 'react';
-import { encodeBase64 } from "@/encryption/base64";
-import { authGetToken } from "@/auth/authGetToken";
-import { router, useRouter } from "expo-router";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import { getRandomBytesAsync } from "expo-crypto";
 import { useIsLandscape } from "@/utils/responsive";
 import { Typography } from "@/constants/Typography";
-import { trackAccountCreated, trackAccountRestored } from '@/track';
+import { trackAccountCreated } from '@/track';
 import { HomeHeaderNotAuth } from "@/components/HomeHeader";
 import { MainView } from "@/components/MainView";
 import { t } from '@/text';
+import { createX25519KeyPair, credentialsFromPairMachine, openGitHubDeviceFlow, pollPairing, startPairing } from '@/auth/pairing';
+import { Modal } from '@/modal';
+import { TokenStorage } from '@/auth/tokenStorage';
 
 export default function Home() {
     const auth = useAuth();
@@ -32,20 +31,59 @@ function Authenticated() {
 function NotAuthenticated() {
     const { theme } = useUnistyles();
     const auth = useAuth();
-    const router = useRouter();
     const isLandscape = useIsLandscape();
     const insets = useSafeAreaInsets();
 
-    const createAccount = async () => {
+    const pairMachine = async () => {
         try {
-            const secret = await getRandomBytesAsync(32);
-            const token = await authGetToken(secret);
-            if (token && secret) {
-                await auth.login(token, encodeBase64(secret, 'base64url'));
+            const pairing = await startPairing();
+            await openGitHubDeviceFlow(pairing);
+
+            const localKeyPair = createX25519KeyPair();
+            const deadline = Date.now() + pairing.expires_in * 1000;
+            while (Date.now() < deadline) {
+                await new Promise(resolve => setTimeout(resolve, Math.max(pairing.interval, 1) * 1000));
+                const status = await pollPairing(pairing.device_code, localKeyPair);
+                if (status.status !== 'authorized') {
+                    continue;
+                }
+
+                const machine = status.machines?.[0];
+                if (!machine) {
+                    throw new Error(t('welcome.noMachinesForIdentity'));
+                }
+
+                const trustedMachines = await TokenStorage.getCredentialsList();
+                const existingMachine = trustedMachines.find(item => item.machineId === machine.machineId);
+                if (existingMachine && existingMachine.pinnedPubkey !== machine.ed25519PublicKey) {
+                    const acceptedRotation = await Modal.confirm(
+                        t('welcome.pubkeyRotationTitle'),
+                        t('welcome.pubkeyRotationWarning'),
+                        { confirmText: t('welcome.trust'), cancelText: t('common.cancel'), destructive: true }
+                    );
+                    if (!acceptedRotation) {
+                        return;
+                    }
+                }
+
+                const trusted = await Modal.confirm(
+                    t('welcome.trustMachine'),
+                    t('welcome.ed25519Fingerprint', { fingerprint: machine.ed25519Fingerprint ?? machine.ed25519PublicKey }),
+                    { confirmText: t('welcome.trust'), cancelText: t('common.cancel') }
+                );
+                if (!trusted) {
+                    return;
+                }
+
+                const credentials = credentialsFromPairMachine(machine, localKeyPair);
+                await auth.login(credentials);
                 trackAccountCreated();
+                return;
             }
+            throw new Error(t('welcome.deviceAuthorizationExpired'));
         } catch (error) {
-            console.error('Error creating account', error);
+            console.error('Error pairing machine', error);
+            Modal.alert(t('common.error'), error instanceof Error ? error.message : t('welcome.pairingFailed'));
         }
     }
 
@@ -66,19 +104,8 @@ function NotAuthenticated() {
                 <>
                     <View style={styles.buttonContainer}>
                         <RoundButton
-                            title={t('welcome.loginWithMobileApp')}
-                            onPress={() => {
-                                trackAccountRestored();
-                                router.push('/restore');
-                            }}
-                        />
-                    </View>
-                    <View style={styles.buttonContainerSecondary}>
-                        <RoundButton
-                            size="normal"
-                            title={t('welcome.createAccount')}
-                            action={createAccount}
-                            display="inverted"
+                            title={t('welcome.pairMachine')}
+                            action={pairMachine}
                         />
                     </View>
                 </>
@@ -86,19 +113,8 @@ function NotAuthenticated() {
                 <>
                     <View style={styles.buttonContainer}>
                         <RoundButton
-                            title={t('welcome.createAccount')}
-                            action={createAccount}
-                        />
-                    </View>
-                    <View style={styles.buttonContainerSecondary}>
-                        <RoundButton
-                            size="normal"
-                            title={t('welcome.linkOrRestoreAccount')}
-                            onPress={() => {
-                                trackAccountRestored();
-                                router.push('/restore');
-                            }}
-                            display="inverted"
+                            title={t('welcome.pairMachine')}
+                            action={pairMachine}
                         />
                     </View>
                 </>
@@ -127,38 +143,16 @@ function NotAuthenticated() {
                         ? (<>
                             <View style={styles.landscapeButtonContainer}>
                                 <RoundButton
-                                    title={t('welcome.loginWithMobileApp')}
-                                    onPress={() => {
-                                        trackAccountRestored();
-                                        router.push('/restore');
-                                    }}
-                                />
-                            </View>
-                            <View style={styles.landscapeButtonContainerSecondary}>
-                                <RoundButton
-                                    size="normal"
-                                    title={t('welcome.createAccount')}
-                                    action={createAccount}
-                                    display="inverted"
+                                    title={t('welcome.pairMachine')}
+                                    action={pairMachine}
                                 />
                             </View>
                         </>)
                         : (<>
                             <View style={styles.landscapeButtonContainer}>
                                 <RoundButton
-                                    title={t('welcome.createAccount')}
-                                    action={createAccount}
-                                />
-                            </View>
-                            <View style={styles.landscapeButtonContainerSecondary}>
-                                <RoundButton
-                                    size="normal"
-                                    title={t('welcome.linkOrRestoreAccount')}
-                                    onPress={() => {
-                                        trackAccountRestored();
-                                        router.push('/restore');
-                                    }}
-                                    display="inverted"
+                                    title={t('welcome.pairMachine')}
+                                    action={pairMachine}
                                 />
                             </View>
                         </>)
@@ -208,8 +202,6 @@ const styles = StyleSheet.create((theme) => ({
         width: '100%',
         marginBottom: 16,
     },
-    buttonContainerSecondary: {
-    },
     // Landscape styles
     landscapeContainer: {
         flexBasis: 0,
@@ -257,8 +249,5 @@ const styles = StyleSheet.create((theme) => ({
     landscapeButtonContainer: {
         width: 280,
         marginBottom: 16,
-    },
-    landscapeButtonContainerSecondary: {
-        width: 280,
     },
 }));

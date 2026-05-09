@@ -170,13 +170,16 @@ function getDevEnvironmentCredentials(): AuthCredentials | null {
         return null;
     }
 
-    const token = process.env.EXPO_PUBLIC_DEV_TOKEN;
-    const secret = process.env.EXPO_PUBLIC_DEV_SECRET;
-    if (!token || !secret) {
+    const machineId = process.env.EXPO_PUBLIC_DEV_MACHINE_ID;
+    const tunnelUrl = process.env.EXPO_PUBLIC_DEV_TUNNEL_URL;
+    const tunnelClaim = process.env.EXPO_PUBLIC_DEV_TUNNEL_JWT;
+    const pinnedPubkey = process.env.EXPO_PUBLIC_DEV_PINNED_PUBKEY;
+    const sessionKey = process.env.EXPO_PUBLIC_DEV_SESSION_KEY;
+    if (!machineId || !tunnelUrl || !tunnelClaim || !pinnedPubkey || !sessionKey) {
         return null;
     }
 
-    return { token, secret };
+    return { machineId, tunnelUrl, tunnelClaim, pinnedPubkey, sessionKey, firstSeenAt: Date.now() };
 }
 
 function getDevWebQueryCredentials(): AuthCredentials | null {
@@ -185,13 +188,16 @@ function getDevWebQueryCredentials(): AuthCredentials | null {
     }
 
     const params = new URLSearchParams(window.location.search);
-    const token = params.get('dev_token');
-    const secret = params.get('dev_secret');
-    if (!token || !secret) {
+    const machineId = params.get('dev_machine_id');
+    const tunnelUrl = params.get('dev_tunnel_url');
+    const tunnelClaim = params.get('dev_tunnel_jwt');
+    const pinnedPubkey = params.get('dev_pinned_pubkey');
+    const sessionKey = params.get('dev_session_key');
+    if (!machineId || !tunnelUrl || !tunnelClaim || !pinnedPubkey || !sessionKey) {
         return null;
     }
 
-    return { token, secret };
+    return { machineId, tunnelUrl, tunnelClaim, pinnedPubkey, sessionKey, firstSeenAt: Date.now() };
 }
 
 export default function RootLayout() {
@@ -232,8 +238,9 @@ export default function RootLayout() {
                 const devCredentials = getDevWebQueryCredentials() ?? getDevEnvironmentCredentials();
 
                 if (devCredentials) {
-                    const credentialsChanged = credentials?.token !== devCredentials.token
-                        || credentials?.secret !== devCredentials.secret;
+                    const credentialsChanged = credentials?.machineId !== devCredentials.machineId
+                        || credentials?.tunnelUrl !== devCredentials.tunnelUrl
+                        || credentials?.sessionKey !== devCredentials.sessionKey;
 
                     if (credentialsChanged) {
                         const saved = await TokenStorage.setCredentials(devCredentials);

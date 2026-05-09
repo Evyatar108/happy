@@ -105,15 +105,14 @@ export const databaseRecordCountGauge = new Gauge({
 // Database metrics updater
 export async function updateDatabaseMetrics(): Promise<void> {
     // Query counts for each table
-    const [accountCount, sessionCount, messageCount, machineCount] = await Promise.all([
-        db.account.count(),
+    const [sessionCount, messageCount, machineCount] = await Promise.all([
         db.session.count(),
         db.sessionMessage.count(),
         db.machine.count()
     ]);
 
     // Update metrics
-    databaseRecordCountGauge.set({ table: 'accounts' }, accountCount);
+    databaseRecordCountGauge.set({ table: 'accounts' }, 1);
     databaseRecordCountGauge.set({ table: 'sessions' }, sessionCount);
     databaseRecordCountGauge.set({ table: 'messages' }, messageCount);
     databaseRecordCountGauge.set({ table: 'machines' }, machineCount);
