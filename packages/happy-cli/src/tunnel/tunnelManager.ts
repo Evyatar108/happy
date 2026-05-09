@@ -10,7 +10,7 @@ import { logger } from '@/ui/logger';
 import { pickFreeLoopbackPort } from '@/utils/pickFreeLoopbackPort';
 import { TunnelConfigSchema, type TunnelConfig } from './types';
 
-const REQUIRED_DEVTUNNEL_VERSION = '1.0.0';
+const REQUIRED_DEVTUNNEL_VERSION = '1.0.1516';
 const RENEW_AFTER_DAYS = 25;
 const RENEW_WITHIN_EXPIRY_DAYS = 7;
 const TUNNEL_LIFETIME_DAYS = 30;

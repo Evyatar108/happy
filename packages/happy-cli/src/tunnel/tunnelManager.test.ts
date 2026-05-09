@@ -54,7 +54,7 @@ describe('TunnelManager', () => {
     const calls: string[][] = [];
     const runner: CommandRunner = (command, args) => {
       calls.push([command, ...args]);
-      return { status: 0, stdout: 'devtunnel version 1.0.0', stderr: '' };
+      return { status: 0, stdout: 'devtunnel version 1.0.1516', stderr: '' };
     };
     const happyHomeDir = tempHome();
     await writeTunnelConfig({
