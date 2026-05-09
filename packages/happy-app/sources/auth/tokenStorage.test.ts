@@ -18,7 +18,7 @@ describe('TokenStorage', () => {
     const credentials: AuthCredentials = {
         machineId: 'machine-1',
         tunnelUrl: 'https://machine.example.test',
-        tunnelJwt: 'jwt-1',
+        tunnelClaim: 'jwt-1',
         pinnedPubkey: 'ed-pubkey',
         sessionKey: 'shared-session-key',
         firstSeenAt: 123,
@@ -51,7 +51,7 @@ describe('TokenStorage', () => {
             ...credentials,
             machineId: 'machine-2',
             tunnelUrl: 'https://machine-2.example.test',
-            tunnelJwt: 'jwt-2',
+            tunnelClaim: 'jwt-2',
         };
         secureStore.getItemAsync.mockResolvedValueOnce(JSON.stringify({
             primaryMachineId: 'machine-1',

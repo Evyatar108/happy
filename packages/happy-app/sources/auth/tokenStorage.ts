@@ -6,7 +6,7 @@ const AUTH_KEY = 'machine_credentials';
 export interface AuthCredentials {
     machineId: string;
     tunnelUrl: string;
-    tunnelJwt: string;
+    tunnelClaim: string;
     pinnedPubkey: string;
     sessionKey: string;
     firstSeenAt: number;

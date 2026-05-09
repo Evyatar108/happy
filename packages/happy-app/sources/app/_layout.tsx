@@ -172,14 +172,14 @@ function getDevEnvironmentCredentials(): AuthCredentials | null {
 
     const machineId = process.env.EXPO_PUBLIC_DEV_MACHINE_ID;
     const tunnelUrl = process.env.EXPO_PUBLIC_DEV_TUNNEL_URL;
-    const tunnelJwt = process.env.EXPO_PUBLIC_DEV_TUNNEL_JWT;
+    const tunnelClaim = process.env.EXPO_PUBLIC_DEV_TUNNEL_JWT;
     const pinnedPubkey = process.env.EXPO_PUBLIC_DEV_PINNED_PUBKEY;
     const sessionKey = process.env.EXPO_PUBLIC_DEV_SESSION_KEY;
-    if (!machineId || !tunnelUrl || !tunnelJwt || !pinnedPubkey || !sessionKey) {
+    if (!machineId || !tunnelUrl || !tunnelClaim || !pinnedPubkey || !sessionKey) {
         return null;
     }
 
-    return { machineId, tunnelUrl, tunnelJwt, pinnedPubkey, sessionKey, firstSeenAt: Date.now() };
+    return { machineId, tunnelUrl, tunnelClaim, pinnedPubkey, sessionKey, firstSeenAt: Date.now() };
 }
 
 function getDevWebQueryCredentials(): AuthCredentials | null {
@@ -190,14 +190,14 @@ function getDevWebQueryCredentials(): AuthCredentials | null {
     const params = new URLSearchParams(window.location.search);
     const machineId = params.get('dev_machine_id');
     const tunnelUrl = params.get('dev_tunnel_url');
-    const tunnelJwt = params.get('dev_tunnel_jwt');
+    const tunnelClaim = params.get('dev_tunnel_jwt');
     const pinnedPubkey = params.get('dev_pinned_pubkey');
     const sessionKey = params.get('dev_session_key');
-    if (!machineId || !tunnelUrl || !tunnelJwt || !pinnedPubkey || !sessionKey) {
+    if (!machineId || !tunnelUrl || !tunnelClaim || !pinnedPubkey || !sessionKey) {
         return null;
     }
 
-    return { machineId, tunnelUrl, tunnelJwt, pinnedPubkey, sessionKey, firstSeenAt: Date.now() };
+    return { machineId, tunnelUrl, tunnelClaim, pinnedPubkey, sessionKey, firstSeenAt: Date.now() };
 }
 
 export default function RootLayout() {

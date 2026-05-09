@@ -20,7 +20,7 @@ export type PairMachine = {
     ed25519PublicKey: string;
     x25519PublicKey: string;
     ed25519Fingerprint?: string;
-    tunnelJwt: string;
+    tunnelClaim: string;
 };
 
 export type PairStatusResponse = {
@@ -54,7 +54,7 @@ export function credentialsFromPairMachine(machine: PairMachine): AuthCredential
     return {
         machineId: machine.machineId,
         tunnelUrl: machine.tunnelUrl,
-        tunnelJwt: machine.tunnelJwt,
+        tunnelClaim: machine.tunnelClaim,
         pinnedPubkey: machine.ed25519PublicKey,
         sessionKey,
         firstSeenAt: Date.now(),

@@ -28,7 +28,9 @@ function getGitHubClientId(): string {
     return clientId;
 }
 
-function encodeTunnelJwt(payload: unknown): string {
+// Produces an unsigned base64url-encoded JSON claim (not a signed JWT).
+// Named "claim" deliberately — callers must not assume cryptographic verification.
+function encodeTunnelClaim(payload: unknown): string {
     return Buffer.from(JSON.stringify(payload)).toString("base64url");
 }
 
@@ -131,7 +133,7 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
                 ed25519PublicKey: tofuConfig.tofuPublicKeys.ed25519PublicKey,
                 x25519PublicKey: tofuConfig.tofuPublicKeys.x25519PublicKey,
                 ed25519Fingerprint: tofuConfig.tofuPublicKeys.ed25519Fingerprint,
-                tunnelJwt: encodeTunnelJwt({ sub: tofuConfig.localUserId, gh: githubUser.login, iat: Math.floor(Date.now() / 1000) }),
+                tunnelClaim: encodeTunnelClaim({ sub: tofuConfig.localUserId, gh: githubUser.login, iat: Math.floor(Date.now() / 1000) }),
             }],
         };
     });

@@ -46,7 +46,7 @@ describe('pairing', () => {
                         ed25519PublicKey: 'ed-pubkey',
                         x25519PublicKey: 'x-pubkey',
                         ed25519Fingerprint: 'SHA256:test',
-                        tunnelJwt: 'jwt-1',
+                        tunnelClaim: 'jwt-1',
                     }],
                 }),
             });

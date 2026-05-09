@@ -15,7 +15,7 @@ describe('tunnelTransport', () => {
     const credentials: AuthCredentials = {
         machineId: 'machine-1',
         tunnelUrl: 'https://machine.example.test',
-        tunnelJwt: 'jwt-1',
+        tunnelClaim: 'jwt-1',
         pinnedPubkey: 'server-pubkey',
         sessionKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
         firstSeenAt: 123,

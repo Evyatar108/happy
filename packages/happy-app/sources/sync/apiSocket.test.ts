@@ -59,7 +59,7 @@ function credential(machineId: string) {
     return {
         machineId,
         tunnelUrl: `https://${machineId}.example.test`,
-        tunnelJwt: `jwt-${machineId}`,
+        tunnelClaim: `jwt-${machineId}`,
         pinnedPubkey: `pub-${machineId}`,
         sessionKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
         firstSeenAt: 1,

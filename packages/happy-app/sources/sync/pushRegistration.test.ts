@@ -59,7 +59,7 @@ function credentials(machineId: string): AuthCredentials {
     return {
         machineId,
         tunnelUrl: `https://${machineId}.example.test`,
-        tunnelJwt: `jwt-${machineId}`,
+        tunnelClaim: `jwt-${machineId}`,
         pinnedPubkey: `pub-${machineId}`,
         sessionKey: `session-${machineId}`,
         firstSeenAt: 1,

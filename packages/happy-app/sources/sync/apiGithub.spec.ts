@@ -22,7 +22,7 @@ describe('apiGithub', () => {
     const mockCredentials: AuthCredentials = {
         machineId: 'test-machine',
         tunnelUrl: 'https://api.test.com',
-        tunnelJwt: 'test-jwt',
+        tunnelClaim: 'test-jwt',
         pinnedPubkey: 'test-pubkey',
         sessionKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
         firstSeenAt: 123,
