@@ -1,5 +1,29 @@
 # Happy Roadmap
 
+## Shipped
+
+### Server-Per-Machine Architecture (D-003) — 2026-05-09
+Happy redesigned from multi-tenant cloud relay to server-per-machine product. Each machine runs embedded `happy-server` inside `happy-cli`, exposed via Microsoft Dev Tunnel, paired via GitHub device flow + TOFU pubkey pinning, push notifications direct to Expo HTTP API. Cloud relay (`app.happy.engineering`) removed.
+
+- `happy init` creates Dev Tunnel, generates Ed25519 + X25519 TOFU keypairs
+- `happy daemon start` embeds happy-server in-process, starts tunnel host
+- Mobile pairing: GitHub device flow → TOFU fingerprint → Ed25519-signed tunnel claim → X25519 ECDH session key
+- Per-machine push: happy-server calls `exp.host/--/api/v2/push/send` directly
+- Bearer auth removed from all Happy-relay call sites
+- Machine discovery: server queries Dev Tunnels API after GitHub auth, returns all `happy-*` tunnels for N-machine picker
+
+### What's still missing from the tunnel research doc
+These items from `docs/research/tunnel-transport-recommendation.md` were NOT implemented in D-003 and are required for production correctness:
+
+- **Connect JWT (critical)** — Mobile must call `GET /tunnels/:id?tokenScopes=connect&api-version=2023-09-27-preview` to get a real Dev Tunnels JWT for `X-Tunnel-Authorization`. Currently we use a server-generated Ed25519-signed claim instead. Without `--allow-anonymous` on the tunnel, Dev Tunnels edge will reject mobile connections that lack a real connect JWT. Latent bug.
+- **Tunnel transport layer** — All 15+ REST call sites in happy-app need `X-Tunnel-Authorization` injection via shared `happyFetch()` / `happyAxiosConfig()` helpers. Currently only Socket.IO handshake injects the header. See research doc "Centralized Tunnel Transport Layer" section for full call site list.
+- **Connect token expiry handling** — JWT renewal on 401, GitHub re-auth flow on token expiry.
+- **Poll on foreground resume** — Re-discover tunnels every 30s on app foreground.
+- **devtunnel GitHub App client ID** — Research doc validated `Iv1.e7b89e013f801f03` for mobile-side device flow directly against Dev Tunnels API (no server proxy). Currently we use the server's `GITHUB_CLIENT_ID` instead.
+- **`happy://` deep link handler** — OAuth callback from server GitHub proxy. `app.config.js` has `scheme: 'happy'` but `_layout.tsx` has no handler.
+- **Entra MSAL** — Deferred. Requires `pnpm prebuild` (currently stubbed to error). GitHub device flow is the only mobile auth path for now.
+- **Prisma migration** — Schema was rewritten but no migration file committed. Human must run `pnpm migrate` against production Postgres.
+
 ## Next Up
 
 - Start using as the daily development driver
@@ -95,17 +119,16 @@ Missing the concept of **workspace** (aka project) that spans multiple machines,
 
 ## Push Notification Routing
 
-Current state: server stores bare Expo push tokens per account with no device metadata. All registered devices get all notifications — no routing intelligence.
+Current state (post D-003): happy-server calls Expo HTTP API directly per machine. Push tokens are stored per-machine/per-device. Smart routing still missing:
 
-- Smart routing: use presence/activity signals (last active device, which device has the session open) to route notifications to the right device instead of blasting all
-  - Server already has presence data (sessionCache, machine connection state) — likely enough to make good routing decisions
-  - Suppress notification on the device that originated the action
-  - Prefer the device the user is currently active on
-- Web push notifications: currently missing entirely — add service worker + web push registration so browser sessions get notifications too
-- Device metadata on token registration: store platform (ios/android/web), device name, last active timestamp alongside the push token
+- Smart routing: suppress notification on originating device, prefer device user is currently active on
+- Web push: missing entirely — needs service worker + web push registration
+- Device metadata: store platform (ios/android/web), device name, last active timestamp
 
 ## Better Machine Management
 
+- Connect JWT flow: get real Dev Tunnels JWT for tunnel-level auth (see "What's still missing" above — critical)
+- Tunnel transport layer: inject `X-Tunnel-Authorization` on all 15+ REST call sites via `happyFetch()` helper
 - Auth transferring between devices
 
 ## Integrations (external services)
