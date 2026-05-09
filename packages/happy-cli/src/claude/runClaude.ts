@@ -26,7 +26,7 @@ import { claudeLocal } from '@/claude/claudeLocal';
 import { createSessionScanner } from '@/claude/utils/sessionScanner';
 import { Session } from './session';
 import { applySandboxPermissionPolicy, resolveInitialClaudePermissionMode } from './utils/permissionMode';
-import { publishPermissionModeIfChanged } from '@/utils/publishPermissionMode';
+import { publishAgentConfigurationMetadataIfChanged, publishPermissionModeIfChanged } from '@/utils/publishPermissionMode';
 import { decodeBase64, encodeBase64 } from '@/api/encryption';
 import type { Session as ApiSession } from '@/api/types';
 import type { AgentConfiguration } from '@/api/apiSession';
@@ -341,6 +341,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
 
     if (typeof session.onAgentConfiguration === 'function') {
         session.onAgentConfiguration((configuration: AgentConfiguration) => {
+            const metadataPatch: { model?: string; thinkingLevel?: string } = {};
             if (Object.prototype.hasOwnProperty.call(configuration, 'permissionMode')) {
                 currentPermissionMode = configuration.permissionMode
                     ? applySandboxPermissionPolicy(configuration.permissionMode as PermissionMode, sandboxEnabled)
@@ -350,12 +351,15 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
             }
             if (Object.prototype.hasOwnProperty.call(configuration, 'model')) {
                 currentModel = configuration.model || undefined;
+                metadataPatch.model = currentModel;
                 logger.debug(`[loop] Model updated from live configuration for next turn: ${currentModel || 'default'}`);
             }
             if (Object.prototype.hasOwnProperty.call(configuration, 'thinkingLevel')) {
                 currentThinkingLevel = configuration.thinkingLevel || undefined;
+                metadataPatch.thinkingLevel = currentThinkingLevel;
                 logger.debug(`[loop] Thinking level updated from live configuration for next turn: ${currentThinkingLevel || 'default'}`);
             }
+            void publishAgentConfigurationMetadataIfChanged(session, metadata, metadataPatch);
         });
     }
 

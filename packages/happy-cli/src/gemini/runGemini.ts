@@ -28,6 +28,7 @@ import { notifyDaemonSessionStarted } from '@/daemon/controlClient';
 import { encodeBase64 } from '@/api/encryption';
 import { registerKillSessionHandler } from '@/claude/registerKillSessionHandler';
 import { connectionState } from '@/utils/serverConnectionErrors';
+import { publishAgentConfigurationMetadataIfChanged } from '@/utils/publishPermissionMode';
 import { setupOfflineReconnection } from '@/utils/setupOfflineReconnection';
 import type { AgentConfiguration, ApiSessionClient } from '@/api/apiSession';
 
@@ -543,6 +544,7 @@ export async function runGemini(opts: {
 
   if (typeof session.onAgentConfiguration === 'function') {
     session.onAgentConfiguration((configuration: AgentConfiguration) => {
+      const metadataPatch: { model?: string; thinkingLevel?: string } = {};
       if (Object.prototype.hasOwnProperty.call(configuration, 'permissionMode')) {
         const incoming = configuration.permissionMode as PermissionMode | undefined;
         if (incoming === undefined) {
@@ -563,14 +565,15 @@ export async function runGemini(opts: {
         if (configuration.model) {
           updateDisplayedModel(configuration.model, true);
         }
-        metadata.currentModelCode = configuration.model;
+        metadataPatch.model = currentModel;
         logger.debug(`[Gemini] Model updated from live configuration for next turn: ${currentModel || 'default'}`);
       }
       if (Object.prototype.hasOwnProperty.call(configuration, 'thinkingLevel')) {
         currentThinkingLevel = configuration.thinkingLevel || undefined;
-        metadata.currentThoughtLevelCode = configuration.thinkingLevel;
+        metadataPatch.thinkingLevel = currentThinkingLevel;
         logger.debug(`[Gemini] Thinking level updated from live configuration for next turn: ${currentThinkingLevel || 'default'}`);
       }
+      void publishAgentConfigurationMetadataIfChanged(session, metadata, metadataPatch);
     });
   }
 

@@ -4,12 +4,16 @@ import type { MessageMeta, Metadata, PermissionMode } from '@/api/types';
 
 const mocks = vi.hoisted(() => {
     let userMessageHandler: ((message: any) => void) | null = null;
+    let agentConfigurationHandler: ((configuration: any) => void) | null = null;
     let serverMetadata: any = {};
 
     const mockSession = {
         on: vi.fn(),
         onUserMessage: vi.fn((handler: (message: any) => void) => {
             userMessageHandler = handler;
+        }),
+        onAgentConfiguration: vi.fn((handler: (configuration: any) => void) => {
+            agentConfigurationHandler = handler;
         }),
         updateMetadata: vi.fn(async (handler: (metadata: any) => any) => {
             serverMetadata = handler(serverMetadata);
@@ -49,8 +53,12 @@ const mocks = vi.hoisted(() => {
         mockClaudeLocal: vi.fn(),
         mockCreateSessionScanner: vi.fn(),
         getUserMessageHandler: () => userMessageHandler,
+        getAgentConfigurationHandler: () => agentConfigurationHandler,
         setUserMessageHandler: (handler: ((message: any) => void) | null) => {
             userMessageHandler = handler;
+        },
+        setAgentConfigurationHandler: (handler: ((configuration: any) => void) | null) => {
+            agentConfigurationHandler = handler;
         },
         getServerMetadata: () => serverMetadata,
         setServerMetadata: (metadata: any) => {
@@ -209,6 +217,7 @@ describe('runClaude permission mode metadata publishing', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mocks.setUserMessageHandler(null);
+        mocks.setAgentConfigurationHandler(null);
         mocks.setServerMetadata({});
         mocks.mockApiCreate.mockResolvedValue(createApi());
         mocks.mockReadSettings.mockResolvedValue({ machineId: 'machine-1', sandboxConfig: undefined });
@@ -251,6 +260,35 @@ describe('runClaude permission mode metadata publishing', () => {
 
         expect(mocks.mockSession.updateMetadata).not.toHaveBeenCalled();
         expect(mocks.getServerMetadata().currentPermissionModeCode).toBe('default');
+    });
+
+    it('echoes live model and thinking configuration once for next-turn application', async () => {
+        mocks.mockLoop.mockImplementation(async () => {
+            mocks.getAgentConfigurationHandler()?.({ model: 'claude-opus', thinkingLevel: 'high' });
+            await Promise.resolve();
+            return 0;
+        });
+
+        await runClaudeUntilExit('default');
+
+        expect(mocks.mockSession.updateMetadata).toHaveBeenCalledTimes(1);
+        expect(mocks.getServerMetadata().currentModelCode).toBe('claude-opus');
+        expect(mocks.getServerMetadata().currentThoughtLevelCode).toBe('high');
+    });
+
+    it('does not echo unchanged live model configuration twice', async () => {
+        mocks.mockLoop.mockImplementation(async () => {
+            mocks.getAgentConfigurationHandler()?.({ model: 'claude-opus' });
+            await Promise.resolve();
+            mocks.getAgentConfigurationHandler()?.({ model: 'claude-opus' });
+            await Promise.resolve();
+            return 0;
+        });
+
+        await runClaudeUntilExit('default');
+
+        expect(mocks.mockSession.updateMetadata).toHaveBeenCalledTimes(1);
+        expect(mocks.getServerMetadata().currentModelCode).toBe('claude-opus');
     });
 
     it.each([

@@ -21,6 +21,7 @@ import { startHappyServer } from '@/claude/utils/startHappyServer';
 import { projectPath } from '@/projectPath';
 import { BasePermissionHandler, type PermissionResult } from '@/utils/BasePermissionHandler';
 import { connectionState } from '@/utils/serverConnectionErrors';
+import { publishAgentConfigurationMetadataIfChanged, publishPermissionModeIfChanged } from '@/utils/publishPermissionMode';
 import {
   extractConfigOptionsFromPayload,
   extractCurrentModeIdFromPayload,
@@ -519,6 +520,7 @@ export async function runAcp(opts: {
   const sessionManager = new AcpSessionManager();
   const messageQueue = new MessageQueue2<AcpSwitchMode>((mode) => hashObject(mode));
   let currentPermissionMode: string | undefined;
+  const lastPublishedPermissionModeCode = { current: undefined as string | undefined };
   let currentModel: string | null | undefined;
   let currentThinkingLevel: string | undefined;
   let modeSelector: AcpConfigSelector | null = null;
@@ -888,18 +890,23 @@ export async function runAcp(opts: {
 
   if (typeof session.onAgentConfiguration === 'function') {
     session.onAgentConfiguration((configuration: AgentConfiguration) => {
+      const metadataPatch: { model?: string; thinkingLevel?: string } = {};
       if (Object.prototype.hasOwnProperty.call(configuration, 'permissionMode')) {
         currentPermissionMode = configuration.permissionMode;
+        void publishPermissionModeIfChanged(session, metadata, currentPermissionMode, lastPublishedPermissionModeCode);
         logger.debug(`[${opts.agentName}] Requested ACP permission mode from live configuration: ${currentPermissionMode ?? 'default'}`);
       }
       if (Object.prototype.hasOwnProperty.call(configuration, 'model')) {
         currentModel = configuration.model ?? null;
+        metadataPatch.model = currentModel ?? undefined;
         logger.debug(`[${opts.agentName}] Requested ACP model from live configuration: ${currentModel ?? 'null'}`);
       }
       if (Object.prototype.hasOwnProperty.call(configuration, 'thinkingLevel')) {
         currentThinkingLevel = configuration.thinkingLevel || undefined;
+        metadataPatch.thinkingLevel = currentThinkingLevel;
         logger.debug(`[${opts.agentName}] Requested ACP thought level from live configuration: ${currentThinkingLevel ?? 'default'}`);
       }
+      void publishAgentConfigurationMetadataIfChanged(session, metadata, metadataPatch);
     });
   }
   session.keepAlive(thinking, 'remote');

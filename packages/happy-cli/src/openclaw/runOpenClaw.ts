@@ -27,6 +27,7 @@ import { notifyDaemonSessionStarted } from '@/daemon/controlClient';
 import { encodeBase64 } from '@/api/encryption';
 import { registerKillSessionHandler } from '@/claude/registerKillSessionHandler';
 import { connectionState } from '@/utils/serverConnectionErrors';
+import { publishAgentConfigurationMetadataIfChanged } from '@/utils/publishPermissionMode';
 import { OpenClawBackend } from './OpenClawBackend';
 import type { OpenClawGatewayConfig } from './openclawTypes';
 import type { AgentMessage } from '@/agent/core';
@@ -286,6 +287,7 @@ export async function runOpenClaw(opts: RunOpenClawOptions): Promise<void> {
     session.onAgentConfiguration((configuration: AgentConfiguration) => {
       if (Object.prototype.hasOwnProperty.call(configuration, 'thinkingLevel')) {
         currentThinkingLevel = configuration.thinkingLevel || undefined;
+        void publishAgentConfigurationMetadataIfChanged(session, metadata, { thinkingLevel: currentThinkingLevel });
         logger.debug(`[openclaw] Thinking level updated from live configuration for next turn: ${currentThinkingLevel || 'default'}`);
       }
     });

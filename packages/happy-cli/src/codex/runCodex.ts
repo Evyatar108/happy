@@ -29,7 +29,7 @@ import type { Session as ApiSession } from '@/api/types';
 import { registerKillSessionHandler } from "@/claude/registerKillSessionHandler";
 import { connectionState } from '@/utils/serverConnectionErrors';
 import { setupOfflineReconnection } from '@/utils/setupOfflineReconnection';
-import { publishPermissionModeIfChanged } from '@/utils/publishPermissionMode';
+import { publishAgentConfigurationMetadataIfChanged, publishPermissionModeIfChanged } from '@/utils/publishPermissionMode';
 import type { AgentConfiguration, ApiSessionClient } from '@/api/apiSession';
 import { resolveCodexExecutionPolicy } from './executionPolicy';
 import { mapCodexMcpMessageToSessionEnvelopes, mapCodexProcessorMessageToSessionEnvelopes } from './utils/sessionProtocolMapper';
@@ -240,6 +240,7 @@ export async function runCodex(opts: {
 
     if (typeof session.onAgentConfiguration === 'function') {
         session.onAgentConfiguration((configuration: AgentConfiguration) => {
+            const metadataPatch: { model?: string; thinkingLevel?: ReasoningEffort } = {};
             if (Object.prototype.hasOwnProperty.call(configuration, 'permissionMode')) {
                 const incoming = configuration.permissionMode as PermissionMode | undefined;
                 if (incoming === undefined || VALID_REMOTE_PERMISSION_MODES.includes(incoming)) {
@@ -252,12 +253,15 @@ export async function runCodex(opts: {
             }
             if (Object.prototype.hasOwnProperty.call(configuration, 'model')) {
                 currentModel = configuration.model || undefined;
+                metadataPatch.model = currentModel;
                 logger.debug(`[Codex] Model updated from live configuration for next turn: ${currentModel || 'default'}`);
             }
             if (Object.prototype.hasOwnProperty.call(configuration, 'thinkingLevel')) {
                 currentThinkingLevel = configuration.thinkingLevel as ReasoningEffort | undefined;
+                metadataPatch.thinkingLevel = currentThinkingLevel;
                 logger.debug(`[Codex] Thinking level updated from live configuration for next turn: ${currentThinkingLevel || 'default'}`);
             }
+            void publishAgentConfigurationMetadataIfChanged(session, metadata, metadataPatch);
         });
     }
 
