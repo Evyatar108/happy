@@ -591,6 +591,11 @@ export const ca: TranslationStructure = {
         names: {
             task: 'Tasca',
             agent: 'Agent',
+            taskOutput: 'Sortida de tasca',
+            taskStop: 'Atura tasca',
+            taskList: 'Llista de tasques',
+            taskGet: 'Obtén tasca',
+            taskUpdate: 'Actualitza tasca',
             terminal: 'Terminal',
             searchFiles: 'Cerca fitxers',
             search: 'Cerca',

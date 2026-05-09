@@ -591,6 +591,11 @@ export const es: TranslationStructure = {
         names: {
             task: 'Tarea',
             agent: 'Agente',
+            taskOutput: 'Salida de tarea',
+            taskStop: 'Detener tarea',
+            taskList: 'Lista de tareas',
+            taskGet: 'Obtener tarea',
+            taskUpdate: 'Actualizar tarea',
             terminal: 'Terminal',
             searchFiles: 'Buscar archivos',
             search: 'Buscar',

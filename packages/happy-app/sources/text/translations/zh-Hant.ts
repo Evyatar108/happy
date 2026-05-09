@@ -591,6 +591,11 @@ export const zhHant: TranslationStructure = {
         names: {
             task: '任務',
             agent: '代理',
+            taskOutput: '任務輸出',
+            taskStop: '停止任務',
+            taskList: '任務列表',
+            taskGet: '取得任務',
+            taskUpdate: '更新任務',
             terminal: '終端機',
             searchFiles: '搜尋檔案',
             search: '搜尋',

@@ -588,6 +588,11 @@ export const en = {
         names: {
             task: 'Task',
             agent: 'Agent',
+            taskOutput: 'Task output',
+            taskStop: 'Stop task',
+            taskList: 'List tasks',
+            taskGet: 'Get task',
+            taskUpdate: 'Update task',
             terminal: 'Terminal',
             searchFiles: 'Search Files',
             search: 'Search',

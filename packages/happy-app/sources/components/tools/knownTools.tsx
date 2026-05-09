@@ -57,9 +57,62 @@ const taskLikeTool = {
     }).partial().passthrough()
 };
 
+// Claude SDK background-task management tools (TaskOutput, TaskStop, TaskList, etc.).
+// These are lightweight management calls — render with the standard tool UI shell so
+// the user sees a title + collapsible input/output instead of raw JSON.
+const taskOutputTool = {
+    title: () => t('tools.names.taskOutput'),
+    icon: ICON_TASK,
+    minimal: true,
+    input: z.object({
+        task_id: z.string().optional(),
+        block: z.boolean().optional(),
+        timeout: z.number().optional(),
+    }).partial().passthrough(),
+};
+
+const taskStopTool = {
+    title: () => t('tools.names.taskStop'),
+    icon: ICON_TASK,
+    minimal: true,
+    input: z.object({
+        task_id: z.string().optional(),
+    }).partial().passthrough(),
+};
+
+const taskListTool = {
+    title: () => t('tools.names.taskList'),
+    icon: ICON_TASK,
+    minimal: true,
+    input: z.object({}).passthrough(),
+};
+
+const taskGetTool = {
+    title: () => t('tools.names.taskGet'),
+    icon: ICON_TASK,
+    minimal: true,
+    input: z.object({
+        task_id: z.string().optional(),
+    }).partial().passthrough(),
+};
+
+const taskUpdateTool = {
+    title: () => t('tools.names.taskUpdate'),
+    icon: ICON_TASK,
+    minimal: true,
+    input: z.object({
+        task_id: z.string().optional(),
+    }).partial().passthrough(),
+};
+
 export const knownTools = {
     'Task': taskLikeTool,
     'Agent': taskLikeTool,
+    'TaskOutput': taskOutputTool,
+    'TaskStop': taskStopTool,
+    'TaskList': taskListTool,
+    'TaskGet': taskGetTool,
+    'TaskUpdate': taskUpdateTool,
     'Bash': {
         title: (opts: { metadata: Metadata | null, tool: ToolCall }) => {
             if (opts.tool.description) {

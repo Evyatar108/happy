@@ -599,6 +599,11 @@ export const ja: TranslationStructure = {
         names: {
             task: 'タスク',
             agent: 'エージェント',
+            taskOutput: 'タスク出力',
+            taskStop: 'タスク停止',
+            taskList: 'タスク一覧',
+            taskGet: 'タスク取得',
+            taskUpdate: 'タスク更新',
             terminal: 'ターミナル',
             searchFiles: 'ファイル検索',
             search: '検索',

@@ -607,6 +607,11 @@ export const pl: TranslationStructure = {
         names: {
             task: 'Zadanie',
             agent: 'Agent',
+            taskOutput: 'Wynik zadania',
+            taskStop: 'Zatrzymaj zadanie',
+            taskList: 'Lista zadań',
+            taskGet: 'Pobierz zadanie',
+            taskUpdate: 'Aktualizuj zadanie',
             terminal: 'Terminal',
             searchFiles: 'Wyszukaj pliki',
             search: 'Wyszukaj',

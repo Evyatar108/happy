@@ -592,6 +592,11 @@ export const zhHans: TranslationStructure = {
         names: {
             task: '任务',
             agent: '代理',
+            taskOutput: '任务输出',
+            taskStop: '停止任务',
+            taskList: '任务列表',
+            taskGet: '获取任务',
+            taskUpdate: '更新任务',
             terminal: '终端',
             searchFiles: '搜索文件',
             search: '搜索',
