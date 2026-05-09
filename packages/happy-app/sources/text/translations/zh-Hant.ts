@@ -368,6 +368,12 @@ export const zhHant: TranslationStructure = {
         placeholder: '輸入命令或搜尋...',
     },
 
+    drawer: {
+        fork: {
+            comingSoon: '即將推出',
+        },
+    },
+
     server: {
         // Used by Server Configuration screen (app/(app)/server.tsx)
         serverConfiguration: '伺服器設定',

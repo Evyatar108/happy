@@ -367,6 +367,12 @@ export const pt: TranslationStructure = {
         placeholder: 'Digite um comando ou pesquise...',
     },
 
+    drawer: {
+        fork: {
+            comingSoon: 'Em breve',
+        },
+    },
+
     server: {
         // Used by Server Configuration screen (app/(app)/server.tsx)
         serverConfiguration: 'Configuração do servidor',

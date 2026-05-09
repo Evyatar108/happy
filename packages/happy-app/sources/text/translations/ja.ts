@@ -369,6 +369,12 @@ export const ja: TranslationStructure = {
         placeholder: 'コマンドを入力または検索...',
     },
 
+    drawer: {
+        fork: {
+            comingSoon: '近日公開',
+        },
+    },
+
     server: {
         // Used by Server Configuration screen (app/(app)/server.tsx)
         serverConfiguration: 'サーバー設定',

@@ -366,6 +366,12 @@ export const en = {
         placeholder: 'Type a command or search...',
     },
 
+    drawer: {
+        fork: {
+            comingSoon: 'Coming soon',
+        },
+    },
+
     server: {
         // Used by Server Configuration screen (app/(app)/server.tsx)
         serverConfiguration: 'Server Configuration',

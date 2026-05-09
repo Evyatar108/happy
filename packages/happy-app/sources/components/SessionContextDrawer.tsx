@@ -182,6 +182,15 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
                             )}
                         </View>
                     )}
+                    <Pressable
+                        disabled={true}
+                        accessibilityRole="button"
+                        accessibilityState={{ disabled: true }}
+                        style={styles.forkButton}
+                    >
+                        <Ionicons name="git-branch-outline" size={16} color={theme.colors.textSecondary} />
+                        <Text style={styles.forkButtonText}>{t('drawer.fork.comingSoon')}</Text>
+                    </Pressable>
                 </View>
             </Animated.View>
         </View>
@@ -373,5 +382,22 @@ const styles = StyleSheet.create((theme) => ({
         fontSize: 12,
         lineHeight: 17,
         fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    },
+    forkButton: {
+        height: 36,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: theme.colors.divider,
+        backgroundColor: theme.colors.input.background,
+        opacity: 0.45,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    forkButtonText: {
+        color: theme.colors.textSecondary,
+        fontSize: 13,
+        fontWeight: '700',
     },
 }));

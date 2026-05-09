@@ -487,6 +487,12 @@ export const ru: TranslationStructure = {
         placeholder: 'Введите команду или поиск...',
     },
 
+    drawer: {
+        fork: {
+            comingSoon: 'Скоро',
+        },
+    },
+
     agentInput: {
         permissionMode: {
             title: 'РЕЖИМ РАЗРЕШЕНИЙ',

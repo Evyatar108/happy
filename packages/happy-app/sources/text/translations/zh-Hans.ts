@@ -369,6 +369,12 @@ export const zhHans: TranslationStructure = {
         placeholder: '输入命令或搜索...',
     },
 
+    drawer: {
+        fork: {
+            comingSoon: '即将推出',
+        },
+    },
+
     server: {
         // Used by Server Configuration screen (app/(app)/server.tsx)
         serverConfiguration: '服务器配置',
