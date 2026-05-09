@@ -648,8 +648,7 @@ export async function startDaemon(): Promise<void> {
 
     const fetchServerSessionMetadata = async (sessionId: string, encryptionKey: Uint8Array, encryptionVariant: 'legacy' | 'dataKey'): Promise<Metadata | null> => {
       try {
-        const response = await axios.get(`${configuration.serverUrl}/v1/sessions`, {
-          headers: { Authorization: `Bearer ${credentials.token}` },
+        const response = await axios.get(`http://127.0.0.1:${embeddedServerPort}/v1/sessions`, {
           timeout: 10_000,
         });
         const sessions = (response.data as { sessions: { id: string; metadata: string }[] }).sessions;
