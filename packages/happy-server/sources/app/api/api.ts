@@ -17,7 +17,6 @@ import { artifactsRoutes } from "./routes/artifactsRoutes";
 import { accessKeysRoutes } from "./routes/accessKeysRoutes";
 import { enableMonitoring } from "./utils/enableMonitoring";
 import { enableErrorHandlers } from "./utils/enableErrorHandlers";
-import { enableAuthentication } from "./utils/enableAuthentication";
 import { userRoutes } from "./routes/userRoutes";
 import { feedRoutes } from "./routes/feedRoutes";
 import { kvRoutes } from "./routes/kvRoutes";
@@ -26,6 +25,15 @@ import { isLocalStorage, getLocalFilesDir } from "@/storage/files";
 import * as path from "path";
 import * as fs from "fs";
 
+export interface TofuHandshakeConfig {
+    localUserId: string;
+    tofuPublicKeys?: {
+        ed25519PublicKey: string;
+        x25519PublicKey: string;
+        ed25519Fingerprint?: string;
+    };
+}
+
 export function createApi() {
     return fastify({
         loggerInstance: logger,
@@ -33,7 +41,7 @@ export function createApi() {
     });
 }
 
-export function configureApi(app: any) {
+export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { localUserId: "local-user" }) {
     const fastifyApp = app as ReturnType<typeof createApi>;
     fastifyApp.register(import('@fastify/cors'), {
         origin: '*',
@@ -52,7 +60,9 @@ export function configureApi(app: any) {
     // Enable features
     enableMonitoring(typed);
     enableErrorHandlers(typed);
-    enableAuthentication(typed);
+    typed.decorate('authenticate', async function (request: any) {
+        request.userId = tofuConfig.localUserId;
+    });
 
     // Serve local files when using local storage
     if (isLocalStorage()) {
@@ -91,7 +101,7 @@ export function configureApi(app: any) {
     v3SessionRoutes(typed);
 
     // Start Socket
-    startSocket(typed);
+    startSocket(typed, tofuConfig);
 
     return typed;
 }

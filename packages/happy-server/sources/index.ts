@@ -2,10 +2,18 @@ import fastify, { type FastifyInstance } from "fastify";
 import { mkdir } from "fs/promises";
 import path from "path";
 
+export interface TofuPublicKeys {
+    ed25519PublicKey: string | Uint8Array;
+    x25519PublicKey: string | Uint8Array;
+    ed25519Fingerprint?: string;
+}
+
 export interface HappyServerConfig {
     dataDir: string;
     port: number;
     machineKey: string | Uint8Array;
+    localUserId?: string;
+    tofuPublicKeys?: TofuPublicKeys;
     host?: string;
     publicUrl?: string;
     enablePrettyLogs?: boolean;
@@ -22,6 +30,13 @@ function machineKeyToSeed(machineKey: string | Uint8Array) {
         return machineKey;
     }
     return Buffer.from(machineKey).toString("base64");
+}
+
+function publicKeyToBase64(publicKey: string | Uint8Array): string {
+    if (typeof publicKey === "string") {
+        return publicKey;
+    }
+    return Buffer.from(publicKey).toString("base64");
 }
 
 export function createHappyServer(config: HappyServerConfig): HappyServerHandle {
@@ -64,7 +79,14 @@ export function createHappyServer(config: HappyServerConfig): HappyServerHandle 
         await loadFiles();
         await auth.init();
         startActivityCache();
-        configureApi(app);
+        configureApi(app, {
+            localUserId: config.localUserId ?? "local-user",
+            tofuPublicKeys: config.tofuPublicKeys ? {
+                ed25519PublicKey: publicKeyToBase64(config.tofuPublicKeys.ed25519PublicKey),
+                x25519PublicKey: publicKeyToBase64(config.tofuPublicKeys.x25519PublicKey),
+                ed25519Fingerprint: config.tofuPublicKeys.ed25519Fingerprint,
+            } : undefined,
+        });
         isConfigured = true;
     }
 

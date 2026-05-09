@@ -30,6 +30,7 @@ import { buildResumeLaunch } from '@/resume/handleResumeCommand';
 import { detectResumeSupport } from '@/resume/localHappyAgentAuth';
 import { encodeBase64, decodeBase64, decrypt } from '@/api/encryption';
 import { pickFreeLoopbackPort } from '@/utils/pickFreeLoopbackPort';
+import { loadOrCreateTofuKeypairs } from '@/tofu/keypairManager';
 
 // Prepare initial metadata
 // Suffix host with `-dev` for the HAPPY_VARIANT=dev variant so the dev daemon
@@ -162,11 +163,22 @@ export async function startDaemon(): Promise<void> {
     const { credentials, machineId } = await authAndSetupMachineIfNeeded();
     logger.debug('[DAEMON RUN] Auth and machine setup complete');
 
+    const tofuKeypairs = await loadOrCreateTofuKeypairs(configuration.happyHomeDir);
+    if (tofuKeypairs.createdEd25519) {
+      console.log(`Happy server Ed25519 fingerprint: ${tofuKeypairs.ed25519Fingerprint}`);
+    }
+
     const embeddedServerPort = await resolveEmbeddedServerPort();
     const embeddedServer: HappyServerHandle = createHappyServer({
       dataDir: join(configuration.happyHomeDir, 'happy-server'),
       port: embeddedServerPort,
-      machineKey: machineId,
+      machineKey: tofuKeypairs.ed25519PublicKey,
+      localUserId: machineId,
+      tofuPublicKeys: {
+        ed25519PublicKey: tofuKeypairs.ed25519PublicKey,
+        x25519PublicKey: tofuKeypairs.ecdhPublicKey,
+        ed25519Fingerprint: tofuKeypairs.ed25519Fingerprint,
+      },
     });
     await embeddedServer.start();
     logger.debug(`[DAEMON RUN] Embedded happy-server started on 127.0.0.1:${embeddedServerPort}`);

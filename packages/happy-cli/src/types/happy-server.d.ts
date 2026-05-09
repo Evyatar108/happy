@@ -5,6 +5,12 @@ declare module 'happy-server' {
     dataDir: string;
     port: number;
     machineKey: string | Uint8Array;
+    localUserId?: string;
+    tofuPublicKeys?: {
+      ed25519PublicKey: string | Uint8Array;
+      x25519PublicKey: string | Uint8Array;
+      ed25519Fingerprint?: string;
+    };
     host?: string;
     publicUrl?: string;
     enablePrettyLogs?: boolean;
