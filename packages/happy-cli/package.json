@@ -76,6 +76,7 @@
     "@slopus/happy-wire": "workspace:*",
     "@stablelib/base64": "^2.0.1",
     "@stablelib/hex": "^2.0.1",
+    "happy-server": "workspace:*",
     "@types/cross-spawn": "^6.0.6",
     "@types/http-proxy": "^1.17.17",
     "@types/qrcode-terminal": "^0.12.2",
