@@ -197,7 +197,6 @@ export class TunnelManager {
     const create = this.runner('devtunnel', [
       'create',
       tunnelId,
-      '--allow-anonymous',
       '--expiration',
       `${TUNNEL_LIFETIME_DAYS}d`,
       '--json',
