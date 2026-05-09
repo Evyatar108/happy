@@ -121,9 +121,8 @@ Current state (post D-003): happy-server calls Expo HTTP API directly per machin
 
 ## Better Machine Management
 
-- Wire `refreshConnectTokenIfNeeded()` into sync init and 401 handlers
-- Poll on foreground resume (AppState listener, 30s interval)
 - Auth transferring between devices
+- Surface `happy init` setup state in mobile when no machines paired (clear error: "no `happy-*` tunnels found, run `happy init` on your dev machine")
 
 ## Integrations (external services)
 
