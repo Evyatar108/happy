@@ -39,6 +39,67 @@ export interface TofuHandshakeConfig {
     publicUrl?: string;
 }
 
+export type TunnelClaimResult =
+    | { ok: true; payload: { sub: string; iat: number } }
+    | { ok: false; reason: 'missing_tunnel_authorization' | 'invalid_tunnel_claim' | 'tunnel_claim_expired' | 'tunnel_verification_unavailable' };
+
+export async function verifyTunnelClaim(
+    authHeader: string | undefined,
+    tofuConfig: TofuHandshakeConfig
+): Promise<TunnelClaimResult> {
+    if (!authHeader || !authHeader.startsWith('tunnel ')) {
+        return { ok: false, reason: 'missing_tunnel_authorization' };
+    }
+    const encoded = authHeader.slice('tunnel '.length);
+    let envelope: unknown;
+    try {
+        envelope = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf-8'));
+    } catch {
+        return { ok: false, reason: 'invalid_tunnel_claim' };
+    }
+    if (!envelope || typeof envelope !== 'object') {
+        return { ok: false, reason: 'invalid_tunnel_claim' };
+    }
+    const { p: payloadEncoded, s: signatureHex } = envelope as Record<string, unknown>;
+    if (typeof payloadEncoded !== 'string' || typeof signatureHex !== 'string') {
+        return { ok: false, reason: 'invalid_tunnel_claim' };
+    }
+    const ed25519PublicKeyBase64 = tofuConfig.tofuPublicKeys?.ed25519PublicKey;
+    if (!ed25519PublicKeyBase64) {
+        return { ok: false, reason: 'tunnel_verification_unavailable' };
+    }
+    let signatureValid = false;
+    try {
+        const payloadBytes = Buffer.from(payloadEncoded, 'base64url');
+        const signatureBytes = Buffer.from(signatureHex, 'hex');
+        const publicKeyBytes = Buffer.from(ed25519PublicKeyBase64, 'base64');
+        signatureValid = await ed.verifyAsync(signatureBytes, payloadBytes, publicKeyBytes);
+    } catch {
+        return { ok: false, reason: 'invalid_tunnel_claim' };
+    }
+    if (!signatureValid) {
+        return { ok: false, reason: 'invalid_tunnel_claim' };
+    }
+    let payload: unknown;
+    try {
+        payload = JSON.parse(Buffer.from(payloadEncoded, 'base64url').toString('utf-8'));
+    } catch {
+        return { ok: false, reason: 'invalid_tunnel_claim' };
+    }
+    if (
+        !payload ||
+        typeof payload !== 'object' ||
+        (payload as Record<string, unknown>).sub !== tofuConfig.localUserId
+    ) {
+        return { ok: false, reason: 'invalid_tunnel_claim' };
+    }
+    const iat = (payload as Record<string, unknown>).iat;
+    if (typeof iat !== 'number' || Math.floor(Date.now() / 1000) - iat > 86400) {
+        return { ok: false, reason: 'tunnel_claim_expired' };
+    }
+    return { ok: true, payload: { sub: tofuConfig.localUserId, iat } };
+}
+
 export function createApi() {
     return fastify({
         loggerInstance: logger,
@@ -76,57 +137,12 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
     enableErrorHandlers(typed);
     typed.decorate('authenticate', async function (request: any, reply: any) {
         const authHeader = request.headers['x-tunnel-authorization'] as string | undefined;
-        if (!authHeader || !authHeader.startsWith('tunnel ')) {
-            return reply.code(401).send({ error: 'missing_tunnel_authorization' });
+        const result = await verifyTunnelClaim(authHeader, tofuConfig);
+        if (!result.ok) {
+            const status = result.reason === 'tunnel_verification_unavailable' ? 503 : 401;
+            return reply.code(status).send({ error: result.reason });
         }
-        const encoded = authHeader.slice('tunnel '.length);
-        let envelope: unknown;
-        try {
-            envelope = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf-8'));
-        } catch {
-            return reply.code(401).send({ error: 'invalid_tunnel_claim' });
-        }
-        if (!envelope || typeof envelope !== 'object') {
-            return reply.code(401).send({ error: 'invalid_tunnel_claim' });
-        }
-        const { p: payloadEncoded, s: signatureHex } = envelope as Record<string, unknown>;
-        if (typeof payloadEncoded !== 'string' || typeof signatureHex !== 'string') {
-            return reply.code(401).send({ error: 'invalid_tunnel_claim' });
-        }
-        const ed25519PublicKeyBase64 = tofuConfig.tofuPublicKeys?.ed25519PublicKey;
-        if (!ed25519PublicKeyBase64) {
-            return reply.code(503).send({ error: 'tunnel_verification_unavailable' });
-        }
-        let signatureValid = false;
-        try {
-            const payloadBytes = Buffer.from(payloadEncoded, 'base64url');
-            const signatureBytes = Buffer.from(signatureHex, 'hex');
-            const publicKeyBytes = Buffer.from(ed25519PublicKeyBase64, 'base64');
-            signatureValid = await ed.verifyAsync(signatureBytes, payloadBytes, publicKeyBytes);
-        } catch {
-            return reply.code(401).send({ error: 'invalid_tunnel_claim' });
-        }
-        if (!signatureValid) {
-            return reply.code(401).send({ error: 'invalid_tunnel_claim' });
-        }
-        let payload: unknown;
-        try {
-            payload = JSON.parse(Buffer.from(payloadEncoded, 'base64url').toString('utf-8'));
-        } catch {
-            return reply.code(401).send({ error: 'invalid_tunnel_claim' });
-        }
-        if (
-            !payload ||
-            typeof payload !== 'object' ||
-            (payload as Record<string, unknown>).sub !== tofuConfig.localUserId
-        ) {
-            return reply.code(401).send({ error: 'invalid_tunnel_claim' });
-        }
-        const iat = (payload as Record<string, unknown>).iat;
-        if (typeof iat !== 'number' || Math.floor(Date.now() / 1000) - iat > 86400) {
-            return reply.code(401).send({ error: 'tunnel_claim_expired' });
-        }
-        request.userId = tofuConfig.localUserId;
+        request.userId = result.payload.sub;
     });
 
     // Serve local files when using local storage

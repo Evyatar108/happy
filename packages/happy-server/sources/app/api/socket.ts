@@ -14,15 +14,24 @@ import { machineUpdateHandler } from "./socket/machineUpdateHandler";
 import { artifactUpdateHandler } from "./socket/artifactUpdateHandler";
 import { accessKeyHandler } from "./socket/accessKeyHandler";
 import { sessionMessageRangeHandler } from "./socket/sessionMessageRangeHandler";
-import type { TofuHandshakeConfig } from "./api";
+import { verifyTunnelClaim, type TofuHandshakeConfig } from "./api";
+
+function parseCorsOrigins(): string[] {
+    const raw = process.env.HAPPY_CORS_ORIGINS;
+    if (!raw) {
+        return [];
+    }
+    return raw.split(',').map(o => o.trim()).filter(o => o.length > 0);
+}
 
 export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { localUserId: "local-user" }) {
+    const allowedOrigins = parseCorsOrigins();
     const io = new Server(app.server, {
         cors: {
-            origin: "*",
+            origin: allowedOrigins.length === 0 ? false : allowedOrigins,
             methods: ["GET", "POST", "OPTIONS"],
             credentials: true,
-            allowedHeaders: ["*"]
+            allowedHeaders: ["X-Tunnel-Authorization", "X-Happy-Client", "Content-Type"]
         },
         transports: ['websocket', 'polling'],
         pingTimeout: 45000,
@@ -83,28 +92,8 @@ export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { lo
             socket.handshake.headers['x-tunnel-authorization'] as string | undefined
         ) || (socket.handshake.auth.tunnelAuthorization as string | undefined);
 
-        if (!authHeader || !authHeader.startsWith('tunnel ')) {
-            next(new Error('Unauthorized'));
-            return;
-        }
-        const encoded = authHeader.slice('tunnel '.length);
-        let payload: unknown;
-        try {
-            payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf-8'));
-        } catch {
-            next(new Error('Unauthorized'));
-            return;
-        }
-        if (
-            !payload ||
-            typeof payload !== 'object' ||
-            (payload as Record<string, unknown>).sub !== tofuConfig.localUserId
-        ) {
-            next(new Error('Unauthorized'));
-            return;
-        }
-        const iat = (payload as Record<string, unknown>).iat;
-        if (typeof iat !== 'number' || Math.floor(Date.now() / 1000) - iat > 86400) {
+        const claim = await verifyTunnelClaim(authHeader, tofuConfig);
+        if (!claim.ok) {
             next(new Error('Unauthorized'));
             return;
         }
