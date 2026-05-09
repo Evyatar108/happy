@@ -20,6 +20,7 @@ class ActivityCache {
     private sessionCache = new Map<string, SessionCacheEntry>();
     private machineCache = new Map<string, MachineCacheEntry>();
     private batchTimer: ReturnType<typeof setInterval> | null = null;
+    private cleanupTimer: ReturnType<typeof setInterval> | null = null;
     
     // Cache TTL (30 seconds)
     private readonly CACHE_TTL = 30 * 1000;
@@ -30,8 +31,14 @@ class ActivityCache {
     // Batch update interval (5 seconds)
     private readonly BATCH_INTERVAL = 5 * 1000;
 
-    constructor() {
+    start(): void {
         this.startBatchTimer();
+        if (this.cleanupTimer) {
+            clearInterval(this.cleanupTimer);
+        }
+        this.cleanupTimer = setInterval(() => {
+            this.cleanup();
+        }, 5 * 60 * 1000);
     }
 
     private startBatchTimer(): void {
@@ -243,6 +250,10 @@ class ActivityCache {
             clearInterval(this.batchTimer);
             this.batchTimer = null;
         }
+        if (this.cleanupTimer) {
+            clearInterval(this.cleanupTimer);
+            this.cleanupTimer = null;
+        }
         
         // Flush any remaining updates
         this.flushPendingUpdates().catch(error => {
@@ -254,7 +265,6 @@ class ActivityCache {
 // Global instance
 export const activityCache = new ActivityCache();
 
-// Cleanup every 5 minutes
-setInterval(() => {
-    activityCache.cleanup();
-}, 5 * 60 * 1000);
+export function startActivityCache() {
+    activityCache.start();
+}

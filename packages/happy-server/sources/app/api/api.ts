@@ -26,29 +26,28 @@ import { isLocalStorage, getLocalFilesDir } from "@/storage/files";
 import * as path from "path";
 import * as fs from "fs";
 
-export async function startApi() {
-
-    // Configure
-    log('Starting API...');
-
-    // Start API
-    const app = fastify({
+export function createApi() {
+    return fastify({
         loggerInstance: logger,
         bodyLimit: 1024 * 1024 * 100, // 100MB
     });
-    app.register(import('@fastify/cors'), {
+}
+
+export function configureApi(app: any) {
+    const fastifyApp = app as ReturnType<typeof createApi>;
+    fastifyApp.register(import('@fastify/cors'), {
         origin: '*',
         allowedHeaders: '*',
         methods: ['GET', 'POST', 'DELETE']
     });
-    app.get('/', function (request, reply) {
+    fastifyApp.get('/', function (request, reply) {
         reply.send('Welcome to Happy Server!');
     });
 
     // Create typed provider
-    app.setValidatorCompiler(validatorCompiler);
-    app.setSerializerCompiler(serializerCompiler);
-    const typed = app.withTypeProvider<ZodTypeProvider>() as unknown as Fastify;
+    fastifyApp.setValidatorCompiler(validatorCompiler);
+    fastifyApp.setSerializerCompiler(serializerCompiler);
+    const typed = fastifyApp.withTypeProvider<ZodTypeProvider>() as unknown as Fastify;
 
     // Enable features
     enableMonitoring(typed);
@@ -57,7 +56,7 @@ export async function startApi() {
 
     // Serve local files when using local storage
     if (isLocalStorage()) {
-        app.get('/files/*', function (request, reply) {
+        fastifyApp.get('/files/*', function (request, reply) {
             const filePath = (request.params as any)['*'];
             const baseDir = path.resolve(getLocalFilesDir());
             const fullPath = path.resolve(baseDir, filePath);
@@ -91,6 +90,21 @@ export async function startApi() {
     kvRoutes(typed);
     v3SessionRoutes(typed);
 
+    // Start Socket
+    startSocket(typed);
+
+    return typed;
+}
+
+export async function startApi() {
+
+    // Configure
+    log('Starting API...');
+
+    // Start API
+    const app = createApi();
+    configureApi(app);
+
     // Start HTTP 
     const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3005;
     await app.listen({ port, host: '0.0.0.0' });
@@ -98,9 +112,8 @@ export async function startApi() {
         await app.close();
     });
 
-    // Start Socket
-    startSocket(typed);
-
     // End
     log('API ready on port http://localhost:' + port);
+
+    return app;
 }

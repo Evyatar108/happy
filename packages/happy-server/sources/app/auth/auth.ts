@@ -215,6 +215,15 @@ class AuthModule {
             log({ module: 'auth' }, `Token cache cleanup: removed ${removed}, remaining ${this.tokenCache.size}`);
         }
     }
+
+    shutdown(): void {
+        if (this.cleanupTimer) {
+            clearInterval(this.cleanupTimer);
+            this.cleanupTimer = null;
+        }
+        this.tokens = null;
+        this.tokenCache.clear();
+    }
 }
 
 // Global instance

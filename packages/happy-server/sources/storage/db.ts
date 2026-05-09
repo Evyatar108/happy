@@ -5,6 +5,13 @@ import * as fs from "fs";
 import * as path from "path";
 
 let pgliteInstance: PGlite | null = null;
+let dbConfig: DatabaseConfig = {};
+let dbInstance: PrismaClient | null = null;
+
+export interface DatabaseConfig {
+    provider?: "postgres" | "pglite";
+    pgliteDir?: string;
+}
 
 type WebAssemblyModuleCtor = new (bytes: Buffer) => WebAssembly.Module;
 
@@ -36,11 +43,18 @@ function findPGliteWasm(): { wasmModule: WebAssembly.Module; fsBundle: Blob } | 
     return null;
 }
 
+export function configureDb(config: DatabaseConfig) {
+    if (dbInstance) {
+        throw new Error("Database has already been initialized");
+    }
+    dbConfig = { ...config };
+}
+
 function createClient(): PrismaClient {
-    const provider = process.env.DB_PROVIDER || "postgres";
+    const provider = dbConfig.provider || process.env.DB_PROVIDER || "postgres";
 
     if (provider === "pglite") {
-        const pgliteDir = process.env.PGLITE_DIR || "./data/pglite";
+        const pgliteDir = dbConfig.pgliteDir || process.env.PGLITE_DIR || "./data/pglite";
         const wasmOpts = findPGliteWasm();
         if (wasmOpts) {
             pgliteInstance = new PGlite({ dataDir: pgliteDir, ...wasmOpts });
@@ -54,7 +68,28 @@ function createClient(): PrismaClient {
     return new PrismaClient();
 }
 
-export const db = createClient();
+function getDb(): PrismaClient {
+    dbInstance ??= createClient();
+    return dbInstance;
+}
+
+export const db = new Proxy({} as PrismaClient, {
+    get(_target, property) {
+        const instance = getDb();
+        const value = Reflect.get(instance, property);
+        return typeof value === "function" ? value.bind(instance) : value;
+    },
+});
+
+export async function disconnectDb() {
+    if (!dbInstance) {
+        return;
+    }
+    await dbInstance.$disconnect();
+    await pgliteInstance?.close();
+    dbInstance = null;
+    pgliteInstance = null;
+}
 
 export function getPGlite(): PGlite | null {
     return pgliteInstance;

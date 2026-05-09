@@ -204,6 +204,7 @@ The project includes a multi-stage Dockerfile:
 4. NEVER proactively create documentation files (*.md) or README files unless explicitly requested
 5. Use 4 spaces for tabs (not 2 spaces)
 6. Use pnpm instead of npm for all package management
+7. Public library imports must be side-effect free. Timers, DB clients, file storage clients, logger transports, and process handlers need explicit start/stop wiring behind `createHappyServer()` or standalone `main.ts`.
 
 ## Debugging Notes
 
