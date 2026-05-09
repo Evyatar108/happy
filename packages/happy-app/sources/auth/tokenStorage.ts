@@ -1,26 +1,26 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
-const AUTH_KEY = 'auth_credentials';
-
-// Cache for synchronous access
-let credentialsCache: string | null = null;
+const AUTH_KEY = 'machine_credentials';
 
 export interface AuthCredentials {
-    token: string;
-    secret: string;
+    machineId: string;
+    tunnelUrl: string;
+    tunnelJwt: string;
+    pinnedPubkey: string;
+    sessionKey: string;
+    firstSeenAt: number;
 }
 
 export const TokenStorage = {
     async getCredentials(): Promise<AuthCredentials | null> {
         if (Platform.OS === 'web') {
-            return localStorage.getItem(AUTH_KEY) ? JSON.parse(localStorage.getItem(AUTH_KEY)!) as AuthCredentials : null;
+            const stored = localStorage.getItem(AUTH_KEY);
+            return stored ? JSON.parse(stored) as AuthCredentials : null;
         }
         try {
             const stored = await SecureStore.getItemAsync(AUTH_KEY);
-            if (!stored) return null;
-            credentialsCache = stored; // Update cache
-            return JSON.parse(stored) as AuthCredentials;
+            return stored ? JSON.parse(stored) as AuthCredentials : null;
         } catch (error) {
             console.error('Error getting credentials:', error);
             return null;
@@ -33,9 +33,7 @@ export const TokenStorage = {
             return true;
         }
         try {
-            const json = JSON.stringify(credentials);
-            await SecureStore.setItemAsync(AUTH_KEY, json);
-            credentialsCache = json; // Update cache
+            await SecureStore.setItemAsync(AUTH_KEY, JSON.stringify(credentials));
             return true;
         } catch (error) {
             console.error('Error setting credentials:', error);
@@ -44,13 +42,12 @@ export const TokenStorage = {
     },
 
     async removeCredentials(): Promise<boolean> {
-        if (Platform.OS === 'web') {    
+        if (Platform.OS === 'web') {
             localStorage.removeItem(AUTH_KEY);
             return true;
         }
         try {
             await SecureStore.deleteItemAsync(AUTH_KEY);
-            credentialsCache = null; // Clear cache
             return true;
         } catch (error) {
             console.error('Error removing credentials:', error);

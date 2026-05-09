@@ -831,6 +831,12 @@ export const ru: TranslationStructure = {
         createAccount: 'Создать аккаунт',
         linkOrRestoreAccount: 'Связать или восстановить аккаунт',
         loginWithMobileApp: 'Войти через мобильное приложение',
+        pairMachine: 'Pair machine',
+        trustMachine: 'Trust this machine?',
+        trust: 'Trust',
+        noMachinesForIdentity: 'No machines returned for this GitHub identity',
+        deviceAuthorizationExpired: 'GitHub device authorization expired',
+        pairingFailed: 'Failed to pair machine',
     },
 
     review: {

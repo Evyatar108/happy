@@ -81,6 +81,7 @@ export function createHappyServer(config: HappyServerConfig): HappyServerHandle 
         startActivityCache();
         configureApi(app, {
             localUserId: config.localUserId ?? "local-user",
+            publicUrl: config.publicUrl,
             tofuPublicKeys: config.tofuPublicKeys ? {
                 ed25519PublicKey: publicKeyToBase64(config.tofuPublicKeys.ed25519PublicKey),
                 x25519PublicKey: publicKeyToBase64(config.tofuPublicKeys.x25519PublicKey),

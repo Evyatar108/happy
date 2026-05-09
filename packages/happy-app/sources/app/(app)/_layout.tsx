@@ -124,12 +124,6 @@ export default function RootLayout() {
                 }}
             />
             <Stack.Screen
-                name="settings/account"
-                options={{
-                    headerTitle: t('settings.account'),
-                }}
-            />
-            <Stack.Screen
                 name="settings/appearance"
                 options={{
                     headerTitle: t('settings.appearance'),
@@ -151,22 +145,6 @@ export default function RootLayout() {
                 name="terminal/index"
                 options={{
                     headerTitle: t('navigation.connectTerminal'),
-                }}
-            />
-            <Stack.Screen
-                name="restore/index"
-                options={{
-                    headerShown: true,
-                    headerTitle: t('navigation.linkNewDevice'),
-                    headerBackTitle: t('common.back'),
-                }}
-            />
-            <Stack.Screen
-                name="restore/manual"
-                options={{
-                    headerShown: true,
-                    headerTitle: t('navigation.restoreWithSecretKey'),
-                    headerBackTitle: t('common.back'),
                 }}
             />
             <Stack.Screen

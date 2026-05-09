@@ -825,6 +825,12 @@ export const en = {
         createAccount: 'Create account',
         linkOrRestoreAccount: 'Link or restore account',
         loginWithMobileApp: 'Login with mobile app',
+        pairMachine: 'Pair machine',
+        trustMachine: 'Trust this machine?',
+        trust: 'Trust',
+        noMachinesForIdentity: 'No machines returned for this GitHub identity',
+        deviceAuthorizationExpired: 'GitHub device authorization expired',
+        pairingFailed: 'Failed to pair machine',
     },
 
     review: {

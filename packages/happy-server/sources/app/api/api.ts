@@ -3,11 +3,9 @@ import { log, logger } from "@/utils/log";
 import { serializerCompiler, validatorCompiler, ZodTypeProvider } from "fastify-type-provider-zod";
 import { onShutdown } from "@/utils/shutdown";
 import { Fastify } from "./types";
-import { authRoutes } from "./routes/authRoutes";
 import { pushRoutes } from "./routes/pushRoutes";
 import { sessionRoutes } from "./routes/sessionRoutes";
-import { connectRoutes } from "./routes/connectRoutes";
-import { accountRoutes } from "./routes/accountRoutes";
+import { pairRoutes } from "./routes/pairRoutes";
 import { startSocket } from "./socket";
 import { machinesRoutes } from "./routes/machinesRoutes";
 import { devRoutes } from "./routes/devRoutes";
@@ -32,6 +30,7 @@ export interface TofuHandshakeConfig {
         x25519PublicKey: string;
         ed25519Fingerprint?: string;
     };
+    publicUrl?: string;
 }
 
 export function createApi() {
@@ -84,11 +83,9 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
     }
 
     // Routes
-    authRoutes(typed);
+    pairRoutes(typed, tofuConfig);
     pushRoutes(typed);
     sessionRoutes(typed);
-    accountRoutes(typed);
-    connectRoutes(typed);
     machinesRoutes(typed);
     artifactsRoutes(typed);
     accessKeysRoutes(typed);

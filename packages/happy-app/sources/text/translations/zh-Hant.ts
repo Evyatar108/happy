@@ -827,6 +827,12 @@ export const zhHant: TranslationStructure = {
         createAccount: '建立帳戶',
         linkOrRestoreAccount: '連結或恢復帳戶',
         loginWithMobileApp: '使用行動應用程式登入',
+        pairMachine: 'Pair machine',
+        trustMachine: 'Trust this machine?',
+        trust: 'Trust',
+        noMachinesForIdentity: 'No machines returned for this GitHub identity',
+        deviceAuthorizationExpired: 'GitHub device authorization expired',
+        pairingFailed: 'Failed to pair machine',
     },
 
     review: {

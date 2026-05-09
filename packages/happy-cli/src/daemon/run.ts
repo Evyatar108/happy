@@ -170,11 +170,14 @@ export async function startDaemon(): Promise<void> {
     }
 
     const embeddedServerPort = await resolveEmbeddedServerPort();
+    const tunnelManager = new TunnelManager();
+    const tunnelConfig = await tunnelManager.loadForDaemon(embeddedServerPort);
     const embeddedServer: HappyServerHandle = createHappyServer({
       dataDir: join(configuration.happyHomeDir, 'happy-server'),
       port: embeddedServerPort,
       machineKey: tofuKeypairs.ed25519PublicKey,
       localUserId: machineId,
+      publicUrl: tunnelConfig.tunnelUrl,
       tofuPublicKeys: {
         ed25519PublicKey: tofuKeypairs.ed25519PublicKey,
         x25519PublicKey: tofuKeypairs.ecdhPublicKey,
@@ -184,8 +187,6 @@ export async function startDaemon(): Promise<void> {
     await embeddedServer.start();
     logger.debug(`[DAEMON RUN] Embedded happy-server started on 127.0.0.1:${embeddedServerPort}`);
 
-    const tunnelManager = new TunnelManager();
-    const tunnelConfig = await tunnelManager.loadForDaemon(embeddedServerPort);
     tunnelManager.startHost(tunnelConfig, embeddedServerPort);
     logger.debug(`[DAEMON RUN] Dev Tunnel host started for ${tunnelConfig.tunnelUrl}`);
 

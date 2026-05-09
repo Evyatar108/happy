@@ -20,8 +20,12 @@ vi.mock('./apiSocket', () => ({
 
 describe('apiGithub', () => {
     const mockCredentials: AuthCredentials = {
-        token: 'test-token',
-        secret: 'test-secret'
+        machineId: 'test-machine',
+        tunnelUrl: 'https://api.test.com',
+        tunnelJwt: 'test-jwt',
+        pinnedPubkey: 'test-pubkey',
+        sessionKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        firstSeenAt: 123,
     };
 
     beforeEach(() => {
@@ -51,7 +55,7 @@ describe('apiGithub', () => {
                 {
                     method: 'DELETE',
                     headers: {
-                        'Authorization': 'Bearer test-token',
+                        'X-Tunnel-Authorization': 'tunnel test-jwt',
                         'X-Happy-Client': 'web/0.0.0-test',
                     }
                 }

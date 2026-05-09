@@ -826,6 +826,12 @@ export const pt: TranslationStructure = {
         createAccount: 'Criar conta',
         linkOrRestoreAccount: 'Vincular ou restaurar conta',
         loginWithMobileApp: 'Fazer login com aplicativo móvel',
+        pairMachine: 'Pair machine',
+        trustMachine: 'Trust this machine?',
+        trust: 'Trust',
+        noMachinesForIdentity: 'No machines returned for this GitHub identity',
+        deviceAuthorizationExpired: 'GitHub device authorization expired',
+        pairingFailed: 'Failed to pair machine',
     },
 
     review: {

@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import { apiSocket, getHappyClientId } from '@/sync/apiSocket';
 import { AuthCredentials } from '@/auth/tokenStorage';
+import { getMachineAuthHeaders } from '@/auth/machineAuth';
 import { Encryption } from '@/sync/encryption/encryption';
 import { decodeBase64, encodeBase64 } from '@/encryption/base64';
 import { storage } from './storage';
@@ -30,7 +31,6 @@ import {
     trackPaywallRestored,
 } from '@/track';
 import type { MessageSentSource } from '@/track';
-import { parseToken } from '@/utils/parseToken';
 import { RevenueCat, LogLevel, PaywallResult } from './revenueCat';
 import { getServerUrl } from './serverConfig';
 import { config } from '@/config';
@@ -243,7 +243,7 @@ class Sync {
         this.credentials = credentials;
         this.encryption = encryption;
         this.anonID = encryption.anonID;
-        this.serverID = parseToken(credentials.token);
+        this.serverID = credentials.machineId;
         await this.#init();
 
         // Await settings sync to have fresh settings
@@ -262,7 +262,7 @@ class Sync {
         this.credentials = credentials;
         this.encryption = encryption;
         this.anonID = encryption.anonID;
-        this.serverID = parseToken(credentials.token);
+        this.serverID = credentials.machineId;
         await this.#init();
     }
 
@@ -1083,12 +1083,12 @@ class Sync {
     private fetchSessions = async () => {
         if (!this.credentials) return;
 
-        const API_ENDPOINT = getServerUrl();
+        const API_ENDPOINT = this.credentials.tunnelUrl;
         const response = await fetch(`${API_ENDPOINT}/v1/sessions`, {
             headers: {
-                'Authorization': `Bearer ${this.credentials.token}`,
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(this.credentials),
             }
         });
 
@@ -1461,12 +1461,12 @@ class Sync {
         if (!this.credentials) return;
 
         console.log('📊 Sync: Fetching machines...');
-        const API_ENDPOINT = getServerUrl();
+        const API_ENDPOINT = this.credentials.tunnelUrl;
         const response = await fetch(`${API_ENDPOINT}/v1/machines`, {
             headers: {
-                'Authorization': `Bearer ${this.credentials.token}`,
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(this.credentials),
             }
         });
 
@@ -1674,7 +1674,7 @@ class Sync {
     private syncSettings = async () => {
         if (!this.credentials) return;
 
-        const API_ENDPOINT = getServerUrl();
+        const API_ENDPOINT = this.credentials.tunnelUrl;
         const maxRetries = 3;
         let retryCount = 0;
 
@@ -1693,9 +1693,9 @@ class Sync {
                         expectedVersion: version ?? 0
                     }),
                     headers: {
-                        'Authorization': `Bearer ${this.credentials.token}`,
                         'Content-Type': 'application/json',
                         'X-Happy-Client': getHappyClientId(),
+                        ...getMachineAuthHeaders(this.credentials),
                     }
                 });
                 const data = await response.json() as {
@@ -1758,9 +1758,9 @@ class Sync {
         // Run request
         const response = await fetch(`${API_ENDPOINT}/v1/account/settings`, {
             headers: {
-                'Authorization': `Bearer ${this.credentials.token}`,
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(this.credentials),
             }
         });
         if (!response.ok) {
@@ -1801,12 +1801,12 @@ class Sync {
     private fetchProfile = async () => {
         if (!this.credentials) return;
 
-        const API_ENDPOINT = getServerUrl();
+        const API_ENDPOINT = this.credentials.tunnelUrl;
         const response = await fetch(`${API_ENDPOINT}/v1/account/profile`, {
             headers: {
-                'Authorization': `Bearer ${this.credentials.token}`,
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(this.credentials),
             }
         });
 
@@ -2770,18 +2770,18 @@ export async function syncRestore(credentials: AuthCredentials) {
 async function syncInit(credentials: AuthCredentials, restore: boolean) {
 
     // Initialize sync engine
-    const secretKey = decodeBase64(credentials.secret, 'base64url');
-    if (secretKey.length !== 32) {
-        throw new Error(`Invalid secret key length: ${secretKey.length}, expected 32`);
+    const sessionKey = decodeBase64(credentials.sessionKey, 'base64url');
+    if (sessionKey.length !== 32) {
+        throw new Error(`Invalid session key length: ${sessionKey.length}, expected 32`);
     }
-    const encryption = await Encryption.create(secretKey);
+    const encryption = await Encryption.create(sessionKey);
 
     // Initialize tracking
     initializeTracking(encryption.anonID);
 
     // Initialize socket connection
-    const API_ENDPOINT = getServerUrl();
-    apiSocket.initialize({ endpoint: API_ENDPOINT, token: credentials.token }, encryption);
+    const API_ENDPOINT = credentials.tunnelUrl;
+    apiSocket.initialize({ endpoint: API_ENDPOINT, credentials }, encryption);
 
     // Wire socket status to storage
     apiSocket.onStatusChange((status) => {

@@ -1,6 +1,6 @@
 import { AuthCredentials } from '@/auth/tokenStorage';
+import { getMachineAuthHeaders } from '@/auth/machineAuth';
 import { backoff } from '@/utils/time';
-import { getServerUrl } from './serverConfig';
 import { getHappyClientId } from './apiSocket';
 
 //
@@ -71,13 +71,13 @@ export async function kvGet(
     credentials: AuthCredentials,
     key: string
 ): Promise<KvItem | null> {
-    const API_ENDPOINT = getServerUrl();
+    const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
         const response = await fetch(`${API_ENDPOINT}/v1/kv/${encodeURIComponent(key)}`, {
             headers: {
-                'Authorization': `Bearer ${credentials.token}`,
                 'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(credentials),
             }
         });
 
@@ -101,7 +101,7 @@ export async function kvList(
     credentials: AuthCredentials,
     params: KvListParams = {}
 ): Promise<KvListResponse> {
-    const API_ENDPOINT = getServerUrl();
+    const API_ENDPOINT = credentials.tunnelUrl;
 
     const queryParams = new URLSearchParams();
     if (params.prefix) {
@@ -118,8 +118,8 @@ export async function kvList(
     return await backoff(async () => {
         const response = await fetch(url, {
             headers: {
-                'Authorization': `Bearer ${credentials.token}`,
                 'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(credentials),
             }
         });
 
@@ -147,15 +147,15 @@ export async function kvBulkGet(
         throw new Error('Cannot bulk get more than 100 keys at once');
     }
 
-    const API_ENDPOINT = getServerUrl();
+    const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
         const response = await fetch(`${API_ENDPOINT}/v1/kv/bulk`, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${credentials.token}`,
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(credentials),
             },
             body: JSON.stringify({ keys })
         });
@@ -186,15 +186,15 @@ export async function kvMutate(
         throw new Error('Cannot mutate more than 100 keys at once');
     }
 
-    const API_ENDPOINT = getServerUrl();
+    const API_ENDPOINT = credentials.tunnelUrl;
 
     return await backoff(async () => {
         const response = await fetch(`${API_ENDPOINT}/v1/kv`, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${credentials.token}`,
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
+                ...getMachineAuthHeaders(credentials),
             },
             body: JSON.stringify({ mutations })
         });

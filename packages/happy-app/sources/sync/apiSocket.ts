@@ -1,9 +1,11 @@
 import { io, Socket } from 'socket.io-client';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { TokenStorage } from '@/auth/tokenStorage';
+import { AuthCredentials, TokenStorage } from '@/auth/tokenStorage';
 import { Encryption } from './encryption/encryption';
 import { storage } from './storage';
+import { getMachineAuthHeaders } from '@/auth/machineAuth';
+import { buildTunnelSocketOptions } from './tunnelTransport';
 import {
     SessionMessageRangeRequestSchema,
     SessionMessageRangeResponseSchema,
@@ -26,7 +28,7 @@ export function getHappyClientId(): string {
 
 export interface SyncSocketConfig {
     endpoint: string;
-    token: string;
+    credentials: AuthCredentials;
 }
 
 export interface SyncSocketState {
@@ -73,19 +75,7 @@ class ApiSocket {
 
         this.updateStatus('connecting');
 
-        this.socket = io(this.config.endpoint, {
-            path: '/v1/updates',
-            auth: {
-                token: this.config.token,
-                clientType: 'user-scoped' as const,
-                happyClient: getHappyClientId()
-            },
-            transports: ['websocket'],
-            reconnection: true,
-            reconnectionDelay: 1000,
-            reconnectionDelayMax: 5000,
-            reconnectionAttempts: Infinity
-        });
+        this.socket = io(this.config.endpoint, buildTunnelSocketOptions(this.config.credentials));
 
         this.setupEventHandlers();
     }
@@ -216,8 +206,8 @@ class ApiSocket {
 
         const url = `${this.config.endpoint}${path}`;
         const headers = {
-            'Authorization': `Bearer ${credentials.token}`,
             'X-Happy-Client': getHappyClientId(),
+            ...getMachineAuthHeaders(credentials),
             ...options?.headers
         };
 
@@ -231,14 +221,10 @@ class ApiSocket {
     // Token Management
     //
 
-    updateToken(newToken: string) {
-        if (this.config && this.config.token !== newToken) {
-            this.config.token = newToken;
-
-            if (this.socket) {
-                this.disconnect();
-                this.connect();
-            }
+    reconnectWithCurrentCredentials() {
+        if (this.socket) {
+            this.disconnect();
+            this.connect();
         }
     }
 

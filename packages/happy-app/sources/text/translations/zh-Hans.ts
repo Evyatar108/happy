@@ -828,6 +828,12 @@ export const zhHans: TranslationStructure = {
         createAccount: '创建账户',
         linkOrRestoreAccount: '链接或恢复账户',
         loginWithMobileApp: '使用移动应用登录',
+        pairMachine: 'Pair machine',
+        trustMachine: 'Trust this machine?',
+        trust: 'Trust',
+        noMachinesForIdentity: 'No machines returned for this GitHub identity',
+        deviceAuthorizationExpired: 'GitHub device authorization expired',
+        pairingFailed: 'Failed to pair machine',
     },
 
     review: {

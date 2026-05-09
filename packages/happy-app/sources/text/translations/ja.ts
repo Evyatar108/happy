@@ -828,6 +828,12 @@ export const ja: TranslationStructure = {
         createAccount: 'アカウントを作成',
         linkOrRestoreAccount: 'アカウントをリンクまたは復元',
         loginWithMobileApp: 'モバイルアプリでログイン',
+        pairMachine: 'Pair machine',
+        trustMachine: 'Trust this machine?',
+        trust: 'Trust',
+        noMachinesForIdentity: 'No machines returned for this GitHub identity',
+        deviceAuthorizationExpired: 'GitHub device authorization expired',
+        pairingFailed: 'Failed to pair machine',
     },
 
     review: {
