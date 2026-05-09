@@ -15,6 +15,7 @@ const shared = vi.hoisted(() => ({
     updateSessionModelModeMock: vi.fn(),
     navigateToSessionMock: vi.fn(),
     latestResumeSession: null as null | (() => void),
+    latestResumeSessionInline: null as null | (() => Promise<unknown>),
     latestActionPromise: null as Promise<void> | null,
     storageState: {
         sessions: {} as Record<string, unknown>,
@@ -119,6 +120,7 @@ function createSession(permissionModeUserChosen: boolean): Session {
 function Harness({ session }: { session: Session }) {
     const actions = useSessionQuickActions(session);
     shared.latestResumeSession = actions.resumeSession;
+    shared.latestResumeSessionInline = actions.resumeSessionInline;
     return null;
 }
 
@@ -143,6 +145,7 @@ describe('useSessionQuickActions resume permission mode copy', () => {
         shared.updateSessionModelModeMock.mockReset();
         shared.navigateToSessionMock.mockReset();
         shared.latestResumeSession = null;
+        shared.latestResumeSessionInline = null;
         shared.latestActionPromise = null;
         shared.storageState = {
             sessions: { 'resumed-session': { id: 'resumed-session' } },
@@ -170,5 +173,31 @@ describe('useSessionQuickActions resume permission mode copy', () => {
             model: undefined,
             permissionMode: 'bypassPermissions',
         });
+    });
+
+    it('returns the resume result from the inline callback without the modal action pathway', async () => {
+        await act(async () => {
+            TestRenderer.create(<Harness session={createSession(true)} />);
+        });
+
+        const result = await shared.latestResumeSessionInline?.();
+
+        expect(result).toEqual({ type: 'success', sessionId: 'resumed-session' });
+        expect(shared.latestActionPromise).toBeNull();
+        expect(shared.updateSessionPermissionModeMock).toHaveBeenCalledWith('resumed-session', 'bypassPermissions', true);
+        expect(shared.navigateToSessionMock).toHaveBeenCalledWith('resumed-session');
+    });
+
+    it('returns inline resume errors directly without throwing', async () => {
+        shared.machineResumeSessionMock.mockResolvedValue({ type: 'error', errorMessage: 'resume failed' });
+        await act(async () => {
+            TestRenderer.create(<Harness session={createSession(true)} />);
+        });
+
+        const result = await shared.latestResumeSessionInline?.();
+
+        expect(result).toEqual({ type: 'error', errorMessage: 'resume failed' });
+        expect(shared.latestActionPromise).toBeNull();
+        expect(shared.navigateToSessionMock).not.toHaveBeenCalled();
     });
 });

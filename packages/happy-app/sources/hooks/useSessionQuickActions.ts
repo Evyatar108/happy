@@ -1,4 +1,5 @@
 import * as React from 'react';
+import type { SpawnSessionResult } from '@/sync/ops';
 import { useHappyAction } from '@/hooks/useHappyAction';
 import { useNavigateToSession } from '@/hooks/useNavigateToSession';
 import { Modal } from '@/modal';
@@ -71,13 +72,13 @@ export function useSessionQuickActions(
         })();
     }, [onAfterCopySessionMetadata, session]);
 
-    const [resumingSession, performResume] = useHappyAction(async () => {
+    const resumeSessionInline = React.useCallback(async (): Promise<SpawnSessionResult> => {
         if (!resumeAvailability.canResume) {
-            throw new HappyError(resumeAvailability.message, false);
+            return { type: 'error', errorMessage: resumeAvailability.message };
         }
 
         if (!machineId) {
-            throw new HappyError(t('sessionInfo.resumeSessionMissingMachine'), false);
+            return { type: 'error', errorMessage: t('sessionInfo.resumeSessionMissingMachine') };
         }
 
         const result = await machineResumeSession({
@@ -89,8 +90,6 @@ export function useSessionQuickActions(
 
         switch (result.type) {
             case 'success': {
-                // Session reconnects to the same ID, so messages are preserved.
-                // Refresh to pick up the updated session state.
                 await sync.refreshSessions();
 
                 if (session.permissionMode) {
@@ -101,8 +100,20 @@ export function useSessionQuickActions(
                 }
 
                 navigateToSession(result.sessionId);
-                return;
+                return result;
             }
+            case 'requestToApproveDirectoryCreation':
+            case 'error':
+                return result;
+        }
+    }, [machineId, navigateToSession, resumeAvailability.canResume, resumeAvailability.message, session.id, session.modelMode, session.permissionMode, session.permissionModeUserChosen]);
+
+    const [resumingSession, performResume] = useHappyAction(async () => {
+        const result = await resumeSessionInline();
+
+        switch (result.type) {
+            case 'success':
+                return;
             case 'requestToApproveDirectoryCreation':
                 throw new HappyError(t('sessionInfo.resumeSessionUnexpectedDirectoryPrompt'), false);
             case 'error':
@@ -181,6 +192,8 @@ export function useSessionQuickActions(
         copySessionMetadataAndLogs,
         openDetails,
         resumeSession,
+        resumeSessionInline,
+        resumeAvailability,
         resumeSessionSubtitle: resumeAvailability.subtitle,
         resumingSession,
     };
