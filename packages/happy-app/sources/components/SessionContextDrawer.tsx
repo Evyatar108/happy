@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as React from 'react';
-import { ActivityIndicator, Platform, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { PickerContent, type PickerItem } from './pickers';
@@ -36,8 +36,12 @@ type SessionContextDrawerProps = {
     sessionEmitAgentConfiguration: (config: AgentConfigurationUpdate) => Promise<unknown>;
 };
 
+const COLLAPSED_BAR_HEIGHT = 36;
+const EXPANDED_BODY_MAX_HEIGHT = 440;
+
 export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps) => {
     const { theme } = useUnistyles();
+    const { height: windowHeight } = useWindowDimensions();
     const { canResume, resumeAvailability, resumeCommandBlock, resumeSessionInline, sessionEmitAgentConfiguration } = props;
     const [isExpanded, setIsExpanded] = React.useState(false);
     const [isResuming, setIsResuming] = React.useState(false);
@@ -51,11 +55,15 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
         });
     }, [expandedProgress, isExpanded]);
 
+    // Compact viewports keep the expanded controls inside this overlay scroller,
+    // leaving the composer and message list layout stable while the drawer opens.
+    const maxExpandedBodyHeight = Math.max(220, Math.min(EXPANDED_BODY_MAX_HEIGHT, Math.round(windowHeight * 0.55)));
+
     const bodyAnimatedStyle = useAnimatedStyle(() => ({
-        height: expandedProgress.value * 440,
+        height: expandedProgress.value * maxExpandedBodyHeight,
         opacity: expandedProgress.value,
         overflow: 'hidden' as const,
-    }));
+    }), [maxExpandedBodyHeight]);
 
     const modelItems = React.useMemo(() => toPickerItems(props.availableModels), [props.availableModels]);
     const permissionItems = React.useMemo(() => toPickerItems(props.availableModes), [props.availableModes]);
@@ -123,8 +131,16 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
                     />
                 </Pressable>
             </View>
-            <Animated.View style={[styles.expandedBody, bodyAnimatedStyle]}>
-                <View style={styles.pickerStack}>
+            <Animated.View
+                pointerEvents={isExpanded ? 'auto' : 'none'}
+                style={[styles.expandedBody, bodyAnimatedStyle]}
+            >
+                <ScrollView
+                    style={styles.expandedScroll}
+                    contentContainerStyle={styles.pickerStack}
+                    keyboardShouldPersistTaps="handled"
+                    nestedScrollEnabled={true}
+                >
                     <PickerContent
                         title={t('agentInput.model.title')}
                         items={modelItems}
@@ -191,7 +207,7 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
                         <Ionicons name="git-branch-outline" size={16} color={theme.colors.textSecondary} />
                         <Text style={styles.forkButtonText}>{t('drawer.fork.comingSoon')}</Text>
                     </Pressable>
-                </View>
+                </ScrollView>
             </Animated.View>
         </View>
     );
@@ -251,11 +267,13 @@ export function ResumeCommandCopyBlock({ resumeCommandBlock }: {
 const styles = StyleSheet.create((theme) => ({
     container: {
         width: '100%',
+        position: 'relative',
         paddingTop: 4,
         paddingBottom: 2,
+        zIndex: 20,
     },
     collapsedBar: {
-        height: 36,
+        height: COLLAPSED_BAR_HEIGHT,
         borderRadius: 8,
         backgroundColor: theme.colors.input.background,
         borderWidth: 1,
@@ -313,7 +331,24 @@ const styles = StyleSheet.create((theme) => ({
         backgroundColor: theme.colors.surfacePressed,
     },
     expandedBody: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: COLLAPSED_BAR_HEIGHT + 6,
         width: '100%',
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: theme.colors.divider,
+        backgroundColor: theme.colors.surface,
+        shadowColor: theme.colors.shadow.color,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: theme.colors.shadow.opacity,
+        shadowRadius: 8,
+        elevation: 4,
+        zIndex: 30,
+    },
+    expandedScroll: {
+        flex: 1,
     },
     pickerStack: {
         paddingTop: 8,
