@@ -61,7 +61,25 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
     // Enable features
     enableMonitoring(typed);
     enableErrorHandlers(typed);
-    typed.decorate('authenticate', async function (request: any) {
+    typed.decorate('authenticate', async function (request: any, reply: any) {
+        const authHeader = request.headers['x-tunnel-authorization'] as string | undefined;
+        if (!authHeader || !authHeader.startsWith('tunnel ')) {
+            return reply.code(401).send({ error: 'missing_tunnel_authorization' });
+        }
+        const encoded = authHeader.slice('tunnel '.length);
+        let payload: unknown;
+        try {
+            payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf-8'));
+        } catch {
+            return reply.code(401).send({ error: 'invalid_tunnel_claim' });
+        }
+        if (
+            !payload ||
+            typeof payload !== 'object' ||
+            (payload as Record<string, unknown>).sub !== tofuConfig.localUserId
+        ) {
+            return reply.code(401).send({ error: 'invalid_tunnel_claim' });
+        }
         request.userId = tofuConfig.localUserId;
     });
 

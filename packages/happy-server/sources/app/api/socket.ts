@@ -79,6 +79,31 @@ export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { lo
     // Handshake metadata is captured in middleware so it is available before
     // client events can reach the connection handlers.
     io.use(async (socket, next) => {
+        const authHeader = (
+            socket.handshake.headers['x-tunnel-authorization'] as string | undefined
+        ) || (socket.handshake.auth.tunnelAuthorization as string | undefined);
+
+        if (!authHeader || !authHeader.startsWith('tunnel ')) {
+            next(new Error('Unauthorized'));
+            return;
+        }
+        const encoded = authHeader.slice('tunnel '.length);
+        let payload: unknown;
+        try {
+            payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf-8'));
+        } catch {
+            next(new Error('Unauthorized'));
+            return;
+        }
+        if (
+            !payload ||
+            typeof payload !== 'object' ||
+            (payload as Record<string, unknown>).sub !== tofuConfig.localUserId
+        ) {
+            next(new Error('Unauthorized'));
+            return;
+        }
+
         const clientType = socket.handshake.auth.clientType as 'session-scoped' | 'user-scoped' | 'machine-scoped' | undefined;
         const sessionId = socket.handshake.auth.sessionId as string | undefined;
         const machineId = socket.handshake.auth.machineId as string | undefined;

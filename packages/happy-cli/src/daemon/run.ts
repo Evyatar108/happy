@@ -646,10 +646,13 @@ export async function startDaemon(): Promise<void> {
       return sessionIdToFinishedSession.get(happySessionId);
     };
 
+    const localTunnelClaim = `tunnel ${Buffer.from(JSON.stringify({ sub: machineId, iat: Math.floor(Date.now() / 1000) })).toString('base64url')}`;
+
     const fetchServerSessionMetadata = async (sessionId: string, encryptionKey: Uint8Array, encryptionVariant: 'legacy' | 'dataKey'): Promise<Metadata | null> => {
       try {
         const response = await axios.get(`http://127.0.0.1:${embeddedServerPort}/v1/sessions`, {
           timeout: 10_000,
+          headers: { 'X-Tunnel-Authorization': localTunnelClaim },
         });
         const sessions = (response.data as { sessions: { id: string; metadata: string }[] }).sessions;
         const matched = sessions.find(s => s.id === sessionId);
