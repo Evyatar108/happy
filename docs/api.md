@@ -10,32 +10,27 @@ This document covers the HTTP API surface and authentication flows. For WebSocke
 We intentionally avoid the full REST verb palette because many operations span multiple entities or have non-CRUD semantics.
 
 ## Authentication
-Most endpoints require `Authorization: Bearer <token>`.
+Most endpoints require `X-Tunnel-Authorization: tunnel <claim>`, where `<claim>` is a base64url-encoded JSON object minted by the embedded happy-server during pairing.
 
-Auth flows:
-- `POST /v1/auth`
-  - Body: `{ publicKey, challenge, signature }` (base64 strings)
-  - Verifies signature using the provided public key.
-  - Upserts account by public key and returns `{ success, token }`.
+The claim is an unsigned identity envelope (intentionally not a signed JWT) with the shape `{ sub, gh, iat }`:
+- `sub` — local machine/user id; must match the embedded server's `localUserId`.
+- `gh` — GitHub login captured at pairing time.
+- `iat` — issued-at, in seconds since epoch. Claims older than 24 hours are rejected.
 
-- `POST /v1/auth/request`
-  - Body: `{ publicKey, supportsV2? }`
-  - Creates or returns a terminal auth request.
-  - Response: `{ state: "requested" }` or `{ state: "authorized", token, response }`.
+The authenticate hook (`packages/happy-server/sources/app/api/api.ts`) parses the header, validates `sub` against the local server identity, and rejects expired or malformed envelopes with `401`.
 
-- `GET /v1/auth/request/status?publicKey=...`
-  - Response: `{ status: "not_found" | "pending" | "authorized", supportsV2 }`.
+Pairing flow (mobile <-> embedded server, replaces the deprecated cloud Bearer flow):
 
-- `POST /v1/auth/response`
-  - Body: `{ response, publicKey }` (requires Bearer auth)
-  - Approves a terminal auth request.
+- `GET /pair/start`
+  - Initiates GitHub device flow against the embedded server's GitHub OAuth client.
+  - Response: `{ device_code, user_code, verification_uri, verification_uri_complete?, expires_in, interval }`.
 
-- `POST /v1/auth/account/request`
-  - Body: `{ publicKey }`
-  - Similar to terminal auth, but for account linking.
-
-- `POST /v1/auth/account/response`
-  - Body: `{ response, publicKey }` (requires Bearer auth)
+- `POST /pair/status`
+  - Body: `{ device_code, mobileEcdhPublicKey? }`.
+  - Polls GitHub for OAuth completion. Optionally accepts the mobile's X25519 public key to derive the ECDH shared session key (TOFU pinning).
+  - Response while pending: `{ status: "pending" }`.
+  - Response when authorized: `{ status: "authorized", githubLogin, machines: [{ machineId, tunnelUrl, ed25519PublicKey, x25519PublicKey, ed25519Fingerprint, tunnelClaim }] }`. The `tunnelClaim` is what mobile sends back in the `X-Tunnel-Authorization` header on subsequent requests.
+  - When `HAPPY_TUNNEL_GITHUB_OWNER` is set, GitHub identities not matching the operator login are rejected with `403`.
 
 ## Endpoint catalog
 ### Sessions
@@ -44,7 +39,10 @@ Auth flows:
 - `GET /v2/sessions?cursor=cursor_v1_<id>&limit=...&changedSince=...`
 - `POST /v1/sessions` (create or load by `tag`)
 - `GET /v1/sessions/:sessionId/messages`
+- `POST /v1/sessions/:sessionId/archive`
 - `DELETE /v1/sessions/:sessionId`
+- `GET /v3/sessions/:sessionId/messages?after_seq=...&limit=...`
+- `POST /v3/sessions/:sessionId/messages`
 
 ### Machines
 - `POST /v1/machines` (create or load by id)
@@ -69,26 +67,13 @@ Auth flows:
 - `POST /v1/kv/bulk`
 - `POST /v1/kv` (batch mutate)
 
-### Account and usage
-- `GET /v1/account/profile`
-- `GET /v1/account/settings`
-- `POST /v1/account/settings`
-- `POST /v1/usage/query`
-
 ### Push tokens
-- `POST /v1/push-tokens`
+Push tokens are stored per-machine (keyed by the embedded server's `localUserId`/`machineId`) and per-device. There is no account scoping in the per-machine architecture; each embedded server owns its own token set and dispatches Expo notifications directly.
+
+- `POST /push/register` — body `{ expoPushToken, deviceId }`
+- `POST /v1/push-tokens` — body `{ token, deviceId? }` (compatibility alias)
 - `DELETE /v1/push-tokens/:token`
 - `GET /v1/push-tokens`
-
-### Connect (GitHub + vendor tokens)
-- `GET /v1/connect/github/params`
-- `GET /v1/connect/github/callback`
-- `POST /v1/connect/github/webhook`
-- `DELETE /v1/connect/github`
-- `POST /v1/connect/:vendor/register` (`vendor` in `openai | anthropic | gemini`)
-- `GET /v1/connect/:vendor/token`
-- `DELETE /v1/connect/:vendor`
-- `GET /v1/connect/tokens`
 
 ### Users, friends, feed
 - `GET /v1/user/:id`
@@ -107,4 +92,5 @@ Auth flows:
 
 ## Implementation references
 - API routes: `packages/happy-server/sources/app/api/routes`
-- Auth module: `packages/happy-server/sources/app/auth/auth.ts`
+- Authenticate hook and tunnel claim verification: `packages/happy-server/sources/app/api/api.ts`
+- Pairing route: `packages/happy-server/sources/app/api/routes/pairRoutes.ts`
