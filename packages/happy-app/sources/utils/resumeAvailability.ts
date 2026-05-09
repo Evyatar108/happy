@@ -60,6 +60,16 @@ export function getResumeAvailability(session: Session, machine: Machine | null 
         };
     }
 
+    if (machine.metadata?.resumeSupport?.rpcAvailable === false) {
+        const message = t('sessionInfo.resumeSessionNeedsHappyAgent');
+        return {
+            canResume: false,
+            canShowResume: true,
+            subtitle: message,
+            message,
+        };
+    }
+
     return {
         canResume: true,
         canShowResume: true,

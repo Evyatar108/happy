@@ -1,12 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import * as React from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, Text, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { PickerContent, type PickerItem } from './pickers';
 import type { ModelMode, PermissionMode } from './PermissionModeSelector';
 import type { EffortLevel } from './modelModeOptions';
+import type { ResumeCommandBlock } from '@/utils/resumeCommand';
 import type { ResumeAvailability } from '@/utils/resumeAvailability';
+import type { SpawnSessionResult } from '@/sync/ops';
 import { t } from '@/text';
 
 type AgentConfigurationUpdate = {
@@ -25,17 +28,20 @@ type SessionContextDrawerProps = {
     availableEffortLevels: EffortLevel[];
     canResume: boolean;
     resumeAvailability: ResumeAvailability;
+    resumeCommandBlock: ResumeCommandBlock | null;
     updatePermissionMode: (mode: PermissionMode) => void;
     updateModelMode: (mode: ModelMode) => void;
     updateEffortLevel: (level: EffortLevel) => void;
-    resumeSessionInline: () => Promise<unknown>;
+    resumeSessionInline: () => Promise<SpawnSessionResult>;
     sessionEmitAgentConfiguration: (config: AgentConfigurationUpdate) => Promise<unknown>;
 };
 
 export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps) => {
     const { theme } = useUnistyles();
-    const { sessionEmitAgentConfiguration } = props;
+    const { canResume, resumeAvailability, resumeCommandBlock, resumeSessionInline, sessionEmitAgentConfiguration } = props;
     const [isExpanded, setIsExpanded] = React.useState(false);
+    const [isResuming, setIsResuming] = React.useState(false);
+    const [inlineResumeError, setInlineResumeError] = React.useState<string | null>(null);
     const expandedProgress = useSharedValue(0);
 
     React.useEffect(() => {
@@ -46,7 +52,7 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
     }, [expandedProgress, isExpanded]);
 
     const bodyAnimatedStyle = useAnimatedStyle(() => ({
-        height: expandedProgress.value * 360,
+        height: expandedProgress.value * 440,
         opacity: expandedProgress.value,
         overflow: 'hidden' as const,
     }));
@@ -66,6 +72,28 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
     const handleSelectEffortLevel = React.useCallback((key: string) => {
         void sessionEmitAgentConfiguration({ thinkingLevel: key });
     }, [sessionEmitAgentConfiguration]);
+
+    const handleResume = React.useCallback(() => {
+        if (!canResume || isResuming) {
+            return;
+        }
+
+        setInlineResumeError(null);
+        setIsResuming(true);
+        void resumeSessionInline().then((result) => {
+            if (result.type === 'error') {
+                setInlineResumeError(result.errorMessage);
+            } else if (result.type === 'requestToApproveDirectoryCreation') {
+                setInlineResumeError(t('sessionInfo.resumeSessionUnexpectedDirectoryPrompt'));
+            }
+        }).finally(() => {
+            setIsResuming(false);
+        });
+    }, [canResume, isResuming, resumeSessionInline]);
+
+    const resumeSubtitle = inlineResumeError ?? resumeAvailability.subtitle;
+    const shouldShowResume = resumeAvailability.canShowResume;
+    const shownResumeCommandBlock = shouldShowResume && !canResume ? resumeCommandBlock : null;
 
     return (
         <View style={styles.container}>
@@ -120,6 +148,40 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
                             searchPlaceholder={t('commandPalette.placeholder')}
                         />
                     )}
+                    {shouldShowResume && (
+                        <View style={styles.resumeSection}>
+                            <View style={styles.resumeCopyColumn}>
+                                <Text style={styles.resumeTitle}>{t('sessionInfo.resumeSession')}</Text>
+                                {!!resumeSubtitle && (
+                                    <Text style={styles.resumeSubtitle}>{resumeSubtitle}</Text>
+                                )}
+                            </View>
+                            <Pressable
+                                onPress={handleResume}
+                                disabled={!canResume || isResuming}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('sessionInfo.resumeSession')}
+                                accessibilityState={{ disabled: !canResume || isResuming, busy: isResuming }}
+                                style={({ pressed }) => [
+                                    styles.resumeButton,
+                                    !canResume && styles.resumeButtonDisabled,
+                                    pressed && canResume && styles.resumeButtonPressed,
+                                ]}
+                            >
+                                {isResuming ? (
+                                    <ActivityIndicator size="small" color={theme.colors.button.primary.tint} />
+                                ) : (
+                                    <Text style={styles.resumeButtonText}>{t('sessionInfo.resumeSession')}</Text>
+                                )}
+                            </Pressable>
+                            {shownResumeCommandBlock && (
+                                <View style={styles.resumeCommandArea}>
+                                    <Text style={styles.resumeTerminalText}>{t('session.resumeFromTerminal')}</Text>
+                                    <ResumeCommandCopyBlock resumeCommandBlock={shownResumeCommandBlock} />
+                                </View>
+                            )}
+                        </View>
+                    )}
                 </View>
             </Animated.View>
         </View>
@@ -139,6 +201,41 @@ function ContextChip(props: { label: string }) {
         <View style={styles.chip}>
             <Text style={styles.chipText} numberOfLines={1}>{props.label}</Text>
         </View>
+    );
+}
+
+export function ResumeCommandCopyBlock({ resumeCommandBlock }: {
+    resumeCommandBlock: ResumeCommandBlock;
+}) {
+    const { theme } = useUnistyles();
+    const [copied, setCopied] = React.useState(false);
+
+    return (
+        <Pressable
+            onPress={async () => {
+                await Clipboard.setStringAsync(resumeCommandBlock.copyText);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+            }}
+            style={styles.resumeCommandBlock}
+        >
+            <View style={{ flex: 1 }}>
+                {resumeCommandBlock.lines.map((line, index) => (
+                    <Text
+                        key={`${line}-${index}`}
+                        style={styles.resumeCommandLine}
+                    >
+                        {line}
+                    </Text>
+                ))}
+            </View>
+            <Ionicons
+                name={copied ? 'checkmark' : 'copy-outline'}
+                size={16}
+                color={copied ? '#30D158' : theme.colors.textSecondary}
+                style={{ marginTop: 1 }}
+            />
+        </Pressable>
     );
 }
 
@@ -213,5 +310,68 @@ const styles = StyleSheet.create((theme) => ({
         paddingTop: 8,
         paddingBottom: 4,
         gap: 4,
+    },
+    resumeSection: {
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: theme.colors.divider,
+        backgroundColor: theme.colors.input.background,
+        padding: 10,
+        gap: 8,
+    },
+    resumeCopyColumn: {
+        gap: 2,
+    },
+    resumeTitle: {
+        color: theme.colors.text,
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    resumeSubtitle: {
+        color: theme.colors.textSecondary,
+        fontSize: 12,
+        lineHeight: 16,
+    },
+    resumeButton: {
+        height: 36,
+        borderRadius: 8,
+        backgroundColor: theme.colors.button.primary.background,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    resumeButtonPressed: {
+        opacity: 0.8,
+    },
+    resumeButtonDisabled: {
+        opacity: 0.45,
+    },
+    resumeButtonText: {
+        color: theme.colors.button.primary.tint,
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    resumeCommandArea: {
+        gap: 6,
+    },
+    resumeTerminalText: {
+        color: theme.colors.textSecondary,
+        fontSize: 12,
+        lineHeight: 16,
+    },
+    resumeCommandBlock: {
+        minHeight: 48,
+        borderRadius: 8,
+        backgroundColor: theme.colors.surfaceHigh,
+        flexDirection: 'row',
+        gap: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        alignItems: 'flex-start',
+    },
+    resumeCommandLine: {
+        color: theme.colors.text,
+        fontSize: 12,
+        lineHeight: 17,
+        fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     },
 }));

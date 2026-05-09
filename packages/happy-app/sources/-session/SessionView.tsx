@@ -16,7 +16,7 @@ import { ChatList } from '@/components/ChatList';
 import { Deferred } from '@/components/Deferred';
 import { EmptyMessages } from '@/components/EmptyMessages';
 import { SessionActionsAnchor, SessionActionsPopover } from '@/components/SessionActionsPopover';
-import { SessionContextDrawer } from '@/components/SessionContextDrawer';
+import { ResumeCommandCopyBlock, SessionContextDrawer } from '@/components/SessionContextDrawer';
 import { VoiceAssistantStatusBar } from '@/components/VoiceAssistantStatusBar';
 import { useChatWidth } from '@/hooks/useChatWidth';
 import { useDraft } from '@/hooks/useDraft';
@@ -44,7 +44,6 @@ import { GitFileStatus } from '@/sync/gitStatusFiles';
 import { formatPathRelativeToHome, getResumeCommandBlock, getSessionAvatarId, getSessionMode, getSessionName, useSessionStatus } from '@/utils/sessionUtils';
 import { useSessionQuickActions } from '@/hooks/useSessionQuickActions';
 import { isVersionSupported, MINIMUM_CLI_VERSION } from '@/utils/versionUtils';
-import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as React from 'react';
@@ -736,6 +735,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                 availableEffortLevels={drawerAvailableEffortLevels}
                 canResume={canResume}
                 resumeAvailability={resumeAvailability}
+                resumeCommandBlock={resumeCommandBlock}
                 updatePermissionMode={updatePermissionMode}
                 updateModelMode={updateModelMode}
                 updateEffortLevel={updateEffortLevel}
@@ -755,11 +755,6 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
         </>
     ) : (
         <>
-            {expResumeSession && isDisconnected && resumeCommandBlock && (
-                <CenteredInputWidth horizontalPadding={sessionInputHorizontalPadding}>
-                    <ResumeCommandHint resumeCommandBlock={resumeCommandBlock} />
-                </CenteredInputWidth>
-            )}
             {boundaryAdvisory}
             {pendingSwitchBanner}
             {contextDrawer}
@@ -913,27 +908,6 @@ function CrossDeviceBoundaryAdvisory() {
     );
 }
 
-function ResumeCommandHint({ resumeCommandBlock }: {
-    resumeCommandBlock: NonNullable<ReturnType<typeof getResumeCommandBlock>>;
-}) {
-    const { theme } = useUnistyles();
-
-    return (
-        <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10, gap: 8 }}>
-            <ResumeCommandCopyBlock resumeCommandBlock={resumeCommandBlock} />
-            <Text style={{
-                color: theme.colors.textSecondary,
-                fontSize: 12,
-                lineHeight: 16,
-                textAlign: 'center',
-                paddingHorizontal: 8,
-            }}>
-                Run this command in your terminal to resume this session
-            </Text>
-        </View>
-    );
-}
-
 function InactiveArchivedHint(props: {
     resumeCommandBlock: NonNullable<ReturnType<typeof getResumeCommandBlock>> | null;
     canResume: boolean;
@@ -991,55 +965,6 @@ function InactiveArchivedHint(props: {
                 <ResumeCommandCopyBlock resumeCommandBlock={props.resumeCommandBlock} />
             )}
         </View>
-    );
-}
-
-function ResumeCommandCopyBlock({ resumeCommandBlock }: {
-    resumeCommandBlock: NonNullable<ReturnType<typeof getResumeCommandBlock>>;
-}) {
-    const { theme } = useUnistyles();
-    const [copied, setCopied] = React.useState(false);
-
-    return (
-        <Pressable
-            onPress={async () => {
-                await Clipboard.setStringAsync(resumeCommandBlock.copyText);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2000);
-            }}
-            style={{
-                minHeight: 48,
-                borderRadius: 14,
-                backgroundColor: theme.colors.surfaceHigh,
-                flexDirection: 'row',
-                gap: 8,
-                paddingHorizontal: 16,
-                paddingVertical: 12,
-                alignItems: 'flex-start',
-            }}
-        >
-            <View style={{ flex: 1 }}>
-                {resumeCommandBlock.lines.map((line, index) => (
-                    <Text
-                        key={`${line}-${index}`}
-                        style={{
-                            color: theme.colors.text,
-                            fontSize: 13,
-                            lineHeight: 18,
-                            fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-                        }}
-                    >
-                        {line}
-                    </Text>
-                ))}
-            </View>
-            <Ionicons
-                name={copied ? 'checkmark' : 'copy-outline'}
-                size={16}
-                color={copied ? '#30D158' : theme.colors.textSecondary}
-                style={{ marginTop: 1 }}
-            />
-        </Pressable>
     );
 }
 
