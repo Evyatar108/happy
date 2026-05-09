@@ -269,9 +269,14 @@ export class TunnelManager {
 
     if (!shouldRenew) return config;
 
+    const daysRemaining = daysUntil(now, expiresAt);
     const refresh = this.runner('devtunnel', ['update', config.tunnelId, '--expiration', `${TUNNEL_LIFETIME_DAYS}d`]);
     if (refresh.status !== 0) {
-      throw new Error(`Failed to refresh Dev Tunnel ${config.tunnelId}: ${refresh.stderr || refresh.stdout || 'unknown error'}`);
+      if (daysRemaining < 0) {
+        throw new Error(`Failed to refresh Dev Tunnel ${config.tunnelId}: ${refresh.stderr || refresh.stdout || 'unknown error'}`);
+      }
+      logger.warn(`[TUNNEL] Failed to renew Dev Tunnel ${config.tunnelId} (${daysRemaining.toFixed(1)} days remaining): ${refresh.stderr || refresh.stdout || 'unknown error'}. Continuing with existing config.`);
+      return config;
     }
 
     const updated = { ...config, refreshedAt: now.toISOString() };
