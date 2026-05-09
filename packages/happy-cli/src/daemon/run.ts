@@ -173,7 +173,7 @@ export async function startDaemon(): Promise<void> {
     const tunnelManager = new TunnelManager();
     const tunnelConfig = await tunnelManager.loadForDaemon(embeddedServerPort);
     const embeddedServer: HappyServerHandle = createHappyServer({
-      dataDir: join(configuration.happyHomeDir, 'happy-server'),
+      dataDir: configuration.happyHomeDir,
       port: embeddedServerPort,
       machineKey: tofuKeypairs.ed25519PublicKey,
       localUserId: machineId,
