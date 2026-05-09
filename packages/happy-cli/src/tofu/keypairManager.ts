@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { execSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { mkdir, readFile, writeFile, chmod } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import * as ed from '@noble/ed25519';
@@ -52,7 +52,10 @@ async function writeBase64File(filePath: string, bytes: Uint8Array): Promise<voi
   await mkdir(dirname(filePath), { recursive: true, mode: 0o700 });
   await writeFile(filePath, `${encodeBase64(bytes)}\n`, { mode: 0o600 });
   if (process.platform === 'win32') {
-    execSync(`icacls "${filePath}" /inheritance:r /grant:r "%USERNAME%:R"`, { stdio: 'ignore' });
+    const username = process.env.USERNAME;
+    if (username) {
+      spawnSync('icacls', [filePath, '/inheritance:r', '/grant:r', `${username}:R`], { stdio: 'ignore' });
+    }
   } else {
     await chmod(filePath, 0o600);
   }

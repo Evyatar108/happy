@@ -29,6 +29,30 @@ function getGitHubClientId(): string {
     return clientId;
 }
 
+const PAIR_RATE_LIMIT_MAX = 5;
+const PAIR_RATE_LIMIT_WINDOW_MS = 60_000;
+const pairRateBuckets = new Map<string, { count: number; windowStart: number }>();
+
+function isPairRateLimited(ip: string, now: number): boolean {
+    const bucket = pairRateBuckets.get(ip);
+    if (!bucket || now - bucket.windowStart >= PAIR_RATE_LIMIT_WINDOW_MS) {
+        pairRateBuckets.set(ip, { count: 1, windowStart: now });
+        if (pairRateBuckets.size > 1024) {
+            for (const [key, value] of pairRateBuckets) {
+                if (now - value.windowStart >= PAIR_RATE_LIMIT_WINDOW_MS) {
+                    pairRateBuckets.delete(key);
+                }
+            }
+        }
+        return false;
+    }
+    if (bucket.count >= PAIR_RATE_LIMIT_MAX) {
+        return true;
+    }
+    bucket.count += 1;
+    return false;
+}
+
 // Produces an unsigned base64url-encoded JSON claim (not a signed JWT).
 // Named "claim" deliberately — callers must not assume cryptographic verification.
 function encodeTunnelClaim(payload: unknown): string {
@@ -61,9 +85,13 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
                     expires_in: z.number(),
                     interval: z.number(),
                 }),
+                429: z.object({ error: z.string() }),
             },
         },
-    }, async () => {
+    }, async (request, reply) => {
+        if (isPairRateLimited(request.ip, Date.now())) {
+            return reply.code(429).send({ error: "rate_limited" });
+        }
         const body = new URLSearchParams({
             client_id: getGitHubClientId(),
             scope: "read:user",
@@ -90,6 +118,9 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
             }),
         },
     }, async (request, reply) => {
+        if (isPairRateLimited(request.ip, Date.now())) {
+            return reply.code(429).send({ error: "rate_limited" });
+        }
         const githubBody = new URLSearchParams({
             client_id: getGitHubClientId(),
             device_code: request.body.device_code,
@@ -125,9 +156,11 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
             return reply.code(503).send({ error: "tofu_public_keys_unavailable" });
         }
 
+        let mobileSharedSecret: string | undefined;
         if (request.body.mobileEcdhPublicKey && tofuConfig.x25519SecretKey) {
             const mobilePublicKeyBytes = Buffer.from(request.body.mobileEcdhPublicKey, "base64");
-            tofuConfig.mobileSharedSecret = nacl.box.before(mobilePublicKeyBytes, tofuConfig.x25519SecretKey);
+            const sharedSecret = nacl.box.before(mobilePublicKeyBytes, tofuConfig.x25519SecretKey);
+            mobileSharedSecret = Buffer.from(sharedSecret).toString("base64");
         }
 
         const tunnelUrl = tofuConfig.publicUrl || process.env.PUBLIC_URL || `http://127.0.0.1:${process.env.PORT ?? "3005"}`;
@@ -141,6 +174,7 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
                 x25519PublicKey: tofuConfig.tofuPublicKeys.x25519PublicKey,
                 ed25519Fingerprint: tofuConfig.tofuPublicKeys.ed25519Fingerprint,
                 tunnelClaim: encodeTunnelClaim({ sub: tofuConfig.localUserId, gh: githubUser.login, iat: Math.floor(Date.now() / 1000) }),
+                mobileSharedSecret,
             }],
         };
     });

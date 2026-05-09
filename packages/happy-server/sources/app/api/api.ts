@@ -1,4 +1,6 @@
 import fastify from "fastify";
+import * as ed from "@noble/ed25519";
+import { sha512 } from "@noble/hashes/sha2.js";
 import { log, logger } from "@/utils/log";
 import { serializerCompiler, validatorCompiler, ZodTypeProvider } from "fastify-type-provider-zod";
 import { onShutdown } from "@/utils/shutdown";
@@ -23,6 +25,8 @@ import { isLocalStorage, getLocalFilesDir } from "@/storage/files";
 import * as path from "path";
 import * as fs from "fs";
 
+ed.hashes.sha512 = (message: Uint8Array) => sha512(message);
+
 export interface TofuHandshakeConfig {
     localUserId: string;
     tofuPublicKeys?: {
@@ -30,8 +34,8 @@ export interface TofuHandshakeConfig {
         x25519PublicKey: string;
         ed25519Fingerprint?: string;
     };
+    ed25519SecretKey?: Uint8Array;
     x25519SecretKey?: Uint8Array;
-    mobileSharedSecret?: Uint8Array;
     publicUrl?: string;
 }
 
@@ -42,11 +46,20 @@ export function createApi() {
     });
 }
 
+function parseCorsOrigins(): string[] {
+    const raw = process.env.HAPPY_CORS_ORIGINS;
+    if (!raw) {
+        return [];
+    }
+    return raw.split(',').map(o => o.trim()).filter(o => o.length > 0);
+}
+
 export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { localUserId: "local-user" }) {
     const fastifyApp = app as ReturnType<typeof createApi>;
+    const allowedOrigins = parseCorsOrigins();
     fastifyApp.register(import('@fastify/cors'), {
-        origin: '*',
-        allowedHeaders: '*',
+        origin: allowedOrigins.length === 0 ? false : allowedOrigins,
+        allowedHeaders: ['X-Tunnel-Authorization', 'X-Happy-Client', 'Content-Type'],
         methods: ['GET', 'POST', 'DELETE']
     });
     fastifyApp.get('/', function (request, reply) {
@@ -67,9 +80,38 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
             return reply.code(401).send({ error: 'missing_tunnel_authorization' });
         }
         const encoded = authHeader.slice('tunnel '.length);
+        let envelope: unknown;
+        try {
+            envelope = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf-8'));
+        } catch {
+            return reply.code(401).send({ error: 'invalid_tunnel_claim' });
+        }
+        if (!envelope || typeof envelope !== 'object') {
+            return reply.code(401).send({ error: 'invalid_tunnel_claim' });
+        }
+        const { p: payloadEncoded, s: signatureHex } = envelope as Record<string, unknown>;
+        if (typeof payloadEncoded !== 'string' || typeof signatureHex !== 'string') {
+            return reply.code(401).send({ error: 'invalid_tunnel_claim' });
+        }
+        const ed25519PublicKeyBase64 = tofuConfig.tofuPublicKeys?.ed25519PublicKey;
+        if (!ed25519PublicKeyBase64) {
+            return reply.code(503).send({ error: 'tunnel_verification_unavailable' });
+        }
+        let signatureValid = false;
+        try {
+            const payloadBytes = Buffer.from(payloadEncoded, 'base64url');
+            const signatureBytes = Buffer.from(signatureHex, 'hex');
+            const publicKeyBytes = Buffer.from(ed25519PublicKeyBase64, 'base64');
+            signatureValid = await ed.verifyAsync(signatureBytes, payloadBytes, publicKeyBytes);
+        } catch {
+            return reply.code(401).send({ error: 'invalid_tunnel_claim' });
+        }
+        if (!signatureValid) {
+            return reply.code(401).send({ error: 'invalid_tunnel_claim' });
+        }
         let payload: unknown;
         try {
-            payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf-8'));
+            payload = JSON.parse(Buffer.from(payloadEncoded, 'base64url').toString('utf-8'));
         } catch {
             return reply.code(401).send({ error: 'invalid_tunnel_claim' });
         }
@@ -136,9 +178,10 @@ export async function startApi() {
     const app = createApi();
     configureApi(app);
 
-    // Start HTTP 
+    // Start HTTP
     const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3005;
-    await app.listen({ port, host: '0.0.0.0' });
+    const host = process.env.HAPPY_API_HOST ?? '127.0.0.1';
+    await app.listen({ port, host });
     onShutdown('api', async () => {
         await app.close();
     });
