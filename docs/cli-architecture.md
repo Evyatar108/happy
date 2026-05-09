@@ -1,6 +1,6 @@
 # CLI Architecture
 
-This document describes the Happy CLI (`packages/happy-cli`) and its daemon. The CLI is both an interactive tool and a background session manager that keeps machine state in sync with the server.
+This document describes the Happy CLI (`packages/happy-cli`) and its daemon. The CLI is both an interactive tool and a background session manager that hosts an embedded `happy-server` and exposes it to the mobile/web clients via a Microsoft Dev Tunnel.
 
 ## System overview
 
@@ -10,6 +10,9 @@ graph TB
         Entry[src/index.ts]
         API[API Client]
         Daemon[Daemon Process]
+        Embedded[Embedded happy-server]
+        Tunnel[TunnelManager]
+        Tofu[Keypair Manager]
         Agents[Agent Runners]
         Persist[Persistence]
     end
@@ -18,30 +21,44 @@ graph TB
         Settings[settings.json]
         AccessKey[access.key]
         DaemonState[daemon.state.json]
+        MachineFile[machine.json]
+        TunnelFile[tunnel.json]
+        ServerKeyPub[server-key.pub]
+        ServerKeyPriv[server-key.priv]
+        EcdhPub[ecdh-key.pub]
+        EcdhPriv[ecdh-key.priv]
         Logs[logs/]
     end
 
-    subgraph Server
-        HTTP[HTTP API]
-        Socket[Socket.IO]
+    subgraph "Dev Tunnel"
+        DevTunnel[devtunnel host]
     end
 
     Entry --> API
     Entry --> Daemon
+    Entry --> Tunnel
     Entry --> Agents
     Entry --> Persist
 
-    Persist --> Settings & AccessKey & DaemonState & Logs
+    Daemon --> Embedded
+    Daemon --> Tunnel
+    Daemon --> Tofu
 
-    API --> HTTP & Socket
-    Daemon --> API
-    Agents --> API
+    Persist --> Settings & AccessKey & DaemonState & MachineFile & TunnelFile & Logs
+    Tofu --> ServerKeyPub & ServerKeyPriv & EcdhPub & EcdhPriv
+
+    Tunnel -->|spawns| DevTunnel
+    DevTunnel -->|forwards 127.0.0.1:port| Embedded
+
+    Agents --> Embedded
 ```
 
 ## High-level layout
 - **Entry point:** `src/index.ts` parses subcommands and routes execution.
 - **API client:** `src/api` handles HTTP + Socket.IO, encryption, and RPC.
-- **Daemon:** `src/daemon` runs in the background, spawns sessions, and maintains machine state.
+- **Daemon:** `src/daemon` runs in the background, hosts the embedded `happy-server`, spawns sessions, and maintains machine state.
+- **Tunnel manager:** `src/tunnel/tunnelManager.ts` owns Microsoft Dev Tunnel lifecycle (login, create, port mapping, host, renewal).
+- **TOFU keypair manager:** `src/tofu/keypairManager.ts` loads or creates the long-term Ed25519 server identity and X25519 ECDH keys.
 - **Persistence/config:** `src/persistence.ts` + `src/configuration.ts` manage local state in `~/.happy`.
 - **Agents:** `src/claude`, `src/codex`, `src/gemini` provide provider-specific runners.
 
@@ -52,12 +69,14 @@ flowchart TD
     Start([happy ...]) --> Parse[Parse subcommand]
 
     Parse --> Doctor{doctor?}
+    Parse --> Init{init?}
     Parse --> Auth{auth?}
     Parse --> Connect{connect?}
     Parse --> Agent{codex/gemini?}
     Parse --> Default{default}
 
     Doctor --> RunDoctor[Run diagnostics]
+    Init --> RunInit[runInitCommand:<br/>provision Dev Tunnel]
     Auth --> RunAuth[Auth flow]
     Connect --> RunConnect[Connect machine]
 
@@ -72,9 +91,12 @@ flowchart TD
 ```
 
 `src/index.ts` is the CLI router. It:
-- Parses subcommands (`doctor`, `auth`, `connect`, `codex`, `gemini`, and default run flows).
+- Parses subcommands (`doctor`, `init`, `auth`, `connect`, `codex`, `gemini`, and default run flows).
+- Routes `happy init` to `runInitCommand` from `src/tunnel/tunnelManager.ts`, which provisions the Microsoft Dev Tunnel and writes `~/.happy/tunnel.json`.
 - Ensures auth and machine setup when needed (`authAndSetupMachineIfNeeded`).
 - Starts the daemon or runs an agent directly based on subcommand/context.
+
+`happy init` is a one-time provisioning step run by the human operator before the daemon can start. It picks/reuses a free loopback port, writes it to `~/.happy/machine.json`, ensures the operator is logged into Dev Tunnels (GitHub device flow), creates or reuses the named tunnel `happy-<host>-<machineId>`, configures the port, and persists `tunnel.json` with the resulting public `tunnelUrl`.
 
 ## Local state and configuration
 
@@ -82,9 +104,15 @@ flowchart TD
 graph LR
     subgraph "~/.happy"
         direction TB
-        settings["settings.json<br/><i>profile, onboarding</i>"]
-        access["access.key<br/><i>encryption keys</i>"]
+        settings["settings.json<br/><i>profile, onboarding, machineId</i>"]
+        access["access.key<br/><i>auth token + content keys</i>"]
         daemon["daemon.state.json<br/><i>PID, port, version</i>"]
+        machine["machine.json<br/><i>embedded server port, tunnelUrl</i>"]
+        tunnel["tunnel.json<br/><i>tunnelId, tunnelUrl, dates</i>"]
+        edpub["server-key.pub<br/><i>Ed25519 public key</i>"]
+        edpriv["server-key.priv<br/><i>Ed25519 secret key</i>"]
+        ecdhpub["ecdh-key.pub<br/><i>X25519 public key</i>"]
+        ecdhpriv["ecdh-key.priv<br/><i>X25519 secret key</i>"]
         logs["logs/<br/><i>CLI/daemon logs</i>"]
     end
 
@@ -98,14 +126,20 @@ graph LR
         E6[HAPPY_DISABLE_CAFFEINATE]
     end
 
-    E1 -.-> settings & access & daemon & logs
+    E1 -.-> settings & access & daemon & machine & tunnel & edpub & edpriv & ecdhpub & ecdhpriv & logs
 ```
 
 Local state lives under `~/.happy` (or `HAPPY_HOME_DIR`):
-- `settings.json`: onboarding and profile settings (validated/migrated).
-- `access.key`: local key material for encryption/auth.
+- `settings.json`: onboarding, profile settings, and `machineId` (validated/migrated).
+- `access.key`: local auth token and content encryption keys.
 - `daemon.state.json`: daemon PID + control port + version.
+- `machine.json`: embedded `happy-server` loopback port and last-known `tunnelUrl`.
+- `tunnel.json`: Dev Tunnel record (`tunnelId`, `tunnelName`, `tunnelUrl`, `createdAt`, optional `refreshedAt`).
+- `server-key.pub` / `server-key.priv`: long-term Ed25519 keypair that defines this machine's TOFU identity. The SHA-256 fingerprint of the public key is what mobile clients pin on first pair.
+- `ecdh-key.pub` / `ecdh-key.priv`: long-term X25519 keypair used for the ECDH session-key handshake with mobile clients (generated via `tweetnacl.box.keyPair()` — separate from Ed25519, no edwards-to-montgomery conversion).
 - `logs/`: CLI/daemon logs.
+
+The `~/.happy` directory itself is created with mode `0700`. All four key files are written `0600` on POSIX and locked down via `icacls` on Windows.
 
 Configuration lives in `src/configuration.ts`:
 - `HAPPY_SERVER_URL` and `HAPPY_WEBAPP_URL` override defaults.
@@ -122,7 +156,7 @@ graph TB
         Encrypt[encryption.ts]
     end
 
-    subgraph "Server"
+    subgraph "Embedded happy-server (loopback or via tunnel)"
         HTTP[HTTP API]
         Socket[Socket.IO]
     end
@@ -139,7 +173,7 @@ graph TB
 ### HTTP
 `ApiClient` (`src/api/api.ts`) handles:
 - Session creation (`POST /v1/sessions`) with encrypted metadata/state.
-- Machine registration (`POST /v1/machines`) with encrypted metadata/daemon state.
+- Machine registration (`POST /v1/machines`) with encrypted metadata/daemon state. Machine metadata now includes the `tunnelUrl` so other clients can discover this machine's public endpoint.
 - Other CRUD actions through `ApiSessionClient` and `ApiMachineClient`.
 
 ### WebSocket
@@ -156,7 +190,7 @@ graph LR
         M_Out[Emit: machine-alive,<br/>update metadata/state]
     end
 
-    Server((Socket.IO)) --> S_In & M_In
+    Server((Embedded happy-server<br/>Socket.IO)) --> S_In & M_In
     S_Out & M_Out --> Server
 ```
 
@@ -179,7 +213,7 @@ flowchart LR
         B64[Base64 Encoded]
     end
 
-    Plain --> |encrypt| Encrypt --> B64 --> |send| Server[(Server)]
+    Plain --> |encrypt| Encrypt --> B64 --> |send| Server[(Embedded happy-server)]
     Server --> |receive| B64 --> |decrypt| Encrypt --> Plain
 
     style Plain fill:#e8f5e9
@@ -189,6 +223,7 @@ flowchart LR
 The CLI encrypts client content before it leaves the machine using `src/api/encryption.ts`.
 - Session metadata, agent state, messages, machine state, artifacts, and KV values are encrypted client-side.
 - On-wire encoding is base64; see `encryption.md`.
+- The session content key is established with mobile clients via the X25519 ECDH handshake using `ecdh-key.{pub,priv}`.
 
 ## Daemon architecture
 
@@ -198,6 +233,8 @@ graph TB
         Control[Control Server<br/>127.0.0.1:port]
         Sessions[Session Map]
         MachineClient[ApiMachineClient]
+        Embedded[Embedded happy-server<br/>127.0.0.1:embeddedPort]
+        TunnelHost[Dev Tunnel host child]
     end
 
     subgraph "Child Processes"
@@ -210,11 +247,12 @@ graph TB
     Control --> Sessions
     Sessions --> S1 & S2 & S3
 
-    MachineClient --> |heartbeat| Server[(Server)]
-    MachineClient --> |state sync| Server
+    MachineClient -->|loopback| Embedded
+    Embedded -->|published via| TunnelHost
+    TunnelHost -->|public https://*.devtunnels.ms| Mobile[(Mobile / Web)]
 ```
 
-The daemon is a long-lived process responsible for running sessions in the background and maintaining machine presence.
+The daemon is a long-lived process responsible for hosting the embedded `happy-server`, exposing it via a Dev Tunnel, running sessions in the background, and maintaining machine presence.
 
 ### Lifecycle
 
@@ -222,20 +260,30 @@ The daemon is a long-lived process responsible for running sessions in the backg
 flowchart TD
     Start([startDaemon]) --> Validate[Validate version]
     Validate --> Lock[Acquire lock file]
-    Lock --> Auth[Authenticate]
-    Auth --> Register[Register machine with server]
-    Register --> Control[Start control server]
-    Control --> Track[Track child sessions]
-    Track --> Sync[Sync daemon state to server]
-    Sync --> Running([Running])
+    Lock --> Auth[Authenticate + machine setup]
+    Auth --> Tofu[Load or create<br/>Ed25519 + X25519 keypairs]
+    Tofu --> ResolvePort[Resolve embedded server port<br/>from machine.json]
+    ResolvePort --> LoadTunnel[TunnelManager.loadForDaemon<br/>auto-renew if needed]
+    LoadTunnel --> StartServer[createHappyServer + start<br/>127.0.0.1:embeddedPort]
+    StartServer --> StartHost[devtunnel host child]
+    StartHost --> Control[Start control server]
+    Control --> Register[Register machine with tunnelUrl]
+    Register --> Track[Track child sessions]
+    Track --> Heartbeat[Heartbeat + bundle-replace check]
+    Heartbeat --> Running([Running])
 
-    Running --> |SIGTERM| Shutdown[Cleanup & exit]
+    Running --> |SIGTERM| Shutdown[apiMachine.shutdown<br/>tunnelManager.stop<br/>embeddedServer.stop<br/>cleanup & exit]
 ```
 
 1. `startDaemon()` validates the running version and acquires a lock file.
-2. It authenticates and registers the machine with the server.
-3. It starts a local **control server** for IPC.
-4. It keeps a map of tracked child sessions and updates daemon state on the server.
+2. It authenticates and resolves the local `machineId`.
+3. It loads or creates the TOFU keypairs via `loadOrCreateTofuKeypairs(...)`. On first creation, the Ed25519 fingerprint (`SHA256:...`) is printed so the operator can confirm it during mobile pairing.
+4. It resolves the embedded server port from `machine.json` (creating one with `pickFreeLoopbackPort` if absent).
+5. It calls `TunnelManager.loadForDaemon(port)`, which fails fast if `happy init` has not been run, otherwise renews the tunnel if it is past `RENEW_AFTER_DAYS` (25) or within `RENEW_WITHIN_EXPIRY_DAYS` (7) of expiry, and ensures the loopback port is configured on the tunnel.
+6. It calls `createHappyServer(...)` (from the workspace `happy-server` package) with the resolved port, machine key, local user id, public `tunnelUrl`, and TOFU public keys, then `start()`s it.
+7. It calls `tunnelManager.startHost(...)`, which spawns a detached `devtunnel host <tunnelId> --port-number <port>` child that forwards public traffic to the loopback port.
+8. It starts the local **control server** for IPC.
+9. It registers the machine with the upstream coordination service (the metadata payload now includes `tunnelUrl`) and keeps a map of tracked child sessions.
 
 ### Control server (local IPC)
 
@@ -268,7 +316,7 @@ sequenceDiagram
 - `/stop` (shutdown daemon)
 - `/session-started` (session self-report)
 
-The CLI talks to this server via `controlClient.ts`, using a port stored in `daemon.state.json`.
+The CLI talks to this server via `controlClient.ts`, using a port stored in `daemon.state.json`. This is distinct from the embedded `happy-server`'s port (stored in `machine.json`).
 
 ### Session spawning
 
@@ -277,7 +325,7 @@ flowchart LR
     subgraph "Session Sources"
         CLI[CLI<br/><i>foreground</i>]
         Daemon[Daemon<br/><i>background</i>]
-        Remote[Mobile/Web<br/><i>via RPC</i>]
+        Remote[Mobile/Web<br/><i>via RPC over tunnel</i>]
     end
 
     subgraph "Session Process"
@@ -302,7 +350,7 @@ flowchart LR
 Sessions can be started by:
 - The CLI directly (foreground).
 - The daemon (background).
-- Remote requests over RPC (from mobile/web via machine connection).
+- Remote requests over RPC (from mobile/web, reaching the embedded `happy-server` via the Dev Tunnel).
 
 Daemon session spawning uses `registerCommonHandlers` to expose a controlled RPC surface (shell commands, file operations, search/diff helpers).
 
@@ -315,6 +363,7 @@ graph TB
         M2[platform]
         M3[CLI version]
         M4[paths]
+        M5[tunnelUrl]
     end
 
     subgraph "Daemon State (dynamic)"
@@ -325,57 +374,67 @@ graph TB
     end
 
     subgraph "Sync Targets"
-        Server[(Server)]
-        Local[daemon.state.json]
+        Server[(Coordination service)]
+        DaemonLocal[daemon.state.json]
+        MachineLocal[machine.json]
     end
 
     ApiMachine[ApiMachineClient]
 
-    M1 & M2 & M3 & M4 --> ApiMachine
+    M1 & M2 & M3 & M4 & M5 --> ApiMachine
     D1 & D2 & D3 & D4 --> ApiMachine
-    D1 & D2 & D3 & D4 --> Local
+    D1 & D2 & D3 & D4 --> DaemonLocal
+    M5 --> MachineLocal
 
     ApiMachine --> Server
 ```
 
-- **Machine metadata** is static info (host, platform, CLI version, paths).
+- **Machine metadata** is mostly static (host, platform, CLI version, paths) but now also carries the public `tunnelUrl` so other clients can reach the embedded server.
 - **Daemon state** is dynamic (pid, httpPort, startedAt, shutdown info).
 
-The daemon updates these via `ApiMachineClient` and mirrors local state into `daemon.state.json` for control/diagnostics.
+The daemon updates these via `ApiMachineClient`, mirrors local control state into `daemon.state.json`, and persists the embedded server port + last-known tunnel URL into `machine.json` for control/diagnostics.
 
 ## RPC and tool bridge
 
 ```mermaid
 sequenceDiagram
     participant Mobile
-    participant Server
+    participant Tunnel as Dev Tunnel
+    participant Embedded as Embedded happy-server
     participant Daemon
     participant Session
 
-    Mobile->>Server: RPC: spawn-session
-    Server->>Daemon: Forward via Socket.IO
+    Mobile->>Tunnel: RPC: spawn-session
+    Tunnel->>Embedded: Forward to 127.0.0.1:embeddedPort
+    Embedded->>Daemon: Forward via Socket.IO
     Daemon->>Session: Spawn process
     Session-->>Daemon: Running
 
-    Mobile->>Server: RPC: bash "ls -la"
-    Server->>Session: Forward via Socket.IO
+    Mobile->>Tunnel: RPC: bash "ls -la"
+    Tunnel->>Embedded: Forward
+    Embedded->>Session: Forward via Socket.IO
     Session->>Session: Execute command
-    Session-->>Server: Result
-    Server-->>Mobile: Result
+    Session-->>Embedded: Result
+    Embedded-->>Tunnel: Result
+    Tunnel-->>Mobile: Result
 
-    Note over Mobile,Session: All RPC flows through Socket.IO<br/>No direct REST exposure
+    Note over Mobile,Session: All RPC flows through Socket.IO<br/>over the per-machine Dev Tunnel<br/>No multi-tenant relay
 ```
 
 RPC is used to send commands over the Socket.IO connection:
 - Sessions register RPC handlers (e.g., `bash`, file read/write, `ripgrep`, `difftastic`).
-- The daemon registers a spawn-session handler so the server/mobile client can ask it to start a local session.
+- The daemon registers a spawn-session handler so the mobile/web client can ask it to start a local session.
 
-This mechanism allows the server and mobile clients to drive local actions without exposing a broad REST surface.
+This mechanism allows mobile clients to drive local actions through the per-machine embedded server without exposing a broad REST surface to the public internet — only the loopback port, published through the Dev Tunnel, is reachable.
 
 ## Implementation references
 - CLI entry: `packages/happy-cli/src/index.ts`
 - Daemon: `packages/happy-cli/src/daemon`
+- Daemon lifecycle (embedded server + tunnel host): `packages/happy-cli/src/daemon/run.ts`
 - Control server/client: `packages/happy-cli/src/daemon/controlServer.ts`, `packages/happy-cli/src/daemon/controlClient.ts`
+- Tunnel manager + `happy init`: `packages/happy-cli/src/tunnel/tunnelManager.ts`, `packages/happy-cli/src/tunnel/types.ts`
+- TOFU keypair manager: `packages/happy-cli/src/tofu/keypairManager.ts`
+- Embedded server contract: `packages/happy-cli/src/types/happy-server.d.ts` (workspace dependency on `happy-server`)
 - API clients: `packages/happy-cli/src/api`
 - Persistence: `packages/happy-cli/src/persistence.ts`
 - Config: `packages/happy-cli/src/configuration.ts`
