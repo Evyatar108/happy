@@ -32,7 +32,7 @@ export function artifactsRoutes(app: Fastify) {
 
         try {
             const artifacts = await db.artifact.findMany({
-                where: { accountId: userId },
+                where: {},
                 orderBy: { updatedAt: 'desc' },
                 take: 200,
                 select: {
@@ -96,7 +96,6 @@ export function artifactsRoutes(app: Fastify) {
             const artifact = await db.artifact.findFirst({
                 where: {
                     id,
-                    accountId: userId
                 }
             });
 
@@ -162,13 +161,6 @@ export function artifactsRoutes(app: Fastify) {
             });
 
             if (existingArtifact) {
-                // If exists for another account, return conflict
-                if (existingArtifact.accountId !== userId) {
-                    return reply.code(409).send({ 
-                        error: 'Artifact with this ID already exists for another account' 
-                    });
-                }
-                
                 // If exists for same account, return existing (idempotent)
                 log({ module: 'api', artifactId: id, userId }, 'Found existing artifact');
                 return reply.send({
@@ -189,7 +181,6 @@ export function artifactsRoutes(app: Fastify) {
             const artifact = await db.artifact.create({
                 data: {
                     id,
-                    accountId: userId,
                     header: privacyKit.decodeBase64(header),
                     headerVersion: 1,
                     body: privacyKit.decodeBase64(body),
@@ -272,7 +263,6 @@ export function artifactsRoutes(app: Fastify) {
             const currentArtifact = await db.artifact.findFirst({
                 where: {
                     id,
-                    accountId: userId
                 }
             });
 
@@ -384,7 +374,6 @@ export function artifactsRoutes(app: Fastify) {
             const artifact = await db.artifact.findFirst({
                 where: {
                     id,
-                    accountId: userId
                 }
             });
 

@@ -35,7 +35,6 @@ export async function uploadImage(userId: string, directory: string, prefix: str
 
     await db.uploadedFile.create({
         data: {
-            accountId: userId,
             path: filePath,
             reuseKey: 'image-url:' + url,
             width: processed.width,

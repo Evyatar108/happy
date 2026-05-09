@@ -42,12 +42,7 @@ export async function kvMutate(
         // Pre-validate all mutations
         for (const mutation of mutations) {
             const existing = await tx.userKVStore.findUnique({
-                where: {
-                    accountId_key: {
-                        accountId: ctx.uid,
-                        key: mutation.key
-                    }
-                }
+                where: { key: mutation.key }
             });
 
             const currentVersion = existing?.version ?? -1;
@@ -77,7 +72,6 @@ export async function kvMutate(
                 // Create new entry (must not exist)
                 const result = await tx.userKVStore.create({
                     data: {
-                        accountId: ctx.uid,
                         key: mutation.key,
                         value: mutation.value ? new Uint8Array(Buffer.from(mutation.value, 'base64')) : null,
                         version: 0
@@ -99,12 +93,7 @@ export async function kvMutate(
                 const newVersion = mutation.version + 1;
 
                 const result = await tx.userKVStore.update({
-                    where: {
-                        accountId_key: {
-                            accountId: ctx.uid,
-                            key: mutation.key
-                        }
-                    },
+                    where: { key: mutation.key },
                     data: {
                         value: mutation.value ? privacyKit.decodeBase64(mutation.value) : null,
                         version: newVersion

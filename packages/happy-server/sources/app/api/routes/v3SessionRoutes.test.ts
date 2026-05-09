@@ -90,8 +90,7 @@ const {
 
     const sessionFindFirst = vi.fn(async (args: any) => {
         const row = state.sessions.find((session) => (
-            session.id === args?.where?.id &&
-            session.accountId === args?.where?.accountId
+            session.id === args?.where?.id
         ));
         if (!row) {
             return null;
@@ -330,7 +329,7 @@ describe("v3SessionRoutes", () => {
         expect(body.hasMore).toBe(false);
     });
 
-    it("enforces read query bounds and auth/session ownership", async () => {
+    it("enforces read query bounds, auth, and session existence", async () => {
         seedSession({ id: "session-1", accountId: "owner-user" });
         app = await createApp();
 
@@ -354,12 +353,12 @@ describe("v3SessionRoutes", () => {
         });
         expect(unauthorized.statusCode).toBe(401);
 
-        const wrongOwner = await app.inject({
+        const missingSession = await app.inject({
             method: "GET",
-            url: "/v3/sessions/session-1/messages",
+            url: "/v3/sessions/missing-session/messages",
             headers: { "x-user-id": "another-user" }
         });
-        expect(wrongOwner.statusCode).toBe(404);
+        expect(missingSession.statusCode).toBe(404);
     });
 
     it("sends a single message and emits a new-message update", async () => {
@@ -436,7 +435,7 @@ describe("v3SessionRoutes", () => {
         expect(emitUpdateMock).toHaveBeenCalledTimes(1);
     });
 
-    it("enforces send validation limits and auth/session ownership", async () => {
+    it("enforces send validation limits, auth, and session existence", async () => {
         seedSession({ id: "session-1", accountId: "owner-user" });
         app = await createApp();
 
@@ -470,14 +469,14 @@ describe("v3SessionRoutes", () => {
         });
         expect(unauthorized.statusCode).toBe(401);
 
-        const wrongOwner = await app.inject({
+        const missingSession = await app.inject({
             method: "POST",
-            url: "/v3/sessions/session-1/messages",
+            url: "/v3/sessions/missing-session/messages",
             headers: { "x-user-id": "another-user" },
             payload: {
                 messages: [{ localId: "l1", content: "enc-1" }]
             }
         });
-        expect(wrongOwner.statusCode).toBe(404);
+        expect(missingSession.statusCode).toBe(404);
     });
 });

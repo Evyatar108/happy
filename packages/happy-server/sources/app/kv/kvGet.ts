@@ -17,10 +17,7 @@ export async function kvGet(
 ): Promise<KVGetResult> {
     const result = await db.userKVStore.findUnique({
         where: {
-            accountId_key: {
-                accountId: ctx.uid,
-                key
-            }
+            key
         }
     });
 

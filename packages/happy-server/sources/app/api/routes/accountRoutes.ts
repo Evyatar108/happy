@@ -1,37 +1,25 @@
 import { eventRouter, buildUpdateAccountUpdate } from "@/app/events/eventRouter";
 import { db } from "@/storage/db";
 import { Fastify } from "../types";
-import { getPublicUrl } from "@/storage/files";
 import { z } from "zod";
 import { randomKeyNaked } from "@/utils/randomKeyNaked";
 import { allocateUserSeq } from "@/storage/seq";
 import { log } from "@/utils/log";
-import { AccountProfile } from "@/types";
 
 export function accountRoutes(app: Fastify) {
     app.get('/v1/account/profile', {
         preHandler: app.authenticate,
     }, async (request, reply) => {
         const userId = request.userId;
-        const user = await db.account.findUniqueOrThrow({
-            where: { id: userId },
-            select: {
-                firstName: true,
-                lastName: true,
-                username: true,
-                avatar: true,
-                githubUser: true
-            }
-        });
-        const connectedVendors = new Set((await db.serviceAccountToken.findMany({ where: { accountId: userId } })).map(t => t.vendor));
+        const connectedVendors = new Set((await db.serviceAccountToken.findMany({ where: {} })).map(t => t.vendor));
         return reply.send({
             id: userId,
             timestamp: Date.now(),
-            firstName: user.firstName,
-            lastName: user.lastName,
-            username: user.username,
-            avatar: user.avatar ? { ...user.avatar, url: getPublicUrl(user.avatar.path) } : null,
-            github: user.githubUser ? user.githubUser.profile : null,
+            firstName: '',
+            lastName: null,
+            username: userId,
+            avatar: null,
+            github: null,
             connectedServices: Array.from(connectedVendors)
         });
     });
@@ -52,18 +40,9 @@ export function accountRoutes(app: Fastify) {
         }
     }, async (request, reply) => {
         try {
-            const user = await db.account.findUnique({
-                where: { id: request.userId },
-                select: { settings: true, settingsVersion: true }
-            });
-
-            if (!user) {
-                return reply.code(500).send({ error: 'Failed to get account settings' });
-            }
-
             return reply.send({
-                settings: user.settings,
-                settingsVersion: user.settingsVersion
+                settings: null,
+                settingsVersion: 0
             });
         } catch (error) {
             return reply.code(500).send({ error: 'Failed to get account settings' });
@@ -99,52 +78,12 @@ export function accountRoutes(app: Fastify) {
         const { settings, expectedVersion } = request.body;
 
         try {
-            // Get current user data for version check
-            const currentUser = await db.account.findUnique({
-                where: { id: userId },
-                select: { settings: true, settingsVersion: true }
-            });
-
-            if (!currentUser) {
-                return reply.code(500).send({
-                    success: false,
-                    error: 'Failed to update account settings'
-                });
-            }
-
-            // Check current version
-            if (currentUser.settingsVersion !== expectedVersion) {
+            if (expectedVersion !== 0) {
                 return reply.code(200).send({
                     success: false,
                     error: 'version-mismatch',
-                    currentVersion: currentUser.settingsVersion,
-                    currentSettings: currentUser.settings
-                });
-            }
-
-            // Update settings with version check
-            const { count } = await db.account.updateMany({
-                where: {
-                    id: userId,
-                    settingsVersion: expectedVersion
-                },
-                data: {
-                    settings: settings,
-                    settingsVersion: expectedVersion + 1,
-                    updatedAt: new Date()
-                }
-            });
-
-            if (count === 0) {
-                // Re-fetch to get current version
-                const account = await db.account.findUnique({
-                    where: { id: userId }
-                });
-                return reply.code(200).send({
-                    success: false,
-                    error: 'version-mismatch',
-                    currentVersion: account?.settingsVersion || 0,
-                    currentSettings: account?.settings || null
+                    currentVersion: 0,
+                    currentSettings: null
                 });
             }
 
@@ -194,22 +133,18 @@ export function accountRoutes(app: Fastify) {
         try {
             // Build query conditions
             const where: {
-                accountId: string;
                 sessionId?: string | null;
                 createdAt?: {
                     gte?: Date;
                     lte?: Date;
                 };
-            } = {
-                accountId: userId
-            };
+            } = {};
 
             if (sessionId) {
                 // Verify session belongs to user
                 const session = await db.session.findFirst({
                     where: {
                         id: sessionId,
-                        accountId: userId
                     }
                 });
                 if (!session) {

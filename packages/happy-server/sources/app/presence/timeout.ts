@@ -25,7 +25,7 @@ export function startTimeout() {
                     continue;
                 }
                 eventRouter.emitEphemeral({
-                    userId: session.accountId,
+                    userId: 'single-tenant',
                     payload: buildSessionActivityEphemeral(session.id, false, updated[0].lastActiveAt.getTime(), false),
                     recipientFilter: { type: 'user-scoped-only' }
                 });
@@ -49,7 +49,7 @@ export function startTimeout() {
                     continue;
                 }
                 eventRouter.emitEphemeral({
-                    userId: machine.accountId,
+                    userId: 'single-tenant',
                     payload: buildMachineActivityEphemeral(machine.id, false, updated[0].lastActiveAt.getTime()),
                     recipientFilter: { type: 'user-scoped-only' }
                 });

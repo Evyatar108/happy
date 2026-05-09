@@ -1,6 +1,15 @@
 import { getPublicUrl, ImageRef } from "@/storage/files";
-import { RelationshipStatus } from "@prisma/client";
 import { GitHubProfile } from "../api/types";
+
+export const RelationshipStatus = {
+    none: 'none',
+    requested: 'requested',
+    pending: 'pending',
+    friend: 'friend',
+    rejected: 'rejected'
+} as const;
+
+export type RelationshipStatus = typeof RelationshipStatus[keyof typeof RelationshipStatus];
 
 export type UserProfile = {
     id: string;

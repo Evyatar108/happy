@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { type Fastify } from "../types";
-import { db } from "@/storage/db";
+
+const pushTokens = new Map<string, { token: string; createdAt: Date; updatedAt: Date }>();
 
 export function pushRoutes(app: Fastify) {
     
@@ -21,25 +22,11 @@ export function pushRoutes(app: Fastify) {
         },
         preHandler: app.authenticate
     }, async (request, reply) => {
-        const userId = request.userId;
         const { token } = request.body;
 
         try {
-            await db.accountPushToken.upsert({
-                where: {
-                    accountId_token: {
-                        accountId: userId,
-                        token: token
-                    }
-                },
-                update: {
-                    updatedAt: new Date()
-                },
-                create: {
-                    accountId: userId,
-                    token: token
-                }
-            });
+            const existing = pushTokens.get(token);
+            pushTokens.set(token, { token, createdAt: existing?.createdAt ?? new Date(), updatedAt: new Date() });
 
             return reply.send({ success: true });
         } catch (error) {
@@ -64,16 +51,10 @@ export function pushRoutes(app: Fastify) {
         },
         preHandler: app.authenticate
     }, async (request, reply) => {
-        const userId = request.userId;
         const { token } = request.params;
 
         try {
-            await db.accountPushToken.deleteMany({
-                where: {
-                    accountId: userId,
-                    token: token
-                }
-            });
+            pushTokens.delete(token);
 
             return reply.send({ success: true });
         } catch (error) {
@@ -85,21 +66,12 @@ export function pushRoutes(app: Fastify) {
     app.get('/v1/push-tokens', {
         preHandler: app.authenticate
     }, async (request, reply) => {
-        const userId = request.userId;
-
         try {
-            const tokens = await db.accountPushToken.findMany({
-                where: {
-                    accountId: userId
-                },
-                orderBy: {
-                    createdAt: 'desc'
-                }
-            });
+            const tokens = Array.from(pushTokens.values()).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
             return reply.send({
                 tokens: tokens.map(t => ({
-                    id: t.id,
+                    id: t.token,
                     token: t.token,
                     createdAt: t.createdAt.getTime(),
                     updatedAt: t.updatedAt.getTime()

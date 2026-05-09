@@ -24,7 +24,7 @@ export function sessionUpdateHandler(userId: string, socket: Socket, connection:
 
             // Resolve session
             const session = await db.session.findUnique({
-                where: { id: sid, accountId: userId }
+                where: { id: sid }
             });
             if (!session) {
                 return;
@@ -88,7 +88,6 @@ export function sessionUpdateHandler(userId: string, socket: Socket, connection:
             const session = await db.session.findUnique({
                 where: {
                     id: sid,
-                    accountId: userId
                 }
             });
             if (!session) {
@@ -194,7 +193,7 @@ export function sessionUpdateHandler(userId: string, socket: Socket, connection:
 
                 // Resolve session
                 const session = await db.session.findUnique({
-                    where: { id: sid, accountId: userId }
+                    where: { id: sid }
                 });
                 if (!session) {
                     return;
@@ -264,7 +263,7 @@ export function sessionUpdateHandler(userId: string, socket: Socket, connection:
 
             // Resolve session
             const session = await db.session.findUnique({
-                where: { id: sid, accountId: userId }
+                where: { id: sid }
             });
             if (!session) {
                 return;

@@ -80,8 +80,7 @@ const {
 
     const sessionFindFirst = vi.fn(async (args: any) => {
         const row = state.sessions.find((session) => (
-            session.id === args?.where?.id &&
-            session.accountId === args?.where?.accountId
+            session.id === args?.where?.id
         ));
         if (!row) {
             return null;
@@ -89,8 +88,8 @@ const {
         return selectFields(row as unknown as Record<string, unknown>, args?.select) as Partial<SessionRecord>;
     });
 
-    // Spy that MUST never be called by the handler — wrong-owner and
-    // never-existed must both collapse via findFirst alone.
+    // Spy that MUST never be called by the handler; missing sessions resolve
+    // through findFirst alone.
     const sessionFindUnique = vi.fn(async () => {
         throw new Error("session.findUnique must not be invoked by sessionMessageRangeHandler");
     });
@@ -225,46 +224,30 @@ describe("sessionMessageRangeHandler", () => {
         sessionMessageCount.mockClear();
     });
 
-    it("collapses wrong-owner and never-existed into byte-identical session_not_found, never invokes findUnique", async () => {
-        // Account A owns session-1.
+    it("returns session_not_found for never-existed sessions and never invokes findUnique", async () => {
         seedSession({ id: "session-1", accountId: "user-A" });
 
-        // Account B requests session-1 — wrong owner.
-        socket = createSocket();
-        sessionMessageRangeHandler("user-B", socket as any);
-        const wrongOwner = await callHandler(socket, {
-            requestId: "req-1",
-            sessionId: "session-1",
-            fromSeq: 0,
-            toSeq: 100,
-            limit: 50
-        });
-
-        // Same userId requests a sessionId that never existed.
         socket = createSocket();
         sessionMessageRangeHandler("user-B", socket as any);
         const neverExisted = await callHandler(socket, {
             requestId: "req-1",
-            sessionId: "session-1",
+            sessionId: "missing-session",
             fromSeq: 0,
             toSeq: 100,
             limit: 50
         });
 
-        expect(wrongOwner).toEqual({
+        expect(neverExisted).toEqual({
             ok: false,
             requestId: "req-1",
             error: { code: "session_not_found", message: "Session not found" }
         });
-        // Byte-identical payloads.
-        expect(JSON.stringify(neverExisted)).toBe(JSON.stringify(wrongOwner));
 
-        // Handler MUST NEVER perform a global-by-id lookup.
         expect(sessionFindUnique).not.toHaveBeenCalled();
-        // findFirst MUST be account-scoped.
-        for (const call of sessionFindFirst.mock.calls) {
-            expect(call[0]?.where?.accountId).toBeDefined();
-        }
+        expect(sessionFindFirst).toHaveBeenCalledWith(expect.objectContaining({
+            where: { id: "missing-session" },
+            select: { id: true }
+        }));
     });
 
     it("empty-result range with fromSeq===0 returns hasMore: false without issuing the secondary findFirst probe", async () => {

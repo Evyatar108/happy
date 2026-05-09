@@ -68,7 +68,6 @@ export function machineUpdateHandler(userId: string, socket: Socket) {
             // Resolve machine
             const machine = await db.machine.findFirst({
                 where: {
-                    accountId: userId,
                     id: machineId
                 }
             });
@@ -92,7 +91,6 @@ export function machineUpdateHandler(userId: string, socket: Socket) {
             // Update metadata with atomic version check
             const { count } = await db.machine.updateMany({
                 where: {
-                    accountId: userId,
                     id: machineId,
                     metadataVersion: expectedVersion  // Atomic CAS
                 },
@@ -107,7 +105,6 @@ export function machineUpdateHandler(userId: string, socket: Socket) {
                 // Re-fetch current version
                 const current = await db.machine.findFirst({
                     where: {
-                        accountId: userId,
                         id: machineId
                     }
                 });
@@ -162,7 +159,6 @@ export function machineUpdateHandler(userId: string, socket: Socket) {
             // Resolve machine
             const machine = await db.machine.findFirst({
                 where: {
-                    accountId: userId,
                     id: machineId
                 }
             });
@@ -186,7 +182,6 @@ export function machineUpdateHandler(userId: string, socket: Socket) {
             // Update daemon state with atomic version check
             const { count } = await db.machine.updateMany({
                 where: {
-                    accountId: userId,
                     id: machineId,
                     daemonStateVersion: expectedVersion  // Atomic CAS
                 },
@@ -202,7 +197,6 @@ export function machineUpdateHandler(userId: string, socket: Socket) {
                 // Re-fetch current version
                 const current = await db.machine.findFirst({
                     where: {
-                        accountId: userId,
                         id: machineId
                     }
                 });

@@ -23,7 +23,6 @@ export async function kvList(
     options?: KVListOptions
 ): Promise<KVListResult> {
     const where: any = {
-        accountId: ctx.uid,
         value: {
             not: null  // Exclude deleted entries (null values)
         }

@@ -1,12 +1,9 @@
 import { z } from "zod";
 import { Fastify } from "../types";
-import { db } from "@/storage/db";
-import { RelationshipStatus } from "@prisma/client";
 import { friendAdd } from "@/app/social/friendAdd";
 import { Context } from "@/context";
 import { friendRemove } from "@/app/social/friendRemove";
 import { friendList } from "@/app/social/friendList";
-import { buildUserProfile } from "@/app/social/type";
 
 export async function userRoutes(app: Fastify) {
 
@@ -29,32 +26,12 @@ export async function userRoutes(app: Fastify) {
     }, async (request, reply) => {
         const { id } = request.params;
 
-        // Fetch user
-        const user = await db.account.findUnique({
-            where: {
-                id: id
-            },
-            include: {
-                githubUser: true
-            }
-        });
-
-        if (!user) {
+        if (id !== request.userId) {
             return reply.code(404).send({ error: 'User not found' });
         }
 
-        // Resolve relationship status
-        const relationship = await db.userRelationship.findFirst({
-            where: {
-                fromUserId: request.userId,
-                toUserId: id
-            }
-        });
-        const status: RelationshipStatus = relationship?.status || RelationshipStatus.none;
-
-        // Build user profile
         return reply.send({
-            user: buildUserProfile(user, status)
+            user: buildSingleTenantUserProfile(id)
         });
     });
 
@@ -72,39 +49,8 @@ export async function userRoutes(app: Fastify) {
         },
         preHandler: app.authenticate
     }, async (request, reply) => {
-        const { query } = request.query;
-
-        // Search for users by username, first 10 matches
-        const users = await db.account.findMany({
-            where: {
-                username: {
-                    startsWith: query,
-                    mode: 'insensitive'
-                }
-            },
-            include: {
-                githubUser: true
-            },
-            take: 10,
-            orderBy: {
-                username: 'asc'
-            }
-        });
-
-        // Resolve relationship status for each user
-        const userProfiles = await Promise.all(users.map(async (user) => {
-            const relationship = await db.userRelationship.findFirst({
-                where: {
-                    fromUserId: request.userId,
-                    toUserId: user.id
-                }
-            });
-            const status: RelationshipStatus = relationship?.status || RelationshipStatus.none;
-            return buildUserProfile(user, status);
-        }));
-
         return reply.send({
-            users: userProfiles
+            users: []
         });
     });
 
@@ -181,3 +127,15 @@ const UserProfileSchema = z.object({
     bio: z.string().nullable(),
     status: RelationshipStatusSchema
 });
+
+function buildSingleTenantUserProfile(id: string): z.infer<typeof UserProfileSchema> {
+    return {
+        id,
+        firstName: '',
+        lastName: null,
+        avatar: null,
+        username: id,
+        bio: null,
+        status: 'none'
+    };
+}

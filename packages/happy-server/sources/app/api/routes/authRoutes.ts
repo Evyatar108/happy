@@ -24,17 +24,11 @@ export function authRoutes(app: Fastify) {
             return reply.code(401).send({ error: 'Invalid signature' });
         }
 
-        // Create or update user in database
         const publicKeyHex = privacyKit.encodeHex(publicKey);
-        const user = await db.account.upsert({
-            where: { publicKey: publicKeyHex },
-            update: { updatedAt: new Date() },
-            create: { publicKey: publicKeyHex }
-        });
 
         return reply.send({
             success: true,
-            token: await auth.createToken(user.id)
+            token: await auth.createToken(publicKeyHex)
         });
     });
 
@@ -74,8 +68,8 @@ export function authRoutes(app: Fastify) {
             create: { publicKey: publicKeyHex, supportsV2: request.body.supportsV2 ?? false }
         });
 
-        if (answer.response && answer.responseAccountId) {
-            const token = await auth.createToken(answer.responseAccountId!, { session: answer.id });
+        if (answer.response) {
+            const token = await auth.createToken(publicKeyHex, { session: answer.id });
             return reply.send({
                 state: 'authorized',
                 token: token,
@@ -116,7 +110,7 @@ export function authRoutes(app: Fastify) {
             return reply.send({ status: 'not_found', supportsV2: false });
         }
 
-        if (authRequest.response && authRequest.responseAccountId) {
+        if (authRequest.response) {
             return reply.send({ status: 'authorized', supportsV2: false });
         }
 
@@ -159,7 +153,7 @@ export function authRoutes(app: Fastify) {
         if (!authRequest.response) {
             await db.terminalAuthRequest.update({
                 where: { id: authRequest.id },
-                data: { response: request.body.response, responseAccountId: request.userId }
+                data: { response: request.body.response }
             });
         }
         return reply.send({ success: true });
@@ -198,8 +192,8 @@ export function authRoutes(app: Fastify) {
             create: { publicKey: privacyKit.encodeHex(publicKey) }
         });
 
-        if (answer.response && answer.responseAccountId) {
-            const token = await auth.createToken(answer.responseAccountId!);
+        if (answer.response) {
+            const token = await auth.createToken(privacyKit.encodeHex(publicKey));
             return reply.send({
                 state: 'authorized',
                 token: token,
@@ -235,7 +229,7 @@ export function authRoutes(app: Fastify) {
         if (!authRequest.response) {
             await db.accountAuthRequest.update({
                 where: { id: authRequest.id },
-                data: { response: request.body.response, responseAccountId: request.userId }
+                data: { response: request.body.response }
             });
         }
         return reply.send({ success: true });

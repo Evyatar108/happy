@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { RelationshipStatus } from "@prisma/client";
+import { RelationshipStatus } from "./type";
 
 // Mock the dependencies that require environment variables
 vi.mock("@/storage/files", () => ({

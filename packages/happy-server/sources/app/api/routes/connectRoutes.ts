@@ -259,9 +259,9 @@ export function connectRoutes(app: Fastify) {
         const userId = request.userId;
         const encrypted = encryptString(['user', userId, 'vendors', request.params.vendor, 'token'], request.body.token);
         await db.serviceAccountToken.upsert({
-            where: { accountId_vendor: { accountId: userId, vendor: request.params.vendor } },
+            where: { vendor: request.params.vendor },
             update: { updatedAt: new Date(), token: encrypted },
-            create: { accountId: userId, vendor: request.params.vendor, token: encrypted }
+            create: { vendor: request.params.vendor, token: encrypted }
         });
         reply.send({ success: true });
     });
@@ -281,7 +281,7 @@ export function connectRoutes(app: Fastify) {
     }, async (request, reply) => {
         const userId = request.userId;
         const token = await db.serviceAccountToken.findUnique({
-            where: { accountId_vendor: { accountId: userId, vendor: request.params.vendor } },
+            where: { vendor: request.params.vendor },
             select: { token: true }
         });
         if (!token) {
@@ -305,7 +305,7 @@ export function connectRoutes(app: Fastify) {
         }
     }, async (request, reply) => {
         const userId = request.userId;
-        await db.serviceAccountToken.delete({ where: { accountId_vendor: { accountId: userId, vendor: request.params.vendor } } });
+        await db.serviceAccountToken.delete({ where: { vendor: request.params.vendor } });
         reply.send({ success: true });
     });
 
@@ -323,7 +323,7 @@ export function connectRoutes(app: Fastify) {
         }
     }, async (request, reply) => {
         const userId = request.userId;
-        const tokens = await db.serviceAccountToken.findMany({ where: { accountId: userId } });
+        const tokens = await db.serviceAccountToken.findMany({ where: {} });
         let decrypted = [];
         for (const token of tokens) {
             decrypted.push({ vendor: token.vendor, token: decryptString(['user', userId, 'vendors', token.vendor, 'token'], token.token) });

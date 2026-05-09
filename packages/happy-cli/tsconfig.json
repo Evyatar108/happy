@@ -32,12 +32,6 @@
     ],
     "types": ["node"],
     "paths": {
-      "happy-server": [
-        "../happy-server/sources/index.ts"
-      ],
-      "happy-server/pglite": [
-        "../happy-server/sources/storage/pgliteLoader.ts"
-      ],
       "@/*": [
         "./src/*"
       ]

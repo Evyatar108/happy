@@ -77,6 +77,10 @@ export interface DaemonLocallyPersistedState {
   daemonLogPath?: string;
 }
 
+export interface MachineLocallyPersistedState {
+  port: number;
+}
+
 export async function readSettings(): Promise<Settings> {
   if (!existsSync(configuration.settingsFile)) {
     return { ...defaultSettings }
@@ -288,6 +292,26 @@ export async function clearMachineId(): Promise<void> {
     ...settings,
     machineId: undefined
   }));
+}
+
+export async function readMachineState(): Promise<MachineLocallyPersistedState | null> {
+  try {
+    if (!existsSync(configuration.machineFile)) {
+      return null;
+    }
+    const content = await readFile(configuration.machineFile, 'utf-8');
+    const parsed = JSON.parse(content) as Partial<MachineLocallyPersistedState>;
+    if (typeof parsed.port !== 'number' || !Number.isInteger(parsed.port) || parsed.port <= 0 || parsed.port > 65535) {
+      return null;
+    }
+    return { port: parsed.port };
+  } catch {
+    return null;
+  }
+}
+
+export function writeMachineState(state: MachineLocallyPersistedState): void {
+  writeFileSync(configuration.machineFile, JSON.stringify(state, null, 2), 'utf-8');
 }
 
 /**
