@@ -84,7 +84,7 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
 
     // Routes
     pairRoutes(typed, tofuConfig);
-    pushRoutes(typed);
+    pushRoutes(typed, tofuConfig);
     sessionRoutes(typed);
     machinesRoutes(typed);
     artifactsRoutes(typed);

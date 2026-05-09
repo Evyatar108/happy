@@ -2160,9 +2160,10 @@ class Sync {
     private registerPushToken = async () => {
         log.log('registerPushToken');
         try {
-            const result = await syncCurrentPushToken(this.credentials);
+            const result = await syncCurrentPushToken(this.credentialsList);
             log.log('Push token sync result: ' + JSON.stringify({
                 registered: result.registered,
+                registeredMachines: result.registeredMachines,
                 hasToken: !!result.token,
                 permission: result.permission.status,
             }));

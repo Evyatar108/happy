@@ -6,10 +6,49 @@ import { allocateSessionSeq, allocateUserSeq } from "@/storage/seq";
 import { AsyncLock } from "@/utils/lock";
 import { log } from "@/utils/log";
 import { randomKeyNaked } from "@/utils/randomKeyNaked";
+import { sendSessionPushEvent } from "@/app/push/pushNotifications";
 import { Socket } from "socket.io";
 
 export function sessionUpdateHandler(userId: string, socket: Socket, connection: ClientConnection) {
     const labels = getMetricsLabelsFromSocket(socket);
+    const machineId = userId;
+
+    socket.on('push-event', async (data: {
+        sid: string;
+        kind: "new-session" | "status-change" | "agent-message" | "codex-finish";
+        summary?: string | null;
+    }) => {
+        try {
+            if (!data?.sid || typeof data.sid !== 'string') {
+                return;
+            }
+            await sendSessionPushEvent({
+                machineId,
+                sessionId: data.sid,
+                kind: data.kind,
+                summary: data.summary,
+            });
+        } catch (error) {
+            log({ module: 'websocket', level: 'error' }, `Error in push-event: ${error}`);
+        }
+    });
+
+    socket.on('codex-finish', async (data: { sid: string; summary?: string | null }) => {
+        try {
+            if (!data?.sid || typeof data.sid !== 'string') {
+                return;
+            }
+            await sendSessionPushEvent({
+                machineId,
+                sessionId: data.sid,
+                kind: "codex-finish",
+                summary: data.summary,
+            });
+        } catch (error) {
+            log({ module: 'websocket', level: 'error' }, `Error in codex-finish: ${error}`);
+        }
+    });
+
     socket.on('update-metadata', async (data: any, callback: (response: any) => void) => {
         try {
             const { sid, metadata, expectedVersion } = data;
@@ -60,6 +99,13 @@ export function sessionUpdateHandler(userId: string, socket: Socket, connection:
                 userId,
                 payload: updatePayload,
                 recipientFilter: { type: 'all-interested-in-session', sessionId: sid }
+            });
+
+            await sendSessionPushEvent({
+                machineId,
+                sessionId: sid,
+                kind: "status-change",
+                summary: "Session metadata updated",
             });
 
             // Send success response with new version via callback
@@ -125,6 +171,13 @@ export function sessionUpdateHandler(userId: string, socket: Socket, connection:
                 userId,
                 payload: updatePayload,
                 recipientFilter: { type: 'all-interested-in-session', sessionId: sid }
+            });
+
+            await sendSessionPushEvent({
+                machineId,
+                sessionId: sid,
+                kind: "status-change",
+                summary: "Session status updated",
             });
 
             // Send success response with new version via callback
@@ -238,6 +291,13 @@ export function sessionUpdateHandler(userId: string, socket: Socket, connection:
                     recipientFilter: { type: 'all-interested-in-session', sessionId: sid },
                     skipSenderConnection: connection
                 });
+
+                await sendSessionPushEvent({
+                    machineId,
+                    sessionId: sid,
+                    kind: "agent-message",
+                    summary: "New agent message",
+                });
             } catch (error) {
                 log({ module: 'websocket', level: 'error' }, `Error in message handler: ${error}`);
             }
@@ -281,6 +341,13 @@ export function sessionUpdateHandler(userId: string, socket: Socket, connection:
                 userId,
                 payload: sessionActivity,
                 recipientFilter: { type: 'user-scoped-only' }
+            });
+
+            await sendSessionPushEvent({
+                machineId,
+                sessionId: sid,
+                kind: "codex-finish",
+                summary: "Session finished",
             });
         } catch (error) {
             log({ module: 'websocket', level: 'error' }, `Error in session-end: ${error}`);

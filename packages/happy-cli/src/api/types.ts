@@ -68,6 +68,13 @@ export interface ClientToServerEvents {
     mode?: 'local' | 'remote';
   }) => void
   'session-end': (data: { sid: string, time: number }) => void,
+  'push-event': (data: {
+    sid: string;
+    kind: 'status-change' | 'agent-message' | 'codex-finish';
+    summary?: string | null;
+    [key: string]: unknown;
+  }) => void,
+  'codex-finish': (data: { sid: string; summary?: string | null; [key: string]: unknown }) => void,
   'update-metadata': (data: { sid: string, expectedVersion: number, metadata: string }, cb: (answer: {
     result: 'error'
   } | {

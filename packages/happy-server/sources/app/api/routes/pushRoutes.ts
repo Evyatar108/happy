@@ -1,15 +1,15 @@
 import { z } from "zod";
 import { type Fastify } from "../types";
+import { type TofuHandshakeConfig } from "../api";
+import { listPushTokens, registerPushToken, unregisterPushToken } from "@/app/push/pushNotifications";
 
-const pushTokens = new Map<string, { token: string; createdAt: Date; updatedAt: Date }>();
+export function pushRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig = { localUserId: "local-user" }) {
 
-export function pushRoutes(app: Fastify) {
-    
-    // Push Token Registration API
-    app.post('/v1/push-tokens', {
+    app.post('/push/register', {
         schema: {
             body: z.object({
-                token: z.string()
+                expoPushToken: z.string(),
+                deviceId: z.string()
             }),
             response: {
                 200: z.object({
@@ -22,11 +22,47 @@ export function pushRoutes(app: Fastify) {
         },
         preHandler: app.authenticate
     }, async (request, reply) => {
-        const { token } = request.body;
+        const { expoPushToken, deviceId } = request.body;
 
         try {
-            const existing = pushTokens.get(token);
-            pushTokens.set(token, { token, createdAt: existing?.createdAt ?? new Date(), updatedAt: new Date() });
+            await registerPushToken({
+                machineId: tofuConfig.localUserId,
+                deviceId,
+                expoPushToken,
+            });
+
+            return reply.send({ success: true });
+        } catch (error) {
+            return reply.code(500).send({ error: 'Failed to register push token' });
+        }
+    });
+    
+    // Push Token Registration API
+    app.post('/v1/push-tokens', {
+        schema: {
+            body: z.object({
+                token: z.string(),
+                deviceId: z.string().optional()
+            }),
+            response: {
+                200: z.object({
+                    success: z.literal(true)
+                }),
+                500: z.object({
+                    error: z.literal('Failed to register push token')
+                })
+            }
+        },
+        preHandler: app.authenticate
+    }, async (request, reply) => {
+        const { token, deviceId } = request.body;
+
+        try {
+            await registerPushToken({
+                machineId: tofuConfig.localUserId,
+                deviceId: deviceId ?? token,
+                expoPushToken: token,
+            });
 
             return reply.send({ success: true });
         } catch (error) {
@@ -54,7 +90,7 @@ export function pushRoutes(app: Fastify) {
         const { token } = request.params;
 
         try {
-            pushTokens.delete(token);
+            await unregisterPushToken(tofuConfig.localUserId, token);
 
             return reply.send({ success: true });
         } catch (error) {
@@ -67,12 +103,12 @@ export function pushRoutes(app: Fastify) {
         preHandler: app.authenticate
     }, async (request, reply) => {
         try {
-            const tokens = Array.from(pushTokens.values()).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+            const tokens = await listPushTokens(tofuConfig.localUserId);
 
             return reply.send({
                 tokens: tokens.map(t => ({
-                    id: t.token,
-                    token: t.token,
+                    id: t.id,
+                    token: t.expoPushToken,
                     createdAt: t.createdAt.getTime(),
                     updatedAt: t.updatedAt.getTime()
                 }))

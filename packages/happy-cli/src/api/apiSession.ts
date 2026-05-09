@@ -649,6 +649,24 @@ export class ApiSessionClient extends EventEmitter {
         this.enqueueMessage(content);
     }
 
+    sendPushEvent(event: {
+        kind: 'done' | 'permission' | 'question';
+        data?: Record<string, unknown>;
+    }) {
+        const mappedKind: 'status-change' | 'codex-finish' = event.kind === 'done' ? 'codex-finish' : 'status-change';
+        const payload = {
+            sid: this.sessionId,
+            kind: mappedKind,
+            summary: this.metadata?.summary?.text ?? null,
+            ...event.data,
+        };
+        if (mappedKind === 'codex-finish') {
+            this.socket.emit('codex-finish', payload);
+            return;
+        }
+        this.socket.emit('push-event', payload);
+    }
+
     /**
      * Send a ping message to keep the connection alive
      */

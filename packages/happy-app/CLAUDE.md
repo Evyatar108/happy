@@ -154,6 +154,7 @@ sources/
 - `sources/sync/reducer/messageToEvent.ts` still preserves old-CLI plan-mode synthesis from `EnterPlanMode` tool calls, but suppress it when a typed `plan-mode-enter` boundary is already in the reducer batch or `reducerState.latestBoundary`.
 - New-session lifecycle has a recv-side race: `new-session` socket events only invalidate `sessionsSync` (deferred), so `new-message` events for that session can arrive before encryption keys are loaded. The handler at `sources/sync/sync.ts:1864` queues such events in `pendingNewMessages` keyed by sid, awaits `sessionsSync.invalidateAndAwait()`, and replays them with `isReplay=true` to avoid loops. Do not change this to a fire-and-forget `fetchSessions()` again — it silently drops messages.
 - Multi-machine mobile sync stores app-local session ids as `${machineId}:${localSessionId}`. Use `sources/sync/machineSessionId.ts` helpers to build/parse composite ids, and localize ids before calling a single machine's REST or Socket.IO API.
+- Push registration must run once per paired machine. Use the full `TokenStorage.getCredentialsList()`/sync credentials list so every machine receives the current Expo token via its own tunnel.
 - Store all temporary scripts and any test outside of unit tests in sources/trash folder
 - When setting screen parameters ALWAYS set them in _layout.tsx if possible this avoids layout shifts
 - **Never use Alert module from React Native, always use @sources/modal/index.ts instead**

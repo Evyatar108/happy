@@ -143,6 +143,18 @@ model Machine {
     accessKeys         AccessKey[]
 }
 
+model PushToken {
+    id            String   @id @default(cuid())
+    machineId     String
+    deviceId      String
+    expoPushToken String
+    createdAt     DateTime @default(now())
+    updatedAt     DateTime @updatedAt
+
+    @@unique([machineId, deviceId])
+    @@index([machineId])
+}
+
 model UploadedFile {
     id        String   @id @default(cuid())
     path      String

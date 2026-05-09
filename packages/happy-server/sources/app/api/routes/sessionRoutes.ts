@@ -7,6 +7,7 @@ import { log } from "@/utils/log";
 import { randomKeyNaked } from "@/utils/randomKeyNaked";
 import { allocateUserSeq } from "@/storage/seq";
 import { sessionDelete } from "@/app/session/sessionDelete";
+import { sendSessionPushEvent } from "@/app/push/pushNotifications";
 
 export function sessionRoutes(app: Fastify) {
 
@@ -281,6 +282,13 @@ export function sessionRoutes(app: Fastify) {
                 userId,
                 payload: updatePayload,
                 recipientFilter: { type: 'user-scoped-only' }
+            });
+
+            await sendSessionPushEvent({
+                machineId: userId,
+                sessionId: session.id,
+                kind: "new-session",
+                summary: "New session created",
             });
 
             return reply.send({

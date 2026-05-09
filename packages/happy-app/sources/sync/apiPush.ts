@@ -20,14 +20,17 @@ export type PushToken = z.infer<typeof PushTokenSchema>;
 export async function registerPushToken(credentials: AuthCredentials, token: string): Promise<void> {
     const API_ENDPOINT = credentials.tunnelUrl;
     await backoff(async () => {
-        const response = await fetch(`${API_ENDPOINT}/v1/push-tokens`, {
+        const response = await fetch(`${API_ENDPOINT}/push/register`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
                 ...getMachineAuthHeaders(credentials),
             },
-            body: JSON.stringify({ token })
+            body: JSON.stringify({
+                expoPushToken: token,
+                deviceId: getHappyClientId(),
+            })
         });
 
         if (!response.ok) {
