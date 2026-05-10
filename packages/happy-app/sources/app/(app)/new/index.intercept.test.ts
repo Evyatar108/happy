@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { maybeIntercept } from '@/sync/slashCommandIntercept';
 import type { PreSendCommandResult } from '@/hooks/usePreSendCommand';
+import type { SpawnSessionOptions } from '@/sync/ops';
 
 // Simulates the handleSend callback in new/index.tsx: trims the prompt, calls
 // preSendCommand, and short-circuits before machineSpawnNewSession when intercepted.
@@ -21,6 +22,29 @@ async function buildHandleSend(
     await machineSpawnNewSession();
 }
 
+// Simulates the target resolution and machineSpawnNewSession call in new/index.tsx,
+// parameterised by the session target tuple (machineId, selectedPath, worktreeKey).
+async function buildHandleSpawnWithTarget(
+    target: {
+        machineId: string;
+        selectedPath: string;
+        worktreeKey: string;
+        selectedAgent: SpawnSessionOptions['agent'];
+    },
+    machineSpawnNewSession: (opts: SpawnSessionOptions) => Promise<void>,
+) {
+    const pathToUse = target.selectedPath.trim() || '~';
+    let spawnDirectory = pathToUse;
+    if (target.worktreeKey !== '__none__' && target.worktreeKey !== '__new__') {
+        spawnDirectory = target.worktreeKey;
+    }
+    await machineSpawnNewSession({
+        machineId: target.machineId,
+        directory: spawnDirectory,
+        agent: target.selectedAgent,
+    });
+}
+
 function makePreSendCommand(sessionId: string | undefined) {
     return (command: string): PreSendCommandResult => {
         const result = maybeIntercept(command, sessionId);
@@ -33,6 +57,77 @@ function makePreSendCommand(sessionId: string | undefined) {
         };
     };
 }
+
+describe('new/index.tsx handleSend target-switching safeguard', () => {
+    it('calls machineSpawnNewSession with the displayed machineId when selectedMachineId changes', async () => {
+        const spawn = vi.fn().mockResolvedValue(undefined);
+
+        await buildHandleSpawnWithTarget(
+            { machineId: 'machine-A', selectedPath: '/home/user/project', worktreeKey: '__none__', selectedAgent: 'claude' },
+            spawn,
+        );
+        expect(spawn).toHaveBeenCalledWith(expect.objectContaining({ machineId: 'machine-A' }));
+
+        spawn.mockClear();
+
+        await buildHandleSpawnWithTarget(
+            { machineId: 'machine-B', selectedPath: '/home/user/project', worktreeKey: '__none__', selectedAgent: 'claude' },
+            spawn,
+        );
+        expect(spawn).toHaveBeenCalledWith(expect.objectContaining({ machineId: 'machine-B' }));
+    });
+
+    it('calls machineSpawnNewSession with the displayed path when selectedPath changes', async () => {
+        const spawn = vi.fn().mockResolvedValue(undefined);
+
+        await buildHandleSpawnWithTarget(
+            { machineId: 'machine-A', selectedPath: '/home/user/alpha', worktreeKey: '__none__', selectedAgent: 'claude' },
+            spawn,
+        );
+        expect(spawn).toHaveBeenCalledWith(expect.objectContaining({ directory: '/home/user/alpha' }));
+
+        spawn.mockClear();
+
+        await buildHandleSpawnWithTarget(
+            { machineId: 'machine-A', selectedPath: '/home/user/beta', worktreeKey: '__none__', selectedAgent: 'claude' },
+            spawn,
+        );
+        expect(spawn).toHaveBeenCalledWith(expect.objectContaining({ directory: '/home/user/beta' }));
+    });
+
+    it('calls machineSpawnNewSession with the worktree path when a specific worktreeKey is selected', async () => {
+        const spawn = vi.fn().mockResolvedValue(undefined);
+
+        await buildHandleSpawnWithTarget(
+            { machineId: 'machine-A', selectedPath: '/home/user/repo', worktreeKey: '/home/user/repo/.git/worktrees/feature', selectedAgent: 'claude' },
+            spawn,
+        );
+        expect(spawn).toHaveBeenCalledWith(expect.objectContaining({
+            machineId: 'machine-A',
+            directory: '/home/user/repo/.git/worktrees/feature',
+        }));
+    });
+
+    it('calls machineSpawnNewSession with the base path when worktreeKey switches back to __none__', async () => {
+        const spawn = vi.fn().mockResolvedValue(undefined);
+
+        await buildHandleSpawnWithTarget(
+            { machineId: 'machine-A', selectedPath: '/home/user/repo', worktreeKey: '__none__', selectedAgent: 'claude' },
+            spawn,
+        );
+        expect(spawn).toHaveBeenCalledWith(expect.objectContaining({ directory: '/home/user/repo' }));
+    });
+
+    it('passes the displayed agent to machineSpawnNewSession', async () => {
+        const spawn = vi.fn().mockResolvedValue(undefined);
+
+        await buildHandleSpawnWithTarget(
+            { machineId: 'machine-A', selectedPath: '/home/user/project', worktreeKey: '__none__', selectedAgent: 'codex' },
+            spawn,
+        );
+        expect(spawn).toHaveBeenCalledWith(expect.objectContaining({ agent: 'codex' }));
+    });
+});
 
 describe('new/index.tsx handleSend intercept guard', () => {
     it('does NOT call machineSpawnNewSession when a synthetic command is intercepted', async () => {

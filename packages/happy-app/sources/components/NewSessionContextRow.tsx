@@ -522,7 +522,7 @@ export function useNewSessionContextRowController({
                 onPress={() => togglePicker('machine')}
             >
                 <Ionicons name="desktop-outline" size={15} color={theme.colors.textSecondary} />
-                <Text style={styles.configLabel} numberOfLines={1}>{machineName}</Text>
+                <Text testID="composer.target.machine" style={styles.configLabel} numberOfLines={1}>{machineName}</Text>
             </Pressable>
         ),
         pathChip: (
@@ -532,7 +532,7 @@ export function useNewSessionContextRowController({
                 onPress={() => togglePicker('path')}
             >
                 <Ionicons name="folder-outline" size={15} color={theme.colors.textSecondary} />
-                <Text style={styles.configLabel} numberOfLines={1}>{pathName}</Text>
+                <Text testID="composer.target.project" style={styles.configLabel} numberOfLines={1}>{pathName}</Text>
             </Pressable>
         ),
         worktreeSelector: supportsWorktree ? (
@@ -542,7 +542,7 @@ export function useNewSessionContextRowController({
                 onPress={() => togglePicker('worktree')}
             >
                 <MaterialCommunityIcons name="tree" size={15} color={theme.colors.textSecondary} />
-                <Text style={styles.configLabel} numberOfLines={1}>{worktreeLabel}</Text>
+                <Text testID="composer.target.worktree" style={styles.configLabel} numberOfLines={1}>{worktreeLabel}</Text>
             </Pressable>
         ) : null,
         agentPicker: (
