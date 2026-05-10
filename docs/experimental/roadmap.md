@@ -108,7 +108,9 @@ Goal: remove the broken session-control paths that currently make remote agent m
 - Fix task rendering for tool calls like:
   - `TaskOutput`
   - `TaskStop`
+  - Status: shipped 2026-05-10 — `TaskOutputView` and `TaskStopView` are now first-class renderers in `knownTools.tsx` with permissive result schemas and `minimal: false`. See docs/plans/p1-bug-investigations.md "P1 tool rendering sweep — FIXED".
 - Fix multi-file and regular edit rendering/resolution so file diffs and file targets resolve correctly instead of producing broken or misleading output.
+  - Status: shipped 2026-05-10 — `EditView`, `EditViewFull`, `MultiEditView`, and `MultiEditViewFull` thread the resolved `file_path` into `ToolDiffView` so diffs no longer fall back to `file.txt`, and malformed Edit / MultiEdit inputs now render a visible `ToolError` block. See docs/plans/p1-bug-investigations.md "P1 tool rendering sweep — FIXED".
 - Ensure permission UI correctly handles and persists the real decision that was made:
   - approve
   - deny
