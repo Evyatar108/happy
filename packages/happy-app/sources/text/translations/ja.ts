@@ -373,6 +373,7 @@ export const ja: TranslationStructure = {
         fork: {
             comingSoon: '近日公開',
         },
+        applyFailed: '適用に失敗しました — もう一度お試しください',
     },
 
     server: {

@@ -373,6 +373,7 @@ export const zhHans: TranslationStructure = {
         fork: {
             comingSoon: '即将推出',
         },
+        applyFailed: '应用失败 — 请重试',
     },
 
     server: {

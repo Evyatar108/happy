@@ -372,6 +372,7 @@ export const es: TranslationStructure = {
         fork: {
             comingSoon: 'Próximamente',
         },
+        applyFailed: 'No se pudo aplicar — inténtalo de nuevo',
     },
 
     server: {

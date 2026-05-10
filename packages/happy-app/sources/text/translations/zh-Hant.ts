@@ -372,6 +372,7 @@ export const zhHant: TranslationStructure = {
         fork: {
             comingSoon: '即將推出',
         },
+        applyFailed: '套用失敗 — 請再試一次',
     },
 
     server: {

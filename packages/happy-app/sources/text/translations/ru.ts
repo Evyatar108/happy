@@ -491,6 +491,7 @@ export const ru: TranslationStructure = {
         fork: {
             comingSoon: 'Скоро',
         },
+        applyFailed: 'Не удалось применить — попробуйте ещё раз',
     },
 
     agentInput: {

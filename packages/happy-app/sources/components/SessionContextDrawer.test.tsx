@@ -28,6 +28,7 @@ const theme = {
         surfaceHigh: '#fafafa',
         shadow: { color: '#000000', opacity: 0.15 },
         button: { primary: { background: '#111111', tint: '#ffffff' } },
+        status: { error: '#FF3B30' },
     },
 };
 
@@ -147,6 +148,7 @@ describe('SessionContextDrawer', () => {
     beforeEach(() => {
         reactActEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
         shared.sessionEmitAgentConfigurationMock.mockReset();
+        shared.sessionEmitAgentConfigurationMock.mockResolvedValue(undefined);
         shared.resumeSessionInlineMock.mockReset();
         shared.latestPatchModel = null;
     });
@@ -206,6 +208,49 @@ describe('SessionContextDrawer', () => {
         });
 
         expect(textValues(renderer!.root)).toContain('Opus');
+    });
+
+    it('shows inline error text when sessionEmitAgentConfiguration rejects', async () => {
+        shared.sessionEmitAgentConfigurationMock.mockRejectedValueOnce(new Error('socket closed'));
+
+        let renderer: TestRendererInstance;
+        act(() => {
+            renderer = TestRenderer.create(<SessionContextDrawer {...baseProps()} />);
+        });
+        expand(renderer!.root);
+
+        await act(async () => {
+            renderer!.root.findAllByType('PickerContent')[0]!.props.onSelect('opus');
+            await Promise.resolve();
+        });
+
+        expect(textValues(renderer!.root)).toContain('translated:drawer.applyFailed');
+    });
+
+    it('clears the inline picker error on a subsequent successful selection', async () => {
+        shared.sessionEmitAgentConfigurationMock
+            .mockRejectedValueOnce(new Error('socket closed'))
+            .mockResolvedValueOnce(undefined);
+
+        let renderer: TestRendererInstance;
+        act(() => {
+            renderer = TestRenderer.create(<SessionContextDrawer {...baseProps()} />);
+        });
+        expand(renderer!.root);
+
+        await act(async () => {
+            renderer!.root.findAllByType('PickerContent')[0]!.props.onSelect('opus');
+            await Promise.resolve();
+        });
+
+        expect(textValues(renderer!.root)).toContain('translated:drawer.applyFailed');
+
+        await act(async () => {
+            renderer!.root.findAllByType('PickerContent')[0]!.props.onSelect('sonnet');
+            await Promise.resolve();
+        });
+
+        expect(textValues(renderer!.root)).not.toContain('translated:drawer.applyFailed');
     });
 
     it('renders the fork placeholder disabled with no press handler', () => {

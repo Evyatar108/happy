@@ -44,6 +44,7 @@ const REQUIRED_DEFERRED_SWITCH_KEYS = [
 
 const REQUIRED_SESSION_DRAWER_KEYS = [
     'drawer.fork.comingSoon',
+    'drawer.applyFailed',
     'session.resumeFromTerminal',
     'sessionInfo.resumeSession',
     'sessionInfo.resumeSessionSubtitle',

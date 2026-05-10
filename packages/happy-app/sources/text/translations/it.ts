@@ -370,6 +370,7 @@ export const it: TranslationStructure = {
         fork: {
             comingSoon: 'Prossimamente',
         },
+        applyFailed: 'Impossibile applicare — riprova',
     },
 
     server: {

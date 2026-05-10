@@ -370,6 +370,7 @@ export const en = {
         fork: {
             comingSoon: 'Coming soon',
         },
+        applyFailed: 'Failed to apply — please try again',
     },
 
     server: {

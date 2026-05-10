@@ -46,6 +46,7 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
     const [isExpanded, setIsExpanded] = React.useState(false);
     const [isResuming, setIsResuming] = React.useState(false);
     const [inlineResumeError, setInlineResumeError] = React.useState<string | null>(null);
+    const [inlinePickerError, setInlinePickerError] = React.useState<string | null>(null);
     const expandedProgress = useSharedValue(0);
 
     React.useEffect(() => {
@@ -74,7 +75,10 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
         if (mode) {
             props.updateModelMode(mode);
         }
-        void sessionEmitAgentConfiguration({ model: key });
+        setInlinePickerError(null);
+        sessionEmitAgentConfiguration({ model: key }).catch(() => {
+            setInlinePickerError(t('drawer.applyFailed'));
+        });
     }, [sessionEmitAgentConfiguration, props.availableModels, props.updateModelMode]);
 
     const handleSelectPermissionMode = React.useCallback((key: string) => {
@@ -82,7 +86,10 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
         if (mode) {
             props.updatePermissionMode(mode);
         }
-        void sessionEmitAgentConfiguration({ permissionMode: key });
+        setInlinePickerError(null);
+        sessionEmitAgentConfiguration({ permissionMode: key }).catch(() => {
+            setInlinePickerError(t('drawer.applyFailed'));
+        });
     }, [sessionEmitAgentConfiguration, props.availableModes, props.updatePermissionMode]);
 
     const handleSelectEffortLevel = React.useCallback((key: string) => {
@@ -90,7 +97,10 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
         if (level) {
             props.updateEffortLevel(level);
         }
-        void sessionEmitAgentConfiguration({ thinkingLevel: key });
+        setInlinePickerError(null);
+        sessionEmitAgentConfiguration({ thinkingLevel: key }).catch(() => {
+            setInlinePickerError(t('drawer.applyFailed'));
+        });
     }, [sessionEmitAgentConfiguration, props.availableEffortLevels, props.updateEffortLevel]);
 
     const handleResume = React.useCallback(() => {
@@ -175,6 +185,9 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
                             onSelect={handleSelectEffortLevel}
                             searchPlaceholder={t('commandPalette.placeholder')}
                         />
+                    )}
+                    {!!inlinePickerError && (
+                        <Text style={styles.pickerErrorText}>{inlinePickerError}</Text>
                     )}
                     {shouldShowResume && (
                         <View style={styles.resumeSection}>
@@ -429,6 +442,12 @@ const styles = StyleSheet.create((theme) => ({
         fontSize: 12,
         lineHeight: 17,
         fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    },
+    pickerErrorText: {
+        color: theme.colors.status.error,
+        fontSize: 12,
+        lineHeight: 16,
+        paddingHorizontal: 4,
     },
     forkButton: {
         height: 36,
