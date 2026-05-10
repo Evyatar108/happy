@@ -3,24 +3,6 @@ import type { Session } from './storageTypes';
 
 const mmkvStore = vi.hoisted(() => new Map<string, string>());
 
-vi.mock('@/components/avatarBrutalistAssets', () => {
-    function hashCode(str: string): number {
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            const char = str.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash;
-        }
-        return Math.abs(hash);
-    }
-
-    return {
-        allImages: Array.from({ length: 420 }, (_, index) => index),
-        colorPairs: Array.from({ length: 6 }, (_, index) => ({ tint: `${index}`, background: `${index}` })),
-        hashCode,
-    };
-});
-
 vi.mock('react-native-mmkv', () => ({
     MMKV: vi.fn(() => ({
         getString: (key: string) => mmkvStore.get(key),

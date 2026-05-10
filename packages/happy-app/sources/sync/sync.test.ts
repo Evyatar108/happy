@@ -2,24 +2,6 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { resolve, join, relative } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/components/avatarBrutalistAssets', () => {
-    function hashCode(str: string): number {
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            const char = str.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash;
-        }
-        return Math.abs(hash);
-    }
-
-    return {
-        allImages: Array.from({ length: 420 }, (_, index) => index),
-        colorPairs: Array.from({ length: 6 }, (_, index) => ({ tint: `${index}`, background: `${index}` })),
-        hashCode,
-    };
-});
-
 const mocks = vi.hoisted(() => ({
     sessionRPC: vi.fn(),
     alert: vi.fn(),

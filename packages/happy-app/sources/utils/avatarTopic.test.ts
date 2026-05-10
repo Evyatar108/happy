@@ -4,23 +4,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { allImages, colorPairs, hashCode } from '@/components/avatarBrutalistAssets';
 import { buildTopicAvatarKey, resolveLegacyBrutalistAvatar, resolveTopicBrutalistAvatar } from './avatarTopic';
 
-vi.mock('@/components/avatarBrutalistAssets', () => {
-    function hashCode(str: string): number {
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            const char = str.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash;
-        }
-        return Math.abs(hash);
-    }
-
-    return {
-        allImages: Array.from({ length: 420 }, (_, index) => index),
-        colorPairs: Array.from({ length: 6 }, (_, index) => ({ tint: `${index}`, background: `${index}` })),
-        hashCode,
-    };
-});
+// `@/components/avatarBrutalistAssets` is stubbed globally via `vitest.config.mts`
+// setupFiles (`sources/_test-stubs/setup.ts` → `avatarBrutalistAssetsStub.ts`).
+// The stub uses an identical djb2 `hashCode` and numeric-placeholder `allImages`
+// (length 420) / `colorPairs` (length 6) so the deterministic-hash assertions
+// in this file still hold.
 
 const topicFixtures = [
     { summaryText: 'Debug Expo Metro reload on BOOX tablet', name: 'Tablet reload', flavor: 'codex' },

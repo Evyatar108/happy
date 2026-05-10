@@ -13,6 +13,7 @@ export default defineConfig({
         globals: false,
         environment: 'node',
         include: ['sources/**/*.{spec,test}.{ts,tsx}'],
+        setupFiles: ['./sources/_test-stubs/setup.ts'],
         coverage: {
             provider: 'v8',
             reporter: ['text', 'json', 'html'],
