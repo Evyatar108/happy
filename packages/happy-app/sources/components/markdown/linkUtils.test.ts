@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isHttpMarkdownLink } from './linkUtils';
+import { isFileMarkdownLink, isHttpMarkdownLink } from './linkUtils';
 
 describe('isHttpMarkdownLink', () => {
     it('accepts http and https links', () => {
@@ -13,5 +13,14 @@ describe('isHttpMarkdownLink', () => {
         expect(isHttpMarkdownLink('data:text/plain,hello')).toBe(false);
         expect(isHttpMarkdownLink('/Users/me/project/file.ts')).toBe(false);
         expect(isHttpMarkdownLink('packages/happy-app/index.tsx')).toBe(false);
+    });
+});
+
+describe('isFileMarkdownLink', () => {
+    it('accepts internal file links only', () => {
+        expect(isFileMarkdownLink('file:abc123?line=1')).toBe(true);
+        expect(isFileMarkdownLink(' FILE:abc123 ')).toBe(true);
+        expect(isFileMarkdownLink('https://example.com')).toBe(false);
+        expect(isFileMarkdownLink('/Users/me/project/file.ts')).toBe(false);
     });
 });

@@ -1,4 +1,4 @@
-import { MarkdownSpan, parseMarkdown } from './parseMarkdown';
+import { MarkdownBlock, MarkdownSpan, parseMarkdown } from './parseMarkdown';
 import * as React from 'react';
 import { Image, Pressable, ScrollView, View, Platform, StyleSheet as RNStyleSheet, type StyleProp, type TextStyle } from 'react-native';
 import { HorizontalScrollView } from '../HorizontalScrollView';
@@ -16,14 +16,105 @@ import * as WebBrowser from 'expo-web-browser';
 import { MermaidRenderer } from './MermaidRenderer';
 import { TaskNotificationPill } from './TaskNotificationPill';
 import { t } from '@/text';
-import { isHttpMarkdownLink } from './linkUtils';
+import { isFileMarkdownLink, isHttpMarkdownLink } from './linkUtils';
 import { useChatScaleAnimatedTextStyle, useChatScaledStyles } from '@/hooks/useChatFontScale';
 import processClaudeMetaTags from './processClaudeMetaTags';
+import { useSession } from '@/sync/storage';
+import { splitSessionFileText } from '@/utils/sessionFileLinks';
+import { encodeBase64Url } from '@/utils/base64url';
 
 // Option type for callback
 export type Option = {
     title: string;
 };
+
+function buildInternalFileLinkUrl(path: string, line: number | null, column: number | null): string {
+    return `file:${encodeBase64Url(path)}?line=${line ?? ''}&column=${column ?? ''}`;
+}
+
+function parseInternalFileLinkUrl(url: string): { path: string; line: string; column: string } | null {
+    if (!isFileMarkdownLink(url)) {
+        return null;
+    }
+
+    const withoutScheme = url.trim().slice('file:'.length);
+    const queryStart = withoutScheme.indexOf('?');
+    const path = queryStart === -1 ? withoutScheme : withoutScheme.slice(0, queryStart);
+    const params = new URLSearchParams(queryStart === -1 ? '' : withoutScheme.slice(queryStart + 1));
+
+    if (!path) {
+        return null;
+    }
+
+    return {
+        path,
+        line: params.get('line') ?? '',
+        column: params.get('column') ?? '',
+    };
+}
+
+function addSessionFileLinksToSpans(spans: MarkdownSpan[], sessionRoot: string | null): MarkdownSpan[] {
+    if (!sessionRoot) {
+        return spans;
+    }
+
+    return spans.flatMap((span) => {
+        if (span.url || span.styles.includes('code')) {
+            return [span];
+        }
+
+        const segments = splitSessionFileText(span.text, sessionRoot);
+        if (segments.length === 0) {
+            return [span];
+        }
+        if (segments.length === 1 && !segments[0]?.link) {
+            return [span];
+        }
+
+        return segments.map((segment) => {
+            if (!segment.link?.withinSessionRoot) {
+                return { ...span, text: segment.text, url: null };
+            }
+            return {
+                ...span,
+                text: segment.text,
+                url: buildInternalFileLinkUrl(segment.link.absolutePath, segment.link.line, segment.link.column),
+            };
+        });
+    });
+}
+
+function addSessionFileLinks(blocks: MarkdownBlock[], sessionRoot: string | null): MarkdownBlock[] {
+    if (!sessionRoot) {
+        return blocks;
+    }
+
+    return blocks.map((block) => {
+        if (block.type === 'text' || block.type === 'header') {
+            return { ...block, content: addSessionFileLinksToSpans(block.content, sessionRoot) };
+        }
+        if (block.type === 'list') {
+            return { ...block, items: block.items.map((item) => addSessionFileLinksToSpans(item, sessionRoot)) };
+        }
+        if (block.type === 'numbered-list') {
+            return {
+                ...block,
+                items: block.items.map((item) => ({
+                    ...item,
+                    spans: addSessionFileLinksToSpans(item.spans, sessionRoot),
+                })),
+            };
+        }
+        if (block.type === 'table') {
+            return {
+                ...block,
+                headers: block.headers.map((header) => addSessionFileLinksToSpans(header, sessionRoot)),
+                rows: block.rows.map((row) => row.map((cell) => addSessionFileLinksToSpans(cell, sessionRoot))),
+            };
+        }
+        return block;
+    });
+}
 
 export const MarkdownView = React.memo((props: { 
     markdown: string;
@@ -31,9 +122,15 @@ export const MarkdownView = React.memo((props: {
     sessionId?: string;
 }) => {
     const processed = React.useMemo(() => processClaudeMetaTags(props.markdown), [props.markdown]);
-    const blocks = React.useMemo(
+    const parsedBlocks = React.useMemo(
         () => parseMarkdown(processed.renderMarkdown, processed.taskNotifications),
         [processed.renderMarkdown, processed.taskNotifications]
+    );
+    const session = useSession(props.sessionId ?? '');
+    const sessionRoot = session?.metadata?.path ?? null;
+    const blocks = React.useMemo(
+        () => addSessionFileLinks(parsedBlocks, sessionRoot),
+        [parsedBlocks, sessionRoot]
     );
     
     // Backwards compatibility: The original version just returned the view, wrapping the list of blocks.
@@ -46,6 +143,15 @@ export const MarkdownView = React.memo((props: {
     const router = useRouter();
 
     const handleLinkPress = React.useCallback((url: string) => {
+        if (isFileMarkdownLink(url)) {
+            const fileLink = parseInternalFileLinkUrl(url);
+            if (!fileLink || !props.sessionId) {
+                return;
+            }
+            router.push(`/session/${props.sessionId}/file?path=${fileLink.path}&line=${fileLink.line}&column=${fileLink.column}&refresh=1&view=file`);
+            return;
+        }
+
         if (!isHttpMarkdownLink(url)) {
             return;
         }
@@ -58,7 +164,7 @@ export const MarkdownView = React.memo((props: {
         }
 
         void WebBrowser.openBrowserAsync(url);
-    }, []);
+    }, [props.sessionId, router]);
 
     const handleLongPress = React.useCallback(() => {
         try {
@@ -292,15 +398,18 @@ function RenderSpans(props: RenderSpanProps) {
         {props.spans.map((span, index) => {
             if (span.url) {
                 const isExternalLink = isHttpMarkdownLink(span.url);
+                const isInternalFileLink = isFileMarkdownLink(span.url);
+                const isLink = isExternalLink || isInternalFileLink;
                 return (
                     <AnimatedMarkdownText
                         key={index}
                         baseStyle={props.baseStyle}
                         selectable={props.selectable}
-                        accessibilityRole={isExternalLink ? 'link' : undefined}
-                        style={[isExternalLink && style.link, span.styles.map(resolveSpanStyle)]}
+                        accessibilityRole={isLink ? 'link' : undefined}
+                        style={[isLink && style.link, span.styles.map(resolveSpanStyle)]}
                         {...(isExternalLink && Platform.OS === 'web' ? { onClick: () => { if (typeof window !== 'undefined') window.open(span.url!, '_blank', 'noopener,noreferrer'); } } as any : {})}
-                        onPress={isExternalLink && Platform.OS !== 'web'
+                        {...(isInternalFileLink && Platform.OS === 'web' ? { onClick: () => props.onLinkPress(span.url!) } as any : {})}
+                        onPress={isLink && Platform.OS !== 'web'
                             ? () => props.onLinkPress(span.url!)
                             : undefined}
                     >

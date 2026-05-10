@@ -16,6 +16,9 @@ const processClaudeMetaTags = vi.fn((raw: string) => ({
     copyMarkdown: raw,
     taskNotifications: [] as unknown[],
 }));
+const storageState = vi.hoisted(() => ({
+    sessionRoot: '/Users/kirilldubovitskiy/projects/happy' as string | null,
+}));
 
 vi.mock('react-native', () => ({
     Image: 'Image',
@@ -86,6 +89,7 @@ vi.mock('@/modal', () => ({
 
 vi.mock('@/sync/storage', () => ({
     useLocalSetting: () => true,
+    useSession: () => storageState.sessionRoot ? ({ metadata: { path: storageState.sessionRoot } }) : null,
 }));
 
 vi.mock('@/sync/persistence', () => ({
@@ -113,7 +117,8 @@ vi.mock('@/text', () => ({
 }));
 
 vi.mock('./linkUtils', () => ({
-    isHttpMarkdownLink: () => true,
+    isHttpMarkdownLink: (url: string) => /^https?:\/\//i.test(url.trim()),
+    isFileMarkdownLink: (url: string) => /^file:/i.test(url.trim()),
 }));
 
 vi.mock('@/hooks/useChatFontScale', () => ({
@@ -151,6 +156,12 @@ describe('MarkdownView', () => {
         storeTempText.mockReturnValue('temp-text-id');
         parseMarkdown.mockReset();
         processClaudeMetaTags.mockReset();
+        processClaudeMetaTags.mockImplementation((raw: string) => ({
+            renderMarkdown: raw,
+            copyMarkdown: raw,
+            taskNotifications: [],
+        }));
+        storageState.sessionRoot = '/Users/kirilldubovitskiy/projects/happy';
     });
 
     it('threads task notifications into parseMarkdown and renders the pill block', () => {
@@ -195,5 +206,99 @@ describe('MarkdownView', () => {
         expect(storeTempText).toHaveBeenCalledWith('Task finished cleanly.');
         expect(storeTempText).not.toHaveBeenCalledWith('__HAPPY_TASK_NOTIFICATION_0__');
         expect(push).toHaveBeenCalledWith('/text-selection?textId=temp-text-id');
+    });
+
+    it.each([
+        ['POSIX absolute', '/Users/kirilldubovitskiy/projects/happy/packages/happy-app/App.tsx:12:3', '/Users/kirilldubovitskiy/projects/happy'],
+        ['Windows absolute', 'C:\\Users\\kirilldubovitskiy\\projects\\happy\\packages\\happy-app\\App.tsx:12', 'C:/Users/kirilldubovitskiy/projects/happy'],
+        ['relative dot', './packages/happy-app/App.tsx', '/Users/kirilldubovitskiy/projects/happy'],
+        ['parent relative', '../happy/packages/happy-app/App.tsx', '/Users/kirilldubovitskiy/projects/happy'],
+        ['home relative', '~/projects/happy/packages/happy-app/App.tsx', '/Users/kirilldubovitskiy/projects/happy'],
+    ])('renders %s file path text as an internal link span', (_label, filePath, sessionRoot) => {
+        storageState.sessionRoot = sessionRoot;
+        parseMarkdown.mockReturnValue([
+            { type: 'text', content: [{ styles: [], text: `Open ${filePath} now`, url: null }] },
+        ]);
+
+        let renderer: any;
+        act(() => {
+            renderer = TestRenderer.create(<MarkdownView markdown="raw" sessionId="session-1" />);
+        });
+
+        const links = renderer!.root.findAll((node: any) => node.type === 'AnimatedText' && node.props.accessibilityRole === 'link');
+        expect(links).toHaveLength(1);
+        expect(links[0].props.children).toBe(filePath);
+        expect(links[0].props.onPress).toEqual(expect.any(Function));
+    });
+
+    it('leaves HTTP links, code spans, markdown links, and ambiguous bare words unchanged', () => {
+        parseMarkdown.mockReturnValue([
+            {
+                type: 'text',
+                content: [
+                    { styles: [], text: 'https://example.com/docs ', url: null },
+                    { styles: ['code'], text: 'packages/happy-app/App.tsx ', url: null },
+                    { styles: [], text: 'linked file', url: 'https://example.com/file' },
+                    { styles: [], text: 'README ', url: null },
+                ],
+            },
+        ]);
+
+        let renderer: any;
+        act(() => {
+            renderer = TestRenderer.create(<MarkdownView markdown="raw" sessionId="session-1" />);
+        });
+
+        const links = renderer!.root.findAll((node: any) => node.type === 'AnimatedText' && node.props.accessibilityRole === 'link');
+        expect(links).toHaveLength(1);
+        expect(links[0].props.children).toBe('linked file');
+        expect(links[0].props.onPress).toEqual(expect.any(Function));
+    });
+
+    it('renders out-of-root file path matches as plain text', () => {
+        parseMarkdown.mockReturnValue([
+            { type: 'text', content: [{ styles: [], text: 'Open /Users/kirilldubovitskiy/other/file.ts now', url: null }] },
+        ]);
+
+        let renderer: any;
+        act(() => {
+            renderer = TestRenderer.create(<MarkdownView markdown="raw" sessionId="session-1" />);
+        });
+
+        const links = renderer!.root.findAll((node: any) => node.type === 'AnimatedText' && node.props.accessibilityRole === 'link');
+        expect(links).toHaveLength(0);
+    });
+
+    it('skips session file link processing when no session root is available', () => {
+        storageState.sessionRoot = null;
+        parseMarkdown.mockReturnValue([
+            { type: 'text', content: [{ styles: [], text: 'Open packages/happy-app/App.tsx now', url: null }] },
+        ]);
+
+        let renderer: any;
+        act(() => {
+            renderer = TestRenderer.create(<MarkdownView markdown="raw" sessionId="session-1" />);
+        });
+
+        const links = renderer!.root.findAll((node: any) => node.type === 'AnimatedText' && node.props.accessibilityRole === 'link');
+        expect(links).toHaveLength(0);
+    });
+
+    it('routes internal file link presses to the full-screen viewer URL', () => {
+        parseMarkdown.mockReturnValue([
+            { type: 'text', content: [{ styles: [], text: 'Open packages/happy-app/App.tsx:12:3 now', url: null }] },
+        ]);
+
+        let renderer: any;
+        act(() => {
+            renderer = TestRenderer.create(<MarkdownView markdown="raw" sessionId="session-1" />);
+        });
+
+        const link = renderer!.root.findAll((node: any) => node.type === 'AnimatedText' && node.props.accessibilityRole === 'link')[0];
+        act(() => {
+            link.props.onPress();
+        });
+
+        expect(push).toHaveBeenCalledWith('/session/session-1/file?path=L1VzZXJzL2tpcmlsbGR1Ym92aXRza2l5L3Byb2plY3RzL2hhcHB5L3BhY2thZ2VzL2hhcHB5LWFwcC9BcHAudHN4&line=12&column=3&refresh=1&view=file');
     });
 });
