@@ -668,10 +668,6 @@ function NewSessionScreen() {
                         }
                     }
 
-                    // Clear input text so draft doesn't repeat the sent message
-                    setPrompt('');
-                    fileAttachment.clear();
-
                     // Send initial message if provided
                     if (trimmedPrompt || attachmentRefs.length > 0) {
                         const body = buildMessageWithAttachmentRefs(trimmedPrompt, attachmentRefs);
@@ -680,6 +676,10 @@ function NewSessionScreen() {
                             ...(localId ? { localId, attachmentRefs, displayText: trimmedPrompt } : {}),
                         });
                     }
+
+                    // Clear input text only after sendMessage succeeds
+                    setPrompt('');
+                    fileAttachment.clear();
 
                     router.back();
                     navigateToSession(result.sessionId);
