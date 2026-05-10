@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { TrackedSession } from './types';
+import type { StopTrackedSessionResult } from './stopTrackedSession';
 import { stopTrackedSession } from './stopTrackedSession';
 
 function createChildProcess() {
@@ -47,7 +48,8 @@ describe('stopTrackedSession', () => {
       expect(sessions.has(1234)).toBe(true);
 
       await vi.advanceTimersByTimeAsync(1);
-      await expect(stopped).resolves.toBe(true);
+      const result = await stopped;
+      expect(result).toMatchObject<StopTrackedSessionResult>({ stopped: true, escalated: true, alive: false });
 
       expect(child.kill).toHaveBeenCalledWith('SIGKILL');
       expect(child.kill).toHaveBeenCalledTimes(2);
@@ -92,11 +94,57 @@ describe('stopTrackedSession', () => {
       expect(killProcess).not.toHaveBeenCalledWith(4321, 'SIGKILL');
 
       await vi.advanceTimersByTimeAsync(101);
-      await expect(stopped).resolves.toBe(true);
+      const result = await stopped;
+      expect(result).toMatchObject<StopTrackedSessionResult>({ stopped: true, escalated: true, alive: false });
 
       expect(killProcess).toHaveBeenCalledWith(4321, 'SIGTERM');
       expect(killProcess).toHaveBeenCalledWith(4321, 'SIGKILL');
       expect(sessions.has(4321)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('returns stopped: false when the child ignores both SIGTERM and SIGKILL', async () => {
+    vi.useFakeTimers();
+    try {
+      const child = new EventEmitter() as any;
+      child.exitCode = null;
+      child.signalCode = null;
+      child.kill = vi.fn((_signal: NodeJS.Signals) => true);
+
+      const sessions = new Map<number, TrackedSession>([[
+        5678,
+        {
+          startedBy: 'daemon',
+          happySessionId: 'session-3',
+          pid: 5678,
+          childProcess: child,
+        } as TrackedSession,
+      ]]);
+
+      const stopped = stopTrackedSession({
+        sessionId: 'session-3',
+        sessions,
+        sigtermTimeoutMs: 5_000,
+        pollIntervalMs: 100,
+      });
+
+      // SIGTERM timeout elapses — child still alive
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      // SIGKILL grace period elapses — child still alive
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      const result = await stopped;
+      expect(result.stopped).toBe(false);
+      expect(result.escalated).toBe(true);
+      expect(result.alive).toBe(true);
+
+      expect(child.kill).toHaveBeenCalledWith('SIGTERM');
+      expect(child.kill).toHaveBeenCalledWith('SIGKILL');
+      // Session tracking is retained because the process is still alive
+      expect(sessions.has(5678)).toBe(true);
     } finally {
       vi.useRealTimers();
     }

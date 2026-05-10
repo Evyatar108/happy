@@ -755,15 +755,19 @@ export async function startDaemon(): Promise<void> {
     const stopSession = async (sessionId: string): Promise<boolean> => {
       logger.debug(`[DAEMON RUN] Attempting to stop session ${sessionId}`);
 
-      const stopped = await stopTrackedSession({
+      const result = await stopTrackedSession({
         sessionId,
         sessions: pidToTrackedSession,
       });
 
-      logger.debug(stopped
-        ? `[DAEMON RUN] Stop signal completed for session ${sessionId}`
-        : `[DAEMON RUN] Session ${sessionId} not found`);
-      return stopped;
+      if (!result.stopped && result.alive) {
+        logger.debug(`[DAEMON RUN] Session ${sessionId} did not exit after SIGKILL (still alive)`);
+      } else {
+        logger.debug(result.stopped
+          ? `[DAEMON RUN] Stop signal completed for session ${sessionId}`
+          : `[DAEMON RUN] Session ${sessionId} not found`);
+      }
+      return result.stopped;
     };
 
     // Handle child process exit — preserve session data for resume

@@ -12,6 +12,12 @@ export interface StopTrackedSessionOptions {
   clearTimer?: typeof clearTimeout;
 }
 
+export interface StopTrackedSessionResult {
+  stopped: boolean;
+  escalated: boolean;
+  alive: boolean;
+}
+
 function matchesSession(sessionId: string, pid: number, session: TrackedSession): boolean {
   return session.happySessionId === sessionId
     || (sessionId.startsWith('PID-') && pid === Number.parseInt(sessionId.replace('PID-', ''), 10));
@@ -97,7 +103,7 @@ export async function stopTrackedSession({
   killProcess = process.kill,
   setTimer = setTimeout,
   clearTimer = clearTimeout,
-}: StopTrackedSessionOptions): Promise<boolean> {
+}: StopTrackedSessionOptions): Promise<StopTrackedSessionResult> {
   for (const [pid, session] of sessions.entries()) {
     if (!matchesSession(sessionId, pid, session)) continue;
 
@@ -105,7 +111,7 @@ export async function stopTrackedSession({
       sendSignal(pid, session, 'SIGTERM', killProcess);
     } catch {
       sessions.delete(pid);
-      return true;
+      return { stopped: true, escalated: false, alive: false };
     }
 
     const exitedAfterTerm = await waitForExit(
@@ -119,14 +125,14 @@ export async function stopTrackedSession({
     );
     if (exitedAfterTerm) {
       if (!session.childProcess) sessions.delete(pid);
-      return true;
+      return { stopped: true, escalated: false, alive: false };
     }
 
     try {
       sendSignal(pid, session, 'SIGKILL', killProcess);
     } catch {
       sessions.delete(pid);
-      return true;
+      return { stopped: true, escalated: true, alive: false };
     }
 
     const exitedAfterKill = await waitForExit(
@@ -139,8 +145,8 @@ export async function stopTrackedSession({
       clearTimer,
     );
     if (exitedAfterKill && !session.childProcess) sessions.delete(pid);
-    return true;
+    return { stopped: exitedAfterKill, escalated: true, alive: !exitedAfterKill };
   }
 
-  return false;
+  return { stopped: false, escalated: false, alive: false };
 }
