@@ -3,6 +3,37 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Message, ToolCall } from '@/sync/typesMessage';
 
+vi.mock('@expo/vector-icons', () => ({
+    Ionicons: 'Ionicons',
+    MaterialIcons: 'MaterialIcons',
+    MaterialCommunityIcons: 'MaterialCommunityIcons',
+    AntDesign: 'AntDesign',
+    Feather: 'Feather',
+    FontAwesome: 'FontAwesome',
+    FontAwesome5: 'FontAwesome5',
+    Octicons: 'Octicons',
+    EvilIcons: 'EvilIcons',
+    Entypo: 'Entypo',
+}));
+
+vi.mock('@/components/avatarBrutalistAssets', () => {
+    function hashCode(str: string): number {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        return Math.abs(hash);
+    }
+
+    return {
+        allImages: Array.from({ length: 420 }, (_, index) => index),
+        colorPairs: Array.from({ length: 6 }, (_, index) => ({ tint: `${index}`, background: `${index}` })),
+        hashCode,
+    };
+});
+
 (
     globalThis as typeof globalThis & {
         IS_REACT_ACT_ENVIRONMENT: boolean;
@@ -21,6 +52,15 @@ const theme = {
 
 vi.mock('react-native', () => ({
     View: 'View',
+    Text: 'Text',
+    Image: 'Image',
+    Pressable: 'Pressable',
+    ScrollView: 'ScrollView',
+    Platform: { OS: 'web' },
+    StyleSheet: {
+        create: (styles: Record<string, unknown>) => styles,
+        flatten: (style: unknown) => style,
+    },
 }));
 
 vi.mock('react-native-unistyles', () => ({
