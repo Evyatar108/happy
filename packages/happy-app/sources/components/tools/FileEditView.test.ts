@@ -37,6 +37,11 @@ describe('file-edit tool registration', () => {
         expect(fileEditView).toContain('newText={newText}');
     });
 
+    it('renders a placeholder instead of an empty diff when only filePath is present', () => {
+        expect(fileEditView).toContain('!parsed.data.oldContent && !parsed.data.newContent');
+        expect(fileEditView).toContain('<ToolSectionView title={fileName}>');
+    });
+
     it('adds a messages-demo fixture with file-edit next to a single ExitPlanMode plan', () => {
         expect(messagesDemo).toContain("createToolCall('file-edit', 'completed'");
         expect(messagesDemo).toContain("filePath: '/src/components/FileEditPanel.tsx'");

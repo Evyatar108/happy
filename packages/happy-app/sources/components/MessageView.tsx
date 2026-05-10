@@ -262,7 +262,7 @@ function countNestedSteps(messages: Message[]): number {
       return count + 1 + countNestedSteps(message.children);
     }
 
-    return count + 1;
+    return count;
   }, 0);
 }
 

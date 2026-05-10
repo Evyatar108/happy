@@ -24,6 +24,12 @@ export const FileEditView = React.memo<ToolViewProps>(({ tool }) => {
         );
     }
 
+    if (!parsed.data.oldContent && !parsed.data.newContent) {
+        return (
+            <ToolSectionView title={fileName}>{null}</ToolSectionView>
+        );
+    }
+
     return (
         <ToolSectionView fullWidth>
             <CollapsibleDiffPreview

@@ -49,21 +49,18 @@ export const TaskView = React.memo<ToolViewProps>(({ tool, metadata, messages })
     const animatedToolTitleStyle = useChatScaleAnimatedTextStyle(styles.toolTitle.fontSize);
     const animatedToolSubtitleStyle = useChatScaleAnimatedTextStyle(styles.toolSubtitle.fontSize);
     const lastToolMessage = findLastToolMessage(messages);
-
-    if (!lastToolMessage) {
-        return null;
-    }
-
     const subagentType = typeof tool.input?.subagent_type === 'string' ? tool.input.subagent_type : null;
     const agentLabel = subagentType ? `${t('tools.names.agent')} (${subagentType})` : t('tools.names.agent');
-    const lastActionTitle = getToolTitle(lastToolMessage.tool, metadata);
+    const lastActionTitle = lastToolMessage ? getToolTitle(lastToolMessage.tool, metadata) : null;
 
     return (
         <View style={styles.container}>
             <View style={styles.toolItem}>
                 <View style={styles.toolTitleContainer}>
                     <AnimatedText style={[styles.toolTitle, animatedToolTitleStyle]} numberOfLines={1}>{agentLabel}</AnimatedText>
-                    <AnimatedText style={[styles.toolSubtitle, animatedToolSubtitleStyle]} numberOfLines={1}>{lastActionTitle}</AnimatedText>
+                    {lastActionTitle !== null && (
+                        <AnimatedText style={[styles.toolSubtitle, animatedToolSubtitleStyle]} numberOfLines={1}>{lastActionTitle}</AnimatedText>
+                    )}
                 </View>
                 <View style={styles.statusContainer}>
                     {tool.state === 'running' && (

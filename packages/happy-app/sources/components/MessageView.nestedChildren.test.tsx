@@ -168,6 +168,40 @@ describe('MessageView nested tool-call children', () => {
         expect(toolViewProps[0]?.messages).toBe(parent.children);
     });
 
+    it('counts only tool-call descendants in summary, ignoring interleaved agent-text messages', () => {
+        const agentText = (id: string): Extract<Message, { kind: 'agent-text' }> => ({
+            id,
+            localId: null,
+            createdAt: 1,
+            seq: 1,
+            kind: 'agent-text',
+            text: 'some prose',
+        });
+
+        // Structure: depth-0(Task) → depth-1(Agent) → depth-2(Task) → depth-3(Agent)
+        //   → depth-4 children: [Bash (tool-call), prose (agent-text)]
+        // depth-3 renders at childDepth=4 which is > MAX_NESTED_CHILD_DEPTH(3), so its
+        // children are collapsed into NestedStepsSummary. countNestedSteps must return 1
+        // (only the Bash tool-call), not 2 (which would incorrectly count the prose too).
+        const deeplyNested = createToolMessage('depth-0', 'Task', [
+            createToolMessage('depth-1', 'Agent', [
+                createToolMessage('depth-2', 'Task', [
+                    createToolMessage('depth-3', 'Agent', [
+                        createToolMessage('depth-4-tool', 'Bash'),
+                        agentText('depth-4-prose'),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        const tree = renderMessage(deeplyNested);
+        const summaryText = (tree.root.findAllByType('AnimatedText') as TestNode[])
+            .map(node => node.props.children)
+            .find(child => typeof child === 'string' && child.startsWith('+'));
+
+        expect(summaryText).toBe('+1 more steps');
+    });
+
     it('uses the e-ink-safe nested child rail style', () => {
         const parent = createToolMessage('parent-task', 'Task', [createToolMessage('child-read', 'Read')]);
         const tree = renderMessage(parent);
