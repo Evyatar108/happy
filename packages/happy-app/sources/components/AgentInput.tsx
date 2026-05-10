@@ -412,9 +412,6 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
 
     const hasText = props.value.trim().length > 0;
     const hasSendableContent = hasText || attachmentCount > 0;
-    const canPressSendButton = !props.isSending
-        && !props.isSendDisabled
-        && (isSendBlocked ? hasSendableContent : (hasSendableContent || !!props.onMicPress));
 
     // Check if this is a Codex, Gemini, or OpenClaw session
     // Use metadata.flavor for existing sessions, agentType prop for new sessions
@@ -461,6 +458,14 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
 
     const agentInputEnterToSend = useSetting('agentInputEnterToSend');
 
+
+    // Local send-pending guard — prevents duplicate submissions while onSend is in-flight
+    const [isSendPending, setIsSendPending] = React.useState(false);
+
+    const canPressSendButton = !props.isSending
+        && !props.isSendDisabled
+        && !isSendPending
+        && (isSendBlocked ? hasSendableContent : (hasSendableContent || !!props.onMicPress));
 
     // Abort button state
     const [isAborting, setIsAborting] = React.useState(false);
@@ -614,20 +619,24 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
     }, [hasSendableContent, isSendBlocked, props.isSending]);
 
     const submitSend = React.useCallback((switchMode: 'now' | 'when-idle') => {
+        if (isSendPending) return;
+        setIsSendPending(true);
         const sentAttachments = fileAttachment.attachments;
         Promise.resolve(props.onSend(switchMode, sentAttachments)).then((result) => {
             if (result !== false) {
                 fileAttachment.clear();
             }
-        }).catch(() => undefined);
-    }, [fileAttachment, props]);
+        }).catch(() => undefined).finally(() => {
+            setIsSendPending(false);
+        });
+    }, [isSendPending, fileAttachment, props]);
 
     const handleSendPress = React.useCallback(() => {
         if (isSendBlocked) {
             handleBlockedSendAttempt();
             return;
         }
-        if (props.isSendDisabled || props.isSending) return;
+        if (props.isSendDisabled || props.isSending || isSendPending) return;
 
         hapticsLight();
         if (hasSendableContent) {
@@ -642,7 +651,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
             handleBlockedSendAttempt();
             return;
         }
-        if (!hasSendableContent || props.isSendDisabled || props.isSending) return;
+        if (!hasSendableContent || props.isSendDisabled || props.isSending || isSendPending) return;
 
         hapticsLight();
         submitSend('when-idle');
@@ -1556,7 +1565,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                         onPress={handleSendWhenIdlePress}
                                         hitSlop={{ top: 5, bottom: 10, left: 0, right: 0 }}
                                         accessibilityLabel={t('requestSwitch.whenIdle')}
-                                        disabled={!hasSendableContent || props.isSendDisabled || props.isSending}
+                                        disabled={!hasSendableContent || props.isSendDisabled || props.isSending || isSendPending}
                                         style={(p) => ({
                                             flexDirection: 'row',
                                             alignItems: 'center',
@@ -1565,7 +1574,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                             paddingVertical: 6,
                                             justifyContent: 'center',
                                             height: 32,
-                                            opacity: (!hasSendableContent || props.isSendDisabled || props.isSending) ? 0.45 : p.pressed ? 0.7 : 1,
+                                            opacity: (!hasSendableContent || props.isSendDisabled || props.isSending || isSendPending) ? 0.45 : p.pressed ? 0.7 : 1,
                                             gap: 6,
                                         })}
                                     >

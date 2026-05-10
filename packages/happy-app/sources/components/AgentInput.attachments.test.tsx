@@ -149,6 +149,43 @@ describe('AgentInput attachments', () => {
         vi.clearAllMocks();
     });
 
+    it('ignores rapid duplicate send taps while onSend is pending', async () => {
+        let resolveFirst!: () => void;
+        const firstPromise = new Promise<void>(resolve => { resolveFirst = resolve; });
+        const onSend = vi.fn(() => firstPromise);
+
+        let renderer!: ReturnType<typeof TestRenderer.create>;
+        await act(async () => {
+            renderer = TestRenderer.create(
+                <AgentInput
+                    value="hello"
+                    placeholder="Message"
+                    onChangeText={vi.fn()}
+                    onSend={onSend}
+                    autocompletePrefixes={[]}
+                    autocompleteSuggestions={async () => []}
+                />
+            );
+        });
+
+        const sendButton = renderer.root.findByProps({ testID: 'agent-input-send' });
+
+        // First tap — starts the pending promise
+        await act(async () => { sendButton.props.onPress(); });
+        expect(onSend).toHaveBeenCalledTimes(1);
+
+        // Second tap — should be ignored while first is still pending
+        await act(async () => { sendButton.props.onPress(); });
+        expect(onSend).toHaveBeenCalledTimes(1);
+
+        // Resolve the first send; pending clears
+        await act(async () => { resolveFirst(); });
+
+        // Third tap after resolution — should go through
+        await act(async () => { sendButton.props.onPress(); });
+        expect(onSend).toHaveBeenCalledTimes(2);
+    });
+
     it('populates attachment chips from drop, paste, and attach-button paths', async () => {
         const onSend = vi.fn(() => true);
         let renderer!: ReturnType<typeof TestRenderer.create>;
