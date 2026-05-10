@@ -86,7 +86,7 @@ const taskOutputTool = {
             description: z.string().optional(),
             output: z.string().optional(),
             prompt: z.string().optional(),
-            result: z.string().optional(),
+            result: z.unknown().optional(),
         }).partial().passthrough().optional(),
     }).partial().passthrough(),
     extractStatus: (opts: { metadata: Metadata | null, tool: ToolCall }) => {
