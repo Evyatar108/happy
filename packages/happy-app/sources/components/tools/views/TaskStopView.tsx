@@ -45,6 +45,9 @@ function getTaskStopOutcome(data: { stopped?: boolean; error?: string; status?: 
     if (data.status === 'already_stopped') {
         return t('tools.taskStop.alreadyStopped');
     }
+    if (data.status === 'completed' || data.status === 'success') {
+        return t('tools.taskStop.stopped');
+    }
     if (typeof data.status === 'string' && data.status.trim()) {
         return data.status;
     }
