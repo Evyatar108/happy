@@ -11,12 +11,14 @@ import { Session } from "../session";
 import { EnhancedMode, PermissionMode } from "../loop";
 import { getToolDescriptor } from "./getToolDescriptor";
 import { mapToClaudeMode, type ClaudeSdkPermissionMode } from "./permissionMode";
+import { SessionAllowlist } from "./sessionAllowlist";
 
 interface PermissionResponse {
     id: string;
     approved: boolean;
     reason?: string;
     mode?: ClaudeSdkPermissionMode;
+    decision?: 'approved' | 'approved_for_session' | 'denied' | 'abort';
     allowTools?: string[];
     updatedInput?: Record<string, unknown>;
     receivedAt?: number;
@@ -34,9 +36,7 @@ export class PermissionHandler {
     private responses = new Map<string, PermissionResponse>();
     private pendingRequests = new Map<string, PendingRequest>();
     private session: Session;
-    private allowedTools = new Set<string>();
-    private allowedBashLiterals = new Set<string>();
-    private allowedBashPrefixes = new Set<string>();
+    private allowlist: SessionAllowlist;
     /**
      * Effective Claude-side permission mode (always one of the 4 SDK modes).
      * Codex-style modes from the mobile (`yolo`, `safe-yolo`, `read-only`) are
@@ -48,8 +48,9 @@ export class PermissionHandler {
     /** Callback to change permission mode on the active query (set by claudeRemote) */
     private setPermissionModeCallback?: (mode: ClaudeSdkPermissionMode) => Promise<void>;
 
-    constructor(session: Session) {
+    constructor(session: Session, allowlist: SessionAllowlist = session.permissionAllowlist) {
         this.session = session;
+        this.allowlist = allowlist;
         this.setupClientHandler();
     }
 
@@ -80,16 +81,7 @@ export class PermissionHandler {
         pending: PendingRequest
     ): void {
 
-        // Update allowed tools
-        if (response.allowTools && response.allowTools.length > 0) {
-            response.allowTools.forEach(tool => {
-                if (tool.startsWith('Bash(') || tool === 'Bash') {
-                    this.parseBashPermission(tool);
-                } else {
-                    this.allowedTools.add(tool);
-                }
-            });
-        }
+        this.allowlist.applyPermissionResponse(response, pending.toolName, pending.input);
 
         // Update permission mode
         if (response.mode) {
@@ -149,18 +141,11 @@ export class PermissionHandler {
         if (toolName === 'Bash') {
             const inputObj = input as { command?: string };
             if (inputObj?.command) {
-                // Check literal matches
-                if (this.allowedBashLiterals.has(inputObj.command)) {
+                if (this.allowlist.isAllowed(toolName, input)) {
                     return { behavior: 'allow', updatedInput: input as Record<string, unknown> };
                 }
-                // Check prefix matches
-                for (const prefix of this.allowedBashPrefixes) {
-                    if (inputObj.command.startsWith(prefix)) {
-                        return { behavior: 'allow', updatedInput: input as Record<string, unknown> };
-                    }
-                }
             }
-        } else if (this.allowedTools.has(toolName)) {
+        } else if (this.allowlist.isAllowed(toolName, input)) {
             return { behavior: 'allow', updatedInput: input as Record<string, unknown> };
         }
 
@@ -264,35 +249,6 @@ export class PermissionHandler {
 
 
     /**
-     * Parses Bash permission strings into literal and prefix sets
-     */
-    private parseBashPermission(permission: string): void {
-        // Ignore plain "Bash"
-        if (permission === 'Bash') {
-            return;
-        }
-
-        // Match Bash(command) or Bash(command:*)
-        const bashPattern = /^Bash\((.+?)\)$/;
-        const match = permission.match(bashPattern);
-
-        if (!match) {
-            return;
-        }
-
-        const command = match[1];
-
-        // Check if it's a prefix pattern (ends with :*)
-        if (command.endsWith(':*')) {
-            const prefix = command.slice(0, -2); // Remove :*
-            this.allowedBashPrefixes.add(prefix);
-        } else {
-            // Literal match
-            this.allowedBashLiterals.add(command);
-        }
-    }
-
-    /**
      * Checks if a tool call is rejected
      */
     isAborted(toolCallId: string): boolean {
@@ -308,12 +264,12 @@ export class PermissionHandler {
     /**
      * Resets all state for new sessions
      */
-    reset(): void {
+    reset(options: { clearAllowlist?: boolean } = {}): void {
         this.responses.clear();
-        this.allowedTools.clear();
-        this.allowedBashLiterals.clear();
-        this.allowedBashPrefixes.clear();
         this.permissionMode = 'default';
+        if (options.clearAllowlist) {
+            this.allowlist.clear();
+        }
 
         // Cancel all pending requests
         for (const [, pending] of this.pendingRequests.entries()) {
@@ -383,6 +339,7 @@ export class PermissionHandler {
                             status: message.approved ? 'approved' : 'denied',
                             reason: message.reason,
                             mode: message.mode,
+                            decision: message.decision,
                             allowTools: message.allowTools
                         }
                     }

@@ -818,6 +818,10 @@ export class ApiSessionClient extends EventEmitter {
         return this.metadata;
     }
 
+    getAgentState(): AgentState | null {
+        return this.agentState;
+    }
+
     /**
      * Update session metadata
      * @param handler - Handler function that returns the updated metadata

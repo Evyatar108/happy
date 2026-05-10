@@ -4,6 +4,7 @@ import { EnhancedMode } from "./loop";
 import { logger } from "@/ui/logger";
 import type { JsRuntime } from "./runClaude";
 import type { SandboxConfig } from "@/persistence";
+import { SessionAllowlist } from "./utils/sessionAllowlist";
 
 export type PendingSwitch = {
     requestedAt: number;
@@ -26,6 +27,7 @@ export class Session {
     readonly hookSettingsPath: string;
     /** JavaScript runtime to use for spawning Claude Code (default: 'node') */
     readonly jsRuntime: JsRuntime;
+    readonly permissionAllowlist = new SessionAllowlist();
 
     sessionId: string | null;
     mode: 'local' | 'remote' = 'local';
