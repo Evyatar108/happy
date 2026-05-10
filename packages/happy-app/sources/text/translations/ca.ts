@@ -279,6 +279,8 @@ export const ca: TranslationStructure = {
         commandPaletteDisabled: 'Accés ràpid a comandes desactivat',
         markdownCopyV2: 'Markdown Copy v2',
         markdownCopyV2Subtitle: 'Pulsació llarga obre modal de còpia',
+        unifiedNewSessionComposer: 'Compositor unificat de sessió nova',
+        unifiedNewSessionComposerSubtitle: 'Utilitza el compositor compartit a la pantalla de sessió nova',
         hideInactiveSessions: 'Amaga les sessions inactives',
         hideInactiveSessionsSubtitle: 'Mostra només els xats actius a la llista',
         privacy: 'Privadesa',

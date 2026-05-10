@@ -296,6 +296,8 @@ export const pl: TranslationStructure = {
         commandPaletteDisabled: 'Szybki dostęp do poleceń wyłączony',
         markdownCopyV2: 'Markdown Copy v2',
         markdownCopyV2Subtitle: 'Długie naciśnięcie otwiera modal kopiowania',
+        unifiedNewSessionComposer: 'Ujednolicony kompozytor nowej sesji',
+        unifiedNewSessionComposerSubtitle: 'Użyj wspólnego kompozytora na ekranie nowej sesji',
         hideInactiveSessions: 'Ukryj nieaktywne sesje',
         hideInactiveSessionsSubtitle: 'Wyświetlaj tylko aktywne czaty na liście',
         privacy: 'Prywatność',

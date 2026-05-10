@@ -280,6 +280,8 @@ export const ja: TranslationStructure = {
         commandPaletteDisabled: 'クイックコマンドアクセスは無効',
         markdownCopyV2: 'Markdownコピー v2',
         markdownCopyV2Subtitle: '長押しでコピーモーダルを開く',
+        unifiedNewSessionComposer: '統合新規セッションコンポーザー',
+        unifiedNewSessionComposerSubtitle: '新規セッション画面で共有コンポーザーを使用',
         hideInactiveSessions: '非アクティブセッションを非表示',
         hideInactiveSessionsSubtitle: 'アクティブなチャットのみをリストに表示',
         privacy: 'プライバシー',

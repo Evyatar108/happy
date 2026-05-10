@@ -279,6 +279,8 @@ export const es: TranslationStructure = {
         commandPaletteDisabled: 'Acceso rápido a comandos deshabilitado',
         markdownCopyV2: 'Markdown Copy v2',
         markdownCopyV2Subtitle: 'Pulsación larga abre modal de copiado',
+        unifiedNewSessionComposer: 'Compositor unificado de sesión nueva',
+        unifiedNewSessionComposerSubtitle: 'Usa el compositor compartido en la pantalla de sesión nueva',
         hideInactiveSessions: 'Ocultar sesiones inactivas',
         hideInactiveSessionsSubtitle: 'Muestra solo los chats activos en tu lista',
         privacy: 'Privacidad',
