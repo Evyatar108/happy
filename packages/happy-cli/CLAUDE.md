@@ -183,6 +183,7 @@ User interface components.
 - All communications encrypted using TweetNaCl
 - Challenge-response authentication prevents replay attacks
 - Session isolation through unique session IDs
+- `writeFile` RPC `createParents: true` is only for `.happy/attachments/*` targets and must keep both gates: lexical attachments allowlist plus `validatePathRealpath(...)` symlink/realpath confinement before directory creation.
 
 ## Dependencies
 

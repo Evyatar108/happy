@@ -69,12 +69,18 @@ interface SessionWriteFileRequest {
     path: string;
     content: string; // base64 encoded
     expectedHash?: string | null;
+    createParents?: boolean;
 }
 
 interface SessionWriteFileResponse {
     success: boolean;
     hash?: string;
     error?: string;
+}
+
+interface SessionWriteFileOptions {
+    expectedHash?: string | null;
+    createParents?: boolean;
 }
 
 // List directory operation types
@@ -583,10 +589,19 @@ export async function sessionWriteFile(
     sessionId: string,
     path: string,
     content: string,
-    expectedHash?: string | null
+    expectedHashOrOptions?: string | null | SessionWriteFileOptions
 ): Promise<SessionWriteFileResponse> {
     try {
-        const request: SessionWriteFileRequest = { path, content, expectedHash };
+        const options = typeof expectedHashOrOptions === 'object' && expectedHashOrOptions !== null
+            ? expectedHashOrOptions
+            : { expectedHash: expectedHashOrOptions };
+        const request: SessionWriteFileRequest = { path, content };
+        if (options.expectedHash !== undefined) {
+            request.expectedHash = options.expectedHash;
+        }
+        if (options.createParents !== undefined) {
+            request.createParents = options.createParents;
+        }
         const response = await apiSocket.sessionRPC<SessionWriteFileResponse, SessionWriteFileRequest>(
             sessionId,
             'writeFile',

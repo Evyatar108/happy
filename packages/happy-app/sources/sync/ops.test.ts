@@ -28,7 +28,7 @@ vi.mock('./storage', () => ({
 }));
 
 import { apiSocket } from './apiSocket';
-import { cancelPendingSwitch, machineForkSession, requestSwitch, sessionEmitAgentConfiguration, sessionUpdateMetadata } from './ops';
+import { cancelPendingSwitch, machineForkSession, requestSwitch, sessionEmitAgentConfiguration, sessionUpdateMetadata, sessionWriteFile } from './ops';
 import { sync } from './sync';
 
 describe('sessionUpdateMetadata', () => {
@@ -191,6 +191,38 @@ describe('sessionEmitAgentConfiguration', () => {
             currentModelCode: 'claude-sonnet',
             currentPermissionModeCode: 'bypassPermissions',
             currentThoughtLevelCode: 'medium',
+        });
+    });
+});
+
+describe('sessionWriteFile', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('keeps the legacy expectedHash argument shape', async () => {
+        vi.mocked(apiSocket.sessionRPC).mockResolvedValue({ success: true, hash: 'hash-1' });
+
+        const result = await sessionWriteFile('session-1', 'file.txt', 'aGVsbG8=', 'expected-hash');
+
+        expect(result).toEqual({ success: true, hash: 'hash-1' });
+        expect(apiSocket.sessionRPC).toHaveBeenCalledWith('session-1', 'writeFile', {
+            path: 'file.txt',
+            content: 'aGVsbG8=',
+            expectedHash: 'expected-hash',
+        });
+    });
+
+    it('passes createParents through the writeFile RPC options object', async () => {
+        vi.mocked(apiSocket.sessionRPC).mockResolvedValue({ success: true, hash: 'hash-1' });
+
+        const result = await sessionWriteFile('session-1', '.happy/attachments/local/file.txt', 'aGVsbG8=', { createParents: true });
+
+        expect(result).toEqual({ success: true, hash: 'hash-1' });
+        expect(apiSocket.sessionRPC).toHaveBeenCalledWith('session-1', 'writeFile', {
+            path: '.happy/attachments/local/file.txt',
+            content: 'aGVsbG8=',
+            createParents: true,
         });
     });
 });
