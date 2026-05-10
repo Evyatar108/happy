@@ -53,13 +53,14 @@ describe('runClaude image block plumbing', () => {
         mocks.mockParseSpecialCommand.mockReturnValue({ type: 'none' });
     });
 
-    it('sends queued image attachments as Anthropic vision content blocks', async () => {
-        const stagedBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB';
+    it('sends queued image attachments as Anthropic vision content blocks (data-URL ref)', async () => {
+        const rawBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB';
+        const dataUrlRef = `data:image/png;base64,${rawBase64}`;
         const nextMessage = vi
             .fn()
             .mockResolvedValueOnce({
                 message: 'describe this image',
-                attachments: [{ type: 'image', ref: stagedBase64, mimeType: 'image/png' }],
+                attachments: [{ type: 'image', ref: dataUrlRef, mimeType: 'image/png' }],
                 mode: { permissionMode: 'default' },
             })
             .mockResolvedValueOnce(null);
@@ -105,7 +106,65 @@ describe('runClaude image block plumbing', () => {
                 source: {
                     type: 'base64',
                     media_type: 'image/png',
-                    data: stagedBase64,
+                    data: rawBase64,
+                },
+            },
+        ]);
+    });
+
+    it('passes raw base64 refs through unchanged', async () => {
+        const rawBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB';
+        const nextMessage = vi
+            .fn()
+            .mockResolvedValueOnce({
+                message: 'describe this image',
+                attachments: [{ type: 'image', ref: rawBase64, mimeType: 'image/png' }],
+                mode: { permissionMode: 'default' },
+            })
+            .mockResolvedValueOnce(null);
+
+        mocks.mockQuery.mockReturnValue(createMessageStream([
+            {
+                type: 'result',
+                subtype: 'success',
+                duration_ms: 1,
+                duration_api_ms: 1,
+                is_error: false,
+                num_turns: 1,
+                result: 'done',
+                stop_reason: null,
+                session_id: 'session-image',
+                total_cost_usd: 0,
+                usage: {},
+                modelUsage: {},
+                permission_denials: [],
+                uuid: '00000000-0000-0000-0000-000000000011',
+            } as unknown as SDKMessage,
+        ]));
+
+        await claudeRemote({
+            sessionId: null,
+            path: '/tmp/project',
+            allowedTools: [],
+            hookSettingsPath: '/tmp/settings.json',
+            nextMessage,
+            onReady: vi.fn(),
+            isAborted: () => false,
+            onSessionFound: vi.fn(),
+            onMessage: vi.fn(),
+            canCallTool: async () => ({ behavior: 'allow', updatedInput: {} }),
+        });
+
+        const prompt = mocks.mockQuery.mock.calls[0][0].prompt as AsyncIterable<any>;
+        const first = await prompt[Symbol.asyncIterator]().next();
+        expect(first.value.message.content).toEqual([
+            { type: 'text', text: 'describe this image' },
+            {
+                type: 'image',
+                source: {
+                    type: 'base64',
+                    media_type: 'image/png',
+                    data: rawBase64,
                 },
             },
         ]);

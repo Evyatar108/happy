@@ -45,6 +45,11 @@ function toClaudeImageMediaType(mimeType?: string): ClaudeImageMediaType {
     }
 }
 
+function getBase64Payload(ref: string): string {
+    const dataUrlPrefix = ref.indexOf(';base64,');
+    return dataUrlPrefix !== -1 ? ref.slice(dataUrlPrefix + 8) : ref;
+}
+
 function toClaudeUserContent(message: string, attachments?: MessageQueueAttachment[]): string | ContentBlockParam[] {
     if (!attachments || attachments.length === 0) {
         return message;
@@ -57,7 +62,7 @@ function toClaudeUserContent(message: string, attachments?: MessageQueueAttachme
             source: {
                 type: 'base64',
                 media_type: toClaudeImageMediaType(attachment.mimeType),
-                data: attachment.ref,
+                data: getBase64Payload(attachment.ref),
             },
         })),
     ];
