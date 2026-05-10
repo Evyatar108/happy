@@ -39,6 +39,11 @@ const agentEventSchema = z.discriminatedUnion('type', [z.object({
     kind: sessionContextBoundaryKindSchema,
     at: z.number(),
     forkedFromSid: z.string().optional(),
+}), z.object({
+    type: z.literal('message-consumption'),
+    messageId: z.string(),
+    consumedAt: z.number(),
+    agentFlavor: z.enum(['claude', 'codex']),
 })]);
 export type AgentEvent = z.infer<typeof agentEventSchema>;
 
@@ -491,7 +496,7 @@ function normalizeSessionEnvelope(
 ): NormalizedMessageBase | null {
     // Session protocol requires turn id on all agent-originated envelopes.
     // Drop malformed agent events without turn to avoid attaching stray messages.
-    if (envelope.role === 'agent' && !envelope.turn && envelope.ev.t !== 'context-boundary') {
+    if (envelope.role === 'agent' && !envelope.turn && envelope.ev.t !== 'context-boundary' && envelope.ev.t !== 'message-consumption') {
         return null;
     }
 
@@ -521,6 +526,23 @@ function normalizeSessionEnvelope(
                 kind: envelope.ev.kind,
                 at: envelope.ev.at,
                 forkedFromSid: envelope.ev.forkedFromSid,
+            },
+            meta
+        } satisfies NormalizedMessageBase;
+    }
+
+    if (envelope.ev.t === 'message-consumption') {
+        return {
+            id: messageId,
+            localId,
+            createdAt: messageCreatedAt,
+            role: 'event',
+            isSidechain: false,
+            content: {
+                type: 'message-consumption',
+                messageId: envelope.ev.messageId,
+                consumedAt: envelope.ev.consumedAt,
+                agentFlavor: envelope.ev.agentFlavor,
             },
             meta
         } satisfies NormalizedMessageBase;

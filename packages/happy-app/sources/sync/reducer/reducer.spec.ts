@@ -80,6 +80,28 @@ function createUserTextMessage(id: string, createdAt: number, text: string): Nor
     };
 }
 
+function createMessageConsumptionEvent(
+    id: string,
+    createdAt: number,
+    messageId: string,
+    consumedAt: number,
+): NormalizedMessage {
+    return {
+        id,
+        localId: null,
+        createdAt,
+        seq: 1,
+        role: 'event',
+        isSidechain: false,
+        content: {
+            type: 'message-consumption',
+            messageId,
+            consumedAt,
+            agentFlavor: 'claude',
+        },
+    };
+}
+
 function createAgentTextMessage(
     id: string,
     createdAt: number,
@@ -436,6 +458,38 @@ describe('reducer', () => {
             if (result.messages[2].kind === 'user-text') {
                 expect(result.messages[2].text).toBe('Third');
             }
+        });
+
+        it('sets agentProcessedAt from message-consumption events', () => {
+            const state = createReducer();
+            const userMessage = createUserTextMessage('user-msg-1', 1000, 'Hello');
+            const consumption = createMessageConsumptionEvent('consumed-1', 1010, 'user-msg-1', 1005);
+
+            reducer(state, [userMessage]);
+            const result = reducer(state, [consumption]);
+
+            expect(result.messages).toHaveLength(1);
+            expect(result.messages[0]).toMatchObject({
+                kind: 'user-text',
+                text: 'Hello',
+                agentProcessedAt: 1005,
+            });
+        });
+
+        it('applies message-consumption when the ack arrives before the user message', () => {
+            const state = createReducer();
+            const userMessage = createUserTextMessage('user-msg-1', 1000, 'Hello');
+            const consumption = createMessageConsumptionEvent('consumed-1', 990, 'user-msg-1', 1005);
+
+            expect(reducer(state, [consumption]).messages).toHaveLength(0);
+            const result = reducer(state, [userMessage]);
+
+            expect(result.messages).toHaveLength(1);
+            expect(result.messages[0]).toMatchObject({
+                kind: 'user-text',
+                text: 'Hello',
+                agentProcessedAt: 1005,
+            });
         });
     });
 

@@ -29,6 +29,7 @@ export type UserTextMessage = {
     createdAt: number;
     seq: number;
     text: string;
+    agentProcessedAt?: number;
     displayText?: string; // Optional text to display in UI instead of actual text
     meta?: MessageMeta;
 }

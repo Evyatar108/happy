@@ -138,6 +138,7 @@ type ReducerMessage = {
     event: AgentEvent | null;
     tool: ToolCall | null;
     meta?: MessageMeta;
+    agentProcessedAt?: number;
 }
 
 type StoredPermission = {
@@ -170,6 +171,7 @@ export type ReducerState = {
     sidechainToolIdToMessageId: Map<string, string>; // toolId -> sidechain messageId (for dual tracking)
     permissions: Map<string, StoredPermission>; // Store permission details by ID for quick lookup
     pendingToolResults: Map<string, PendingToolResult>;
+    messageConsumptions: Map<string, number>;
     localIds: Map<string, string>;
     messageIds: Map<string, string>; // originalId -> internalId
     messages: Map<string, ReducerMessage>;
@@ -196,6 +198,7 @@ export function createReducer(): ReducerState {
         sidechainToolIdToMessageId: new Map(),
         permissions: new Map(),
         pendingToolResults: new Map(),
+        messageConsumptions: new Map(),
         messages: new Map(),
         localIds: new Map(),
         messageIds: new Map(),
@@ -244,6 +247,31 @@ function findMatchingExitPlanToolMessageId(
     }
 
     return matched?.id ?? null;
+}
+
+function applyMessageConsumption(state: ReducerState, messageId: string, consumedAt: number): string | null {
+    const reducerMessageId = state.messageIds.get(messageId);
+    const message = reducerMessageId ? state.messages.get(reducerMessageId) : undefined;
+    if (!message || message.role !== 'user') {
+        state.messageConsumptions.set(messageId, consumedAt);
+        return null;
+    }
+
+    if (message.agentProcessedAt === consumedAt) {
+        return null;
+    }
+
+    message.agentProcessedAt = consumedAt;
+    state.messageConsumptions.delete(messageId);
+    return reducerMessageId ?? null;
+}
+
+function applyPendingMessageConsumption(state: ReducerState, messageId: string): string | null {
+    const consumedAt = state.messageConsumptions.get(messageId);
+    if (consumedAt === undefined) {
+        return null;
+    }
+    return applyMessageConsumption(state, messageId, consumedAt);
 }
 
 function toStoredPermission(
@@ -522,6 +550,15 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
             if (accepted) {
                 resetForBoundary(state, msg.content.kind, msg.createdAt);
             }
+        }
+
+        if (msg.role === 'event' && msg.content.type === 'message-consumption') {
+            const changedMessageId = applyMessageConsumption(state, msg.content.messageId, msg.content.consumedAt);
+            if (changedMessageId) {
+                changed.add(changedMessageId);
+            }
+            state.messageIds.set(msg.id, msg.id);
+            continue;
         }
 
         // Try to parse message as event
@@ -843,6 +880,10 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                 state.localIds.set(msg.localId, mid);
             }
             state.messageIds.set(msg.id, mid);
+            const consumedMessageId = applyPendingMessageConsumption(state, msg.id);
+            if (consumedMessageId) {
+                changed.add(consumedMessageId);
+            }
 
             changed.add(mid);
         } else if (msg.role === 'agent') {
@@ -1401,6 +1442,7 @@ function convertReducerMessageToMessage(reducerMsg: ReducerMessage, state: Reduc
             seq: reducerMsg.seq,
             kind: 'user-text',
             text: reducerMsg.text,
+            ...(reducerMsg.agentProcessedAt !== undefined && { agentProcessedAt: reducerMsg.agentProcessedAt }),
             ...(reducerMsg.meta?.displayText && { displayText: reducerMsg.meta.displayText }),
             meta: reducerMsg.meta
         };

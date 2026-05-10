@@ -1542,6 +1542,12 @@ describe('Zod Transform - WOLOG Content Normalization', () => {
                 model: 'claude-sonnet-4-6',
                 thinkingLevel: 'high',
                 sandbox: 'workspace-write'
+            },
+            'message-consumption': {
+                t: 'message-consumption',
+                messageId: 'user-message-1',
+                consumedAt: 1736300000100,
+                agentFlavor: 'claude'
             }
         } satisfies Record<SessionEvent['t'], SessionEvent>;
 
