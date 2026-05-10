@@ -40,7 +40,7 @@ Happy redesigned from multi-tenant cloud relay to server-per-machine product. Ea
 
 - Small UX touchups - too many to list
 - Bundled distribution (needed to make my own daily driver)
-- Forking a session - for example a session with triaging -> fork into multiple where we fix the specific groups of issues
+- Forking a session - for example a session with triaging -> fork into multiple where we fix the specific groups of issues *(shipped for Codex sessions 2026-05-10; Claude/gemini/openclaw still follow-up — see [experimental/roadmap.md § Session Forking](experimental/roadmap.md#session-forking))*
 
 - File preview / editing in session — see [layout-core.md](layout-core.md)
 - Better diff viewer — see [layout-core.md](layout-core.md)
