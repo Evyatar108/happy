@@ -2842,6 +2842,8 @@ class Sync {
         }
     }
 
+    generateLocalMessageId = () => generateLocalMessageId();
+
 }
 
 // Global singleton instance
