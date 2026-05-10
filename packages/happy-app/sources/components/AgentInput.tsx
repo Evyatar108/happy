@@ -25,7 +25,17 @@ import { Metadata } from '@/sync/storageTypes';
 import { useChatWidth, CHAT_WIDTH_MARGIN_OPTIONS } from '@/hooks/useChatWidth';
 import { useIsTablet } from '@/utils/responsive';
 
+type AgentInputMode = 'new' | 'active';
+
+interface AgentInputNewSessionSlots {
+    machineChip?: React.ReactNode;
+    pathChip?: React.ReactNode;
+    worktreeSelector?: React.ReactNode;
+    agentPicker?: React.ReactNode;
+}
+
 interface AgentInputProps {
+    mode?: AgentInputMode;
     value: string;
     placeholder: string;
     onChangeText: (text: string) => void;
@@ -79,6 +89,45 @@ interface AgentInputProps {
     isSendDisabled?: boolean;
     isSending?: boolean;
     minHeight?: number;
+    newSessionSlots?: AgentInputNewSessionSlots;
+    onAttachmentPress?: () => void;
+    attachmentsPreview?: React.ReactNode;
+    projectPathHeader?: React.ReactNode;
+}
+
+interface AgentInputRenderConfig {
+    showActiveContextRow: boolean;
+    showActiveStatusRow: boolean;
+    showActiveAutocomplete: boolean;
+    showActiveToolbarControls: boolean;
+    showNewSessionSlots: boolean;
+    showAttachmentButton: boolean;
+    showProjectPathHeader: boolean;
+}
+
+export function selectAgentInputRenderConfig(mode: AgentInputMode): AgentInputRenderConfig {
+    switch (mode) {
+        case 'new':
+            return {
+                showActiveContextRow: false,
+                showActiveStatusRow: false,
+                showActiveAutocomplete: false,
+                showActiveToolbarControls: false,
+                showNewSessionSlots: true,
+                showAttachmentButton: true,
+                showProjectPathHeader: false,
+            };
+        case 'active':
+            return {
+                showActiveContextRow: true,
+                showActiveStatusRow: true,
+                showActiveAutocomplete: true,
+                showActiveToolbarControls: true,
+                showNewSessionSlots: false,
+                showAttachmentButton: false,
+                showProjectPathHeader: true,
+            };
+    }
 }
 
 const MAX_CONTEXT_SIZE = 190000;
@@ -117,6 +166,24 @@ const stylesheet = StyleSheet.create((theme, runtime) => ({
         paddingRight: 8,
         paddingVertical: 4,
         minHeight: 40,
+    },
+    projectPathHeader: {
+        alignItems: 'flex-end',
+        paddingHorizontal: 8,
+        paddingBottom: 4,
+    },
+    newSessionSlots: {
+        backgroundColor: theme.colors.surfacePressed,
+        borderRadius: 12,
+        padding: 8,
+        marginBottom: 8,
+        gap: 6,
+    },
+    newSessionSlotRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        flexWrap: 'wrap',
     },
 
     // Overlay styles
@@ -343,12 +410,15 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
     const { body: bodyMaxWidth } = useChatWidth(screenWidth);
     const isTablet = useIsTablet();
     const isSendBlocked = props.blockSend ?? false;
+    const mode = props.mode ?? 'active';
+    const renderConfig = selectAgentInputRenderConfig(mode);
     const innerContainerWidthStyle = React.useMemo(() => ({ maxWidth: bodyMaxWidth }), [bodyMaxWidth]);
 
     const hasText = props.value.trim().length > 0;
+    const canUseMic = renderConfig.showActiveToolbarControls && !!props.onMicPress;
     const canPressSendButton = !props.isSending
         && !props.isSendDisabled
-        && (isSendBlocked ? hasText : (hasText || !!props.onMicPress));
+        && (isSendBlocked ? hasText : (hasText || canUseMic));
 
     // Check if this is a Codex, Gemini, or OpenClaw session
     // Use metadata.flavor for existing sessions, agentType prop for new sessions
@@ -394,6 +464,12 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
         : null;
 
     const agentInputEnterToSend = useSetting('agentInputEnterToSend');
+    const newSessionSlotNodes = React.useMemo(() => [
+        props.newSessionSlots?.machineChip,
+        props.newSessionSlots?.pathChip,
+        props.newSessionSlots?.worktreeSelector,
+        props.newSessionSlots?.agentPicker,
+    ].filter(Boolean), [props.newSessionSlots]);
 
 
     // Abort button state
@@ -557,10 +633,10 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
         hapticsLight();
         if (hasText) {
             props.onSend('now');
-        } else {
+        } else if (canUseMic) {
             props.onMicPress?.();
         }
-    }, [handleBlockedSendAttempt, hasText, isSendBlocked, props]);
+    }, [canUseMic, handleBlockedSendAttempt, hasText, isSendBlocked, props]);
 
     const handleSendWhenIdlePress = React.useCallback(() => {
         if (isSendBlocked) {
@@ -651,11 +727,11 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                 innerContainerWidthStyle
             ]}>
                 {/* Autocomplete suggestions overlay */}
-                {suggestions.length > 0 && (
+                {renderConfig.showActiveAutocomplete && suggestions.length > 0 && (
                     <View style={[
                         styles.autocompleteOverlay,
                         { paddingHorizontal: screenWidth > 700 ? 0 : 8 }
-                    ]}>
+                    ]} testID="agent-input-autocomplete-overlay">
                         <AgentInputAutocomplete
                             suggestions={suggestions.map(s => {
                                 const Component = s.component;
@@ -1020,7 +1096,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                 )}
 
                 {/* Connection status, context warning, and permission mode */}
-                {(props.connectionStatus || contextWarning || (displayPermissionMode && permissionModeKey !== 'default')) && (
+                {renderConfig.showActiveStatusRow && (props.connectionStatus || contextWarning || (displayPermissionMode && permissionModeKey !== 'default')) && (
                     <View style={{
                         flexDirection: 'row',
                         alignItems: 'center',
@@ -1028,7 +1104,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                         paddingHorizontal: 16,
                         paddingBottom: 4,
                         minHeight: 20, // Fixed minimum height to prevent jumping
-                    }}>
+                    }} testID="agent-input-connection-status-row">
                         <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 11 }}>
                             {props.connectionStatus && (
                                 <>
@@ -1156,14 +1232,41 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                 )}
 
                 {/* Box 1: Context Information (Machine + Path) - Only show if either exists */}
-                {(props.machineName !== undefined || props.currentPath) && (
+                {renderConfig.showProjectPathHeader && props.projectPathHeader && (
+                    <View style={styles.projectPathHeader} testID="agent-input-project-path-header">
+                        {typeof props.projectPathHeader === 'string' ? (
+                            <Text
+                                numberOfLines={1}
+                                style={{
+                                    fontSize: 12,
+                                    color: theme.colors.textSecondary,
+                                    ...Typography.default(),
+                                }}
+                            >
+                                {props.projectPathHeader}
+                            </Text>
+                        ) : props.projectPathHeader}
+                    </View>
+                )}
+
+                {renderConfig.showNewSessionSlots && newSessionSlotNodes.length > 0 && (
+                    <View style={styles.newSessionSlots} testID="agent-input-new-session-slots">
+                        <View style={styles.newSessionSlotRow}>
+                            {newSessionSlotNodes.map((slot, index) => (
+                                <React.Fragment key={index}>{slot}</React.Fragment>
+                            ))}
+                        </View>
+                    </View>
+                )}
+
+                {(renderConfig.showActiveContextRow && (props.machineName !== undefined || props.currentPath)) && (
                     <View style={{
                         backgroundColor: theme.colors.surfacePressed,
                         borderRadius: 12,
                         padding: 8,
                         marginBottom: 8,
                         gap: 4,
-                    }}>
+                    }} testID="agent-input-active-context-row">
                         {/* Machine chip */}
                         {props.machineName !== undefined && props.onMachineClick && (
                             <Pressable
@@ -1239,6 +1342,12 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                 {/* Box 2: Action Area (Input + Send) */}
                 <Shaker ref={sendBlockShakerRef}>
                 <View style={styles.unifiedPanel}>
+                    {renderConfig.showAttachmentButton && props.attachmentsPreview && (
+                        <View testID="agent-input-attachments-preview">
+                            {props.attachmentsPreview}
+                        </View>
+                    )}
+
                     {/* Input field */}
                     <View style={[styles.inputContainer, props.minHeight ? { minHeight: props.minHeight } : undefined]}>
                         <MultiTextInput
@@ -1260,6 +1369,33 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                             {/* Row 1: Settings, Profile (FIRST), Agent, Abort, Git Status */}
                             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <View style={styles.actionButtonsLeft}>
+
+                                {renderConfig.showAttachmentButton && props.onAttachmentPress && (
+                                    <Pressable
+                                        onPress={() => {
+                                            hapticsLight();
+                                            props.onAttachmentPress?.();
+                                        }}
+                                        hitSlop={{ top: 5, bottom: 10, left: 0, right: 0 }}
+                                        testID="agent-input-attachment-button"
+                                        style={(p) => ({
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            borderRadius: Platform.select({ default: 16, android: 20 }),
+                                            paddingHorizontal: 8,
+                                            paddingVertical: 6,
+                                            justifyContent: 'center',
+                                            height: 32,
+                                            opacity: p.pressed ? 0.7 : 1,
+                                        })}
+                                    >
+                                        <Octicons
+                                            name="plus"
+                                            size={16}
+                                            color={theme.colors.button.secondary.tint}
+                                        />
+                                    </Pressable>
+                                )}
 
                                 {/* Settings button */}
                                 {props.onPermissionModeChange && (
@@ -1285,30 +1421,31 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                     </Pressable>
                                 )}
 
-                                {/* Text-size button (discrete chat font-scale picker; complements pinch-to-zoom) */}
-                                <Pressable
-                                    onPress={handleTextSizePress}
-                                    hitSlop={{ top: 5, bottom: 10, left: 0, right: 0 }}
-                                    accessibilityLabel={t('agentInput.textSize.title')}
-                                    style={(p) => ({
-                                        flexDirection: 'row',
-                                        alignItems: 'center',
-                                        borderRadius: Platform.select({ default: 16, android: 20 }),
-                                        paddingHorizontal: 8,
-                                        paddingVertical: 6,
-                                        justifyContent: 'center',
-                                        height: 32,
-                                        opacity: p.pressed ? 0.7 : 1,
-                                    })}
-                                >
-                                    <Ionicons
-                                        name={'text'}
-                                        size={16}
-                                        color={theme.colors.button.secondary.tint}
-                                    />
-                                </Pressable>
+                                {renderConfig.showActiveToolbarControls && (
+                                    <Pressable
+                                        onPress={handleTextSizePress}
+                                        hitSlop={{ top: 5, bottom: 10, left: 0, right: 0 }}
+                                        accessibilityLabel={t('agentInput.textSize.title')}
+                                        style={(p) => ({
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            borderRadius: Platform.select({ default: 16, android: 20 }),
+                                            paddingHorizontal: 8,
+                                            paddingVertical: 6,
+                                            justifyContent: 'center',
+                                            height: 32,
+                                            opacity: p.pressed ? 0.7 : 1,
+                                        })}
+                                    >
+                                        <Ionicons
+                                            name={'text'}
+                                            size={16}
+                                            color={theme.colors.button.secondary.tint}
+                                        />
+                                    </Pressable>
+                                )}
 
-                                {isTablet && (
+                                {renderConfig.showActiveToolbarControls && isTablet && (
                                     <Pressable
                                         onPress={handleChatWidthPress}
                                         hitSlop={{ top: 5, bottom: 10, left: 0, right: 0 }}
@@ -1369,7 +1506,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                 )}
 
                                 {/* Abort button */}
-                                {props.onAbort && (
+                                {renderConfig.showActiveToolbarControls && props.onAbort && (
                                     <Shaker ref={shakerRef}>
                                         <Pressable
                                             style={(p) => ({
@@ -1385,6 +1522,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                             hitSlop={{ top: 5, bottom: 10, left: 0, right: 0 }}
                                             onPress={handleAbortPress}
                                             disabled={isAborting}
+                                            testID="agent-input-abort-button"
                                         >
                                             {isAborting ? (
                                                 <ActivityIndicator
@@ -1403,13 +1541,14 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                 )}
 
                                 {/* Git Status Badge */}
-                                <GitStatusButton sessionId={props.sessionId} onPress={props.onFileViewerPress} />
-                                {props.canSendWhenIdle && (
+                                {renderConfig.showActiveToolbarControls && <GitStatusButton sessionId={props.sessionId} onPress={props.onFileViewerPress} />}
+                                {renderConfig.showActiveToolbarControls && props.canSendWhenIdle && (
                                     <Pressable
                                         onPress={handleSendWhenIdlePress}
                                         hitSlop={{ top: 5, bottom: 10, left: 0, right: 0 }}
                                         accessibilityLabel={t('requestSwitch.whenIdle')}
                                         disabled={!hasText || props.isSendDisabled || props.isSending}
+                                        testID="agent-input-deferred-switch-button"
                                         style={(p) => ({
                                             flexDirection: 'row',
                                             alignItems: 'center',
@@ -1443,7 +1582,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                     style={[
                                         styles.sendButton,
                                         isSendBlocked ? styles.sendButtonLocked :
-                                        (hasText || props.isSending || (props.onMicPress && !props.isMicActive))
+                                        (hasText || props.isSending || (canUseMic && !props.isMicActive))
                                             ? styles.sendButtonActive
                                             : styles.sendButtonInactive
                                     ]}
@@ -1459,6 +1598,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                         hitSlop={{ top: 5, bottom: 10, left: 0, right: 0 }}
                                         onPress={handleSendPress}
                                         disabled={!canPressSendButton}
+                                        testID={!hasText && canUseMic && !props.isMicActive ? 'agent-input-voice-mic' : 'agent-input-send-button'}
                                     >
                                         {props.isSending ? (
                                             <ActivityIndicator
@@ -1481,15 +1621,17 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                                     { marginTop: Platform.OS === 'web' ? 2 : 0 }
                                                 ]}
                                             />
-                                        ) : props.onMicPress && !props.isMicActive ? (
-                                            <Image
-                                                source={require('@/assets/images/icon-voice-white.png')}
-                                                style={{
-                                                    width: 24,
-                                                    height: 24,
-                                                }}
-                                                tintColor={theme.colors.button.primary.tint}
-                                            />
+                                        ) : canUseMic && !props.isMicActive ? (
+                                            props.sendIcon ?? (
+                                                <Image
+                                                    source={require('@/assets/images/icon-voice-white.png')}
+                                                    style={{
+                                                        width: 24,
+                                                        height: 24,
+                                                    }}
+                                                    tintColor={theme.colors.button.primary.tint}
+                                                />
+                                            )
                                         ) : (
                                             <Octicons
                                                 name="arrow-up"
@@ -1525,6 +1667,7 @@ function GitStatusButton({ sessionId, onPress }: { sessionId?: string, onPress?:
 
     return (
         <Pressable
+            testID="agent-input-git-status-button"
             style={(p) => ({
                 flexDirection: 'row',
                 alignItems: 'center',
