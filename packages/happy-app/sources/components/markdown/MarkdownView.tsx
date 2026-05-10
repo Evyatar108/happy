@@ -16,48 +16,16 @@ import * as WebBrowser from 'expo-web-browser';
 import { MermaidRenderer } from './MermaidRenderer';
 import { TaskNotificationPill } from './TaskNotificationPill';
 import { t } from '@/text';
-import { isHttpMarkdownLink } from './linkUtils';
+import { isHttpMarkdownLink, isInternalFileLinkUrl, buildInternalFileLinkUrl, parseInternalFileLinkUrl } from './linkUtils';
 import { useChatScaleAnimatedTextStyle, useChatScaledStyles } from '@/hooks/useChatFontScale';
 import processClaudeMetaTags from './processClaudeMetaTags';
 import { useSession } from '@/sync/storage';
 import { splitSessionFileText } from '@/utils/sessionFileLinks';
-import { encodeBase64Url } from '@/utils/base64url';
 
 // Option type for callback
 export type Option = {
     title: string;
 };
-
-const INTERNAL_FILE_SCHEME = 'happy-file:';
-
-function isInternalFileLinkUrl(url: string): boolean {
-    return url.trim().startsWith(INTERNAL_FILE_SCHEME);
-}
-
-function buildInternalFileLinkUrl(path: string, line: number | null, column: number | null): string {
-    return `${INTERNAL_FILE_SCHEME}${encodeBase64Url(path)}?line=${line ?? ''}&column=${column ?? ''}`;
-}
-
-function parseInternalFileLinkUrl(url: string): { path: string; line: string; column: string } | null {
-    if (!isInternalFileLinkUrl(url)) {
-        return null;
-    }
-
-    const withoutScheme = url.trim().slice(INTERNAL_FILE_SCHEME.length);
-    const queryStart = withoutScheme.indexOf('?');
-    const path = queryStart === -1 ? withoutScheme : withoutScheme.slice(0, queryStart);
-    const params = new URLSearchParams(queryStart === -1 ? '' : withoutScheme.slice(queryStart + 1));
-
-    if (!path) {
-        return null;
-    }
-
-    return {
-        path,
-        line: params.get('line') ?? '',
-        column: params.get('column') ?? '',
-    };
-}
 
 function addSessionFileLinksToSpans(spans: MarkdownSpan[], sessionRoot: string | null): MarkdownSpan[] {
     if (!sessionRoot) {

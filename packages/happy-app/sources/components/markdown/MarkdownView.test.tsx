@@ -119,9 +119,7 @@ vi.mock('@/text', () => ({
     t: (key: string) => key,
 }));
 
-vi.mock('./linkUtils', () => ({
-    isHttpMarkdownLink: (url: string) => /^https?:\/\//i.test(url.trim()),
-}));
+vi.mock('./linkUtils', async () => await vi.importActual('./linkUtils'));
 
 vi.mock('@/hooks/useChatFontScale', () => ({
     useChatScaleAnimatedTextStyle: () => null,
