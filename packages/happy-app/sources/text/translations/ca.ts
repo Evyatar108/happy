@@ -368,6 +368,10 @@ export const ca: TranslationStructure = {
         placeholder: 'Escriu una comanda o cerca...',
     },
 
+    pickers: {
+        noResults: 'Sense resultats',
+    },
+
     drawer: {
         fork: {
             comingSoon: 'Properament',

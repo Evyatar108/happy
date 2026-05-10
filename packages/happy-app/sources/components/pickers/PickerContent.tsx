@@ -3,6 +3,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Ionicons, Octicons } from '@expo/vector-icons';
 import { useUnistyles } from 'react-native-unistyles';
 import { pickerStyles } from './pickerStyles';
+import { t } from '@/text';
 
 export type PickerItem = { key: string; label: string; subtitle?: string; dimmed?: boolean };
 
@@ -80,7 +81,7 @@ export function PickerContent({
                 {filtered.map(renderOption)}
                 {filtered.length === 0 && search.length > 0 && (
                     <Text style={[pickerStyles.emptyText, { color: theme.colors.textSecondary }]}>
-                        no results
+                        {t('pickers.noResults')}
                     </Text>
                 )}
             </ScrollView>

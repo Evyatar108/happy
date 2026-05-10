@@ -369,6 +369,10 @@ export const ja: TranslationStructure = {
         placeholder: 'コマンドを入力または検索...',
     },
 
+    pickers: {
+        noResults: '結果なし',
+    },
+
     drawer: {
         fork: {
             comingSoon: '近日公開',

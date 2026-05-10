@@ -367,6 +367,10 @@ export const pt: TranslationStructure = {
         placeholder: 'Digite um comando ou pesquise...',
     },
 
+    pickers: {
+        noResults: 'Sem resultados',
+    },
+
     drawer: {
         fork: {
             comingSoon: 'Em breve',

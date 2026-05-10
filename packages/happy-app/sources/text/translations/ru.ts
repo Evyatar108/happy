@@ -487,6 +487,10 @@ export const ru: TranslationStructure = {
         placeholder: 'Введите команду или поиск...',
     },
 
+    pickers: {
+        noResults: 'Нет результатов',
+    },
+
     drawer: {
         fork: {
             comingSoon: 'Скоро',

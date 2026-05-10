@@ -385,6 +385,10 @@ export const pl: TranslationStructure = {
         placeholder: 'Wpisz polecenie lub wyszukaj...',
     },
 
+    pickers: {
+        noResults: 'Brak wyników',
+    },
+
     drawer: {
         fork: {
             comingSoon: 'Wkrótce',

@@ -368,6 +368,10 @@ export const zhHant: TranslationStructure = {
         placeholder: '輸入命令或搜尋...',
     },
 
+    pickers: {
+        noResults: '無結果',
+    },
+
     drawer: {
         fork: {
             comingSoon: '即將推出',

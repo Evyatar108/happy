@@ -369,6 +369,10 @@ export const zhHans: TranslationStructure = {
         placeholder: '输入命令或搜索...',
     },
 
+    pickers: {
+        noResults: '无结果',
+    },
+
     drawer: {
         fork: {
             comingSoon: '即将推出',

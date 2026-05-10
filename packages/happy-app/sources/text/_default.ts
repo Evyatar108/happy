@@ -366,6 +366,10 @@ export const en = {
         placeholder: 'Type a command or search...',
     },
 
+    pickers: {
+        noResults: 'No results',
+    },
+
     drawer: {
         fork: {
             comingSoon: 'Coming soon',
