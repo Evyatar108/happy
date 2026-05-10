@@ -25,6 +25,7 @@ import { Modal } from '@/modal';
 import { voiceHooks } from '@/realtime/hooks/voiceHooks';
 import { getCurrentVoiceConversationId, getCurrentVoiceSessionDurationSeconds, startRealtimeSession, stopRealtimeSession } from '@/realtime/RealtimeSession';
 import { shouldShowBoundaryAdvisory, updateComposeStartAt } from './composeBoundaryAdvisory';
+import { getActiveSessionPathSurfaces } from './SessionViewPathSurfaces';
 import { gitStatusSync } from '@/sync/gitStatusSync';
 import { cancelPendingSwitch, requestSwitch, sessionAbort, sessionEmitAgentConfiguration } from '@/sync/ops';
 import { storage, useIsDataReady, useLatestBoundary, useLocalSetting, useLocalSettingMutable, useMachine, useRealtimeStatus, useSessionMessages, useSessionUsage, useSetting } from '@/sync/storage';
@@ -41,7 +42,7 @@ import { FilesSidebar } from '@/components/FilesSidebar';
 import { InlineFileDiff } from '@/components/InlineFileDiff';
 import { prefetchPierreDiff } from '@/components/diff/PierreDiffView';
 import { GitFileStatus } from '@/sync/gitStatusFiles';
-import { formatPathRelativeToHome, getResumeCommandBlock, getSessionAvatarId, getSessionMode, getSessionName, useSessionStatus } from '@/utils/sessionUtils';
+import { getResumeCommandBlock, getSessionAvatarId, getSessionMode, getSessionName, useSessionStatus } from '@/utils/sessionUtils';
 import { useSessionQuickActions } from '@/hooks/useSessionQuickActions';
 import { isVersionSupported, MINIMUM_CLI_VERSION } from '@/utils/versionUtils';
 import { Ionicons } from '@expo/vector-icons';
@@ -78,6 +79,7 @@ export const SessionView = React.memo((props: { id: string }) => {
     const { isExpanded: sidebarExpanded } = useSidebar();
     const showVoiceInSession = !isTablet || !sidebarExpanded;
     const { width: windowWidth } = useWindowDimensions();
+    const unifiedNewSessionComposer = useLocalSetting('unifiedNewSessionComposer');
     const [sessionActionsAnchor, setSessionActionsAnchor] = React.useState<SessionActionsAnchor | null>(null);
     const fileDiffsSidebarEnabled = useSetting('fileDiffsSidebar');
 
@@ -126,6 +128,12 @@ export const SessionView = React.memo((props: { id: string }) => {
     }, []);
 
     // Compute header props based on session state
+    const pathSurfaces = useMemo(() => getActiveSessionPathSurfaces({
+        session,
+        unifiedNewSessionComposer,
+        projectPathHeaderMaxChars: windowWidth < 420 ? 28 : 48,
+    }), [session, unifiedNewSessionComposer, windowWidth]);
+
     const headerProps = useMemo(() => {
         if (!isDataReady) {
             return {
@@ -152,14 +160,14 @@ export const SessionView = React.memo((props: { id: string }) => {
         const isConnected = session.presence === 'online';
         return {
             title: getSessionName(session),
-            subtitle: session.metadata?.path ? formatPathRelativeToHome(session.metadata.path, session.metadata?.homeDir) : undefined,
+            subtitle: pathSurfaces.chatHeaderSubtitle,
             avatarId: getSessionAvatarId(session),
             onAvatarPress: () => router.push(`/session/${sessionId}/info`),
             isConnected: isConnected,
             flavor: session.metadata?.flavor || null,
             tintColor: isConnected ? '#000' : '#8E8E93'
         };
-    }, [session, isDataReady, sessionId, router]);
+    }, [session, isDataReady, sessionId, router, pathSurfaces.chatHeaderSubtitle]);
 
     const mainContent = (
         <>
@@ -240,7 +248,12 @@ export const SessionView = React.memo((props: { id: string }) => {
                         <Text style={{ color: theme.colors.textSecondary, fontSize: 15, marginTop: 8, textAlign: 'center', paddingHorizontal: 32 }}>{t('errors.sessionDeletedDescription')}</Text>
                     </View>
                 ) : (
-                    <SessionViewLoaded key={sessionId} sessionId={sessionId} session={session} />
+                    <SessionViewLoaded
+                        key={sessionId}
+                        sessionId={sessionId}
+                        session={session}
+                        projectPathHeader={pathSurfaces.agentInputProjectPathHeader}
+                    />
                 )}
             </View>
             {Platform.OS === 'web' && session && (
@@ -309,7 +322,7 @@ export const SessionView = React.memo((props: { id: string }) => {
 
 const SIDEBAR_MIN_WINDOW_WIDTH = 1100;
 
-function SessionViewLoaded({ sessionId, session }: { sessionId: string, session: Session }) {
+function SessionViewLoaded({ sessionId, session, projectPathHeader }: { sessionId: string, session: Session, projectPathHeader?: string }) {
     const { theme } = useUnistyles();
     const router = useRouter();
     const safeArea = useSafeAreaInsets();
@@ -626,6 +639,8 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
 
     const composer = (
         <AgentInput
+            mode="active"
+            projectPathHeader={projectPathHeader}
             placeholder={t('session.inputPlaceholder')}
             value={message}
             onChangeText={handleChangeMessage}

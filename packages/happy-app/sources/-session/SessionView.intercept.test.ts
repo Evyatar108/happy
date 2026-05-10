@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { maybeIntercept } from '@/sync/slashCommandIntercept';
 import type { PreSendCommandResult } from '@/hooks/usePreSendCommand';
+import type { Session } from '@/sync/storageTypes';
 import { shouldShowBoundaryAdvisory, updateComposeStartAt } from './composeBoundaryAdvisory';
+import { getActiveSessionPathSurfaces, truncatePathFromStart } from './SessionViewPathSurfaces';
 import type { LatestBoundary } from '@/sync/reducer/reducer';
 
 // Simulates the onSend callback in SessionView: trims the message, calls
@@ -154,5 +156,41 @@ describe('SessionView cross-device boundary advisory', () => {
 
     it('does not show advisory for boundaries older than compose start', () => {
         expect(shouldShowBoundaryAdvisory(boundary, 2_000)).toBe(false);
+    });
+});
+
+describe('SessionView active composer path surfaces', () => {
+    const session = {
+        metadata: {
+            path: '/Users/me/projects/company/repo/.dev/worktree/feature-long',
+            homeDir: '/Users/me',
+        },
+    } as Session;
+
+    it('keeps the path in ChatHeaderView subtitle when unified composer is off', () => {
+        const surfaces = getActiveSessionPathSurfaces({
+            session,
+            unifiedNewSessionComposer: false,
+            projectPathHeaderMaxChars: 18,
+        });
+
+        expect(surfaces.chatHeaderSubtitle).toBe('~/projects/company/repo/.dev/worktree/feature-long');
+        expect(surfaces.agentInputProjectPathHeader).toBeUndefined();
+    });
+
+    it('moves the path to AgentInput.projectPathHeader when unified composer is on', () => {
+        const surfaces = getActiveSessionPathSurfaces({
+            session,
+            unifiedNewSessionComposer: true,
+            projectPathHeaderMaxChars: 18,
+        });
+
+        expect(surfaces.chatHeaderSubtitle).toBeUndefined();
+        expect(surfaces.agentInputProjectPathHeader).toBe('…/feature-long');
+    });
+
+    it('truncates long paths from the start while preserving the meaningful tail', () => {
+        expect(truncatePathFromStart('~/projects/company/repo/.dev/worktree/feature-long', 18)).toBe('…/feature-long');
+        expect(truncatePathFromStart('~/short/repo', 18)).toBe('~/short/repo');
     });
 });
