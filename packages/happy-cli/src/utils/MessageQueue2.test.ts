@@ -23,6 +23,21 @@ describe('MessageQueue2', () => {
         expect(queue.size()).toBe(0);
     });
 
+    it('preserves one delivery receipt per original message in a batch', async () => {
+        const queue = new MessageQueue2<string>(mode => mode);
+
+        queue.push('message1', 'remote', { messageId: 'user-message-1', seq: 1 });
+        queue.push('message2', 'remote', { messageId: 'user-message-2', seq: 2 });
+
+        const result = await queue.waitForMessagesAndGetAsString();
+
+        expect(result?.message).toBe('message1\nmessage2');
+        expect(result?.consumedMessages).toEqual([
+            { messageId: 'user-message-1', seq: 1 },
+            { messageId: 'user-message-2', seq: 2 },
+        ]);
+    });
+
     it('should return only messages with same mode and keep others', async () => {
         const queue = new MessageQueue2<string>(mode => mode);
         

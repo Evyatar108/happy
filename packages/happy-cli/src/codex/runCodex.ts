@@ -15,6 +15,7 @@ import { initialMachineMetadata } from '@/daemon/run';
 import { configuration } from '@/configuration';
 import packageJson from '../../package.json';
 import { MessageQueue2 } from '@/utils/MessageQueue2';
+import type { MessageBatch, MessageDelivery } from '@/utils/MessageQueue2';
 import { hashObject } from '@/utils/deterministicJson';
 import { projectPath } from '@/projectPath';
 import { join } from 'node:path';
@@ -38,6 +39,12 @@ import { resumeExistingThread } from './resumeExistingThread';
 import { emitReadyIfIdle } from './emitReadyIfIdle';
 import type { ReasoningEffort } from './codexAppServerTypes';
 import { HAPPY_FORKED_FROM_SESSION_ID } from '@/utils/envNames';
+
+function getMessageDelivery(message: { messageId?: string; seq?: number }): MessageDelivery | undefined {
+    return typeof message.messageId === 'string' && typeof message.seq === 'number'
+        ? { messageId: message.messageId, seq: message.seq }
+        : undefined;
+}
 
 /**
  * Extracts a human-readable error from a codex task_complete/turn_aborted event.
@@ -306,7 +313,7 @@ export async function runCodex(opts: {
             model: messageModel,
             thinkingLevel: messageThinkingLevel,
         };
-        messageQueue.push(message.content.text, enhancedMode);
+        messageQueue.push(message.content.text, enhancedMode, getMessageDelivery(message));
     });
     let thinking = false;
     let currentTurnId: string | null = null;
@@ -717,11 +724,19 @@ export async function runCodex(opts: {
             first = false;
         }
 
-        let pending: { message: string; mode: EnhancedMode; isolate: boolean; hash: string } | null = null;
+        let pending: MessageBatch<EnhancedMode> | null = null;
+        const emitConsumptionReceipts = (batch: MessageBatch<EnhancedMode>) => {
+            for (const delivery of batch.consumedMessages) {
+                session.sendMessageConsumption({
+                    messageId: delivery.messageId,
+                    agentFlavor: 'codex',
+                });
+            }
+        };
 
         while (!shouldExit) {
             logActiveHandles('loop-top');
-            let message: { message: string; mode: EnhancedMode; isolate: boolean; hash: string } | null = pending;
+            let message: MessageBatch<EnhancedMode> | null = pending;
             pending = null;
             if (!message) {
                 // Capture the current signal to distinguish idle-abort from queue close
@@ -743,6 +758,8 @@ export async function runCodex(opts: {
             if (!message) {
                 break;
             }
+
+            emitConsumptionReceipts(message);
 
             // Display user messages in the UI
             messageBuffer.addMessage(message.message, 'user');

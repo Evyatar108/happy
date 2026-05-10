@@ -1428,4 +1428,101 @@ describe('ApiSessionClient v3 messages API migration', () => {
 
         await expect(seqPromiseB).rejects.toThrow(/did not return seq/);
     });
+
+    it('resolves enqueueMessageWithConsumptionAck after message-consumption round-trip', async () => {
+        const client = new ApiSessionClient('fake-token', session);
+
+        mockAxiosPost.mockImplementationOnce(async (_url: string, body: { messages: Array<{ localId: string }> }) => ({
+            data: {
+                messages: [
+                    {
+                        id: 'user-message-1',
+                        seq: 1,
+                        localId: body.messages[0].localId,
+                        createdAt: 1,
+                        updatedAt: 1,
+                    }
+                ]
+            }
+        }));
+
+        const { seqPromise, consumedPromise } = client.enqueueMessageWithConsumptionAck({
+            role: 'user',
+            content: { type: 'text', text: 'hello' },
+        });
+
+        await expect(seqPromise).resolves.toBe(1);
+
+        (client as any).lastSeq = 1;
+        emitSocketEvent('update', createNewMessageUpdate(2, encryptContent(session, {
+            role: 'session',
+            content: {
+                id: 'consumption-1',
+                time: 10,
+                role: 'agent',
+                ev: {
+                    t: 'message-consumption',
+                    messageId: 'user-message-1',
+                    consumedAt: 10,
+                    agentFlavor: 'claude',
+                }
+            }
+        })));
+
+        await expect(consumedPromise).resolves.toMatchObject({
+            t: 'message-consumption',
+            messageId: 'user-message-1',
+            consumedAt: 10,
+            agentFlavor: 'claude',
+        });
+    });
+
+    it('resolves batched consumption acks one envelope per original message seq', async () => {
+        const client = new ApiSessionClient('fake-token', session);
+
+        let nextSeq = 0;
+        mockAxiosPost.mockImplementation(async (_url: string, body: { messages: Array<{ localId: string }> }) => ({
+            data: {
+                messages: body.messages.map((message) => {
+                    nextSeq += 1;
+                    return {
+                        id: `user-message-${nextSeq}`,
+                        seq: nextSeq,
+                        localId: message.localId,
+                        createdAt: nextSeq,
+                        updatedAt: nextSeq,
+                    };
+                })
+            }
+        }));
+
+        const first = client.enqueueMessageWithConsumptionAck({ role: 'user', content: { type: 'text', text: 'one' } });
+        const second = client.enqueueMessageWithConsumptionAck({ role: 'user', content: { type: 'text', text: 'two' } });
+
+        await expect(first.seqPromise).resolves.toEqual(expect.any(Number));
+        await expect(second.seqPromise).resolves.toEqual(expect.any(Number));
+
+        client.sendMessageConsumption({ messageId: 'user-message-1', agentFlavor: 'claude' });
+        client.sendMessageConsumption({ messageId: 'user-message-2', agentFlavor: 'claude' });
+        await (client as any).flushOutbox();
+
+        const receipts = mockAxiosPost.mock.calls.slice(1).flatMap((call, callOffset) => {
+            const payload = call[1];
+            return payload.messages.map((_message: unknown, index: number) => decryptPostedMessage(session, index, callOffset + 1));
+        }).filter((message) => message.role === 'session' && message.content?.ev?.t === 'message-consumption');
+
+        const uniqueReceiptIds = [...new Set(receipts.map((receipt) => receipt.content.ev.messageId))];
+        expect(uniqueReceiptIds).toEqual([
+            'user-message-1',
+            'user-message-2',
+        ]);
+        expect(receipts.every((receipt) => receipt.content.ev.agentFlavor === 'claude')).toBe(true);
+
+        for (const receipt of receipts) {
+            (client as any).routeIncomingMessage(receipt);
+        }
+
+        await expect(first.consumedPromise).resolves.toMatchObject({ messageId: 'user-message-1' });
+        await expect(second.consumedPromise).resolves.toMatchObject({ messageId: 'user-message-2' });
+    });
 });

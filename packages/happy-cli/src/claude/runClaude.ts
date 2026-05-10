@@ -30,9 +30,16 @@ import { publishAgentConfigurationMetadataIfChanged, publishPermissionModeIfChan
 import { decodeBase64, encodeBase64 } from '@/api/encryption';
 import type { Session as ApiSession } from '@/api/types';
 import type { AgentConfiguration } from '@/api/apiSession';
+import type { MessageDelivery } from '@/utils/MessageQueue2';
 
 /** JavaScript runtime to use for spawning Claude Code */
 export type JsRuntime = 'node' | 'bun'
+
+function getMessageDelivery(message: { messageId?: string; seq?: number }): MessageDelivery | undefined {
+    return typeof message.messageId === 'string' && typeof message.seq === 'number'
+        ? { messageId: message.messageId, seq: message.seq }
+        : undefined;
+}
 
 export interface StartOptions {
     model?: string
@@ -494,7 +501,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
                 allowedTools: messageAllowedTools,
                 disallowedTools: messageDisallowedTools
             };
-            messageQueue.pushIsolateAndClear(specialCommand.originalMessage || message.content.text, enhancedMode);
+            messageQueue.pushIsolateAndClear(specialCommand.originalMessage || message.content.text, enhancedMode, getMessageDelivery(message));
             logger.debugLargeJson('[start] /compact command pushed to queue:', message);
             return;
         }
@@ -511,7 +518,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
                 allowedTools: messageAllowedTools,
                 disallowedTools: messageDisallowedTools
             };
-            messageQueue.pushIsolateAndClear(specialCommand.originalMessage || message.content.text, enhancedMode);
+            messageQueue.pushIsolateAndClear(specialCommand.originalMessage || message.content.text, enhancedMode, getMessageDelivery(message));
             logger.debugLargeJson('[start] /compact command pushed to queue:', message);
             return;
         }
@@ -569,7 +576,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
             allowedTools: messageAllowedTools,
             disallowedTools: messageDisallowedTools
         };
-        messageQueue.push(message.content.text, enhancedMode);
+        messageQueue.push(message.content.text, enhancedMode, getMessageDelivery(message));
         logger.debugLargeJson('User message pushed to queue:', message)
     });
 

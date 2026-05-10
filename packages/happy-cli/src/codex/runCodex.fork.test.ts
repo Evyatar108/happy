@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => {
         sendSessionEvent: vi.fn(),
         sendSessionProtocolMessage: vi.fn(),
         sendContextBoundary: vi.fn(async () => {}),
+        sendMessageConsumption: vi.fn(),
         sendSessionDeath: vi.fn(),
         flush: vi.fn(async () => {}),
         close: vi.fn(async () => {}),
@@ -29,9 +30,11 @@ const mocks = vi.hoisted(() => {
         sessionId: 'session-1',
     };
 
+    const queuedBatches: any[] = [];
+
     class MockMessageQueue2 {
         async waitForMessagesAndGetAsString() {
-            return null;
+            return queuedBatches.shift() ?? null;
         }
 
         size() {
@@ -79,6 +82,8 @@ const mocks = vi.hoisted(() => {
         mockLoggerDebug: vi.fn(),
         mockLoggerWarn: vi.fn(),
         mockResumeExistingThread: vi.fn(async () => ({ threadId: 'new-codex-thread', model: 'gpt-5.4' })),
+        queueBatch: (batch: any) => queuedBatches.push(batch),
+        clearQueuedBatches: () => { queuedBatches.length = 0; },
     };
 });
 
@@ -168,6 +173,7 @@ describe('runCodex fork boundary emission', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mocks.clearRpcHandlers();
+        mocks.clearQueuedBatches();
         delete process.env[HAPPY_FORKED_FROM_SESSION_ID];
         mocks.mockApiCreate.mockResolvedValue(createApi());
         mocks.mockReadSettings.mockResolvedValue({ machineId: 'machine-1', sandboxConfig: undefined });
@@ -222,5 +228,30 @@ describe('runCodex fork boundary emission', () => {
         resolveAbort();
         await expect(Promise.all([firstAbort, secondAbort])).resolves.toEqual([undefined, undefined]);
         expect(mocks.getLastCodexClient().abortTurnWithFallback).toHaveBeenCalledTimes(1);
+    });
+
+    it('emits one codex consumption receipt per dequeued user message', async () => {
+        mocks.queueBatch({
+            message: 'one\ntwo',
+            mode: { permissionMode: 'default' },
+            isolate: false,
+            hash: 'same-mode',
+            consumedMessages: [
+                { messageId: 'user-message-1', seq: 1 },
+                { messageId: 'user-message-2', seq: 2 },
+            ],
+        });
+
+        await runResume();
+
+        expect(mocks.mockSession.sendMessageConsumption).toHaveBeenCalledTimes(2);
+        expect(mocks.mockSession.sendMessageConsumption).toHaveBeenNthCalledWith(1, {
+            messageId: 'user-message-1',
+            agentFlavor: 'codex',
+        });
+        expect(mocks.mockSession.sendMessageConsumption).toHaveBeenNthCalledWith(2, {
+            messageId: 'user-message-2',
+            agentFlavor: 'codex',
+        });
     });
 });

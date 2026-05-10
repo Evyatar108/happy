@@ -16,6 +16,7 @@ import { OutgoingMessageQueue } from "./utils/OutgoingMessageQueue";
 import { getToolName } from "./utils/getToolName";
 import { getAskUserQuestionToolCallIds } from "./utils/questionNotification";
 import { mergeSDKInitMetadata } from "./utils/sdkMetadata";
+import type { MessageBatch } from "@/utils/MessageQueue2";
 
 interface PermissionsField {
     date: number;
@@ -293,10 +294,15 @@ export async function claudeRemoteLauncher(session: Session): Promise<'switch' |
     }
 
     try {
-        let pending: {
-            message: string;
-            mode: EnhancedMode;
-        } | null = null;
+        let pending: MessageBatch<EnhancedMode> | null = null;
+        const emitConsumptionReceipts = (batch: MessageBatch<EnhancedMode>) => {
+            for (const delivery of batch.consumedMessages) {
+                session.client.sendMessageConsumption({
+                    messageId: delivery.messageId,
+                    agentFlavor: 'claude',
+                });
+            }
+        };
 
         // Track session ID to detect when it actually changes
         // This prevents context loss when mode changes (permission mode, model, etc.)
@@ -344,6 +350,7 @@ export async function claudeRemoteLauncher(session: Session): Promise<'switch' |
                             let p = pending;
                             pending = null;
                             permissionHandler.handleModeChange(p.mode.permissionMode);
+                            emitConsumptionReceipts(p);
                             return p;
                         }
 
@@ -359,6 +366,7 @@ export async function claudeRemoteLauncher(session: Session): Promise<'switch' |
                             modeHash = msg.hash;
                             mode = msg.mode;
                             permissionHandler.handleModeChange(mode.permissionMode);
+                            emitConsumptionReceipts(msg);
                             return {
                                 message: msg.message,
                                 mode: msg.mode

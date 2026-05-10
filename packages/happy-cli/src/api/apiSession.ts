@@ -17,6 +17,7 @@ import {
     findSenderDropEntry,
     type SessionContextBoundaryEvent,
     type SessionEnvelope,
+    type SessionMessageConsumptionEvent,
     type SessionTurnEndStatus,
 } from '@slopus/happy-wire';
 import {
@@ -84,6 +85,12 @@ type V3PostSessionMessagesResponse = {
 };
 
 type ContextBoundaryInput = Omit<SessionContextBoundaryEvent, 't'>;
+type MessageConsumptionInput = Pick<SessionMessageConsumptionEvent, 'messageId' | 'agentFlavor'>;
+
+type MessageDelivery = {
+    id: string;
+    seq: number;
+};
 
 export type AgentConfiguration = {
     permissionMode?: string;
@@ -183,7 +190,9 @@ export class ApiSessionClient extends EventEmitter {
     };
     private lastSeq = 0;
     private pendingOutbox: Array<{ content: string; localId: string }> = [];
-    private seqResolvers: Map<string, { resolve: (seq: number) => void; reject: (err: unknown) => void }> = new Map();
+    private seqResolvers: Map<string, { resolve: (delivery: MessageDelivery) => void; reject: (err: unknown) => void }> = new Map();
+    private consumptionResolvers: Map<string, { resolve: (event: SessionMessageConsumptionEvent) => void; reject: (err: unknown) => void }> = new Map();
+    private observedConsumptions: Map<string, SessionMessageConsumptionEvent> = new Map();
     private pendingSummaryText: string | null = null;
     private readonly sendSync: InvalidateSync;
     private readonly receiveSync: InvalidateSync;
@@ -281,7 +290,10 @@ export class ApiSessionClient extends EventEmitter {
                     }
                     const body = decrypt(this.encryptionKey, this.encryptionVariant, decodeBase64(data.body.message.content.c));
                     logger.debugLargeJson('[SOCKET] [UPDATE] Received update:', body)
-                    this.routeIncomingMessage(body);
+                    this.routeIncomingMessage(body, {
+                        id: data.body.message.id,
+                        seq: messageSeq,
+                    });
                     this.lastSeq = messageSeq;
                 } else if (data.body.t === 'update-session') {
                     if (data.body.metadata && data.body.metadata.version > this.metadataVersion) {
@@ -297,6 +309,7 @@ export class ApiSessionClient extends EventEmitter {
                                 this.ignoreArchiveSignal = false;
                             } else {
                                 logger.debug(`[SOCKET] Session archived (${meta.lifecycleState}), exiting...`);
+                                this.rejectPendingConsumptionAcks(new Error('Session archived before message consumption was observed'));
                                 this.emit('archived');
                             }
                         }
@@ -351,17 +364,77 @@ export class ApiSessionClient extends EventEmitter {
         };
     }
 
-    private routeIncomingMessage(message: unknown) {
+    private routeIncomingMessage(message: unknown, delivery?: MessageDelivery) {
         const userResult = UserMessageSchema.safeParse(message);
         if (userResult.success) {
+            const userMessage = userResult.data;
+            if (delivery) {
+                Object.defineProperties(userMessage, {
+                    messageId: { value: delivery.id, enumerable: false, configurable: true },
+                    seq: { value: delivery.seq, enumerable: false, configurable: true },
+                });
+            }
             if (this.pendingMessageCallback) {
-                this.pendingMessageCallback(userResult.data);
+                this.pendingMessageCallback(userMessage);
             } else {
-                this.pendingMessages.push(userResult.data);
+                this.pendingMessages.push(userMessage);
             }
             return;
         }
+        const consumption = this.getSessionMessageConsumptionEvent(message);
+        if (consumption) {
+            this.resolveConsumptionAck(consumption);
+        }
         this.emit('message', message);
+    }
+
+    private getSessionMessageConsumptionEvent(message: unknown): SessionMessageConsumptionEvent | null {
+        if (!isRecord(message) || message.role !== 'session' || !isRecord(message.content)) {
+            return null;
+        }
+        const content = message.content;
+        const envelope = content.type === 'session' && isRecord(content.data)
+            ? content.data
+            : content;
+        if (!isRecord(envelope) || !isRecord(envelope.ev)) {
+            return null;
+        }
+        const ev = envelope.ev;
+        if (ev.t !== 'message-consumption' || typeof ev.messageId !== 'string' || typeof ev.consumedAt !== 'number') {
+            return null;
+        }
+        if (ev.agentFlavor !== 'claude' && ev.agentFlavor !== 'codex') {
+            return null;
+        }
+        return ev as SessionMessageConsumptionEvent;
+    }
+
+    private resolveConsumptionAck(event: SessionMessageConsumptionEvent) {
+        const pending = this.consumptionResolvers.get(event.messageId);
+        if (!pending) {
+            this.observedConsumptions.set(event.messageId, event);
+            return;
+        }
+        this.consumptionResolvers.delete(event.messageId);
+        pending.resolve(event);
+    }
+
+    private waitForConsumptionAck(messageId: string): Promise<SessionMessageConsumptionEvent> {
+        const observed = this.observedConsumptions.get(messageId);
+        if (observed) {
+            this.observedConsumptions.delete(messageId);
+            return Promise.resolve(observed);
+        }
+        return new Promise((resolve, reject) => {
+            this.consumptionResolvers.set(messageId, { resolve, reject });
+        });
+    }
+
+    private rejectPendingConsumptionAcks(error: Error) {
+        for (const pending of this.consumptionResolvers.values()) {
+            pending.reject(error);
+        }
+        this.consumptionResolvers.clear();
     }
 
     private routeAgentConfigurationIfChanged(metadata: Metadata): void {
@@ -433,7 +506,10 @@ export class ApiSessionClient extends EventEmitter {
 
                 try {
                     const body = decrypt(this.encryptionKey, this.encryptionVariant, decodeBase64(message.content.c));
-                    this.routeIncomingMessage(body);
+                    this.routeIncomingMessage(body, {
+                        id: message.id,
+                        seq: message.seq,
+                    });
                 } catch (error) {
                     logger.debug('[API] Failed to decrypt fetched message', {
                         sessionId: this.sessionId,
@@ -489,7 +565,7 @@ export class ApiSessionClient extends EventEmitter {
                 if (msg.localId) {
                     const deferred = this.seqResolvers.get(msg.localId);
                     if (deferred) {
-                        deferred.resolve(msg.seq);
+                        deferred.resolve({ id: msg.id, seq: msg.seq });
                         this.seqResolvers.delete(msg.localId);
                     }
                 }
@@ -508,12 +584,12 @@ export class ApiSessionClient extends EventEmitter {
         }
     }
 
-    private enqueueMessage(content: unknown, invalidate: boolean = true): Promise<number> {
+    private enqueueMessageWithDelivery(content: unknown, invalidate: boolean = true): Promise<MessageDelivery> {
         const encrypted = encodeBase64(encrypt(this.encryptionKey, this.encryptionVariant, content));
         const localId = randomUUID();
-        let resolve!: (seq: number) => void;
+        let resolve!: (delivery: MessageDelivery) => void;
         let reject!: (err: unknown) => void;
-        const seqPromise = new Promise<number>((res, rej) => {
+        const deliveryPromise = new Promise<MessageDelivery>((res, rej) => {
             resolve = res;
             reject = rej;
         });
@@ -522,10 +598,23 @@ export class ApiSessionClient extends EventEmitter {
         if (invalidate) {
             this.sendSync.invalidate();
         }
-        // Suppress unhandled-rejection for fire-and-forget callers that don't await the result.
-        // sendContextBoundary awaits the same promise and handles rejection explicitly.
+        deliveryPromise.catch(() => undefined);
+        return deliveryPromise;
+    }
+
+    private enqueueMessage(content: unknown, invalidate: boolean = true): Promise<number> {
+        const seqPromise = this.enqueueMessageWithDelivery(content, invalidate).then((delivery) => delivery.seq);
         seqPromise.catch(() => undefined);
         return seqPromise;
+    }
+
+    enqueueMessageWithConsumptionAck(content: unknown): { seqPromise: Promise<number>; consumedPromise: Promise<SessionMessageConsumptionEvent> } {
+        const deliveryPromise = this.enqueueMessageWithDelivery(content);
+        const seqPromise = deliveryPromise.then((delivery) => delivery.seq);
+        const consumedPromise = deliveryPromise.then((delivery) => this.waitForConsumptionAck(delivery.id));
+        seqPromise.catch(() => undefined);
+        consumedPromise.catch(() => undefined);
+        return { seqPromise, consumedPromise };
     }
 
     /**
@@ -642,6 +731,15 @@ export class ApiSessionClient extends EventEmitter {
         }
 
         this.enqueueSessionProtocolEnvelope(envelope);
+    }
+
+    sendMessageConsumption({ messageId, agentFlavor }: MessageConsumptionInput) {
+        this.enqueueSessionProtocolEnvelope(createEnvelope('agent', {
+            t: 'message-consumption',
+            messageId,
+            consumedAt: Date.now(),
+            agentFlavor,
+        }));
     }
 
     async sendContextBoundary(boundary: ContextBoundaryInput): Promise<void> {
@@ -778,6 +876,7 @@ export class ApiSessionClient extends EventEmitter {
      * Send session death message
      */
     sendSessionDeath() {
+        this.rejectPendingConsumptionAcks(new Error('Session ended before message consumption was observed'));
         this.socket.emit('session-end', { sid: this.sessionId, time: Date.now() });
     }
 
@@ -914,6 +1013,7 @@ export class ApiSessionClient extends EventEmitter {
             deferred.reject(new Error('Session closed before seq was assigned'));
         }
         this.seqResolvers.clear();
+        this.rejectPendingConsumptionAcks(new Error('Session closed before message consumption was observed'));
         if (this.reconnectInterval) {
             clearInterval(this.reconnectInterval);
             this.reconnectInterval = null;
