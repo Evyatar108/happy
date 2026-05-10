@@ -297,6 +297,7 @@ Notes:
   sentFrom?: string;
   permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan' | 'read-only' | 'safe-yolo' | 'yolo';
   model?: string | null;
+  thinkingLevel?: string | null;
   fallbackModel?: string | null;
   customSystemPrompt?: string | null;
   appendSystemPrompt?: string | null;
@@ -473,7 +474,7 @@ Role meaning:
 
 ## Event Variants
 
-`sessionEventSchema` is a discriminated union on `t` with 10 variants.
+`sessionEventSchema` is a discriminated union on `t` with 11 variants.
 
 ### 1) Text event
 
@@ -588,6 +589,31 @@ Boundary producers that need old-client compatibility dual-emit the typed
 `context-boundary` event first, then the legacy event with
 `meta.contextBoundaryFallback: true`. New consumers treat the typed boundary as
 authoritative and suppress any flagged legacy fallback by that meta flag alone.
+
+### 11) Agent-configuration-changed event
+
+```ts
+{
+  t: 'agent-configuration-changed';
+  permissionMode?: string | null;
+  model?: string | null;
+  thinkingLevel?: string | null;
+  sandbox?: string | null;
+}
+```
+
+Additive audit envelope describing a change in the agent's runtime configuration
+(any subset of `permissionMode`, `model`, `thinkingLevel`, `sandbox`). Each
+field is independently optional and nullable so producers can emit only the
+fields that actually changed.
+
+In the current drawer slice the envelope is **schema-only**: `happy-cli` does
+not emit it, and live drawer control changes flow over the existing
+`update-metadata` socket RPC and the `update-session` metadata echo. Future
+runners may opt into emitting it; when they do, the existing
+`envelope.role === 'agent' && !envelope.turn` normalizer guard still applies,
+so any agent-role emission MUST occur inside an active turn or it will be
+dropped by the client normalizer.
 
 ## Envelope
 
