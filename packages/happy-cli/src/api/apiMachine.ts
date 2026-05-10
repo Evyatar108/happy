@@ -103,6 +103,14 @@ export class ApiMachineClient {
         registerCommonHandlers(this.rpcHandlerManager, process.cwd());
     }
 
+    private detectEffectiveResumeSupport(): ResumeSupport {
+        return {
+            ...detectResumeSupport(),
+            rpcAvailable: !!this.resumeSessionHandler,
+            forkRpcAvailable: true,
+        };
+    }
+
     setRPCHandlers({
         spawnSession,
         resumeSession,
@@ -359,11 +367,12 @@ export class ApiMachineClient {
             // Re-detect CLI availability and push metadata update if changed
             const newAvailability = detectCLIAvailability();
             const prev = this.lastKnownCLIAvailability;
-            const newResumeSupport = detectResumeSupport();
+            const newResumeSupport = this.detectEffectiveResumeSupport();
             const prevResume = this.lastKnownResumeSupport;
             const cliAvailabilityChanged = !prev || prev.claude !== newAvailability.claude || prev.codex !== newAvailability.codex || prev.gemini !== newAvailability.gemini || prev.openclaw !== newAvailability.openclaw;
             const resumeSupportChanged = !prevResume
                 || prevResume.rpcAvailable !== newResumeSupport.rpcAvailable
+                || prevResume.forkRpcAvailable !== newResumeSupport.forkRpcAvailable
                 || prevResume.happyAgentAuthenticated !== newResumeSupport.happyAgentAuthenticated;
 
             if (cliAvailabilityChanged || resumeSupportChanged) {
@@ -372,7 +381,7 @@ export class ApiMachineClient {
                 this.updateMachineMetadata((metadata) => ({
                     ...(metadata || {} as any),
                     cliAvailability: newAvailability,
-                    resumeSupport: { ...newResumeSupport, rpcAvailable: !!this.resumeSessionHandler },
+                    resumeSupport: newResumeSupport,
                 })).catch((err) => {
                     logger.debug('[API MACHINE] Failed to update machine capabilities:', err);
                 });

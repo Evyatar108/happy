@@ -46,7 +46,7 @@ export const initialMachineMetadata: MachineMetadata = {
   happyHomeDir: configuration.happyHomeDir,
   happyLibDir: projectPath(),
   cliAvailability: detectCLIAvailability(),
-  resumeSupport: { ...detectResumeSupport(), rpcAvailable: true },
+  resumeSupport: { ...detectResumeSupport(), rpcAvailable: true, forkRpcAvailable: true },
 };
 
 async function resolveEmbeddedServerPort(): Promise<number> {

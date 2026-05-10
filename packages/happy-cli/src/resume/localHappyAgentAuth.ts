@@ -23,6 +23,7 @@ export type LocalHappyAgentCredentials = {
 
 export type ResumeSupport = {
     rpcAvailable: boolean;
+    forkRpcAvailable: boolean;
     requiresSameMachine: true;
     requiresHappyAgentAuth: true;
     happyAgentAuthenticated: boolean;
@@ -98,6 +99,7 @@ export function detectResumeSupport(happyHomeDir: string = configuration.happyHo
     const happyAgentAuthenticated = hasLocalHappyAgentAuth(happyHomeDir);
     return {
         rpcAvailable: happyAgentAuthenticated,
+        forkRpcAvailable: false,
         requiresSameMachine: true,
         requiresHappyAgentAuth: true,
         happyAgentAuthenticated,

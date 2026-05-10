@@ -153,6 +153,7 @@ export const MachineMetadataSchema = z.object({
   }).optional(),
   resumeSupport: z.object({
     rpcAvailable: z.boolean(),
+    forkRpcAvailable: z.boolean().optional(),
     requiresSameMachine: z.boolean(),
     requiresHappyAgentAuth: z.boolean(),
     happyAgentAuthenticated: z.boolean(),
