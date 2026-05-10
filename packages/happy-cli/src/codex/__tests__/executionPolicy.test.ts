@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { resolveCodexExecutionPolicy } from '../executionPolicy';
 
@@ -47,4 +49,37 @@ describe('resolveCodexExecutionPolicy', () => {
             });
         },
     );
+
+    describe('Windows-vs-non-Windows sandbox split (F-005 regression)', () => {
+        it.each(['default', 'read-only', 'safe-yolo', 'yolo'] as const)(
+            'on Windows the per-mode mapping is retained for %s because sandboxManagedByHappy is forced false',
+            (mode) => {
+                const expected = {
+                    default: { approvalPolicy: 'untrusted', sandbox: 'workspace-write' },
+                    'read-only': { approvalPolicy: 'never', sandbox: 'read-only' },
+                    'safe-yolo': { approvalPolicy: 'on-failure', sandbox: 'workspace-write' },
+                    yolo: { approvalPolicy: 'on-failure', sandbox: 'danger-full-access' },
+                } as const;
+                expect(resolveCodexExecutionPolicy(mode, false)).toEqual(expected[mode]);
+            },
+        );
+
+        it.each(['default', 'read-only', 'safe-yolo', 'yolo'] as const)(
+            'on non-Windows with managed-sandbox enabled the forced danger-full-access policy applies to %s',
+            (mode) => {
+                expect(resolveCodexExecutionPolicy(mode, true)).toEqual({
+                    approvalPolicy: 'never',
+                    sandbox: 'danger-full-access',
+                });
+            },
+        );
+
+        it('codexAppServerClient gates sandboxEnabled on process.platform !== win32', async () => {
+            const source = await readFile(
+                fileURLToPath(new URL('../codexAppServerClient.ts', import.meta.url)),
+                'utf8',
+            );
+            expect(source).toContain("this.sandboxConfig?.enabled && process.platform !== 'win32'");
+        });
+    });
 });
