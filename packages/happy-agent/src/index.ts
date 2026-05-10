@@ -10,7 +10,7 @@ import type { Credentials } from './credentials';
 import { authLogin, authLogout, authStatus } from './auth';
 import { listSessions, listActiveSessions, createSession, getSessionMessages, listMachines } from './api';
 import type { DecryptedMachine, DecryptedSession } from './api';
-import { resumeSessionOnMachine, spawnSessionOnMachine, type SupportedAgent } from './machineRpc';
+import { resumeSessionOnMachine, spawnInWorktreeOnMachine, spawnSessionOnMachine, type SupportedAgent } from './machineRpc';
 import { SessionClient } from './session';
 import { formatMachineTable, formatSessionTable, formatSessionStatus, formatMessageHistory, formatJson } from './output';
 
@@ -235,7 +235,10 @@ program
     .command('spawn')
     .description('Spawn a new session on a machine')
     .requiredOption('--machine <machine-id>', 'Machine ID or prefix')
-    .option('--path <path>', 'Working directory path (defaults to machine home directory)')
+    .option('--path <path>', 'Legacy working directory path (defaults to machine home directory)')
+    .option('--new-worktree', 'Create a git worktree through the daemon before spawning')
+    .option('--repo <path>', 'Repository root for --new-worktree')
+    .option('--worktree <path>', 'Optional explicit worktree path for --new-worktree')
     .option('--agent <agent>', `Agent to start (${SUPPORTED_AGENTS.join(', ')})`, (value: string) => {
         if (!SUPPORTED_AGENTS.includes(value as SupportedAgent)) {
             throw new Error(`--agent must be one of: ${SUPPORTED_AGENTS.join(', ')}`);
@@ -247,6 +250,9 @@ program
     .action(async (opts: {
         machine: string;
         path?: string;
+        newWorktree?: boolean;
+        repo?: string;
+        worktree?: string;
         agent?: SupportedAgent;
         createDir?: boolean;
         json?: boolean;
@@ -254,6 +260,69 @@ program
         const config = loadConfig();
         const creds = requireCredentials(config);
         const machine = await resolveMachine(config, creds, opts.machine);
+
+        if (opts.newWorktree) {
+            if (!opts.repo) {
+                throw new Error('--repo is required with --new-worktree');
+            }
+            if (!opts.agent) {
+                throw new Error('--agent is required with --new-worktree');
+            }
+            if (opts.path) {
+                throw new Error('--path is the legacy spawn path and cannot be used with --new-worktree. Use --repo and optional --worktree.');
+            }
+            if (opts.createDir) {
+                throw new Error('--create-dir is only supported by the legacy --path flow.');
+            }
+
+            const result = await spawnInWorktreeOnMachine(config, machine, creds.token, {
+                repoPath: opts.repo,
+                worktreePath: opts.worktree,
+                agent: opts.agent,
+            });
+
+            const payload = {
+                machineId: machine.id,
+                repoPath: opts.repo,
+                requestedWorktreePath: opts.worktree ?? null,
+                agent: opts.agent,
+                ...result,
+            };
+
+            if (opts.json) {
+                console.log(formatJson(payload));
+                if (result.type !== 'success') {
+                    process.exitCode = 1;
+                }
+                return;
+            }
+
+            switch (result.type) {
+                case 'success':
+                    console.log([
+                        '## Session Spawned',
+                        '',
+                        `- Machine ID: \`${machine.id}\``,
+                        `- Session ID: \`${result.sessionId}\``,
+                        `- Project Path: ${opts.repo}`,
+                        `- Worktree Path: ${result.worktreePath ?? opts.worktree ?? '(daemon did not return worktree path)'}`,
+                        `- Branch: ${result.branchName ?? '(daemon did not return branch name)'}`,
+                        `- Run ID: ${result.runId ?? '(daemon did not return run ID)'}`,
+                        `- Agent: ${opts.agent}`,
+                    ].join('\n'));
+                    break;
+                case 'requestToApproveDirectoryCreation':
+                    throw new Error(`Spawn-in-worktree unexpectedly requested directory creation for '${result.directory}'.`);
+                case 'error':
+                    throw new Error(result.errorMessage);
+            }
+            return;
+        }
+
+        if (opts.repo || opts.worktree) {
+            throw new Error('--repo and --worktree require --new-worktree');
+        }
+
         const directory = resolveRemotePath(opts.path, machine);
 
         const result = await spawnSessionOnMachine(config, machine, creds.token, {

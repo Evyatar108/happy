@@ -119,11 +119,14 @@ describe('happy-agent CLI', () => {
     });
 
     describe('spawn command', () => {
-        it('should show spawn help with machine, path, agent, and json options', () => {
+        it('should show spawn help with machine, legacy path, new-worktree, and json options', () => {
             const { stdout } = runCli('spawn', '--help');
             expect(stdout).toContain('Spawn a new session on a machine');
             expect(stdout).toContain('--machine');
             expect(stdout).toContain('--path');
+            expect(stdout).toContain('--new-worktree');
+            expect(stdout).toContain('--repo');
+            expect(stdout).toContain('--worktree');
             expect(stdout).toContain('--agent');
             expect(stdout).toContain('--json');
         });

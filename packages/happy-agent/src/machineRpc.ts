@@ -6,7 +6,7 @@ import { decodeBase64, encodeBase64, encrypt, decrypt } from './encryption';
 export type SupportedAgent = 'claude' | 'codex' | 'gemini' | 'openclaw';
 
 export type SpawnMachineSessionResult =
-    | { type: 'success'; sessionId: string }
+    | { type: 'success'; sessionId: string; worktreePath?: string; branchName?: string; runId?: string }
     | { type: 'requestToApproveDirectoryCreation'; directory: string }
     | { type: 'error'; errorMessage: string };
 
@@ -56,16 +56,12 @@ function normalizeRpcError(error: string | undefined, machineId: string): string
     return error;
 }
 
-export async function spawnSessionOnMachine(
+async function callMachineRpc(
     config: Config,
     machine: DecryptedMachine,
     token: string,
-    options: {
-        directory: string;
-        approvedNewDirectoryCreation?: boolean;
-        agent?: SupportedAgent;
-        providerToken?: string;
-    },
+    method: string,
+    paramsPayload: Record<string, unknown>,
 ): Promise<SpawnMachineSessionResult> {
     const socket = io(config.serverUrl, {
         auth: {
@@ -83,17 +79,11 @@ export async function spawnSessionOnMachine(
         await waitForConnect(socket);
 
         const params = encodeBase64(
-            encrypt(machine.encryption.key, machine.encryption.variant, {
-                type: 'spawn-in-directory',
-                directory: options.directory,
-                approvedNewDirectoryCreation: options.approvedNewDirectoryCreation ?? false,
-                token: options.providerToken,
-                agent: options.agent,
-            }),
+            encrypt(machine.encryption.key, machine.encryption.variant, paramsPayload),
         );
 
         const response = await socket.timeout(30_000).emitWithAck('rpc-call', {
-            method: `${machine.id}:spawn-happy-session`,
+            method: `${machine.id}:${method}`,
             params,
         }) as RpcAck;
 
@@ -133,6 +123,47 @@ export async function spawnSessionOnMachine(
     } finally {
         socket.close();
     }
+}
+
+export async function spawnSessionOnMachine(
+    config: Config,
+    machine: DecryptedMachine,
+    token: string,
+    options: {
+        directory: string;
+        approvedNewDirectoryCreation?: boolean;
+        agent?: SupportedAgent;
+        providerToken?: string;
+    },
+): Promise<SpawnMachineSessionResult> {
+    return callMachineRpc(config, machine, token, 'spawn-happy-session', {
+        type: 'spawn-in-directory',
+        directory: options.directory,
+        approvedNewDirectoryCreation: options.approvedNewDirectoryCreation ?? false,
+        token: options.providerToken,
+        agent: options.agent,
+    });
+}
+
+export async function spawnInWorktreeOnMachine(
+    config: Config,
+    machine: DecryptedMachine,
+    token: string,
+    options: {
+        repoPath: string;
+        worktreePath?: string;
+        runId?: string;
+        agent: SupportedAgent;
+        providerToken?: string;
+    },
+): Promise<SpawnMachineSessionResult> {
+    return callMachineRpc(config, machine, token, 'spawn-in-worktree', {
+        repoPath: options.repoPath,
+        worktreePath: options.worktreePath,
+        runId: options.runId,
+        agent: options.agent,
+        token: options.providerToken,
+    });
 }
 
 export async function resumeSessionOnMachine(
