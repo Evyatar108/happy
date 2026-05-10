@@ -36,6 +36,7 @@ import { mapCodexMcpMessageToSessionEnvelopes, mapCodexProcessorMessageToSession
 import { resumeExistingThread } from './resumeExistingThread';
 import { emitReadyIfIdle } from './emitReadyIfIdle';
 import type { ReasoningEffort } from './codexAppServerTypes';
+import { HAPPY_FORKED_FROM_SESSION_ID } from '@/utils/envNames';
 
 /**
  * Extracts a human-readable error from a codex task_complete/turn_aborted event.
@@ -134,6 +135,7 @@ export async function runCodex(opts: {
     const reconnectSeq = process.env.HAPPY_RECONNECT_SEQ;
     const reconnectMetadataVersion = process.env.HAPPY_RECONNECT_METADATA_VERSION;
     const reconnectAgentStateVersion = process.env.HAPPY_RECONNECT_AGENT_STATE_VERSION;
+    const forkedFromSessionId = process.env[HAPPY_FORKED_FROM_SESSION_ID];
 
     let response: ApiSession | null;
     if (reconnectSessionId && reconnectKeyBase64 && reconnectVariant) {
@@ -688,6 +690,14 @@ export async function runCodex(opts: {
                 cwd: process.cwd(),
                 mcpServers,
             });
+            if (forkedFromSessionId) {
+                await session.sendContextBoundary({
+                    kind: 'session-fork-resume',
+                    triggeredBy: 'user',
+                    at: Date.now(),
+                    forkedFromSid: forkedFromSessionId,
+                });
+            }
             first = false;
         }
 
