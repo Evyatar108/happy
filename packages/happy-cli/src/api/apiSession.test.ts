@@ -1569,6 +1569,45 @@ describe('ApiSessionClient v3 messages API migration', () => {
         expect((client as any).consumptionResolvers.size).toBe(0);
     });
 
+    it('caps observedConsumptions at 256 entries and evicts the oldest on overflow', () => {
+        const client = new ApiSessionClient('fake-token', session);
+        const observed: Map<string, unknown> = (client as any).observedConsumptions;
+
+        for (let i = 0; i < 256; i += 1) {
+            (client as any).resolveConsumptionAck({
+                t: 'message-consumption',
+                messageId: `obs-${i}`,
+                consumedAt: i,
+                agentFlavor: 'claude',
+            });
+        }
+        expect(observed.size).toBe(256);
+        expect(observed.has('obs-0')).toBe(true);
+        expect(observed.has('obs-255')).toBe(true);
+
+        (client as any).resolveConsumptionAck({
+            t: 'message-consumption',
+            messageId: 'obs-256',
+            consumedAt: 256,
+            agentFlavor: 'claude',
+        });
+        expect(observed.size).toBe(256);
+        expect(observed.has('obs-0')).toBe(false);
+        expect(observed.has('obs-1')).toBe(true);
+        expect(observed.has('obs-256')).toBe(true);
+
+        (client as any).resolveConsumptionAck({
+            t: 'message-consumption',
+            messageId: 'obs-257',
+            consumedAt: 257,
+            agentFlavor: 'claude',
+        });
+        expect(observed.size).toBe(256);
+        expect(observed.has('obs-1')).toBe(false);
+        expect(observed.has('obs-2')).toBe(true);
+        expect(observed.has('obs-257')).toBe(true);
+    });
+
     it('resolves batched consumption acks one envelope per original message seq', async () => {
         const client = new ApiSessionClient('fake-token', session);
 

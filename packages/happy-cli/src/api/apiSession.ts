@@ -47,6 +47,8 @@ export class MessageConsumptionTimeoutError extends Error {
     }
 }
 
+const OBSERVED_CONSUMPTIONS_MAX_ENTRIES = 256;
+
 /**
  * ACP (Agent Communication Protocol) message data types.
  * This is the unified format for all agent messages - CLI adapts each provider's format to ACP.
@@ -430,6 +432,14 @@ export class ApiSessionClient extends EventEmitter {
     private resolveConsumptionAck(event: SessionMessageConsumptionEvent) {
         const pending = this.consumptionResolvers.get(event.messageId);
         if (!pending) {
+            if (this.observedConsumptions.has(event.messageId)) {
+                this.observedConsumptions.delete(event.messageId);
+            } else if (this.observedConsumptions.size >= OBSERVED_CONSUMPTIONS_MAX_ENTRIES) {
+                const oldestKey = this.observedConsumptions.keys().next().value;
+                if (oldestKey !== undefined) {
+                    this.observedConsumptions.delete(oldestKey);
+                }
+            }
             this.observedConsumptions.set(event.messageId, event);
             return;
         }
