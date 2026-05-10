@@ -597,6 +597,13 @@ export const pl: TranslationStructure = {
             fileLabel: 'PLIK',
             folderLabel: 'FOLDER',
         },
+        attachments: {
+            attachButton: 'Dołącz plik',
+            dropIdle: 'Upuść pliki tutaj',
+            dropActive: 'Puść, aby dołączyć',
+            pasteHint: 'Wklej pliki, aby dołączyć',
+            removeButton: ({ name }: { name: string }) => `Usuń ${name}`,
+        },
         noMachinesAvailable: 'Brak maszyn',
     },
 

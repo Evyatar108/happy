@@ -9,6 +9,11 @@ import type { GitFileStatus } from '@/sync/gitStatusFiles';
 
 const routerPush = vi.fn();
 let sidebarProps: { onFilePress?: (file: GitFileStatus) => void; selectedPath?: string | null } | null = null;
+let agentInputProps: { onSend?: (switchMode: 'now' | 'when-idle', attachments: unknown[]) => Promise<boolean | void>; onChangeText?: (text: string) => void } | null = null;
+const generateLocalMessageId = vi.fn();
+const sendMessage = vi.fn();
+const sessionWriteFile = vi.fn();
+const modalAlert = vi.fn();
 
 const session = {
     id: 'session-1',
@@ -79,8 +84,15 @@ vi.mock('@/components/FilesSidebar', () => ({
     },
 }));
 
-vi.mock('@/components/AgentContentView', () => ({ AgentContentView: 'AgentContentView' }));
-vi.mock('@/components/AgentInput', () => ({ AgentInput: 'AgentInput' }));
+vi.mock('@/components/AgentContentView', () => ({
+    AgentContentView: (props: { input?: React.ReactNode; children?: React.ReactNode }) => React.createElement('AgentContentView', null, props.children, props.input),
+}));
+vi.mock('@/components/AgentInput', () => ({
+    AgentInput: (props: typeof agentInputProps) => {
+        agentInputProps = props;
+        return React.createElement('AgentInput');
+    },
+}));
 vi.mock('@/components/ChatHeaderView', () => ({ ChatHeaderView: 'ChatHeaderView' }));
 vi.mock('@/components/ChatList', () => ({ ChatList: 'ChatList' }));
 vi.mock('@/components/Deferred', () => ({ Deferred: ({ children }: { children: React.ReactNode }) => React.createElement(React.Fragment, null, children) }));
@@ -107,7 +119,7 @@ vi.mock('@/hooks/useChatWidth', () => ({ useChatWidth: () => 800 }));
 vi.mock('@/hooks/useDraft', () => ({ useDraft: () => ({ clearDraft: vi.fn() }) }));
 vi.mock('@/hooks/usePreSendCommand', () => ({ usePreSendCommand: () => () => ({ intercepted: false, execute: vi.fn() }) }));
 vi.mock('@/hooks/useSessionQuickActions', () => ({ useSessionQuickActions: () => ({ canResume: false, resumeAvailability: null, resumeSession: vi.fn(), resumeSessionInline: vi.fn(), resumingSession: false }) }));
-vi.mock('@/modal', () => ({ Modal: { alert: vi.fn() } }));
+vi.mock('@/modal', () => ({ Modal: { alert: modalAlert } }));
 vi.mock('@/realtime/hooks/voiceHooks', () => ({ voiceHooks: { onVoiceStarted: vi.fn(), onVoiceStopped: vi.fn() } }));
 vi.mock('@/realtime/RealtimeSession', () => ({
     getCurrentVoiceConversationId: () => null,
@@ -122,6 +134,7 @@ vi.mock('@/sync/ops', () => ({
     requestSwitch: vi.fn(),
     sessionAbort: vi.fn(),
     sessionEmitAgentConfiguration: vi.fn(),
+    sessionWriteFile,
 }));
 vi.mock('@/sync/storage', () => ({
     storage: { getState: () => ({}), applyLocalSettings: vi.fn() },
@@ -136,7 +149,10 @@ vi.mock('@/sync/storage', () => ({
     useSessionUsage: () => null,
     useSetting: (key: string) => key === 'fileDiffsSidebar',
 }));
-vi.mock('@/sync/sync', () => ({ sync: { onSessionVisible: vi.fn(), onActiveSessionChanged: vi.fn(), sendMessage: vi.fn() } }));
+vi.mock('@/sync/sync', () => ({
+    generateLocalMessageId,
+    sync: { onSessionVisible: vi.fn(), onActiveSessionChanged: vi.fn(), sendMessage },
+}));
 vi.mock('@/text', () => ({ t: (key: string) => key }));
 vi.mock('@/track', () => ({ tracking: null }));
 vi.mock('@/sync/persistence', () => ({ getVoiceMessageCount: () => 0, getVoiceOnboardingPromptLoadCount: () => 0 }));
@@ -163,13 +179,20 @@ const { encodeBase64Url } = await import('@/utils/base64url');
 describe('SessionView file sidebar routing', () => {
     beforeEach(() => {
         routerPush.mockReset();
+        generateLocalMessageId.mockReset();
+        sendMessage.mockReset();
+        sessionWriteFile.mockReset();
+        modalAlert.mockReset();
         sidebarProps = null;
+        agentInputProps = null;
     });
 
     it('routes sidebar file clicks to the full file viewer instead of selecting an inline overlay', async () => {
         await act(async () => {
             TestRenderer.create(<SessionView id="session-1" />);
         });
+
+        expect(agentInputProps?.onSend).toBeTypeOf('function');
 
         expect(sidebarProps?.selectedPath).toBeUndefined();
 
@@ -187,5 +210,65 @@ describe('SessionView file sidebar routing', () => {
         });
 
         expect(routerPush).toHaveBeenCalledWith(`/session/session-1/file?path=${encodeBase64Url(file.fullPath)}&refresh=1&view=diff`);
+    });
+
+    it('uploads attachments under a generated local id before sending the chat message', async () => {
+        generateLocalMessageId.mockReturnValue('local-upload-id');
+        sessionWriteFile.mockResolvedValue({ success: true });
+
+        await act(async () => {
+            TestRenderer.create(<SessionView id="session-1" />);
+        });
+
+        expect(agentInputProps?.onSend).toBeTypeOf('function');
+
+        await act(async () => {
+            agentInputProps?.onChangeText?.('please inspect these');
+        });
+
+        const attachments = [
+            { id: 'a1', name: 'note.txt', originalName: 'note.txt', size: 4, base64: 'bm90ZQ==' },
+            { id: 'a2', name: '../NOTE.txt', originalName: '../NOTE.txt', size: 5, base64: 'bm90ZTI=' },
+        ];
+
+        await act(async () => {
+            await agentInputProps?.onSend?.('now', attachments);
+        });
+
+        expect(generateLocalMessageId).toHaveBeenCalledOnce();
+        expect(sessionWriteFile).toHaveBeenNthCalledWith(1, 'session-1', '.happy/attachments/local-upload-id/note.txt', 'bm90ZQ==', { createParents: true });
+        expect(sessionWriteFile).toHaveBeenNthCalledWith(2, 'session-1', '.happy/attachments/local-upload-id/NOTE (2).txt', 'bm90ZTI=', { createParents: true });
+        for (const call of sessionWriteFile.mock.calls) {
+            expect(call[1]).toMatch(/^\.happy\/attachments\/[^/]+\/[^/]+$/);
+        }
+        expect(sendMessage).toHaveBeenCalledWith('session-1', 'please inspect these\n\nAttachments:\n- .happy/attachments/local-upload-id/note.txt\n- .happy/attachments/local-upload-id/NOTE (2).txt', {
+            source: 'chat',
+            switchMode: 'now',
+            localId: 'local-upload-id',
+            attachmentRefs: [
+                { remotePath: '.happy/attachments/local-upload-id/note.txt', name: 'note.txt', size: 4 },
+                { remotePath: '.happy/attachments/local-upload-id/NOTE (2).txt', name: 'NOTE (2).txt', size: 5 },
+            ],
+            displayText: 'please inspect these',
+        });
+    });
+
+    it('does not send the message when an attachment upload fails', async () => {
+        generateLocalMessageId.mockReturnValue('local-upload-id');
+        sessionWriteFile.mockResolvedValue({ success: false, error: 'write failed' });
+
+        await act(async () => {
+            TestRenderer.create(<SessionView id="session-1" />);
+        });
+
+        await act(async () => {
+            await agentInputProps?.onSend?.('now', [
+                { id: 'a1', name: 'note.txt', originalName: 'note.txt', size: 4, base64: 'bm90ZQ==' },
+            ]);
+        });
+
+        expect(sessionWriteFile).toHaveBeenCalledOnce();
+        expect(sendMessage).not.toHaveBeenCalled();
+        expect(modalAlert).toHaveBeenCalledWith('common.error', 'write failed', [{ text: 'common.ok' }]);
     });
 });

@@ -581,6 +581,13 @@ export const ca: TranslationStructure = {
             fileLabel: 'FITXER',
             folderLabel: 'CARPETA',
         },
+        attachments: {
+            attachButton: 'Adjunta un fitxer',
+            dropIdle: 'Deixa els fitxers aquí',
+            dropActive: 'Deixa anar per adjuntar',
+            pasteHint: 'Enganxa fitxers per adjuntar-los',
+            removeButton: ({ name }: { name: string }) => `Elimina ${name}`,
+        },
         noMachinesAvailable: 'Sense màquines',
     },
 

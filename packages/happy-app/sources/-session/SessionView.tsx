@@ -26,12 +26,12 @@ import { voiceHooks } from '@/realtime/hooks/voiceHooks';
 import { getCurrentVoiceConversationId, getCurrentVoiceSessionDurationSeconds, startRealtimeSession, stopRealtimeSession } from '@/realtime/RealtimeSession';
 import { shouldShowBoundaryAdvisory, updateComposeStartAt } from './composeBoundaryAdvisory';
 import { gitStatusSync } from '@/sync/gitStatusSync';
-import { cancelPendingSwitch, requestSwitch, sessionAbort, sessionEmitAgentConfiguration } from '@/sync/ops';
+import { cancelPendingSwitch, requestSwitch, sessionAbort, sessionEmitAgentConfiguration, sessionWriteFile } from '@/sync/ops';
 import { storage, useIsDataReady, useLatestBoundary, useLocalSetting, useLocalSettingMutable, useMachine, useRealtimeStatus, useSessionMessages, useSessionUsage, useSetting } from '@/sync/storage';
 import { useSidebar } from '@/components/SidebarContext';
 import { useSession } from '@/sync/storage';
 import { Session } from '@/sync/storageTypes';
-import { sync } from '@/sync/sync';
+import { generateLocalMessageId, sync } from '@/sync/sync';
 import { t } from '@/text';
 import { tracking } from '@/track';
 import { getVoiceMessageCount, getVoiceOnboardingPromptLoadCount } from '@/sync/persistence';
@@ -44,6 +44,7 @@ import { formatPathRelativeToHome, getResumeCommandBlock, getSessionAvatarId, ge
 import { useSessionQuickActions } from '@/hooks/useSessionQuickActions';
 import { isVersionSupported, MINIMUM_CLI_VERSION } from '@/utils/versionUtils';
 import { encodeBase64Url } from '@/utils/base64url';
+import { dedupeAttachmentNames, sanitizeAttachmentName } from '@/utils/attachmentName';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as React from 'react';
@@ -59,6 +60,20 @@ export function getCanSendWhenIdle(session: Session): boolean {
         && getSessionMode(session) === 'local'
         && session.agentState?.turnActive === true
         && session.agentState?.pendingSwitch == null;
+}
+
+function buildMessageWithAttachmentRefs(text: string, attachmentRefs: { remotePath: string }[]): string {
+    if (attachmentRefs.length === 0) {
+        return text;
+    }
+
+    const attachmentBlock = [
+        'Attachments:',
+        ...attachmentRefs.map(ref => `- ${ref.remotePath}`),
+    ].join('\n');
+
+    const trimmedText = text.trim();
+    return trimmedText ? `${trimmedText}\n\n${attachmentBlock}` : attachmentBlock;
 }
 
 export const SessionView = React.memo((props: { id: string }) => {
@@ -611,17 +626,46 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
             }}
             blockSend={false}
             canSendWhenIdle={canSendWhenIdle}
-            onSend={async (switchMode) => {
+            onSend={async (switchMode, attachments) => {
                 const trimmedMessage = message.trim();
-                if (trimmedMessage) {
+                if (trimmedMessage || attachments.length > 0) {
                     const intercept = preSendCommand(trimmedMessage);
                     composeStartAtRef.current = null;
-                    if (intercept.intercepted) {
+                    if (trimmedMessage && intercept.intercepted) {
                         setMessage('');
                         clearDraft();
                         intercept.execute();
-                        return;
+                        return false;
                     }
+
+                    const localId = attachments.length > 0 ? generateLocalMessageId() : undefined;
+                    const dedupedNames = dedupeAttachmentNames(attachments.map(file => sanitizeAttachmentName(file.name)));
+                    const attachmentRefs = attachments.map((file, index) => ({
+                        remotePath: `.happy/attachments/${localId}/${dedupedNames[index]}`,
+                        name: dedupedNames[index],
+                        size: file.size,
+                    }));
+
+                    for (const [index, attachment] of attachments.entries()) {
+                        const result = await sessionWriteFile(
+                            sessionId,
+                            attachmentRefs[index].remotePath,
+                            attachment.base64,
+                            { createParents: true }
+                        );
+
+                        if (!result.success) {
+                            Modal.alert(t('common.error'), result.error || t('errors.attachmentUploadFailed'), [{ text: t('common.ok') }]);
+                            return false;
+                        }
+                    }
+
+                    const body = buildMessageWithAttachmentRefs(message, attachmentRefs);
+                    const sendOptions = {
+                        source: 'chat' as const,
+                        switchMode,
+                        ...(localId ? { localId, attachmentRefs, displayText: message } : {}),
+                    };
 
                     if (switchMode === 'when-idle') {
                         const snapshot = message;
@@ -629,18 +673,20 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                         setMessage('');
                         clearDraft();
                         try {
-                            await sync.sendMessage(sessionId, snapshot, { source: 'chat', switchMode });
+                            await sync.sendMessage(sessionId, body, sendOptions);
                         } catch {
                             if (messageRef.current === '') {
                                 messageRef.current = snapshot;
                                 setMessage(snapshot);
                             }
+                            return false;
                         }
                     } else {
                         setMessage('');
                         clearDraft();
-                        sync.sendMessage(sessionId, message, { source: 'chat', switchMode });
+                        sync.sendMessage(sessionId, body, sendOptions);
                     }
+                    return true;
                 }
             }}
             onMicPress={isDisconnected ? undefined : micButtonState.onMicPress}

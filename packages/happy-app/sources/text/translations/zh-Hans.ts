@@ -582,6 +582,13 @@ export const zhHans: TranslationStructure = {
             fileLabel: '文件',
             folderLabel: '文件夹',
         },
+        attachments: {
+            attachButton: '附加文件',
+            dropIdle: '将文件拖放到这里',
+            dropActive: '松开以附加',
+            pasteHint: '粘贴文件以附加',
+            removeButton: ({ name }: { name: string }) => `移除 ${name}`,
+        },
         noMachinesAvailable: '无设备',
     },
 

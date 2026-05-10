@@ -578,6 +578,13 @@ export const en = {
             fileLabel: 'FILE',
             folderLabel: 'FOLDER',
         },
+        attachments: {
+            attachButton: 'Attach file',
+            dropIdle: 'Drop files here',
+            dropActive: 'Release to attach',
+            pasteHint: 'Paste files to attach',
+            removeButton: ({ name }: { name: string }) => `Remove ${name}`,
+        },
         noMachinesAvailable: 'No machines',
     },
 

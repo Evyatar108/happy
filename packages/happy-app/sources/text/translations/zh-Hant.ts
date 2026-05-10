@@ -581,6 +581,13 @@ export const zhHant: TranslationStructure = {
             fileLabel: '檔案',
             folderLabel: '資料夾',
         },
+        attachments: {
+            attachButton: '附加檔案',
+            dropIdle: '將檔案拖放到這裡',
+            dropActive: '放開以附加',
+            pasteHint: '貼上檔案以附加',
+            removeButton: ({ name }: { name: string }) => `移除 ${name}`,
+        },
         noMachinesAvailable: '無裝置',
     },
 

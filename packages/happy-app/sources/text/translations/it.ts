@@ -579,6 +579,13 @@ export const it: TranslationStructure = {
             fileLabel: 'FILE',
             folderLabel: 'CARTELLA',
         },
+        attachments: {
+            attachButton: 'Allega file',
+            dropIdle: 'Rilascia i file qui',
+            dropActive: 'Rilascia per allegare',
+            pasteHint: 'Incolla i file da allegare',
+            removeButton: ({ name }: { name: string }) => `Rimuovi ${name}`,
+        },
         noMachinesAvailable: 'Nessuna macchina',
     },
 

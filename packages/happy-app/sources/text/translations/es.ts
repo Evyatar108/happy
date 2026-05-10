@@ -581,6 +581,13 @@ export const es: TranslationStructure = {
             fileLabel: 'ARCHIVO',
             folderLabel: 'CARPETA',
         },
+        attachments: {
+            attachButton: 'Adjuntar archivo',
+            dropIdle: 'Suelta archivos aquí',
+            dropActive: 'Suelta para adjuntar',
+            pasteHint: 'Pega archivos para adjuntar',
+            removeButton: ({ name }: { name: string }) => `Quitar ${name}`,
+        },
         noMachinesAvailable: 'Sin máquinas',
     },
 

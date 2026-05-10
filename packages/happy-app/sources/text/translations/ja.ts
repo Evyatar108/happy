@@ -582,6 +582,13 @@ export const ja: TranslationStructure = {
             fileLabel: 'ファイル',
             folderLabel: 'フォルダ',
         },
+        attachments: {
+            attachButton: 'ファイルを添付',
+            dropIdle: 'ここにファイルをドロップ',
+            dropActive: '離して添付',
+            pasteHint: 'ファイルを貼り付けて添付',
+            removeButton: ({ name }: { name: string }) => `${name}を削除`,
+        },
         noMachinesAvailable: 'マシンなし',
     },
 

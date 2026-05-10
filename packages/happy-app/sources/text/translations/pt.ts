@@ -580,6 +580,13 @@ export const pt: TranslationStructure = {
             fileLabel: 'ARQUIVO',
             folderLabel: 'PASTA',
         },
+        attachments: {
+            attachButton: 'Anexar arquivo',
+            dropIdle: 'Solte arquivos aqui',
+            dropActive: 'Solte para anexar',
+            pasteHint: 'Cole arquivos para anexar',
+            removeButton: ({ name }: { name: string }) => `Remover ${name}`,
+        },
         noMachinesAvailable: 'Sem máquinas',
     },
 

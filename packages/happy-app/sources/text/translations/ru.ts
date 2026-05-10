@@ -597,6 +597,13 @@ export const ru: TranslationStructure = {
             fileLabel: 'ФАЙЛ',
             folderLabel: 'ПАПКА',
         },
+        attachments: {
+            attachButton: 'Прикрепить файл',
+            dropIdle: 'Перетащите файлы сюда',
+            dropActive: 'Отпустите, чтобы прикрепить',
+            pasteHint: 'Вставьте файлы, чтобы прикрепить',
+            removeButton: ({ name }: { name: string }) => `Удалить ${name}`,
+        },
         noMachinesAvailable: 'Нет машин',
     },
 

@@ -94,6 +94,10 @@ const REQUIRED_ATTACHMENT_KEYS = [
     'errors.attachmentPerFileTooLarge',
     'errors.attachmentTotalTooLarge',
     'errors.attachmentUploadFailed',
+    'agentInput.attachments.attachButton',
+    'agentInput.attachments.dropIdle',
+    'agentInput.attachments.dropActive',
+    'agentInput.attachments.pasteHint',
 ] as const;
 
 type TranslationTree =
