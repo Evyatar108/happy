@@ -93,16 +93,21 @@ Verified: 37 tests pass (3 new + 34 existing).
 
 Verified: `pnpm --filter happy-app typecheck` clean; i18n parity test passes.
 
+## Investigated this round
+
+The following P1 bugs from `docs/experimental/roadmap.md` were investigated and addressed in this PR:
+
+- **"Yes, don't ask again" / session-scoped approval not persisting — FIXED.** The Claude `approve_for_session` allowlist was hoisted out of `permissionHandler.ts` instance state into a session-scope module (`packages/happy-cli/src/claude/utils/sessionAllowlist.ts`) so it survives `claudeRemoteLauncher.ts` resets, with rehydration from `agentState` on session resume. (US-001)
+- **Codex sandbox blocking work outside `yolo` mode — VERIFIED CLEAN.** Investigation-first matrix run found no policy bug in the local code path; all four Codex modes map correctly with and without Happy-managed sandbox. No targeted fix justified. See the 2026-05-10 entry in `docs/fork-notes.md` (`## Codex sandbox verification notes`). (US-002)
+- **Codex session stopping unreliable — VERIFIED CLEAN + HARDENED.** Local Codex-side investigation found existing abort coverage adequate; no Codex production policy was changed. Daemon-side hardening added: `stopTrackedSession.ts` now does SIGTERM-then-SIGKILL escalation and returns `stopped: false` when the child survives SIGKILL. See the 2026-05-10 entry in `docs/fork-notes.md`. (US-003)
+- **Codex sessions stuck in "thinking" indefinitely — FIXED.** Root cause was the post-normalization envelope read in `sync.ts` accessing `rawContent.content.data.ev.t` against the wrong shape; aligned to the normalized envelope from `typesRaw.ts`. (US-005)
+- **Permission state duplication / wrong buttons for ExitPlanMode — FIXED.** The Phase 0 ↔ Phase 4 reducer correlation between the pending `agentState` permission entry and the `ExitPlanMode` tool envelope is fixed via the new `isExitPlanModeTool` correlation in `packages/happy-app/sources/sync/reducer/reducer.ts` (correlate by tool name + input when `toolUseID` doesn't match). (US-004 / Bug 2)
+
 ## Other P1 bugs — not yet investigated
 
 The following P1 bugs from `docs/experimental/roadmap.md` have not been investigated yet:
 
-- "Yes, don't ask again" / session-scoped approval not persisting
-- Codex sandbox blocking work outside `yolo` mode
-- Codex session stopping unreliable
-- Codex sessions stuck in "thinking" indefinitely
 - Multi-file edit / regular edit rendering
 - Permission decision persistence (approved / denied / approved_for_session / abort)
-- Permission state duplication / wrong buttons for Claude vs Codex
 
 Each should be tackled in its own focused session with a captured repro before fixing. Prefer code-only investigations (rendering bugs) when no live app access is available.
