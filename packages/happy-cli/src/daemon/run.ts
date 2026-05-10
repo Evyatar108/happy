@@ -9,7 +9,7 @@ import { ApiClient } from '@/api/api';
 import type { ForkSessionOptions } from '@/api/apiMachine';
 import { TrackedSession, SessionEncryptionData } from './types';
 import { MachineMetadata, DaemonState, Metadata } from '@/api/types';
-import { SpawnSessionOptions, SpawnSessionResult } from '@/modules/common/registerCommonHandlers';
+import { SpawnInWorktreeOptions, SpawnSessionOptions, SpawnSessionResult } from '@/modules/common/registerCommonHandlers';
 import { logger } from '@/ui/logger';
 import { authAndSetupMachineIfNeeded } from '@/ui/auth';
 import { configuration } from '@/configuration';
@@ -35,6 +35,7 @@ import { pickFreeLoopbackPort } from '@/utils/pickFreeLoopbackPort';
 import { loadOrCreateTofuKeypairs } from '@/tofu/keypairManager';
 import { TunnelManager } from '@/tunnel/tunnelManager';
 import { forkSession } from './forkSession';
+import { spawnInWorktree } from './spawnInWorktree';
 import { stopTrackedSession } from './stopTrackedSession';
 
 // Prepare initial metadata
@@ -569,18 +570,20 @@ export async function startDaemon(): Promise<void> {
       }
     };
 
-    const spawnTrackedHappyProcess = ({
+    const spawnTrackedHappyProcess = async ({
       args,
       cwd,
       env,
       directoryCreated = false,
       message,
+      onProcessSpawned,
     }: {
       args: string[];
       cwd: string;
       env: NodeJS.ProcessEnv;
       directoryCreated?: boolean;
       message?: string;
+      onProcessSpawned?: (pid: number) => void | Promise<void>;
     }): Promise<SpawnSessionResult> => {
       const happyProcess = spawnHappyCLI(args, {
         cwd,
@@ -622,6 +625,16 @@ export async function startDaemon(): Promise<void> {
           onChildExited(happyProcess.pid);
         }
       });
+
+      try {
+        await onProcessSpawned?.(happyProcess.pid);
+      } catch (error) {
+        logger.debug(`[DAEMON RUN] onProcessSpawned hook failed for PID ${happyProcess.pid}: ${error instanceof Error ? error.message : error}`);
+        return {
+          type: 'error',
+          errorMessage: `Failed to record spawned process ${happyProcess.pid}: ${error instanceof Error ? error.message : error}`,
+        };
+      }
 
       logger.debug(`[DAEMON RUN] Waiting for session webhook for PID ${happyProcess.pid}`);
 
@@ -751,6 +764,25 @@ export async function startDaemon(): Promise<void> {
       baseEnv: process.env,
     });
 
+    const spawnInWorktreeHandler = (options: SpawnInWorktreeOptions): Promise<SpawnSessionResult> => spawnInWorktree(options, {
+      daemonHome: configuration.happyHomeDir,
+      machineId,
+      baseEnv: process.env,
+      stat: fs.stat,
+      realpath: fs.realpath,
+      runGit: (cwd, args) => new Promise<string>((resolve, reject) => {
+        execFile('git', args, { cwd, encoding: 'utf8', windowsHide: true }, (err, stdout, stderr) => {
+          if (err) {
+            reject(new Error(stderr || err.message));
+          } else {
+            resolve(stdout);
+          }
+        });
+      }),
+      spawnTrackedHappyProcess,
+      killProcess: (pid) => process.kill(pid),
+    });
+
     // Stop a session by sessionId or PID fallback
     const stopSession = async (sessionId: string): Promise<boolean> => {
       logger.debug(`[DAEMON RUN] Attempting to stop session ${sessionId}`);
@@ -846,6 +878,7 @@ export async function startDaemon(): Promise<void> {
     // Set RPC handlers
     apiMachine.setRPCHandlers({
       spawnSession,
+      spawnInWorktree: spawnInWorktreeHandler,
       resumeSession,
       forkSession: forkSessionHandler,
       stopSession,

@@ -146,6 +146,11 @@ Local HTTP server (127.0.0.1 only) provides:
 - Prevents multiple daemon instances
 - Cleaned up on graceful shutdown
 
+### Worktree Spawn Transactions
+- Atomic fan-out spawns persist one JSON file per transaction under `<happyHomeDir>/pending-worktrees/`.
+- The daemon records `worktreeCreated`, then `processSpawned` with PID via the `spawnTrackedHappyProcess` PID hook, then `sessionRegistered` after the local `/session-started` webhook.
+- Crash recovery should treat `sessionRegistered` records as hands-off and only clean earlier states.
+
 ## 6. WebSocket Communication
 
 `ApiMachineClient` handles bidirectional communication:
