@@ -25,6 +25,7 @@ export const SettingsSchema = z.object({
     avatarStyle: z.string().describe('Avatar display style'),
     showFlavorIcons: z.boolean().describe('Whether to show AI provider icons in avatars'),
     compactSessionView: z.boolean().describe('Whether to use compact view for active sessions'),
+    sessionGroupOrder: z.array(z.string()).default([]).describe('Project group order as machineId::path keys'),
 
     hideInactiveSessions: z.boolean().describe('Hide inactive sessions in the main list'),
     /** @deprecated The resume feature is now always enabled; this field is kept for schema backward compatibility only. */
@@ -95,6 +96,7 @@ export const settingsDefaults: Settings = {
     avatarStyle: 'brutalist',
     showFlavorIcons: false,
     compactSessionView: false,
+    sessionGroupOrder: [],
 
     hideInactiveSessions: false,
     expResumeSession: false,
