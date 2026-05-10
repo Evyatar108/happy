@@ -7,7 +7,7 @@ import { io, Socket } from 'socket.io-client';
 import { logger } from '@/ui/logger';
 import { configuration } from '@/configuration';
 import { MachineMetadata, DaemonState, Machine, Update, UpdateMachineBody } from './types';
-import { registerCommonHandlers, SpawnSessionOptions, SpawnSessionResult } from '../modules/common/registerCommonHandlers';
+import { isSupportedAgent, registerCommonHandlers, SpawnInWorktreeOptions, SpawnSessionOptions, SpawnSessionResult } from '../modules/common/registerCommonHandlers';
 import { encodeBase64, decodeBase64, encrypt, decrypt } from './encryption';
 import { backoff } from '@/utils/time';
 import { RpcHandlerManager } from './rpc/RpcHandlerManager';
@@ -76,6 +76,7 @@ interface DaemonToServerEvents {
 
 type MachineRpcHandlers = {
     spawnSession: (options: SpawnSessionOptions) => Promise<SpawnSessionResult>;
+    spawnInWorktree?: (options: SpawnInWorktreeOptions) => Promise<SpawnSessionResult>;
     resumeSession?: (sessionId: string, options?: { model?: string; permissionMode?: string }) => Promise<SpawnSessionResult>;
     forkSession?: (options: ForkSessionOptions) => Promise<SpawnSessionResult>;
     stopSession: (sessionId: string) => boolean | Promise<boolean>;
@@ -128,6 +129,7 @@ export class ApiMachineClient {
 
     setRPCHandlers({
         spawnSession,
+        spawnInWorktree,
         resumeSession,
         forkSession,
         stopSession,
@@ -162,6 +164,35 @@ export class ApiMachineClient {
         });
 
         this.syncResumeSessionRpcRegistration();
+
+        this.rpcHandlerManager.registerHandler('spawn-in-worktree', async (params: any) => {
+            const { repoPath, worktreePath, runId, agent, token } = params || {};
+
+            if (!isSupportedAgent(agent)) {
+                return { type: 'error', errorMessage: 'agent must be one of: claude, codex, gemini, openclaw' };
+            }
+            if (!repoPath || typeof repoPath !== 'string') {
+                return { type: 'error', errorMessage: 'repoPath is required' };
+            }
+            if (worktreePath !== undefined && worktreePath !== null && typeof worktreePath !== 'string') {
+                return { type: 'error', errorMessage: 'worktreePath must be a string when provided' };
+            }
+            if (runId !== undefined && runId !== null && typeof runId !== 'string') {
+                return { type: 'error', errorMessage: 'runId must be a string when provided' };
+            }
+            if (!spawnInWorktree) {
+                return { type: 'error', errorMessage: 'Spawn-in-worktree handler not available' };
+            }
+
+            return spawnInWorktree({
+                machineId: this.machine.id,
+                repoPath,
+                worktreePath: worktreePath ?? undefined,
+                runId: runId ?? undefined,
+                agent,
+                token,
+            });
+        });
 
         this.rpcHandlerManager.registerHandler('fork-into-worktree', async (params: any) => {
             const { parentSessionId, worktreePath, model, permissionMode, effortLevel } = params || {};

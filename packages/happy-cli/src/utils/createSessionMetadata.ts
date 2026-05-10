@@ -74,6 +74,9 @@ export function createSessionMetadata(opts: CreateSessionMetadataOptions): Sessi
 
     const metadata: Metadata = {
         path: process.cwd(),
+        projectPath: process.env.HAPPY_PROJECT_PATH,
+        worktreePath: process.env.HAPPY_WORKTREE_PATH,
+        runId: process.env.HAPPY_SPAWN_RUN_ID,
         host: os.hostname(),
         version: packageJson.version,
         os: os.platform(),

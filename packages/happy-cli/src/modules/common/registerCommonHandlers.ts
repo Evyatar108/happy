@@ -122,13 +122,30 @@ export interface SpawnSessionOptions {
     directory: string;
     sessionId?: string;
     approvedNewDirectoryCreation?: boolean;
-    agent?: 'claude' | 'codex' | 'gemini' | 'openclaw';
+    agent?: SupportedAgent;
     environmentVariables?: Record<string, string>;
     token?: string;
 }
 
+export const SUPPORTED_AGENTS = ['claude', 'codex', 'gemini', 'openclaw'] as const;
+
+export type SupportedAgent = typeof SUPPORTED_AGENTS[number];
+
+export function isSupportedAgent(agent: unknown): agent is SupportedAgent {
+    return typeof agent === 'string' && (SUPPORTED_AGENTS as readonly string[]).includes(agent);
+}
+
+export interface SpawnInWorktreeOptions {
+    machineId?: string;
+    repoPath: string;
+    worktreePath?: string;
+    runId?: string;
+    agent: SupportedAgent;
+    token?: string;
+}
+
 export type SpawnSessionResult =
-    | { type: 'success'; sessionId: string }
+    | { type: 'success'; sessionId: string; worktreePath?: string; branchName?: string; runId?: string }
     | { type: 'requestToApproveDirectoryCreation'; directory: string }
     | { type: 'error'; errorMessage: string };
 
