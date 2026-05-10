@@ -31,6 +31,11 @@ const shared = vi.hoisted(() => ({
         setWorktreeKey: vi.fn(),
     },
     listWorktreesMock: vi.fn(),
+    getRepoPathMock: vi.fn((path: string) => {
+        const marker = '/.dev/worktree/';
+        const index = path.indexOf(marker);
+        return index === -1 ? path : path.slice(0, index);
+    }),
     onOpenPickerMock: vi.fn(),
     onClosePickerMock: vi.fn(),
 }));
@@ -108,11 +113,7 @@ vi.mock('@/sync/storage', () => ({
     useSessions: () => [createSession()],
 }));
 vi.mock('@/utils/worktree', () => ({
-    getRepoPath: (path: string) => {
-        const marker = '/.dev/worktree/';
-        const index = path.indexOf(marker);
-        return index === -1 ? path : path.slice(0, index);
-    },
+    getRepoPath: shared.getRepoPathMock,
     listWorktrees: shared.listWorktreesMock,
 }));
 
@@ -204,6 +205,7 @@ describe('NewSessionContextRow', () => {
         shared.onOpenPickerMock.mockReset();
         shared.onClosePickerMock.mockReset();
         shared.listWorktreesMock.mockReset();
+        shared.getRepoPathMock.mockClear();
         shared.listWorktreesMock.mockResolvedValue([
             { path: '/home/u/repo/.dev/worktree/feat-b', branch: 'feat-b' },
             { path: '/home/u/repo/.dev/worktree/feat-a', branch: 'feat-a' },
@@ -255,6 +257,10 @@ describe('NewSessionContextRow', () => {
             { key: 'repo:/home/u/repo', label: '~/repo', dimmed: true, disabled: true },
             { key: '/home/u/repo/.dev/worktree/feat-a', label: 'feat-a', subtitle: '/home/u/repo/.dev/worktree/feat-a' },
             { key: '/home/u/repo/.dev/worktree/feat-b', label: 'feat-b', subtitle: '/home/u/repo/.dev/worktree/feat-b' },
+        ]);
+        expect(shared.getRepoPathMock.mock.calls.map(call => call[0])).toEqual([
+            '/home/u/repo/.dev/worktree/feat-b',
+            '/home/u/repo/.dev/worktree/feat-a',
         ]);
         expect(textValues(renderer.root as unknown as RenderNode)).toContain('~/repo');
     });
