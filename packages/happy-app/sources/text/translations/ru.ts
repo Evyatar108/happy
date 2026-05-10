@@ -730,6 +730,8 @@ export const ru: TranslationStructure = {
 
     files: {
         changes: 'Изменения',
+        refreshChanges: 'Обновить изменения',
+        refreshChangesHint: 'Загрузить последние изменения файлов',
         searchPlaceholder: 'Поиск файлов...',
         detachedHead: 'отделённый HEAD',
         summary: ({ staged, unstaged }: { staged: number; unstaged: number }) => `${staged} подготовлено • ${unstaged} не подготовлено`,

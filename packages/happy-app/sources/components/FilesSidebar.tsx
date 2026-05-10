@@ -10,6 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { storage, useSessionGitStatus, useSessionGitStatusFiles } from '@/sync/storage';
 import { getGitStatusFiles, GitFileStatus } from '@/sync/gitStatusFiles';
+import { gitStatusSync } from '@/sync/gitStatusSync';
 import { FileIcon } from '@/components/FileIcon';
 import { Typography } from '@/constants/Typography';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
@@ -148,6 +149,10 @@ export const FilesSidebar = React.memo<FilesSidebarProps>(({ sessionId, selected
     const [query, setQuery] = React.useState('');
     const [collapsed, setCollapsed] = React.useState<Set<string>>(() => new Set());
 
+    const handleRefresh = React.useCallback(() => {
+        gitStatusSync.invalidate(sessionId);
+    }, [sessionId]);
+
     React.useEffect(() => {
         let cancelled = false;
         (async () => {
@@ -207,12 +212,24 @@ export const FilesSidebar = React.memo<FilesSidebarProps>(({ sessionId, selected
         <View style={styles.container}>
             <View style={styles.header}>
                 <Text style={styles.headerTitle} numberOfLines={1}>{t('files.changes')}</Text>
-                {hasFiles ? (
-                    <Pressable onPress={toggleAll} hitSlop={8} style={styles.headerCountWrap}>
-                        <Text style={styles.headerCount}>{totalCount}</Text>
-                        <AnimatedChevron collapsed={allCollapsed} color={theme.colors.textSecondary} size={14} />
+                <View style={styles.headerActions}>
+                    <Pressable
+                        onPress={handleRefresh}
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('files.refreshChanges')}
+                        accessibilityHint={t('files.refreshChangesHint')}
+                        style={({ pressed }) => [styles.headerIconButton, pressed && styles.headerIconButtonPressed]}
+                    >
+                        <Octicons name="sync" size={14} color={theme.colors.textSecondary} />
                     </Pressable>
-                ) : null}
+                    {hasFiles ? (
+                        <Pressable onPress={toggleAll} hitSlop={8} style={styles.headerCountWrap}>
+                            <Text style={styles.headerCount}>{totalCount}</Text>
+                            <AnimatedChevron collapsed={allCollapsed} color={theme.colors.textSecondary} size={14} />
+                        </Pressable>
+                    ) : null}
+                </View>
             </View>
 
             {hasFiles ? (
@@ -373,6 +390,21 @@ const styles = StyleSheet.create((theme) => ({
         fontWeight: '600',
         color: theme.colors.text,
         ...Typography.default('semiBold'),
+    },
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    headerIconButton: {
+        width: 28,
+        height: 28,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 6,
+    },
+    headerIconButtonPressed: {
+        backgroundColor: theme.colors.surfaceSelected,
     },
     headerCountWrap: {
         flexDirection: 'row',

@@ -727,6 +727,8 @@ export const en: TranslationStructure = {
 
     files: {
         changes: 'Changes',
+        refreshChanges: 'Refresh changes',
+        refreshChangesHint: 'Fetch the latest changed files',
         searchPlaceholder: 'Search files...',
         detachedHead: 'detached HEAD',
         summary: ({ staged, unstaged }: { staged: number; unstaged: number }) => `${staged} staged • ${unstaged} unstaged`,

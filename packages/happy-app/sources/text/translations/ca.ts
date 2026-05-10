@@ -714,6 +714,8 @@ export const ca: TranslationStructure = {
 
     files: {
         changes: 'Canvis',
+        refreshChanges: 'Actualitza els canvis',
+        refreshChangesHint: 'Obtén els canvis de fitxers més recents',
         searchPlaceholder: 'Cerca fitxers...',
         detachedHead: 'HEAD separat',
         summary: ({ staged, unstaged }: { staged: number; unstaged: number }) => `${staged} preparats • ${unstaged} sense preparar`,

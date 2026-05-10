@@ -713,6 +713,8 @@ export const pt: TranslationStructure = {
 
     files: {
         changes: 'Alterações',
+        refreshChanges: 'Atualizar alterações',
+        refreshChangesHint: 'Buscar alterações de arquivos mais recentes',
         searchPlaceholder: 'Buscar arquivos...',
         detachedHead: 'HEAD desanexado',
         summary: ({ staged, unstaged }: { staged: number; unstaged: number }) => `${staged} preparados • ${unstaged} não preparados`,

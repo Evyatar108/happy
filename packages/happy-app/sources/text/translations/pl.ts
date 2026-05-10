@@ -730,6 +730,8 @@ export const pl: TranslationStructure = {
 
     files: {
         changes: 'Zmiany',
+        refreshChanges: 'Odśwież zmiany',
+        refreshChangesHint: 'Pobierz najnowsze zmiany plików',
         searchPlaceholder: 'Wyszukaj pliki...',
         detachedHead: 'odłączony HEAD',
         summary: ({ staged, unstaged }: { staged: number; unstaged: number }) => `${staged} przygotowanych • ${unstaged} nieprzygotowanych`,

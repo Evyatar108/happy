@@ -715,6 +715,8 @@ export const ja: TranslationStructure = {
 
     files: {
         changes: '変更',
+        refreshChanges: '変更を更新',
+        refreshChangesHint: '最新のファイル変更を取得',
         searchPlaceholder: 'ファイルを検索...',
         detachedHead: 'detached HEAD',
         summary: ({ staged, unstaged }: { staged: number; unstaged: number }) => `ステージ済み ${staged} • 未ステージ ${unstaged}`,

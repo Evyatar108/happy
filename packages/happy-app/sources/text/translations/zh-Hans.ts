@@ -715,6 +715,8 @@ export const zhHans: TranslationStructure = {
 
     files: {
         changes: '更改',
+        refreshChanges: '刷新更改',
+        refreshChangesHint: '获取最新的文件更改',
         searchPlaceholder: '搜索文件...',
         detachedHead: '游离 HEAD',
         summary: ({ staged, unstaged }: { staged: number; unstaged: number }) => `${staged} 已暂存 • ${unstaged} 未暂存`,
