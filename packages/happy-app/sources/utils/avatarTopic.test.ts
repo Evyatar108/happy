@@ -160,6 +160,8 @@ describe('avatarTopic', () => {
         const modulePaths = [
             resolve(__dirname, 'avatarTopic.ts'),
             resolve(__dirname, '../components/avatarBrutalistAssets.ts'),
+            resolve(__dirname, '../components/AvatarTopicBrutalist.tsx'),
+            resolve(__dirname, '../components/Avatar.tsx'),
         ];
         const importPattern = /^\s*import\s+(?:[^'";]+?\s+from\s+)?['"]([^'"]+)['"]/gm;
         const disallowedPattern = /(?:^|\/)sync\/(?:sync|socket[^/]*|network[^/]*)$|(?:^|\/)(?:axios|ky|got|node-fetch|undici)$/;
