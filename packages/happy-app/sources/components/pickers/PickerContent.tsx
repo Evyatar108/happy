@@ -5,7 +5,7 @@ import { useUnistyles } from 'react-native-unistyles';
 import { pickerStyles } from './pickerStyles';
 import { t } from '@/text';
 
-export type PickerItem = { key: string; label: string; subtitle?: string; dimmed?: boolean };
+export type PickerItem = { key: string; label: string; subtitle?: string; dimmed?: boolean; disabled?: boolean };
 
 export function PickerContent({
     title,
@@ -45,14 +45,23 @@ export function PickerContent({
         return (
             <Pressable
                 key={item.key}
-                style={(p) => [pickerStyles.option, p.pressed && pickerStyles.optionPressed, item.dimmed && { opacity: 0.45 }]}
-                onPress={() => onSelect(item.key)}
+                style={(p) => [pickerStyles.option, p.pressed && !item.disabled && pickerStyles.optionPressed, item.dimmed && { opacity: 0.45 }]}
+                onPress={() => {
+                    if (!item.disabled) {
+                        onSelect(item.key);
+                    }
+                }}
+                disabled={item.disabled}
             >
-                <Octicons
-                    name={isSelected ? 'check-circle-fill' : 'circle'}
-                    size={16}
-                    color={isSelected ? theme.colors.button.primary.background : theme.colors.textSecondary}
-                />
+                {item.disabled ? (
+                    <View style={{ width: 16 }} />
+                ) : (
+                    <Octicons
+                        name={isSelected ? 'check-circle-fill' : 'circle'}
+                        size={16}
+                        color={isSelected ? theme.colors.button.primary.background : theme.colors.textSecondary}
+                    />
+                )}
                 <View style={{ flex: 1 }}>
                     <Text style={[pickerStyles.optionText, { color: theme.colors.text }]}>{item.label}</Text>
                     {item.subtitle && (
