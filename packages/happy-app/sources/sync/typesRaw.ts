@@ -401,6 +401,10 @@ export function getRawRecordLifecycleState(raw: unknown): { isTaskStarted: boole
         };
     }
 
+    if (content.type === 'codex') {
+        return getLegacyProviderLifecycleState(raw);
+    }
+
     return { isTaskStarted: false, isTaskComplete: false };
 }
 
