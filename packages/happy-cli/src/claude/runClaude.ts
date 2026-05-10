@@ -339,15 +339,30 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         cleanup();
     });
 
+    const VALID_CLAUDE_PERMISSION_MODES: readonly PermissionMode[] = [
+        'default',
+        'acceptEdits',
+        'bypassPermissions',
+        'plan',
+        'read-only',
+        'safe-yolo',
+        'yolo',
+    ];
+
     if (typeof session.onAgentConfiguration === 'function') {
         session.onAgentConfiguration((configuration: AgentConfiguration) => {
             const metadataPatch: { model?: string; thinkingLevel?: string } = {};
             if (Object.prototype.hasOwnProperty.call(configuration, 'permissionMode')) {
-                currentPermissionMode = configuration.permissionMode
-                    ? applySandboxPermissionPolicy(configuration.permissionMode as PermissionMode, sandboxEnabled)
-                    : undefined;
-                void publishPermissionModeIfChanged(session, metadata, currentPermissionMode, lastPublishedPermissionModeCode);
-                logger.debug(`[loop] Permission mode updated from live configuration for next turn: ${currentPermissionMode ?? 'default'}`);
+                const incoming = configuration.permissionMode as PermissionMode | undefined;
+                if (incoming === undefined || VALID_CLAUDE_PERMISSION_MODES.includes(incoming)) {
+                    currentPermissionMode = incoming
+                        ? applySandboxPermissionPolicy(incoming, sandboxEnabled)
+                        : undefined;
+                    void publishPermissionModeIfChanged(session, metadata, currentPermissionMode, lastPublishedPermissionModeCode);
+                    logger.debug(`[loop] Permission mode updated from live configuration for next turn: ${currentPermissionMode ?? 'default'}`);
+                } else {
+                    logger.debug(`[loop] Ignoring invalid permission mode from live configuration: ${String(configuration.permissionMode)}`);
+                }
             }
             if (Object.prototype.hasOwnProperty.call(configuration, 'model')) {
                 currentModel = configuration.model || undefined;

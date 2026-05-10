@@ -30,6 +30,7 @@ import {
   mergeAcpSessionConfigIntoMetadata,
 } from './sessionConfigMetadata';
 import type { SessionConfigOption, SessionModeState, SessionModelState } from '@agentclientprotocol/sdk';
+import type { PermissionMode } from '@/api/types';
 
 const TURN_TIMEOUT_MS = 5 * 60 * 1000;
 const ACP_EVENT_PREVIEW_CHARS = 240;
@@ -888,13 +889,28 @@ export async function runAcp(opts: {
     });
   });
 
+  const VALID_ACP_PERMISSION_MODES: readonly PermissionMode[] = [
+    'default',
+    'acceptEdits',
+    'bypassPermissions',
+    'plan',
+    'read-only',
+    'safe-yolo',
+    'yolo',
+  ];
+
   if (typeof session.onAgentConfiguration === 'function') {
     session.onAgentConfiguration((configuration: AgentConfiguration) => {
       const metadataPatch: { model?: string; thinkingLevel?: string } = {};
       if (Object.prototype.hasOwnProperty.call(configuration, 'permissionMode')) {
-        currentPermissionMode = configuration.permissionMode;
-        void publishPermissionModeIfChanged(session, metadata, currentPermissionMode, lastPublishedPermissionModeCode);
-        logger.debug(`[${opts.agentName}] Requested ACP permission mode from live configuration: ${currentPermissionMode ?? 'default'}`);
+        const incoming = configuration.permissionMode as PermissionMode | undefined;
+        if (incoming === undefined || VALID_ACP_PERMISSION_MODES.includes(incoming)) {
+          currentPermissionMode = incoming;
+          void publishPermissionModeIfChanged(session, metadata, currentPermissionMode, lastPublishedPermissionModeCode);
+          logger.debug(`[${opts.agentName}] Requested ACP permission mode from live configuration: ${currentPermissionMode ?? 'default'}`);
+        } else {
+          logger.debug(`[${opts.agentName}] Ignoring invalid permission mode from live configuration: ${String(configuration.permissionMode)}`);
+        }
       }
       if (Object.prototype.hasOwnProperty.call(configuration, 'model')) {
         currentModel = configuration.model ?? null;
