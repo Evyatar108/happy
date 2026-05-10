@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Metadata } from '@/api/types';
-import { publishPermissionModeIfChanged } from './publishPermissionMode';
+import { publishAgentConfigurationMetadataIfChanged, publishPermissionModeIfChanged } from './publishPermissionMode';
 
 vi.mock('@/ui/logger', () => ({
     logger: {
@@ -109,5 +109,59 @@ describe('publishPermissionModeIfChanged', () => {
         expect(updateMetadata).toHaveBeenCalledTimes(1);
         expect(metadata.currentPermissionModeCode).toBe('bypassPermissions');
         expect(lastRef.current).toBe('bypassPermissions');
+    });
+});
+
+describe('publishAgentConfigurationMetadataIfChanged', () => {
+    it('publishes model and thinking changes in one metadata update', async () => {
+        const metadata = createMetadata();
+        const { client, updateMetadata, getServerMetadata } = createClient();
+
+        await publishAgentConfigurationMetadataIfChanged(client, metadata, {
+            model: 'claude-opus',
+            thinkingLevel: 'high',
+        });
+
+        expect(updateMetadata).toHaveBeenCalledTimes(1);
+        expect(metadata.currentModelCode).toBe('claude-opus');
+        expect(metadata.currentThoughtLevelCode).toBe('high');
+        expect(getServerMetadata().currentModelCode).toBe('claude-opus');
+        expect(getServerMetadata().currentThoughtLevelCode).toBe('high');
+    });
+
+    it('deduplicates unchanged model and thinking echoes', async () => {
+        const metadata = {
+            ...createMetadata(),
+            currentModelCode: 'claude-opus',
+            currentThoughtLevelCode: 'high',
+        };
+        const { client, updateMetadata } = createClient(metadata);
+
+        await publishAgentConfigurationMetadataIfChanged(client, metadata, {
+            model: 'claude-opus',
+            thinkingLevel: 'high',
+        });
+
+        expect(updateMetadata).not.toHaveBeenCalled();
+    });
+
+    it('clears model and thinking values when undefined is supplied explicitly', async () => {
+        const metadata = {
+            ...createMetadata(),
+            currentModelCode: 'claude-opus',
+            currentThoughtLevelCode: 'high',
+        };
+        const { client, updateMetadata, getServerMetadata } = createClient(metadata);
+
+        await publishAgentConfigurationMetadataIfChanged(client, metadata, {
+            model: undefined,
+            thinkingLevel: undefined,
+        });
+
+        expect(updateMetadata).toHaveBeenCalledTimes(1);
+        expect(metadata.currentModelCode).toBeUndefined();
+        expect(metadata.currentThoughtLevelCode).toBeUndefined();
+        expect(getServerMetadata().currentModelCode).toBeUndefined();
+        expect(getServerMetadata().currentThoughtLevelCode).toBeUndefined();
     });
 });

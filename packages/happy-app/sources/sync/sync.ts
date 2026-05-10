@@ -835,7 +835,7 @@ class Sync {
             return;
         }
 
-        const { permissionMode, model } = resolveMessageModeMeta(session);
+        const { permissionMode, model, thinkingLevel } = resolveMessageModeMeta(session);
         const { displayText, source = 'chat' } = options ?? {};
         const shouldRequestDeferredSwitch = isWhenIdle
             && session.metadata?.flavor === 'claude'
@@ -874,6 +874,7 @@ class Sync {
                 source,
                 permissionMode,
                 model,
+                thinkingLevel,
                 tagDeferredSwitch,
             });
         } catch (error) {
@@ -893,6 +894,7 @@ class Sync {
             source: MessageSentSource;
             permissionMode: string | undefined;
             model: string | null;
+            thinkingLevel: string | undefined;
             tagDeferredSwitch: boolean;
         }
     ) {
@@ -934,6 +936,7 @@ class Sync {
                 sentFrom,
                 ...(options.permissionMode !== undefined && { permissionMode: options.permissionMode }),
                 model: options.model,
+                ...(options.thinkingLevel !== undefined && { thinkingLevel: options.thinkingLevel }),
                 fallbackModel,
                 appendSystemPrompt: systemPrompt,
                 ...(options.tagDeferredSwitch && { capabilities: { deferredSwitch: true } }),

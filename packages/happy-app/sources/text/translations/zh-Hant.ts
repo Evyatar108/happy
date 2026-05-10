@@ -368,6 +368,17 @@ export const zhHant: TranslationStructure = {
         placeholder: '輸入命令或搜尋...',
     },
 
+    pickers: {
+        noResults: '無結果',
+    },
+
+    drawer: {
+        fork: {
+            comingSoon: '即將推出',
+        },
+        applyFailed: '套用失敗 — 請再試一次',
+    },
+
     server: {
         // Used by Server Configuration screen (app/(app)/server.tsx)
         serverConfiguration: '伺服器設定',

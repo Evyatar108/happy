@@ -85,6 +85,55 @@ type V3PostSessionMessagesResponse = {
 
 type ContextBoundaryInput = Omit<SessionContextBoundaryEvent, 't'>;
 
+export type AgentConfiguration = {
+    permissionMode?: string;
+    model?: string;
+    thinkingLevel?: string;
+};
+
+const MAX_AGENT_CONFIG_FIELD_LENGTH = 64;
+
+type AgentConfigurationSnapshot = {
+    permissionMode: string | undefined;
+    model: string | undefined;
+    thinkingLevel: string | undefined;
+};
+
+function coerceMetadataString(value: unknown): string | undefined {
+    return typeof value === 'string' ? value : undefined;
+}
+
+function agentConfigurationSnapshot(metadata: Metadata | null): AgentConfigurationSnapshot {
+    return {
+        permissionMode: coerceMetadataString(metadata?.currentPermissionModeCode),
+        model: coerceMetadataString(metadata?.currentModelCode),
+        thinkingLevel: coerceMetadataString(metadata?.currentThoughtLevelCode),
+    };
+}
+
+function diffAgentConfiguration(
+    previous: AgentConfigurationSnapshot,
+    next: AgentConfigurationSnapshot,
+): AgentConfiguration | null {
+    const diff: AgentConfiguration = {};
+    let changed = false;
+
+    if (previous.permissionMode !== next.permissionMode) {
+        diff.permissionMode = next.permissionMode;
+        changed = true;
+    }
+    if (previous.model !== next.model) {
+        diff.model = next.model;
+        changed = true;
+    }
+    if (previous.thinkingLevel !== next.thinkingLevel) {
+        diff.thinkingLevel = next.thinkingLevel;
+        changed = true;
+    }
+
+    return changed ? diff : null;
+}
+
 function contextBoundaryFallbackMessage(kind: ContextBoundaryInput['kind']): string {
     switch (kind) {
         case 'clear':
@@ -111,6 +160,8 @@ export class ApiSessionClient extends EventEmitter {
     private socket: Socket<ServerToClientEvents, ClientToServerEvents>;
     private pendingMessages: UserMessage[] = [];
     private pendingMessageCallback: ((message: UserMessage) => void) | null = null;
+    private pendingAgentConfigurations: AgentConfiguration[] = [];
+    private lastAppliedAgentConfiguration: AgentConfigurationSnapshot;
     readonly rpcHandlerManager: RpcHandlerManager;
     private agentStateLock = new AsyncLock();
     private metadataLock = new AsyncLock();
@@ -143,6 +194,7 @@ export class ApiSessionClient extends EventEmitter {
         this.sessionId = session.id;
         this.metadata = session.metadata;
         this.metadataVersion = session.metadataVersion;
+        this.lastAppliedAgentConfiguration = agentConfigurationSnapshot(session.metadata);
         this.agentState = session.agentState;
         this.agentStateVersion = session.agentStateVersion;
         this.encryptionKey = session.encryptionKey;
@@ -233,8 +285,10 @@ export class ApiSessionClient extends EventEmitter {
                     this.lastSeq = messageSeq;
                 } else if (data.body.t === 'update-session') {
                     if (data.body.metadata && data.body.metadata.version > this.metadataVersion) {
-                        this.metadata = decrypt(this.encryptionKey, this.encryptionVariant, decodeBase64(data.body.metadata.value));
+                        const nextMetadata = decrypt(this.encryptionKey, this.encryptionVariant, decodeBase64(data.body.metadata.value));
+                        this.metadata = nextMetadata;
                         this.metadataVersion = data.body.metadata.version;
+                        this.routeAgentConfigurationIfChanged(nextMetadata);
                         // Check if session was archived from web/mobile
                         const meta = this.metadata as any;
                         if (meta?.lifecycleState === 'archiveRequested' || meta?.lifecycleState === 'archived') {
@@ -282,6 +336,13 @@ export class ApiSessionClient extends EventEmitter {
         }
     }
 
+    onAgentConfiguration(callback: (data: AgentConfiguration) => void) {
+        this.on('agent-configuration', callback);
+        while (this.pendingAgentConfigurations.length > 0) {
+            callback(this.pendingAgentConfigurations.shift()!);
+        }
+    }
+
     private authHeaders() {
         return {
             'Authorization': `Bearer ${this.token}`,
@@ -301,6 +362,37 @@ export class ApiSessionClient extends EventEmitter {
             return;
         }
         this.emit('message', message);
+    }
+
+    private routeAgentConfigurationIfChanged(metadata: Metadata): void {
+        const nextSnapshot = agentConfigurationSnapshot(metadata);
+        const diff = diffAgentConfiguration(this.lastAppliedAgentConfiguration, nextSnapshot);
+        this.lastAppliedAgentConfiguration = nextSnapshot;
+
+        if (!diff) {
+            return;
+        }
+
+        for (const field of ['permissionMode', 'model', 'thinkingLevel'] as const) {
+            if (Object.prototype.hasOwnProperty.call(diff, field)) {
+                const value = diff[field];
+                if (typeof value === 'string' && value.length > MAX_AGENT_CONFIG_FIELD_LENGTH) {
+                    logger.debug(`[apiSession] Dropping oversized agent configuration field ${field} (length ${value.length} > ${MAX_AGENT_CONFIG_FIELD_LENGTH})`);
+                    delete diff[field];
+                }
+            }
+        }
+
+        const remainingKeys = Object.keys(diff);
+        if (remainingKeys.length === 0) {
+            return;
+        }
+
+        if (this.listenerCount('agent-configuration') > 0) {
+            this.emit('agent-configuration', diff);
+        } else {
+            this.pendingAgentConfigurations.push(diff);
+        }
     }
 
     private async fetchMessages() {
@@ -746,10 +838,12 @@ export class ApiSessionClient extends EventEmitter {
                 if (answer.result === 'success') {
                     this.metadata = decrypt(this.encryptionKey, this.encryptionVariant, decodeBase64(answer.metadata));
                     this.metadataVersion = answer.version;
+                    this.lastAppliedAgentConfiguration = agentConfigurationSnapshot(this.metadata);
                 } else if (answer.result === 'version-mismatch') {
                     if (answer.version > this.metadataVersion) {
                         this.metadataVersion = answer.version;
                         this.metadata = decrypt(this.encryptionKey, this.encryptionVariant, decodeBase64(answer.metadata));
+                        this.lastAppliedAgentConfiguration = agentConfigurationSnapshot(this.metadata);
                     }
                     throw new Error('Metadata version mismatch');
                 } else if (answer.result === 'error') {

@@ -368,6 +368,17 @@ export const ca: TranslationStructure = {
         placeholder: 'Escriu una comanda o cerca...',
     },
 
+    pickers: {
+        noResults: 'Sense resultats',
+    },
+
+    drawer: {
+        fork: {
+            comingSoon: 'Properament',
+        },
+        applyFailed: 'No s\'ha pogut aplicar — torna-ho a provar',
+    },
+
     server: {
         // Used by Server Configuration screen (app/(app)/server.tsx)
         serverConfiguration: 'Configuració del servidor',

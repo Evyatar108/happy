@@ -1,17 +1,18 @@
 import * as React from 'react';
+import type { SpawnSessionResult } from '@/sync/ops';
 import { useHappyAction } from '@/hooks/useHappyAction';
 import { useNavigateToSession } from '@/hooks/useNavigateToSession';
 import { Modal } from '@/modal';
 import { machineResumeSession, sessionArchive, sessionKill } from '@/sync/ops';
 import { maybeCleanupWorktree } from '@/hooks/useWorktreeCleanup';
-import { storage, useLocalSetting, useMachine, useSetting } from '@/sync/storage';
-import { Machine, Session } from '@/sync/storageTypes';
+import { storage, useLocalSetting, useMachine } from '@/sync/storage';
+import { Session } from '@/sync/storageTypes';
 import { sync } from '@/sync/sync';
 import { t } from '@/text';
 import { HappyError } from '@/utils/errors';
 import { copySessionMetadataToClipboard, copySessionMetadataAndLogsToClipboard } from '@/utils/copySessionMetadataToClipboard';
 import { useSessionStatus } from '@/utils/sessionUtils';
-import { isMachineOnline } from '@/utils/machineUtils';
+import { getResumeAvailability } from '@/utils/resumeAvailability';
 import { useRouter } from 'expo-router';
 import { useSession } from '@/sync/storage';
 
@@ -29,72 +30,6 @@ interface UseSessionQuickActionsOptions {
     onAfterCopySessionMetadata?: () => void;
 }
 
-type ResumeAvailability = {
-    canResume: boolean;
-    canShowResume: boolean;
-    subtitle: string;
-    message: string;
-};
-
-function getResumeAvailability(session: Session, machine: Machine | null | undefined, isConnected: boolean): ResumeAvailability {
-    if (isConnected) {
-        return {
-            canResume: false,
-            canShowResume: false,
-            subtitle: '',
-            message: '',
-        };
-    }
-
-    const machineId = session.metadata?.machineId;
-    if (!machineId) {
-        const message = t('sessionInfo.resumeSessionMissingMachine');
-        return {
-            canResume: false,
-            canShowResume: true,
-            subtitle: message,
-            message,
-        };
-    }
-
-    const hasBackendResumeId = Boolean(session.metadata?.claudeSessionId || session.metadata?.codexThreadId);
-    if (!hasBackendResumeId) {
-        const message = t('sessionInfo.resumeSessionMissingBackendId');
-        return {
-            canResume: false,
-            canShowResume: true,
-            subtitle: message,
-            message,
-        };
-    }
-
-    if (!machine) {
-        const message = t('sessionInfo.resumeSessionSameMachineOnly');
-        return {
-            canResume: false,
-            canShowResume: true,
-            subtitle: message,
-            message,
-        };
-    }
-
-    if (!isMachineOnline(machine)) {
-        return {
-            canResume: false,
-            canShowResume: true,
-            subtitle: t('sessionInfo.resumeSessionMachineOffline'),
-            message: t('sessionInfo.resumeSessionMachineOffline'),
-        };
-    }
-
-    return {
-        canResume: true,
-        canShowResume: true,
-        subtitle: t('sessionInfo.resumeSessionSubtitle'),
-        message: t('sessionInfo.resumeSessionSubtitle'),
-    };
-}
-
 export function useSessionQuickActions(
     session: Session,
     options: UseSessionQuickActionsOptions = {},
@@ -109,10 +44,9 @@ export function useSessionQuickActions(
     const machineId = session.metadata?.machineId ?? '';
     const machine = useMachine(machineId);
     const devModeEnabled = useLocalSetting('devModeEnabled');
-    const expResumeSession = useSetting('expResumeSession');
     const resumeAvailability = React.useMemo(
-        () => expResumeSession ? getResumeAvailability(session, machine, sessionStatus.isConnected) : { canResume: false, canShowResume: false, subtitle: '', message: '' },
-        [machine, session, sessionStatus.isConnected, expResumeSession],
+        () => getResumeAvailability(session, machine, sessionStatus.isConnected),
+        [machine, session, sessionStatus.isConnected],
     );
 
     const openDetails = React.useCallback(() => {
@@ -137,13 +71,13 @@ export function useSessionQuickActions(
         })();
     }, [onAfterCopySessionMetadata, session]);
 
-    const [resumingSession, performResume] = useHappyAction(async () => {
+    const resumeSessionInline = React.useCallback(async (): Promise<SpawnSessionResult> => {
         if (!resumeAvailability.canResume) {
-            throw new HappyError(resumeAvailability.message, false);
+            return { type: 'error', errorMessage: resumeAvailability.message };
         }
 
         if (!machineId) {
-            throw new HappyError(t('sessionInfo.resumeSessionMissingMachine'), false);
+            return { type: 'error', errorMessage: t('sessionInfo.resumeSessionMissingMachine') };
         }
 
         const result = await machineResumeSession({
@@ -155,8 +89,6 @@ export function useSessionQuickActions(
 
         switch (result.type) {
             case 'success': {
-                // Session reconnects to the same ID, so messages are preserved.
-                // Refresh to pick up the updated session state.
                 await sync.refreshSessions();
 
                 if (session.permissionMode) {
@@ -167,8 +99,20 @@ export function useSessionQuickActions(
                 }
 
                 navigateToSession(result.sessionId);
-                return;
+                return result;
             }
+            case 'requestToApproveDirectoryCreation':
+            case 'error':
+                return result;
+        }
+    }, [machineId, navigateToSession, resumeAvailability.canResume, resumeAvailability.message, session.id, session.modelMode, session.permissionMode, session.permissionModeUserChosen]);
+
+    const [resumingSession, performResume] = useHappyAction(async () => {
+        const result = await resumeSessionInline();
+
+        switch (result.type) {
+            case 'success':
+                return;
             case 'requestToApproveDirectoryCreation':
                 throw new HappyError(t('sessionInfo.resumeSessionUnexpectedDirectoryPrompt'), false);
             case 'error':
@@ -247,6 +191,8 @@ export function useSessionQuickActions(
         copySessionMetadataAndLogs,
         openDetails,
         resumeSession,
+        resumeSessionInline,
+        resumeAvailability,
         resumeSessionSubtitle: resumeAvailability.subtitle,
         resumingSession,
     };

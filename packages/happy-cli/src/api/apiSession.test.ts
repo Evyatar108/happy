@@ -145,6 +145,22 @@ function createNewMessageUpdate(seq: number, encryptedContent: string): Update {
     };
 }
 
+function createUpdateSessionUpdate(session: ReturnType<typeof makeSession>, version: number, metadata: unknown): Update {
+    return {
+        id: `upd-session-${version}`,
+        seq: version,
+        createdAt: Date.now(),
+        body: {
+            t: 'update-session',
+            id: 'test-session-id',
+            metadata: {
+                version,
+                value: encryptContent(session, metadata),
+            },
+        },
+    };
+}
+
 async function waitForCheck(check: () => void, timeoutMs = 2000) {
     const startedAt = Date.now();
     let lastError: unknown;
@@ -206,6 +222,45 @@ describe('ApiSessionClient v3 messages API migration', () => {
         expect(mockSocket.on).toHaveBeenCalledWith('disconnect', expect.any(Function));
         expect(mockSocket.on).toHaveBeenCalledWith('update', expect.any(Function));
         expect(mockSocket.connect).toHaveBeenCalledTimes(1);
+    });
+
+    it('queues agent configuration metadata diffs until a runner subscribes', () => {
+        const client = new ApiSessionClient('fake-token', session);
+        const nextMetadata = {
+            ...session.metadata,
+            currentModelCode: 'claude-opus',
+            currentPermissionModeCode: 'plan',
+            currentThoughtLevelCode: 'high',
+        };
+
+        emitSocketEvent('update', createUpdateSessionUpdate(session, 1, nextMetadata));
+
+        const received: unknown[] = [];
+        client.onAgentConfiguration((configuration) => received.push(configuration));
+
+        expect(received).toEqual([
+            {
+                model: 'claude-opus',
+                permissionMode: 'plan',
+                thinkingLevel: 'high',
+            },
+        ]);
+    });
+
+    it('does not emit agent configuration when update-session metadata is unchanged', () => {
+        session.metadata = {
+            ...session.metadata,
+            currentModelCode: 'claude-sonnet',
+            currentPermissionModeCode: 'default',
+            currentThoughtLevelCode: 'medium',
+        } as typeof session.metadata;
+        const client = new ApiSessionClient('fake-token', session);
+        const received: unknown[] = [];
+        client.onAgentConfiguration((configuration) => received.push(configuration));
+
+        emitSocketEvent('update', createUpdateSessionUpdate(session, 1, { ...session.metadata }));
+
+        expect(received).toEqual([]);
     });
 
     it('queues codex message to v3 outbox, sends once, and drains outbox', async () => {

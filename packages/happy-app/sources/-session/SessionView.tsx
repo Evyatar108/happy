@@ -16,6 +16,7 @@ import { ChatList } from '@/components/ChatList';
 import { Deferred } from '@/components/Deferred';
 import { EmptyMessages } from '@/components/EmptyMessages';
 import { SessionActionsAnchor, SessionActionsPopover } from '@/components/SessionActionsPopover';
+import { ResumeCommandCopyBlock, SessionContextDrawer } from '@/components/SessionContextDrawer';
 import { VoiceAssistantStatusBar } from '@/components/VoiceAssistantStatusBar';
 import { useChatWidth } from '@/hooks/useChatWidth';
 import { useDraft } from '@/hooks/useDraft';
@@ -25,8 +26,8 @@ import { voiceHooks } from '@/realtime/hooks/voiceHooks';
 import { getCurrentVoiceConversationId, getCurrentVoiceSessionDurationSeconds, startRealtimeSession, stopRealtimeSession } from '@/realtime/RealtimeSession';
 import { shouldShowBoundaryAdvisory, updateComposeStartAt } from './composeBoundaryAdvisory';
 import { gitStatusSync } from '@/sync/gitStatusSync';
-import { cancelPendingSwitch, requestSwitch, sessionAbort } from '@/sync/ops';
-import { storage, useIsDataReady, useLatestBoundary, useLocalSetting, useLocalSettingMutable, useRealtimeStatus, useSessionMessages, useSessionUsage, useSetting } from '@/sync/storage';
+import { cancelPendingSwitch, requestSwitch, sessionAbort, sessionEmitAgentConfiguration } from '@/sync/ops';
+import { storage, useIsDataReady, useLatestBoundary, useLocalSetting, useLocalSettingMutable, useMachine, useRealtimeStatus, useSessionMessages, useSessionUsage, useSetting } from '@/sync/storage';
 import { useSidebar } from '@/components/SidebarContext';
 import { useSession } from '@/sync/storage';
 import { Session } from '@/sync/storageTypes';
@@ -43,7 +44,6 @@ import { GitFileStatus } from '@/sync/gitStatusFiles';
 import { formatPathRelativeToHome, getResumeCommandBlock, getSessionAvatarId, getSessionMode, getSessionName, useSessionStatus } from '@/utils/sessionUtils';
 import { useSessionQuickActions } from '@/hooks/useSessionQuickActions';
 import { isVersionSupported, MINIMUM_CLI_VERSION } from '@/utils/versionUtils';
-import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as React from 'react';
@@ -370,12 +370,37 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
         ])
     ), [availableEffortLevels, session.effortLevel, flavor, modelKey]);
 
+    const drawerPermissionMode = React.useMemo<PermissionMode | null>(() => (
+        resolvePermissionModeForPicker(availableModes, {
+            userChosen: false,
+            sessionPermissionMode: null,
+            metadataCurrentPermissionModeCode: session.metadata?.currentPermissionModeCode,
+            metadataDangerouslySkipPermissions: session.metadata?.dangerouslySkipPermissions,
+            flavor,
+        })
+    ), [availableModes, session.metadata?.currentPermissionModeCode, session.metadata?.dangerouslySkipPermissions, flavor]);
+    const drawerModelMode = React.useMemo<ModelMode | null>(() => (
+        resolveCurrentOption(availableModels, [
+            session.metadata?.currentModelCode,
+            getDefaultModelKey(flavor),
+        ])
+    ), [availableModels, session.metadata?.currentModelCode, flavor]);
+    const drawerModelKey = drawerModelMode?.key ?? 'default';
+    const drawerAvailableEffortLevels = React.useMemo<EffortLevel[]>(() => (
+        getEffortLevelsForModel(flavor, drawerModelKey)
+    ), [flavor, drawerModelKey]);
+    const drawerEffortLevel = React.useMemo<EffortLevel | null>(() => (
+        resolveCurrentOption(drawerAvailableEffortLevels, [
+            session.metadata?.currentThoughtLevelCode,
+            getDefaultEffortKeyForModel(flavor, drawerModelKey),
+        ])
+    ), [drawerAvailableEffortLevels, session.metadata?.currentThoughtLevelCode, flavor, drawerModelKey]);
+
     const sessionStatus = useSessionStatus(session);
     const sessionUsage = useSessionUsage(sessionId);
     const alwaysShowContextSize = useSetting('alwaysShowContextSize');
     const experiments = useSetting('experiments');
-    const expResumeSession = useSetting('expResumeSession');
-    const { canResume, resumeSession, resumingSession } = useSessionQuickActions(session);
+    const { canResume, resumeAvailability, resumeSession, resumeSessionInline, resumingSession } = useSessionQuickActions(session);
     const isArchivedSession = session.metadata?.lifecycleState === 'archived';
     const isDisconnected = !sessionStatus.isConnected;
     const isInactiveArchivedSession = isArchivedSession && isDisconnected;
@@ -476,6 +501,20 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
     const updateEffortLevel = React.useCallback((level: EffortLevel) => {
         storage.getState().updateSessionEffortLevel(sessionId, level.key);
     }, [sessionId]);
+
+    const emitAgentConfiguration = React.useCallback((config: {
+        permissionMode?: string;
+        model?: string;
+        thinkingLevel?: string;
+    }) => sessionEmitAgentConfiguration({ sessionId, ...config }), [sessionId]);
+
+    const sessionMachineId = session.metadata?.machineId ?? '';
+    const sessionMachine = useMachine(sessionMachineId);
+    const machineName = sessionMachine?.metadata?.displayName
+        ?? sessionMachine?.metadata?.host
+        ?? session.metadata?.host
+        ?? session.metadata?.machineId
+        ?? null;
 
     // Memoize header-dependent styles to prevent re-renders
     const headerDependentStyles = React.useMemo(() => ({
@@ -665,7 +704,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
     const archivedHint = isInactiveArchivedSession ? (
         <CenteredInputWidth horizontalPadding={sessionInputHorizontalPadding}>
             <InactiveArchivedHint
-                resumeCommandBlock={expResumeSession ? resumeCommandBlock : null}
+                resumeCommandBlock={resumeCommandBlock}
                 canResume={canResume}
                 resuming={resumingSession}
                 onResume={resumeSession}
@@ -683,22 +722,42 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
         </CenteredInputWidth>
     ) : null;
 
+    const contextDrawer = (
+        <CenteredInputWidth horizontalPadding={sessionInputHorizontalPadding}>
+            <SessionContextDrawer
+                machineName={machineName}
+                workdirPath={session.metadata?.path}
+                modelMode={drawerModelMode}
+                availableModels={availableModels}
+                permissionMode={drawerPermissionMode}
+                availableModes={availableModes}
+                effortLevel={drawerEffortLevel}
+                availableEffortLevels={drawerAvailableEffortLevels}
+                canResume={canResume}
+                resumeAvailability={resumeAvailability}
+                resumeCommandBlock={resumeCommandBlock}
+                updatePermissionMode={updatePermissionMode}
+                updateModelMode={updateModelMode}
+                updateEffortLevel={updateEffortLevel}
+                resumeSessionInline={resumeSessionInline}
+                sessionEmitAgentConfiguration={emitAgentConfiguration}
+            />
+        </CenteredInputWidth>
+    );
+
     const input = isInactiveArchivedSession ? (
         <>
             {archivedHint}
             {boundaryAdvisory}
             {pendingSwitchBanner}
+            {contextDrawer}
             {composer}
         </>
     ) : (
         <>
-            {expResumeSession && isDisconnected && resumeCommandBlock && (
-                <CenteredInputWidth horizontalPadding={sessionInputHorizontalPadding}>
-                    <ResumeCommandHint resumeCommandBlock={resumeCommandBlock} />
-                </CenteredInputWidth>
-            )}
             {boundaryAdvisory}
             {pendingSwitchBanner}
+            {contextDrawer}
             {composer}
         </>
     );
@@ -849,27 +908,6 @@ function CrossDeviceBoundaryAdvisory() {
     );
 }
 
-function ResumeCommandHint({ resumeCommandBlock }: {
-    resumeCommandBlock: NonNullable<ReturnType<typeof getResumeCommandBlock>>;
-}) {
-    const { theme } = useUnistyles();
-
-    return (
-        <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10, gap: 8 }}>
-            <ResumeCommandCopyBlock resumeCommandBlock={resumeCommandBlock} />
-            <Text style={{
-                color: theme.colors.textSecondary,
-                fontSize: 12,
-                lineHeight: 16,
-                textAlign: 'center',
-                paddingHorizontal: 8,
-            }}>
-                Run this command in your terminal to resume this session
-            </Text>
-        </View>
-    );
-}
-
 function InactiveArchivedHint(props: {
     resumeCommandBlock: NonNullable<ReturnType<typeof getResumeCommandBlock>> | null;
     canResume: boolean;
@@ -927,55 +965,6 @@ function InactiveArchivedHint(props: {
                 <ResumeCommandCopyBlock resumeCommandBlock={props.resumeCommandBlock} />
             )}
         </View>
-    );
-}
-
-function ResumeCommandCopyBlock({ resumeCommandBlock }: {
-    resumeCommandBlock: NonNullable<ReturnType<typeof getResumeCommandBlock>>;
-}) {
-    const { theme } = useUnistyles();
-    const [copied, setCopied] = React.useState(false);
-
-    return (
-        <Pressable
-            onPress={async () => {
-                await Clipboard.setStringAsync(resumeCommandBlock.copyText);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2000);
-            }}
-            style={{
-                minHeight: 48,
-                borderRadius: 14,
-                backgroundColor: theme.colors.surfaceHigh,
-                flexDirection: 'row',
-                gap: 8,
-                paddingHorizontal: 16,
-                paddingVertical: 12,
-                alignItems: 'flex-start',
-            }}
-        >
-            <View style={{ flex: 1 }}>
-                {resumeCommandBlock.lines.map((line, index) => (
-                    <Text
-                        key={`${line}-${index}`}
-                        style={{
-                            color: theme.colors.text,
-                            fontSize: 13,
-                            lineHeight: 18,
-                            fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-                        }}
-                    >
-                        {line}
-                    </Text>
-                ))}
-            </View>
-            <Ionicons
-                name={copied ? 'checkmark' : 'copy-outline'}
-                size={16}
-                color={copied ? '#30D158' : theme.colors.textSecondary}
-                style={{ marginTop: 1 }}
-            />
-        </Pressable>
     );
 }
 

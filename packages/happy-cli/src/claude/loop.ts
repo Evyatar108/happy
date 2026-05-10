@@ -16,6 +16,7 @@ import type { PermissionMode } from "@/api/types"
 export interface EnhancedMode {
     permissionMode: PermissionMode;
     model?: string;
+    thinkingLevel?: string;
     fallbackModel?: string;
     customSystemPrompt?: string;
     appendSystemPrompt?: string;

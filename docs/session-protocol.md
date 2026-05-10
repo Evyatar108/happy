@@ -25,7 +25,7 @@ The real [Agent Communication Protocol](https://agentcommunicationprotocol.dev) 
 1. **Encryption** — ACP assumes plaintext REST. Our payloads are end-to-end encrypted.
 2. **Tool calls are UI-visible** — ACP models tools as metadata for debugging. We render them with spinners, descriptions, and permission dialogs.
 3. **Instant image rendering** — ACP has no thumbhash or dimensions. Our `file` event can carry image metadata for instant placeholder layout.
-4. **Simplicity** — 10 event types total. A client implements the full protocol in a single `switch`.
+4. **Simplicity** — 11 event types total. A client implements the full protocol in a single `switch`.
 
 **What we take from ACP:**
 
@@ -210,6 +210,29 @@ Lifecycle boundary marker for transcript segmentation. It is emitted for explici
 
 CLI producers use the dual-emit contract for old-client compatibility: typed `context-boundary` envelope first, then a legacy lifecycle event with `meta.contextBoundaryFallback: true`. New clients treat the typed event as authoritative, suppress the flagged legacy fallback by the meta flag, and may use encrypted `metadata.latestBoundary` to recover the latest boundary when the boundary row is outside the loaded message window.
 
+### `agent-configuration-changed`
+
+Additive audit envelope recording a change to one or more agent control fields. All fields are optional; producers populate only the fields that changed. Role is `user` or `agent`. When emitted with `role: "agent"`, the envelope must carry a `turn` (the normalizer drops agent messages without `turn`).
+
+```json
+{
+  "t": "agent-configuration-changed",
+  "permissionMode": "default",
+  "model": "claude-sonnet-4-5",
+  "thinkingLevel": "medium",
+  "sandbox": "workspace-write"
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `permissionMode` | string? \| null | Optional. Permission mode code that became active |
+| `model` | string? \| null | Optional. Model code that became active |
+| `thinkingLevel` | string? \| null | Optional. Thinking-effort level that became active |
+| `sandbox` | string? \| null | Optional. Sandbox mode that became active |
+
+The envelope is currently schema-only: `happy-cli` does not emit it, and live drawer control changes flow over the existing `update-metadata` socket RPC and the `update-session` metadata echo. Future runners may opt into emitting it inside an active turn (subject to the `role: "agent"` + `turn`-required normalizer guard above).
+
 ## Example stream
 
 ```
@@ -252,7 +275,7 @@ User sending an image file:
 1. **Flat stream** — no nesting; tool boundaries are markers in the stream
 2. **Upload-first** — files are uploaded to the server, then referenced by `ref`
 3. **Every message has identity** — `id` (cuid2) + `time` (ms) on the envelope
-4. **10 event types** — simple `switch(ev.t)` in any client
+4. **11 event types** — simple `switch(ev.t)` in any client
 5. **Provider-agnostic** — no agent backend leaks into the protocol
 6. **Consistent naming** — all `kebab-case`, no mixed conventions
 7. **Inline markdown** — `title` and `description` support `` `code` ``, **bold**, *italic*, [links]

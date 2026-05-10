@@ -12,6 +12,7 @@ import type { PermissionMode } from '@/api/types';
 export interface GeminiMode {
   permissionMode: PermissionMode;
   model?: string;
+  thinkingLevel?: string;
   originalUserMessage?: string; // Original user message without system prompt
 }
 

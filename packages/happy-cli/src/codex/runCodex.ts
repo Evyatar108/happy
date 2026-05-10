@@ -29,12 +29,13 @@ import type { Session as ApiSession } from '@/api/types';
 import { registerKillSessionHandler } from "@/claude/registerKillSessionHandler";
 import { connectionState } from '@/utils/serverConnectionErrors';
 import { setupOfflineReconnection } from '@/utils/setupOfflineReconnection';
-import { publishPermissionModeIfChanged } from '@/utils/publishPermissionMode';
-import type { ApiSessionClient } from '@/api/apiSession';
+import { publishAgentConfigurationMetadataIfChanged, publishPermissionModeIfChanged } from '@/utils/publishPermissionMode';
+import type { AgentConfiguration, ApiSessionClient } from '@/api/apiSession';
 import { resolveCodexExecutionPolicy } from './executionPolicy';
 import { mapCodexMcpMessageToSessionEnvelopes, mapCodexProcessorMessageToSessionEnvelopes } from './utils/sessionProtocolMapper';
 import { resumeExistingThread } from './resumeExistingThread';
 import { emitReadyIfIdle } from './emitReadyIfIdle';
+import type { ReasoningEffort } from './codexAppServerTypes';
 
 /**
  * Extracts a human-readable error from a codex task_complete/turn_aborted event.
@@ -81,6 +82,7 @@ export async function runCodex(opts: {
     interface EnhancedMode {
         permissionMode: PermissionMode;
         model?: string;
+        thinkingLevel?: ReasoningEffort;
     }
 
     //
@@ -210,18 +212,19 @@ export async function runCodex(opts: {
     const messageQueue = new MessageQueue2<EnhancedMode>((mode) => hashObject({
         permissionMode: mode.permissionMode,
         model: mode.model,
+        thinkingLevel: mode.thinkingLevel,
     }));
 
     // Track current overrides to apply per message
     // Use shared PermissionMode type from api/types for cross-agent compatibility
     let currentPermissionMode: import('@/api/types').PermissionMode | undefined = undefined;
     let currentModel: string | undefined = undefined;
+    let currentThinkingLevel: ReasoningEffort | undefined = undefined;
 
-    // Valid Codex permission modes from remote messages. Matches the modes
-    // the mobile UI exposes for Codex sessions (see modelModeOptions.ts:
-    // getCodexPermissionModes) and mirrors the Gemini validation pattern at
-    // runGemini.ts:222. Anything outside this set is silently ignored — the
-    // previous code blindly cast `message.meta.permissionMode as PermissionMode`
+    // Valid Codex permission modes from remote messages. Restricted to the
+    // native Codex modes exposed by the mobile UI (see modelModeOptions.ts:
+    // getCodexPermissionModes). Anything outside this set is silently ignored —
+    // the previous code blindly cast `message.meta.permissionMode as PermissionMode`
     // at runtime, meaning a crafted value like `'totally_unsafe'` would be
     // accepted and then fall through to the `default` branch in
     // resolveCodexExecutionPolicy() — or worse, an attacker-chosen valid value
@@ -232,6 +235,33 @@ export async function runCodex(opts: {
         'safe-yolo',
         'yolo',
     ];
+
+    if (typeof session.onAgentConfiguration === 'function') {
+        session.onAgentConfiguration((configuration: AgentConfiguration) => {
+            const metadataPatch: { model?: string; thinkingLevel?: ReasoningEffort } = {};
+            if (Object.prototype.hasOwnProperty.call(configuration, 'permissionMode')) {
+                const incoming = configuration.permissionMode as PermissionMode | undefined;
+                if (incoming === undefined || VALID_REMOTE_PERMISSION_MODES.includes(incoming)) {
+                    currentPermissionMode = incoming;
+                    void publishPermissionModeIfChanged(session, metadata, currentPermissionMode, lastPublishedPermissionModeCode);
+                    logger.debug(`[Codex] Permission mode updated from live configuration for next turn: ${currentPermissionMode ?? 'default (effective)'}`);
+                } else {
+                    logger.debug(`[Codex] Ignoring invalid permission mode from live configuration: ${String(configuration.permissionMode)}`);
+                }
+            }
+            if (Object.prototype.hasOwnProperty.call(configuration, 'model')) {
+                currentModel = configuration.model || undefined;
+                metadataPatch.model = currentModel;
+                logger.debug(`[Codex] Model updated from live configuration for next turn: ${currentModel || 'default'}`);
+            }
+            if (Object.prototype.hasOwnProperty.call(configuration, 'thinkingLevel')) {
+                currentThinkingLevel = configuration.thinkingLevel as ReasoningEffort | undefined;
+                metadataPatch.thinkingLevel = currentThinkingLevel;
+                logger.debug(`[Codex] Thinking level updated from live configuration for next turn: ${currentThinkingLevel || 'default'}`);
+            }
+            void publishAgentConfigurationMetadataIfChanged(session, metadata, metadataPatch);
+        });
+    }
 
     session.onUserMessage((message) => {
         // Resolve permission mode (validate against Codex-native modes)
@@ -260,9 +290,17 @@ export async function runCodex(opts: {
             logger.debug(`[Codex] User message received with no model override, using current: ${currentModel || 'default'}`);
         }
 
+        let messageThinkingLevel = currentThinkingLevel;
+        if (message.meta && Object.prototype.hasOwnProperty.call(message.meta, 'thinkingLevel')) {
+            messageThinkingLevel = message.meta.thinkingLevel as ReasoningEffort | undefined;
+            currentThinkingLevel = messageThinkingLevel;
+            logger.debug(`[Codex] Thinking level updated from user message: ${messageThinkingLevel || 'reset to default'}`);
+        }
+
         const enhancedMode: EnhancedMode = {
             permissionMode: messagePermissionMode || 'default',
             model: messageModel,
+            thinkingLevel: messageThinkingLevel,
         };
         messageQueue.push(message.content.text, enhancedMode);
     });
@@ -713,6 +751,7 @@ export async function runCodex(opts: {
 
                 const result = await client.sendTurnAndWait(turnPrompt, {
                     model: message.mode.model,
+                    effort: message.mode.thinkingLevel,
                     approvalPolicy: executionPolicy.approvalPolicy,
                     sandbox: executionPolicy.sandbox,
                 });

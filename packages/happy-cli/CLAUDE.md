@@ -91,6 +91,8 @@ Claude and Codex runners publish their effective mode to session metadata as `cu
 
 `publishPermissionModeIfChanged(...)` intentionally mutates the runner-local metadata object before awaiting `updateMetadata(...)`. That ordering keeps the offline-reconnect seed metadata current because reconnect paths reuse the same object by reference.
 
+Live drawer config changes arrive through `ApiSessionClient.onAgentConfiguration(...)`, which diffs decrypted `update-session` metadata fields (`currentModelCode`, `currentPermissionModeCode`, `currentThoughtLevelCode`) and notifies provider runners. The `agent-configuration-changed` envelope is schema-only in this slice; CLI control consumption is metadata-driven and must not emit a raw session-event audit envelope unless a future active-turn audit story explicitly adds it.
+
 Absence of `currentPermissionModeCode` is meaningful: it represents "no opinion yet", which lets the app avoid overwriting a CLI-owned mode until the user explicitly picks one. More detail is in `.ralph/jobs/preserve-permission-mode-layer1/plan.md`.
 
 **Title-event normalization:** Claude JSONL `custom-title` and `ai-title` records do not carry `uuid`/`leafUuid`/`timestamp`. Normalize them into synthetic `summary` messages before mapper/API handling, and use deterministic `leafUuid` values derived from `sessionId` (for example `custom-title:${sessionId}`) so scanner dedup and metadata writes stay idempotent.

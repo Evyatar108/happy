@@ -385,6 +385,17 @@ export const pl: TranslationStructure = {
         placeholder: 'Wpisz polecenie lub wyszukaj...',
     },
 
+    pickers: {
+        noResults: 'Brak wyników',
+    },
+
+    drawer: {
+        fork: {
+            comingSoon: 'Wkrótce',
+        },
+        applyFailed: 'Nie udało się zastosować — spróbuj ponownie',
+    },
+
     server: {
         // Used by Server Configuration screen (app/(app)/server.tsx)
         serverConfiguration: 'Konfiguracja serwera',

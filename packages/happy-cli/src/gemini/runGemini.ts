@@ -28,8 +28,9 @@ import { notifyDaemonSessionStarted } from '@/daemon/controlClient';
 import { encodeBase64 } from '@/api/encryption';
 import { registerKillSessionHandler } from '@/claude/registerKillSessionHandler';
 import { connectionState } from '@/utils/serverConnectionErrors';
+import { publishAgentConfigurationMetadataIfChanged } from '@/utils/publishPermissionMode';
 import { setupOfflineReconnection } from '@/utils/setupOfflineReconnection';
-import type { ApiSessionClient } from '@/api/apiSession';
+import type { AgentConfiguration, ApiSessionClient } from '@/api/apiSession';
 
 import { createGeminiBackend } from '@/agent/factories/gemini';
 import type { AgentBackend, AgentMessage } from '@/agent';
@@ -206,6 +207,7 @@ export async function runGemini(opts: {
   const messageQueue = new MessageQueue2<GeminiMode>((mode) => hashObject({
     permissionMode: mode.permissionMode,
     model: mode.model,
+    thinkingLevel: mode.thinkingLevel,
   }));
 
   // Conversation history for context preservation across model changes
@@ -214,6 +216,7 @@ export async function runGemini(opts: {
   // Track current overrides to apply per message
   let currentPermissionMode: PermissionMode | undefined = undefined;
   let currentModel: string | undefined = undefined;
+  let currentThinkingLevel: string | undefined = undefined;
 
   session.onUserMessage((message) => {
     // Resolve permission mode (validate) - same as Codex
@@ -266,6 +269,14 @@ export async function runGemini(opts: {
       // If message.meta.model is undefined, keep currentModel
     }
 
+    let messageThinkingLevel = currentThinkingLevel;
+    if (message.meta && Object.prototype.hasOwnProperty.call(message.meta, 'thinkingLevel')) {
+      messageThinkingLevel = message.meta.thinkingLevel || undefined;
+      currentThinkingLevel = messageThinkingLevel;
+      metadata.currentThoughtLevelCode = messageThinkingLevel;
+      logger.debug(`[Gemini] Thinking level updated from user message: ${messageThinkingLevel || 'reset to default'}`);
+    }
+
     // Build the full prompt with appendSystemPrompt if provided
     // Only include system prompt for the first message to avoid forcing tool usage on every message
     const originalUserMessage = message.content.text;
@@ -283,6 +294,7 @@ export async function runGemini(opts: {
     const mode: GeminiMode = {
       permissionMode: messagePermissionMode || 'default',
       model: messageModel,
+      thinkingLevel: messageThinkingLevel,
       originalUserMessage, // Store original message separately
     };
     messageQueue.push(fullPrompt, mode);
@@ -529,6 +541,41 @@ export async function runGemini(opts: {
   const updatePermissionMode = (mode: PermissionMode) => {
     permissionHandler.setPermissionMode(mode);
   };
+
+  if (typeof session.onAgentConfiguration === 'function') {
+    session.onAgentConfiguration((configuration: AgentConfiguration) => {
+      const metadataPatch: { model?: string; thinkingLevel?: string } = {};
+      if (Object.prototype.hasOwnProperty.call(configuration, 'permissionMode')) {
+        const incoming = configuration.permissionMode as PermissionMode | undefined;
+        if (incoming === undefined) {
+          currentPermissionMode = undefined;
+          updatePermissionMode('default');
+        } else {
+          const validModes: PermissionMode[] = ['default', 'read-only', 'safe-yolo', 'yolo'];
+          if (validModes.includes(incoming)) {
+            currentPermissionMode = incoming;
+            updatePermissionMode(incoming);
+          } else {
+            logger.debug(`[Gemini] Invalid permission mode received from live configuration: ${configuration.permissionMode}`);
+          }
+        }
+      }
+      if (Object.prototype.hasOwnProperty.call(configuration, 'model')) {
+        currentModel = configuration.model || undefined;
+        if (configuration.model) {
+          updateDisplayedModel(configuration.model, true);
+        }
+        metadataPatch.model = currentModel;
+        logger.debug(`[Gemini] Model updated from live configuration for next turn: ${currentModel || 'default'}`);
+      }
+      if (Object.prototype.hasOwnProperty.call(configuration, 'thinkingLevel')) {
+        currentThinkingLevel = configuration.thinkingLevel || undefined;
+        metadataPatch.thinkingLevel = currentThinkingLevel;
+        logger.debug(`[Gemini] Thinking level updated from live configuration for next turn: ${currentThinkingLevel || 'default'}`);
+      }
+      void publishAgentConfigurationMetadataIfChanged(session, metadata, metadataPatch);
+    });
+  }
 
   // Accumulate Gemini response text for sending complete message to mobile
   let accumulatedResponse = '';

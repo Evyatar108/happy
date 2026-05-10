@@ -153,6 +153,7 @@ const MessageMetaSchema = z__namespace.object({
   sentFrom: z__namespace.string().optional(),
   permissionMode: z__namespace.enum(["default", "acceptEdits", "bypassPermissions", "plan", "read-only", "safe-yolo", "yolo"]).optional(),
   model: z__namespace.string().nullable().optional(),
+  thinkingLevel: z__namespace.string().nullable().optional(),
   fallbackModel: z__namespace.string().nullable().optional(),
   customSystemPrompt: z__namespace.string().nullable().optional(),
   appendSystemPrompt: z__namespace.string().nullable().optional(),

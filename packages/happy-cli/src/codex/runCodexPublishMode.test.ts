@@ -4,6 +4,7 @@ import type { Metadata, PermissionMode } from '@/api/types';
 
 const mocks = vi.hoisted(() => {
     let userMessageHandler: ((message: any) => void) | null = null;
+    let agentConfigurationHandler: ((configuration: any) => void) | null = null;
     let serverMetadata: any = {};
     let sandboxEnabled = false;
     let waitHook: (() => void | Promise<void>) | null = null;
@@ -13,6 +14,9 @@ const mocks = vi.hoisted(() => {
         on: vi.fn(),
         onUserMessage: vi.fn((handler: (message: any) => void) => {
             userMessageHandler = handler;
+        }),
+        onAgentConfiguration: vi.fn((handler: (configuration: any) => void) => {
+            agentConfigurationHandler = handler;
         }),
         keepAlive: vi.fn(),
         updateMetadata: vi.fn(async (handler: (metadata: any) => any) => {
@@ -80,8 +84,12 @@ const mocks = vi.hoisted(() => {
         mockLoggerDebug: vi.fn(),
         mockLoggerWarn: vi.fn(),
         getUserMessageHandler: () => userMessageHandler,
+        getAgentConfigurationHandler: () => agentConfigurationHandler,
         setUserMessageHandler: (handler: ((message: any) => void) | null) => {
             userMessageHandler = handler;
+        },
+        setAgentConfigurationHandler: (handler: ((configuration: any) => void) | null) => {
+            agentConfigurationHandler = handler;
         },
         getServerMetadata: () => serverMetadata,
         setServerMetadata: (metadata: any) => {
@@ -187,6 +195,7 @@ describe('runCodex permission mode metadata publishing', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         mocks.setUserMessageHandler(null);
+        mocks.setAgentConfigurationHandler(null);
         mocks.setServerMetadata({});
         mocks.setSandboxEnabled(false);
         mocks.setWaitHook(null);
@@ -238,5 +247,18 @@ describe('runCodex permission mode metadata publishing', () => {
         expect(mocks.mockSession.updateMetadata).toHaveBeenCalledTimes(2);
         expect(mocks.getServerMetadata().currentPermissionModeCode).toBe('read-only');
         expect(mocks.getPushedModes()).toEqual([{ permissionMode: 'read-only', model: undefined }]);
+    });
+
+    it('echoes live model and thinking configuration once for next-turn application', async () => {
+        mocks.setWaitHook(async () => {
+            mocks.getAgentConfigurationHandler()?.({ model: 'gpt-5.2-codex', thinkingLevel: 'high' });
+            await Promise.resolve();
+        });
+
+        await runCodexOnce();
+
+        expect(mocks.mockSession.updateMetadata).toHaveBeenCalledTimes(1);
+        expect(mocks.getServerMetadata().currentModelCode).toBe('gpt-5.2-codex');
+        expect(mocks.getServerMetadata().currentThoughtLevelCode).toBe('high');
     });
 });
