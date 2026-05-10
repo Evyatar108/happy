@@ -54,7 +54,7 @@ export const AvatarTopicBrutalist = React.memo((props: AvatarTopicBrutalistProps
     const tintColor = monochrome ? '#999999' : colorPair.tint;
     const backgroundColor = monochrome ? '#F0F0F0' : colorPair.background;
 
-    const dimension = square ? size : size;
+    const dimension = size;
     const borderRadius = square ? 0 : size / 2;
 
     return (

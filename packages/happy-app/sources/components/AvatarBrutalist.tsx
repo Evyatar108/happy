@@ -22,7 +22,7 @@ export const AvatarBrutalist = React.memo((props: AvatarBrutalistProps) => {
     const tintColor = monochrome ? '#999999' : colorPair.tint;
     const backgroundColor = monochrome ? '#F0F0F0' : colorPair.background;
 
-    const dimension = square ? size : size;
+    const dimension = size;
     const borderRadius = square ? 0 : size / 2;
 
     return (
