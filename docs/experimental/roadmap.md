@@ -178,6 +178,8 @@ Goal: make new-session composition feel like the regular chat composer instead o
 
 ## P2.5. PI-style agent controls, fork, and resume
 
+Status: in progress / drawer slice shipped locally. Active-session context controls now live in `SessionContextDrawer` above the composer, with model, permission, effort, resume, and a disabled fork placeholder wired through session metadata echo. Full fork flow and recorded web validation remain follow-up work.
+
 Goal: make active-session agent controls feel first-class instead of scattered across info screens and one-off flows. The control surface should feel closer to a PI-style agent UI while still preserving Happy's regular chat input shape.
 
 ### Required outcomes

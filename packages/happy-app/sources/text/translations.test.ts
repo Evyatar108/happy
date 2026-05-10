@@ -42,6 +42,26 @@ const REQUIRED_DEFERRED_SWITCH_KEYS = [
     'errors.sendFailed',
 ] as const;
 
+const REQUIRED_SESSION_DRAWER_KEYS = [
+    'drawer.fork.comingSoon',
+    'session.resumeFromTerminal',
+    'sessionInfo.resumeSession',
+    'sessionInfo.resumeSessionSubtitle',
+    'sessionInfo.resumeSessionSameMachineOnly',
+    'sessionInfo.resumeSessionMachineOffline',
+    'sessionInfo.resumeSessionNeedsHappyAgent',
+    'sessionInfo.resumeSessionMissingMachine',
+    'sessionInfo.resumeSessionMissingBackendId',
+    'sessionInfo.resumeSessionUnexpectedDirectoryPrompt',
+    'agentInput.model.title',
+    'agentInput.permissionMode.title',
+    'agentInput.effort.title',
+    'commandPalette.placeholder',
+    'sidebar.expand',
+    'sidebar.collapse',
+    'status.unknown',
+] as const;
+
 type TranslationTree =
     | string
     | ((...args: any[]) => string)
@@ -98,6 +118,17 @@ describe('translations', () => {
     it('keeps the deferred switch strings present in every locale', () => {
         for (const [language, dictionary] of Object.entries(translations)) {
             for (const key of REQUIRED_DEFERRED_SWITCH_KEYS) {
+                const value = getByPath(dictionary, key);
+
+                expect(value, `${language}.${key}`).toBeTypeOf('string');
+                expect((value as string).trim(), `${language}.${key}`).not.toBe('');
+            }
+        }
+    });
+
+    it('keeps the session drawer strings present in every locale', () => {
+        for (const [language, dictionary] of Object.entries(translations)) {
+            for (const key of REQUIRED_SESSION_DRAWER_KEYS) {
                 const value = getByPath(dictionary, key);
 
                 expect(value, `${language}.${key}`).toBeTypeOf('string');

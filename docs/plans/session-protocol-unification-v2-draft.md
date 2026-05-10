@@ -193,7 +193,7 @@ Written to the stream when user presses stop. RPC still does real-time delivery.
 
 ### Configuration
 
-**`agent-configuration-changed`** — user or agent
+**`agent-configuration-changed`** — user or agent — implemented
 
 ```json
 { "t": "agent-configuration-changed", "model": "claude-sonnet-4-6", "thinkingLevel": "high" }
@@ -206,9 +206,11 @@ All fields optional — include only what changed:
 | `permissionMode` | string? | `"default"` \| `"acceptEdits"` \| `"bypassPermissions"` \| `"plan"` \| `"read-only"` \| `"safe-yolo"` \| `"yolo"` (matches the live `meta.permissionMode` wire enum in `packages/happy-wire/README.md`) |
 | `model` | string? | Model identifier |
 | `thinkingLevel` | string? | Thinking budget level |
-| `sandbox` | boolean? | Sandbox enabled |
+| `sandbox` | string? | Sandbox mode; additive and optional, not surfaced by the current drawer UI |
 
 User sends this when changing config from the app. Agent sends this when entering plan mode, etc. The actual config mechanism stays in session metadata (optimistic concurrency) — this event is the audit trail in the stream so you can scroll back and see "model was switched to Sonnet here."
+
+Implemented delta: the schema landed as an optional audit envelope only. App control changes still travel over `update-metadata` / `update-session` metadata echo, and the CLI does not emit this envelope in the drawer slice.
 
 ## Event Type Summary
 
@@ -345,7 +347,7 @@ Also remove the hyphenated content normalization transforms (`normalizeToToolUse
 
 - Rename `start`/`stop` → `subagent-start`/`subagent-stop` with `agentId` field
 - Add `usage` to `turn-end` schema
-- Add new event types: `session-control-changed`, `agent-configuration-changed`, `permission-request`, `permission-response`, `abort`
+- Add new event types: `session-control-changed`, `agent-configuration-changed` (implemented as schema-only), `permission-request`, `permission-response`, `abort`
 - Add `steer` field to `text` event schema
 
 ## Open Questions
