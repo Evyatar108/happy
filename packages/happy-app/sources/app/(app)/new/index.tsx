@@ -896,7 +896,7 @@ function NewSessionScreen() {
                                     onDone={() => setActivePicker(null)}
                                 />
                             ) : pickerData ? (
-                                <PickerContent {...pickerData} onSelect={handlePickerSelect} />
+                                <PickerContent {...pickerData} onSelect={handlePickerSelect} autoFocusSearch={true} />
                             ) : null}
                         </View>
                     )}

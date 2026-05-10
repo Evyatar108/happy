@@ -262,7 +262,7 @@ export function ForkComposerScreen() {
 
                     {pickerData && (
                         <View style={styles.pickerPanel}>
-                            <PickerContent {...pickerData} onSelect={handlePickerSelect} />
+                            <PickerContent {...pickerData} onSelect={handlePickerSelect} autoFocusSearch={true} />
                         </View>
                     )}
                 </View>
