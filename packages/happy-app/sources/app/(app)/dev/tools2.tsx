@@ -271,6 +271,124 @@ const styles = StyleSheet.create({
             result: null,
             children: []
         },
+        codexPatchUpdate: {
+            name: 'CodexPatch',
+            state: 'completed' as const,
+            input: {
+                changes: {
+                    '/Users/steve/project/src/components/Header.tsx': {
+                        type: 'update',
+                        unified_diff: `--- a/src/components/Header.tsx
++++ b/src/components/Header.tsx
+@@ -1,5 +1,6 @@
+ export function Header() {
++  const title = 'Dashboard';
+   return (
+     <header>
+-      <h1>Home</h1>
++      <h1>{title}</h1>
+     </header>
+   );`,
+                        move_path: null,
+                    },
+                },
+            },
+            createdAt: Date.now() - 7000,
+            startedAt: Date.now() - 6900,
+            completedAt: Date.now() - 6000,
+            description: 'Apply update patch',
+            result: 'Patch applied',
+            children: []
+        },
+        codexPatchUpdateMove: {
+            name: 'CodexPatch',
+            state: 'completed' as const,
+            input: {
+                changes: {
+                    '/Users/steve/project/src/components/Header.tsx': {
+                        type: 'update',
+                        unified_diff: `--- a/src/components/Header.tsx
++++ b/src/components/AppHeader.tsx
+@@ -1,4 +1,4 @@
+-export function Header() {
++export function AppHeader() {
+   return <header>Home</header>;
+ }`,
+                        move_path: '/Users/steve/project/src/components/AppHeader.tsx',
+                    },
+                },
+            },
+            createdAt: Date.now() - 7200,
+            startedAt: Date.now() - 7100,
+            completedAt: Date.now() - 6200,
+            description: 'Apply move patch',
+            result: 'Patch applied',
+            children: []
+        },
+        codexPatchAdd: {
+            name: 'CodexPatch',
+            state: 'completed' as const,
+            input: {
+                changes: {
+                    '/Users/steve/project/src/components/Footer.tsx': {
+                        type: 'add',
+                        content: `export function Footer() {
+  return <footer>Ready</footer>;
+}`,
+                    },
+                },
+            },
+            createdAt: Date.now() - 7400,
+            startedAt: Date.now() - 7300,
+            completedAt: Date.now() - 6400,
+            description: 'Apply add patch',
+            result: 'Patch applied',
+            children: []
+        },
+        codexPatchDelete: {
+            name: 'CodexPatch',
+            state: 'completed' as const,
+            input: {
+                changes: {
+                    '/Users/steve/project/src/legacy/OldHeader.tsx': {
+                        type: 'delete',
+                        content: `export function OldHeader() {
+  return <header>Legacy</header>;
+}`,
+                    },
+                },
+            },
+            createdAt: Date.now() - 7600,
+            startedAt: Date.now() - 7500,
+            completedAt: Date.now() - 6600,
+            description: 'Apply delete patch',
+            result: 'Patch applied',
+            children: []
+        },
+        codexPatchLegacyWrapper: {
+            name: 'CodexPatch',
+            state: 'completed' as const,
+            input: {
+                changes: {
+                    '/Users/steve/project/src/utils/format.ts': {
+                        kind: {
+                            type: 'update',
+                            move_path: null,
+                        },
+                        modify: {
+                            old_content: 'export const format = value => value;',
+                            new_content: 'export const format = (value: string) => value.trim();',
+                        },
+                    },
+                },
+            },
+            createdAt: Date.now() - 7800,
+            startedAt: Date.now() - 7700,
+            completedAt: Date.now() - 6800,
+            description: 'Apply legacy wrapper patch',
+            result: 'Patch applied',
+            children: []
+        },
         bash: {
             name: 'Bash',
             state: 'completed' as const,
@@ -657,6 +775,11 @@ export function formatTime(date: Date): string {
                                 {renderExample('taskStopNull', examples.taskStopNull, null, 'p1BugFixes')}
                                 {renderExample('editFix', examples.editFix, pathFixtureMetadata, 'p1BugFixes')}
                                 {renderExample('multiEditFix', examples.multiEditFix, pathFixtureMetadata, 'p1BugFixes')}
+                                {renderExample('codexPatchUpdate', examples.codexPatchUpdate, pathFixtureMetadata, 'p1BugFixes')}
+                                {renderExample('codexPatchUpdateMove', examples.codexPatchUpdateMove, pathFixtureMetadata, 'p1BugFixes')}
+                                {renderExample('codexPatchAdd', examples.codexPatchAdd, pathFixtureMetadata, 'p1BugFixes')}
+                                {renderExample('codexPatchDelete', examples.codexPatchDelete, pathFixtureMetadata, 'p1BugFixes')}
+                                {renderExample('codexPatchLegacyWrapper', examples.codexPatchLegacyWrapper, pathFixtureMetadata, 'p1BugFixes')}
                             </>
                         ) : null}
 

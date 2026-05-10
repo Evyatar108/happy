@@ -792,6 +792,10 @@ export const knownTools = {
         input: z.object({
             auto_approved: z.boolean().optional().describe('Whether changes were auto-approved'),
             changes: z.record(z.string(), z.object({
+                type: z.enum(['add', 'delete', 'update']).optional(),
+                unified_diff: z.string().optional(),
+                content: z.string().optional(),
+                move_path: z.string().nullable().optional(),
                 diff: z.string().optional(),
                 kind: z.object({
                     type: z.string().optional(),
