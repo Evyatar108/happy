@@ -430,6 +430,17 @@ describe('MessageQueue2', () => {
         expect(batch2?.attachments).toBeUndefined();
     });
 
+    it('should return isolate=true on any batch that carries attachments', async () => {
+        const queue = new MessageQueue2<{ type: string }>((mode) => mode.type);
+        const attachments = [{ type: 'image' as const, ref: 'base64-image', mimeType: 'image/png' }];
+
+        queue.pushWithAttachments('image prompt', { type: 'A' }, attachments);
+
+        const batch = await queue.waitForMessagesAndGetAsString();
+        expect(batch?.attachments).toEqual(attachments);
+        expect(batch?.isolate).toBe(true);
+    });
+
     it('should stop batching when hitting isolated message', async () => {
         const queue = new MessageQueue2<{ type: string }>((mode) => mode.type);
         

@@ -286,6 +286,7 @@ export class MessageQueue2<T> {
             const item = this.queue.shift()!;
             sameModeMessages.push(item.message);
             attachments = item.attachments;
+            isolate = true;
             logger.debug(`[MessageQueue2] Collected isolated message with mode hash: ${targetModeHash}`);
         } else {
             // Collect all messages with the same mode until we hit an isolated message
