@@ -15,6 +15,7 @@ import { AnimatedText } from './StyledText';
 import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
 import { BoundaryDivider } from './BoundaryDivider';
 import { Typography } from '@/constants/Typography';
+import { formatAttachmentSize } from '@/components/composer/AttachmentChip';
 
 
 export const MessageView = React.memo((props: {
@@ -78,15 +79,6 @@ function RenderBlock(props: {
   }
 }
 
-function formatAttachmentSize(size: number): string {
-  if (size < 1024) {
-    return `${size} B`;
-  }
-  if (size < 1024 * 1024) {
-    return `${Math.ceil(size / 1024)} KB`;
-  }
-  return `${Math.ceil(size / (1024 * 1024))} MB`;
-}
 
 function MessageAttachmentChips(props: {
   attachmentRefs: NonNullable<UserTextMessage['meta']>['attachmentRefs'];

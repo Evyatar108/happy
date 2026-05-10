@@ -38,7 +38,8 @@ import { useNavigateToSession } from '@/hooks/useNavigateToSession';
 import { useNewSessionDraft } from '@/hooks/useNewSessionDraft';
 import { usePreSendCommand } from '@/hooks/usePreSendCommand';
 import { Modal } from '@/modal';
-import { useFileAttachment, type FileAttachment } from '@/hooks/useFileAttachment';
+import { useFileAttachment } from '@/hooks/useFileAttachment';
+import { AttachmentChip, buildMessageWithAttachmentRefs } from '@/components/composer/AttachmentChip';
 import { PickerContent, PathPickerContent, type PickerItem } from '@/components/pickers';
 import type { Machine, Session } from '@/sync/storageTypes';
 import {
@@ -123,49 +124,6 @@ function getPermissionStyle(key: string): PermissionStyle | null {
     }
 }
 
-function formatAttachmentSize(size: number): string {
-    if (size < 1024) {
-        return `${size} B`;
-    }
-    if (size < 1024 * 1024) {
-        return `${Math.ceil(size / 1024)} KB`;
-    }
-    return `${Math.ceil(size / (1024 * 1024))} MB`;
-}
-
-function buildMessageWithAttachmentRefs(text: string, attachmentRefs: { remotePath: string }[]): string {
-    if (attachmentRefs.length === 0) {
-        return text;
-    }
-
-    const attachmentBlock = [
-        'Attachments:',
-        ...attachmentRefs.map(ref => `- ${ref.remotePath}`),
-    ].join('\n');
-
-    return text ? `${text}\n\n${attachmentBlock}` : attachmentBlock;
-}
-
-function AttachmentChip({ attachment, onRemove }: { attachment: FileAttachment; onRemove: () => void }) {
-    const { theme } = useUnistyles();
-
-    return (
-        <View style={styles.attachmentChip} testID="attachment-chip">
-            <Octicons name="paperclip" size={13} color={theme.colors.textSecondary} />
-            <Text style={styles.attachmentChipText} numberOfLines={1}>{attachment.name}</Text>
-            <Text style={styles.attachmentChipSize}>{formatAttachmentSize(attachment.size)}</Text>
-            <Pressable
-                accessibilityLabel={t('agentInput.attachments.removeButton', { name: attachment.name })}
-                hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                onPress={onRemove}
-                style={({ pressed }) => [styles.attachmentChipRemove, pressed ? styles.configRowPressed : undefined]}
-                testID="attachment-chip-remove"
-            >
-                <Ionicons name="close" size={14} color={theme.colors.textSecondary} />
-            </Pressable>
-        </View>
-    );
-}
 
 // Bottom sheet modal — native formSheet on iOS, slide-up sheet on Android
 function BottomSheet({
@@ -1027,6 +985,13 @@ function NewSessionScreen() {
                                         key={attachment.id}
                                         attachment={attachment}
                                         onRemove={() => fileAttachment.removeAttachment(attachment.id)}
+                                        chipStyles={{
+                                            chip: styles.attachmentChip,
+                                            chipText: styles.attachmentChipText,
+                                            chipSize: styles.attachmentChipSize,
+                                            chipRemove: styles.attachmentChipRemove,
+                                            chipRemovePressed: styles.configRowPressed,
+                                        }}
                                     />
                                 ))}
                             </View>

@@ -45,6 +45,7 @@ import { useSessionQuickActions } from '@/hooks/useSessionQuickActions';
 import { isVersionSupported, MINIMUM_CLI_VERSION } from '@/utils/versionUtils';
 import { encodeBase64Url } from '@/utils/base64url';
 import { dedupeAttachmentNames, sanitizeAttachmentName } from '@/utils/attachmentName';
+import { buildMessageWithAttachmentRefs } from '@/components/composer/AttachmentChip';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as React from 'react';
@@ -62,19 +63,6 @@ export function getCanSendWhenIdle(session: Session): boolean {
         && session.agentState?.pendingSwitch == null;
 }
 
-function buildMessageWithAttachmentRefs(text: string, attachmentRefs: { remotePath: string }[]): string {
-    if (attachmentRefs.length === 0) {
-        return text;
-    }
-
-    const attachmentBlock = [
-        'Attachments:',
-        ...attachmentRefs.map(ref => `- ${ref.remotePath}`),
-    ].join('\n');
-
-    const trimmedText = text.trim();
-    return trimmedText ? `${trimmedText}\n\n${attachmentBlock}` : attachmentBlock;
-}
 
 export const SessionView = React.memo((props: { id: string }) => {
     const sessionId = props.id;

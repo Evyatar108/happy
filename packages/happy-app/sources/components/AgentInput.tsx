@@ -25,6 +25,7 @@ import { Metadata } from '@/sync/storageTypes';
 import { useChatWidth, CHAT_WIDTH_MARGIN_OPTIONS } from '@/hooks/useChatWidth';
 import { useIsTablet } from '@/utils/responsive';
 import { useFileAttachment, type FileAttachment } from '@/hooks/useFileAttachment';
+import { AttachmentChip } from '@/components/composer/AttachmentChip';
 
 interface AgentInputProps {
     value: string;
@@ -390,37 +391,6 @@ const getContextWarning = (contextSize: number, alwaysShow: boolean = false, the
     return null; // No display needed
 };
 
-function formatAttachmentSize(size: number): string {
-    if (size < 1024) {
-        return `${size} B`;
-    }
-    if (size < 1024 * 1024) {
-        return `${Math.ceil(size / 1024)} KB`;
-    }
-    return `${Math.ceil(size / (1024 * 1024))} MB`;
-}
-
-function AttachmentChip({ attachment, onRemove }: { attachment: FileAttachment; onRemove: () => void }) {
-    const styles = stylesheet;
-    const { theme } = useUnistyles();
-
-    return (
-        <View style={styles.attachmentChip} testID="attachment-chip">
-            <Octicons name="paperclip" size={13} color={theme.colors.textSecondary} />
-            <Text style={styles.attachmentChipText} numberOfLines={1}>{attachment.name}</Text>
-            <Text style={styles.attachmentChipSize}>{formatAttachmentSize(attachment.size)}</Text>
-            <Pressable
-                accessibilityLabel={t('agentInput.attachments.removeButton', { name: attachment.name })}
-                hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                onPress={onRemove}
-                style={({ pressed }) => [styles.attachmentChipRemove, pressed ? styles.actionButtonPressed : undefined]}
-                testID="attachment-chip-remove"
-            >
-                <Ionicons name="close" size={14} color={theme.colors.textSecondary} />
-            </Pressable>
-        </View>
-    );
-}
 
 export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, AgentInputProps>((props, ref) => {
     const styles = stylesheet;
@@ -1374,6 +1344,13 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                     key={attachment.id}
                                     attachment={attachment}
                                     onRemove={() => fileAttachment.removeAttachment(attachment.id)}
+                                    chipStyles={{
+                                        chip: styles.attachmentChip,
+                                        chipText: styles.attachmentChipText,
+                                        chipSize: styles.attachmentChipSize,
+                                        chipRemove: styles.attachmentChipRemove,
+                                        chipRemovePressed: styles.actionButtonPressed,
+                                    }}
                                 />
                             ))}
                         </View>
