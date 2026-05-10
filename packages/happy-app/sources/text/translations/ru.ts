@@ -499,6 +499,33 @@ export const ru: TranslationStructure = {
         applyFailed: 'Не удалось применить — попробуйте ещё раз',
     },
 
+    forkComposer: {
+        title: 'Форк сессии',
+        parentLabel: ({ name }: { name: string }) => `Форк из ${name}`,
+        submit: 'Форк',
+        creatingWorktree: 'Создание worktree...',
+        createNew: 'Создать новый',
+        currentCheckout: 'Текущий checkout',
+        worktree: 'Worktree',
+        machine: 'Машина',
+        agent: 'Агент',
+        codex: 'Codex',
+        defaultModel: 'модель по умолчанию',
+        defaultPermission: 'по умолчанию',
+        defaultEffort: 'по умолчанию',
+        searchWorktrees: 'поиск worktree...',
+        searchModels: 'поиск моделей...',
+        searchPermissions: 'поиск разрешений...',
+        searchEffort: 'поиск уровней усилия...',
+        errors: {
+            parentMissing: 'Исходная сессия отсутствует',
+            worktreeMissing: ({ directory }: { directory: string }) => `Путь worktree недоступен: ${directory}`,
+            flavorUnsupported: 'Форк доступен только для сессий Codex',
+            forkFailed: 'Не удалось создать форк сессии',
+            createWorktreeFailed: 'Не удалось создать worktree',
+        },
+    },
+
     agentInput: {
         permissionMode: {
             title: 'РЕЖИМ РАЗРЕШЕНИЙ',

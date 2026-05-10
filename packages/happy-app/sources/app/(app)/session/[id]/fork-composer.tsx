@@ -70,7 +70,7 @@ export function ForkComposerScreen() {
     const parentPath = session?.metadata?.path ?? '';
     const basePath = React.useMemo(() => parentPath ? getRepoPath(parentPath) : '', [parentPath]);
     const homeDir = machine?.metadata?.homeDir;
-    const parentLabel = session ? getSessionName(session) : 'session';
+    const parentLabel = session ? getSessionName(session) : '';
     const [selectedWorktreeKey, setSelectedWorktreeKey] = React.useState<string | null>(null);
     const [selectedModelKey, setSelectedModelKey] = React.useState<string | null>(null);
     const [selectedPermissionKey, setSelectedPermissionKey] = React.useState<string | null>(null);
@@ -136,28 +136,28 @@ export function ForkComposerScreen() {
     }, [currentModel?.key, effortOptions, selectedEffortKey, session?.effortLevel, session?.metadata?.currentThoughtLevelCode]);
 
     const selectedWorktreeLabel = selectedWorktreeKey === CREATE_WORKTREE_KEY
-        ? 'Create new'
+        ? t('forkComposer.createNew')
         : formatPathRelativeToHome(selectedWorktreeKey ?? parentPath, homeDir);
 
     const pickerData = React.useMemo(() => {
         switch (activePicker) {
             case 'worktree':
                 return {
-                    title: 'Worktree',
+                    title: t('forkComposer.worktree'),
                     fixedItems: [
-                        { key: parentPath, label: 'Current checkout', subtitle: parentPath },
-                        { key: CREATE_WORKTREE_KEY, label: 'Create new', subtitle: basePath },
+                        { key: parentPath, label: t('forkComposer.currentCheckout'), subtitle: parentPath },
+                        { key: CREATE_WORKTREE_KEY, label: t('forkComposer.createNew'), subtitle: basePath },
                     ].filter((item) => item.key),
                     items: worktreeItems.filter((item) => item.key !== parentPath),
                     selectedKey: selectedWorktreeKey,
-                    searchPlaceholder: 'search worktrees...',
+                    searchPlaceholder: t('forkComposer.searchWorktrees'),
                 };
             case 'model':
-                return { title: 'Model', items: optionItems(modelOptions), selectedKey: currentModel?.key ?? null, searchPlaceholder: 'search models...' };
+                return { title: t('agentInput.model.title'), items: optionItems(modelOptions), selectedKey: currentModel?.key ?? null, searchPlaceholder: t('forkComposer.searchModels') };
             case 'permission':
-                return { title: 'Permission', items: optionItems(permissionOptions), selectedKey: currentPermission?.key ?? null, searchPlaceholder: 'search permissions...' };
+                return { title: t('agentInput.permissionMode.title'), items: optionItems(permissionOptions), selectedKey: currentPermission?.key ?? null, searchPlaceholder: t('forkComposer.searchPermissions') };
             case 'effort':
-                return { title: 'Effort', items: optionItems(effortOptions), selectedKey: currentEffort?.key ?? null, searchPlaceholder: 'search effort levels...' };
+                return { title: t('agentInput.effort.title'), items: optionItems(effortOptions), selectedKey: currentEffort?.key ?? null, searchPlaceholder: t('forkComposer.searchEffort') };
             default:
                 return null;
         }
@@ -184,7 +184,7 @@ export function ForkComposerScreen() {
 
     const handleSubmit = React.useCallback(async () => {
         if (!sessionId || !session || !machineId || !parentPath) {
-            Modal.alert(t('common.error'), 'Parent session is missing');
+            Modal.alert(t('common.error'), t('forkComposer.errors.parentMissing'));
             return;
         }
 
@@ -194,7 +194,7 @@ export function ForkComposerScreen() {
             if (worktreePath === CREATE_WORKTREE_KEY) {
                 const worktreeResult = await createWorktree(machineId, basePath);
                 if (!worktreeResult.success) {
-                    Modal.alert(t('common.error'), worktreeResult.error || 'Failed to create worktree');
+                    Modal.alert(t('common.error'), worktreeResult.error || t('forkComposer.errors.createWorktreeFailed'));
                     return;
                 }
                 worktreePath = worktreeResult.worktreePath;
@@ -216,14 +216,14 @@ export function ForkComposerScreen() {
                     navigateToSession(compositeSessionId(machineId, result.sessionId));
                     break;
                 case 'requestToApproveDirectoryCreation':
-                    Modal.alert(t('common.error'), `Worktree path is unavailable: ${result.directory}`);
+                    Modal.alert(t('common.error'), t('forkComposer.errors.worktreeMissing', { directory: result.directory }));
                     break;
                 case 'error':
                     Modal.alert(t('common.error'), result.errorMessage);
                     break;
             }
         } catch (error) {
-            Modal.alert(t('common.error'), error instanceof Error ? error.message : 'Failed to fork session');
+            Modal.alert(t('common.error'), error instanceof Error ? error.message : t('forkComposer.errors.forkFailed'));
         } finally {
             setIsForking(false);
         }
@@ -235,22 +235,22 @@ export function ForkComposerScreen() {
         <View style={styles.container}>
             <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
                 <View style={styles.content}>
-                    <Text style={styles.title}>Fork session</Text>
+                    <Text style={styles.title}>{t('forkComposer.title')}</Text>
 
                     {/* Reuse the compact ContextChip shape instead of adding a separate pill component. */}
                     <View style={styles.parentPill}>
                         <Ionicons name="git-branch-outline" size={16} color={theme.colors.textSecondary} />
-                        <Text style={styles.parentPillText} numberOfLines={1}>Forking from {parentLabel}</Text>
+                        <Text style={styles.parentPillText} numberOfLines={1}>{t('forkComposer.parentLabel', { name: parentLabel })}</Text>
                     </View>
 
                     <View style={styles.panel}>
-                        <InfoRow icon="desktop-outline" label="Machine" value={getMachineName(machine)} />
-                        <InfoRow icon="code-slash-outline" label="Agent" value="Codex" />
-                        <PickerRow icon="folder-open-outline" label="Worktree" value={selectedWorktreeLabel} onPress={() => setActivePicker('worktree')} />
-                        <PickerRow icon="cube-outline" label="Model" value={currentModel?.name ?? 'default model'} onPress={() => setActivePicker('model')} />
-                        <PickerRow icon="shield-outline" label="Permission" value={currentPermission?.name ?? 'default'} onPress={() => setActivePicker('permission')} />
+                        <InfoRow icon="desktop-outline" label={t('forkComposer.machine')} value={getMachineName(machine)} />
+                        <InfoRow icon="code-slash-outline" label={t('forkComposer.agent')} value={t('forkComposer.codex')} />
+                        <PickerRow icon="folder-open-outline" label={t('forkComposer.worktree')} value={selectedWorktreeLabel} onPress={() => setActivePicker('worktree')} />
+                        <PickerRow icon="cube-outline" label={t('agentInput.model.title')} value={currentModel?.name ?? t('forkComposer.defaultModel')} onPress={() => setActivePicker('model')} />
+                        <PickerRow icon="shield-outline" label={t('agentInput.permissionMode.title')} value={currentPermission?.name ?? t('forkComposer.defaultPermission')} onPress={() => setActivePicker('permission')} />
                         {effortOptions.length > 0 && (
-                            <PickerRow icon="speedometer-outline" label="Effort" value={currentEffort?.name ?? 'default'} onPress={() => setActivePicker('effort')} />
+                            <PickerRow icon="speedometer-outline" label={t('agentInput.effort.title')} value={currentEffort?.name ?? t('forkComposer.defaultEffort')} onPress={() => setActivePicker('effort')} />
                         )}
                     </View>
 
@@ -265,7 +265,7 @@ export function ForkComposerScreen() {
             <View style={styles.footer}>
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Fork"
+                    accessibilityLabel={isForking ? t('forkComposer.creatingWorktree') : t('forkComposer.submit')}
                     disabled={!canSubmit}
                     onPress={handleSubmit}
                     style={({ pressed }) => [
@@ -279,7 +279,7 @@ export function ForkComposerScreen() {
                     ) : (
                         <>
                             <Octicons name="git-branch" size={16} color={theme.colors.button.primary.tint} />
-                            <Text style={styles.submitButtonText}>Fork</Text>
+                            <Text style={styles.submitButtonText}>{t('forkComposer.submit')}</Text>
                         </>
                     )}
                 </Pressable>

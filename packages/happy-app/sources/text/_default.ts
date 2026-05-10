@@ -378,6 +378,33 @@ export const en = {
         applyFailed: 'Failed to apply — please try again',
     },
 
+    forkComposer: {
+        title: 'Fork session',
+        parentLabel: ({ name }: { name: string }) => `Forking from ${name}`,
+        submit: 'Fork',
+        creatingWorktree: 'Creating worktree...',
+        createNew: 'Create new',
+        currentCheckout: 'Current checkout',
+        worktree: 'Worktree',
+        machine: 'Machine',
+        agent: 'Agent',
+        codex: 'Codex',
+        defaultModel: 'default model',
+        defaultPermission: 'default',
+        defaultEffort: 'default',
+        searchWorktrees: 'search worktrees...',
+        searchModels: 'search models...',
+        searchPermissions: 'search permissions...',
+        searchEffort: 'search effort levels...',
+        errors: {
+            parentMissing: 'Parent session is missing',
+            worktreeMissing: ({ directory }: { directory: string }) => `Worktree path is unavailable: ${directory}`,
+            flavorUnsupported: 'Only Codex sessions can be forked',
+            forkFailed: 'Failed to fork session',
+            createWorktreeFailed: 'Failed to create worktree',
+        },
+    },
+
     server: {
         // Used by Server Configuration screen (app/(app)/server.tsx)
         serverConfiguration: 'Server Configuration',

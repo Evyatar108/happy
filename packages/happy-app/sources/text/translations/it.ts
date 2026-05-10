@@ -378,6 +378,33 @@ export const it: TranslationStructure = {
         applyFailed: 'Impossibile applicare — riprova',
     },
 
+    forkComposer: {
+        title: 'Biforca sessione',
+        parentLabel: ({ name }: { name: string }) => `Biforcazione da ${name}`,
+        submit: 'Biforca',
+        creatingWorktree: 'Creazione worktree...',
+        createNew: 'Crea nuovo',
+        currentCheckout: 'Checkout corrente',
+        worktree: 'Worktree',
+        machine: 'Macchina',
+        agent: 'Agente',
+        codex: 'Codex',
+        defaultModel: 'modello predefinito',
+        defaultPermission: 'predefinito',
+        defaultEffort: 'predefinito',
+        searchWorktrees: 'cerca worktree...',
+        searchModels: 'cerca modelli...',
+        searchPermissions: 'cerca permessi...',
+        searchEffort: 'cerca livelli di impegno...',
+        errors: {
+            parentMissing: 'Sessione di origine mancante',
+            worktreeMissing: ({ directory }: { directory: string }) => `Percorso worktree non disponibile: ${directory}`,
+            flavorUnsupported: 'Solo le sessioni Codex possono essere biforcate',
+            forkFailed: 'Impossibile biforcare la sessione',
+            createWorktreeFailed: 'Impossibile creare il worktree',
+        },
+    },
+
     server: {
         // Used by Server Configuration screen (app/(app)/server.tsx)
         serverConfiguration: 'Configurazione server',

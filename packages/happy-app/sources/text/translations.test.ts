@@ -65,6 +65,16 @@ const REQUIRED_SESSION_DRAWER_KEYS = [
     'status.unknown',
 ] as const;
 
+const REQUIRED_FORK_COMPOSER_KEYS = [
+    'forkComposer.title',
+    'forkComposer.parentLabel',
+    'forkComposer.submit',
+    'forkComposer.creatingWorktree',
+    'forkComposer.errors.parentMissing',
+    'forkComposer.errors.worktreeMissing',
+    'forkComposer.errors.flavorUnsupported',
+] as const;
+
 type TranslationTree =
     | string
     | ((...args: any[]) => string)
@@ -136,6 +146,21 @@ describe('translations', () => {
 
                 expect(value, `${language}.${key}`).toBeTypeOf('string');
                 expect((value as string).trim(), `${language}.${key}`).not.toBe('');
+            }
+        }
+    });
+
+    it('keeps the fork composer strings present in every locale', () => {
+        for (const [language, dictionary] of Object.entries(translations)) {
+            for (const key of REQUIRED_FORK_COMPOSER_KEYS) {
+                const value = getByPath(dictionary, key);
+                const sourceValue = getByPath(en, key);
+
+                expect(value, `${language}.${key}`).toBeDefined();
+                expect(typeof value, `${language}.${key}`).toBe(typeof sourceValue);
+                if (typeof value === 'string') {
+                    expect(value.trim(), `${language}.${key}`).not.toBe('');
+                }
             }
         }
     });

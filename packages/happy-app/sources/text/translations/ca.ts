@@ -380,6 +380,33 @@ export const ca: TranslationStructure = {
         applyFailed: 'No s\'ha pogut aplicar — torna-ho a provar',
     },
 
+    forkComposer: {
+        title: 'Bifurca la sessió',
+        parentLabel: ({ name }: { name: string }) => `Bifurcant des de ${name}`,
+        submit: 'Bifurca',
+        creatingWorktree: 'Creant worktree...',
+        createNew: 'Crea nou',
+        currentCheckout: 'Checkout actual',
+        worktree: 'Worktree',
+        machine: 'Màquina',
+        agent: 'Agent',
+        codex: 'Codex',
+        defaultModel: 'model predeterminat',
+        defaultPermission: 'predeterminat',
+        defaultEffort: 'predeterminat',
+        searchWorktrees: 'cerca worktrees...',
+        searchModels: 'cerca models...',
+        searchPermissions: 'cerca permisos...',
+        searchEffort: 'cerca nivells d\'esforç...',
+        errors: {
+            parentMissing: 'Falta la sessió d\'origen',
+            worktreeMissing: ({ directory }: { directory: string }) => `La ruta del worktree no està disponible: ${directory}`,
+            flavorUnsupported: 'Només es poden bifurcar sessions de Codex',
+            forkFailed: 'No s\'ha pogut bifurcar la sessió',
+            createWorktreeFailed: 'No s\'ha pogut crear el worktree',
+        },
+    },
+
     server: {
         // Used by Server Configuration screen (app/(app)/server.tsx)
         serverConfiguration: 'Configuració del servidor',

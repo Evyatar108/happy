@@ -190,7 +190,7 @@ function findPressableByText(root: TestRoot, text: string): RenderNode {
 }
 
 function findSubmit(root: TestRoot): RenderNode {
-    const node = root.findAllByType('Pressable').find((candidate: RenderNode) => candidate.props.accessibilityLabel === 'Fork');
+    const node = root.findAllByType('Pressable').find((candidate: RenderNode) => candidate.props.accessibilityLabel === 'translated:forkComposer.submit');
     if (!node) throw new Error('Missing Fork submit button');
     return node;
 }
@@ -251,7 +251,7 @@ describe('ForkComposerScreen', () => {
         const renderer = await renderScreen();
 
         act(() => {
-            findPressableByText(renderer.root, 'Worktree').props.onPress();
+            findPressableByText(renderer.root, 'translated:forkComposer.worktree').props.onPress();
         });
         act(() => {
             renderer.root.findByType('PickerContent').props.onSelect('__create_worktree__');
