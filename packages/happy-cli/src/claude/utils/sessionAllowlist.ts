@@ -45,8 +45,6 @@ export class SessionAllowlist {
     }
 
     rehydrateFromAgentState(agentState: AgentState | null | undefined): void {
-        this.clear();
-
         for (const completed of Object.values(agentState?.completedRequests ?? {})) {
             this.applyPermissionResponse({
                 approved: completed.status === 'approved',
