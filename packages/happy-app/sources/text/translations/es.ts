@@ -318,6 +318,9 @@ export const es: TranslationStructure = {
         sessionDeletedDescription: 'Esta sesión ha sido eliminada permanentemente',
         requestSwitchFailed: 'No se pudo actualizar la solicitud de cambio',
         sendFailed: 'No se pudo enviar el mensaje',
+        attachmentPerFileTooLarge: 'Cada adjunto debe tener 25 MB o menos',
+        attachmentTotalTooLarge: 'Los adjuntos deben sumar 100 MB o menos',
+        attachmentUploadFailed: 'No se pudo adjuntar el archivo. Intentalo de nuevo.',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

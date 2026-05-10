@@ -316,6 +316,9 @@ export const it: TranslationStructure = {
         sessionDeletedDescription: 'Questa sessione è stata rimossa definitivamente',
         requestSwitchFailed: 'Impossibile aggiornare la richiesta di cambio',
         sendFailed: 'Impossibile inviare il messaggio',
+        attachmentPerFileTooLarge: 'Ogni allegato deve essere di 25 MB o meno',
+        attachmentTotalTooLarge: 'Gli allegati devono totalizzare 100 MB o meno',
+        attachmentUploadFailed: 'Impossibile allegare il file. Riprova.',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

@@ -319,6 +319,9 @@ export const ja: TranslationStructure = {
         sessionDeletedDescription: 'このセッションは完全に削除されました',
         requestSwitchFailed: '切り替えリクエストを更新できませんでした',
         sendFailed: 'メッセージを送信できませんでした',
+        attachmentPerFileTooLarge: '各添付ファイルは25 MB以下にしてください',
+        attachmentTotalTooLarge: '添付ファイルの合計は100 MB以下にしてください',
+        attachmentUploadFailed: 'ファイルを添付できませんでした。もう一度お試しください。',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

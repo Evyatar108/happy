@@ -318,6 +318,9 @@ export const zhHant: TranslationStructure = {
         sessionDeletedDescription: '此工作階段已被永久刪除',
         requestSwitchFailed: '更新切換請求失敗',
         sendFailed: '傳送訊息失敗',
+        attachmentPerFileTooLarge: '每個附件必須不超過 25 MB',
+        attachmentTotalTooLarge: '附件總大小必須不超過 100 MB',
+        attachmentUploadFailed: '無法附加檔案。請重試。',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

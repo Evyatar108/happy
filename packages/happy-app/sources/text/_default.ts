@@ -316,6 +316,9 @@ export const en = {
         sessionDeletedDescription: 'This session has been permanently removed',
         requestSwitchFailed: 'Failed to update switch request',
         sendFailed: 'Failed to send message',
+        attachmentPerFileTooLarge: 'Each attachment must be 25 MB or smaller',
+        attachmentTotalTooLarge: 'Attachments must total 100 MB or less',
+        attachmentUploadFailed: 'Could not attach file. Please try again.',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

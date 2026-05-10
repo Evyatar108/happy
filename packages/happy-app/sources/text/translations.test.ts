@@ -90,6 +90,12 @@ const REQUIRED_FORK_COMPOSER_KEYS = [
     'forkComposer.errors.createWorktreeFailed',
 ] as const;
 
+const REQUIRED_ATTACHMENT_KEYS = [
+    'errors.attachmentPerFileTooLarge',
+    'errors.attachmentTotalTooLarge',
+    'errors.attachmentUploadFailed',
+] as const;
+
 type TranslationTree =
     | string
     | ((...args: any[]) => string)
@@ -176,6 +182,17 @@ describe('translations', () => {
                 if (typeof value === 'string') {
                     expect(value.trim(), `${language}.${key}`).not.toBe('');
                 }
+            }
+        }
+    });
+
+    it('keeps the attachment strings present in every locale', () => {
+        for (const [language, dictionary] of Object.entries(translations)) {
+            for (const key of REQUIRED_ATTACHMENT_KEYS) {
+                const value = getByPath(dictionary, key);
+
+                expect(value, `${language}.${key}`).toBeTypeOf('string');
+                expect((value as string).trim(), `${language}.${key}`).not.toBe('');
             }
         }
     });

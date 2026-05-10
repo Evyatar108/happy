@@ -335,6 +335,9 @@ export const pl: TranslationStructure = {
         sessionDeletedDescription: 'Ta sesja została trwale usunięta',
         requestSwitchFailed: 'Nie udało się zaktualizować żądania przełączenia',
         sendFailed: 'Nie udało się wysłać wiadomości',
+        attachmentPerFileTooLarge: 'Każdy załącznik musi mieć 25 MB lub mniej',
+        attachmentTotalTooLarge: 'Załączniki muszą mieć łącznie 100 MB lub mniej',
+        attachmentUploadFailed: 'Nie udało się dołączyć pliku. Spróbuj ponownie.',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

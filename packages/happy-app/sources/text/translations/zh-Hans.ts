@@ -319,6 +319,9 @@ export const zhHans: TranslationStructure = {
         sessionDeletedDescription: '此会话已被永久删除',
         requestSwitchFailed: '更新切换请求失败',
         sendFailed: '发送消息失败',
+        attachmentPerFileTooLarge: '每个附件必须不超过 25 MB',
+        attachmentTotalTooLarge: '附件总大小必须不超过 100 MB',
+        attachmentUploadFailed: '无法附加文件。请重试。',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

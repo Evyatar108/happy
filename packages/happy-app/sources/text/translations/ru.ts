@@ -306,6 +306,9 @@ export const ru: TranslationStructure = {
         sessionDeletedDescription: 'Эта сессия была окончательно удалена',
         requestSwitchFailed: 'Не удалось обновить запрос на переключение',
         sendFailed: 'Не удалось отправить сообщение',
+        attachmentPerFileTooLarge: 'Каждое вложение должно быть не больше 25 МБ',
+        attachmentTotalTooLarge: 'Общий размер вложений не должен превышать 100 МБ',
+        attachmentUploadFailed: 'Не удалось прикрепить файл. Повторите попытку.',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

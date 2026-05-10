@@ -318,6 +318,9 @@ export const ca: TranslationStructure = {
         sessionDeletedDescription: 'Aquesta sessió s\'ha eliminat permanentment',
         requestSwitchFailed: 'No s\'ha pogut actualitzar la sol·licitud de canvi',
         sendFailed: 'No s\'ha pogut enviar el missatge',
+        attachmentPerFileTooLarge: 'Cada adjunt ha de tenir 25 MB o menys',
+        attachmentTotalTooLarge: 'Els adjunts han de sumar 100 MB o menys',
+        attachmentUploadFailed: 'No s\'ha pogut adjuntar el fitxer. Torneu-ho a provar.',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
