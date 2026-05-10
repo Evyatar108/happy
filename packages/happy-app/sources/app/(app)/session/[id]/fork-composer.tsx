@@ -221,11 +221,11 @@ export function ForkComposerScreen() {
                     router.back();
                     navigateToSession(compositeSessionId(machineId, result.sessionId));
                     break;
-                case 'requestToApproveDirectoryCreation':
-                    Modal.alert(t('common.error'), t('forkComposer.errors.worktreeMissing', { directory: result.directory }));
-                    break;
                 case 'error':
                     Modal.alert(t('common.error'), result.errorMessage);
+                    break;
+                default:
+                    Modal.alert(t('common.error'), t('forkComposer.errors.forkFailed'));
                     break;
             }
         } catch (error) {
