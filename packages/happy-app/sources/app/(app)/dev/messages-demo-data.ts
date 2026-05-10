@@ -263,6 +263,39 @@ Inline code now renders as \`happy render\` without a background highlight.
         children: []
     },
 
+    // ACP file-edit tool
+    {
+        id: 'file-edit-completed',
+        localId: null,
+        createdAt: Date.now() - 115000,
+        kind: 'tool-call',
+        tool: createToolCall('file-edit', 'completed', {
+            filePath: '/src/components/FileEditPanel.tsx',
+            diff: `--- a/src/components/FileEditPanel.tsx
++++ b/src/components/FileEditPanel.tsx
+@@ -1,5 +1,5 @@
+ export function FileEditPanel() {
+-  return <Text>Raw JSON fallback</Text>;
++  return <Text>Dedicated file edit view</Text>;
+ }`,
+            oldContent: 'export function FileEditPanel() {\n  return <Text>Raw JSON fallback</Text>;\n}',
+            newContent: 'export function FileEditPanel() {\n  return <Text>Dedicated file edit view</Text>;\n}',
+        }, 'File updated successfully'),
+        children: []
+    },
+
+    // ExitPlanMode stays a single plan renderer next to file-edit
+    {
+        id: 'exit-plan-mode-completed',
+        localId: null,
+        createdAt: Date.now() - 112000,
+        kind: 'tool-call',
+        tool: createToolCall('ExitPlanMode', 'completed', {
+            plan: '1. Register the ACP file-edit tool.\n2. Render its diff through FileEditView.\n3. Keep the plan visible once.'
+        }, undefined),
+        children: []
+    },
+
     // Read tool - running
     {
         id: 'read-running',

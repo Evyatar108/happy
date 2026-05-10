@@ -41,9 +41,13 @@ export const ToolView = React.memo<ToolViewProps>((props) => {
     const scaledTextStyles = useChatScaledStyles({ status: styles.status });
 
     // For file-editing tools, navigate to file route instead of message detail
-    const fileEditTools = ['Edit', 'MultiEdit', 'Write'];
+    const fileEditTools = ['Edit', 'MultiEdit', 'Write', 'file-edit'];
     const isFileEditTool = fileEditTools.includes(tool.name);
-    const filePath = isFileEditTool && typeof tool.input?.file_path === 'string' ? tool.input.file_path : null;
+    const filePath = isFileEditTool && typeof tool.input?.file_path === 'string'
+        ? tool.input.file_path
+        : isFileEditTool && typeof tool.input?.filePath === 'string'
+            ? tool.input.filePath
+            : null;
 
     // Create default onPress handler for navigation
     const handlePress = React.useCallback(() => {

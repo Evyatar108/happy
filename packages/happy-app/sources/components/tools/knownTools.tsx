@@ -314,6 +314,28 @@ export const knownTools = {
             replace_all: z.boolean().optional().default(false).describe('Replace all occurrences')
         }).partial().passthrough()
     },
+    'file-edit': {
+        title: (opts: { metadata: Metadata | null, tool: ToolCall }) => {
+            if (typeof opts.tool.input.filePath === 'string') {
+                return resolvePath(opts.tool.input.filePath, opts.metadata);
+            }
+            return t('tools.names.editFile');
+        },
+        icon: ICON_EDIT,
+        isMutable: true,
+        input: z.object({
+            filePath: z.string().optional(),
+            diff: z.string().optional(),
+            oldContent: z.string().optional(),
+            newContent: z.string().optional(),
+        }).partial().passthrough(),
+        extractStatus: () => {
+            return null;
+        },
+        extractSubtitle: () => {
+            return null;
+        },
+    },
     'MultiEdit': {
         title: (opts: { metadata: Metadata | null, tool: ToolCall }) => {
             if (typeof opts.tool.input.file_path === 'string') {
