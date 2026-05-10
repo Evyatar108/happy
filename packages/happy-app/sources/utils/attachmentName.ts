@@ -43,16 +43,22 @@ export function sanitizeAttachmentName(input: string): string {
     return sanitized;
 }
 
+/**
+ * Suffix-disambiguates an ordered list of attachment names.
+ *
+ * Callers MUST pass already-sanitized names (output of `sanitizeAttachmentName`).
+ * This function only resolves collisions by appending ` (2)`, ` (3)`, … before the
+ * extension; it does not re-sanitize its inputs.
+ */
 export function dedupeAttachmentNames(names: readonly string[]): string[] {
     const used = new Set<string>();
 
     return names.map((name) => {
-        const sanitized = sanitizeAttachmentName(name);
-        let candidate = sanitized;
+        let candidate = name;
         let suffix = 2;
 
         while (used.has(candidate.toLocaleLowerCase())) {
-            const { stem, extension } = splitName(sanitized);
+            const { stem, extension } = splitName(name);
             candidate = `${stem} (${suffix})${extension}`;
             suffix += 1;
         }
