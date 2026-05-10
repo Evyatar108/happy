@@ -178,7 +178,7 @@ Goal: make new-session composition feel like the regular chat composer instead o
 
 ## P2.5. PI-style agent controls, fork, and resume
 
-Status: in progress / drawer slice shipped locally. Active-session context controls now live in `SessionContextDrawer` above the composer, with model, permission, effort, resume, and a disabled fork placeholder wired through session metadata echo. Full fork flow and recorded web validation remain follow-up work.
+Status: drawer slice merged to local main (`45fd99d6`, 2026-05-10) — 14 stories (US-001..US-012) plus 13 review-loop fixes. `SessionContextDrawer` lives above `AgentInput` in active sessions; collapsed bar shows machine + workdir-path chip + model + permission chips; expanded body offers model / permission / effort pickers (confirmatory metadata-echo), inline resume (with `ResumeCommandCopyBlock` fallback), and a disabled "Coming soon" Fork placeholder. CLI consumes live config via `apiSession.onAgentConfiguration` across all 5 runners (Claude SDK now also receives `effort` from `thinkingLevel`). New `agent-configuration-changed` wire envelope is schema-only in this slice (no CLI emit). Two follow-ups remain: (a) manual web video + 5 screenshots at 1200px (US-012 AC-004/005/013 — deferred because Expo web could not stay alive in the iteration harness), (b) full fork-into-worktree flow (Fork button still disabled — gates on a future `forkRpcAvailable` capability).
 
 Goal: make active-session agent controls feel first-class instead of scattered across info screens and one-off flows. The control surface should feel closer to a PI-style agent UI while still preserving Happy's regular chat input shape.
 
@@ -375,6 +375,7 @@ The session protocol (`role: 'session'` envelopes in `happy-wire/src/sessionProt
 - Types are frozen in `happy-wire` — no new consumers
 - Dev env was using it but should stop
 - Production has never shipped it
+- 2026-05-10: P2.5 drawer slice added one new envelope `agent-configuration-changed` to `sessionProtocol.ts` (role `user|agent`, optional `permissionMode | model | thinkingLevel | sandbox`). Schema-only — no CLI emits it; live control flows over the legacy `update-metadata` RPC + `update-session` echo. Wire surface count: 11 variants. Self-approved by repo owner since the freeze targets `role: 'session'` envelopes specifically.
 
 ### Before resuming
 
