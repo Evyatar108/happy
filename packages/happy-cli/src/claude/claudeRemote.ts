@@ -131,6 +131,7 @@ export async function claudeRemote(opts: {
         permissionMode: mapToClaudeMode(initial.mode.permissionMode),
         model: initial.mode.model,
         fallbackModel: initial.mode.fallbackModel,
+        effort: initial.mode.thinkingLevel as QueryOptions['effort'] ?? undefined,
         customSystemPrompt: initial.mode.customSystemPrompt ? initial.mode.customSystemPrompt + '\n\n' + systemPrompt : undefined,
         appendSystemPrompt: initial.mode.appendSystemPrompt ? initial.mode.appendSystemPrompt + '\n\n' + systemPrompt : systemPrompt,
         allowedTools: initial.mode.allowedTools ? initial.mode.allowedTools.concat(opts.allowedTools) : opts.allowedTools,
@@ -240,6 +241,7 @@ export async function claudeRemote(opts: {
                         messages.end();
                     } else {
                         mode = next.mode;
+                        sdkOptions.effort = next.mode.thinkingLevel as QueryOptions['effort'] ?? undefined;
                         messages.push({ type: 'user', parent_tool_use_id: null, message: { role: 'user', content: next.message } });
                     }
                 }).catch(() => {
