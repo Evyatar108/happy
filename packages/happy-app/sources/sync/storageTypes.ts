@@ -144,6 +144,8 @@ export interface Session {
     permissionModeUserChosen: boolean; // True only after the user explicitly picked a permission mode
     modelMode?: string | null; // Local model key, not synced to server
     effortLevel?: string | null; // Local effort level key, not synced to server
+    pinnedAvatarImageIndex?: number; // Local topic-brutalist avatar pin, not synced to server
+    pinnedAvatarColorIndex?: number; // Local topic-brutalist avatar pin, not synced to server
     // IMPORTANT: latestUsage is extracted from reducerState.latestUsage after message processing.
     // We store it directly on Session to ensure it's available immediately on load.
     // Do NOT store reducerState itself on Session - it's mutable and should only exist in SessionMessages.

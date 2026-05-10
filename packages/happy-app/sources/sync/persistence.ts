@@ -261,6 +261,41 @@ export function saveSessionEffortLevels(levels: Record<string, string>) {
     mmkv.set('session-effort-levels', JSON.stringify(levels));
 }
 
+export interface PinnedAvatarTuple {
+    imageIndex: number;
+    colorIndex: number;
+}
+
+function isPinnedAvatarTuple(value: unknown): value is PinnedAvatarTuple {
+    return !!value
+        && typeof value === 'object'
+        && typeof (value as PinnedAvatarTuple).imageIndex === 'number'
+        && typeof (value as PinnedAvatarTuple).colorIndex === 'number';
+}
+
+export function loadSessionPinnedAvatars(): Record<string, PinnedAvatarTuple> {
+    const pins = mmkv.getString('session-pinned-avatars');
+    if (pins) {
+        try {
+            const parsed = JSON.parse(pins);
+            if (!parsed || typeof parsed !== 'object') {
+                return {};
+            }
+            return Object.fromEntries(
+                Object.entries(parsed).filter((entry): entry is [string, PinnedAvatarTuple] => isPinnedAvatarTuple(entry[1]))
+            );
+        } catch (e) {
+            console.error('Failed to parse session pinned avatars', e);
+            return {};
+        }
+    }
+    return {};
+}
+
+export function saveSessionPinnedAvatars(pins: Record<string, PinnedAvatarTuple>) {
+    mmkv.set('session-pinned-avatars', JSON.stringify(pins));
+}
+
 export function loadProfile(): Profile {
     const profile = mmkv.getString('profile');
     if (profile) {

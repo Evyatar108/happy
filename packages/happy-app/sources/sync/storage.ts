@@ -28,7 +28,7 @@ import { LocalSettings, applyLocalSettings } from "./localSettings";
 import { Purchases, customerInfoToPurchases } from "./purchases";
 import { Profile } from "./profile";
 import { UserProfile, RelationshipUpdatedEvent } from "./friendTypes";
-import { loadSettings, loadLocalSettings, saveLocalSettings, saveSettings, loadPurchases, savePurchases, loadProfile, saveProfile, loadSessionDrafts, saveSessionDrafts, loadSessionPermissionModes, saveSessionPermissionModes, loadSessionPermissionModeUserChosen, saveSessionPermissionModeUserChosen, loadSessionModelModes, saveSessionModelModes, loadSessionEffortLevels, saveSessionEffortLevels } from "./persistence";
+import { loadSettings, loadLocalSettings, saveLocalSettings, saveSettings, loadPurchases, savePurchases, loadProfile, saveProfile, loadSessionDrafts, saveSessionDrafts, loadSessionPermissionModes, saveSessionPermissionModes, loadSessionPermissionModeUserChosen, saveSessionPermissionModeUserChosen, loadSessionModelModes, saveSessionModelModes, loadSessionEffortLevels, saveSessionEffortLevels, loadSessionPinnedAvatars, saveSessionPinnedAvatars } from "./persistence";
 import type { PermissionModeKey } from '@/components/PermissionModeSelector';
 import type { CustomerInfo } from './revenueCat/types';
 import React from "react";
@@ -246,6 +246,8 @@ interface StorageState {
     updateSessionPermissionMode: (sessionId: string, mode: string, userChosen: boolean) => void;
     updateSessionModelMode: (sessionId: string, mode: string) => void;
     updateSessionEffortLevel: (sessionId: string, level: string) => void;
+    sessionSetPinnedAvatar: (sessionId: string, pin: { imageIndex: number; colorIndex: number }) => void;
+    sessionClearPinnedAvatar: (sessionId: string) => void;
     // Artifact methods
     applyArtifacts: (artifacts: DecryptedArtifact[]) => void;
     addArtifact: (artifact: DecryptedArtifact) => void;
@@ -381,6 +383,7 @@ export const storage = create<StorageState>()((set, get) => {
     let sessionPermissionModeUserChosen = loadSessionPermissionModeUserChosen();
     let sessionModelModes = loadSessionModelModes();
     let sessionEffortLevels = loadSessionEffortLevels();
+    let sessionPinnedAvatars = loadSessionPinnedAvatars();
     return {
         settings,
         settingsVersion: version,
@@ -439,6 +442,7 @@ export const storage = create<StorageState>()((set, get) => {
             const savedPermissionModeUserChosen = isInitialLoad ? sessionPermissionModeUserChosen : {};
             const savedModelModes = isInitialLoad ? sessionModelModes : {};
             const savedEffortLevels = isInitialLoad ? sessionEffortLevels : {};
+            const savedPinnedAvatars = isInitialLoad ? sessionPinnedAvatars : {};
 
             // Merge new sessions with existing ones
             const mergedSessions: Record<string, Session> = { ...state.sessions };
@@ -468,6 +472,9 @@ export const storage = create<StorageState>()((set, get) => {
                 const resolvedModelMode = existingModelMode ?? savedModelModes[session.id] ?? session.modelMode ?? null;
                 const existingEffortLevel = state.sessions[session.id]?.effortLevel;
                 const resolvedEffortLevel = existingEffortLevel ?? savedEffortLevels[session.id] ?? session.effortLevel ?? null;
+                const existingPinnedImageIndex = state.sessions[session.id]?.pinnedAvatarImageIndex;
+                const existingPinnedColorIndex = state.sessions[session.id]?.pinnedAvatarColorIndex;
+                const savedPinnedAvatar = savedPinnedAvatars[session.id];
 
                 mergedSessions[session.id] = {
                     ...session,
@@ -477,6 +484,8 @@ export const storage = create<StorageState>()((set, get) => {
                     permissionModeUserChosen: existingPermissionModeUserChosen ?? savedUserChosen ?? session.permissionModeUserChosen ?? false,
                     modelMode: resolvedModelMode,
                     effortLevel: resolvedEffortLevel,
+                    pinnedAvatarImageIndex: existingPinnedImageIndex ?? savedPinnedAvatar?.imageIndex ?? session.pinnedAvatarImageIndex,
+                    pinnedAvatarColorIndex: existingPinnedColorIndex ?? savedPinnedAvatar?.colorIndex ?? session.pinnedAvatarColorIndex,
                 };
             });
 
@@ -1295,6 +1304,58 @@ export const storage = create<StorageState>()((set, get) => {
                 sessions: updatedSessions
             };
         }),
+        sessionSetPinnedAvatar: (sessionId: string, pin: { imageIndex: number; colorIndex: number }) => set((state) => {
+            const session = state.sessions[sessionId];
+            if (!session) return state;
+
+            const updatedSessions = {
+                ...state.sessions,
+                [sessionId]: {
+                    ...session,
+                    pinnedAvatarImageIndex: pin.imageIndex,
+                    pinnedAvatarColorIndex: pin.colorIndex,
+                }
+            };
+
+            const allPins: Record<string, { imageIndex: number; colorIndex: number }> = {};
+            Object.entries(updatedSessions).forEach(([id, sess]) => {
+                if (sess.pinnedAvatarImageIndex !== undefined && sess.pinnedAvatarColorIndex !== undefined) {
+                    allPins[id] = {
+                        imageIndex: sess.pinnedAvatarImageIndex,
+                        colorIndex: sess.pinnedAvatarColorIndex,
+                    };
+                }
+            });
+            sessionPinnedAvatars = allPins;
+            saveSessionPinnedAvatars(allPins);
+
+            return {
+                ...state,
+                sessions: updatedSessions,
+                sessionListViewData: buildSessionListViewData(updatedSessions, state.machines)
+            };
+        }),
+        sessionClearPinnedAvatar: (sessionId: string) => set((state) => {
+            const session = state.sessions[sessionId];
+            if (!session) return state;
+
+            const { pinnedAvatarImageIndex: _imageIndex, pinnedAvatarColorIndex: _colorIndex, ...sessionWithoutPin } = session;
+            const updatedSessions = {
+                ...state.sessions,
+                [sessionId]: sessionWithoutPin,
+            };
+
+            const allPins = loadSessionPinnedAvatars();
+            delete allPins[sessionId];
+            sessionPinnedAvatars = allPins;
+            saveSessionPinnedAvatars(allPins);
+
+            return {
+                ...state,
+                sessions: updatedSessions,
+                sessionListViewData: buildSessionListViewData(updatedSessions, state.machines)
+            };
+        }),
         // Project management methods
         getProjects: () => projectManager.getProjects(),
         getProject: (projectId: string) => projectManager.getProject(projectId),
@@ -1453,6 +1514,11 @@ export const storage = create<StorageState>()((set, get) => {
             const effortLevels = loadSessionEffortLevels();
             delete effortLevels[sessionId];
             saveSessionEffortLevels(effortLevels);
+
+            const pinnedAvatars = loadSessionPinnedAvatars();
+            delete pinnedAvatars[sessionId];
+            sessionPinnedAvatars = pinnedAvatars;
+            saveSessionPinnedAvatars(pinnedAvatars);
             
             // Rebuild sessionListViewData without the deleted session
             const sessionListViewData = buildSessionListViewData(remainingSessions, state.machines);
