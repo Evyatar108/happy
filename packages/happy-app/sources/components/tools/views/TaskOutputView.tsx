@@ -31,7 +31,7 @@ function hasCanonicalTaskOutputField(value: Record<string, unknown>): boolean {
     if (['retrieval_status', 'output', 'error', 'status', 'truncated'].some((key) => hasOwn(value, key))) {
         return true;
     }
-    return isRecord(value.task) && ['task_id', 'task_type', 'status', 'description', 'output', 'prompt', 'result'].some((key) => hasOwn(value.task as Record<string, unknown>, key));
+    return isRecord(value.task) && ['task_id', 'status', 'output', 'result'].some((key) => hasOwn(value.task as Record<string, unknown>, key));
 }
 
 function stringifyUnknownResult(result: unknown): string {
