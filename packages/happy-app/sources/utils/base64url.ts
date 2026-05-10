@@ -3,7 +3,7 @@ function base64ToBase64Url(value: string): string {
 }
 
 function base64UrlToBase64(value: string): string {
-    const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+    const normalized = value.replace(/ /g, '+').replace(/-/g, '+').replace(/_/g, '/');
     const padding = normalized.length % 4;
     return padding === 0 ? normalized : `${normalized}${'='.repeat(4 - padding)}`;
 }
