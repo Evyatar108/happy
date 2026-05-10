@@ -94,6 +94,31 @@ const styles = StyleSheet.create({
             result: 'File updated successfully',
             children: []
         },
+        multiEditFix: {
+            name: 'MultiEdit',
+            state: 'completed' as const,
+            input: {
+                file_path: '/Users/steve/project/src/components/Header.tsx',
+                edits: [
+                    {
+                        old_string: 'export const Header = ({ title }) => {',
+                        new_string: 'export const Header = ({ title, subtitle }) => {',
+                        replace_all: false
+                    },
+                    {
+                        old_string: '<Text style={styles.title}>{title}</Text>',
+                        new_string: '<Text style={styles.title}>{title}</Text>\n            <Text style={styles.subtitle}>{subtitle}</Text>',
+                        replace_all: true
+                    }
+                ]
+            },
+            createdAt: Date.now() - 4600,
+            startedAt: Date.now() - 4500,
+            completedAt: Date.now() - 3600,
+            description: null,
+            result: 'File updated successfully',
+            children: []
+        },
         bash: {
             name: 'Bash',
             state: 'completed' as const,
@@ -469,6 +494,7 @@ export function formatTime(date: Date): string {
                             <>
                                 <Text style={styles.subsectionTitle}>P1 Bug Fixes</Text>
                                 {renderExample('editFix', examples.editFix, pathFixtureMetadata, 'p1BugFixes')}
+                                {renderExample('multiEditFix', examples.multiEditFix, pathFixtureMetadata, 'p1BugFixes')}
                             </>
                         ) : null}
 
