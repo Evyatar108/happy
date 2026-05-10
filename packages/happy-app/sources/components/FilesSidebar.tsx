@@ -14,6 +14,7 @@ import { FileIcon } from '@/components/FileIcon';
 import { Typography } from '@/constants/Typography';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { t } from '@/text';
+import { encodeBase64Url } from '@/utils/base64url';
 
 interface FilesSidebarProps {
     sessionId: string;
@@ -164,8 +165,8 @@ export const FilesSidebar = React.memo<FilesSidebarProps>(({ sessionId, selected
             onFilePress(file);
             return;
         }
-        const encodedPath = btoa(file.fullPath);
-        router.push(`/session/${sessionId}/file?path=${encodedPath}`);
+        const encodedPath = encodeBase64Url(file.fullPath);
+        router.push(`/session/${sessionId}/file?path=${encodedPath}&refresh=1&view=diff`);
     }, [router, sessionId, onFilePress]);
 
     const allFiles = React.useMemo(() => {

@@ -38,12 +38,12 @@ import { getVoiceMessageCount, getVoiceOnboardingPromptLoadCount } from '@/sync/
 import { isRunningOnMac } from '@/utils/platform';
 import { useDeviceType, useHeaderHeight, useIsLandscape, useIsTablet } from '@/utils/responsive';
 import { FilesSidebar } from '@/components/FilesSidebar';
-import { InlineFileDiff } from '@/components/InlineFileDiff';
 import { prefetchPierreDiff } from '@/components/diff/PierreDiffView';
 import { GitFileStatus } from '@/sync/gitStatusFiles';
 import { formatPathRelativeToHome, getResumeCommandBlock, getSessionAvatarId, getSessionMode, getSessionName, useSessionStatus } from '@/utils/sessionUtils';
 import { useSessionQuickActions } from '@/hooks/useSessionQuickActions';
 import { isVersionSupported, MINIMUM_CLI_VERSION } from '@/utils/versionUtils';
+import { encodeBase64Url } from '@/utils/base64url';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as React from 'react';
@@ -109,16 +109,10 @@ export const SessionView = React.memo((props: { id: string }) => {
         setSidebarCollapsed(!sidebarCollapsed);
     }, [sidebarCollapsed, setSidebarCollapsed]);
 
-    const [selectedFile, setSelectedFile] = React.useState<GitFileStatus | null>(null);
     const handleSidebarFilePress = React.useCallback((file: GitFileStatus) => {
-        setSelectedFile((current) => (current?.fullPath === file.fullPath ? null : file));
-    }, []);
-    const clearSelectedFile = React.useCallback(() => setSelectedFile(null), []);
-
-    // When sidebar is hidden or disabled, don't keep a stale selection.
-    React.useEffect(() => {
-        if (!showSidebar || sidebarCollapsed) setSelectedFile(null);
-    }, [showSidebar, sidebarCollapsed]);
+        if (file.status === 'deleted') return;
+        router.push(`/session/${sessionId}/file?path=${encodeBase64Url(file.fullPath)}&refresh=1&view=diff`);
+    }, [router, sessionId]);
 
     // Warm Pierre's lazy web chunks while the user is still reading chat.
     React.useEffect(() => {
@@ -195,15 +189,7 @@ export const SessionView = React.memo((props: { id: string }) => {
                 }}>
                     <ChatHeaderView
                         {...headerProps}
-                        onBackPress={() => {
-                            // If a sidebar file is currently shown inline, first
-                            // close the diff; only leave the session on the next press.
-                            if (selectedFile) {
-                                setSelectedFile(null);
-                                return;
-                            }
-                            router.back();
-                        }}
+                        onBackPress={() => router.back()}
                         avatarMenuExpanded={Platform.OS === 'web' && !!sessionActionsAnchor}
                         avatarMenuSession={session}
                         onAfterAvatarArchive={() => {
@@ -267,38 +253,15 @@ export const SessionView = React.memo((props: { id: string }) => {
     }
 
     // Desktop layout: chat + sidebar at the same level (full height).
-    // When a sidebar file is selected, InlineFileDiff overlays the main content
-    // (chat stays mounted underneath so state is preserved).
     return (
         <View style={{ flex: 1, flexDirection: 'row' }}>
             <View style={{ flex: 1 }}>
                 {mainContent}
-                {selectedFile && !sidebarCollapsed && (
-                    <View
-                        pointerEvents="box-none"
-                        style={{
-                            position: 'absolute',
-                            top: safeArea.top + headerHeight,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            backgroundColor: theme.colors.surface,
-                        }}
-                    >
-                        <InlineFileDiff
-                            sessionId={sessionId}
-                            fullPath={selectedFile.fullPath}
-                            status={selectedFile.status}
-                            onClose={clearSelectedFile}
-                        />
-                    </View>
-                )}
             </View>
             <Animated.View style={[{ minWidth: 0, alignSelf: 'stretch' }, animatedSidebarStyle]}>
                 <View style={{ width: sidebarWidth, flex: 1 }}>
                     <FilesSidebar
                         sessionId={sessionId}
-                        selectedPath={selectedFile?.fullPath ?? null}
                         onFilePress={handleSidebarFilePress}
                     />
                 </View>

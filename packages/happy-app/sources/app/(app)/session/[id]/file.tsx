@@ -13,6 +13,7 @@ import { t } from '@/text';
 import { FileIcon } from '@/components/FileIcon';
 import { resolveSessionFilePath } from '@/utils/sessionFileLinks';
 import { shellQuoteForOs } from '@/utils/shellQuote';
+import { decodeBase64Url } from '@/utils/base64url';
 
 interface FileContent {
     content: string;
@@ -101,7 +102,7 @@ export default React.memo(function FileScreen() {
 
     // Decode base64 path with error handling
     try {
-        rawPath = encodedPath ? atob(encodedPath) : '';
+        rawPath = encodedPath ? decodeBase64Url(encodedPath) : '';
     } catch (error) {
         console.error('Failed to decode file path:', error);
         rawPath = encodedPath || '';

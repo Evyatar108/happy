@@ -16,6 +16,7 @@ import { layout } from '@/components/layout';
 import { FileIcon } from '@/components/FileIcon';
 import { Shaker, ShakeInstance } from '@/components/Shaker';
 import { usePrefetchFileContents } from '@/hooks/usePrefetchFileContents';
+import { encodeBase64Url } from '@/utils/base64url';
 
 export default React.memo(function FilesScreen() {
     const router = useRouter();
@@ -71,8 +72,9 @@ export default React.memo(function FilesScreen() {
             shakerRefs.current.get(file.fullPath)?.shake();
             return;
         }
-        const encodedPath = btoa(file.fullPath);
-        router.push(`/session/${sessionId}/file?path=${encodedPath}`);
+        const encodedPath = encodeBase64Url(file.fullPath);
+        const view = 'status' in file ? 'diff' : 'file';
+        router.push(`/session/${sessionId}/file?path=${encodedPath}&refresh=1&view=${view}`);
     }, [router, sessionId]);
 
     const renderFileIcon = (file: GitFileStatus) => {

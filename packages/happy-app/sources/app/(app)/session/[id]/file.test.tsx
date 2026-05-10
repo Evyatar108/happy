@@ -108,6 +108,7 @@ vi.mock('@/components/FileIcon', () => ({
 }));
 
 const { default: FileScreen } = await import('./file');
+const { encodeBase64Url } = await import('@/utils/base64url');
 
 function encode(value: string): string {
     return btoa(value);
@@ -201,5 +202,21 @@ describe('FileScreen', () => {
             command: 'git diff --no-ext-diff -- "src/a^&b.ts"',
             cwd: '/repo',
         }));
+    });
+
+    it('decodes base64url route paths that would contain slash in standard base64', async () => {
+        const filePath = `/repo/${String.fromCodePoint(0x083e)}.txt`;
+        routeParams.mockReturnValue({
+            id: 'session-1',
+            path: encodeBase64Url(filePath),
+            view: 'file',
+        });
+        sessionReadFile.mockReturnValue(readFileResponse('file content'));
+
+        await act(async () => {
+            TestRenderer.create(<FileScreen />);
+        });
+
+        expect(sessionReadFile).toHaveBeenCalledWith('session-1', filePath);
     });
 });
