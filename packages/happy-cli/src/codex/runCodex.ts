@@ -62,6 +62,8 @@ export async function runCodex(opts: {
     noSandbox?: boolean;
     resumeThreadId?: string;
     effortLevel?: ReasoningEffort;
+    model?: string;
+    permissionMode?: string;
     codexTransport?: CodexTransportFlag | undefined;
 }): Promise<void> {
     // Early check: ensure Codex CLI is installed before proceeding
@@ -220,8 +222,8 @@ export async function runCodex(opts: {
 
     // Track current overrides to apply per message
     // Use shared PermissionMode type from api/types for cross-agent compatibility
-    let currentPermissionMode: import('@/api/types').PermissionMode | undefined = undefined;
-    let currentModel: string | undefined = undefined;
+    let currentPermissionMode: import('@/api/types').PermissionMode | undefined = opts.permissionMode as import('@/api/types').PermissionMode | undefined;
+    let currentModel: string | undefined = opts.model;
     let currentThinkingLevel: ReasoningEffort | undefined = opts.effortLevel;
 
     // Valid Codex permission modes from remote messages. Restricted to the

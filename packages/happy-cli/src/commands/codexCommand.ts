@@ -1,6 +1,6 @@
 import { authAndSetupMachineIfNeeded } from '@/ui/auth'
 import { runCodex } from '@/codex/runCodex'
-import { extractCodexEffortFlag, extractCodexResumeFlag, extractCodexTransportFlag } from '@/codex/cliArgs'
+import { extractCodexEffortFlag, extractCodexModelFlag, extractCodexPermissionModeFlag, extractCodexResumeFlag, extractCodexTransportFlag } from '@/codex/cliArgs'
 import { extractNoSandboxFlag } from '@/utils/sandboxFlags'
 import { ensureDaemonRunning } from '@/daemon/ensureDaemonRunning'
 
@@ -9,7 +9,9 @@ export async function handleCodexCommand(args: string[]): Promise<void> {
   const sandboxArgs = extractNoSandboxFlag(args)
   const resumeArgs = extractCodexResumeFlag(sandboxArgs.args)
   const effortArgs = extractCodexEffortFlag(resumeArgs.args)
-  const codexArgs = extractCodexTransportFlag(effortArgs.args)
+  const modelArgs = extractCodexModelFlag(effortArgs.args)
+  const permissionModeArgs = extractCodexPermissionModeFlag(modelArgs.args)
+  const codexArgs = extractCodexTransportFlag(permissionModeArgs.args)
 
   for (let i = 0; i < codexArgs.args.length; i++) {
     if (codexArgs.args[i] === '--started-by') {
@@ -26,6 +28,8 @@ export async function handleCodexCommand(args: string[]): Promise<void> {
     noSandbox: sandboxArgs.noSandbox,
     resumeThreadId: resumeArgs.resumeThreadId ?? undefined,
     effortLevel: effortArgs.effortLevel,
+    model: modelArgs.model,
+    permissionMode: permissionModeArgs.permissionMode,
     codexTransport: codexArgs.transport,
   })
 }
