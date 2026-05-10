@@ -62,7 +62,7 @@ Working notes from investigating P1 bugs in `docs/experimental/roadmap.md`. Each
 
 Verified: `pnpm --filter happy-app typecheck` clean, 7 existing CollapsibleDiffPreview tests pass.
 
-**Note:** This is a P3 fix from `docs/experimental/roadmap.md`, not P1. Tackled because it was code-only investigatable. The remaining P3 file-edit rendering items ("multi-file rendering", "duplicated plan presentation") still need live investigation.
+**Note:** This is a P3 fix from `docs/experimental/roadmap.md`, not P1. Tackled because it was code-only investigatable. The remaining P3 file-edit rendering item ("multi-file rendering") still needs live investigation; the "duplicated plan presentation" item shipped in p3-ui-polish-bundle (US-003 — registered `file-edit` in `knownTools.tsx` with a dedicated `FileEditView`).
 
 ## Path resolution on Windows — FIXED
 
