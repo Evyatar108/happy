@@ -38,6 +38,7 @@ import { resumeExistingThread } from './resumeExistingThread';
 import { emitReadyIfIdle } from './emitReadyIfIdle';
 import type { ReasoningEffort } from './codexAppServerTypes';
 import { HAPPY_FORKED_FROM_SESSION_ID } from '@/utils/envNames';
+import { createCodexPatchApprovalInput } from './codexApprovalSnapshot';
 
 /**
  * Extracts a human-readable error from a codex task_complete/turn_aborted event.
@@ -534,7 +535,7 @@ export async function runCodex(opts: {
         const input = params.type === 'exec'
             ? { command: params.command, cwd: params.cwd }
             : params.type === 'patch'
-                ? { changes: params.fileChanges }
+                ? createCodexPatchApprovalInput(params.fileChanges)
                 : (params.input ?? {});
 
         try {

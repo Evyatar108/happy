@@ -56,6 +56,7 @@ import {
     type CodexDiscoveryRecord,
     writeDiscoveryRecord,
 } from './codexAppServerDiscovery';
+import { snapshotCodexFileChanges } from './codexApprovalSnapshot';
 
 type PendingRequest = {
     resolve: (result: unknown) => void;
@@ -1667,12 +1668,13 @@ export class CodexAppServerClient {
         if (method === 'item/fileChange/requestApproval' || method === 'applyPatchApproval') {
             const legacy = method === 'applyPatchApproval';
             const callId = params.itemId ?? params.callId ?? String(id);
+            const fileChanges = params.fileChanges ?? (typeof callId === 'string'
+                ? this.rawFileChangesByItemId.get(callId)
+                : undefined);
             const decision = await this.handleApproval({
                 type: 'patch',
                 callId,
-                fileChanges: params.fileChanges ?? (typeof callId === 'string'
-                    ? this.rawFileChangesByItemId.get(callId)
-                    : undefined),
+                fileChanges: snapshotCodexFileChanges(fileChanges),
                 reason: params.reason,
             });
             this.respond(id, { decision: this.mapDecisionToWire(decision, legacy) });

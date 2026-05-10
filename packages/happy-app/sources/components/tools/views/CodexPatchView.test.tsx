@@ -4,13 +4,22 @@ import { makeTool, pathMetadata, renderTree, treeText } from './toolViewTestUtil
 
 const { CodexPatchView } = await import('./CodexPatchView');
 
-function renderCodexPatch(changes: Record<string, unknown>) {
+type TestFileChange = {
+    diff: string;
+    kind: { type: string };
+};
+
+function renderCodexPatchInput(input: Record<string, unknown>) {
     return treeText(renderTree(
         <CodexPatchView
-            tool={makeTool({ name: 'CodexPatch', input: { changes } })}
+            tool={makeTool({ name: 'CodexPatch', input })}
             metadata={pathMetadata}
         />
     ));
+}
+
+function renderCodexPatch(changes: Record<string, unknown>) {
+    return renderCodexPatchInput({ changes });
 }
 
 describe('CodexPatchView', () => {
@@ -84,5 +93,33 @@ describe('CodexPatchView', () => {
         expect(output).toContain('edit');
         expect(output).toContain('old:export const format = () =>');
         expect(output).toContain('new:export const format = () =>');
+    });
+
+    it('renders from request payload fileChanges without depending on later source-map mutations', () => {
+        const sourceChanges: Record<string, TestFileChange> = {
+            '/Users/steve/project/src/approval.ts': {
+                diff: '@@ -1 +1 @@\n-old approval\n+new approval',
+                kind: { type: 'update' },
+            },
+        };
+        const renderer = renderTree(
+            <CodexPatchView
+                tool={makeTool({ name: 'CodexPatch', input: { fileChanges: sourceChanges } })}
+                metadata={pathMetadata}
+            />
+        );
+
+        const beforeMutation = treeText(renderer);
+        sourceChanges['/Users/steve/project/src/approval.ts']!.diff = '@@ -1 +1 @@\n-mutated\n+mutated';
+        sourceChanges['/Users/steve/project/src/late.ts'] = {
+            diff: '@@ -0,0 +1 @@\n+export const late = true;',
+            kind: { type: 'add' },
+        };
+
+        expect(treeText(renderer)).toBe(beforeMutation);
+        expect(beforeMutation).toContain('src/approval.ts');
+        expect(beforeMutation).toContain('old approval');
+        expect(beforeMutation).not.toContain('src/late.ts');
+        expect(beforeMutation).not.toContain('mutated');
     });
 });
