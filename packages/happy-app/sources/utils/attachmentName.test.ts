@@ -10,6 +10,13 @@ describe('attachmentName', () => {
         expect(sanitizeAttachmentName('CON.txt')).toBe('CON_.txt');
     });
 
+    it('neutralizes leading dots', () => {
+        expect(sanitizeAttachmentName('.env')).toBe('_env');
+        expect(sanitizeAttachmentName('..hidden.txt')).toBe('_hidden.txt');
+        expect(sanitizeAttachmentName('.')).toBe('attachment');
+        expect(sanitizeAttachmentName(sanitizeAttachmentName('.env'))).toBe(sanitizeAttachmentName('.env'));
+    });
+
     it('dedupes collisions case-insensitively while preserving case', () => {
         expect(dedupeAttachmentNames(['name.ext', 'NAME.ext', 'name.ext'])).toEqual([
             'name.ext',

@@ -29,6 +29,7 @@ export function sanitizeAttachmentName(input: string): string {
     let sanitized = leaf
         .replace(/[<>:"|?*]/g, '')
         .replace(/[. ]+$/g, '')
+        .replace(/^\.+/, '_')
         .trim();
 
     if (sanitized === '' || sanitized === '.' || sanitized === '..') {
