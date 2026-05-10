@@ -58,8 +58,8 @@ const taskLikeTool = {
 };
 
 // Claude SDK background-task management tools (TaskOutput, TaskStop, TaskList, etc.).
-// These are lightweight management calls — render with the standard tool UI shell so
-// the user sees a title + collapsible input/output instead of raw JSON.
+// TaskOutput and TaskStop render via specialized TaskOutputView / TaskStopView with
+// permissive result schemas; minimal: false ensures the body always shows.
 const taskOutputTool = {
     title: (opts: { metadata: Metadata | null, tool: ToolCall }) => {
         const taskId = typeof opts.tool.input?.task_id === 'string' && opts.tool.input.task_id.trim() ? opts.tool.input.task_id : null;
