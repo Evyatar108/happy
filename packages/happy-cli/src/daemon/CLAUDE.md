@@ -22,7 +22,7 @@ Control Flow:
    - State persistence: writes PID, version, HTTP port to daemon.state.json
    - HTTP server: starts on random port for local CLI control (list, stop, spawn)
    - WebSocket: establishes persistent connection to backend via `ApiMachineClient`
-   - RPC registration: exposes `spawn-happy-session`, `stop-session`, `requestShutdown` handlers
+   - RPC registration: exposes `spawn-happy-session`, `fork-into-worktree`, `stop-session`, `requestShutdown` handlers
    - Heartbeat loop: every 60s (or HAPPY_DAEMON_HEARTBEAT_INTERVAL) checks for version updates and prunes dead sessions
 5. Awaits shutdown promise which resolves when:
    - OS signal received (SIGINT/SIGTERM)
@@ -149,7 +149,7 @@ Local HTTP server (127.0.0.1 only) provides:
 
 `ApiMachineClient` handles bidirectional communication:
 - Daemon to Server: machine-alive, machine-update-metadata, machine-update-state
-- Server to Daemon: rpc-request (spawn-happy-session, stop-session, requestShutdown)
+- Server to Daemon: rpc-request (spawn-happy-session, fork-into-worktree, stop-session, requestShutdown)
 - All data encrypted with TweetNaCl
 
 ## 7. Integration Testing Challenges

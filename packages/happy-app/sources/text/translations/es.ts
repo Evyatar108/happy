@@ -374,9 +374,37 @@ export const es: TranslationStructure = {
 
     drawer: {
         fork: {
+            action: 'Bifurcar',
             comingSoon: 'Próximamente',
         },
         applyFailed: 'No se pudo aplicar — inténtalo de nuevo',
+    },
+
+    forkComposer: {
+        title: 'Bifurcar sesión',
+        parentLabel: ({ name }: { name: string }) => `Bifurcando desde ${name}`,
+        submit: 'Bifurcar',
+        creatingWorktree: 'Creando worktree...',
+        createNew: 'Crear nuevo',
+        currentCheckout: 'Checkout actual',
+        worktree: 'Worktree',
+        machine: 'Máquina',
+        agent: 'Agente',
+        codex: 'Codex',
+        defaultModel: 'modelo predeterminado',
+        defaultPermission: 'predeterminado',
+        defaultEffort: 'predeterminado',
+        searchWorktrees: 'buscar worktrees...',
+        searchModels: 'buscar modelos...',
+        searchPermissions: 'buscar permisos...',
+        searchEffort: 'buscar niveles de esfuerzo...',
+        errors: {
+            parentMissing: 'Falta la sesión principal',
+            worktreeMissing: ({ directory }: { directory: string }) => `La ruta del worktree no está disponible: ${directory}`,
+            flavorUnsupported: 'Solo se pueden bifurcar sesiones de Codex',
+            forkFailed: 'No se pudo bifurcar la sesión',
+            createWorktreeFailed: 'No se pudo crear el worktree',
+        },
     },
 
     server: {

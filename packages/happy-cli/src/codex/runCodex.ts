@@ -3,6 +3,7 @@ import React from "react";
 import { ApiClient } from '@/api/api';
 import { CodexAppServerClient } from './codexAppServerClient';
 import type { CodexTransportFlag } from './cliArgs';
+import { VALID_CODEX_REMOTE_PERMISSION_MODES } from './cliArgs';
 import { CodexPermissionHandler } from './utils/permissionHandler';
 import { ReasoningProcessor } from './utils/reasoningProcessor';
 import { DiffProcessor } from './utils/diffProcessor';
@@ -36,6 +37,7 @@ import { mapCodexMcpMessageToSessionEnvelopes, mapCodexProcessorMessageToSession
 import { resumeExistingThread } from './resumeExistingThread';
 import { emitReadyIfIdle } from './emitReadyIfIdle';
 import type { ReasoningEffort } from './codexAppServerTypes';
+import { HAPPY_FORKED_FROM_SESSION_ID } from '@/utils/envNames';
 
 /**
  * Extracts a human-readable error from a codex task_complete/turn_aborted event.
@@ -60,6 +62,9 @@ export async function runCodex(opts: {
     startedBy?: 'daemon' | 'terminal';
     noSandbox?: boolean;
     resumeThreadId?: string;
+    effortLevel?: ReasoningEffort;
+    model?: string;
+    permissionMode?: string;
     codexTransport?: CodexTransportFlag | undefined;
 }): Promise<void> {
     // Early check: ensure Codex CLI is installed before proceeding
@@ -134,6 +139,7 @@ export async function runCodex(opts: {
     const reconnectSeq = process.env.HAPPY_RECONNECT_SEQ;
     const reconnectMetadataVersion = process.env.HAPPY_RECONNECT_METADATA_VERSION;
     const reconnectAgentStateVersion = process.env.HAPPY_RECONNECT_AGENT_STATE_VERSION;
+    const forkedFromSessionId = process.env[HAPPY_FORKED_FROM_SESSION_ID];
 
     let response: ApiSession | null;
     if (reconnectSessionId && reconnectKeyBase64 && reconnectVariant) {
@@ -217,9 +223,9 @@ export async function runCodex(opts: {
 
     // Track current overrides to apply per message
     // Use shared PermissionMode type from api/types for cross-agent compatibility
-    let currentPermissionMode: import('@/api/types').PermissionMode | undefined = undefined;
-    let currentModel: string | undefined = undefined;
-    let currentThinkingLevel: ReasoningEffort | undefined = undefined;
+    let currentPermissionMode: import('@/api/types').PermissionMode | undefined = opts.permissionMode as import('@/api/types').PermissionMode | undefined;
+    let currentModel: string | undefined = opts.model;
+    let currentThinkingLevel: ReasoningEffort | undefined = opts.effortLevel;
 
     // Valid Codex permission modes from remote messages. Restricted to the
     // native Codex modes exposed by the mobile UI (see modelModeOptions.ts:
@@ -229,12 +235,7 @@ export async function runCodex(opts: {
     // accepted and then fall through to the `default` branch in
     // resolveCodexExecutionPolicy() — or worse, an attacker-chosen valid value
     // could escalate sandbox scope (issue #1092).
-    const VALID_REMOTE_PERMISSION_MODES: readonly PermissionMode[] = [
-        'default',
-        'read-only',
-        'safe-yolo',
-        'yolo',
-    ];
+    const VALID_REMOTE_PERMISSION_MODES: readonly PermissionMode[] = VALID_CODEX_REMOTE_PERMISSION_MODES;
 
     if (typeof session.onAgentConfiguration === 'function') {
         session.onAgentConfiguration((configuration: AgentConfiguration) => {
@@ -688,6 +689,14 @@ export async function runCodex(opts: {
                 cwd: process.cwd(),
                 mcpServers,
             });
+            if (forkedFromSessionId) {
+                await session.sendContextBoundary({
+                    kind: 'session-fork-resume',
+                    triggeredBy: 'user',
+                    at: Date.now(),
+                    forkedFromSid: forkedFromSessionId,
+                });
+            }
             first = false;
         }
 

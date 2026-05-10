@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   mockAuthAndSetupMachineIfNeeded: vi.fn(),
   mockRunCodex: vi.fn(),
+  mockExtractCodexEffortFlag: vi.fn(),
+  mockExtractCodexModelFlag: vi.fn(),
+  mockExtractCodexPermissionModeFlag: vi.fn(),
   mockExtractCodexResumeFlag: vi.fn(),
   mockExtractCodexTransportFlag: vi.fn(),
   mockExtractNoSandboxFlag: vi.fn(),
@@ -18,6 +21,9 @@ vi.mock('@/codex/runCodex', () => ({
 }))
 
 vi.mock('@/codex/cliArgs', () => ({
+  extractCodexEffortFlag: mocks.mockExtractCodexEffortFlag,
+  extractCodexModelFlag: mocks.mockExtractCodexModelFlag,
+  extractCodexPermissionModeFlag: mocks.mockExtractCodexPermissionModeFlag,
   extractCodexResumeFlag: mocks.mockExtractCodexResumeFlag,
   extractCodexTransportFlag: mocks.mockExtractCodexTransportFlag,
 }))
@@ -46,6 +52,18 @@ describe('handleCodexCommand', () => {
       resumeThreadId: null,
       args,
     }))
+    mocks.mockExtractCodexEffortFlag.mockImplementation((args: string[]) => ({
+      effortLevel: undefined,
+      args,
+    }))
+    mocks.mockExtractCodexModelFlag.mockImplementation((args: string[]) => ({
+      model: undefined,
+      args,
+    }))
+    mocks.mockExtractCodexPermissionModeFlag.mockImplementation((args: string[]) => ({
+      permissionMode: undefined,
+      args,
+    }))
     mocks.mockExtractCodexTransportFlag.mockImplementation((args: string[]) => ({
       transport: undefined,
       args,
@@ -63,6 +81,9 @@ describe('handleCodexCommand', () => {
       startedBy: 'terminal',
       noSandbox: false,
       resumeThreadId: undefined,
+      effortLevel: undefined,
+      model: undefined,
+      permissionMode: undefined,
       codexTransport: undefined,
     })
     expect(
@@ -77,6 +98,18 @@ describe('handleCodexCommand', () => {
     })
     mocks.mockExtractCodexResumeFlag.mockReturnValue({
       resumeThreadId: 'thread-123',
+      args: ['--effort', 'high', '--codex-transport', 'ws', '--started-by', 'daemon'],
+    })
+    mocks.mockExtractCodexEffortFlag.mockReturnValue({
+      effortLevel: 'high',
+      args: ['--model', 'o3', '--codex-transport', 'ws', '--started-by', 'daemon'],
+    })
+    mocks.mockExtractCodexModelFlag.mockReturnValue({
+      model: 'o3',
+      args: ['--permission-mode', 'safe-yolo', '--codex-transport', 'ws', '--started-by', 'daemon'],
+    })
+    mocks.mockExtractCodexPermissionModeFlag.mockReturnValue({
+      permissionMode: 'safe-yolo',
       args: ['--codex-transport', 'ws', '--started-by', 'daemon'],
     })
     mocks.mockExtractCodexTransportFlag.mockReturnValue({
@@ -84,13 +117,16 @@ describe('handleCodexCommand', () => {
       args: ['--started-by', 'daemon'],
     })
 
-    await handleCodexCommand(['--no-sandbox', '--resume', 'thread-123', '--codex-transport', 'ws', '--started-by', 'daemon'])
+    await handleCodexCommand(['--no-sandbox', '--resume', 'thread-123', '--model', 'o3', '--permission-mode', 'safe-yolo', '--codex-transport', 'ws', '--started-by', 'daemon'])
 
     expect(mocks.mockRunCodex).toHaveBeenCalledWith({
       credentials: { token: 'token' },
       startedBy: 'daemon',
       noSandbox: true,
       resumeThreadId: 'thread-123',
+      effortLevel: 'high',
+      model: 'o3',
+      permissionMode: 'safe-yolo',
       codexTransport: 'ws',
     })
   })

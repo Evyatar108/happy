@@ -507,6 +507,9 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
         model?: string;
         thinkingLevel?: string;
     }) => sessionEmitAgentConfiguration({ sessionId, ...config }), [sessionId]);
+    const handleForkPress = React.useCallback(() => {
+        router.push(`/session/${sessionId}/fork-composer`);
+    }, [router, sessionId]);
 
     const sessionMachineId = session.metadata?.machineId ?? '';
     const sessionMachine = useMachine(sessionMachineId);
@@ -736,6 +739,9 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                 canResume={canResume}
                 resumeAvailability={resumeAvailability}
                 resumeCommandBlock={resumeCommandBlock}
+                session={session}
+                machine={sessionMachine}
+                onForkPress={handleForkPress}
                 updatePermissionMode={updatePermissionMode}
                 updateModelMode={updateModelMode}
                 updateEffortLevel={updateEffortLevel}

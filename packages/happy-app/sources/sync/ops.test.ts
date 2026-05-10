@@ -28,7 +28,7 @@ vi.mock('./storage', () => ({
 }));
 
 import { apiSocket } from './apiSocket';
-import { cancelPendingSwitch, requestSwitch, sessionEmitAgentConfiguration, sessionUpdateMetadata } from './ops';
+import { cancelPendingSwitch, machineForkSession, requestSwitch, sessionEmitAgentConfiguration, sessionUpdateMetadata } from './ops';
 import { sync } from './sync';
 
 describe('sessionUpdateMetadata', () => {
@@ -209,6 +209,36 @@ describe('requestSwitch', () => {
         expect(apiSocket.sessionRPC).toHaveBeenCalledWith('session-1', 'request-switch', {
             mode: 'when-idle',
         });
+    });
+});
+
+describe('machineForkSession', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('strips the machine prefix before sending the fork RPC payload', async () => {
+        vi.mocked(apiSocket.machineRPC).mockResolvedValue({ type: 'success', sessionId: 'forked-session' });
+
+        const result = await machineForkSession({
+            machineId: 'machine-1',
+            parentSessionId: 'machine-1:parent-session',
+            worktreePath: '/workspace/fork',
+            model: 'gpt-5.2',
+            permissionMode: 'safe-yolo',
+            effortLevel: 'high',
+        });
+
+        expect(result).toEqual({ type: 'success', sessionId: 'forked-session' });
+        expect(apiSocket.machineRPC).toHaveBeenCalledWith('machine-1', 'fork-into-worktree', {
+            parentSessionId: 'parent-session',
+            worktreePath: '/workspace/fork',
+            model: 'gpt-5.2',
+            permissionMode: 'safe-yolo',
+            effortLevel: 'high',
+        });
+        const payload = vi.mocked(apiSocket.machineRPC).mock.calls[0][2] as { parentSessionId: string };
+        expect(payload.parentSessionId).not.toContain(':');
     });
 });
 

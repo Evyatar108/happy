@@ -178,7 +178,7 @@ Goal: make new-session composition feel like the regular chat composer instead o
 
 ## P2.5. PI-style agent controls, fork, and resume
 
-Status: drawer slice merged to local main (`45fd99d6`, 2026-05-10) — 14 stories (US-001..US-012) plus 13 review-loop fixes. `SessionContextDrawer` lives above `AgentInput` in active sessions; collapsed bar shows machine + workdir-path chip + model + permission chips; expanded body offers model / permission / effort pickers (confirmatory metadata-echo), inline resume (with `ResumeCommandCopyBlock` fallback), and a disabled "Coming soon" Fork placeholder. CLI consumes live config via `apiSession.onAgentConfiguration` across all 5 runners (Claude SDK now also receives `effort` from `thinkingLevel`). New `agent-configuration-changed` wire envelope is schema-only in this slice (no CLI emit). Two follow-ups remain: (a) manual web video + 5 screenshots at 1200px (US-012 AC-004/005/013 — deferred because Expo web could not stay alive in the iteration harness), (b) full fork-into-worktree flow (Fork button still disabled — gates on a future `forkRpcAvailable` capability).
+Status: drawer slice merged to local main (`45fd99d6`, 2026-05-10) — 14 stories (US-001..US-012) plus 13 review-loop fixes. `SessionContextDrawer` lives above `AgentInput` in active sessions; collapsed bar shows machine + workdir-path chip + model + permission chips; expanded body offers model / permission / effort pickers (confirmatory metadata-echo), inline resume (with `ResumeCommandCopyBlock` fallback), and a Fork button that is enabled for capable Codex sessions (routes to the new fork composer via `forkAvailability(session, machine)`) and falls back to a disabled "Coming soon" placeholder for Claude/gemini/openclaw flavors or when `forkRpcAvailable` / happy-agent auth is missing. CLI consumes live config via `apiSession.onAgentConfiguration` across all 5 runners (Claude SDK now also receives `effort` from `thinkingLevel`). New `agent-configuration-changed` wire envelope is schema-only in this slice (no CLI emit). Remaining drawer follow-up: manual web video + 5 screenshots at 1200px (US-012 AC-004/005/013 — deferred because Expo web could not stay alive in the iteration harness). The fork-into-worktree follow-up is now shipped for Codex; see Session Forking below.
 
 Goal: make active-session agent controls feel first-class instead of scattered across info screens and one-off flows. The control surface should feel closer to a PI-style agent UI while still preserving Happy's regular chat input shape.
 
@@ -356,15 +356,18 @@ Goal: the brutalist icons are a big part of what makes Happy feel good to use �
 
 Goal: right-click a session to fork it — clone the session in Happy + use the resume session API to fork the conversation on the machine. Lets you explicitly parallelize and control both branches.
 
+Status: shipped for Codex sessions. Claude, gemini, and openclaw remain follow-up flavors and keep the disabled placeholder until their resume/fork semantics are designed.
+
 ### Flow
 
 - Right-click session → "Fork"
-- Opens a fork composer (like the regular composer) with:
+- Opens the Codex fork composer with:
   - a `<resuming session>` pill showing what you're forking from
   - ability to pick a different worktree
-  - ability to pick a different agent
-  - all the usual composer controls (model, permissions, path, etc.)
-- On submit: clones the session in Happy, calls resume session API on the machine to fork the underlying conversation
+  - locked Codex agent display
+  - model, permission, and effort controls
+- On submit: the app creates a new worktree when requested, calls the machine `fork-into-worktree` RPC, refreshes sessions, and navigates to the new composite session id
+- Follow-up: add flavor-specific support for Claude, gemini, and openclaw once their fork/resume contracts are explicit
 
 ## Session Protocol (UNDER REVIEW — FROZEN)
 

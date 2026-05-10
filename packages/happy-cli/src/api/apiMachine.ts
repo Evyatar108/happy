@@ -14,6 +14,7 @@ import { RpcHandlerManager } from './rpc/RpcHandlerManager';
 import { detectCLIAvailability, CLIAvailability } from '@/utils/detectCLI';
 import { detectResumeSupport, type ResumeSupport } from '@/resume/localHappyAgentAuth';
 import { shouldReconnect } from '@/utils/lidState';
+import { isValidCodexEffortLevel, isValidCodexRemotePermissionMode } from '@/codex/cliArgs';
 
 interface ServerToDaemonEvents {
     update: (data: Update) => void;
@@ -75,9 +76,21 @@ interface DaemonToServerEvents {
 type MachineRpcHandlers = {
     spawnSession: (options: SpawnSessionOptions) => Promise<SpawnSessionResult>;
     resumeSession?: (sessionId: string, options?: { model?: string; permissionMode?: string }) => Promise<SpawnSessionResult>;
+    forkSession?: (options: ForkSessionOptions) => Promise<SpawnSessionResult>;
     stopSession: (sessionId: string) => boolean;
     requestShutdown: () => void;
 }
+
+export type ForkSessionOptions = {
+    parentSessionId: string;
+    worktreePath: string;
+    model?: string;
+    permissionMode?: string;
+    effortLevel?: string;
+};
+
+const PARENT_SESSION_ID_MAX_LENGTH = 128;
+const PARENT_SESSION_ID_SHAPE = /^[A-Za-z0-9_-]+$/;
 
 export class ApiMachineClient {
     private socket!: Socket<ServerToDaemonEvents, DaemonToServerEvents>;
@@ -86,6 +99,7 @@ export class ApiMachineClient {
     private lastKnownResumeSupport: ResumeSupport | null = null;
     private rpcHandlerManager: RpcHandlerManager;
     private resumeSessionHandler: ((sessionId: string, options?: { model?: string; permissionMode?: string }) => Promise<SpawnSessionResult>) | null = null;
+    private forkSessionHandler: ((options: ForkSessionOptions) => Promise<SpawnSessionResult>) | null = null;
     private reconnectInterval: NodeJS.Timeout | null = null;
 
     constructor(
@@ -103,13 +117,23 @@ export class ApiMachineClient {
         registerCommonHandlers(this.rpcHandlerManager, process.cwd());
     }
 
+    private detectEffectiveResumeSupport(): ResumeSupport {
+        return {
+            ...detectResumeSupport(),
+            rpcAvailable: !!this.resumeSessionHandler,
+            forkRpcAvailable: !!this.forkSessionHandler,
+        };
+    }
+
     setRPCHandlers({
         spawnSession,
         resumeSession,
+        forkSession,
         stopSession,
         requestShutdown
     }: MachineRpcHandlers) {
         this.resumeSessionHandler = resumeSession ?? null;
+        this.forkSessionHandler = forkSession ?? null;
 
         // Register spawn session handler
         this.rpcHandlerManager.registerHandler('spawn-happy-session', async (params: any) => {
@@ -137,6 +161,42 @@ export class ApiMachineClient {
         });
 
         this.syncResumeSessionRpcRegistration();
+
+        this.rpcHandlerManager.registerHandler('fork-into-worktree', async (params: any) => {
+            const { parentSessionId, worktreePath, model, permissionMode, effortLevel } = params || {};
+
+            if (!parentSessionId || typeof parentSessionId !== 'string') {
+                return { type: 'error', errorMessage: 'Parent session ID is required' };
+            }
+            if (parentSessionId.length > PARENT_SESSION_ID_MAX_LENGTH || !PARENT_SESSION_ID_SHAPE.test(parentSessionId)) {
+                return { type: 'error', errorMessage: 'parentSessionId must be 1-128 characters of [A-Za-z0-9_-]' };
+            }
+            if (!worktreePath || typeof worktreePath !== 'string') {
+                return { type: 'error', errorMessage: 'Worktree path is required' };
+            }
+            if (model !== undefined && model !== null && (typeof model !== 'string' || model.length === 0)) {
+                return { type: 'error', errorMessage: 'model must be a non-empty string when provided' };
+            }
+            if (permissionMode !== undefined && permissionMode !== null && !isValidCodexRemotePermissionMode(permissionMode)) {
+                return { type: 'error', errorMessage: 'permissionMode must be one of: default, read-only, safe-yolo, yolo' };
+            }
+            if (effortLevel !== undefined && effortLevel !== null && !isValidCodexEffortLevel(effortLevel)) {
+                return { type: 'error', errorMessage: 'effortLevel must be one of: none, minimal, low, medium, high, xhigh' };
+            }
+
+            const handler = this.forkSessionHandler;
+            if (!handler) {
+                return { type: 'error', errorMessage: 'Fork session handler not available' };
+            }
+
+            return handler({
+                parentSessionId,
+                worktreePath,
+                model: model ?? undefined,
+                permissionMode: permissionMode ?? undefined,
+                effortLevel: effortLevel ?? undefined,
+            });
+        });
 
         // Register stop session handler
         this.rpcHandlerManager.registerHandler('stop-session', (params: any) => {
@@ -359,11 +419,12 @@ export class ApiMachineClient {
             // Re-detect CLI availability and push metadata update if changed
             const newAvailability = detectCLIAvailability();
             const prev = this.lastKnownCLIAvailability;
-            const newResumeSupport = detectResumeSupport();
+            const newResumeSupport = this.detectEffectiveResumeSupport();
             const prevResume = this.lastKnownResumeSupport;
             const cliAvailabilityChanged = !prev || prev.claude !== newAvailability.claude || prev.codex !== newAvailability.codex || prev.gemini !== newAvailability.gemini || prev.openclaw !== newAvailability.openclaw;
             const resumeSupportChanged = !prevResume
                 || prevResume.rpcAvailable !== newResumeSupport.rpcAvailable
+                || prevResume.forkRpcAvailable !== newResumeSupport.forkRpcAvailable
                 || prevResume.happyAgentAuthenticated !== newResumeSupport.happyAgentAuthenticated;
 
             if (cliAvailabilityChanged || resumeSupportChanged) {
@@ -372,7 +433,7 @@ export class ApiMachineClient {
                 this.updateMachineMetadata((metadata) => ({
                     ...(metadata || {} as any),
                     cliAvailability: newAvailability,
-                    resumeSupport: { ...newResumeSupport, rpcAvailable: !!this.resumeSessionHandler },
+                    resumeSupport: newResumeSupport,
                 })).catch((err) => {
                     logger.debug('[API MACHINE] Failed to update machine capabilities:', err);
                 });

@@ -4,6 +4,7 @@
  */
 
 import { apiSocket } from './apiSocket';
+import { parseCompositeSessionId } from './machineSessionId';
 import { sync } from './sync';
 import { storage } from './storage';
 import type { MachineMetadata, Metadata } from './storageTypes';
@@ -159,6 +160,15 @@ export interface ResumeSessionOptions {
     sessionId: string;
 }
 
+export interface ForkSessionOptions {
+    machineId: string;
+    parentSessionId: string;
+    worktreePath: string;
+    model?: string;
+    permissionMode?: string;
+    effortLevel?: string;
+}
+
 // Exported session operation functions
 
 /**
@@ -204,6 +214,31 @@ export async function machineResumeSession(options: ResumeSessionOptions & { mod
         return {
             type: 'error',
             errorMessage: error instanceof Error ? error.message : 'Failed to resume session',
+        };
+    }
+}
+
+export async function machineForkSession(options: ForkSessionOptions): Promise<SpawnSessionResult> {
+    const { machineId, parentSessionId, worktreePath, model, permissionMode, effortLevel } = options;
+    const { localSessionId } = parseCompositeSessionId(parentSessionId, machineId);
+
+    try {
+        const result = await apiSocket.machineRPC<SpawnSessionResult, {
+            parentSessionId: string;
+            worktreePath: string;
+            model?: string;
+            permissionMode?: string;
+            effortLevel?: string;
+        }>(
+            machineId,
+            'fork-into-worktree',
+            { parentSessionId: localSessionId, worktreePath, model, permissionMode, effortLevel },
+        );
+        return result;
+    } catch (error) {
+        return {
+            type: 'error',
+            errorMessage: error instanceof Error ? error.message : 'Failed to fork session',
         };
     }
 }

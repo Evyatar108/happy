@@ -191,6 +191,10 @@ async function runCodexOnce() {
     await runCodex({ credentials: { token: 'token' } as any });
 }
 
+async function runCodexOnceWithEffort() {
+    await runCodex({ credentials: { token: 'token' } as any, effortLevel: 'high' });
+}
+
 describe('runCodex permission mode metadata publishing', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -208,17 +212,17 @@ describe('runCodex permission mode metadata publishing', () => {
         mocks.setWaitHook(async () => {
             expect(mocks.getServerMetadata().currentPermissionModeCode).toBeUndefined();
             expect(mocks.mockSession.updateMetadata).not.toHaveBeenCalled();
-            mocks.getUserMessageHandler()?.(createUserMessage('bypassPermissions'));
-            mocks.getUserMessageHandler()?.(createUserMessage('bypassPermissions'));
+            mocks.getUserMessageHandler()?.(createUserMessage('read-only'));
+            mocks.getUserMessageHandler()?.(createUserMessage('read-only'));
             await Promise.resolve();
         });
 
         await runCodexOnce();
 
         const metadata = mocks.mockGetOrCreateSession.mock.calls[0][0].metadata as Metadata;
-        expect(metadata.currentPermissionModeCode).toBe('bypassPermissions');
+        expect(metadata.currentPermissionModeCode).toBe('read-only');
         expect(mocks.mockSession.updateMetadata).toHaveBeenCalledTimes(1);
-        expect(mocks.getServerMetadata().currentPermissionModeCode).toBe('bypassPermissions');
+        expect(mocks.getServerMetadata().currentPermissionModeCode).toBe('read-only');
     });
 
     it('publishes one initial yolo mode when sandbox is enabled and dedups a redundant user pick', async () => {
@@ -260,5 +264,16 @@ describe('runCodex permission mode metadata publishing', () => {
         expect(mocks.mockSession.updateMetadata).toHaveBeenCalledTimes(1);
         expect(mocks.getServerMetadata().currentModelCode).toBe('gpt-5.2-codex');
         expect(mocks.getServerMetadata().currentThoughtLevelCode).toBe('high');
+    });
+
+    it('uses CLI effort as the initial thinking level before the first user message', async () => {
+        mocks.setWaitHook(async () => {
+            mocks.getUserMessageHandler()?.(createUserMessage('default'));
+            await Promise.resolve();
+        });
+
+        await runCodexOnceWithEffort();
+
+        expect(mocks.getPushedModes()).toEqual([{ permissionMode: 'default', model: undefined, thinkingLevel: 'high' }]);
     });
 });

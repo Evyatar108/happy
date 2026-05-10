@@ -391,9 +391,37 @@ export const pl: TranslationStructure = {
 
     drawer: {
         fork: {
+            action: 'Forkuj',
             comingSoon: 'Wkrótce',
         },
         applyFailed: 'Nie udało się zastosować — spróbuj ponownie',
+    },
+
+    forkComposer: {
+        title: 'Forkuj sesję',
+        parentLabel: ({ name }: { name: string }) => `Fork z ${name}`,
+        submit: 'Forkuj',
+        creatingWorktree: 'Tworzenie worktree...',
+        createNew: 'Utwórz nowy',
+        currentCheckout: 'Bieżący checkout',
+        worktree: 'Worktree',
+        machine: 'Maszyna',
+        agent: 'Agent',
+        codex: 'Codex',
+        defaultModel: 'model domyślny',
+        defaultPermission: 'domyślne',
+        defaultEffort: 'domyślne',
+        searchWorktrees: 'szukaj worktree...',
+        searchModels: 'szukaj modeli...',
+        searchPermissions: 'szukaj uprawnień...',
+        searchEffort: 'szukaj poziomów wysiłku...',
+        errors: {
+            parentMissing: 'Brakuje sesji źródłowej',
+            worktreeMissing: ({ directory }: { directory: string }) => `Ścieżka worktree jest niedostępna: ${directory}`,
+            flavorUnsupported: 'Forkować można tylko sesje Codex',
+            forkFailed: 'Nie udało się forkować sesji',
+            createWorktreeFailed: 'Nie udało się utworzyć worktree',
+        },
     },
 
     server: {

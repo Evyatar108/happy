@@ -375,9 +375,37 @@ export const zhHans: TranslationStructure = {
 
     drawer: {
         fork: {
+            action: '派生',
             comingSoon: '即将推出',
         },
         applyFailed: '应用失败 — 请重试',
+    },
+
+    forkComposer: {
+        title: '派生会话',
+        parentLabel: ({ name }: { name: string }) => `从 ${name} 派生`,
+        submit: '派生',
+        creatingWorktree: '正在创建 worktree...',
+        createNew: '新建',
+        currentCheckout: '当前 checkout',
+        worktree: 'Worktree',
+        machine: '机器',
+        agent: '代理',
+        codex: 'Codex',
+        defaultModel: '默认模型',
+        defaultPermission: '默认',
+        defaultEffort: '默认',
+        searchWorktrees: '搜索 worktree...',
+        searchModels: '搜索模型...',
+        searchPermissions: '搜索权限...',
+        searchEffort: '搜索推理强度...',
+        errors: {
+            parentMissing: '缺少父会话',
+            worktreeMissing: ({ directory }: { directory: string }) => `Worktree 路径不可用：${directory}`,
+            flavorUnsupported: '只能派生 Codex 会话',
+            forkFailed: '无法派生会话',
+            createWorktreeFailed: '无法创建 worktree',
+        },
     },
 
     server: {

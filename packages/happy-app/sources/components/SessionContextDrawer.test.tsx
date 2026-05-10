@@ -2,6 +2,7 @@ import * as React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ModelMode } from './PermissionModeSelector';
+import type { Machine, Session } from '@/sync/storageTypes';
 
 type TestRendererInstance = ReturnType<typeof TestRenderer.create>;
 type TestRoot = TestRendererInstance['root'];
@@ -14,6 +15,7 @@ const reactActEnvironment = globalThis as typeof globalThis & {
 const shared = vi.hoisted(() => ({
     sessionEmitAgentConfigurationMock: vi.fn(),
     resumeSessionInlineMock: vi.fn(),
+    onForkPressMock: vi.fn(),
     latestPatchModel: null as null | ((model: { key: string; name: string; description?: string | null }) => void),
 }));
 
@@ -91,6 +93,61 @@ function option(key: string, name: string) {
     return { key, name, description: null };
 }
 
+function createSession(flavor: string | undefined = 'claude'): Session {
+    return {
+        id: 'source-session',
+        seq: 1,
+        createdAt: 100,
+        updatedAt: 100,
+        active: true,
+        activeAt: 100,
+        metadata: {
+            host: 'devbox',
+            machineId: 'machine-1',
+            path: '/home/user/my-project',
+            flavor,
+        },
+        metadataVersion: 1,
+        agentState: null,
+        agentStateVersion: 1,
+        thinking: false,
+        thinkingAt: 0,
+        presence: 100,
+        permissionMode: null,
+        permissionModeUserChosen: false,
+    };
+}
+
+function createMachine(overrides: Partial<Machine> = {}): Machine {
+    return {
+        id: 'machine-1',
+        seq: 1,
+        createdAt: 100,
+        updatedAt: 100,
+        active: true,
+        activeAt: 100,
+        metadata: {
+            host: 'devbox',
+            platform: 'linux',
+            homeDir: '/home/user',
+            happyHomeDir: '/home/user/.happy',
+            happyCliVersion: '1.0.0',
+            resumeSupport: {
+                rpcAvailable: true,
+                forkRpcAvailable: true,
+                requiresSameMachine: true,
+                requiresHappyAgentAuth: true,
+                happyAgentAuthenticated: true,
+                detectedAt: 100,
+            },
+        },
+        metadataVersion: 1,
+        daemonState: null,
+        daemonStateVersion: 1,
+        ...overrides,
+    };
+}
+
 function baseProps() {
     const sonnet = option('sonnet', 'Sonnet');
     const plan = option('plan', 'Plan');
@@ -113,6 +170,9 @@ function baseProps() {
             message: '',
         },
         resumeCommandBlock: null,
+        session: createSession(),
+        machine: createMachine(),
+        onForkPress: shared.onForkPressMock,
         updatePermissionMode: vi.fn(),
         updateModelMode: vi.fn(),
         updateEffortLevel: vi.fn(),
@@ -151,6 +211,7 @@ describe('SessionContextDrawer', () => {
         shared.sessionEmitAgentConfigurationMock.mockReset();
         shared.sessionEmitAgentConfigurationMock.mockResolvedValue(undefined);
         shared.resumeSessionInlineMock.mockReset();
+        shared.onForkPressMock.mockReset();
         shared.latestPatchModel = null;
     });
 
@@ -265,7 +326,7 @@ describe('SessionContextDrawer', () => {
         expect(textValues(renderer!.root)).not.toContain('translated:drawer.applyFailed');
     });
 
-    it('renders the fork placeholder disabled with no press handler', () => {
+    it('renders the fork placeholder disabled with no press handler when unavailable', () => {
         let renderer: TestRendererInstance;
         act(() => {
             renderer = TestRenderer.create(<SessionContextDrawer {...baseProps()} />);
@@ -278,5 +339,30 @@ describe('SessionContextDrawer', () => {
 
         expect(forkButton?.props.disabled).toBe(true);
         expect(forkButton?.props.onPress).toBeUndefined();
+    });
+
+    it('enables the fork action when capable and pressing fires the callback', () => {
+        let renderer: TestRendererInstance;
+        act(() => {
+            renderer = TestRenderer.create(
+                <SessionContextDrawer
+                    {...baseProps()}
+                    session={createSession('codex')}
+                    machine={createMachine()}
+                />,
+            );
+        });
+        expand(renderer!.root);
+
+        const forkButton = renderer!.root.findAllByType('Pressable').find((node: RenderNode) =>
+            node.props.disabled === false && textValues(node).includes('translated:drawer.fork.action'),
+        );
+
+        expect(forkButton?.props.accessibilityState).toMatchObject({ disabled: false });
+        act(() => {
+            forkButton!.props.onPress();
+        });
+
+        expect(shared.onForkPressMock).toHaveBeenCalledTimes(1);
     });
 });

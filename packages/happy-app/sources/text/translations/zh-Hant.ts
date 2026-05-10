@@ -374,9 +374,37 @@ export const zhHant: TranslationStructure = {
 
     drawer: {
         fork: {
+            action: '派生',
             comingSoon: '即將推出',
         },
         applyFailed: '套用失敗 — 請再試一次',
+    },
+
+    forkComposer: {
+        title: '派生工作階段',
+        parentLabel: ({ name }: { name: string }) => `從 ${name} 派生`,
+        submit: '派生',
+        creatingWorktree: '正在建立 worktree...',
+        createNew: '新增',
+        currentCheckout: '目前 checkout',
+        worktree: 'Worktree',
+        machine: '機器',
+        agent: '代理',
+        codex: 'Codex',
+        defaultModel: '預設模型',
+        defaultPermission: '預設',
+        defaultEffort: '預設',
+        searchWorktrees: '搜尋 worktree...',
+        searchModels: '搜尋模型...',
+        searchPermissions: '搜尋權限...',
+        searchEffort: '搜尋推理強度...',
+        errors: {
+            parentMissing: '缺少父工作階段',
+            worktreeMissing: ({ directory }: { directory: string }) => `Worktree 路徑無法使用：${directory}`,
+            flavorUnsupported: '只能派生 Codex 工作階段',
+            forkFailed: '無法派生工作階段',
+            createWorktreeFailed: '無法建立 worktree',
+        },
     },
 
     server: {

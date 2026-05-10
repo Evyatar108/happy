@@ -108,6 +108,14 @@ export default function RootLayout() {
                 }}
             />
             <Stack.Screen
+                name="session/[id]/fork-composer"
+                options={{
+                    headerShown: true,
+                    headerTitle: t('forkComposer.title'),
+                    headerBackTitle: t('common.back'),
+                }}
+            />
+            <Stack.Screen
                 name="session/[id]/files"
                 options={{
                     headerShown: true,

@@ -13,9 +13,10 @@ export type ResumeLaunch = {
 export type ResumeLaunchOptions = {
     claudeStartingMode?: 'local' | 'remote';
     startedBy?: 'daemon' | 'terminal';
+    effortLevel?: string;
 };
 
-export function parseResumeCommandArgs(args: string[]): { showHelp: boolean; sessionId: string } {
+export function parseResumeCommandArgs(args: string[]): { showHelp: boolean; sessionId: string; effortLevel?: string } {
     if (args.includes('-h') || args.includes('--help')) {
         return {
             showHelp: true,
@@ -23,16 +24,50 @@ export function parseResumeCommandArgs(args: string[]): { showHelp: boolean; ses
         };
     }
 
-    if (args.length === 0) {
+    const remainingArgs: string[] = [];
+    let effortLevel: string | undefined;
+    for (let i = 0; i < args.length; i++) {
+        const arg = args[i];
+
+        if (arg === '--effort') {
+            if (effortLevel !== undefined) {
+                throw new Error('Resume effort can only be provided once.');
+            }
+            const nextArg = args[i + 1];
+            if (!nextArg || nextArg.startsWith('-')) {
+                throw new Error('Resume effort requires a value: happy resume <session-id> --effort <level>');
+            }
+            effortLevel = nextArg;
+            i++;
+            continue;
+        }
+
+        if (arg.startsWith('--effort=')) {
+            if (effortLevel !== undefined) {
+                throw new Error('Resume effort can only be provided once.');
+            }
+            const value = arg.slice('--effort='.length).trim();
+            if (!value) {
+                throw new Error('Resume effort requires a value: happy resume <session-id> --effort <level>');
+            }
+            effortLevel = value;
+            continue;
+        }
+
+        remainingArgs.push(arg);
+    }
+
+    if (remainingArgs.length === 0) {
         throw new Error('Happy session ID is required: happy resume <session-id>');
     }
-    if (args.length > 1) {
-        throw new Error(`Unexpected arguments for happy resume: ${args.slice(1).join(' ')}`);
+    if (remainingArgs.length > 1) {
+        throw new Error(`Unexpected arguments for happy resume: ${remainingArgs.slice(1).join(' ')}`);
     }
 
     return {
         showHelp: false,
-        sessionId: args[0],
+        sessionId: remainingArgs[0],
+        effortLevel,
     };
 }
 
@@ -57,6 +92,9 @@ export function buildResumeLaunch(session: ResumableHappySession, options: Resum
         const args = ['codex', '--resume', metadata.codexThreadId];
         if (options.startedBy) {
             args.push('--started-by', options.startedBy);
+        }
+        if (options.effortLevel) {
+            args.push('--effort', options.effortLevel);
         }
         return {
             cwd: metadata.path,
@@ -128,7 +166,7 @@ export async function handleResumeCommand(args: string[]): Promise<void> {
     }
 
     const session = await resolveHappySession(parsed.sessionId);
-    const launch = buildResumeLaunch(session);
+    const launch = buildResumeLaunch(session, { effortLevel: parsed.effortLevel });
 
     if (!existsSync(launch.cwd)) {
         throw new Error(`Saved session path does not exist: ${launch.cwd}`);

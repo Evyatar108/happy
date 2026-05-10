@@ -375,9 +375,37 @@ export const ja: TranslationStructure = {
 
     drawer: {
         fork: {
+            action: 'フォーク',
             comingSoon: '近日公開',
         },
         applyFailed: '適用に失敗しました — もう一度お試しください',
+    },
+
+    forkComposer: {
+        title: 'セッションをフォーク',
+        parentLabel: ({ name }: { name: string }) => `${name} からフォーク`,
+        submit: 'フォーク',
+        creatingWorktree: 'worktree を作成中...',
+        createNew: '新規作成',
+        currentCheckout: '現在のチェックアウト',
+        worktree: 'Worktree',
+        machine: 'マシン',
+        agent: 'エージェント',
+        codex: 'Codex',
+        defaultModel: '既定のモデル',
+        defaultPermission: '既定',
+        defaultEffort: '既定',
+        searchWorktrees: 'worktree を検索...',
+        searchModels: 'モデルを検索...',
+        searchPermissions: '権限を検索...',
+        searchEffort: 'エフォートレベルを検索...',
+        errors: {
+            parentMissing: '親セッションが見つかりません',
+            worktreeMissing: ({ directory }: { directory: string }) => `worktree パスを使用できません: ${directory}`,
+            flavorUnsupported: 'フォークできるのは Codex セッションのみです',
+            forkFailed: 'セッションをフォークできませんでした',
+            createWorktreeFailed: 'worktree を作成できませんでした',
+        },
     },
 
     server: {

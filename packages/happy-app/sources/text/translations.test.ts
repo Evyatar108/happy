@@ -43,6 +43,7 @@ const REQUIRED_DEFERRED_SWITCH_KEYS = [
 ] as const;
 
 const REQUIRED_SESSION_DRAWER_KEYS = [
+    'drawer.fork.action',
     'drawer.fork.comingSoon',
     'drawer.applyFailed',
     'pickers.noResults',
@@ -62,6 +63,31 @@ const REQUIRED_SESSION_DRAWER_KEYS = [
     'sidebar.expand',
     'sidebar.collapse',
     'status.unknown',
+] as const;
+
+const REQUIRED_FORK_COMPOSER_KEYS = [
+    'forkComposer.title',
+    'forkComposer.parentLabel',
+    'forkComposer.submit',
+    'forkComposer.creatingWorktree',
+    'forkComposer.createNew',
+    'forkComposer.currentCheckout',
+    'forkComposer.worktree',
+    'forkComposer.machine',
+    'forkComposer.agent',
+    'forkComposer.codex',
+    'forkComposer.defaultModel',
+    'forkComposer.defaultPermission',
+    'forkComposer.defaultEffort',
+    'forkComposer.searchWorktrees',
+    'forkComposer.searchModels',
+    'forkComposer.searchPermissions',
+    'forkComposer.searchEffort',
+    'forkComposer.errors.parentMissing',
+    'forkComposer.errors.worktreeMissing',
+    'forkComposer.errors.flavorUnsupported',
+    'forkComposer.errors.forkFailed',
+    'forkComposer.errors.createWorktreeFailed',
 ] as const;
 
 type TranslationTree =
@@ -135,6 +161,21 @@ describe('translations', () => {
 
                 expect(value, `${language}.${key}`).toBeTypeOf('string');
                 expect((value as string).trim(), `${language}.${key}`).not.toBe('');
+            }
+        }
+    });
+
+    it('keeps the fork composer strings present in every locale', () => {
+        for (const [language, dictionary] of Object.entries(translations)) {
+            for (const key of REQUIRED_FORK_COMPOSER_KEYS) {
+                const value = getByPath(dictionary, key);
+                const sourceValue = getByPath(en, key);
+
+                expect(value, `${language}.${key}`).toBeDefined();
+                expect(typeof value, `${language}.${key}`).toBe(typeof sourceValue);
+                if (typeof value === 'string') {
+                    expect(value.trim(), `${language}.${key}`).not.toBe('');
+                }
             }
         }
     });
