@@ -3,12 +3,18 @@ import { maybeIntercept } from '@/sync/slashCommandIntercept';
 import type { PreSendCommandResult } from '@/hooks/usePreSendCommand';
 import type { SpawnSessionOptions } from '@/sync/ops';
 
+type StagedAttachment = { encodedBytes: number };
+
+const MAX_ENCODED_ATTACHMENT_BYTES = 4 * 1024 * 1024;
+
 // Simulates the handleSend callback in new/index.tsx: trims the prompt, calls
 // preSendCommand, and short-circuits before machineSpawnNewSession when intercepted.
 async function buildHandleSend(
     prompt: string,
     preSendCommand: (cmd: string) => PreSendCommandResult,
     machineSpawnNewSession: () => Promise<void>,
+    stagedAttachments: StagedAttachment[] = [],
+    modalAlert: (title: string, msg: string) => void = () => {},
 ) {
     const trimmedPrompt = prompt.trim();
     if (trimmedPrompt) {
@@ -17,6 +23,11 @@ async function buildHandleSend(
             intercept.execute();
             return;
         }
+    }
+
+    if (stagedAttachments.some((a) => a.encodedBytes > MAX_ENCODED_ATTACHMENT_BYTES)) {
+        modalAlert('common.error', 'errors.attachmentTooLarge');
+        return;
     }
 
     await machineSpawnNewSession();
@@ -203,5 +214,31 @@ describe('new/index.tsx handleSend intercept guard', () => {
 
         expect(preSendCommand).not.toHaveBeenCalled();
         expect(spawnSession).toHaveBeenCalledOnce();
+    });
+});
+
+describe('new/index.tsx handleSend oversize attachment guard', () => {
+    it('does NOT call machineSpawnNewSession when a staged attachment exceeds 4 MB', async () => {
+        const spawnSession = vi.fn();
+        const modalAlert = vi.fn();
+        const preSendCommand = makePreSendCommand(undefined);
+        const oversizedAttachment: StagedAttachment = { encodedBytes: 4 * 1024 * 1024 + 1 };
+
+        await buildHandleSend('hello', preSendCommand, spawnSession, [oversizedAttachment], modalAlert);
+
+        expect(spawnSession).not.toHaveBeenCalled();
+        expect(modalAlert).toHaveBeenCalledWith('common.error', 'errors.attachmentTooLarge');
+    });
+
+    it('DOES call machineSpawnNewSession when all staged attachments are within the 4 MB limit', async () => {
+        const spawnSession = vi.fn().mockResolvedValue(undefined);
+        const modalAlert = vi.fn();
+        const preSendCommand = makePreSendCommand(undefined);
+        const okAttachment: StagedAttachment = { encodedBytes: 4 * 1024 * 1024 };
+
+        await buildHandleSend('hello', preSendCommand, spawnSession, [okAttachment], modalAlert);
+
+        expect(spawnSession).toHaveBeenCalledOnce();
+        expect(modalAlert).not.toHaveBeenCalled();
     });
 });

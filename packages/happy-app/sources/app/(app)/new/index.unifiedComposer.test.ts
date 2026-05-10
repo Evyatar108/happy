@@ -57,4 +57,11 @@ describe('/new unified composer wiring', () => {
         const clearIndex = source.indexOf('clearStagedAttachments();', sendIndex);
         expect(clearIndex).toBeGreaterThan(sendIndex);
     });
+
+    it('rejects oversize attachments before spawning a session', () => {
+        const oversizeCheckIndex = source.indexOf('a.encodedBytes > 4 * 1024 * 1024');
+        const spawnIndex = source.indexOf('machineSpawnNewSession({');
+        expect(oversizeCheckIndex).toBeGreaterThan(-1);
+        expect(oversizeCheckIndex).toBeLessThan(spawnIndex);
+    });
 });

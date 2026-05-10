@@ -226,6 +226,11 @@ function NewSessionScreen() {
             return;
         }
 
+        if (stagedAttachments.some((a) => a.encodedBytes > 4 * 1024 * 1024)) {
+            Modal.alert(t('common.error'), t('errors.attachmentTooLarge'));
+            return;
+        }
+
         setIsSpawning(true);
         try {
             const pathToUse = trimPathInput(selectedPath) || '~';
