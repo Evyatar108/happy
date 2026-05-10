@@ -271,30 +271,37 @@ Goal: reduce visual bloat, improve scanability, and make high-priority work easi
 
 ## P4. File links, changed-files review, and attachments
 
+**Status: Shipped 2026-05-10** — merged as `c094386e` from `ralph/p4-file-links-changed-files-review-attachments`. See `docs/fork-roadmap.md` shipped log for the full per-story breakdown; job artefacts at `.ralph/jobs/p4-file-links-changed-files-review-attachments/`.
+
 Goal: make file references in chat actually useful and make file review/attachment flows feel complete.
 
 ### Required outcomes
 
-- File references in chat should resolve to something real.
-- Clicking a file should open an actual file viewer, not just a dead-looking link.
-- The changed-files review surface should match the underlying data correctly.
-- Composer attachments should work in both new and regular chat flows.
+- ~~File references in chat should resolve to something real.~~ **Shipped** via `MarkdownView` post-process through `splitSessionFileText` against `session.metadata.path` (US-002). Trust gate is reference-Set identity so agent-authored markdown links cannot impersonate trusted post-processed spans.
+- ~~Clicking a file should open an actual file viewer, not just a dead-looking link.~~ **Shipped** — full-screen viewer at `/session/[id]/file?path=<base64url>&line=&column=&refresh=1&view=file|diff` (US-001, US-003).
+- ~~The changed-files review surface should match the underlying data correctly.~~ **Shipped** — Codex approval pane snapshots `rawFileChangesByItemId` via `structuredClone` so the rendered diff is mutation-immune (US-009); git-status sidebar header refresh button + `metadata.path` change invalidation (US-010); deleted-file rows route to `view=diff` instead of shake-and-block.
+- ~~Composer attachments should work in both new and regular chat flows.~~ **Shipped** — shared `useFileAttachment` hook (web: DOM dragover/drop + `<input type=file>` + paste; native: `expo-document-picker`) consumed by both `AgentInput` and `app/(app)/new/index.tsx` (US-005, US-006, US-007). Shared `AttachmentChip` component, 25 MB/file + 100 MB/message guards, leading-dot sanitization, duplicate-send guard.
 
 ### Concrete requirements
 
-- Before rendering a file path as a clickable link, try to resolve it against the remote machine/session context.
-- On click, fetch the file on demand again so the opened file reflects the current remote state.
-- Open files in a full-screen file screen/viewer rather than a tiny inline fragment.
-- Support file drop / attach in both:
-  - the new-session composer
-  - the regular in-chat composer
-- Reuse encrypted file transport/storage already supported by the product where possible instead of inventing a second path.
-- Fix the changed-files review/input mismatch so the review surface corresponds to the right files and content.
+- ~~Before rendering a file path as a clickable link, try to resolve it against the remote machine/session context.~~ **Shipped** via `splitSessionFileText` with `withinSessionRoot` validation against `session.metadata.path`.
+- ~~On click, fetch the file on demand again so the opened file reflects the current remote state.~~ **Shipped** via `refresh=1` URL param — suppresses cached first paint and shows loading overlay until `sessionReadFile` resolves.
+- ~~Open files in a full-screen file screen/viewer rather than a tiny inline fragment.~~ **Shipped** — `SessionView` no longer renders `InlineFileDiff`; all three nav entry points (`SessionView`, `FilesSidebar`, `app/(app)/session/[id]/files.tsx`) push to the file route.
+- ~~Support file drop / attach in both: the new-session composer, the regular in-chat composer.~~ **Shipped** (US-006 + US-007).
+- ~~Reuse encrypted file transport/storage already supported by the product where possible instead of inventing a second path.~~ **Shipped** — attachments uploaded via existing encrypted `sessionWriteFile` to `<sessionRoot>/.happy/attachments/<localId>/<sanitizedName>` with a new `createParents: true` flag. No new RPC. CLI handler hardened with `.happy/attachments/` allowlist + mandatory `validatePathRealpath` (per-segment symlink rejection, root junction/symlink allowed) (US-004).
+- ~~Fix the changed-files review/input mismatch so the review surface corresponds to the right files and content.~~ **Shipped** for both surfaces (Codex approval pane + git-status sidebar).
 
 ### Validation requirements
 
-- Validate on web against a real remote session.
-- Verify both initial resolution and refetch-on-open behavior.
+- ~~Validate on web against a real remote session.~~ **Shipped** — manual e2e script at `packages/happy-app/scripts/e2e/p4-attachments.ts` driven by `codexu-agent-browser` (US-011). Operator-run only; not in CI.
+- ~~Verify both initial resolution and refetch-on-open behavior.~~ **Shipped** — AC15a (click + viewer with current content) + AC15b (edit remote, re-click, v1 never paints between click and fresh resolve, polled across ≥3 frames).
+
+### Known follow-ups (post-ship)
+
+- Native `DocumentPickerAsset.size ?? 0` bypass guard fix needed for native pass (web e2e doesn't exercise the native picker).
+- Click-time session-root re-validation in `MarkdownView` as defense-in-depth on top of the reference-Set trust gate (agent bypass already blocked).
+- Tighten AC15e e2e to assert exact per-file diff bodies, not just filenames.
+- `AgentInput` attach/remove controls remain interactable while `isSendPending` is true — files added mid-flight can be cleared on resolve.
 
 ## User Research
 
