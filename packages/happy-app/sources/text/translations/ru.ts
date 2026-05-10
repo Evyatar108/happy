@@ -635,6 +635,14 @@ export const ru: TranslationStructure = {
             initializing: 'Инициализация агента...',
             moreTools: ({ count }: { count: number }) => `+${count} ещё ${plural({ count, one: 'инструмент', few: 'инструмента', many: 'инструментов' })}`,
         },
+        taskOutput: {
+            taskId: ({ taskId }: { taskId: string }) => `Task ${taskId}`,
+            blocking: 'Blocking',
+            timeout: ({ timeout }: { timeout: number }) => `Timeout: ${timeout}ms`,
+            parseError: 'Task output result could not be parsed',
+            running: 'Waiting for task output...',
+            truncated: 'Output truncated',
+        },
         multiEdit: {
             editNumber: ({ index, total }: { index: number; total: number }) => `Правка ${index} из ${total}`,
             replaceAll: 'Заменить все',
@@ -647,6 +655,7 @@ export const ru: TranslationStructure = {
             task: 'Задача',
             agent: 'Агент',
             taskOutput: 'Вывод задачи',
+            taskOutputWithId: ({ taskId }: { taskId: string }) => `Task Output · ${taskId}`,
             taskStop: 'Остановить задачу',
             taskList: 'Список задач',
             taskGet: 'Получить задачу',

@@ -619,6 +619,14 @@ export const zhHant: TranslationStructure = {
             initializing: '正在初始化 agent...',
             moreTools: ({ count }: { count: number }) => `+${count} 個更多${plural({ count, singular: '工具', plural: '工具' })}`,
         },
+        taskOutput: {
+            taskId: ({ taskId }: { taskId: string }) => `Task ${taskId}`,
+            blocking: 'Blocking',
+            timeout: ({ timeout }: { timeout: number }) => `Timeout: ${timeout}ms`,
+            parseError: 'Task output result could not be parsed',
+            running: 'Waiting for task output...',
+            truncated: 'Output truncated',
+        },
         multiEdit: {
             editNumber: ({ index, total }: { index: number; total: number }) => `編輯 ${index}/${total}`,
             replaceAll: '全部替換',
@@ -631,6 +639,7 @@ export const zhHant: TranslationStructure = {
             task: '任務',
             agent: '代理',
             taskOutput: '任務輸出',
+            taskOutputWithId: ({ taskId }: { taskId: string }) => `Task Output · ${taskId}`,
             taskStop: '停止任務',
             taskList: '任務列表',
             taskGet: '取得任務',

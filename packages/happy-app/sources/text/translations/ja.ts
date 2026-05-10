@@ -627,6 +627,14 @@ export const ja: TranslationStructure = {
             otherDescription: '自分の回答を入力',
             otherPlaceholder: '回答を入力...',
         },
+        taskOutput: {
+            taskId: ({ taskId }: { taskId: string }) => `Task ${taskId}`,
+            blocking: 'Blocking',
+            timeout: ({ timeout }: { timeout: number }) => `Timeout: ${timeout}ms`,
+            parseError: 'Task output result could not be parsed',
+            running: 'Waiting for task output...',
+            truncated: 'Output truncated',
+        },
         multiEdit: {
             editNumber: ({ index, total }: { index: number; total: number }) => `編集 ${index}/${total}`,
             replaceAll: 'すべて置換',
@@ -639,6 +647,7 @@ export const ja: TranslationStructure = {
             task: 'タスク',
             agent: 'エージェント',
             taskOutput: 'タスク出力',
+            taskOutputWithId: ({ taskId }: { taskId: string }) => `Task Output · ${taskId}`,
             taskStop: 'タスク停止',
             taskList: 'タスク一覧',
             taskGet: 'タスク取得',

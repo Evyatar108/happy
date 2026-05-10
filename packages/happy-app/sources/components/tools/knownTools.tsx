@@ -61,14 +61,38 @@ const taskLikeTool = {
 // These are lightweight management calls — render with the standard tool UI shell so
 // the user sees a title + collapsible input/output instead of raw JSON.
 const taskOutputTool = {
-    title: () => t('tools.names.taskOutput'),
+    title: (opts: { metadata: Metadata | null, tool: ToolCall }) => {
+        const taskId = typeof opts.tool.input?.task_id === 'string' && opts.tool.input.task_id.trim() ? opts.tool.input.task_id : null;
+        return taskId ? t('tools.names.taskOutputWithId', { taskId }) : t('tools.names.taskOutput');
+    },
     icon: ICON_TASK,
-    minimal: true,
+    minimal: false,
+    hideDefaultError: true,
     input: z.object({
         task_id: z.string().optional(),
         block: z.boolean().optional(),
         timeout: z.number().optional(),
     }).partial().passthrough(),
+    result: z.object({
+        retrieval_status: z.string().optional(),
+        output: z.string().optional(),
+        error: z.string().optional(),
+        status: z.string().optional(),
+        truncated: z.boolean().optional(),
+        task: z.object({
+            task_id: z.string().optional(),
+            task_type: z.string().optional(),
+            status: z.string().optional(),
+            description: z.string().optional(),
+            output: z.string().optional(),
+            prompt: z.string().optional(),
+            result: z.string().optional(),
+        }).partial().passthrough().optional(),
+    }).partial().passthrough(),
+    extractStatus: (opts: { metadata: Metadata | null, tool: ToolCall }) => {
+        const taskId = typeof opts.tool.input?.task_id === 'string' && opts.tool.input.task_id.trim() ? opts.tool.input.task_id : null;
+        return taskId ? t('tools.taskOutput.taskId', { taskId }) : null;
+    },
 };
 
 const taskStopTool = {

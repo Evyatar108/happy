@@ -119,6 +119,88 @@ const styles = StyleSheet.create({
             result: 'File updated successfully',
             children: []
         },
+        taskOutputRunning: {
+            name: 'TaskOutput',
+            state: 'running' as const,
+            input: {
+                task_id: 'task-running-1',
+                block: true,
+                timeout: 15000,
+            },
+            createdAt: Date.now() - 5000,
+            startedAt: Date.now() - 4900,
+            completedAt: null,
+            description: null,
+            children: []
+        },
+        taskOutputSchemaMatch: {
+            name: 'TaskOutput',
+            state: 'completed' as const,
+            input: {
+                task_id: 'task-schema-1',
+                block: false,
+                timeout: 30000,
+            },
+            createdAt: Date.now() - 5200,
+            startedAt: Date.now() - 5100,
+            completedAt: Date.now() - 4200,
+            description: null,
+            result: {
+                retrieval_status: 'success',
+                task: {
+                    task_id: 'task-schema-1',
+                    task_type: 'general',
+                    status: 'completed',
+                    description: 'Summarize recent test failures',
+                    output: 'Found two failing assertions in TaskOutputView.test.tsx and grouped them by fallback branch.',
+                    prompt: 'Summarize recent test failures',
+                    result: 'Summary complete',
+                }
+            },
+            children: []
+        },
+        taskOutputString: {
+            name: 'TaskOutput',
+            state: 'completed' as const,
+            input: {
+                task_id: 'task-string-1',
+            },
+            createdAt: Date.now() - 5400,
+            startedAt: Date.now() - 5300,
+            completedAt: Date.now() - 4400,
+            description: null,
+            result: 'Plain string task output excerpt.',
+            children: []
+        },
+        taskOutputObjectMismatch: {
+            name: 'TaskOutput',
+            state: 'completed' as const,
+            input: {
+                task_id: 'task-unknown-1',
+            },
+            createdAt: Date.now() - 5600,
+            startedAt: Date.now() - 5500,
+            completedAt: Date.now() - 4600,
+            description: null,
+            result: {
+                unexpected: true,
+                payload: 'This shape intentionally has no canonical TaskOutput fields.',
+            },
+            children: []
+        },
+        taskOutputNull: {
+            name: 'TaskOutput',
+            state: 'completed' as const,
+            input: {
+                task_id: 'task-null-1',
+            },
+            createdAt: Date.now() - 5800,
+            startedAt: Date.now() - 5700,
+            completedAt: Date.now() - 4800,
+            description: null,
+            result: null,
+            children: []
+        },
         bash: {
             name: 'Bash',
             state: 'completed' as const,
@@ -493,6 +575,11 @@ export function formatTime(date: Date): string {
                         {selectedExample === 'all' || selectedExample === 'p1BugFixes' ? (
                             <>
                                 <Text style={styles.subsectionTitle}>P1 Bug Fixes</Text>
+                                {renderExample('taskOutputRunning', examples.taskOutputRunning, null, 'p1BugFixes')}
+                                {renderExample('taskOutputSchemaMatch', examples.taskOutputSchemaMatch, null, 'p1BugFixes')}
+                                {renderExample('taskOutputString', examples.taskOutputString, null, 'p1BugFixes')}
+                                {renderExample('taskOutputObjectMismatch', examples.taskOutputObjectMismatch, null, 'p1BugFixes')}
+                                {renderExample('taskOutputNull', examples.taskOutputNull, null, 'p1BugFixes')}
                                 {renderExample('editFix', examples.editFix, pathFixtureMetadata, 'p1BugFixes')}
                                 {renderExample('multiEditFix', examples.multiEditFix, pathFixtureMetadata, 'p1BugFixes')}
                             </>

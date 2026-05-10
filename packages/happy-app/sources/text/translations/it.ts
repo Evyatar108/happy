@@ -624,6 +624,14 @@ export const it: TranslationStructure = {
             otherDescription: 'Scrivi la tua risposta',
             otherPlaceholder: 'Scrivi la tua risposta...',
         },
+        taskOutput: {
+            taskId: ({ taskId }: { taskId: string }) => `Task ${taskId}`,
+            blocking: 'Blocking',
+            timeout: ({ timeout }: { timeout: number }) => `Timeout: ${timeout}ms`,
+            parseError: 'Task output result could not be parsed',
+            running: 'Waiting for task output...',
+            truncated: 'Output truncated',
+        },
         multiEdit: {
             editNumber: ({ index, total }: { index: number; total: number }) => `Modifica ${index} di ${total}`,
             replaceAll: 'Sostituisci tutto',
@@ -636,6 +644,7 @@ export const it: TranslationStructure = {
             task: 'Attività',
             agent: 'Agente',
             taskOutput: 'Output attività',
+            taskOutputWithId: ({ taskId }: { taskId: string }) => `Task Output · ${taskId}`,
             taskStop: 'Ferma attività',
             taskList: 'Elenco attività',
             taskGet: 'Ottieni attività',

@@ -619,6 +619,14 @@ export const ca: TranslationStructure = {
             initializing: 'Inicialitzant l\'agent...',
             moreTools: ({ count }: { count: number }) => `+${count} més ${plural({ count, singular: 'eina', plural: 'eines' })}`,
         },
+        taskOutput: {
+            taskId: ({ taskId }: { taskId: string }) => `Task ${taskId}`,
+            blocking: 'Blocking',
+            timeout: ({ timeout }: { timeout: number }) => `Timeout: ${timeout}ms`,
+            parseError: 'Task output result could not be parsed',
+            running: 'Waiting for task output...',
+            truncated: 'Output truncated',
+        },
         multiEdit: {
             editNumber: ({ index, total }: { index: number; total: number }) => `Edició ${index} de ${total}`,
             replaceAll: 'Reemplaça tot',
@@ -631,6 +639,7 @@ export const ca: TranslationStructure = {
             task: 'Tasca',
             agent: 'Agent',
             taskOutput: 'Sortida de tasca',
+            taskOutputWithId: ({ taskId }: { taskId: string }) => `Task Output · ${taskId}`,
             taskStop: 'Atura tasca',
             taskList: 'Llista de tasques',
             taskGet: 'Obtén tasca',
