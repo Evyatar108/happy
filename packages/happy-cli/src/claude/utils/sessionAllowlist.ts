@@ -27,6 +27,10 @@ export class SessionAllowlist {
             return;
         }
 
+        if (response.decision === 'denied') {
+            return;
+        }
+
         if (!response.approved) {
             return;
         }

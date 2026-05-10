@@ -85,4 +85,26 @@ describe('SessionAllowlist.rehydrateFromAgentState', () => {
         expect(() => allowlist.rehydrateFromAgentState(null)).not.toThrow();
         expect(allowlist.isAllowed('Write', {})).toBe(true);
     });
+
+    it('does not populate allowlist when status=approved but decision=denied (cross-state record)', () => {
+        const allowlist = new SessionAllowlist();
+
+        allowlist.rehydrateFromAgentState({
+            completedRequests: {
+                'cross-state': {
+                    tool: 'Write',
+                    arguments: { file_path: '/tmp/a', content: 'x' },
+                    createdAt: 1,
+                    completedAt: 2,
+                    status: 'approved',
+                    decision: 'denied',
+                    allowTools: ['Write'],
+                    mode: 'acceptEdits',
+                },
+            },
+        });
+
+        expect(allowlist.isAllowed('Write', { file_path: '/tmp/a', content: 'x' })).toBe(false);
+        expect(allowlist.isAllowed('Edit', { file_path: '/tmp/a', old_string: 'a', new_string: 'b' })).toBe(false);
+    });
 });
