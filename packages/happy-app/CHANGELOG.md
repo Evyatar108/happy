@@ -2,7 +2,7 @@
 
 ## Version 29 - 2026-05-10
 
-Session avatars can now use a topic-aware brutalist style. Sessions about the same topic pick the same kind of brutalist icon, and the next update adds a drawer control for pinning one icon when you want a session to stay visually fixed.
+Session avatars can now use a topic-aware brutalist style. Sessions about the same topic pick the same kind of brutalist icon, and a new pin toggle in the chat drawer lets you freeze that icon so the session stays visually fixed even if its topic changes. The pin control appears in the drawer when the topic-aware brutalist style is active.
 
 - Added topic-aware brutalist avatars as a new opt-in avatar style in Settings -> Appearance.
 - Added localized labels for pinning and unpinning a session icon from the chat drawer.
