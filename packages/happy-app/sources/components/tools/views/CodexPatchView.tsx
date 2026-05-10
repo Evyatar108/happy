@@ -17,6 +17,10 @@ interface CodexPatchViewProps {
 }
 
 type CodexPatchEntry = {
+    type?: 'add' | 'delete' | 'update' | string;
+    unified_diff?: string;
+    content?: string;
+    move_path?: string | null;
     diff?: string;
     kind?: {
         type?: string;
@@ -49,6 +53,25 @@ type PatchInput =
     | { kind: 'pair'; oldText: string; newText: string };
 
 function getPatchInput(change: CodexPatchEntry): PatchInput | null {
+    if (typeof change.type === 'string') {
+        switch (change.type) {
+            case 'update':
+                return typeof change.unified_diff === 'string'
+                    ? { kind: 'patch', patch: change.unified_diff }
+                    : null;
+            case 'add':
+                return typeof change.content === 'string'
+                    ? { kind: 'pair', oldText: '', newText: change.content }
+                    : null;
+            case 'delete':
+                return typeof change.content === 'string'
+                    ? { kind: 'pair', oldText: change.content, newText: '' }
+                    : null;
+            default:
+                return null;
+        }
+    }
+
     if (typeof change.diff === 'string') {
         return { kind: 'patch', patch: change.diff };
     }
@@ -65,6 +88,19 @@ function getPatchInput(change: CodexPatchEntry): PatchInput | null {
 }
 
 function getPatchKindLabel(change: CodexPatchEntry): string | null {
+    if (typeof change.type === 'string') {
+        switch (change.type) {
+            case 'add':
+                return 'new';
+            case 'delete':
+                return 'delete';
+            case 'update':
+                return change.move_path ? 'move' : 'edit';
+            default:
+                return null;
+        }
+    }
+
     switch (change.kind?.type) {
         case 'add':
             return 'new';
@@ -75,6 +111,13 @@ function getPatchKindLabel(change: CodexPatchEntry): string | null {
         default:
             return null;
     }
+}
+
+function getMovePath(change: CodexPatchEntry): string | null {
+    if (typeof change.type === 'string') {
+        return change.move_path || null;
+    }
+    return change.move_path || change.kind?.move_path || null;
 }
 
 export const CodexPatchView = React.memo<CodexPatchViewProps>(({ tool, metadata }) => {
@@ -97,7 +140,8 @@ export const CodexPatchView = React.memo<CodexPatchViewProps>(({ tool, metadata 
                 const filePath = resolvePath(file, metadata);
                 const diffInput = getPatchInput(change);
                 const kindLabel = getPatchKindLabel(change);
-                const movePath = change.kind?.move_path ? resolvePath(change.kind.move_path, metadata) : null;
+                const rawMovePath = getMovePath(change);
+                const movePath = rawMovePath ? resolvePath(rawMovePath, metadata) : null;
                 const fileName = file.split('/').pop() ?? file;
                 const stats = !diffInput
                     ? null

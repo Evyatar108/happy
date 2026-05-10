@@ -78,20 +78,33 @@ Verified: `pnpm --filter happy-app typecheck` clean, 7 existing CollapsibleDiffP
 
 Verified: 37 tests pass (3 new + 34 existing).
 
-## Task management tools rendering — FIXED
+## P1 tool rendering sweep — FIXED
 
-**Symptom:** `TaskOutput`, `TaskStop`, `TaskList`, `TaskGet`, `TaskUpdate` tool calls render with raw JSON input/output instead of a clean tool UI.
+**Symptom:** Several transcript tool bubbles were empty or misleading. `TaskOutput` and `TaskStop` were registered as minimal tools, which made them header-only even when a result was available. `Edit` and `MultiEdit` rendered diff bodies but did not pass the tool's `file_path` into `ToolDiffView`, so each diff fell back to `file.txt`. `CodexPatch` only understood an older wrapper shape and missed the real Codex `FileChange` tagged union shape.
 
-**Root cause:** None of these tools were registered in `packages/happy-app/sources/components/tools/knownTools.tsx`. Without an entry there, `ToolView.tsx` falls through to the generic JSON dump fallback at line 258-275.
+**Root cause:** The broken renderers were shape/dispatch mismatches rather than a single task-tool registration problem:
+- `TaskOutput` and `TaskStop` needed specialized renderers plus `minimal: false`; generic tool metadata alone suppresses the body.
+- `Edit` and `MultiEdit` already parsed `file_path` for titles, but the compact and full diff views never threaded the resolved path into `ToolDiffView`.
+- Malformed `Edit` / `MultiEdit` inputs failed Zod parsing silently instead of rendering a visible error block.
+- `CodexPatchView` preserved legacy wrapper branches but did not branch first on the flat `type: 'update' | 'add' | 'delete'` file-change union emitted by Codex.
 
-**Fix:** Registered all five tools in `knownTools` with title (from i18n), `ICON_TASK` icon, `minimal: true`, and a permissive input schema (`task_id`, etc.). Added `tools.names.taskOutput / taskStop / taskList / taskGet / taskUpdate` to `_default.ts` + all 10 locale files. The standard `ToolView` shell now renders title + collapsible input/output for these tools.
+**Fix:** Added first-class `TaskOutputView` and `TaskStopView` renderers with five-branch result fallback ladders: running, canonical object, string, unknown-object JSON, and null/undefined parse-error. Both tools now show task-id titles/chips, use permissive result schemas, suppress duplicate default error footers, and warn rather than blanking on unknown shapes. `EditView`, `MultiEditView`, and their full-view siblings now resolve `file_path` only inside the successful Zod parse branch and pass the workspace-relative label into each diff. Failed `Edit` / `MultiEdit` parses render a visible `ToolError` block and emit a `[Tool] Zod parse failed: ...` warning. `CodexPatchView` now prefers the flat Codex file-change tagged union when `change.type` is present, while preserving the legacy wrapper branches.
+
+**Dev fixture:** `/dev/tools2` has a `P1 Bug Fixes` filter section with deterministic fixtures for every fixed branch: TaskOutput x5, TaskStop x5, `editFix`, `multiEditFix`, and CodexPatch update/move/add/delete/legacy-wrapper. Metadata-bearing fixtures use `{ path: '/Users/steve/project', host: 'devbox' }` so browser verification can confirm workspace-relative labels; the older null-metadata edit fixture remains available to verify raw absolute-path fallback.
+
+**Before / after notes:** Before the sweep, `TaskOutput` and `TaskStop` could appear as header-only/minimal bubbles, `Edit` and `MultiEdit` diffs could show `file.txt`, malformed edit inputs could render as empty bubbles, and current Codex patch payloads could show headers without usable diff bodies. After the sweep, the `/dev/tools2` P1 fixture renders non-empty bodies for every branch, workspace-relative labels such as `src/components/Header.tsx`, the deliberate raw fallback `/Users/steve/project/package.json`, visible parse-error blocks, and CodexPatch edit/move/new/delete bodies.
+
+**Captured tool-result payloads:** Claude Code 2.1.138 produced `TaskOutput` results shaped like `{ retrieval_status: 'success', task: { task_id, task_type, status, description, output, prompt, result } }`. `TaskStop` can produce a plain string error result such as `Error: Task <id> is not running (status: completed)`, so the renderer treats string results as first-class outcomes.
 
 **Files changed:**
-- `packages/happy-app/sources/components/tools/knownTools.tsx` — added 5 tool entries
-- `packages/happy-app/sources/text/_default.ts` — added 5 i18n keys
-- `packages/happy-app/sources/text/translations/{en,ca,es,it,ja,pl,pt,ru,zh-Hans,zh-Hant}.ts` — translated keys
+- `packages/happy-app/sources/components/tools/views/{TaskOutputView,TaskStopView,EditView,EditViewFull,MultiEditView,MultiEditViewFull,CodexPatchView}.tsx`
+- `packages/happy-app/sources/components/tools/views/_all.tsx`
+- `packages/happy-app/sources/components/tools/knownTools.tsx`
+- `packages/happy-app/sources/app/(app)/dev/tools2.tsx`
+- `packages/happy-app/sources/text/_default.ts` and `packages/happy-app/sources/text/translations/*.ts`
+- `packages/happy-app/sources/components/tools/views/*.test.tsx` plus shared `toolViewTestUtils.tsx`
 
-Verified: `pnpm --filter happy-app typecheck` clean; i18n parity test passes.
+Verified: `pnpm --filter happy-app typecheck`, `pnpm -r typecheck`, `pnpm --filter happy-app test --run`, and web reproduction at `/dev/tools2`.
 
 ## Other P1 bugs — not yet investigated
 

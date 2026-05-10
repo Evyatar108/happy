@@ -4,9 +4,11 @@ import { Stack } from 'expo-router';
 import { ToolView } from '@/components/tools/ToolView';
 import { ItemGroup } from '@/components/ItemGroup';
 import { Item } from '@/components/Item';
+import { Metadata } from '@/sync/storageTypes';
 
 export default function Tools2Screen() {
     const [selectedExample, setSelectedExample] = useState<string>('all');
+    const pathFixtureMetadata: Metadata = { path: '/Users/steve/project', host: 'devbox' };
 
     // Example tool calls data - matching ToolCall interface
     const examples = {
@@ -74,6 +76,317 @@ const styles = StyleSheet.create({
             completedAt: Date.now() - 3000,
             description: null,
             result: 'File updated successfully',
+            children: []
+        },
+        editFix: {
+            name: 'Edit',
+            state: 'completed' as const,
+            input: {
+                file_path: '/Users/steve/project/src/components/Header.tsx',
+                old_string: 'export const Header = ({ title }) => {',
+                new_string: 'export const Header = ({ title, subtitle }) => {',
+                replace_all: false
+            },
+            createdAt: Date.now() - 4500,
+            startedAt: Date.now() - 4400,
+            completedAt: Date.now() - 3500,
+            description: null,
+            result: 'File updated successfully',
+            children: []
+        },
+        multiEditFix: {
+            name: 'MultiEdit',
+            state: 'completed' as const,
+            input: {
+                file_path: '/Users/steve/project/src/components/Header.tsx',
+                edits: [
+                    {
+                        old_string: 'export const Header = ({ title }) => {',
+                        new_string: 'export const Header = ({ title, subtitle }) => {',
+                        replace_all: false
+                    },
+                    {
+                        old_string: '<Text style={styles.title}>{title}</Text>',
+                        new_string: '<Text style={styles.title}>{title}</Text>\n            <Text style={styles.subtitle}>{subtitle}</Text>',
+                        replace_all: true
+                    }
+                ]
+            },
+            createdAt: Date.now() - 4600,
+            startedAt: Date.now() - 4500,
+            completedAt: Date.now() - 3600,
+            description: null,
+            result: 'File updated successfully',
+            children: []
+        },
+        taskOutputRunning: {
+            name: 'TaskOutput',
+            state: 'running' as const,
+            input: {
+                task_id: 'task-running-1',
+                block: true,
+                timeout: 15000,
+            },
+            createdAt: Date.now() - 5000,
+            startedAt: Date.now() - 4900,
+            completedAt: null,
+            description: null,
+            children: []
+        },
+        taskOutputSchemaMatch: {
+            name: 'TaskOutput',
+            state: 'completed' as const,
+            input: {
+                task_id: 'task-schema-1',
+                block: false,
+                timeout: 30000,
+            },
+            createdAt: Date.now() - 5200,
+            startedAt: Date.now() - 5100,
+            completedAt: Date.now() - 4200,
+            description: null,
+            result: {
+                retrieval_status: 'success',
+                task: {
+                    task_id: 'task-schema-1',
+                    task_type: 'general',
+                    status: 'completed',
+                    description: 'Summarize recent test failures',
+                    output: 'Found two failing assertions in TaskOutputView.test.tsx and grouped them by fallback branch.',
+                    prompt: 'Summarize recent test failures',
+                    result: 'Summary complete',
+                }
+            },
+            children: []
+        },
+        taskOutputString: {
+            name: 'TaskOutput',
+            state: 'completed' as const,
+            input: {
+                task_id: 'task-string-1',
+            },
+            createdAt: Date.now() - 5400,
+            startedAt: Date.now() - 5300,
+            completedAt: Date.now() - 4400,
+            description: null,
+            result: 'Plain string task output excerpt.',
+            children: []
+        },
+        taskOutputObjectMismatch: {
+            name: 'TaskOutput',
+            state: 'completed' as const,
+            input: {
+                task_id: 'task-unknown-1',
+            },
+            createdAt: Date.now() - 5600,
+            startedAt: Date.now() - 5500,
+            completedAt: Date.now() - 4600,
+            description: null,
+            result: {
+                unexpected: true,
+                payload: 'This shape intentionally has no canonical TaskOutput fields.',
+            },
+            children: []
+        },
+        taskOutputNull: {
+            name: 'TaskOutput',
+            state: 'completed' as const,
+            input: {
+                task_id: 'task-null-1',
+            },
+            createdAt: Date.now() - 5800,
+            startedAt: Date.now() - 5700,
+            completedAt: Date.now() - 4800,
+            description: null,
+            result: null,
+            children: []
+        },
+        taskStopRunning: {
+            name: 'TaskStop',
+            state: 'running' as const,
+            input: {
+                task_id: 'stop-running-1',
+            },
+            createdAt: Date.now() - 6000,
+            startedAt: Date.now() - 5900,
+            completedAt: null,
+            description: null,
+            children: []
+        },
+        taskStopSchemaMatch: {
+            name: 'TaskStop',
+            state: 'completed' as const,
+            input: {
+                task_id: 'stop-schema-1',
+            },
+            createdAt: Date.now() - 6200,
+            startedAt: Date.now() - 6100,
+            completedAt: Date.now() - 5200,
+            description: null,
+            result: {
+                stopped: true,
+                status: 'completed',
+            },
+            children: []
+        },
+        taskStopString: {
+            name: 'TaskStop',
+            state: 'error' as const,
+            input: {
+                task_id: 'stop-string-1',
+            },
+            createdAt: Date.now() - 6400,
+            startedAt: Date.now() - 6300,
+            completedAt: Date.now() - 5400,
+            description: null,
+            result: 'Error: Task stop-string-1 is not running (status: completed)',
+            children: []
+        },
+        taskStopObjectMismatch: {
+            name: 'TaskStop',
+            state: 'completed' as const,
+            input: {
+                task_id: 'stop-unknown-1',
+            },
+            createdAt: Date.now() - 6600,
+            startedAt: Date.now() - 6500,
+            completedAt: Date.now() - 5600,
+            description: null,
+            result: {
+                unexpected: true,
+                payload: 'This shape intentionally has no canonical TaskStop fields.',
+            },
+            children: []
+        },
+        taskStopNull: {
+            name: 'TaskStop',
+            state: 'completed' as const,
+            input: {
+                task_id: 'stop-null-1',
+            },
+            createdAt: Date.now() - 6800,
+            startedAt: Date.now() - 6700,
+            completedAt: Date.now() - 5800,
+            description: null,
+            result: null,
+            children: []
+        },
+        codexPatchUpdate: {
+            name: 'CodexPatch',
+            state: 'completed' as const,
+            input: {
+                changes: {
+                    '/Users/steve/project/src/components/Header.tsx': {
+                        type: 'update',
+                        unified_diff: `--- a/src/components/Header.tsx
++++ b/src/components/Header.tsx
+@@ -1,5 +1,6 @@
+ export function Header() {
++  const title = 'Dashboard';
+   return (
+     <header>
+-      <h1>Home</h1>
++      <h1>{title}</h1>
+     </header>
+   );`,
+                        move_path: null,
+                    },
+                },
+            },
+            createdAt: Date.now() - 7000,
+            startedAt: Date.now() - 6900,
+            completedAt: Date.now() - 6000,
+            description: 'Apply update patch',
+            result: 'Patch applied',
+            children: []
+        },
+        codexPatchUpdateMove: {
+            name: 'CodexPatch',
+            state: 'completed' as const,
+            input: {
+                changes: {
+                    '/Users/steve/project/src/components/Header.tsx': {
+                        type: 'update',
+                        unified_diff: `--- a/src/components/Header.tsx
++++ b/src/components/AppHeader.tsx
+@@ -1,4 +1,4 @@
+-export function Header() {
++export function AppHeader() {
+   return <header>Home</header>;
+ }`,
+                        move_path: '/Users/steve/project/src/components/AppHeader.tsx',
+                    },
+                },
+            },
+            createdAt: Date.now() - 7200,
+            startedAt: Date.now() - 7100,
+            completedAt: Date.now() - 6200,
+            description: 'Apply move patch',
+            result: 'Patch applied',
+            children: []
+        },
+        codexPatchAdd: {
+            name: 'CodexPatch',
+            state: 'completed' as const,
+            input: {
+                changes: {
+                    '/Users/steve/project/src/components/Footer.tsx': {
+                        type: 'add',
+                        content: `export function Footer() {
+  return <footer>Ready</footer>;
+}`,
+                    },
+                },
+            },
+            createdAt: Date.now() - 7400,
+            startedAt: Date.now() - 7300,
+            completedAt: Date.now() - 6400,
+            description: 'Apply add patch',
+            result: 'Patch applied',
+            children: []
+        },
+        codexPatchDelete: {
+            name: 'CodexPatch',
+            state: 'completed' as const,
+            input: {
+                changes: {
+                    '/Users/steve/project/src/legacy/OldHeader.tsx': {
+                        type: 'delete',
+                        content: `export function OldHeader() {
+  return <header>Legacy</header>;
+}`,
+                    },
+                },
+            },
+            createdAt: Date.now() - 7600,
+            startedAt: Date.now() - 7500,
+            completedAt: Date.now() - 6600,
+            description: 'Apply delete patch',
+            result: 'Patch applied',
+            children: []
+        },
+        codexPatchLegacyWrapper: {
+            name: 'CodexPatch',
+            state: 'completed' as const,
+            input: {
+                changes: {
+                    '/Users/steve/project/src/utils/format.ts': {
+                        kind: {
+                            type: 'update',
+                            move_path: null,
+                        },
+                        modify: {
+                            old_content: 'export const format = value => value;',
+                            new_content: 'export const format = (value: string) => value.trim();',
+                        },
+                    },
+                },
+            },
+            createdAt: Date.now() - 7800,
+            startedAt: Date.now() - 7700,
+            completedAt: Date.now() - 6800,
+            description: 'Apply legacy wrapper patch',
+            result: 'Patch applied',
             children: []
         },
         bash: {
@@ -358,8 +671,8 @@ export function formatTime(date: Date): string {
         }
     };
 
-    const renderExample = (key: string, example: any) => {
-        if (selectedExample !== 'all' && selectedExample !== key) {
+    const renderExample = (key: string, example: any, metadata: Metadata | null = null, group?: string) => {
+        if (selectedExample !== 'all' && selectedExample !== key && selectedExample !== group) {
             return null;
         }
 
@@ -368,7 +681,7 @@ export function formatTime(date: Date): string {
                 <Text style={styles.exampleTitle}>{key}</Text>
                 <ToolView 
                     tool={example} 
-                    metadata={null}
+                    metadata={metadata}
                     onPress={() => console.log(`Pressed tool: ${key}`)}
                 />
             </View>
@@ -426,6 +739,11 @@ export function formatTime(date: Date): string {
                             selected={selectedExample === 'status'}
                             onPress={() => setSelectedExample('status')}
                         />
+                        <Item
+                            title="P1 Bug Fixes"
+                            selected={selectedExample === 'p1BugFixes'}
+                            onPress={() => setSelectedExample('p1BugFixes')}
+                        />
                     </ItemGroup>
 
                     <View style={styles.examplesSection}>
@@ -440,6 +758,30 @@ export function formatTime(date: Date): string {
 
                         {selectedExample === 'all' || selectedExample === 'edit' ? (
                             renderExample('edit', examples.edit)
+                        ) : null}
+
+                        {selectedExample === 'all' || selectedExample === 'p1BugFixes' ? (
+                            <ItemGroup title="P1 Bug Fixes" containerStyle={styles.fixtureGroupContainer}>
+                                <>
+                                    {renderExample('taskOutputRunning', examples.taskOutputRunning, null, 'p1BugFixes')}
+                                    {renderExample('taskOutputSchemaMatch', examples.taskOutputSchemaMatch, null, 'p1BugFixes')}
+                                    {renderExample('taskOutputString', examples.taskOutputString, null, 'p1BugFixes')}
+                                    {renderExample('taskOutputObjectMismatch', examples.taskOutputObjectMismatch, null, 'p1BugFixes')}
+                                    {renderExample('taskOutputNull', examples.taskOutputNull, null, 'p1BugFixes')}
+                                    {renderExample('taskStopRunning', examples.taskStopRunning, null, 'p1BugFixes')}
+                                    {renderExample('taskStopSchemaMatch', examples.taskStopSchemaMatch, null, 'p1BugFixes')}
+                                    {renderExample('taskStopString', examples.taskStopString, null, 'p1BugFixes')}
+                                    {renderExample('taskStopObjectMismatch', examples.taskStopObjectMismatch, null, 'p1BugFixes')}
+                                    {renderExample('taskStopNull', examples.taskStopNull, null, 'p1BugFixes')}
+                                    {renderExample('editFix', examples.editFix, pathFixtureMetadata, 'p1BugFixes')}
+                                    {renderExample('multiEditFix', examples.multiEditFix, pathFixtureMetadata, 'p1BugFixes')}
+                                    {renderExample('codexPatchUpdate', examples.codexPatchUpdate, pathFixtureMetadata, 'p1BugFixes')}
+                                    {renderExample('codexPatchUpdateMove', examples.codexPatchUpdateMove, pathFixtureMetadata, 'p1BugFixes')}
+                                    {renderExample('codexPatchAdd', examples.codexPatchAdd, pathFixtureMetadata, 'p1BugFixes')}
+                                    {renderExample('codexPatchDelete', examples.codexPatchDelete, pathFixtureMetadata, 'p1BugFixes')}
+                                    {renderExample('codexPatchLegacyWrapper', examples.codexPatchLegacyWrapper, pathFixtureMetadata, 'p1BugFixes')}
+                                </>
+                            </ItemGroup>
                         ) : null}
 
                         {selectedExample === 'all' || selectedExample === 'bash' ? (
@@ -528,6 +870,14 @@ const styles = StyleSheet.create({
     exampleContainer: {
         marginBottom: 16,
         paddingHorizontal: 16,
+    },
+    fixtureGroupContainer: {
+        backgroundColor: 'transparent',
+        marginHorizontal: 0,
+        borderRadius: 0,
+        shadowOpacity: 0,
+        elevation: 0,
+        overflow: 'visible',
     },
     exampleTitle: {
         fontSize: 14,

@@ -10,6 +10,7 @@ import { ToolHeader } from '@/components/tools/ToolHeader';
 import { ToolStatusIndicator } from '@/components/tools/ToolStatusIndicator';
 import { ChatScaleLiveContext } from '@/components/ChatScaleLiveContext';
 import { Message } from '@/sync/typesMessage';
+import { Metadata } from '@/sync/storageTypes';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Typography } from '@/constants/Typography';
 
@@ -101,13 +102,13 @@ export default React.memo(() => {
                 />
             )}
             <Deferred>
-                <FullView message={message} />
+                <FullView message={message} metadata={session.metadata ?? null} />
             </Deferred>
         </>
     );
 });
 
-function FullView(props: { message: Message }) {
+function FullView(props: { message: Message; metadata: Metadata | null }) {
     const { theme } = useUnistyles();
     const styles = stylesheet;
     const frozenMultiplier = useSharedValue(1);
@@ -116,7 +117,7 @@ function FullView(props: { message: Message }) {
     if (props.message.kind === 'tool-call') {
         return (
             <ChatScaleLiveContext.Provider value={{ liveMultiplier: frozenMultiplier, isActive: frozenIsActive }}>
-                <ToolFullView tool={props.message.tool} messages={props.message.children} />
+                <ToolFullView tool={props.message.tool} metadata={props.metadata} messages={props.message.children} />
             </ChatScaleLiveContext.Provider>
         );
     }

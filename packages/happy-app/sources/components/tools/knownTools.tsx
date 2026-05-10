@@ -58,26 +58,63 @@ const taskLikeTool = {
 };
 
 // Claude SDK background-task management tools (TaskOutput, TaskStop, TaskList, etc.).
-// These are lightweight management calls — render with the standard tool UI shell so
-// the user sees a title + collapsible input/output instead of raw JSON.
+// TaskOutput and TaskStop render via specialized TaskOutputView / TaskStopView with
+// permissive result schemas; minimal: false ensures the body always shows.
 const taskOutputTool = {
-    title: () => t('tools.names.taskOutput'),
+    title: (opts: { metadata: Metadata | null, tool: ToolCall }) => {
+        const taskId = typeof opts.tool.input?.task_id === 'string' && opts.tool.input.task_id.trim() ? opts.tool.input.task_id : null;
+        return taskId ? t('tools.names.taskOutputWithId', { taskId }) : t('tools.names.taskOutput');
+    },
     icon: ICON_TASK,
-    minimal: true,
+    minimal: false,
+    hideDefaultError: true,
     input: z.object({
         task_id: z.string().optional(),
         block: z.boolean().optional(),
         timeout: z.number().optional(),
     }).partial().passthrough(),
+    result: z.object({
+        retrieval_status: z.string().optional(),
+        output: z.string().optional(),
+        error: z.string().optional(),
+        status: z.string().optional(),
+        truncated: z.boolean().optional(),
+        task: z.object({
+            task_id: z.string().optional(),
+            task_type: z.string().optional(),
+            status: z.string().optional(),
+            description: z.string().optional(),
+            output: z.string().optional(),
+            prompt: z.string().optional(),
+            result: z.unknown().optional(),
+        }).partial().passthrough().optional(),
+    }).partial().passthrough(),
+    extractStatus: (opts: { metadata: Metadata | null, tool: ToolCall }) => {
+        const taskId = typeof opts.tool.input?.task_id === 'string' && opts.tool.input.task_id.trim() ? opts.tool.input.task_id : null;
+        return taskId ? t('tools.taskOutput.taskId', { taskId }) : null;
+    },
 };
 
 const taskStopTool = {
-    title: () => t('tools.names.taskStop'),
+    title: (opts: { metadata: Metadata | null, tool: ToolCall }) => {
+        const taskId = typeof opts.tool.input?.task_id === 'string' && opts.tool.input.task_id.trim() ? opts.tool.input.task_id : null;
+        return taskId ? t('tools.names.taskStopWithId', { taskId }) : t('tools.names.taskStop');
+    },
     icon: ICON_TASK,
-    minimal: true,
+    minimal: false,
+    hideDefaultError: true,
     input: z.object({
         task_id: z.string().optional(),
     }).partial().passthrough(),
+    result: z.object({
+        stopped: z.boolean().optional(),
+        error: z.string().optional(),
+        status: z.string().optional(),
+    }).partial().passthrough(),
+    extractStatus: (opts: { metadata: Metadata | null, tool: ToolCall }) => {
+        const taskId = typeof opts.tool.input?.task_id === 'string' && opts.tool.input.task_id.trim() ? opts.tool.input.task_id : null;
+        return taskId ? t('tools.taskStop.taskId', { taskId }) : null;
+    },
 };
 
 const taskListTool = {
@@ -755,6 +792,10 @@ export const knownTools = {
         input: z.object({
             auto_approved: z.boolean().optional().describe('Whether changes were auto-approved'),
             changes: z.record(z.string(), z.object({
+                type: z.enum(['add', 'delete', 'update']).optional(),
+                unified_diff: z.string().optional(),
+                content: z.string().optional(),
+                move_path: z.string().nullable().optional(),
                 diff: z.string().optional(),
                 kind: z.object({
                     type: z.string().optional(),

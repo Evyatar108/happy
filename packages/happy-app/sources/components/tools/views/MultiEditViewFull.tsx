@@ -9,6 +9,9 @@ import { trimIdent } from '@/utils/trimIdent';
 import { t } from '@/text';
 import { AnimatedText } from '@/components/StyledText';
 import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
+import { resolvePath } from '@/utils/pathUtils';
+import { ToolError } from '@/components/tools/ToolError';
+import { warnToolInputParseFailure } from './parseFailure';
 
 interface MultiEditViewFullProps {
     tool: ToolCall;
@@ -25,22 +28,27 @@ function AnimatedMultiEditText(props: React.ComponentProps<typeof AnimatedText> 
 export const MultiEditViewFull = React.memo<MultiEditViewFullProps>(({ tool, metadata }) => {
     const { input } = tool;
 
-    let edits: Array<{ old_string: string; new_string: string; replace_all?: boolean }> = [];
-
     const parsed = knownTools.MultiEdit.input.safeParse(input);
-    if (parsed.success && parsed.data.edits) {
-        edits = parsed.data.edits;
+    if (!parsed.success) {
+        const message = warnToolInputParseFailure('MultiEdit', parsed.error, t('tools.multiEdit.parseError'));
+        return (
+            <View style={toolFullViewStyles.sectionFullWidth}>
+                <ToolError message={message} />
+            </View>
+        );
     }
 
-    if (edits.length === 0) {
-        return null;
-    }
+    const fileName = resolvePath(parsed.data.file_path ?? '', metadata);
+    const edits = parsed.data.edits ?? [];
 
     return (
         <View style={toolFullViewStyles.sectionFullWidth}>
+            {fileName ? (
+                <AnimatedMultiEditText baseStyle={styles.fileName}>{fileName}</AnimatedMultiEditText>
+            ) : null}
             {edits.map((edit, index) => {
-                const oldString = trimIdent(edit.old_string || '');
-                const newString = trimIdent(edit.new_string || '');
+                const oldString = trimIdent(edit.old_string ?? '');
+                const newString = trimIdent(edit.new_string ?? '');
                 return (
                     <View key={index}>
                         <View style={styles.editHeader}>
@@ -49,11 +57,18 @@ export const MultiEditViewFull = React.memo<MultiEditViewFullProps>(({ tool, met
                             </AnimatedMultiEditText>
                             {edit.replace_all && (
                                 <View style={styles.replaceAllBadge}>
-                                    <AnimatedMultiEditText baseStyle={styles.replaceAllText}>{t('tools.multiEdit.replaceAll')}</AnimatedMultiEditText>
+                                    <AnimatedMultiEditText baseStyle={styles.replaceAllText}>
+                                        {t('tools.multiEdit.replaceAll')}
+                                    </AnimatedMultiEditText>
                                 </View>
                             )}
                         </View>
-                        <ToolDiffView oldText={oldString} newText={newString} showLineNumbers />
+                        <ToolDiffView
+                            oldText={oldString}
+                            newText={newString}
+                            fileName={fileName}
+                            showLineNumbers
+                        />
                         {index < edits.length - 1 && <View style={styles.separator} />}
                     </View>
                 );
@@ -63,6 +78,12 @@ export const MultiEditViewFull = React.memo<MultiEditViewFullProps>(({ tool, met
 });
 
 const styles = StyleSheet.create({
+    fileName: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#3C3C43',
+        marginBottom: 12,
+    },
     editHeader: {
         flexDirection: 'row',
         alignItems: 'center',
