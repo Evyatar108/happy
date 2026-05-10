@@ -19,6 +19,7 @@ const shared = vi.hoisted(() => ({
     createWorktreeMock: vi.fn(),
     listWorktreesMock: vi.fn(),
     modalAlertMock: vi.fn(),
+    forkAvailabilityMock: vi.fn((_session: unknown, _machine: unknown) => true),
     session: null as Session | null,
     machine: null as Machine | null,
     routeId: 'machine-1:parent-session',
@@ -106,6 +107,10 @@ vi.mock('@/sync/storage', () => ({
 
 vi.mock('@/text', () => ({
     t: (key: string) => `translated:${key}`,
+}));
+
+vi.mock('@/utils/forkAvailability', () => ({
+    forkAvailability: (session: unknown, machine: unknown) => shared.forkAvailabilityMock(session, machine),
 }));
 
 vi.mock('@/utils/worktree', async () => {
@@ -205,6 +210,8 @@ describe('ForkComposerScreen', () => {
         shared.createWorktreeMock.mockReset();
         shared.listWorktreesMock.mockReset();
         shared.modalAlertMock.mockReset();
+        shared.forkAvailabilityMock.mockReset();
+        shared.forkAvailabilityMock.mockReturnValue(true);
         shared.calls = [];
         shared.session = createSession();
         shared.machine = createMachine();
@@ -277,6 +284,24 @@ describe('ForkComposerScreen', () => {
         });
 
         expect(shared.modalAlertMock).toHaveBeenCalledWith('translated:common.error', 'Codex sessions only');
+        expect(shared.refreshSessionsMock).not.toHaveBeenCalled();
+        expect(shared.navigateToSessionMock).not.toHaveBeenCalled();
+    });
+
+    it('shows flavorUnsupported error and does not call the fork RPC when availability drops before submit', async () => {
+        shared.forkAvailabilityMock.mockReturnValue(false);
+        const renderer = await renderScreen();
+
+        await act(async () => {
+            findSubmit(renderer.root).props.onPress();
+            await Promise.resolve();
+        });
+
+        expect(shared.modalAlertMock).toHaveBeenCalledWith(
+            'translated:common.error',
+            'translated:forkComposer.errors.flavorUnsupported',
+        );
+        expect(shared.machineForkSessionMock).not.toHaveBeenCalled();
         expect(shared.refreshSessionsMock).not.toHaveBeenCalled();
         expect(shared.navigateToSessionMock).not.toHaveBeenCalled();
     });

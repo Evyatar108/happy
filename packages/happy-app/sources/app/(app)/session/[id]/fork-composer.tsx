@@ -27,6 +27,7 @@ import {
     type PermissionMode,
 } from '@/components/modelModeOptions';
 import { formatPathRelativeToHome, getSessionName } from '@/utils/sessionUtils';
+import { forkAvailability } from '@/utils/forkAvailability';
 import { createWorktree, getRepoPath, listWorktrees } from '@/utils/worktree';
 
 type PickerType = 'worktree' | 'model' | 'permission' | 'effort';
@@ -188,6 +189,11 @@ export function ForkComposerScreen() {
             return;
         }
 
+        if (!forkAvailability(session, machine)) {
+            Modal.alert(t('common.error'), t('forkComposer.errors.flavorUnsupported'));
+            return;
+        }
+
         setIsForking(true);
         try {
             let worktreePath = selectedWorktreeKey ?? parentPath;
@@ -227,7 +233,7 @@ export function ForkComposerScreen() {
         } finally {
             setIsForking(false);
         }
-    }, [basePath, currentEffort?.key, currentModel?.key, currentPermission?.key, machineId, navigateToSession, parentPath, router, selectedWorktreeKey, session, sessionId]);
+    }, [basePath, currentEffort?.key, currentModel?.key, currentPermission?.key, machine, machineId, navigateToSession, parentPath, router, selectedWorktreeKey, session, sessionId]);
 
     const canSubmit = !!session && !!machineId && !!parentPath && !isForking;
 
