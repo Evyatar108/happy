@@ -111,7 +111,7 @@ export default function RootLayout() {
                 name="session/[id]/fork-composer"
                 options={{
                     headerShown: true,
-                    headerTitle: 'Fork session',
+                    headerTitle: t('forkComposer.title'),
                     headerBackTitle: t('common.back'),
                 }}
             />
