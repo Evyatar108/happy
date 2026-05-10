@@ -302,6 +302,25 @@ describe('MarkdownView', () => {
         expect(push).not.toHaveBeenCalled();
     });
 
+    it('does not route agent-authored happy-file: links through onLinkPress', () => {
+        // An agent can author markdown like [label](happy-file:<base64url>?line=1&column=0) —
+        // the scheme rename alone is not sufficient protection since agents can author any scheme.
+        // Only spans produced by addSessionFileLinksToSpans (via splitSessionFileText) are trusted.
+        const agentHappyFileUrl = 'happy-file:L1VzZXJzL2V2aWwvc2VjcmV0LnR4dA?line=1&column=0';
+        parseMarkdown.mockReturnValue([
+            { type: 'text', content: [{ styles: [], text: 'label', url: agentHappyFileUrl }] },
+        ]);
+
+        let renderer: any;
+        act(() => {
+            renderer = TestRenderer.create(<MarkdownView markdown="raw" sessionId="session-1" />);
+        });
+
+        const links = renderer!.root.findAll((node: any) => node.type === 'AnimatedText' && node.props.accessibilityRole === 'link');
+        expect(links).toHaveLength(0);
+        expect(push).not.toHaveBeenCalled();
+    });
+
     it('routes internal file link presses to the full-screen viewer URL', () => {
         parseMarkdown.mockReturnValue([
             { type: 'text', content: [{ styles: [], text: 'Open packages/happy-app/App.tsx:12:3 now', url: null }] },
