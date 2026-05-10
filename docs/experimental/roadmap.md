@@ -256,8 +256,8 @@ Goal: reduce visual bloat, improve scanability, and make high-priority work easi
 - Fix the black stripe artifact in file edit tool-call rendering.
 - Fix markdown image rendering in session/chat messages so absolute-path screenshot syntax like `![](/absolute/path.png)` previews inline on web instead of failing silently during manager review.
 - Ensure long worktree paths do not overlap with git changes or other row content.
-- Add ordering by importance at the worktree/project level, not the individual chat level.
-- When implementing ordering, support dragging worktree/project groups on web first.
+- Add ordering by importance at the worktree/project level, not the individual chat level. **(Shipped 2026-05-10 in `packages/happy-app` v29; merge commit `3ae6c412`.)**
+- When implementing ordering, support dragging worktree/project groups on web first. **(Shipped — HTML5 drag-handle on project group headers, web-only. Native renders alphabetical with no drag affordance.)**
 
 ### Validation requirements
 
