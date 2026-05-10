@@ -6,17 +6,20 @@ import { ToolDiffView } from '@/components/tools/ToolDiffView';
 import { knownTools } from '../../tools/knownTools';
 import { trimIdent } from '@/utils/trimIdent';
 import { useSetting } from '@/sync/storage';
+import { resolvePath } from '@/utils/pathUtils';
 
 
-export const EditView = React.memo<ToolViewProps>(({ tool }) => {
+export const EditView = React.memo<ToolViewProps>(({ tool, metadata }) => {
     const showLineNumbersInToolViews = useSetting('showLineNumbersInToolViews');
     
     let oldString = '';
     let newString = '';
+    let fileName = '';
     const parsed = knownTools.Edit.input.safeParse(tool.input);
     if (parsed.success) {
-        oldString = trimIdent(parsed.data.old_string || '');
-        newString = trimIdent(parsed.data.new_string || '');
+        fileName = resolvePath(parsed.data.file_path ?? '', metadata);
+        oldString = trimIdent(parsed.data.old_string ?? '');
+        newString = trimIdent(parsed.data.new_string ?? '');
     }
 
     return (
@@ -30,6 +33,7 @@ export const EditView = React.memo<ToolViewProps>(({ tool }) => {
                         <ToolDiffView
                             oldText={oldString}
                             newText={newString}
+                            fileName={fileName}
                             hunks={hunks}
                             maxVisibleLines={maxVisibleLines}
                             showLineNumbers={showLineNumbersInToolViews}

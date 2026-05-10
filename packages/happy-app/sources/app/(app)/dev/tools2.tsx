@@ -4,9 +4,11 @@ import { Stack } from 'expo-router';
 import { ToolView } from '@/components/tools/ToolView';
 import { ItemGroup } from '@/components/ItemGroup';
 import { Item } from '@/components/Item';
+import { Metadata } from '@/sync/storageTypes';
 
 export default function Tools2Screen() {
     const [selectedExample, setSelectedExample] = useState<string>('all');
+    const pathFixtureMetadata: Metadata = { path: '/Users/steve/project', host: 'devbox' };
 
     // Example tool calls data - matching ToolCall interface
     const examples = {
@@ -72,6 +74,22 @@ const styles = StyleSheet.create({
             createdAt: Date.now() - 4000,
             startedAt: Date.now() - 3900,
             completedAt: Date.now() - 3000,
+            description: null,
+            result: 'File updated successfully',
+            children: []
+        },
+        editFix: {
+            name: 'Edit',
+            state: 'completed' as const,
+            input: {
+                file_path: '/Users/steve/project/src/components/Header.tsx',
+                old_string: 'export const Header = ({ title }) => {',
+                new_string: 'export const Header = ({ title, subtitle }) => {',
+                replace_all: false
+            },
+            createdAt: Date.now() - 4500,
+            startedAt: Date.now() - 4400,
+            completedAt: Date.now() - 3500,
             description: null,
             result: 'File updated successfully',
             children: []
@@ -358,8 +376,8 @@ export function formatTime(date: Date): string {
         }
     };
 
-    const renderExample = (key: string, example: any) => {
-        if (selectedExample !== 'all' && selectedExample !== key) {
+    const renderExample = (key: string, example: any, metadata: Metadata | null = null, group?: string) => {
+        if (selectedExample !== 'all' && selectedExample !== key && selectedExample !== group) {
             return null;
         }
 
@@ -368,7 +386,7 @@ export function formatTime(date: Date): string {
                 <Text style={styles.exampleTitle}>{key}</Text>
                 <ToolView 
                     tool={example} 
-                    metadata={null}
+                    metadata={metadata}
                     onPress={() => console.log(`Pressed tool: ${key}`)}
                 />
             </View>
@@ -426,6 +444,11 @@ export function formatTime(date: Date): string {
                             selected={selectedExample === 'status'}
                             onPress={() => setSelectedExample('status')}
                         />
+                        <Item
+                            title="P1 Bug Fixes"
+                            selected={selectedExample === 'p1BugFixes'}
+                            onPress={() => setSelectedExample('p1BugFixes')}
+                        />
                     </ItemGroup>
 
                     <View style={styles.examplesSection}>
@@ -440,6 +463,13 @@ export function formatTime(date: Date): string {
 
                         {selectedExample === 'all' || selectedExample === 'edit' ? (
                             renderExample('edit', examples.edit)
+                        ) : null}
+
+                        {selectedExample === 'all' || selectedExample === 'p1BugFixes' ? (
+                            <>
+                                <Text style={styles.subsectionTitle}>P1 Bug Fixes</Text>
+                                {renderExample('editFix', examples.editFix, pathFixtureMetadata, 'p1BugFixes')}
+                            </>
                         ) : null}
 
                         {selectedExample === 'all' || selectedExample === 'bash' ? (
