@@ -113,7 +113,6 @@ export const SessionView = React.memo((props: { id: string }) => {
     }, [sidebarCollapsed, setSidebarCollapsed]);
 
     const handleSidebarFilePress = React.useCallback((file: GitFileStatus) => {
-        if (file.status === 'deleted') return;
         router.push(`/session/${sessionId}/file?path=${encodeBase64Url(file.fullPath)}&refresh=1&view=diff`);
     }, [router, sessionId]);
 

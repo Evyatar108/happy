@@ -165,7 +165,6 @@ export const FilesSidebar = React.memo<FilesSidebarProps>(({ sessionId, selected
     }, [sessionId, gitStatus?.lastUpdatedAt]);
 
     const handleFilePress = React.useCallback((file: GitFileStatus) => {
-        if (file.status === 'deleted') return;
         if (onFilePress) {
             onFilePress(file);
             return;
@@ -332,12 +331,11 @@ const TreeNodeRow = React.memo(function TreeNodeRow({ node, depth, selectedPath,
     return (
         <Pressable
             onPress={() => onFilePress(node.file)}
-            disabled={isDeleted}
             style={({ pressed }) => [
                 styles.row,
                 { paddingLeft: leftPad },
-                pressed && !isDeleted && styles.rowPressed,
-                isSelected && !isDeleted && styles.rowSelected,
+                pressed && styles.rowPressed,
+                isSelected && styles.rowSelected,
                 isDeleted && styles.rowDeleted,
             ]}
         >

@@ -270,6 +270,9 @@ export default React.memo(function FileScreen() {
                         const content = isBinary ? '' : decodedContent;
                         setFileContent({ content, encoding: 'utf8', isBinary });
                         storage.getState().applyFileCache(sessionId!, filePath, content, fetchedDiff, isBinary);
+                    } else if (requestedView === 'diff' && fetchedDiff) {
+                        // File no longer exists on disk (e.g. deleted) but we have a diff — show diff only.
+                        storage.getState().applyFileCache(sessionId!, filePath, null, fetchedDiff, false);
                     } else {
                         setError(response.error || 'Failed to read file');
                     }

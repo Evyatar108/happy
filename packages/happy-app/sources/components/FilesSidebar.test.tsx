@@ -102,14 +102,14 @@ vi.mock('@/text', () => ({
 const { FilesSidebar } = await import('./FilesSidebar');
 const { encodeBase64Url } = await import('@/utils/base64url');
 
-function gitFiles(paths: string[]): GitStatusFiles {
+function gitFiles(paths: string[], status: 'modified' | 'deleted' = 'modified'): GitStatusFiles {
     const unstagedFiles = paths.map((fullPath) => {
         const parts = fullPath.split('/');
         return {
             fileName: parts[parts.length - 1] ?? fullPath,
             filePath: parts.slice(0, -1).join('/'),
             fullPath,
-            status: 'modified' as const,
+            status,
             isStaged: false,
             linesAdded: 1,
             linesRemoved: 0,
@@ -199,5 +199,25 @@ describe('FilesSidebar', () => {
         });
 
         expect(routerPush).toHaveBeenCalledWith(`/session/session-1/file?path=${encodeBase64Url('src/old.ts')}&refresh=1&view=diff`);
+    });
+
+    it('navigates deleted file taps to the diff route instead of blocking', async () => {
+        currentFiles = gitFiles(['src/removed.ts'], 'deleted');
+        getGitStatusFiles.mockResolvedValue(currentFiles);
+
+        let renderer!: TestRendererInstance;
+        await act(async () => {
+            renderer = TestRenderer.create(<FilesSidebar sessionId="session-1" />);
+        });
+
+        const fileRows = renderer.root.findAllByType('Pressable')
+            .filter((node: RenderNode) => typeof node.props.onPress === 'function' && node.findAllByType('FileIcon').length > 0);
+        expect(fileRows.length).toBeGreaterThan(0);
+
+        await act(async () => {
+            fileRows[0].props.onPress();
+        });
+
+        expect(routerPush).toHaveBeenCalledWith(`/session/session-1/file?path=${encodeBase64Url('src/removed.ts')}&refresh=1&view=diff`);
     });
 });

@@ -212,6 +212,27 @@ describe('SessionView file sidebar routing', () => {
         expect(routerPush).toHaveBeenCalledWith(`/session/session-1/file?path=${encodeBase64Url(file.fullPath)}&refresh=1&view=diff`);
     });
 
+    it('routes deleted file sidebar clicks to the diff route instead of blocking', async () => {
+        await act(async () => {
+            TestRenderer.create(<SessionView id="session-1" />);
+        });
+
+        const deletedFile = {
+            fullPath: 'src/removed.ts',
+            fileName: 'removed.ts',
+            filePath: 'src',
+            status: 'deleted',
+            linesAdded: 0,
+            linesRemoved: 5,
+        } as GitFileStatus;
+
+        await act(async () => {
+            sidebarProps?.onFilePress?.(deletedFile);
+        });
+
+        expect(routerPush).toHaveBeenCalledWith(`/session/session-1/file?path=${encodeBase64Url(deletedFile.fullPath)}&refresh=1&view=diff`);
+    });
+
     it('uploads attachments under a generated local id before sending the chat message', async () => {
         generateLocalMessageId.mockReturnValue('local-upload-id');
         sessionWriteFile.mockResolvedValue({ success: true });
