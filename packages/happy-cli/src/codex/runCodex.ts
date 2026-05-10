@@ -3,6 +3,7 @@ import React from "react";
 import { ApiClient } from '@/api/api';
 import { CodexAppServerClient } from './codexAppServerClient';
 import type { CodexTransportFlag } from './cliArgs';
+import { VALID_CODEX_REMOTE_PERMISSION_MODES } from './cliArgs';
 import { CodexPermissionHandler } from './utils/permissionHandler';
 import { ReasoningProcessor } from './utils/reasoningProcessor';
 import { DiffProcessor } from './utils/diffProcessor';
@@ -234,12 +235,7 @@ export async function runCodex(opts: {
     // accepted and then fall through to the `default` branch in
     // resolveCodexExecutionPolicy() — or worse, an attacker-chosen valid value
     // could escalate sandbox scope (issue #1092).
-    const VALID_REMOTE_PERMISSION_MODES: readonly PermissionMode[] = [
-        'default',
-        'read-only',
-        'safe-yolo',
-        'yolo',
-    ];
+    const VALID_REMOTE_PERMISSION_MODES: readonly PermissionMode[] = VALID_CODEX_REMOTE_PERMISSION_MODES;
 
     if (typeof session.onAgentConfiguration === 'function') {
         session.onAgentConfiguration((configuration: AgentConfiguration) => {

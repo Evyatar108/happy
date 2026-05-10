@@ -1,8 +1,24 @@
+import type { PermissionMode } from '@/api/types';
 import type { ReasoningEffort } from './codexAppServerTypes';
 
 export type CodexTransportFlag = 'stdio' | 'ws';
 
-const VALID_CODEX_EFFORT_LEVELS: readonly ReasoningEffort[] = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'];
+export const VALID_CODEX_EFFORT_LEVELS: readonly ReasoningEffort[] = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'];
+
+export const VALID_CODEX_REMOTE_PERMISSION_MODES: readonly PermissionMode[] = [
+    'default',
+    'read-only',
+    'safe-yolo',
+    'yolo',
+];
+
+export function isValidCodexEffortLevel(value: unknown): value is ReasoningEffort {
+    return typeof value === 'string' && VALID_CODEX_EFFORT_LEVELS.includes(value as ReasoningEffort);
+}
+
+export function isValidCodexRemotePermissionMode(value: unknown): value is PermissionMode {
+    return typeof value === 'string' && VALID_CODEX_REMOTE_PERMISSION_MODES.includes(value as PermissionMode);
+}
 
 function parseCodexEffort(value: string): ReasoningEffort {
     const normalized = value.trim();

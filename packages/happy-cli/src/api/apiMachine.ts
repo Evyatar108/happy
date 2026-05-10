@@ -14,6 +14,7 @@ import { RpcHandlerManager } from './rpc/RpcHandlerManager';
 import { detectCLIAvailability, CLIAvailability } from '@/utils/detectCLI';
 import { detectResumeSupport, type ResumeSupport } from '@/resume/localHappyAgentAuth';
 import { shouldReconnect } from '@/utils/lidState';
+import { isValidCodexEffortLevel, isValidCodexRemotePermissionMode } from '@/codex/cliArgs';
 
 interface ServerToDaemonEvents {
     update: (data: Update) => void;
@@ -167,13 +168,28 @@ export class ApiMachineClient {
             if (!worktreePath || typeof worktreePath !== 'string') {
                 return { type: 'error', errorMessage: 'Worktree path is required' };
             }
+            if (model !== undefined && model !== null && (typeof model !== 'string' || model.length === 0)) {
+                return { type: 'error', errorMessage: 'model must be a non-empty string when provided' };
+            }
+            if (permissionMode !== undefined && permissionMode !== null && !isValidCodexRemotePermissionMode(permissionMode)) {
+                return { type: 'error', errorMessage: 'permissionMode must be one of: default, read-only, safe-yolo, yolo' };
+            }
+            if (effortLevel !== undefined && effortLevel !== null && !isValidCodexEffortLevel(effortLevel)) {
+                return { type: 'error', errorMessage: 'effortLevel must be one of: none, minimal, low, medium, high, xhigh' };
+            }
 
             const handler = this.forkSessionHandler;
             if (!handler) {
                 return { type: 'error', errorMessage: 'Fork session handler not available' };
             }
 
-            return handler({ parentSessionId, worktreePath, model, permissionMode, effortLevel });
+            return handler({
+                parentSessionId,
+                worktreePath,
+                model: model ?? undefined,
+                permissionMode: permissionMode ?? undefined,
+                effortLevel: effortLevel ?? undefined,
+            });
         });
 
         // Register stop session handler
