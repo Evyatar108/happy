@@ -318,8 +318,8 @@ export function ActiveSessionsGroupCompact({ sessions, selectedSessionId }: Acti
                                     onDrop={(event: React.DragEvent<HTMLElement>) => {
                                         event.preventDefault();
                                         event.stopPropagation();
-                                        const fromKey = draggingKey ?? event.dataTransfer.getData('text/plain');
-                                        if (fromKey) {
+                                        const fromKey = draggingKey;
+                                        if (fromKey && allVisibleKeys.includes(fromKey)) {
                                             const position = getDropPosition(event);
                                             setSessionGroupOrder(moveSessionGroup(
                                                 sessionGroupOrder,
