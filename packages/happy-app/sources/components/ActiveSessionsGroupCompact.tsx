@@ -9,7 +9,7 @@ import { type SessionState, formatPathRelativeToHome, vibingMessages, formatLast
 import { Avatar } from './Avatar';
 import { Typography } from '@/constants/Typography';
 import { StatusDot } from './StatusDot';
-import { useAllMachines, useSessionProjectGitStatus, useSessionGitStatus } from '@/sync/storage';
+import { useAllMachines, useSessionProjectGitStatus, useSessionGitStatus, useSettingMutable } from '@/sync/storage';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { t } from '@/text';
 import { useNavigateToSession } from '@/hooks/useNavigateToSession';
@@ -21,6 +21,7 @@ import { sessionKill } from '@/sync/ops';
 import { isWorktreePath, getRepoPath, getWorktreeName } from '@/utils/worktree';
 import { useNewSessionDraft } from '@/hooks/useNewSessionDraft';
 import { useRouter } from 'expo-router';
+import { applyOrderToProjectEntries } from '@/sync/sessionGroupOrdering';
 
 const STATUS_CONFIG: Record<SessionState, { color: string; dotColor: string; isPulsing: boolean; isConnected: boolean }> = {
     disconnected: { color: '#999', dotColor: '#999', isPulsing: false, isConnected: false },
@@ -167,6 +168,7 @@ const MachineSeparator = React.memo(({ machineName, machineId }: { machineName: 
 export function ActiveSessionsGroupCompact({ sessions, selectedSessionId }: ActiveSessionsGroupProps) {
     const styles = stylesheet;
     const machines = useAllMachines();
+    const [sessionGroupOrder] = useSettingMutable('sessionGroupOrder');
 
     const machinesMap = React.useMemo(() => {
         const map: Record<string, Machine> = {};
@@ -229,8 +231,13 @@ export function ActiveSessionsGroupCompact({ sessions, selectedSessionId }: Acti
     return (
         <View style={styles.container}>
             {machineGroups.map(machineGroup => {
-                const sortedProjects = Array.from(machineGroup.projects.entries()).sort(
+                const alphabeticallySortedProjects = Array.from(machineGroup.projects.entries()).sort(
                     ([, a], [, b]) => a.displayPath.localeCompare(b.displayPath)
+                );
+                const sortedProjects = applyOrderToProjectEntries(
+                    alphabeticallySortedProjects,
+                    machineGroup.machineId,
+                    sessionGroupOrder,
                 );
 
                 return (
