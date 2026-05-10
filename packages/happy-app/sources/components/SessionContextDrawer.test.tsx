@@ -13,7 +13,6 @@ const reactActEnvironment = globalThis as typeof globalThis & {
 };
 
 const shared = vi.hoisted(() => ({
-    sessionEmitAgentConfigurationMock: vi.fn(),
     resumeSessionInlineMock: vi.fn(),
     onForkPressMock: vi.fn(),
     latestPatchModel: null as null | ((model: { key: string; name: string; description?: string | null }) => void),
@@ -82,11 +81,6 @@ vi.mock('@/text', () => ({
     t: (key: string) => `translated:${key}`,
 }));
 
-vi.mock('./pickers', () => ({
-    PickerContent: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) =>
-        React.createElement('PickerContent', props, children),
-}));
-
 const { SessionContextDrawer } = await import('./SessionContextDrawer');
 
 function option(key: string, name: string) {
@@ -151,17 +145,12 @@ function createMachine(overrides: Partial<Machine> = {}): Machine {
 function baseProps() {
     const sonnet = option('sonnet', 'Sonnet');
     const plan = option('plan', 'Plan');
-    const high = option('high', 'High');
 
     return {
         machineName: 'Devbox',
         workdirPath: '/home/user/my-project',
         modelMode: sonnet,
-        availableModels: [sonnet, option('opus', 'Opus')],
         permissionMode: plan,
-        availableModes: [plan, option('bypassPermissions', 'Bypass')],
-        effortLevel: high,
-        availableEffortLevels: [high, option('xhigh', 'Extra high')],
         canResume: false,
         resumeAvailability: {
             canResume: false,
@@ -173,11 +162,7 @@ function baseProps() {
         session: createSession(),
         machine: createMachine(),
         onForkPress: shared.onForkPressMock,
-        updatePermissionMode: vi.fn(),
-        updateModelMode: vi.fn(),
-        updateEffortLevel: vi.fn(),
         resumeSessionInline: shared.resumeSessionInlineMock,
-        sessionEmitAgentConfiguration: shared.sessionEmitAgentConfigurationMock,
     };
 }
 
@@ -208,8 +193,6 @@ function EchoHarness() {
 describe('SessionContextDrawer', () => {
     beforeEach(() => {
         reactActEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
-        shared.sessionEmitAgentConfigurationMock.mockReset();
-        shared.sessionEmitAgentConfigurationMock.mockResolvedValue(undefined);
         shared.resumeSessionInlineMock.mockReset();
         shared.onForkPressMock.mockReset();
         shared.latestPatchModel = null;
@@ -249,23 +232,14 @@ describe('SessionContextDrawer', () => {
         expect(renderer!.root.findByType('Animated.View').props.pointerEvents).toBe('auto');
     });
 
-    it('emits agent configuration metadata updates from picker selections', () => {
+    it('does not render duplicate model, permission, or effort pickers in the expanded body', () => {
         let renderer: TestRendererInstance;
         act(() => {
             renderer = TestRenderer.create(<SessionContextDrawer {...baseProps()} />);
         });
         expand(renderer!.root);
 
-        const pickers = renderer!.root.findAllByType('PickerContent');
-        act(() => {
-            pickers[0]!.props.onSelect('opus');
-            pickers[1]!.props.onSelect('bypassPermissions');
-            pickers[2]!.props.onSelect('xhigh');
-        });
-
-        expect(shared.sessionEmitAgentConfigurationMock).toHaveBeenCalledWith({ model: 'opus' });
-        expect(shared.sessionEmitAgentConfigurationMock).toHaveBeenCalledWith({ permissionMode: 'bypassPermissions' });
-        expect(shared.sessionEmitAgentConfigurationMock).toHaveBeenCalledWith({ thinkingLevel: 'xhigh' });
+        expect(renderer!.root.findAllByType('PickerContent')).toHaveLength(0);
     });
 
     it('updates confirmatory chips only when the metadata-echo props change', () => {
@@ -281,49 +255,6 @@ describe('SessionContextDrawer', () => {
         });
 
         expect(textValues(renderer!.root)).toContain('Opus');
-    });
-
-    it('shows inline error text when sessionEmitAgentConfiguration rejects', async () => {
-        shared.sessionEmitAgentConfigurationMock.mockRejectedValueOnce(new Error('socket closed'));
-
-        let renderer: TestRendererInstance;
-        act(() => {
-            renderer = TestRenderer.create(<SessionContextDrawer {...baseProps()} />);
-        });
-        expand(renderer!.root);
-
-        await act(async () => {
-            renderer!.root.findAllByType('PickerContent')[0]!.props.onSelect('opus');
-            await Promise.resolve();
-        });
-
-        expect(textValues(renderer!.root)).toContain('translated:drawer.applyFailed');
-    });
-
-    it('clears the inline picker error on a subsequent successful selection', async () => {
-        shared.sessionEmitAgentConfigurationMock
-            .mockRejectedValueOnce(new Error('socket closed'))
-            .mockResolvedValueOnce(undefined);
-
-        let renderer: TestRendererInstance;
-        act(() => {
-            renderer = TestRenderer.create(<SessionContextDrawer {...baseProps()} />);
-        });
-        expand(renderer!.root);
-
-        await act(async () => {
-            renderer!.root.findAllByType('PickerContent')[0]!.props.onSelect('opus');
-            await Promise.resolve();
-        });
-
-        expect(textValues(renderer!.root)).toContain('translated:drawer.applyFailed');
-
-        await act(async () => {
-            renderer!.root.findAllByType('PickerContent')[0]!.props.onSelect('sonnet');
-            await Promise.resolve();
-        });
-
-        expect(textValues(renderer!.root)).not.toContain('translated:drawer.applyFailed');
     });
 
     it('renders the fork placeholder disabled with no press handler when unavailable', () => {

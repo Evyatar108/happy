@@ -26,6 +26,7 @@ import { voiceHooks } from '@/realtime/hooks/voiceHooks';
 import { getCurrentVoiceConversationId, getCurrentVoiceSessionDurationSeconds, startRealtimeSession, stopRealtimeSession } from '@/realtime/RealtimeSession';
 import { shouldShowBoundaryAdvisory, updateComposeStartAt } from './composeBoundaryAdvisory';
 import { getActiveSessionPathSurfaces } from './SessionViewPathSurfaces';
+import { emitActiveAgentConfigurationSelection } from './activeAgentConfiguration';
 import { gitStatusSync } from '@/sync/gitStatusSync';
 import { cancelPendingSwitch, requestSwitch, sessionAbort, sessionEmitAgentConfiguration } from '@/sync/ops';
 import { storage, useIsDataReady, useLatestBoundary, useLocalSetting, useLocalSettingMutable, useMachine, useRealtimeStatus, useSessionMessages, useSessionUsage, useSetting } from '@/sync/storage';
@@ -398,17 +399,6 @@ function SessionViewLoaded({ sessionId, session, projectPathHeader }: { sessionI
             getDefaultModelKey(flavor),
         ])
     ), [availableModels, session.metadata?.currentModelCode, flavor]);
-    const drawerModelKey = drawerModelMode?.key ?? 'default';
-    const drawerAvailableEffortLevels = React.useMemo<EffortLevel[]>(() => (
-        getEffortLevelsForModel(flavor, drawerModelKey)
-    ), [flavor, drawerModelKey]);
-    const drawerEffortLevel = React.useMemo<EffortLevel | null>(() => (
-        resolveCurrentOption(drawerAvailableEffortLevels, [
-            session.metadata?.currentThoughtLevelCode,
-            getDefaultEffortKeyForModel(flavor, drawerModelKey),
-        ])
-    ), [drawerAvailableEffortLevels, session.metadata?.currentThoughtLevelCode, flavor, drawerModelKey]);
-
     const sessionStatus = useSessionStatus(session);
     const sessionUsage = useSessionUsage(sessionId);
     const alwaysShowContextSize = useSetting('alwaysShowContextSize');
@@ -505,21 +495,21 @@ function SessionViewLoaded({ sessionId, session, projectPathHeader }: { sessionI
     // Function to update permission mode
     const updatePermissionMode = React.useCallback((mode: PermissionMode) => {
         storage.getState().updateSessionPermissionMode(sessionId, mode.key, true);
+        void emitActiveAgentConfigurationSelection({ sessionId, emitAgentConfiguration: sessionEmitAgentConfiguration }, { kind: 'permissionMode', option: mode })
+            .catch(() => Modal.alert(t('common.error'), t('drawer.applyFailed')));
     }, [sessionId]);
 
     const updateModelMode = React.useCallback((mode: ModelMode) => {
         storage.getState().updateSessionModelMode(sessionId, mode.key);
+        void emitActiveAgentConfigurationSelection({ sessionId, emitAgentConfiguration: sessionEmitAgentConfiguration }, { kind: 'model', option: mode })
+            .catch(() => Modal.alert(t('common.error'), t('drawer.applyFailed')));
     }, [sessionId]);
 
     const updateEffortLevel = React.useCallback((level: EffortLevel) => {
         storage.getState().updateSessionEffortLevel(sessionId, level.key);
+        void emitActiveAgentConfigurationSelection({ sessionId, emitAgentConfiguration: sessionEmitAgentConfiguration }, { kind: 'effortLevel', option: level })
+            .catch(() => Modal.alert(t('common.error'), t('drawer.applyFailed')));
     }, [sessionId]);
-
-    const emitAgentConfiguration = React.useCallback((config: {
-        permissionMode?: string;
-        model?: string;
-        thinkingLevel?: string;
-    }) => sessionEmitAgentConfiguration({ sessionId, ...config }), [sessionId]);
     const handleForkPress = React.useCallback(() => {
         router.push(`/session/${sessionId}/fork-composer`);
     }, [router, sessionId]);
@@ -746,22 +736,14 @@ function SessionViewLoaded({ sessionId, session, projectPathHeader }: { sessionI
                 machineName={machineName}
                 workdirPath={session.metadata?.path}
                 modelMode={drawerModelMode}
-                availableModels={availableModels}
                 permissionMode={drawerPermissionMode}
-                availableModes={availableModes}
-                effortLevel={drawerEffortLevel}
-                availableEffortLevels={drawerAvailableEffortLevels}
                 canResume={canResume}
                 resumeAvailability={resumeAvailability}
                 resumeCommandBlock={resumeCommandBlock}
                 session={session}
                 machine={sessionMachine}
                 onForkPress={handleForkPress}
-                updatePermissionMode={updatePermissionMode}
-                updateModelMode={updateModelMode}
-                updateEffortLevel={updateEffortLevel}
                 resumeSessionInline={resumeSessionInline}
-                sessionEmitAgentConfiguration={emitAgentConfiguration}
             />
         </CenteredInputWidth>
     );

@@ -4,9 +4,7 @@ import * as React from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
-import { PickerContent, type PickerItem } from './pickers';
 import type { ModelMode, PermissionMode } from './PermissionModeSelector';
-import type { EffortLevel } from './modelModeOptions';
 import type { ResumeCommandBlock } from '@/utils/resumeCommand';
 import type { ResumeAvailability } from '@/utils/resumeAvailability';
 import type { SpawnSessionResult } from '@/sync/ops';
@@ -14,32 +12,18 @@ import type { Machine, Session } from '@/sync/storageTypes';
 import { t } from '@/text';
 import { forkAvailability } from '@/utils/forkAvailability';
 
-type AgentConfigurationUpdate = {
-    permissionMode?: string;
-    model?: string;
-    thinkingLevel?: string;
-};
-
 type SessionContextDrawerProps = {
     machineName: string | null;
     workdirPath?: string | null;
     modelMode: ModelMode | null;
-    availableModels: ModelMode[];
     permissionMode: PermissionMode | null;
-    availableModes: PermissionMode[];
-    effortLevel: EffortLevel | null;
-    availableEffortLevels: EffortLevel[];
     canResume: boolean;
     resumeAvailability: ResumeAvailability;
     resumeCommandBlock: ResumeCommandBlock | null;
     session: Session;
     machine: Machine | null | undefined;
     onForkPress: () => void;
-    updatePermissionMode: (mode: PermissionMode) => void;
-    updateModelMode: (mode: ModelMode) => void;
-    updateEffortLevel: (level: EffortLevel) => void;
     resumeSessionInline: () => Promise<SpawnSessionResult>;
-    sessionEmitAgentConfiguration: (config: AgentConfigurationUpdate) => Promise<unknown>;
 };
 
 const COLLAPSED_BAR_HEIGHT = 36;
@@ -48,12 +32,11 @@ const EXPANDED_BODY_MAX_HEIGHT = 440;
 export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps) => {
     const { theme } = useUnistyles();
     const { height: windowHeight } = useWindowDimensions();
-    const { canResume, resumeAvailability, resumeCommandBlock, resumeSessionInline, sessionEmitAgentConfiguration } = props;
+    const { canResume, resumeAvailability, resumeCommandBlock, resumeSessionInline } = props;
     const canFork = forkAvailability(props.session, props.machine);
     const [isExpanded, setIsExpanded] = React.useState(false);
     const [isResuming, setIsResuming] = React.useState(false);
     const [inlineResumeError, setInlineResumeError] = React.useState<string | null>(null);
-    const [inlinePickerError, setInlinePickerError] = React.useState<string | null>(null);
     const expandedProgress = useSharedValue(0);
 
     React.useEffect(() => {
@@ -72,43 +55,6 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
         opacity: expandedProgress.value,
         overflow: 'hidden' as const,
     }), [maxExpandedBodyHeight]);
-
-    const modelItems = React.useMemo(() => toPickerItems(props.availableModels), [props.availableModels]);
-    const permissionItems = React.useMemo(() => toPickerItems(props.availableModes), [props.availableModes]);
-    const effortItems = React.useMemo(() => toPickerItems(props.availableEffortLevels), [props.availableEffortLevels]);
-
-    const handleSelectModel = React.useCallback((key: string) => {
-        const mode = props.availableModels.find((m) => m.key === key);
-        if (mode) {
-            props.updateModelMode(mode);
-        }
-        setInlinePickerError(null);
-        sessionEmitAgentConfiguration({ model: key }).catch(() => {
-            setInlinePickerError(t('drawer.applyFailed'));
-        });
-    }, [sessionEmitAgentConfiguration, props.availableModels, props.updateModelMode]);
-
-    const handleSelectPermissionMode = React.useCallback((key: string) => {
-        const mode = props.availableModes.find((m) => m.key === key);
-        if (mode) {
-            props.updatePermissionMode(mode);
-        }
-        setInlinePickerError(null);
-        sessionEmitAgentConfiguration({ permissionMode: key }).catch(() => {
-            setInlinePickerError(t('drawer.applyFailed'));
-        });
-    }, [sessionEmitAgentConfiguration, props.availableModes, props.updatePermissionMode]);
-
-    const handleSelectEffortLevel = React.useCallback((key: string) => {
-        const level = props.availableEffortLevels.find((l) => l.key === key);
-        if (level) {
-            props.updateEffortLevel(level);
-        }
-        setInlinePickerError(null);
-        sessionEmitAgentConfiguration({ thinkingLevel: key }).catch(() => {
-            setInlinePickerError(t('drawer.applyFailed'));
-        });
-    }, [sessionEmitAgentConfiguration, props.availableEffortLevels, props.updateEffortLevel]);
 
     const handleResume = React.useCallback(() => {
         if (!canResume || isResuming) {
@@ -173,32 +119,6 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
                     keyboardShouldPersistTaps="handled"
                     nestedScrollEnabled={true}
                 >
-                    <PickerContent
-                        title={t('agentInput.model.title')}
-                        items={modelItems}
-                        selectedKey={props.modelMode?.key ?? null}
-                        onSelect={handleSelectModel}
-                        searchPlaceholder={t('commandPalette.placeholder')}
-                    />
-                    <PickerContent
-                        title={t('agentInput.permissionMode.title')}
-                        items={permissionItems}
-                        selectedKey={props.permissionMode?.key ?? null}
-                        onSelect={handleSelectPermissionMode}
-                        searchPlaceholder={t('commandPalette.placeholder')}
-                    />
-                    {effortItems.length > 0 && (
-                        <PickerContent
-                            title={t('agentInput.effort.title')}
-                            items={effortItems}
-                            selectedKey={props.effortLevel?.key ?? null}
-                            onSelect={handleSelectEffortLevel}
-                            searchPlaceholder={t('commandPalette.placeholder')}
-                        />
-                    )}
-                    {!!inlinePickerError && (
-                        <Text style={styles.pickerErrorText}>{inlinePickerError}</Text>
-                    )}
                     {shouldShowResume && (
                         <View style={styles.resumeSection}>
                             <View style={styles.resumeCopyColumn}>
@@ -259,14 +179,6 @@ function pathBasename(path: string): string {
     const normalized = path.replace(/\\/g, '/').replace(/\/+$/, '');
     const slash = normalized.lastIndexOf('/');
     return slash >= 0 ? normalized.slice(slash + 1) : normalized;
-}
-
-function toPickerItems<T extends { key: string; name: string; description?: string | null }>(items: T[]): PickerItem[] {
-    return items.map((item) => ({
-        key: item.key,
-        label: item.name,
-        subtitle: item.description ?? undefined,
-    }));
 }
 
 function ContextChip(props: { label: string }) {
@@ -493,12 +405,6 @@ const styles = StyleSheet.create((theme) => ({
         fontSize: 12,
         lineHeight: 17,
         fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    },
-    pickerErrorText: {
-        color: theme.colors.status.error,
-        fontSize: 12,
-        lineHeight: 16,
-        paddingHorizontal: 4,
     },
     forkButton: {
         height: 36,

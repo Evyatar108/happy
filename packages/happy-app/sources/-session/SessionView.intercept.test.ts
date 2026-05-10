@@ -4,6 +4,7 @@ import type { PreSendCommandResult } from '@/hooks/usePreSendCommand';
 import type { Session } from '@/sync/storageTypes';
 import { shouldShowBoundaryAdvisory, updateComposeStartAt } from './composeBoundaryAdvisory';
 import { getActiveSessionPathSurfaces, truncatePathFromStart } from './SessionViewPathSurfaces';
+import { emitActiveAgentConfigurationSelection } from './activeAgentConfiguration';
 import type { LatestBoundary } from '@/sync/reducer/reducer';
 
 // Simulates the onSend callback in SessionView: trims the message, calls
@@ -192,5 +193,21 @@ describe('SessionView active composer path surfaces', () => {
     it('truncates long paths from the start while preserving the meaningful tail', () => {
         expect(truncatePathFromStart('~/projects/company/repo/.dev/worktree/feature-long', 18)).toBe('…/feature-long');
         expect(truncatePathFromStart('~/short/repo', 18)).toBe('~/short/repo');
+    });
+});
+
+describe('SessionView active composer agent configuration emits', () => {
+    it('emits one live configuration update per active overlay picker selection', async () => {
+        const emitAgentConfiguration = vi.fn(async () => ({ version: 2, metadata: 'encrypted' }));
+        const deps = { sessionId: 'session-1', emitAgentConfiguration };
+
+        await emitActiveAgentConfigurationSelection(deps, { kind: 'model', option: { key: 'opus', name: 'Opus', description: null } });
+        await emitActiveAgentConfigurationSelection(deps, { kind: 'permissionMode', option: { key: 'bypassPermissions', name: 'Bypass', description: null } });
+        await emitActiveAgentConfigurationSelection(deps, { kind: 'effortLevel', option: { key: 'xhigh', name: 'Extra high', description: null } });
+
+        expect(emitAgentConfiguration).toHaveBeenCalledTimes(3);
+        expect(emitAgentConfiguration).toHaveBeenNthCalledWith(1, { sessionId: 'session-1', model: 'opus' });
+        expect(emitAgentConfiguration).toHaveBeenNthCalledWith(2, { sessionId: 'session-1', permissionMode: 'bypassPermissions' });
+        expect(emitAgentConfiguration).toHaveBeenNthCalledWith(3, { sessionId: 'session-1', thinkingLevel: 'xhigh' });
     });
 });
