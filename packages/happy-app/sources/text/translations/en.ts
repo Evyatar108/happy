@@ -648,9 +648,13 @@ export const en: TranslationStructure = {
             notFound: 'Not found',
             alreadyStopped: 'Already stopped',
         },
+        edit: {
+            parseError: 'Edit input could not be parsed',
+        },
         multiEdit: {
             editNumber: ({ index, total }: { index: number; total: number }) => `Edit ${index} of ${total}`,
             replaceAll: 'Replace All',
+            parseError: 'MultiEdit input could not be parsed',
         },
         diff: {
             showMore: ({ count }: { count: number }) => count === 1 ? 'Show 1 more line' : `Show ${count} more lines`,

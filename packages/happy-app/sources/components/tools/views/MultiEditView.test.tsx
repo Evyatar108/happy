@@ -55,7 +55,7 @@ describe('MultiEditView', () => {
         );
 
         const output = treeText(renderer);
-        expect(output).toContain('ToolError:[MultiEdit] Zod parse failed:');
+        expect(output).toContain('ToolError:MultiEdit input could not be parsed');
         expect(output).not.toContain('ToolDiffView');
         expect(warn).toHaveBeenCalledWith(expect.stringContaining('[MultiEdit] Zod parse failed:'));
     });

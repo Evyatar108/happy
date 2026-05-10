@@ -60,7 +60,7 @@ function getTaskStopOutcome(data: { stopped?: boolean; error?: string; status?: 
 export const TaskStopView = React.memo<ToolViewProps>(({ tool }) => {
     const parsedInput = knownTools.TaskStop.input.safeParse(tool.input);
     if (!parsedInput.success) {
-        const message = warnToolInputParseFailure('TaskStop', parsedInput.error);
+        const message = warnToolInputParseFailure('TaskStop', parsedInput.error, t('tools.taskStop.parseError'));
         return (
             <ToolSectionView>
                 <ToolError message={message} />

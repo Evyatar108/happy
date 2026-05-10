@@ -640,9 +640,13 @@ export const it: TranslationStructure = {
             notFound: 'Not found',
             alreadyStopped: 'Already stopped',
         },
+        edit: {
+            parseError: 'Impossibile analizzare l\'input di modifica',
+        },
         multiEdit: {
             editNumber: ({ index, total }: { index: number; total: number }) => `Modifica ${index} di ${total}`,
             replaceAll: 'Sostituisci tutto',
+            parseError: 'Impossibile analizzare l\'input di MultiEdit',
         },
         diff: {
             showMore: ({ count }: { count: number }) => count === 1 ? 'Mostra 1 riga in più' : `Mostra ${count} righe in più`,

@@ -635,9 +635,13 @@ export const es: TranslationStructure = {
             notFound: 'Not found',
             alreadyStopped: 'Already stopped',
         },
+        edit: {
+            parseError: 'No se pudo analizar la entrada de edición',
+        },
         multiEdit: {
             editNumber: ({ index, total }: { index: number; total: number }) => `Edición ${index} de ${total}`,
             replaceAll: 'Reemplazar todo',
+            parseError: 'No se pudo analizar la entrada de MultiEdit',
         },
         diff: {
             showMore: ({ count }: { count: number }) => count === 1 ? 'Mostrar 1 línea más' : `Mostrar ${count} líneas más`,

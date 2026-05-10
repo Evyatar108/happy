@@ -651,9 +651,13 @@ export const ru: TranslationStructure = {
             notFound: 'Not found',
             alreadyStopped: 'Already stopped',
         },
+        edit: {
+            parseError: 'Не удалось разобрать входные данные редактирования',
+        },
         multiEdit: {
             editNumber: ({ index, total }: { index: number; total: number }) => `Правка ${index} из ${total}`,
             replaceAll: 'Заменить все',
+            parseError: 'Не удалось разобрать входные данные MultiEdit',
         },
         diff: {
             showMore: ({ count }: { count: number }) => `Показать ещё ${count} ${plural({ count, one: 'строку', few: 'строки', many: 'строк' })}`,

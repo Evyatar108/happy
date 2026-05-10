@@ -643,9 +643,13 @@ export const ja: TranslationStructure = {
             notFound: 'Not found',
             alreadyStopped: 'Already stopped',
         },
+        edit: {
+            parseError: '編集入力を解析できませんでした',
+        },
         multiEdit: {
             editNumber: ({ index, total }: { index: number; total: number }) => `編集 ${index}/${total}`,
             replaceAll: 'すべて置換',
+            parseError: 'MultiEdit入力を解析できませんでした',
         },
         diff: {
             showMore: ({ count }: { count: number }) => `あと${count}行を表示`,

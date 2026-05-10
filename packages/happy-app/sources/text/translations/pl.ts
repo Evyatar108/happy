@@ -651,9 +651,13 @@ export const pl: TranslationStructure = {
             notFound: 'Not found',
             alreadyStopped: 'Already stopped',
         },
+        edit: {
+            parseError: 'Nie można przeanalizować danych wejściowych edycji',
+        },
         multiEdit: {
             editNumber: ({ index, total }: { index: number; total: number }) => `Edycja ${index} z ${total}`,
             replaceAll: 'Zamień wszystkie',
+            parseError: 'Nie można przeanalizować danych wejściowych MultiEdit',
         },
         diff: {
             showMore: ({ count }: { count: number }) => `Pokaż jeszcze ${count} ${plural({ count, one: 'wiersz', few: 'wiersze', many: 'wierszy' })}`,

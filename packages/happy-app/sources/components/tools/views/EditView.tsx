@@ -9,6 +9,7 @@ import { useSetting } from '@/sync/storage';
 import { resolvePath } from '@/utils/pathUtils';
 import { ToolError } from '@/components/tools/ToolError';
 import { warnToolInputParseFailure } from './parseFailure';
+import { t } from '@/text';
 
 
 export const EditView = React.memo<ToolViewProps>(({ tool, metadata }) => {
@@ -16,7 +17,7 @@ export const EditView = React.memo<ToolViewProps>(({ tool, metadata }) => {
     
     const parsed = knownTools.Edit.input.safeParse(tool.input);
     if (!parsed.success) {
-        const message = warnToolInputParseFailure('Edit', parsed.error);
+        const message = warnToolInputParseFailure('Edit', parsed.error, t('tools.edit.parseError'));
         return (
             <ToolSectionView fullWidth>
                 <ToolError message={message} />

@@ -70,10 +70,14 @@ vi.mock('@/text', () => ({
         switch (key) {
             case 'toolView.output':
                 return 'Output';
+            case 'tools.edit.parseError':
+                return 'Edit input could not be parsed';
             case 'tools.multiEdit.editNumber':
                 return `Edit ${params?.index} of ${params?.total}`;
             case 'tools.multiEdit.replaceAll':
                 return 'Replace All';
+            case 'tools.multiEdit.parseError':
+                return 'MultiEdit input could not be parsed';
             case 'tools.taskOutput.running':
                 return 'Waiting for task output';
             case 'tools.taskOutput.taskId':

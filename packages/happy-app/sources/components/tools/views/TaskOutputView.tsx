@@ -42,7 +42,7 @@ function stringifyUnknownResult(result: unknown): string {
 export const TaskOutputView = React.memo<ToolViewProps>(({ tool }) => {
     const parsedInput = knownTools.TaskOutput.input.safeParse(tool.input);
     if (!parsedInput.success) {
-        const message = warnToolInputParseFailure('TaskOutput', parsedInput.error);
+        const message = warnToolInputParseFailure('TaskOutput', parsedInput.error, t('tools.taskOutput.parseError'));
         return (
             <ToolSectionView>
                 <ToolError message={message} />

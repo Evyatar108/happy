@@ -30,7 +30,7 @@ export const MultiEditViewFull = React.memo<MultiEditViewFullProps>(({ tool, met
 
     const parsed = knownTools.MultiEdit.input.safeParse(input);
     if (!parsed.success) {
-        const message = warnToolInputParseFailure('MultiEdit', parsed.error);
+        const message = warnToolInputParseFailure('MultiEdit', parsed.error, t('tools.multiEdit.parseError'));
         return (
             <View style={toolFullViewStyles.sectionFullWidth}>
                 <ToolError message={message} />

@@ -635,9 +635,13 @@ export const zhHant: TranslationStructure = {
             notFound: 'Not found',
             alreadyStopped: 'Already stopped',
         },
+        edit: {
+            parseError: '無法解析編輯輸入',
+        },
         multiEdit: {
             editNumber: ({ index, total }: { index: number; total: number }) => `編輯 ${index}/${total}`,
             replaceAll: '全部替換',
+            parseError: '無法解析MultiEdit輸入',
         },
         diff: {
             showMore: ({ count }: { count: number }) => `再顯示 ${count} 行`,

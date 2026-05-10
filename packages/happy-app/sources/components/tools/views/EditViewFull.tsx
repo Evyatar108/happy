@@ -9,6 +9,7 @@ import { trimIdent } from '@/utils/trimIdent';
 import { resolvePath } from '@/utils/pathUtils';
 import { ToolError } from '@/components/tools/ToolError';
 import { warnToolInputParseFailure } from './parseFailure';
+import { t } from '@/text';
 
 interface EditViewFullProps {
     tool: ToolCall;
@@ -20,7 +21,7 @@ export const EditViewFull = React.memo<EditViewFullProps>(({ tool, metadata }) =
 
     const parsed = knownTools.Edit.input.safeParse(input);
     if (!parsed.success) {
-        const message = warnToolInputParseFailure('Edit', parsed.error);
+        const message = warnToolInputParseFailure('Edit', parsed.error, t('tools.edit.parseError'));
         return (
             <View style={toolFullViewStyles.sectionFullWidth}>
                 <ToolError message={message} />

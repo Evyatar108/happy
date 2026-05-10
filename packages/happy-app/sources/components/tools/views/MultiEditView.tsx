@@ -15,7 +15,7 @@ import { warnToolInputParseFailure } from './parseFailure';
 export const MultiEditView = React.memo<ToolViewProps>(({ tool, metadata }) => {
     const parsed = knownTools.MultiEdit.input.safeParse(tool.input);
     if (!parsed.success) {
-        const message = warnToolInputParseFailure('MultiEdit', parsed.error);
+        const message = warnToolInputParseFailure('MultiEdit', parsed.error, t('tools.multiEdit.parseError'));
         return (
             <ToolSectionView fullWidth>
                 <ToolError message={message} />

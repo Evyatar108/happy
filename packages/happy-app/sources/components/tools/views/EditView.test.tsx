@@ -48,7 +48,7 @@ describe('EditView', () => {
         );
 
         const output = treeText(renderer);
-        expect(output).toContain('ToolError:[Edit] Zod parse failed:');
+        expect(output).toContain('ToolError:Edit input could not be parsed');
         expect(output).not.toContain('ToolDiffView');
         expect(warn).toHaveBeenCalledWith(expect.stringContaining('[Edit] Zod parse failed:'));
     });
