@@ -32,6 +32,7 @@ import { registerKillSessionHandler } from "@/claude/registerKillSessionHandler"
 import { connectionState } from '@/utils/serverConnectionErrors';
 import { setupOfflineReconnection } from '@/utils/setupOfflineReconnection';
 import { publishAgentConfigurationMetadataIfChanged, publishPermissionModeIfChanged } from '@/utils/publishPermissionMode';
+import { appendLedgerRecord } from '@/ledger/writer';
 import type { AgentConfiguration, ApiSessionClient } from '@/api/apiSession';
 import { resolveCodexExecutionPolicy } from './executionPolicy';
 import { mapCodexMcpMessageToSessionEnvelopes, mapCodexProcessorMessageToSessionEnvelopes } from './utils/sessionProtocolMapper';
@@ -39,7 +40,11 @@ import { resumeExistingThread } from './resumeExistingThread';
 import { emitReadyIfIdle } from './emitReadyIfIdle';
 import type { ReasoningEffort } from './codexAppServerTypes';
 import { HAPPY_FORKED_FROM_SESSION_ID } from '@/utils/envNames';
+<<<<<<< HEAD
 import { createCodexPatchApprovalInput } from './codexApprovalSnapshot';
+=======
+import type { LedgerRecord } from '@slopus/happy-wire';
+>>>>>>> 043bb907 (feat: US-008 - Ledger schema in happy-wire + per-package writers + done-gate)
 
 function getMessageDelivery(message: { messageId?: string; seq?: number }): MessageDelivery | undefined {
     return typeof message.messageId === 'string' && typeof message.seq === 'number'
@@ -190,6 +195,14 @@ export async function runCodex(opts: {
         }
     });
     session = initialSession;
+    const ledgerRunId = metadata.runId;
+    const ledgerSessionId = response?.id ?? session.sessionId;
+    const appendSessionLedgerRecord = (record: LedgerRecord): void => {
+        if (!ledgerRunId) return;
+        void appendLedgerRecord(ledgerRunId, ledgerSessionId, record).catch((error) => {
+            logger.debug('[ledger] Failed to append Codex ledger record', error);
+        });
+    };
     const lastPublishedPermissionModeCode = { current: undefined as string | undefined };
 
     // On reconnect, un-archive the session and skip replaying old messages.
@@ -315,6 +328,18 @@ export async function runCodex(opts: {
             thinkingLevel: messageThinkingLevel,
         };
         messageQueue.push(message.content.text, enhancedMode, getMessageDelivery(message));
+        if (ledgerRunId) {
+            appendSessionLedgerRecord({
+                runId: ledgerRunId,
+                sessionId: ledgerSessionId,
+                timestamp: new Date().toISOString(),
+                eventType: 'message-sent',
+                direction: 'user-to-agent',
+                messageId: message.messageId,
+                seqWithinSession: message.seq,
+                messagePreview: message.content.text,
+            });
+        }
     });
     let thinking = false;
     let currentTurnId: string | null = null;
@@ -817,6 +842,16 @@ export async function runCodex(opts: {
                     queueSize: () => messageQueue.size(),
                     shouldExit,
                     sendReady,
+                    notify: () => {
+                        if (!ledgerRunId) return;
+                        appendSessionLedgerRecord({
+                            runId: ledgerRunId,
+                            sessionId: ledgerSessionId,
+                            timestamp: new Date().toISOString(),
+                            eventType: 'idle-reached',
+                            queueDepth: messageQueue.size(),
+                        });
+                    },
                 });
                 logActiveHandles('after-turn');
             }

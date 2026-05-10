@@ -391,4 +391,81 @@ function findSenderDropEntry(raw) {
   return nonRenderableEntries.find((entry) => entry.senderPredicate?.(raw)) ?? null;
 }
 
-export { AgentMessageSchema, ApiMessageSchema, ApiUpdateMachineStateSchema, ApiUpdateNewMessageSchema, ApiUpdateSessionStateSchema, CoreUpdateBodySchema, CoreUpdateContainerSchema, LegacyMessageContentSchema, MessageContentSchema, MessageMetaSchema, SessionMessageContentSchema, SessionMessageRangeRequestSchema, SessionMessageRangeResponseSchema, SessionMessageSchema, SessionProtocolMessageSchema, TofuHandshakeMessageSchema, TofuPubkeysEventSchema, TofuPublicKeysSchema, TofuSessionKeyExchangeSchema, UpdateBodySchema, UpdateMachineBodySchema, UpdateNewMessageBodySchema, UpdateSchema, UpdateSessionBodySchema, UserMessageSchema, VersionedEncryptedValueSchema, VersionedMachineEncryptedValueSchema, VersionedNullableEncryptedValueSchema, VoiceConversationDeniedSchema, VoiceConversationGrantedSchema, VoiceConversationResponseSchema, VoiceUsageResponseSchema, createEnvelope, findSenderDropEntry, forkBoilerplateEntry, localCommandCaveatEntry, makeWrappedTagEntry, nonRenderableEntries, sessionAgentConfigurationChangedEventSchema, sessionContextBoundaryEventSchema, sessionContextBoundaryKindSchema, sessionContextBoundaryTriggeredBySchema, sessionEnvelopeSchema, sessionEventSchema, sessionFileEventSchema, sessionMessageConsumptionEventSchema, sessionRoleSchema, sessionServiceMessageEventSchema, sessionStartEventSchema, sessionStopEventSchema, sessionTextEventSchema, sessionToolCallEndEventSchema, sessionToolCallStartEventSchema, sessionTurnEndEventSchema, sessionTurnEndStatusSchema, sessionTurnStartEventSchema, skillBodyEntry, systemReminderEntry };
+const payloadSchema = z.record(z.unknown()).optional();
+const baseLedgerRecordSchema = z.object({
+  runId: z.string().min(1),
+  sessionId: z.string().min(1),
+  timestamp: z.string().datetime(),
+  seqWithinSession: z.number().int().nonnegative().optional()
+});
+const LedgerErrorCodeSchema = z.enum([
+  "spawn_failed",
+  "message_failed",
+  "permission_failed",
+  "validation_failed",
+  "monitor_failed",
+  "unknown"
+]);
+const SpawnLedgerRecordSchema = baseLedgerRecordSchema.extend({
+  eventType: z.literal("spawn"),
+  agent: z.string().min(1),
+  projectPath: z.string().min(1),
+  worktreePath: z.string().min(1),
+  branchName: z.string().min(1).optional(),
+  payload: payloadSchema
+});
+const MessageSentLedgerRecordSchema = baseLedgerRecordSchema.extend({
+  eventType: z.literal("message-sent"),
+  direction: z.enum(["user-to-agent", "agent-to-server"]),
+  messageId: z.string().min(1).optional(),
+  messagePreview: z.string().optional(),
+  payload: payloadSchema
+});
+const IdleReachedLedgerRecordSchema = baseLedgerRecordSchema.extend({
+  eventType: z.literal("idle-reached"),
+  queueDepth: z.number().int().nonnegative(),
+  payload: payloadSchema
+});
+const PendingPermissionLedgerRecordSchema = baseLedgerRecordSchema.extend({
+  eventType: z.literal("pending-permission"),
+  requestIds: z.array(z.string().min(1)),
+  payload: payloadSchema
+});
+const LastOutputSummaryLedgerRecordSchema = baseLedgerRecordSchema.extend({
+  eventType: z.literal("last-output-summary"),
+  summary: z.string(),
+  heuristic: z.enum(["assistant-text", "tool-result", "server-summary"]),
+  payload: payloadSchema
+});
+const ValidationAttachedLedgerRecordSchema = baseLedgerRecordSchema.extend({
+  eventType: z.literal("validation-attached"),
+  testReference: z.string().min(1),
+  verificationUrl: z.string().url(),
+  payload: payloadSchema
+});
+const DoneLedgerRecordSchema = baseLedgerRecordSchema.extend({
+  eventType: z.literal("done"),
+  scopeSummary: z.string().min(1),
+  testReference: z.string().min(1),
+  verificationUrl: z.string().url(),
+  caveats: z.array(z.string()),
+  payload: payloadSchema
+});
+const ErrorLedgerRecordSchema = baseLedgerRecordSchema.extend({
+  eventType: z.literal("error"),
+  errorCode: LedgerErrorCodeSchema,
+  errorMessage: z.string().min(1),
+  payload: payloadSchema
+});
+const LedgerRecordSchema = z.discriminatedUnion("eventType", [
+  SpawnLedgerRecordSchema,
+  MessageSentLedgerRecordSchema,
+  IdleReachedLedgerRecordSchema,
+  PendingPermissionLedgerRecordSchema,
+  LastOutputSummaryLedgerRecordSchema,
+  ValidationAttachedLedgerRecordSchema,
+  DoneLedgerRecordSchema,
+  ErrorLedgerRecordSchema
+]);
+
+export { AgentMessageSchema, ApiMessageSchema, ApiUpdateMachineStateSchema, ApiUpdateNewMessageSchema, ApiUpdateSessionStateSchema, CoreUpdateBodySchema, CoreUpdateContainerSchema, DoneLedgerRecordSchema, ErrorLedgerRecordSchema, IdleReachedLedgerRecordSchema, LastOutputSummaryLedgerRecordSchema, LedgerErrorCodeSchema, LedgerRecordSchema, LegacyMessageContentSchema, MessageContentSchema, MessageMetaSchema, MessageSentLedgerRecordSchema, PendingPermissionLedgerRecordSchema, SessionMessageContentSchema, SessionMessageRangeRequestSchema, SessionMessageRangeResponseSchema, SessionMessageSchema, SessionProtocolMessageSchema, SpawnLedgerRecordSchema, TofuHandshakeMessageSchema, TofuPubkeysEventSchema, TofuPublicKeysSchema, TofuSessionKeyExchangeSchema, UpdateBodySchema, UpdateMachineBodySchema, UpdateNewMessageBodySchema, UpdateSchema, UpdateSessionBodySchema, UserMessageSchema, ValidationAttachedLedgerRecordSchema, VersionedEncryptedValueSchema, VersionedMachineEncryptedValueSchema, VersionedNullableEncryptedValueSchema, VoiceConversationDeniedSchema, VoiceConversationGrantedSchema, VoiceConversationResponseSchema, VoiceUsageResponseSchema, createEnvelope, findSenderDropEntry, forkBoilerplateEntry, localCommandCaveatEntry, makeWrappedTagEntry, nonRenderableEntries, sessionAgentConfigurationChangedEventSchema, sessionContextBoundaryEventSchema, sessionContextBoundaryKindSchema, sessionContextBoundaryTriggeredBySchema, sessionEnvelopeSchema, sessionEventSchema, sessionFileEventSchema, sessionMessageConsumptionEventSchema, sessionRoleSchema, sessionServiceMessageEventSchema, sessionStartEventSchema, sessionStopEventSchema, sessionTextEventSchema, sessionToolCallEndEventSchema, sessionToolCallStartEventSchema, sessionTurnEndEventSchema, sessionTurnEndStatusSchema, sessionTurnStartEventSchema, skillBodyEntry, systemReminderEntry };

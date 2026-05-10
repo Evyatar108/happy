@@ -28,9 +28,11 @@ import { Session } from './session';
 import { applySandboxPermissionPolicy, resolveInitialClaudePermissionMode } from './utils/permissionMode';
 import { publishAgentConfigurationMetadataIfChanged, publishPermissionModeIfChanged } from '@/utils/publishPermissionMode';
 import { decodeBase64, encodeBase64 } from '@/api/encryption';
+import { appendLedgerRecord } from '@/ledger/writer';
 import type { Session as ApiSession } from '@/api/types';
 import type { AgentConfiguration } from '@/api/apiSession';
 import type { MessageDelivery } from '@/utils/MessageQueue2';
+import type { LedgerRecord } from '@slopus/happy-wire';
 
 /** JavaScript runtime to use for spawning Claude Code */
 export type JsRuntime = 'node' | 'bun'
@@ -229,6 +231,14 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
 
     // Create realtime session
     const session = api.sessionSyncClient(response);
+    const ledgerRunId = metadata.runId;
+    const ledgerSessionId = response.id;
+    const appendSessionLedgerRecord = (record: LedgerRecord): void => {
+        if (!ledgerRunId) return;
+        void appendLedgerRecord(ledgerRunId, ledgerSessionId, record).catch((error) => {
+            logger.debug('[ledger] Failed to append Claude ledger record', error);
+        });
+    };
 
     // On reconnect, un-archive the session and skip replaying old messages.
     if (reconnectSessionId) {
@@ -331,6 +341,29 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         allowedTools: mode.allowedTools,
         disallowedTools: mode.disallowedTools
     }));
+    const recordMessageSent = (message: { content?: { text?: string }; messageId?: string; seq?: number }): void => {
+        if (!ledgerRunId) return;
+        appendSessionLedgerRecord({
+            runId: ledgerRunId,
+            sessionId: ledgerSessionId,
+            timestamp: new Date().toISOString(),
+            eventType: 'message-sent',
+            direction: 'user-to-agent',
+            messageId: message.messageId,
+            seqWithinSession: message.seq,
+            messagePreview: message.content?.text,
+        });
+    };
+    const recordIdleReached = (): void => {
+        if (!ledgerRunId) return;
+        appendSessionLedgerRecord({
+            runId: ledgerRunId,
+            sessionId: ledgerSessionId,
+            timestamp: new Date().toISOString(),
+            eventType: 'idle-reached',
+            queueDepth: messageQueue.size(),
+        });
+    };
 
     // Forward messages to the queue
     // Permission modes: Use the unified 7-mode type, mapping happens at SDK boundary in claudeRemote.ts
@@ -502,6 +535,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
                 disallowedTools: messageDisallowedTools
             };
             messageQueue.pushIsolateAndClear(specialCommand.originalMessage || message.content.text, enhancedMode, getMessageDelivery(message));
+            recordMessageSent(message);
             logger.debugLargeJson('[start] /compact command pushed to queue:', message);
             return;
         }
@@ -519,6 +553,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
                 disallowedTools: messageDisallowedTools
             };
             messageQueue.pushIsolateAndClear(specialCommand.originalMessage || message.content.text, enhancedMode, getMessageDelivery(message));
+            recordMessageSent(message);
             logger.debugLargeJson('[start] /compact command pushed to queue:', message);
             return;
         }
@@ -577,6 +612,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
             disallowedTools: messageDisallowedTools
         };
         messageQueue.push(message.content.text, enhancedMode, getMessageDelivery(message));
+        recordMessageSent(message);
         logger.debugLargeJson('User message pushed to queue:', message)
     });
 
@@ -664,6 +700,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         onSessionReady: (sessionInstance) => {
             // Store reference for hook server callback
             currentSession = sessionInstance;
+            sessionInstance.setLedgerIdleReachedHandler(recordIdleReached);
         },
         mcpServers: {
             'happy': {

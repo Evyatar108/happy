@@ -412,6 +412,83 @@ function findSenderDropEntry(raw) {
   return nonRenderableEntries.find((entry) => entry.senderPredicate?.(raw)) ?? null;
 }
 
+const payloadSchema = z__namespace.record(z__namespace.unknown()).optional();
+const baseLedgerRecordSchema = z__namespace.object({
+  runId: z__namespace.string().min(1),
+  sessionId: z__namespace.string().min(1),
+  timestamp: z__namespace.string().datetime(),
+  seqWithinSession: z__namespace.number().int().nonnegative().optional()
+});
+const LedgerErrorCodeSchema = z__namespace.enum([
+  "spawn_failed",
+  "message_failed",
+  "permission_failed",
+  "validation_failed",
+  "monitor_failed",
+  "unknown"
+]);
+const SpawnLedgerRecordSchema = baseLedgerRecordSchema.extend({
+  eventType: z__namespace.literal("spawn"),
+  agent: z__namespace.string().min(1),
+  projectPath: z__namespace.string().min(1),
+  worktreePath: z__namespace.string().min(1),
+  branchName: z__namespace.string().min(1).optional(),
+  payload: payloadSchema
+});
+const MessageSentLedgerRecordSchema = baseLedgerRecordSchema.extend({
+  eventType: z__namespace.literal("message-sent"),
+  direction: z__namespace.enum(["user-to-agent", "agent-to-server"]),
+  messageId: z__namespace.string().min(1).optional(),
+  messagePreview: z__namespace.string().optional(),
+  payload: payloadSchema
+});
+const IdleReachedLedgerRecordSchema = baseLedgerRecordSchema.extend({
+  eventType: z__namespace.literal("idle-reached"),
+  queueDepth: z__namespace.number().int().nonnegative(),
+  payload: payloadSchema
+});
+const PendingPermissionLedgerRecordSchema = baseLedgerRecordSchema.extend({
+  eventType: z__namespace.literal("pending-permission"),
+  requestIds: z__namespace.array(z__namespace.string().min(1)),
+  payload: payloadSchema
+});
+const LastOutputSummaryLedgerRecordSchema = baseLedgerRecordSchema.extend({
+  eventType: z__namespace.literal("last-output-summary"),
+  summary: z__namespace.string(),
+  heuristic: z__namespace.enum(["assistant-text", "tool-result", "server-summary"]),
+  payload: payloadSchema
+});
+const ValidationAttachedLedgerRecordSchema = baseLedgerRecordSchema.extend({
+  eventType: z__namespace.literal("validation-attached"),
+  testReference: z__namespace.string().min(1),
+  verificationUrl: z__namespace.string().url(),
+  payload: payloadSchema
+});
+const DoneLedgerRecordSchema = baseLedgerRecordSchema.extend({
+  eventType: z__namespace.literal("done"),
+  scopeSummary: z__namespace.string().min(1),
+  testReference: z__namespace.string().min(1),
+  verificationUrl: z__namespace.string().url(),
+  caveats: z__namespace.array(z__namespace.string()),
+  payload: payloadSchema
+});
+const ErrorLedgerRecordSchema = baseLedgerRecordSchema.extend({
+  eventType: z__namespace.literal("error"),
+  errorCode: LedgerErrorCodeSchema,
+  errorMessage: z__namespace.string().min(1),
+  payload: payloadSchema
+});
+const LedgerRecordSchema = z__namespace.discriminatedUnion("eventType", [
+  SpawnLedgerRecordSchema,
+  MessageSentLedgerRecordSchema,
+  IdleReachedLedgerRecordSchema,
+  PendingPermissionLedgerRecordSchema,
+  LastOutputSummaryLedgerRecordSchema,
+  ValidationAttachedLedgerRecordSchema,
+  DoneLedgerRecordSchema,
+  ErrorLedgerRecordSchema
+]);
+
 exports.AgentMessageSchema = AgentMessageSchema;
 exports.ApiMessageSchema = ApiMessageSchema;
 exports.ApiUpdateMachineStateSchema = ApiUpdateMachineStateSchema;
@@ -419,14 +496,23 @@ exports.ApiUpdateNewMessageSchema = ApiUpdateNewMessageSchema;
 exports.ApiUpdateSessionStateSchema = ApiUpdateSessionStateSchema;
 exports.CoreUpdateBodySchema = CoreUpdateBodySchema;
 exports.CoreUpdateContainerSchema = CoreUpdateContainerSchema;
+exports.DoneLedgerRecordSchema = DoneLedgerRecordSchema;
+exports.ErrorLedgerRecordSchema = ErrorLedgerRecordSchema;
+exports.IdleReachedLedgerRecordSchema = IdleReachedLedgerRecordSchema;
+exports.LastOutputSummaryLedgerRecordSchema = LastOutputSummaryLedgerRecordSchema;
+exports.LedgerErrorCodeSchema = LedgerErrorCodeSchema;
+exports.LedgerRecordSchema = LedgerRecordSchema;
 exports.LegacyMessageContentSchema = LegacyMessageContentSchema;
 exports.MessageContentSchema = MessageContentSchema;
 exports.MessageMetaSchema = MessageMetaSchema;
+exports.MessageSentLedgerRecordSchema = MessageSentLedgerRecordSchema;
+exports.PendingPermissionLedgerRecordSchema = PendingPermissionLedgerRecordSchema;
 exports.SessionMessageContentSchema = SessionMessageContentSchema;
 exports.SessionMessageRangeRequestSchema = SessionMessageRangeRequestSchema;
 exports.SessionMessageRangeResponseSchema = SessionMessageRangeResponseSchema;
 exports.SessionMessageSchema = SessionMessageSchema;
 exports.SessionProtocolMessageSchema = SessionProtocolMessageSchema;
+exports.SpawnLedgerRecordSchema = SpawnLedgerRecordSchema;
 exports.TofuHandshakeMessageSchema = TofuHandshakeMessageSchema;
 exports.TofuPubkeysEventSchema = TofuPubkeysEventSchema;
 exports.TofuPublicKeysSchema = TofuPublicKeysSchema;
@@ -437,6 +523,7 @@ exports.UpdateNewMessageBodySchema = UpdateNewMessageBodySchema;
 exports.UpdateSchema = UpdateSchema;
 exports.UpdateSessionBodySchema = UpdateSessionBodySchema;
 exports.UserMessageSchema = UserMessageSchema;
+exports.ValidationAttachedLedgerRecordSchema = ValidationAttachedLedgerRecordSchema;
 exports.VersionedEncryptedValueSchema = VersionedEncryptedValueSchema;
 exports.VersionedMachineEncryptedValueSchema = VersionedMachineEncryptedValueSchema;
 exports.VersionedNullableEncryptedValueSchema = VersionedNullableEncryptedValueSchema;
