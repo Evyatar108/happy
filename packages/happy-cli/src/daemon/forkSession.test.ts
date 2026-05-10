@@ -50,7 +50,7 @@ describe('forkSession', () => {
       findTrackedSessionById: vi.fn().mockReturnValue(parent),
       fetchServerSessionMetadata: vi.fn(),
       spawnTrackedHappyProcess,
-      stat: vi.fn().mockResolvedValue({}) as any,
+      stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
       baseEnv: {
         PATH: '/bin',
         HAPPY_RECONNECT_SESSION_ID: 'old-session',
@@ -82,7 +82,7 @@ describe('forkSession', () => {
       findTrackedSessionById: vi.fn().mockReturnValue(parent),
       fetchServerSessionMetadata,
       spawnTrackedHappyProcess,
-      stat: vi.fn().mockResolvedValue({}) as any,
+      stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
       baseEnv: {},
     });
 
@@ -101,7 +101,7 @@ describe('forkSession', () => {
       findTrackedSessionById: vi.fn().mockReturnValue(parent),
       fetchServerSessionMetadata,
       spawnTrackedHappyProcess,
-      stat: vi.fn().mockResolvedValue({}) as any,
+      stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
       baseEnv: {},
     });
 
@@ -118,7 +118,7 @@ describe('forkSession', () => {
       findTrackedSessionById: vi.fn().mockReturnValue(parent),
       fetchServerSessionMetadata,
       spawnTrackedHappyProcess,
-      stat: vi.fn().mockResolvedValue({}) as any,
+      stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
       baseEnv: {},
     });
 
@@ -158,12 +158,36 @@ describe('forkSession', () => {
     expect(flavorUnsupported).toMatchObject({ errorMessage: expect.stringContaining('Codex sessions only') });
   });
 
+  it('returns error when worktreePath is not absolute', async () => {
+    const result = await forkSession({ parentSessionId: 'parent-local-id', worktreePath: 'relative/path' }, {
+      findTrackedSessionById: vi.fn().mockReturnValue(trackedSession()),
+      fetchServerSessionMetadata: vi.fn(),
+      spawnTrackedHappyProcess: vi.fn(),
+      stat: vi.fn(),
+      baseEnv: {},
+    });
+    expect(result.type).toBe('error');
+    expect(result).toMatchObject({ errorMessage: expect.stringContaining('absolute path') });
+  });
+
+  it('returns error when worktreePath stat is not a directory', async () => {
+    const result = await forkSession({ parentSessionId: 'parent-local-id', worktreePath: '/fork/worktree/file.txt' }, {
+      findTrackedSessionById: vi.fn().mockReturnValue(trackedSession()),
+      fetchServerSessionMetadata: vi.fn(),
+      spawnTrackedHappyProcess: vi.fn(),
+      stat: vi.fn().mockResolvedValue({ isDirectory: () => false }),
+      baseEnv: {},
+    });
+    expect(result.type).toBe('error');
+    expect(result).toMatchObject({ errorMessage: expect.stringContaining('directory') });
+  });
+
   it('passes through approval-request envelopes returned by the spawner', async () => {
     const result = await forkSession({ parentSessionId: 'parent-local-id', worktreePath: '/fork/worktree' }, {
       findTrackedSessionById: vi.fn().mockReturnValue(trackedSession()),
       fetchServerSessionMetadata: vi.fn(),
       spawnTrackedHappyProcess: vi.fn().mockResolvedValue({ type: 'requestToApproveDirectoryCreation', directory: '/fork/worktree' }),
-      stat: vi.fn().mockResolvedValue({}) as any,
+      stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
       baseEnv: {},
     });
 

@@ -1,3 +1,5 @@
+import { isAbsolute } from 'path';
+
 import type { ForkSessionOptions } from '@/api/apiMachine';
 import type { Metadata } from '@/api/types';
 import type { SpawnSessionResult } from '@/modules/common/registerCommonHandlers';
@@ -16,7 +18,7 @@ export type ForkSessionDeps = {
     directoryCreated?: boolean;
     message?: string;
   }) => Promise<SpawnSessionResult>;
-  stat: (path: string) => Promise<unknown>;
+  stat: (path: string) => Promise<{ isDirectory(): boolean }>;
   baseEnv: NodeJS.ProcessEnv;
 };
 
@@ -51,7 +53,14 @@ export async function forkSession(options: ForkSessionOptions, deps: ForkSession
       tracked.happySessionMetadataFromLocalWebhook = serverMetadata;
     }
 
-    await deps.stat(worktreePath);
+    if (!isAbsolute(worktreePath)) {
+      return { type: 'error', errorMessage: `worktreePath must be an absolute path, got: ${worktreePath}` };
+    }
+
+    const statResult = await deps.stat(worktreePath);
+    if (!statResult.isDirectory()) {
+      return { type: 'error', errorMessage: `worktreePath must be a directory: ${worktreePath}` };
+    }
 
     const launch = buildResumeLaunch(
       { id: parentSessionId, active: true, metadata },
