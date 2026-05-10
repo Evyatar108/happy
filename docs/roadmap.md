@@ -2,6 +2,17 @@
 
 ## Shipped
 
+### P1 Tool Rendering Sweep — 2026-05-10
+Fixed four broken tool renderers in the Happy app session transcript (TaskOutput, TaskStop, Edit, MultiEdit) plus a CodexPatchView shape extension. 16 commits on `ralph/fix-p1-tool-rendering-bugs` merged to `main` as `1ebe3244` (`--no-ff`).
+
+- TaskOutput / TaskStop are first-class renderers (`TaskOutputView`, `TaskStopView`) with permissive `partial().passthrough()` result schemas, `minimal: false`, and a 5-priority rendering ladder; bubbles are never invisible.
+- Edit / MultiEdit thread the resolved `file_path` into `ToolDiffView` (compact + full views) so diffs no longer fall back to the `file.txt` label; visible parse-error block + `console.warn` on Zod failure.
+- CodexPatchView accepts the real Codex 0.107 `FileChange` flat tagged union (`type: 'update'|'add'|'delete'` with sibling `unified_diff` / `content` / `move_path`); legacy-wrapper branches preserved.
+- Vitest component tests for all five views (817 tests pass); deterministic `/dev/tools2` fixtures cover every fixed branch; new i18n keys mirrored to `_default.ts` + all 10 locales.
+- Convergence: code review converged round 1 (5 fixed + 3 wont_fix dup/out-of-scope), docs review converged round 1, security review skipped (`security_relevant=false`).
+
+See `docs/fork-roadmap.md ## Shipped` and `docs/plans/p1-bug-investigations.md` for the full breakdown.
+
 ### Server-Per-Machine Architecture (D-003) — 2026-05-09
 Happy redesigned from multi-tenant cloud relay to server-per-machine product. Each machine runs embedded `happy-server` inside `happy-cli`, exposed via Microsoft Dev Tunnel, paired via GitHub device flow + TOFU pubkey pinning, push notifications direct to Expo HTTP API. Cloud relay (`app.happy.engineering`) removed.
 
