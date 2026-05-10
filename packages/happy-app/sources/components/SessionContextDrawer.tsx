@@ -10,6 +10,7 @@ import type { EffortLevel } from './modelModeOptions';
 import type { ResumeCommandBlock } from '@/utils/resumeCommand';
 import type { ResumeAvailability } from '@/utils/resumeAvailability';
 import type { SpawnSessionResult } from '@/sync/ops';
+import { useSetting } from '@/sync/storage';
 import type { Machine, Session } from '@/sync/storageTypes';
 import { t } from '@/text';
 import { forkAvailability } from '@/utils/forkAvailability';
@@ -32,9 +33,12 @@ type SessionContextDrawerProps = {
     canResume: boolean;
     resumeAvailability: ResumeAvailability;
     resumeCommandBlock: ResumeCommandBlock | null;
+    sessionId?: string | null;
     session: Session;
     machine: Machine | null | undefined;
+    iconPinned: boolean;
     onForkPress: () => void;
+    onIconPinnedToggle: () => void;
     updatePermissionMode: (mode: PermissionMode) => void;
     updateModelMode: (mode: ModelMode) => void;
     updateEffortLevel: (level: EffortLevel) => void;
@@ -49,7 +53,9 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
     const { theme } = useUnistyles();
     const { height: windowHeight } = useWindowDimensions();
     const { canResume, resumeAvailability, resumeCommandBlock, resumeSessionInline, sessionEmitAgentConfiguration } = props;
+    const avatarStyle = useSetting('avatarStyle');
     const canFork = forkAvailability(props.session, props.machine);
+    const canShowIconPin = avatarStyle === 'brutalist-topic' && !!props.sessionId;
     const [isExpanded, setIsExpanded] = React.useState(false);
     const [isResuming, setIsResuming] = React.useState(false);
     const [inlineResumeError, setInlineResumeError] = React.useState<string | null>(null);
@@ -198,6 +204,32 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
                     )}
                     {!!inlinePickerError && (
                         <Text style={styles.pickerErrorText}>{inlinePickerError}</Text>
+                    )}
+                    {canShowIconPin && (
+                        <Pressable
+                            onPress={props.onIconPinnedToggle}
+                            accessibilityRole="button"
+                            accessibilityLabel={props.iconPinned ? t('drawer.unpinIcon') : t('drawer.pinIcon')}
+                            accessibilityState={{ selected: props.iconPinned }}
+                            style={({ pressed }) => [
+                                styles.iconPinButton,
+                                pressed && styles.iconPinButtonPressed,
+                            ]}
+                        >
+                            <Ionicons
+                                name={props.iconPinned ? 'pin' : 'pin-outline'}
+                                size={16}
+                                color={theme.colors.text}
+                            />
+                            <View style={styles.iconPinCopyColumn}>
+                                <Text style={styles.iconPinTitle}>
+                                    {props.iconPinned ? t('drawer.unpinIcon') : t('drawer.pinIcon')}
+                                </Text>
+                                <Text style={styles.iconPinDescription}>
+                                    {t('drawer.pinIconDescription')}
+                                </Text>
+                            </View>
+                        </Pressable>
                     )}
                     {shouldShowResume && (
                         <View style={styles.resumeSection}>
@@ -499,6 +531,36 @@ const styles = StyleSheet.create((theme) => ({
         fontSize: 12,
         lineHeight: 16,
         paddingHorizontal: 4,
+    },
+    iconPinButton: {
+        minHeight: 48,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: theme.colors.divider,
+        backgroundColor: theme.colors.input.background,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+    },
+    iconPinButtonPressed: {
+        backgroundColor: theme.colors.surfacePressed,
+    },
+    iconPinCopyColumn: {
+        minWidth: 0,
+        flex: 1,
+        gap: 2,
+    },
+    iconPinTitle: {
+        color: theme.colors.text,
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    iconPinDescription: {
+        color: theme.colors.textSecondary,
+        fontSize: 12,
+        lineHeight: 16,
     },
     forkButton: {
         height: 36,
