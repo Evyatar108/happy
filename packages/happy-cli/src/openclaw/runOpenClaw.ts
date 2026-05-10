@@ -290,6 +290,12 @@ export async function runOpenClaw(opts: RunOpenClawOptions): Promise<void> {
         void publishAgentConfigurationMetadataIfChanged(session, metadata, { thinkingLevel: currentThinkingLevel });
         logger.debug(`[openclaw] Thinking level updated from live configuration for next turn: ${currentThinkingLevel || 'default'}`);
       }
+      if (Object.prototype.hasOwnProperty.call(configuration, 'model')) {
+        logger.debug(`[openclaw] model change received (${configuration.model ?? 'undefined'}) but not applied; OpenClaw runner does not support live model swap`);
+      }
+      if (Object.prototype.hasOwnProperty.call(configuration, 'permissionMode')) {
+        logger.debug(`[openclaw] permissionMode change received (${configuration.permissionMode ?? 'undefined'}) but not applied; OpenClaw runner does not support live permissionMode swap`);
+      }
     });
   }
   session.keepAlive(thinking, 'remote');
