@@ -104,7 +104,7 @@ const SectionHeader = React.memo(({ session, displayPath }: { session: SessionRo
 
             {/* Path + branch */}
             <View style={styles.sectionHeaderContent}>
-                <Text style={styles.sectionHeaderPath} numberOfLines={1}>
+                <Text style={styles.sectionHeaderPath} numberOfLines={1} ellipsizeMode="middle">
                     {repoDisplayPath}
                 </Text>
                 {hasBranch && (
@@ -445,11 +445,15 @@ const stylesheet = StyleSheet.create((theme) => ({
         lineHeight: Platform.select({ ios: 18, default: 20 }),
         letterSpacing: Platform.select({ ios: -0.08, default: 0.1 }),
         fontWeight: Platform.select({ ios: 'normal', default: '500' }),
+        flex: 1,
+        minWidth: 0,
     },
     branchRow: {
         flexDirection: 'row',
         alignItems: 'center',
         marginTop: 1,
+        marginLeft: 8,
+        flexShrink: 0,
     },
     branchText: {
         fontSize: 11,
