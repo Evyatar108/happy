@@ -69,6 +69,10 @@ describe('settings', () => {
             });
         });
 
+        it('preserves a populated sessionGroupOrder', () => {
+            expect(settingsParse({ sessionGroupOrder: ['m::/repo', 'm::/other'] }).sessionGroupOrder).toEqual(['m::/repo', 'm::/other']);
+        });
+
         it('should handle settings with null/undefined values', () => {
             const settingsWithNull = {
                 viewInline: null,
