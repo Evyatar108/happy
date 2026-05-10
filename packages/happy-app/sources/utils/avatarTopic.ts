@@ -44,7 +44,7 @@ export function buildTopicAvatarKey(input: TopicAvatarKeyInput): string | null {
         .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
         .join(' ')
         .normalize('NFKC')
-        .toLocaleLowerCase();
+        .toLowerCase();
 
     const tokens = Array.from(source.matchAll(TOKEN_PATTERN), ([token]) => token)
         .filter(token => !STOP_WORDS.has(token))
