@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiSessionClient } from './apiSession';
+import { ApiSessionClient, MessageConsumptionTimeoutError } from './apiSession';
 import { decodeBase64, decrypt, encodeBase64, encrypt } from './encryption';
 import type { Update } from './types';
 
@@ -1475,6 +1475,98 @@ describe('ApiSessionClient v3 messages API migration', () => {
             consumedAt: 10,
             agentFlavor: 'claude',
         });
+    });
+
+    it('rejects consumedPromise with session-closed error when close() is called while queued', async () => {
+        const client = new ApiSessionClient('fake-token', session);
+
+        mockAxiosPost.mockImplementationOnce(async (_url: string, body: { messages: Array<{ localId: string }> }) => ({
+            data: {
+                messages: [
+                    {
+                        id: 'user-message-close',
+                        seq: 1,
+                        localId: body.messages[0].localId,
+                        createdAt: 1,
+                        updatedAt: 1,
+                    }
+                ]
+            }
+        }));
+
+        const { seqPromise, consumedPromise } = client.enqueueMessageWithConsumptionAck({
+            role: 'user',
+            content: { type: 'text', text: 'disconnect-me' },
+        });
+
+        await expect(seqPromise).resolves.toBe(1);
+
+        await client.close();
+
+        await expect(consumedPromise).rejects.toThrow('Session closed before message consumption was observed');
+    });
+
+    it('rejects consumedPromise with MessageConsumptionTimeoutError after CONSUMPTION_ACK_TIMEOUT_MS', async () => {
+        vi.useFakeTimers();
+        const client = new ApiSessionClient('fake-token', session);
+
+        mockAxiosPost.mockImplementationOnce(async (_url: string, body: { messages: Array<{ localId: string }> }) => ({
+            data: {
+                messages: [
+                    {
+                        id: 'user-message-timeout',
+                        seq: 1,
+                        localId: body.messages[0].localId,
+                        createdAt: 1,
+                        updatedAt: 1,
+                    }
+                ]
+            }
+        }));
+
+        const { seqPromise, consumedPromise } = client.enqueueMessageWithConsumptionAck({
+            role: 'user',
+            content: { type: 'text', text: 'timeout-me' },
+        });
+
+        await vi.runAllTimersAsync();
+
+        await expect(seqPromise).resolves.toBe(1);
+        await expect(consumedPromise).rejects.toBeInstanceOf(MessageConsumptionTimeoutError);
+        await expect(consumedPromise).rejects.toMatchObject({ messageId: 'user-message-timeout' });
+
+        vi.useRealTimers();
+    });
+
+    it('rejects consumedPromise immediately when AbortSignal fires', async () => {
+        const client = new ApiSessionClient('fake-token', session);
+
+        mockAxiosPost.mockImplementationOnce(async (_url: string, body: { messages: Array<{ localId: string }> }) => ({
+            data: {
+                messages: [
+                    {
+                        id: 'user-message-abort',
+                        seq: 1,
+                        localId: body.messages[0].localId,
+                        createdAt: 1,
+                        updatedAt: 1,
+                    }
+                ]
+            }
+        }));
+
+        const controller = new AbortController();
+        const { seqPromise, consumedPromise } = client.enqueueMessageWithConsumptionAck(
+            { role: 'user', content: { type: 'text', text: 'abort-me' } },
+            controller.signal
+        );
+
+        await expect(seqPromise).resolves.toBe(1);
+
+        controller.abort(new Error('session killed'));
+        await expect(consumedPromise).rejects.toThrow('session killed');
+
+        expect((client as any).consumptionResolvers.size).toBe(0);
     });
 
     it('resolves batched consumption acks one envelope per original message seq', async () => {

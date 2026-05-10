@@ -29,6 +29,20 @@ import { normalizeSessionLogMessage } from '@/claude/utils/normalizeSessionLogMe
 import { InvalidateSync } from '@/utils/sync';
 import axios from 'axios';
 
+const CONSUMPTION_ACK_TIMEOUT_MS =
+    typeof process.env.HAPPY_CONSUMPTION_ACK_TIMEOUT_MS === 'string' && process.env.HAPPY_CONSUMPTION_ACK_TIMEOUT_MS.length > 0
+        ? parseInt(process.env.HAPPY_CONSUMPTION_ACK_TIMEOUT_MS, 10)
+        : 60_000;
+
+export class MessageConsumptionTimeoutError extends Error {
+    readonly messageId: string;
+    constructor(messageId: string) {
+        super(`consumedPromise timed out after ${CONSUMPTION_ACK_TIMEOUT_MS}ms for messageId=${messageId}`);
+        this.name = 'MessageConsumptionTimeoutError';
+        this.messageId = messageId;
+    }
+}
+
 /**
  * ACP (Agent Communication Protocol) message data types.
  * This is the unified format for all agent messages - CLI adapts each provider's format to ACP.
@@ -419,7 +433,7 @@ export class ApiSessionClient extends EventEmitter {
         pending.resolve(event);
     }
 
-    private waitForConsumptionAck(messageId: string): Promise<SessionMessageConsumptionEvent> {
+    private waitForConsumptionAck(messageId: string, signal?: AbortSignal): Promise<SessionMessageConsumptionEvent> {
         const observed = this.observedConsumptions.get(messageId);
         if (observed) {
             this.observedConsumptions.delete(messageId);
@@ -427,6 +441,33 @@ export class ApiSessionClient extends EventEmitter {
         }
         return new Promise((resolve, reject) => {
             this.consumptionResolvers.set(messageId, { resolve, reject });
+
+            const onAbort = () => {
+                if (this.consumptionResolvers.has(messageId)) {
+                    this.consumptionResolvers.delete(messageId);
+                    reject(signal!.reason instanceof Error ? signal!.reason : new Error('consumedPromise aborted'));
+                }
+                clearTimeout(timeoutHandle);
+            };
+
+            const timeoutHandle = setTimeout(() => {
+                if (this.consumptionResolvers.has(messageId)) {
+                    this.consumptionResolvers.delete(messageId);
+                    reject(new MessageConsumptionTimeoutError(messageId));
+                }
+                signal?.removeEventListener('abort', onAbort);
+            }, CONSUMPTION_ACK_TIMEOUT_MS);
+            timeoutHandle.unref?.();
+
+            if (signal) {
+                if (signal.aborted) {
+                    clearTimeout(timeoutHandle);
+                    this.consumptionResolvers.delete(messageId);
+                    reject(signal.reason instanceof Error ? signal.reason : new Error('consumedPromise aborted'));
+                    return;
+                }
+                signal.addEventListener('abort', onAbort, { once: true });
+            }
         });
     }
 
@@ -608,10 +649,10 @@ export class ApiSessionClient extends EventEmitter {
         return seqPromise;
     }
 
-    enqueueMessageWithConsumptionAck(content: unknown): { seqPromise: Promise<number>; consumedPromise: Promise<SessionMessageConsumptionEvent> } {
+    enqueueMessageWithConsumptionAck(content: unknown, signal?: AbortSignal): { seqPromise: Promise<number>; consumedPromise: Promise<SessionMessageConsumptionEvent> } {
         const deliveryPromise = this.enqueueMessageWithDelivery(content);
         const seqPromise = deliveryPromise.then((delivery) => delivery.seq);
-        const consumedPromise = deliveryPromise.then((delivery) => this.waitForConsumptionAck(delivery.id));
+        const consumedPromise = deliveryPromise.then((delivery) => this.waitForConsumptionAck(delivery.id, signal));
         seqPromise.catch(() => undefined);
         consumedPromise.catch(() => undefined);
         return { seqPromise, consumedPromise };
