@@ -106,6 +106,68 @@ interface AgentInputRenderConfig {
     allowEmptySend: boolean;
 }
 
+export interface AgentInputKeyboardState {
+    focusTarget: 'textarea' | 'firstOverlayControl';
+    overlayOpen: boolean;
+    pickerOpen: boolean;
+    autocompleteOpen: boolean;
+}
+
+export type AgentInputKeyboardAction =
+    | { type: 'tabFromTextarea' }
+    | { type: 'openPicker' }
+    | { type: 'enterOnOverlayControl' }
+    | { type: 'escape' }
+    | { type: 'toggleAutocomplete' };
+
+export const initialAgentInputKeyboardState: AgentInputKeyboardState = {
+    focusTarget: 'textarea',
+    overlayOpen: false,
+    pickerOpen: false,
+    autocompleteOpen: false,
+};
+
+export function reduceAgentInputKeyboardState(
+    state: AgentInputKeyboardState,
+    action: AgentInputKeyboardAction,
+): AgentInputKeyboardState {
+    switch (action.type) {
+        case 'tabFromTextarea':
+            return {
+                ...state,
+                focusTarget: 'firstOverlayControl',
+                overlayOpen: true,
+            };
+        case 'openPicker':
+            return {
+                ...state,
+                focusTarget: 'firstOverlayControl',
+                overlayOpen: true,
+                pickerOpen: true,
+            };
+        case 'enterOnOverlayControl':
+            return state.focusTarget === 'firstOverlayControl'
+                ? {
+                    ...state,
+                    overlayOpen: true,
+                    pickerOpen: true,
+                }
+                : state;
+        case 'escape':
+            return {
+                ...state,
+                focusTarget: 'textarea',
+                overlayOpen: false,
+                pickerOpen: false,
+            };
+        case 'toggleAutocomplete':
+            return {
+                ...state,
+                autocompleteOpen: !state.autocompleteOpen,
+            };
+    }
+}
+
 export function selectAgentInputRenderConfig(mode: AgentInputMode): AgentInputRenderConfig {
     switch (mode) {
         case 'new':
@@ -545,8 +607,10 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
     const [showSettings, setShowSettings] = React.useState(false);
     const [showTextSize, setShowTextSize] = React.useState(false);
     const [showChatWidth, setShowChatWidth] = React.useState(false);
+    const [keyboardState, setKeyboardState] = React.useState(initialAgentInputKeyboardState);
     const [chatFontScale, setChatFontScale] = useLocalSettingMutable('chatFontScale');
     const [chatWidthMode, setChatWidthMode] = useLocalSettingMutable('chatWidthMode');
+    const showSettingsOverlay = showSettings || keyboardState.pickerOpen;
 
     React.useEffect(() => {
         if (!isTablet && showChatWidth) {
@@ -558,9 +622,10 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
     const handleSettingsPress = React.useCallback(() => {
         hapticsLight();
         setShowSettings(prev => !prev);
+        setKeyboardState(prev => reduceAgentInputKeyboardState(prev, showSettingsOverlay ? { type: 'escape' } : { type: 'openPicker' }));
         setShowTextSize(false);
         setShowChatWidth(false);
-    }, []);
+    }, [showSettingsOverlay]);
 
     // Handle text-size button press
     const handleTextSizePress = React.useCallback(() => {
@@ -654,6 +719,28 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
 
     // Handle keyboard navigation
     const handleKeyPress = React.useCallback((event: KeyPressEvent): boolean => {
+        if (Platform.OS === 'web' && event.key === '/' && (event.ctrlKey || event.metaKey)) {
+            setKeyboardState(prev => reduceAgentInputKeyboardState(prev, { type: 'toggleAutocomplete' }));
+            return true;
+        }
+
+        if (Platform.OS === 'web' && event.key === 'Escape' && (showSettingsOverlay || keyboardState.overlayOpen)) {
+            setShowSettings(false);
+            setShowTextSize(false);
+            setShowChatWidth(false);
+            setKeyboardState(prev => reduceAgentInputKeyboardState(prev, { type: 'escape' }));
+            inputRef.current?.focus();
+            return true;
+        }
+
+        if (Platform.OS === 'web' && event.key === 'Enter' && keyboardState.focusTarget === 'firstOverlayControl') {
+            setShowSettings(true);
+            setShowTextSize(false);
+            setShowChatWidth(false);
+            setKeyboardState(prev => reduceAgentInputKeyboardState(prev, { type: 'enterOnOverlayControl' }));
+            return true;
+        }
+
         // Handle autocomplete navigation first
         if (suggestions.length > 0) {
             if (event.key === 'ArrowUp') {
@@ -679,6 +766,12 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                 }
                 return true;
             }
+        }
+
+        if (Platform.OS === 'web' && event.key === 'Tab' && !event.shiftKey && props.onPermissionModeChange) {
+            setKeyboardState(prev => reduceAgentInputKeyboardState(prev, { type: 'tabFromTextarea' }));
+            inputRef.current?.blur();
+            return true;
         }
 
         // Handle Escape for abort when no suggestions are visible
@@ -715,7 +808,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
 
         }
         return false; // Key was not handled
-    }, [suggestions, moveUp, moveDown, selected, handleSuggestionSelect, props.showAbortButton, props.onAbort, isAborting, handleAbortPress, agentInputEnterToSend, props.value, props.onSend, props.onPermissionModeChange, availableModes, permissionModeKey, isSendBlocked, handleBlockedSendAttempt, props.isSendDisabled]);
+    }, [showSettingsOverlay, keyboardState.overlayOpen, keyboardState.focusTarget, suggestions, moveUp, moveDown, selected, handleSuggestionSelect, props.showAbortButton, props.onAbort, props.onPermissionModeChange, isAborting, handleAbortPress, agentInputEnterToSend, props.value, props.onSend, availableModes, permissionModeKey, isSendBlocked, handleBlockedSendAttempt, props.isSendDisabled]);
 
 
 
@@ -748,9 +841,12 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                 )}
 
                 {/* Settings overlay */}
-                {showSettings && (
+                {showSettingsOverlay && (
                     <>
-                        <TouchableWithoutFeedback onPress={() => setShowSettings(false)}>
+                        <TouchableWithoutFeedback onPress={() => {
+                            setShowSettings(false);
+                            setKeyboardState(prev => reduceAgentInputKeyboardState(prev, { type: 'escape' }));
+                        }}>
                             <View style={styles.overlayBackdrop} />
                         </TouchableWithoutFeedback>
                         <View style={[
@@ -1405,6 +1501,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                     <Pressable
                                         onPress={handleSettingsPress}
                                         hitSlop={{ top: 5, bottom: 10, left: 0, right: 0 }}
+                                        testID="agent-input-settings-button"
                                         style={(p) => ({
                                             flexDirection: 'row',
                                             alignItems: 'center',
