@@ -9,7 +9,7 @@ import type { GitFileStatus } from '@/sync/gitStatusFiles';
 
 const routerPush = vi.fn();
 let sidebarProps: { onFilePress?: (file: GitFileStatus) => void; selectedPath?: string | null } | null = null;
-let agentInputProps: { onSend?: (switchMode: 'now' | 'when-idle', attachments: unknown[]) => Promise<boolean | void>; onChangeText?: (text: string) => void } | null = null;
+let agentInputProps: { onSend?: (switchMode: 'now' | 'when-idle', attachments: unknown[]) => Promise<boolean | void>; onChangeText?: (text: string) => void; value?: string } | null = null;
 const generateLocalMessageId = vi.fn();
 const sendMessage = vi.fn();
 const sessionWriteFile = vi.fn();
@@ -312,5 +312,65 @@ describe('SessionView file sidebar routing', () => {
 
         expect(sendMessage).toHaveBeenCalledOnce();
         expect(result).toBe(false);
+    });
+
+    it('restores typed text when sync.sendMessage rejects on the now path', async () => {
+        sessionWriteFile.mockResolvedValue({ success: true });
+        sendMessage.mockRejectedValue(new Error('network error'));
+
+        await act(async () => {
+            TestRenderer.create(<SessionView id="session-1" />);
+        });
+
+        await act(async () => {
+            agentInputProps?.onChangeText?.('typed message');
+        });
+
+        expect(agentInputProps?.value).toBe('typed message');
+
+        let result: boolean | void = undefined;
+        await act(async () => {
+            result = await agentInputProps?.onSend?.('now', []);
+        });
+
+        expect(result).toBe(false);
+        expect(agentInputProps?.value).toBe('typed message');
+    });
+
+    it('does not overwrite new draft text when user types during in-flight now-branch rejection', async () => {
+        sessionWriteFile.mockResolvedValue({ success: true });
+        let rejectSend!: (e: Error) => void;
+        sendMessage.mockReturnValue(new Promise<void>((_, reject) => { rejectSend = reject; }));
+
+        await act(async () => {
+            TestRenderer.create(<SessionView id="session-1" />);
+        });
+
+        await act(async () => {
+            agentInputProps?.onChangeText?.('original text');
+        });
+
+        let sendPromise!: Promise<boolean | void>;
+        act(() => {
+            sendPromise = agentInputProps!.onSend!('now', []);
+        });
+
+        // Composer cleared optimistically
+        expect(agentInputProps?.value).toBe('');
+
+        // User types new text while in-flight
+        act(() => {
+            agentInputProps?.onChangeText?.('new draft');
+        });
+
+        let result: boolean | void = undefined;
+        await act(async () => {
+            rejectSend(new Error('rpc failed'));
+            result = await sendPromise;
+        });
+
+        expect(result).toBe(false);
+        // New draft must NOT be overwritten by the old snapshot
+        expect(agentInputProps?.value).toBe('new draft');
     });
 });

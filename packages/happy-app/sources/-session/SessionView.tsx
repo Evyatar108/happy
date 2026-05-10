@@ -669,11 +669,17 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                             return false;
                         }
                     } else {
+                        const snapshot = message;
+                        messageRef.current = '';
                         setMessage('');
                         clearDraft();
                         try {
                             await sync.sendMessage(sessionId, body, sendOptions);
                         } catch {
+                            if (messageRef.current === '') {
+                                messageRef.current = snapshot;
+                                setMessage(snapshot);
+                            }
                             return false;
                         }
                     }
