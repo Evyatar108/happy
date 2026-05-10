@@ -160,6 +160,11 @@ const MessageMetaSchema = z__namespace.object({
   allowedTools: z__namespace.array(z__namespace.string()).nullable().optional(),
   disallowedTools: z__namespace.array(z__namespace.string()).nullable().optional(),
   displayText: z__namespace.string().optional(),
+  attachmentRefs: z__namespace.array(z__namespace.object({
+    remotePath: z__namespace.string(),
+    name: z__namespace.string(),
+    size: z__namespace.number()
+  })).optional(),
   contextBoundaryFallback: z__namespace.boolean().optional()
 });
 

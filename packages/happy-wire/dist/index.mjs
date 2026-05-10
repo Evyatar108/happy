@@ -139,6 +139,11 @@ const MessageMetaSchema = z.object({
   allowedTools: z.array(z.string()).nullable().optional(),
   disallowedTools: z.array(z.string()).nullable().optional(),
   displayText: z.string().optional(),
+  attachmentRefs: z.array(z.object({
+    remotePath: z.string(),
+    name: z.string(),
+    size: z.number()
+  })).optional(),
   contextBoundaryFallback: z.boolean().optional()
 });
 

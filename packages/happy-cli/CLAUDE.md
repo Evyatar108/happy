@@ -184,6 +184,7 @@ User interface components.
 - Challenge-response authentication prevents replay attacks
 - Session isolation through unique session IDs
 - `writeFile` RPC `createParents: true` is only for `.happy/attachments/*` targets and must keep both gates: lexical attachments allowlist plus `validatePathRealpath(...)` symlink/realpath confinement before directory creation.
+- Message metadata fields shared with the app must be added to every `MessageMetaSchema` copy: `packages/happy-app/sources/sync/typesMessageMeta.ts`, `packages/happy-wire/src/messageMeta.ts`, and `packages/happy-cli/src/api/types.ts`; otherwise Zod parsing strips the field on at least one side.
 
 ## Dependencies
 

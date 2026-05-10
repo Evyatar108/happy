@@ -27,4 +27,14 @@ describe('MessageMetaSchema', () => {
 
         expect(parsed.capabilities?.deferredSwitch).toBe(true);
     });
+
+    it('preserves attachment refs through schema parsing', () => {
+        const attachmentRefs = [
+            { remotePath: '.happy/attachments/local-1/file.txt', name: 'file.txt', size: 42 },
+        ];
+
+        const parsed = MessageMetaSchema.parse({ attachmentRefs });
+
+        expect(parsed.attachmentRefs).toEqual(attachmentRefs);
+    });
 });

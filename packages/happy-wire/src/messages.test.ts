@@ -5,6 +5,7 @@ import {
   ApiUpdateSessionStateSchema,
   CoreUpdateContainerSchema,
   MessageContentSchema,
+  MessageMetaSchema,
   SessionMessageRangeRequestSchema,
   SessionMessageRangeResponseSchema,
   SessionProtocolMessageSchema,
@@ -340,5 +341,15 @@ describe('shared wire message schemas', () => {
     for (const response of invalidResponses) {
       expect(SessionMessageRangeResponseSchema.safeParse(response).success).toBe(false);
     }
+  });
+
+  it('preserves attachment refs in message metadata', () => {
+    const meta = {
+      attachmentRefs: [
+        { remotePath: '.happy/attachments/local-1/file.txt', name: 'file.txt', size: 42 },
+      ],
+    };
+
+    expect(MessageMetaSchema.parse(meta)).toEqual(meta);
   });
 });

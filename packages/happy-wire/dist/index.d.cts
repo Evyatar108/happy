@@ -11,6 +11,19 @@ declare const MessageMetaSchema: z.ZodObject<{
     allowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
     disallowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
     displayText: z.ZodOptional<z.ZodString>;
+    attachmentRefs: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        remotePath: z.ZodString;
+        name: z.ZodString;
+        size: z.ZodNumber;
+    }, "strip", z.ZodTypeAny, {
+        name: string;
+        size: number;
+        remotePath: string;
+    }, {
+        name: string;
+        size: number;
+        remotePath: string;
+    }>, "many">>;
     contextBoundaryFallback: z.ZodOptional<z.ZodBoolean>;
 }, "strip", z.ZodTypeAny, {
     permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -23,6 +36,11 @@ declare const MessageMetaSchema: z.ZodObject<{
     allowedTools?: string[] | null | undefined;
     disallowedTools?: string[] | null | undefined;
     displayText?: string | undefined;
+    attachmentRefs?: {
+        name: string;
+        size: number;
+        remotePath: string;
+    }[] | undefined;
     contextBoundaryFallback?: boolean | undefined;
 }, {
     permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -35,6 +53,11 @@ declare const MessageMetaSchema: z.ZodObject<{
     allowedTools?: string[] | null | undefined;
     disallowedTools?: string[] | null | undefined;
     displayText?: string | undefined;
+    attachmentRefs?: {
+        name: string;
+        size: number;
+        remotePath: string;
+    }[] | undefined;
     contextBoundaryFallback?: boolean | undefined;
 }>;
 type MessageMeta = z.infer<typeof MessageMetaSchema>;
@@ -43,11 +66,11 @@ declare const SessionMessageContentSchema: z.ZodObject<{
     c: z.ZodString;
     t: z.ZodLiteral<"encrypted">;
 }, "strip", z.ZodTypeAny, {
-    t: "encrypted";
     c: string;
+    t: "encrypted";
 }, {
-    t: "encrypted";
     c: string;
+    t: "encrypted";
 }>;
 type SessionMessageContent = z.infer<typeof SessionMessageContentSchema>;
 declare const SessionMessageSchema: z.ZodObject<{
@@ -58,11 +81,11 @@ declare const SessionMessageSchema: z.ZodObject<{
         c: z.ZodString;
         t: z.ZodLiteral<"encrypted">;
     }, "strip", z.ZodTypeAny, {
-        t: "encrypted";
         c: string;
+        t: "encrypted";
     }, {
-        t: "encrypted";
         c: string;
+        t: "encrypted";
     }>;
     createdAt: z.ZodNumber;
     updatedAt: z.ZodNumber;
@@ -70,8 +93,8 @@ declare const SessionMessageSchema: z.ZodObject<{
     id: string;
     seq: number;
     content: {
-        t: "encrypted";
         c: string;
+        t: "encrypted";
     };
     createdAt: number;
     updatedAt: number;
@@ -80,8 +103,8 @@ declare const SessionMessageSchema: z.ZodObject<{
     id: string;
     seq: number;
     content: {
-        t: "encrypted";
         c: string;
+        t: "encrypted";
     };
     createdAt: number;
     updatedAt: number;
@@ -135,11 +158,11 @@ declare const SessionMessageRangeResponseSchema: z.ZodDiscriminatedUnion<"ok", [
             c: z.ZodString;
             t: z.ZodLiteral<"encrypted">;
         }, "strip", z.ZodTypeAny, {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         }, {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         }>;
         createdAt: z.ZodNumber;
         updatedAt: z.ZodNumber;
@@ -147,8 +170,8 @@ declare const SessionMessageRangeResponseSchema: z.ZodDiscriminatedUnion<"ok", [
         id: string;
         seq: number;
         content: {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         };
         createdAt: number;
         updatedAt: number;
@@ -157,8 +180,8 @@ declare const SessionMessageRangeResponseSchema: z.ZodDiscriminatedUnion<"ok", [
         id: string;
         seq: number;
         content: {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         };
         createdAt: number;
         updatedAt: number;
@@ -175,8 +198,8 @@ declare const SessionMessageRangeResponseSchema: z.ZodDiscriminatedUnion<"ok", [
         id: string;
         seq: number;
         content: {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         };
         createdAt: number;
         updatedAt: number;
@@ -193,8 +216,8 @@ declare const SessionMessageRangeResponseSchema: z.ZodDiscriminatedUnion<"ok", [
         id: string;
         seq: number;
         content: {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         };
         createdAt: number;
         updatedAt: number;
@@ -349,11 +372,11 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
             t: z.ZodLiteral<"turn-end">;
             status: z.ZodEnum<["completed", "failed", "cancelled"]>;
         }, "strip", z.ZodTypeAny, {
-            status: "completed" | "failed" | "cancelled";
             t: "turn-end";
+            status: "completed" | "failed" | "cancelled";
         }, {
-            status: "completed" | "failed" | "cancelled";
             t: "turn-end";
+            status: "completed" | "failed" | "cancelled";
         }>, z.ZodObject<{
             t: z.ZodLiteral<"stop">;
         }, "strip", z.ZodTypeAny, {
@@ -368,15 +391,15 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
             summaryRef: z.ZodOptional<z.ZodString>;
             forkedFromSid: z.ZodOptional<z.ZodString>;
         }, "strip", z.ZodTypeAny, {
-            at: number;
             t: "context-boundary";
+            at: number;
             kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
             triggeredBy: "user" | "agent" | "system";
             summaryRef?: string | undefined;
             forkedFromSid?: string | undefined;
         }, {
-            at: number;
             t: "context-boundary";
+            at: number;
             kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
             triggeredBy: "user" | "agent" | "system";
             summaryRef?: string | undefined;
@@ -402,8 +425,8 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
         }>]>;
     }, "strip", z.ZodTypeAny, {
         id: string;
-        time: number;
         role: "user" | "agent";
+        time: number;
         ev: {
             t: "text";
             text: string;
@@ -438,13 +461,13 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
             t: "start";
             title?: string | undefined;
         } | {
-            status: "completed" | "failed" | "cancelled";
             t: "turn-end";
+            status: "completed" | "failed" | "cancelled";
         } | {
             t: "stop";
         } | {
-            at: number;
             t: "context-boundary";
+            at: number;
             kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
             triggeredBy: "user" | "agent" | "system";
             summaryRef?: string | undefined;
@@ -460,8 +483,8 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
         subagent?: string | undefined;
     }, {
         id: string;
-        time: number;
         role: "user" | "agent";
+        time: number;
         ev: {
             t: "text";
             text: string;
@@ -496,13 +519,13 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
             t: "start";
             title?: string | undefined;
         } | {
-            status: "completed" | "failed" | "cancelled";
             t: "turn-end";
+            status: "completed" | "failed" | "cancelled";
         } | {
             t: "stop";
         } | {
-            at: number;
             t: "context-boundary";
+            at: number;
             kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
             triggeredBy: "user" | "agent" | "system";
             summaryRef?: string | undefined;
@@ -518,8 +541,8 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
         subagent?: string | undefined;
     }>, {
         id: string;
-        time: number;
         role: "user" | "agent";
+        time: number;
         ev: {
             t: "text";
             text: string;
@@ -554,13 +577,13 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
             t: "start";
             title?: string | undefined;
         } | {
-            status: "completed" | "failed" | "cancelled";
             t: "turn-end";
+            status: "completed" | "failed" | "cancelled";
         } | {
             t: "stop";
         } | {
-            at: number;
             t: "context-boundary";
+            at: number;
             kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
             triggeredBy: "user" | "agent" | "system";
             summaryRef?: string | undefined;
@@ -576,8 +599,8 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
         subagent?: string | undefined;
     }, {
         id: string;
-        time: number;
         role: "user" | "agent";
+        time: number;
         ev: {
             t: "text";
             text: string;
@@ -612,13 +635,13 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
             t: "start";
             title?: string | undefined;
         } | {
-            status: "completed" | "failed" | "cancelled";
             t: "turn-end";
+            status: "completed" | "failed" | "cancelled";
         } | {
             t: "stop";
         } | {
-            at: number;
             t: "context-boundary";
+            at: number;
             kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
             triggeredBy: "user" | "agent" | "system";
             summaryRef?: string | undefined;
@@ -644,6 +667,19 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
         allowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         disallowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         displayText: z.ZodOptional<z.ZodString>;
+        attachmentRefs: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            remotePath: z.ZodString;
+            name: z.ZodString;
+            size: z.ZodNumber;
+        }, "strip", z.ZodTypeAny, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }>, "many">>;
         contextBoundaryFallback: z.ZodOptional<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -656,6 +692,11 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -668,14 +709,18 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
-    role: "session";
     content: {
         id: string;
-        time: number;
         role: "user" | "agent";
+        time: number;
         ev: {
             t: "text";
             text: string;
@@ -710,13 +755,13 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
             t: "start";
             title?: string | undefined;
         } | {
-            status: "completed" | "failed" | "cancelled";
             t: "turn-end";
+            status: "completed" | "failed" | "cancelled";
         } | {
             t: "stop";
         } | {
-            at: number;
             t: "context-boundary";
+            at: number;
             kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
             triggeredBy: "user" | "agent" | "system";
             summaryRef?: string | undefined;
@@ -731,6 +776,7 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
         turn?: string | undefined;
         subagent?: string | undefined;
     };
+    role: "session";
     meta?: {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
         model?: string | null | undefined;
@@ -742,14 +788,18 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
 }, {
-    role: "session";
     content: {
         id: string;
-        time: number;
         role: "user" | "agent";
+        time: number;
         ev: {
             t: "text";
             text: string;
@@ -784,13 +834,13 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
             t: "start";
             title?: string | undefined;
         } | {
-            status: "completed" | "failed" | "cancelled";
             t: "turn-end";
+            status: "completed" | "failed" | "cancelled";
         } | {
             t: "stop";
         } | {
-            at: number;
             t: "context-boundary";
+            at: number;
             kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
             triggeredBy: "user" | "agent" | "system";
             summaryRef?: string | undefined;
@@ -805,6 +855,7 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
         turn?: string | undefined;
         subagent?: string | undefined;
     };
+    role: "session";
     meta?: {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
         model?: string | null | undefined;
@@ -816,6 +867,11 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
 }>;
@@ -844,6 +900,19 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         disallowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         displayText: z.ZodOptional<z.ZodString>;
+        attachmentRefs: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            remotePath: z.ZodString;
+            name: z.ZodString;
+            size: z.ZodNumber;
+        }, "strip", z.ZodTypeAny, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }>, "many">>;
         contextBoundaryFallback: z.ZodOptional<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -856,6 +925,11 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -868,14 +942,19 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
-    role: "user";
     content: {
         type: "text";
         text: string;
     };
+    role: "user";
     meta?: {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
         model?: string | null | undefined;
@@ -887,15 +966,20 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
     localKey?: string | undefined;
 }, {
-    role: "user";
     content: {
         type: "text";
         text: string;
     };
+    role: "user";
     meta?: {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
         model?: string | null | undefined;
@@ -907,6 +991,11 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
     localKey?: string | undefined;
@@ -930,6 +1019,19 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         disallowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         displayText: z.ZodOptional<z.ZodString>;
+        attachmentRefs: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            remotePath: z.ZodString;
+            name: z.ZodString;
+            size: z.ZodNumber;
+        }, "strip", z.ZodTypeAny, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }>, "many">>;
         contextBoundaryFallback: z.ZodOptional<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -942,6 +1044,11 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -954,15 +1061,20 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
-    role: "agent";
     content: {
         type: string;
     } & {
         [k: string]: unknown;
     };
+    role: "agent";
     meta?: {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
         model?: string | null | undefined;
@@ -974,15 +1086,20 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
 }, {
-    role: "agent";
     content: {
         type: string;
     } & {
         [k: string]: unknown;
     };
+    role: "agent";
     meta?: {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
         model?: string | null | undefined;
@@ -994,6 +1111,11 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
 }>, z.ZodObject<{
@@ -1115,11 +1237,11 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
             t: z.ZodLiteral<"turn-end">;
             status: z.ZodEnum<["completed", "failed", "cancelled"]>;
         }, "strip", z.ZodTypeAny, {
-            status: "completed" | "failed" | "cancelled";
             t: "turn-end";
+            status: "completed" | "failed" | "cancelled";
         }, {
-            status: "completed" | "failed" | "cancelled";
             t: "turn-end";
+            status: "completed" | "failed" | "cancelled";
         }>, z.ZodObject<{
             t: z.ZodLiteral<"stop">;
         }, "strip", z.ZodTypeAny, {
@@ -1134,15 +1256,15 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
             summaryRef: z.ZodOptional<z.ZodString>;
             forkedFromSid: z.ZodOptional<z.ZodString>;
         }, "strip", z.ZodTypeAny, {
-            at: number;
             t: "context-boundary";
+            at: number;
             kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
             triggeredBy: "user" | "agent" | "system";
             summaryRef?: string | undefined;
             forkedFromSid?: string | undefined;
         }, {
-            at: number;
             t: "context-boundary";
+            at: number;
             kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
             triggeredBy: "user" | "agent" | "system";
             summaryRef?: string | undefined;
@@ -1168,8 +1290,8 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         }>]>;
     }, "strip", z.ZodTypeAny, {
         id: string;
-        time: number;
         role: "user" | "agent";
+        time: number;
         ev: {
             t: "text";
             text: string;
@@ -1204,13 +1326,13 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
             t: "start";
             title?: string | undefined;
         } | {
-            status: "completed" | "failed" | "cancelled";
             t: "turn-end";
+            status: "completed" | "failed" | "cancelled";
         } | {
             t: "stop";
         } | {
-            at: number;
             t: "context-boundary";
+            at: number;
             kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
             triggeredBy: "user" | "agent" | "system";
             summaryRef?: string | undefined;
@@ -1226,8 +1348,8 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         subagent?: string | undefined;
     }, {
         id: string;
-        time: number;
         role: "user" | "agent";
+        time: number;
         ev: {
             t: "text";
             text: string;
@@ -1262,13 +1384,13 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
             t: "start";
             title?: string | undefined;
         } | {
-            status: "completed" | "failed" | "cancelled";
             t: "turn-end";
+            status: "completed" | "failed" | "cancelled";
         } | {
             t: "stop";
         } | {
-            at: number;
             t: "context-boundary";
+            at: number;
             kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
             triggeredBy: "user" | "agent" | "system";
             summaryRef?: string | undefined;
@@ -1284,8 +1406,8 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         subagent?: string | undefined;
     }>, {
         id: string;
-        time: number;
         role: "user" | "agent";
+        time: number;
         ev: {
             t: "text";
             text: string;
@@ -1320,13 +1442,13 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
             t: "start";
             title?: string | undefined;
         } | {
-            status: "completed" | "failed" | "cancelled";
             t: "turn-end";
+            status: "completed" | "failed" | "cancelled";
         } | {
             t: "stop";
         } | {
-            at: number;
             t: "context-boundary";
+            at: number;
             kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
             triggeredBy: "user" | "agent" | "system";
             summaryRef?: string | undefined;
@@ -1342,8 +1464,8 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         subagent?: string | undefined;
     }, {
         id: string;
-        time: number;
         role: "user" | "agent";
+        time: number;
         ev: {
             t: "text";
             text: string;
@@ -1378,13 +1500,13 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
             t: "start";
             title?: string | undefined;
         } | {
-            status: "completed" | "failed" | "cancelled";
             t: "turn-end";
+            status: "completed" | "failed" | "cancelled";
         } | {
             t: "stop";
         } | {
-            at: number;
             t: "context-boundary";
+            at: number;
             kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
             triggeredBy: "user" | "agent" | "system";
             summaryRef?: string | undefined;
@@ -1410,6 +1532,19 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         disallowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         displayText: z.ZodOptional<z.ZodString>;
+        attachmentRefs: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            remotePath: z.ZodString;
+            name: z.ZodString;
+            size: z.ZodNumber;
+        }, "strip", z.ZodTypeAny, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }>, "many">>;
         contextBoundaryFallback: z.ZodOptional<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -1422,6 +1557,11 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -1434,14 +1574,18 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
-    role: "session";
     content: {
         id: string;
-        time: number;
         role: "user" | "agent";
+        time: number;
         ev: {
             t: "text";
             text: string;
@@ -1476,13 +1620,13 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
             t: "start";
             title?: string | undefined;
         } | {
-            status: "completed" | "failed" | "cancelled";
             t: "turn-end";
+            status: "completed" | "failed" | "cancelled";
         } | {
             t: "stop";
         } | {
-            at: number;
             t: "context-boundary";
+            at: number;
             kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
             triggeredBy: "user" | "agent" | "system";
             summaryRef?: string | undefined;
@@ -1497,6 +1641,7 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         turn?: string | undefined;
         subagent?: string | undefined;
     };
+    role: "session";
     meta?: {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
         model?: string | null | undefined;
@@ -1508,14 +1653,18 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
 }, {
-    role: "session";
     content: {
         id: string;
-        time: number;
         role: "user" | "agent";
+        time: number;
         ev: {
             t: "text";
             text: string;
@@ -1550,13 +1699,13 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
             t: "start";
             title?: string | undefined;
         } | {
-            status: "completed" | "failed" | "cancelled";
             t: "turn-end";
+            status: "completed" | "failed" | "cancelled";
         } | {
             t: "stop";
         } | {
-            at: number;
             t: "context-boundary";
+            at: number;
             kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
             triggeredBy: "user" | "agent" | "system";
             summaryRef?: string | undefined;
@@ -1571,6 +1720,7 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         turn?: string | undefined;
         subagent?: string | undefined;
     };
+    role: "session";
     meta?: {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
         model?: string | null | undefined;
@@ -1582,6 +1732,11 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
 }>]>;
@@ -1619,11 +1774,11 @@ declare const UpdateNewMessageBodySchema: z.ZodObject<{
             c: z.ZodString;
             t: z.ZodLiteral<"encrypted">;
         }, "strip", z.ZodTypeAny, {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         }, {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         }>;
         createdAt: z.ZodNumber;
         updatedAt: z.ZodNumber;
@@ -1631,8 +1786,8 @@ declare const UpdateNewMessageBodySchema: z.ZodObject<{
         id: string;
         seq: number;
         content: {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         };
         createdAt: number;
         updatedAt: number;
@@ -1641,40 +1796,40 @@ declare const UpdateNewMessageBodySchema: z.ZodObject<{
         id: string;
         seq: number;
         content: {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         };
         createdAt: number;
         updatedAt: number;
         localId?: string | null | undefined;
     }>;
 }, "strip", z.ZodTypeAny, {
+    t: "new-message";
     message: {
         id: string;
         seq: number;
         content: {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         };
         createdAt: number;
         updatedAt: number;
         localId?: string | null | undefined;
     };
-    t: "new-message";
     sid: string;
 }, {
+    t: "new-message";
     message: {
         id: string;
         seq: number;
         content: {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         };
         createdAt: number;
         updatedAt: number;
         localId?: string | null | undefined;
     };
-    t: "new-message";
     sid: string;
 }>;
 type UpdateNewMessageBody = z.infer<typeof UpdateNewMessageBodySchema>;
@@ -1800,11 +1955,11 @@ declare const CoreUpdateBodySchema: z.ZodDiscriminatedUnion<"t", [z.ZodObject<{
             c: z.ZodString;
             t: z.ZodLiteral<"encrypted">;
         }, "strip", z.ZodTypeAny, {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         }, {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         }>;
         createdAt: z.ZodNumber;
         updatedAt: z.ZodNumber;
@@ -1812,8 +1967,8 @@ declare const CoreUpdateBodySchema: z.ZodDiscriminatedUnion<"t", [z.ZodObject<{
         id: string;
         seq: number;
         content: {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         };
         createdAt: number;
         updatedAt: number;
@@ -1822,40 +1977,40 @@ declare const CoreUpdateBodySchema: z.ZodDiscriminatedUnion<"t", [z.ZodObject<{
         id: string;
         seq: number;
         content: {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         };
         createdAt: number;
         updatedAt: number;
         localId?: string | null | undefined;
     }>;
 }, "strip", z.ZodTypeAny, {
+    t: "new-message";
     message: {
         id: string;
         seq: number;
         content: {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         };
         createdAt: number;
         updatedAt: number;
         localId?: string | null | undefined;
     };
-    t: "new-message";
     sid: string;
 }, {
+    t: "new-message";
     message: {
         id: string;
         seq: number;
         content: {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         };
         createdAt: number;
         updatedAt: number;
         localId?: string | null | undefined;
     };
-    t: "new-message";
     sid: string;
 }>, z.ZodObject<{
     t: z.ZodLiteral<"update-session">;
@@ -1969,11 +2124,11 @@ declare const CoreUpdateContainerSchema: z.ZodObject<{
                 c: z.ZodString;
                 t: z.ZodLiteral<"encrypted">;
             }, "strip", z.ZodTypeAny, {
-                t: "encrypted";
                 c: string;
+                t: "encrypted";
             }, {
-                t: "encrypted";
                 c: string;
+                t: "encrypted";
             }>;
             createdAt: z.ZodNumber;
             updatedAt: z.ZodNumber;
@@ -1981,8 +2136,8 @@ declare const CoreUpdateContainerSchema: z.ZodObject<{
             id: string;
             seq: number;
             content: {
-                t: "encrypted";
                 c: string;
+                t: "encrypted";
             };
             createdAt: number;
             updatedAt: number;
@@ -1991,40 +2146,40 @@ declare const CoreUpdateContainerSchema: z.ZodObject<{
             id: string;
             seq: number;
             content: {
-                t: "encrypted";
                 c: string;
+                t: "encrypted";
             };
             createdAt: number;
             updatedAt: number;
             localId?: string | null | undefined;
         }>;
     }, "strip", z.ZodTypeAny, {
+        t: "new-message";
         message: {
             id: string;
             seq: number;
             content: {
-                t: "encrypted";
                 c: string;
+                t: "encrypted";
             };
             createdAt: number;
             updatedAt: number;
             localId?: string | null | undefined;
         };
-        t: "new-message";
         sid: string;
     }, {
+        t: "new-message";
         message: {
             id: string;
             seq: number;
             content: {
-                t: "encrypted";
                 c: string;
+                t: "encrypted";
             };
             createdAt: number;
             updatedAt: number;
             localId?: string | null | undefined;
         };
-        t: "new-message";
         sid: string;
     }>, z.ZodObject<{
         t: z.ZodLiteral<"update-session">;
@@ -2129,18 +2284,18 @@ declare const CoreUpdateContainerSchema: z.ZodObject<{
     seq: number;
     createdAt: number;
     body: {
+        t: "new-message";
         message: {
             id: string;
             seq: number;
             content: {
-                t: "encrypted";
                 c: string;
+                t: "encrypted";
             };
             createdAt: number;
             updatedAt: number;
             localId?: string | null | undefined;
         };
-        t: "new-message";
         sid: string;
     } | {
         t: "update-session";
@@ -2172,18 +2327,18 @@ declare const CoreUpdateContainerSchema: z.ZodObject<{
     seq: number;
     createdAt: number;
     body: {
+        t: "new-message";
         message: {
             id: string;
             seq: number;
             content: {
-                t: "encrypted";
                 c: string;
+                t: "encrypted";
             };
             createdAt: number;
             updatedAt: number;
             localId?: string | null | undefined;
         };
-        t: "new-message";
         sid: string;
     } | {
         t: "update-session";
@@ -2220,11 +2375,11 @@ declare const ApiMessageSchema: z.ZodObject<{
         c: z.ZodString;
         t: z.ZodLiteral<"encrypted">;
     }, "strip", z.ZodTypeAny, {
-        t: "encrypted";
         c: string;
+        t: "encrypted";
     }, {
-        t: "encrypted";
         c: string;
+        t: "encrypted";
     }>;
     createdAt: z.ZodNumber;
     updatedAt: z.ZodNumber;
@@ -2232,8 +2387,8 @@ declare const ApiMessageSchema: z.ZodObject<{
     id: string;
     seq: number;
     content: {
-        t: "encrypted";
         c: string;
+        t: "encrypted";
     };
     createdAt: number;
     updatedAt: number;
@@ -2242,8 +2397,8 @@ declare const ApiMessageSchema: z.ZodObject<{
     id: string;
     seq: number;
     content: {
-        t: "encrypted";
         c: string;
+        t: "encrypted";
     };
     createdAt: number;
     updatedAt: number;
@@ -2261,11 +2416,11 @@ declare const ApiUpdateNewMessageSchema: z.ZodObject<{
             c: z.ZodString;
             t: z.ZodLiteral<"encrypted">;
         }, "strip", z.ZodTypeAny, {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         }, {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         }>;
         createdAt: z.ZodNumber;
         updatedAt: z.ZodNumber;
@@ -2273,8 +2428,8 @@ declare const ApiUpdateNewMessageSchema: z.ZodObject<{
         id: string;
         seq: number;
         content: {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         };
         createdAt: number;
         updatedAt: number;
@@ -2283,40 +2438,40 @@ declare const ApiUpdateNewMessageSchema: z.ZodObject<{
         id: string;
         seq: number;
         content: {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         };
         createdAt: number;
         updatedAt: number;
         localId?: string | null | undefined;
     }>;
 }, "strip", z.ZodTypeAny, {
+    t: "new-message";
     message: {
         id: string;
         seq: number;
         content: {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         };
         createdAt: number;
         updatedAt: number;
         localId?: string | null | undefined;
     };
-    t: "new-message";
     sid: string;
 }, {
+    t: "new-message";
     message: {
         id: string;
         seq: number;
         content: {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         };
         createdAt: number;
         updatedAt: number;
         localId?: string | null | undefined;
     };
-    t: "new-message";
     sid: string;
 }>;
 type ApiUpdateNewMessage = UpdateNewMessageBody;
@@ -2431,11 +2586,11 @@ declare const UpdateBodySchema: z.ZodObject<{
             c: z.ZodString;
             t: z.ZodLiteral<"encrypted">;
         }, "strip", z.ZodTypeAny, {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         }, {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         }>;
         createdAt: z.ZodNumber;
         updatedAt: z.ZodNumber;
@@ -2443,8 +2598,8 @@ declare const UpdateBodySchema: z.ZodObject<{
         id: string;
         seq: number;
         content: {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         };
         createdAt: number;
         updatedAt: number;
@@ -2453,40 +2608,40 @@ declare const UpdateBodySchema: z.ZodObject<{
         id: string;
         seq: number;
         content: {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         };
         createdAt: number;
         updatedAt: number;
         localId?: string | null | undefined;
     }>;
 }, "strip", z.ZodTypeAny, {
+    t: "new-message";
     message: {
         id: string;
         seq: number;
         content: {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         };
         createdAt: number;
         updatedAt: number;
         localId?: string | null | undefined;
     };
-    t: "new-message";
     sid: string;
 }, {
+    t: "new-message";
     message: {
         id: string;
         seq: number;
         content: {
-            t: "encrypted";
             c: string;
+            t: "encrypted";
         };
         createdAt: number;
         updatedAt: number;
         localId?: string | null | undefined;
     };
-    t: "new-message";
     sid: string;
 }>;
 type UpdateBody = UpdateNewMessageBody;
@@ -2504,11 +2659,11 @@ declare const UpdateSchema: z.ZodObject<{
                 c: z.ZodString;
                 t: z.ZodLiteral<"encrypted">;
             }, "strip", z.ZodTypeAny, {
-                t: "encrypted";
                 c: string;
+                t: "encrypted";
             }, {
-                t: "encrypted";
                 c: string;
+                t: "encrypted";
             }>;
             createdAt: z.ZodNumber;
             updatedAt: z.ZodNumber;
@@ -2516,8 +2671,8 @@ declare const UpdateSchema: z.ZodObject<{
             id: string;
             seq: number;
             content: {
-                t: "encrypted";
                 c: string;
+                t: "encrypted";
             };
             createdAt: number;
             updatedAt: number;
@@ -2526,40 +2681,40 @@ declare const UpdateSchema: z.ZodObject<{
             id: string;
             seq: number;
             content: {
-                t: "encrypted";
                 c: string;
+                t: "encrypted";
             };
             createdAt: number;
             updatedAt: number;
             localId?: string | null | undefined;
         }>;
     }, "strip", z.ZodTypeAny, {
+        t: "new-message";
         message: {
             id: string;
             seq: number;
             content: {
-                t: "encrypted";
                 c: string;
+                t: "encrypted";
             };
             createdAt: number;
             updatedAt: number;
             localId?: string | null | undefined;
         };
-        t: "new-message";
         sid: string;
     }, {
+        t: "new-message";
         message: {
             id: string;
             seq: number;
             content: {
-                t: "encrypted";
                 c: string;
+                t: "encrypted";
             };
             createdAt: number;
             updatedAt: number;
             localId?: string | null | undefined;
         };
-        t: "new-message";
         sid: string;
     }>, z.ZodObject<{
         t: z.ZodLiteral<"update-session">;
@@ -2664,18 +2819,18 @@ declare const UpdateSchema: z.ZodObject<{
     seq: number;
     createdAt: number;
     body: {
+        t: "new-message";
         message: {
             id: string;
             seq: number;
             content: {
-                t: "encrypted";
                 c: string;
+                t: "encrypted";
             };
             createdAt: number;
             updatedAt: number;
             localId?: string | null | undefined;
         };
-        t: "new-message";
         sid: string;
     } | {
         t: "update-session";
@@ -2707,18 +2862,18 @@ declare const UpdateSchema: z.ZodObject<{
     seq: number;
     createdAt: number;
     body: {
+        t: "new-message";
         message: {
             id: string;
             seq: number;
             content: {
-                t: "encrypted";
                 c: string;
+                t: "encrypted";
             };
             createdAt: number;
             updatedAt: number;
             localId?: string | null | undefined;
         };
-        t: "new-message";
         sid: string;
     } | {
         t: "update-session";
@@ -2772,6 +2927,19 @@ declare const UserMessageSchema: z.ZodObject<{
         allowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         disallowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         displayText: z.ZodOptional<z.ZodString>;
+        attachmentRefs: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            remotePath: z.ZodString;
+            name: z.ZodString;
+            size: z.ZodNumber;
+        }, "strip", z.ZodTypeAny, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }>, "many">>;
         contextBoundaryFallback: z.ZodOptional<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -2784,6 +2952,11 @@ declare const UserMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -2796,14 +2969,19 @@ declare const UserMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
-    role: "user";
     content: {
         type: "text";
         text: string;
     };
+    role: "user";
     meta?: {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
         model?: string | null | undefined;
@@ -2815,15 +2993,20 @@ declare const UserMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
     localKey?: string | undefined;
 }, {
-    role: "user";
     content: {
         type: "text";
         text: string;
     };
+    role: "user";
     meta?: {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
         model?: string | null | undefined;
@@ -2835,6 +3018,11 @@ declare const UserMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
     localKey?: string | undefined;
@@ -2860,6 +3048,19 @@ declare const AgentMessageSchema: z.ZodObject<{
         allowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         disallowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         displayText: z.ZodOptional<z.ZodString>;
+        attachmentRefs: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            remotePath: z.ZodString;
+            name: z.ZodString;
+            size: z.ZodNumber;
+        }, "strip", z.ZodTypeAny, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }>, "many">>;
         contextBoundaryFallback: z.ZodOptional<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -2872,6 +3073,11 @@ declare const AgentMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -2884,15 +3090,20 @@ declare const AgentMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
-    role: "agent";
     content: {
         type: string;
     } & {
         [k: string]: unknown;
     };
+    role: "agent";
     meta?: {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
         model?: string | null | undefined;
@@ -2904,15 +3115,20 @@ declare const AgentMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
 }, {
-    role: "agent";
     content: {
         type: string;
     } & {
         [k: string]: unknown;
     };
+    role: "agent";
     meta?: {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
         model?: string | null | undefined;
@@ -2924,6 +3140,11 @@ declare const AgentMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
 }>;
@@ -2952,6 +3173,19 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
         allowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         disallowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         displayText: z.ZodOptional<z.ZodString>;
+        attachmentRefs: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            remotePath: z.ZodString;
+            name: z.ZodString;
+            size: z.ZodNumber;
+        }, "strip", z.ZodTypeAny, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }>, "many">>;
         contextBoundaryFallback: z.ZodOptional<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -2964,6 +3198,11 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -2976,14 +3215,19 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
-    role: "user";
     content: {
         type: "text";
         text: string;
     };
+    role: "user";
     meta?: {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
         model?: string | null | undefined;
@@ -2995,15 +3239,20 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
     localKey?: string | undefined;
 }, {
-    role: "user";
     content: {
         type: "text";
         text: string;
     };
+    role: "user";
     meta?: {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
         model?: string | null | undefined;
@@ -3015,6 +3264,11 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
     localKey?: string | undefined;
@@ -3038,6 +3292,19 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
         allowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         disallowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         displayText: z.ZodOptional<z.ZodString>;
+        attachmentRefs: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            remotePath: z.ZodString;
+            name: z.ZodString;
+            size: z.ZodNumber;
+        }, "strip", z.ZodTypeAny, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }>, "many">>;
         contextBoundaryFallback: z.ZodOptional<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -3050,6 +3317,11 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -3062,15 +3334,20 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
-    role: "agent";
     content: {
         type: string;
     } & {
         [k: string]: unknown;
     };
+    role: "agent";
     meta?: {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
         model?: string | null | undefined;
@@ -3082,15 +3359,20 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
 }, {
-    role: "agent";
     content: {
         type: string;
     } & {
         [k: string]: unknown;
     };
+    role: "agent";
     meta?: {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
         model?: string | null | undefined;
@@ -3102,6 +3384,11 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
 }>]>;
@@ -3229,11 +3516,11 @@ declare const sessionTurnEndEventSchema: z.ZodObject<{
     t: z.ZodLiteral<"turn-end">;
     status: z.ZodEnum<["completed", "failed", "cancelled"]>;
 }, "strip", z.ZodTypeAny, {
-    status: "completed" | "failed" | "cancelled";
     t: "turn-end";
+    status: "completed" | "failed" | "cancelled";
 }, {
-    status: "completed" | "failed" | "cancelled";
     t: "turn-end";
+    status: "completed" | "failed" | "cancelled";
 }>;
 declare const sessionStopEventSchema: z.ZodObject<{
     t: z.ZodLiteral<"stop">;
@@ -3259,15 +3546,15 @@ declare const sessionContextBoundaryEventSchema: z.ZodObject<{
     summaryRef: z.ZodOptional<z.ZodString>;
     forkedFromSid: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    at: number;
     t: "context-boundary";
+    at: number;
     kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
     triggeredBy: "user" | "agent" | "system";
     summaryRef?: string | undefined;
     forkedFromSid?: string | undefined;
 }, {
-    at: number;
     t: "context-boundary";
+    at: number;
     kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
     triggeredBy: "user" | "agent" | "system";
     summaryRef?: string | undefined;
@@ -3405,11 +3692,11 @@ declare const sessionEventSchema: z.ZodDiscriminatedUnion<"t", [z.ZodObject<{
     t: z.ZodLiteral<"turn-end">;
     status: z.ZodEnum<["completed", "failed", "cancelled"]>;
 }, "strip", z.ZodTypeAny, {
-    status: "completed" | "failed" | "cancelled";
     t: "turn-end";
+    status: "completed" | "failed" | "cancelled";
 }, {
-    status: "completed" | "failed" | "cancelled";
     t: "turn-end";
+    status: "completed" | "failed" | "cancelled";
 }>, z.ZodObject<{
     t: z.ZodLiteral<"stop">;
 }, "strip", z.ZodTypeAny, {
@@ -3429,15 +3716,15 @@ declare const sessionEventSchema: z.ZodDiscriminatedUnion<"t", [z.ZodObject<{
     summaryRef: z.ZodOptional<z.ZodString>;
     forkedFromSid: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    at: number;
     t: "context-boundary";
+    at: number;
     kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
     triggeredBy: "user" | "agent" | "system";
     summaryRef?: string | undefined;
     forkedFromSid?: string | undefined;
 }, {
-    at: number;
     t: "context-boundary";
+    at: number;
     kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
     triggeredBy: "user" | "agent" | "system";
     summaryRef?: string | undefined;
@@ -3579,11 +3866,11 @@ declare const sessionEnvelopeSchema: z.ZodEffects<z.ZodObject<{
         t: z.ZodLiteral<"turn-end">;
         status: z.ZodEnum<["completed", "failed", "cancelled"]>;
     }, "strip", z.ZodTypeAny, {
-        status: "completed" | "failed" | "cancelled";
         t: "turn-end";
+        status: "completed" | "failed" | "cancelled";
     }, {
-        status: "completed" | "failed" | "cancelled";
         t: "turn-end";
+        status: "completed" | "failed" | "cancelled";
     }>, z.ZodObject<{
         t: z.ZodLiteral<"stop">;
     }, "strip", z.ZodTypeAny, {
@@ -3603,15 +3890,15 @@ declare const sessionEnvelopeSchema: z.ZodEffects<z.ZodObject<{
         summaryRef: z.ZodOptional<z.ZodString>;
         forkedFromSid: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
-        at: number;
         t: "context-boundary";
+        at: number;
         kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
         triggeredBy: "user" | "agent" | "system";
         summaryRef?: string | undefined;
         forkedFromSid?: string | undefined;
     }, {
-        at: number;
         t: "context-boundary";
+        at: number;
         kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
         triggeredBy: "user" | "agent" | "system";
         summaryRef?: string | undefined;
@@ -3637,8 +3924,8 @@ declare const sessionEnvelopeSchema: z.ZodEffects<z.ZodObject<{
     }>]>;
 }, "strip", z.ZodTypeAny, {
     id: string;
-    time: number;
     role: "user" | "agent";
+    time: number;
     ev: {
         t: "text";
         text: string;
@@ -3673,13 +3960,13 @@ declare const sessionEnvelopeSchema: z.ZodEffects<z.ZodObject<{
         t: "start";
         title?: string | undefined;
     } | {
-        status: "completed" | "failed" | "cancelled";
         t: "turn-end";
+        status: "completed" | "failed" | "cancelled";
     } | {
         t: "stop";
     } | {
-        at: number;
         t: "context-boundary";
+        at: number;
         kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
         triggeredBy: "user" | "agent" | "system";
         summaryRef?: string | undefined;
@@ -3695,8 +3982,8 @@ declare const sessionEnvelopeSchema: z.ZodEffects<z.ZodObject<{
     subagent?: string | undefined;
 }, {
     id: string;
-    time: number;
     role: "user" | "agent";
+    time: number;
     ev: {
         t: "text";
         text: string;
@@ -3731,13 +4018,13 @@ declare const sessionEnvelopeSchema: z.ZodEffects<z.ZodObject<{
         t: "start";
         title?: string | undefined;
     } | {
-        status: "completed" | "failed" | "cancelled";
         t: "turn-end";
+        status: "completed" | "failed" | "cancelled";
     } | {
         t: "stop";
     } | {
-        at: number;
         t: "context-boundary";
+        at: number;
         kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
         triggeredBy: "user" | "agent" | "system";
         summaryRef?: string | undefined;
@@ -3753,8 +4040,8 @@ declare const sessionEnvelopeSchema: z.ZodEffects<z.ZodObject<{
     subagent?: string | undefined;
 }>, {
     id: string;
-    time: number;
     role: "user" | "agent";
+    time: number;
     ev: {
         t: "text";
         text: string;
@@ -3789,13 +4076,13 @@ declare const sessionEnvelopeSchema: z.ZodEffects<z.ZodObject<{
         t: "start";
         title?: string | undefined;
     } | {
-        status: "completed" | "failed" | "cancelled";
         t: "turn-end";
+        status: "completed" | "failed" | "cancelled";
     } | {
         t: "stop";
     } | {
-        at: number;
         t: "context-boundary";
+        at: number;
         kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
         triggeredBy: "user" | "agent" | "system";
         summaryRef?: string | undefined;
@@ -3811,8 +4098,8 @@ declare const sessionEnvelopeSchema: z.ZodEffects<z.ZodObject<{
     subagent?: string | undefined;
 }, {
     id: string;
-    time: number;
     role: "user" | "agent";
+    time: number;
     ev: {
         t: "text";
         text: string;
@@ -3847,13 +4134,13 @@ declare const sessionEnvelopeSchema: z.ZodEffects<z.ZodObject<{
         t: "start";
         title?: string | undefined;
     } | {
-        status: "completed" | "failed" | "cancelled";
         t: "turn-end";
+        status: "completed" | "failed" | "cancelled";
     } | {
         t: "stop";
     } | {
-        at: number;
         t: "context-boundary";
+        at: number;
         kind: "clear" | "compact" | "autocompact" | "plan-mode-enter" | "plan-mode-exit" | "session-fork-resume";
         triggeredBy: "user" | "agent" | "system";
         summaryRef?: string | undefined;
@@ -3907,19 +4194,19 @@ declare const TofuPubkeysEventSchema: z.ZodObject<{
         ed25519Fingerprint?: string | undefined;
     }>;
 }, "strip", z.ZodTypeAny, {
+    t: "tofu-pubkeys";
     keys: {
         ed25519PublicKey: string;
         x25519PublicKey: string;
         ed25519Fingerprint?: string | undefined;
     };
-    t: "tofu-pubkeys";
 }, {
+    t: "tofu-pubkeys";
     keys: {
         ed25519PublicKey: string;
         x25519PublicKey: string;
         ed25519Fingerprint?: string | undefined;
     };
-    t: "tofu-pubkeys";
 }>;
 type TofuPubkeysEvent = z.infer<typeof TofuPubkeysEventSchema>;
 declare const TofuSessionKeyExchangeSchema: z.ZodObject<{
@@ -3961,19 +4248,19 @@ declare const TofuHandshakeMessageSchema: z.ZodDiscriminatedUnion<"t", [z.ZodObj
         ed25519Fingerprint?: string | undefined;
     }>;
 }, "strip", z.ZodTypeAny, {
+    t: "tofu-pubkeys";
     keys: {
         ed25519PublicKey: string;
         x25519PublicKey: string;
         ed25519Fingerprint?: string | undefined;
     };
-    t: "tofu-pubkeys";
 }, {
+    t: "tofu-pubkeys";
     keys: {
         ed25519PublicKey: string;
         x25519PublicKey: string;
         ed25519Fingerprint?: string | undefined;
     };
-    t: "tofu-pubkeys";
 }>, z.ZodObject<{
     t: z.ZodLiteral<"tofu-session-key">;
     machineId: z.ZodString;

@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
     },
     randomUUID: vi.fn(),
     trackMessageSent: vi.fn(),
+    gitStatusInvalidate: vi.fn(),
+    gitStatusGetSyncInvalidate: vi.fn(),
 }));
 
 vi.mock('./apiSocket', () => ({
@@ -38,6 +40,14 @@ vi.mock('react-native', () => ({
 vi.mock('./storage', () => ({
     storage: {
         getState: () => mocks.storageState,
+    },
+}));
+
+vi.mock('./gitStatusSync', () => ({
+    gitStatusSync: {
+        invalidate: mocks.gitStatusInvalidate,
+        clearForSession: vi.fn(),
+        getSync: vi.fn(() => ({ invalidate: mocks.gitStatusGetSyncInvalidate })),
     },
 }));
 
@@ -113,6 +123,7 @@ vi.mock('@/realtime/hooks/voiceHooks', () => ({
         onNewMessages: vi.fn(),
         onReady: vi.fn(),
         onPermissionRequest: vi.fn(),
+        onPermissionRequested: vi.fn(),
     },
 }));
 
@@ -121,7 +132,8 @@ vi.mock('@/utils/platform', () => ({
 }));
 
 import { apiSocket } from './apiSocket';
-import { sync } from './sync';
+import { sessionWriteFile } from './ops';
+import { generateLocalMessageId, sync } from './sync';
 import { Modal } from '@/modal';
 
 type StoredSession = Record<string, any>;
@@ -179,6 +191,34 @@ describe('sync.sendMessage switch policy', () => {
         expect(encryptRawRecord).toHaveBeenCalledOnce();
         expect(encryptRawRecord.mock.calls[0][0].meta.capabilities).toBeUndefined();
         expect((sync as any).pendingOutbox.get('session-1')).toHaveLength(1);
+    });
+
+    it('exposes a local message id generator backed by randomUUID', () => {
+        mocks.randomUUID.mockReturnValueOnce('generated-local-id');
+
+        expect(generateLocalMessageId()).toBe('generated-local-id');
+        expect(mocks.randomUUID).toHaveBeenCalledOnce();
+    });
+
+    it('uses caller-provided localId and preserves attachment refs in message metadata', async () => {
+        const { encryptRawRecord } = installSyncHarness();
+
+        await sync.sendMessage('session-1', 'hello with file', {
+            localId: 'caller-local-id',
+            attachmentRefs: [{ remotePath: '.happy/attachments/caller-local-id/file.txt', name: 'file.txt', size: 12 }],
+            displayText: 'hello',
+            source: 'chat',
+        });
+
+        expect(mocks.randomUUID).not.toHaveBeenCalled();
+        expect(encryptRawRecord).toHaveBeenCalledOnce();
+        expect(encryptRawRecord.mock.calls[0][0].meta.attachmentRefs).toEqual([
+            { remotePath: '.happy/attachments/caller-local-id/file.txt', name: 'file.txt', size: 12 },
+        ]);
+        expect(encryptRawRecord.mock.calls[0][0].meta.displayText).toBe('hello');
+        expect((sync as any).pendingOutbox.get('session-1')).toEqual([
+            { localId: 'caller-local-id', content: 'encrypted-record' },
+        ]);
     });
 
     it("treats switchMode none like now: no RPC and no deferred-switch tag", async () => {
@@ -333,6 +373,118 @@ describe('sync.sendMessage switch policy', () => {
         await sync.sendMessage('session-1', 'third', { switchMode: 'when-idle' });
 
         expect(apiSocket.sessionRPC).toHaveBeenCalledTimes(2);
+    });
+
+    it('supports upload-before-send callers without sendMessage dispatching upload RPCs', async () => {
+        const order: string[] = [];
+        mocks.randomUUID.mockReturnValueOnce('local-upload-id');
+        mocks.sessionRPC.mockImplementation(async (_sessionId: string, method: string, params: { path?: string }) => {
+            order.push(`${method}:${params.path ?? ''}`);
+            return { success: true, hash: 'hash-1' };
+        });
+        const { encryptRawRecord } = installSyncHarness({
+            encryptRawRecord: vi.fn(async () => {
+                order.push('sendMessage');
+                return 'encrypted-record';
+            }),
+        });
+
+        const localId = generateLocalMessageId();
+        const remotePath = `.happy/attachments/${localId}/note.txt`;
+        await sessionWriteFile('session-1', remotePath, 'bm90ZQ==', { createParents: true });
+        await sync.sendMessage('session-1', `attached ${remotePath}`, {
+            localId,
+            attachmentRefs: [{ remotePath, name: 'note.txt', size: 4 }],
+        });
+
+        expect(localId).toBe('local-upload-id');
+        expect(order).toEqual([`writeFile:${remotePath}`, 'sendMessage']);
+        expect(mocks.sessionRPC).toHaveBeenCalledTimes(1);
+        expect(mocks.sessionRPC).toHaveBeenCalledWith('session-1', 'writeFile', {
+            path: remotePath,
+            content: 'bm90ZQ==',
+            createParents: true,
+        });
+        expect(encryptRawRecord.mock.calls[0][0].meta.attachmentRefs).toEqual([{ remotePath, name: 'note.txt', size: 4 }]);
+    });
+
+    it('lets upload-before-send callers stop before sendMessage on upload failure', async () => {
+        mocks.randomUUID.mockReturnValueOnce('local-upload-id');
+        mocks.sessionRPC.mockRejectedValueOnce(new Error('upload failed'));
+        installSyncHarness();
+        const sendSpy = vi.spyOn(sync, 'sendMessage');
+
+        const uploadThenSend = async () => {
+            const localId = generateLocalMessageId();
+            const remotePath = `.happy/attachments/${localId}/note.txt`;
+            const upload = await sessionWriteFile('session-1', remotePath, 'bm90ZQ==', { createParents: true });
+            if (!upload.success) {
+                throw new Error(upload.error ?? 'upload failed');
+            }
+            await sync.sendMessage('session-1', `attached ${remotePath}`, { localId, attachmentRefs: [{ remotePath, name: 'note.txt', size: 4 }] });
+        };
+
+        await expect(uploadThenSend()).rejects.toThrow('upload failed');
+        expect(sendSpy).not.toHaveBeenCalled();
+    });
+});
+
+describe('sync update-session git-status invalidation', () => {
+    beforeEach(() => {
+        vi.restoreAllMocks();
+        vi.clearAllMocks();
+        mocks.storageState.sessions = {};
+    });
+
+    function installUpdateHarness(metadata: Record<string, unknown>) {
+        const session = makeSession({
+            metadata: { flavor: 'claude', path: '/repo/old', host: 'host' },
+            metadataVersion: 1,
+            agentStateVersion: 1,
+            agentState: { controlledByUser: true },
+        });
+        mocks.storageState.sessions = { 'session-1': session };
+        (sync as any).encryption = {
+            getSessionEncryption: vi.fn(() => ({
+                decryptMetadata: vi.fn(async () => metadata),
+                decryptAgentState: vi.fn(),
+            })),
+        };
+        vi.spyOn(sync as any, 'applySessions').mockImplementation(() => undefined);
+    }
+
+    it('invalidates git status when update-session metadata changes only the working directory path', async () => {
+        installUpdateHarness({ flavor: 'claude', path: '/repo/new', host: 'host' });
+
+        await (sync as any).handleUpdate({
+            id: 'update-1',
+            seq: 1,
+            createdAt: 100,
+            body: {
+                t: 'update-session',
+                id: 'session-1',
+                metadata: { version: 2, value: 'encrypted-metadata' },
+            },
+        });
+
+        expect(mocks.gitStatusInvalidate).toHaveBeenCalledWith('session-1');
+    });
+
+    it('does not invalidate git status when update-session leaves agentState and metadata.path unchanged', async () => {
+        installUpdateHarness({ flavor: 'claude', path: '/repo/old', host: 'host' });
+
+        await (sync as any).handleUpdate({
+            id: 'update-1',
+            seq: 1,
+            createdAt: 100,
+            body: {
+                t: 'update-session',
+                id: 'session-1',
+                metadata: { version: 2, value: 'encrypted-metadata' },
+            },
+        });
+
+        expect(mocks.gitStatusInvalidate).not.toHaveBeenCalled();
     });
 });
 
