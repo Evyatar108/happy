@@ -1,5 +1,12 @@
 # Changelog
 
+## Version 29 - 2026-05-10
+
+Session avatars can now use a topic-aware brutalist style. Sessions about the same topic pick the same kind of brutalist icon, and the next update adds a drawer control for pinning one icon when you want a session to stay visually fixed.
+
+- Added topic-aware brutalist avatars as a new opt-in avatar style in Settings -> Appearance.
+- Added localized labels for pinning and unpinning a session icon from the chat drawer.
+
 ## Version 28 - 2026-04-30
 
 Scrolling back through long chats is even smoother. The older-message prefetch now starts earlier and preloads the next page on chat open, so the first scroll-up no longer pauses while a fresh batch is fetched.

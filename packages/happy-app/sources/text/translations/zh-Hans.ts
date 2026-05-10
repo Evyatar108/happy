@@ -258,6 +258,7 @@ export const zhHans: TranslationStructure = {
             pixelated: '像素化',
             gradient: '渐变',
             brutalist: '粗糙风格',
+            brutalistTopic: '主题粗糙风格',
         },
         showFlavorIcons: '显示 AI 提供商图标',
         showFlavorIconsDescription: '在会话头像上显示 AI 提供商图标',
@@ -378,6 +379,9 @@ export const zhHans: TranslationStructure = {
             action: '派生',
             comingSoon: '即将推出',
         },
+        pinIcon: '固定图标',
+        pinIconDescription: '即使主题变化也保留此会话图标',
+        unpinIcon: '取消固定图标',
         applyFailed: '应用失败 — 请重试',
     },
 

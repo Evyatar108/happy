@@ -274,6 +274,7 @@ export const pl: TranslationStructure = {
             pixelated: 'Pikselowy',
             gradient: 'Gradientowy',
             brutalist: 'Brutalistyczny',
+            brutalistTopic: 'Brutalistyczny wg tematu',
         },
         showFlavorIcons: 'Pokaż ikony dostawcy AI',
         showFlavorIconsDescription: 'Wyświetlaj ikony dostawcy AI na awatarach sesji',
@@ -394,6 +395,9 @@ export const pl: TranslationStructure = {
             action: 'Forkuj',
             comingSoon: 'Wkrótce',
         },
+        pinIcon: 'Przypnij ikonę',
+        pinIconDescription: 'Zachowaj tę ikonę sesji, nawet jeśli temat się zmieni',
+        unpinIcon: 'Odepnij ikonę',
         applyFailed: 'Nie udało się zastosować — spróbuj ponownie',
     },
 

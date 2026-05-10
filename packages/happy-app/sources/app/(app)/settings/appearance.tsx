@@ -20,10 +20,12 @@ const CHAT_TEXT_PREVIEW_FONT_SIZE = 18;
 const CHAT_TEXT_PREVIEW_LINE_HEIGHT = 28;
 
 // Define known avatar styles for this version of the app
-type KnownAvatarStyle = 'pixelated' | 'gradient' | 'brutalist';
+type KnownAvatarStyle = 'pixelated' | 'gradient' | 'brutalist' | 'brutalist-topic';
+
+const AVATAR_STYLE_OPTIONS: KnownAvatarStyle[] = ['pixelated', 'gradient', 'brutalist', 'brutalist-topic'];
 
 const isKnownAvatarStyle = (style: string): style is KnownAvatarStyle => {
-    return style === 'pixelated' || style === 'gradient' || style === 'brutalist';
+    return AVATAR_STYLE_OPTIONS.includes(style as KnownAvatarStyle);
 };
 
 const clampChatFontScale = (value: number) => {
@@ -290,11 +292,11 @@ export default function AppearanceSettingsScreen() {
                     title={t('settingsAppearance.avatarStyle')}
                     subtitle={t('settingsAppearance.avatarStyleDescription')}
                     icon={<Ionicons name="person-circle-outline" size={29} color="#5856D6" />}
-                    detail={displayStyle === 'pixelated' ? t('settingsAppearance.avatarOptions.pixelated') : displayStyle === 'brutalist' ? t('settingsAppearance.avatarOptions.brutalist') : t('settingsAppearance.avatarOptions.gradient')}
+                    detail={displayStyle === 'pixelated' ? t('settingsAppearance.avatarOptions.pixelated') : displayStyle === 'gradient' ? t('settingsAppearance.avatarOptions.gradient') : displayStyle === 'brutalist' ? t('settingsAppearance.avatarOptions.brutalist') : t('settingsAppearance.avatarOptions.brutalistTopic')}
                     onPress={() => {
-                        const currentIndex = displayStyle === 'pixelated' ? 0 : displayStyle === 'gradient' ? 1 : 2;
-                        const nextIndex = (currentIndex + 1) % 3;
-                        const nextStyle = nextIndex === 0 ? 'pixelated' : nextIndex === 1 ? 'gradient' : 'brutalist';
+                        const currentIndex = AVATAR_STYLE_OPTIONS.indexOf(displayStyle);
+                        const nextIndex = (currentIndex + 1) % 4;
+                        const nextStyle = AVATAR_STYLE_OPTIONS[nextIndex];
                         setAvatarStyle(nextStyle);
                     }}
                 />

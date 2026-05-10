@@ -43,8 +43,12 @@ const REQUIRED_DEFERRED_SWITCH_KEYS = [
 ] as const;
 
 const REQUIRED_SESSION_DRAWER_KEYS = [
+    'settingsAppearance.avatarOptions.brutalistTopic',
     'drawer.fork.action',
     'drawer.fork.comingSoon',
+    'drawer.pinIcon',
+    'drawer.pinIconDescription',
+    'drawer.unpinIcon',
     'drawer.applyFailed',
     'pickers.noResults',
     'session.resumeFromTerminal',
