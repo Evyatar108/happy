@@ -616,11 +616,10 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
                 hookServer.stop();
                 cleanupHookSettingsFile(hookSettingsPath);
 
-                logger.debug('[START] Cleanup complete, exiting');
-                process.exit(0);
+                logger.debug('[START] Cleanup complete');
             } catch (error) {
                 logger.debug('[START] Error during cleanup:', error);
-                process.exit(1);
+                throw error;
             }
         })();
 
@@ -628,18 +627,18 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
     };
 
     // Handle termination signals
-    process.on('SIGTERM', cleanup);
-    process.on('SIGINT', cleanup);
+    process.on('SIGTERM', () => cleanup().then(() => process.exit(0), () => process.exit(1)));
+    process.on('SIGINT', () => cleanup().then(() => process.exit(0), () => process.exit(1)));
 
     // Handle uncaught exceptions and rejections
     process.on('uncaughtException', (error) => {
         logger.debug('[START] Uncaught exception:', error);
-        cleanup();
+        cleanup().then(() => process.exit(1), () => process.exit(1));
     });
 
     process.on('unhandledRejection', (reason) => {
         logger.debug('[START] Unhandled rejection:', reason);
-        cleanup();
+        cleanup().then(() => process.exit(1), () => process.exit(1));
     });
 
     registerKillSessionHandler(session.rpcHandlerManager, cleanup);

@@ -451,39 +451,33 @@ export async function runCodex(opts: {
         await handleAbort();
         logger.debug('[Codex] Abort completed, proceeding with termination');
 
-        try {
-            // Update lifecycle state to archived before closing
-            if (session) {
-                session.updateMetadata((currentMetadata) => ({
-                    ...currentMetadata,
-                    lifecycleState: 'archived',
-                    lifecycleStateSince: Date.now(),
-                    archivedBy: 'cli',
-                    archiveReason: 'User terminated'
-                }));
-                
-                // Send session death message
-                session.sendSessionDeath();
-                await session.flush();
-                await session.close();
-            }
+        // Update lifecycle state to archived before closing
+        if (session) {
+            session.updateMetadata((currentMetadata) => ({
+                ...currentMetadata,
+                lifecycleState: 'archived',
+                lifecycleStateSince: Date.now(),
+                archivedBy: 'cli',
+                archiveReason: 'User terminated'
+            }));
 
-            // Force close Codex transport (best-effort) so we don't leave stray processes
-            try {
-                await client.disconnect({ terminateAppServer: true });
-            } catch (e) {
-                logger.debug('[Codex] Error disconnecting Codex during termination', e);
-            }
-
-            // Stop Happy MCP server
-            happyServer.stop();
-
-            logger.debug('[Codex] Session termination complete, exiting');
-            process.exit(0);
-        } catch (error) {
-            logger.debug('[Codex] Error during session termination:', error);
-            process.exit(1);
+            // Send session death message
+            session.sendSessionDeath();
+            await session.flush();
+            await session.close();
         }
+
+        // Force close Codex transport (best-effort) so we don't leave stray processes
+        try {
+            await client.disconnect({ terminateAppServer: true });
+        } catch (e) {
+            logger.debug('[Codex] Error disconnecting Codex during termination', e);
+        }
+
+        // Stop Happy MCP server
+        happyServer.stop();
+
+        logger.debug('[Codex] Session termination complete');
     };
 
     // Register abort handler

@@ -392,33 +392,27 @@ export async function runGemini(opts: {
     await handleAbort();
     logger.debug('[Gemini] Abort completed, proceeding with termination');
 
-    try {
-      if (session) {
-        session.updateMetadata((currentMetadata) => ({
-          ...currentMetadata,
-          lifecycleState: 'archived',
-          lifecycleStateSince: Date.now(),
-          archivedBy: 'cli',
-          archiveReason: 'User terminated'
-        }));
+    if (session) {
+      session.updateMetadata((currentMetadata) => ({
+        ...currentMetadata,
+        lifecycleState: 'archived',
+        lifecycleStateSince: Date.now(),
+        archivedBy: 'cli',
+        archiveReason: 'User terminated'
+      }));
 
-        session.sendSessionDeath();
-        await session.flush();
-        await session.close();
-      }
-
-      happyServer.stop();
-
-      if (geminiBackend) {
-        await geminiBackend.dispose();
-      }
-
-      logger.debug('[Gemini] Session termination complete, exiting');
-      process.exit(0);
-    } catch (error) {
-      logger.debug('[Gemini] Error during session termination:', error);
-      process.exit(1);
+      session.sendSessionDeath();
+      await session.flush();
+      await session.close();
     }
+
+    happyServer.stop();
+
+    if (geminiBackend) {
+      await geminiBackend.dispose();
+    }
+
+    logger.debug('[Gemini] Session termination complete');
   };
 
   session.rpcHandlerManager.registerHandler('abort', handleAbort);

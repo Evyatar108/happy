@@ -20,6 +20,8 @@ export function registerKillSessionHandler(
 
         await killThisHappy();
 
+        setImmediate(() => process.exit(0));
+
         return {
             success: true,
             message: 'Killing happy-cli process'
