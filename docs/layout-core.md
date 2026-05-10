@@ -284,8 +284,8 @@ Two-push navigation from session:
 - Better table rendering in agent messages
 - Clickable file paths in agent output
 - Richer inline tool output (syntax-highlighted diffs in collapsed tool calls)
-- Fix black stripe artifact in file edit rendering
-- Fix duplicated plan presentation
+- ~~Fix black stripe artifact in file edit rendering~~ — shipped 2026-05-10 in p3-ui-polish-bundle (US-001)
+- ~~Fix duplicated plan presentation~~ — shipped 2026-05-10 in p3-ui-polish-bundle (US-003)
 - Navigation bugs: back nav broken in logout/restore flows
 - Workspaces & Checkouts: see roadmap.md
 - Push notification routing: see roadmap.md
