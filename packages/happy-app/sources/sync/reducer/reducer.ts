@@ -228,9 +228,18 @@ function findMatchingExitPlanToolMessageId(
     state: ReducerState,
     toolName: string,
     input: unknown,
+    permissionRequestId?: string,
 ): string | null {
     if (!isExitPlanModeTool(toolName)) {
         return null;
+    }
+
+    // Prefer exact permission ID lookup when the caller provides one
+    if (permissionRequestId) {
+        const byPermId = state.toolIdToMessageId.get(permissionRequestId);
+        if (byPermId) {
+            return byPermId;
+        }
     }
 
     let matched: { id: string; createdAt: number } | null = null;
@@ -239,6 +248,11 @@ function findMatchingExitPlanToolMessageId(
             continue;
         }
         if (!equal(message.tool.input, input)) {
+            continue;
+        }
+        // Skip messages already claimed by a different permission to avoid
+        // collisions when the agent re-proposes the same plan after a deny.
+        if (message.tool.permission?.id && permissionRequestId && message.tool.permission.id !== permissionRequestId) {
             continue;
         }
         if (!matched || message.createdAt > matched.createdAt) {
@@ -628,7 +642,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
 
                 // Check if we already have a message for this permission ID
                 const existingMessageId = state.toolIdToMessageId.get(permId)
-                    ?? findMatchingExitPlanToolMessageId(state, request.tool, request.arguments);
+                    ?? findMatchingExitPlanToolMessageId(state, request.tool, request.arguments, permId);
                 if (existingMessageId) {
                     state.toolIdToMessageId.set(permId, existingMessageId);
                     // Update existing tool message with permission info
@@ -698,7 +712,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                 // Check if we have a message for this permission ID
                 const completedPermission = toStoredPermission(completed);
                 const messageId = state.toolIdToMessageId.get(permId)
-                    ?? findMatchingExitPlanToolMessageId(state, completed.tool, completed.arguments);
+                    ?? findMatchingExitPlanToolMessageId(state, completed.tool, completed.arguments, permId);
                 if (messageId) {
                     state.toolIdToMessageId.set(permId, messageId);
                     const message = state.messages.get(messageId);
@@ -934,12 +948,21 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
         if (msg.role === 'agent') {
             for (let c of msg.content) {
                 if (c.type === 'tool-call') {
-                    // Direct lookup by tool ID (since permission ID = tool ID now)
+                    // Direct lookup by tool ID (since permission ID = tool ID now).
+                    // For ExitPlanMode, also try permissionRequestId (the stable correlation
+                    // id carried on the wire envelope) so Phase 0 can later find this message
+                    // by permission id without relying on input-equality.
                     const existingMessageId = state.toolIdToMessageId.get(c.id)
-                        ?? findMatchingExitPlanToolMessageId(state, c.name, c.input);
+                        ?? (c.permissionRequestId ? state.toolIdToMessageId.get(c.permissionRequestId) : undefined)
+                        ?? findMatchingExitPlanToolMessageId(state, c.name, c.input, c.permissionRequestId);
 
                     if (existingMessageId) {
                         state.toolIdToMessageId.set(c.id, existingMessageId);
+                        // Register permissionRequestId so Phase 0 can find this message by
+                        // permission id directly without falling back to input-equality.
+                        if (c.permissionRequestId && c.permissionRequestId !== c.id) {
+                            state.toolIdToMessageId.set(c.permissionRequestId, existingMessageId);
+                        }
                         if (ENABLE_LOGGING) {
                             console.log(`[REDUCER] Found existing message for tool ${c.id}`);
                         }
@@ -948,6 +971,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                         if (message?.tool) {
                             message.realID = msg.id;
                             const permission = state.permissions.get(c.id)
+                                ?? (c.permissionRequestId ? state.permissions.get(c.permissionRequestId) : undefined)
                                 ?? (message.tool.permission?.id ? state.permissions.get(message.tool.permission.id) : undefined);
                             if (permission) {
                                 attachPermissionToToolMessage(message, message.tool.permission?.id ?? c.id, permission);
@@ -973,7 +997,8 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                             console.log(`[REDUCER] Creating new message for tool ${c.id}`);
                         }
                         // Check if there's a stored permission for this tool
-                        const permission = state.permissions.get(c.id);
+                        const permission = state.permissions.get(c.id)
+                            ?? (c.permissionRequestId ? state.permissions.get(c.permissionRequestId) : undefined);
 
                         let toolCall: ToolCall = {
                             name: c.name,
@@ -1024,6 +1049,11 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                         });
 
                         state.toolIdToMessageId.set(c.id, mid);
+                        // Register permissionRequestId so Phase 0 can find this message by
+                        // permission id directly without falling back to input-equality.
+                        if (c.permissionRequestId && c.permissionRequestId !== c.id) {
+                            state.toolIdToMessageId.set(c.permissionRequestId, mid);
+                        }
                         changed.add(mid);
 
                         const pendingResult = state.pendingToolResults.get(c.id);

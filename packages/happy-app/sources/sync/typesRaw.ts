@@ -444,6 +444,7 @@ type NormalizedAgentContent =
         description: string | null;
         uuid: string;
         parentUUID: string | null;
+        permissionRequestId?: string;
     } | {
         type: 'tool-result'
         tool_use_id: string;
@@ -643,7 +644,8 @@ function normalizeSessionEnvelope(
                 input: envelope.ev.args,
                 description: envelope.ev.description,
                 uuid: contentUUID,
-                parentUUID
+                parentUUID,
+                ...(envelope.ev.permissionRequestId !== undefined ? { permissionRequestId: envelope.ev.permissionRequestId } : {}),
             }],
             meta
         } satisfies NormalizedMessageBase;

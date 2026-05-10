@@ -266,6 +266,7 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
             title: z.ZodString;
             description: z.ZodString;
             args: z.ZodRecord<z.ZodString, z.ZodUnknown>;
+            permissionRequestId: z.ZodOptional<z.ZodString>;
         }, "strip", z.ZodTypeAny, {
             t: "tool-call-start";
             call: string;
@@ -273,6 +274,7 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
             title: string;
             description: string;
             args: Record<string, unknown>;
+            permissionRequestId?: string | undefined;
         }, {
             t: "tool-call-start";
             call: string;
@@ -280,6 +282,7 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
             title: string;
             description: string;
             args: Record<string, unknown>;
+            permissionRequestId?: string | undefined;
         }>, z.ZodObject<{
             t: z.ZodLiteral<"tool-call-end">;
             call: z.ZodString;
@@ -433,6 +436,7 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
             title: string;
             description: string;
             args: Record<string, unknown>;
+            permissionRequestId?: string | undefined;
         } | {
             t: "tool-call-end";
             call: string;
@@ -496,6 +500,7 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
             title: string;
             description: string;
             args: Record<string, unknown>;
+            permissionRequestId?: string | undefined;
         } | {
             t: "tool-call-end";
             call: string;
@@ -559,6 +564,7 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
             title: string;
             description: string;
             args: Record<string, unknown>;
+            permissionRequestId?: string | undefined;
         } | {
             t: "tool-call-end";
             call: string;
@@ -622,6 +628,7 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
             title: string;
             description: string;
             args: Record<string, unknown>;
+            permissionRequestId?: string | undefined;
         } | {
             t: "tool-call-end";
             call: string;
@@ -724,6 +731,7 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
             title: string;
             description: string;
             args: Record<string, unknown>;
+            permissionRequestId?: string | undefined;
         } | {
             t: "tool-call-end";
             call: string;
@@ -803,6 +811,7 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
             title: string;
             description: string;
             args: Record<string, unknown>;
+            permissionRequestId?: string | undefined;
         } | {
             t: "tool-call-end";
             call: string;
@@ -1077,6 +1086,7 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
             title: z.ZodString;
             description: z.ZodString;
             args: z.ZodRecord<z.ZodString, z.ZodUnknown>;
+            permissionRequestId: z.ZodOptional<z.ZodString>;
         }, "strip", z.ZodTypeAny, {
             t: "tool-call-start";
             call: string;
@@ -1084,6 +1094,7 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
             title: string;
             description: string;
             args: Record<string, unknown>;
+            permissionRequestId?: string | undefined;
         }, {
             t: "tool-call-start";
             call: string;
@@ -1091,6 +1102,7 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
             title: string;
             description: string;
             args: Record<string, unknown>;
+            permissionRequestId?: string | undefined;
         }>, z.ZodObject<{
             t: z.ZodLiteral<"tool-call-end">;
             call: z.ZodString;
@@ -1244,6 +1256,7 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
             title: string;
             description: string;
             args: Record<string, unknown>;
+            permissionRequestId?: string | undefined;
         } | {
             t: "tool-call-end";
             call: string;
@@ -1307,6 +1320,7 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
             title: string;
             description: string;
             args: Record<string, unknown>;
+            permissionRequestId?: string | undefined;
         } | {
             t: "tool-call-end";
             call: string;
@@ -1370,6 +1384,7 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
             title: string;
             description: string;
             args: Record<string, unknown>;
+            permissionRequestId?: string | undefined;
         } | {
             t: "tool-call-end";
             call: string;
@@ -1433,6 +1448,7 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
             title: string;
             description: string;
             args: Record<string, unknown>;
+            permissionRequestId?: string | undefined;
         } | {
             t: "tool-call-end";
             call: string;
@@ -1535,6 +1551,7 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
             title: string;
             description: string;
             args: Record<string, unknown>;
+            permissionRequestId?: string | undefined;
         } | {
             t: "tool-call-end";
             call: string;
@@ -1614,6 +1631,7 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
             title: string;
             description: string;
             args: Record<string, unknown>;
+            permissionRequestId?: string | undefined;
         } | {
             t: "tool-call-end";
             call: string;
@@ -3229,6 +3247,7 @@ declare const sessionToolCallStartEventSchema: z.ZodObject<{
     title: z.ZodString;
     description: z.ZodString;
     args: z.ZodRecord<z.ZodString, z.ZodUnknown>;
+    permissionRequestId: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     t: "tool-call-start";
     call: string;
@@ -3236,6 +3255,7 @@ declare const sessionToolCallStartEventSchema: z.ZodObject<{
     title: string;
     description: string;
     args: Record<string, unknown>;
+    permissionRequestId?: string | undefined;
 }, {
     t: "tool-call-start";
     call: string;
@@ -3243,6 +3263,7 @@ declare const sessionToolCallStartEventSchema: z.ZodObject<{
     title: string;
     description: string;
     args: Record<string, unknown>;
+    permissionRequestId?: string | undefined;
 }>;
 declare const sessionToolCallEndEventSchema: z.ZodObject<{
     t: z.ZodLiteral<"tool-call-end">;
@@ -3429,6 +3450,7 @@ declare const sessionEventSchema: z.ZodDiscriminatedUnion<"t", [z.ZodObject<{
     title: z.ZodString;
     description: z.ZodString;
     args: z.ZodRecord<z.ZodString, z.ZodUnknown>;
+    permissionRequestId: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     t: "tool-call-start";
     call: string;
@@ -3436,6 +3458,7 @@ declare const sessionEventSchema: z.ZodDiscriminatedUnion<"t", [z.ZodObject<{
     title: string;
     description: string;
     args: Record<string, unknown>;
+    permissionRequestId?: string | undefined;
 }, {
     t: "tool-call-start";
     call: string;
@@ -3443,6 +3466,7 @@ declare const sessionEventSchema: z.ZodDiscriminatedUnion<"t", [z.ZodObject<{
     title: string;
     description: string;
     args: Record<string, unknown>;
+    permissionRequestId?: string | undefined;
 }>, z.ZodObject<{
     t: z.ZodLiteral<"tool-call-end">;
     call: z.ZodString;
@@ -3618,6 +3642,7 @@ declare const sessionEnvelopeSchema: z.ZodEffects<z.ZodObject<{
         title: z.ZodString;
         description: z.ZodString;
         args: z.ZodRecord<z.ZodString, z.ZodUnknown>;
+        permissionRequestId: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
         t: "tool-call-start";
         call: string;
@@ -3625,6 +3650,7 @@ declare const sessionEnvelopeSchema: z.ZodEffects<z.ZodObject<{
         title: string;
         description: string;
         args: Record<string, unknown>;
+        permissionRequestId?: string | undefined;
     }, {
         t: "tool-call-start";
         call: string;
@@ -3632,6 +3658,7 @@ declare const sessionEnvelopeSchema: z.ZodEffects<z.ZodObject<{
         title: string;
         description: string;
         args: Record<string, unknown>;
+        permissionRequestId?: string | undefined;
     }>, z.ZodObject<{
         t: z.ZodLiteral<"tool-call-end">;
         call: z.ZodString;
@@ -3790,6 +3817,7 @@ declare const sessionEnvelopeSchema: z.ZodEffects<z.ZodObject<{
         title: string;
         description: string;
         args: Record<string, unknown>;
+        permissionRequestId?: string | undefined;
     } | {
         t: "tool-call-end";
         call: string;
@@ -3853,6 +3881,7 @@ declare const sessionEnvelopeSchema: z.ZodEffects<z.ZodObject<{
         title: string;
         description: string;
         args: Record<string, unknown>;
+        permissionRequestId?: string | undefined;
     } | {
         t: "tool-call-end";
         call: string;
@@ -3916,6 +3945,7 @@ declare const sessionEnvelopeSchema: z.ZodEffects<z.ZodObject<{
         title: string;
         description: string;
         args: Record<string, unknown>;
+        permissionRequestId?: string | undefined;
     } | {
         t: "tool-call-end";
         call: string;
@@ -3979,6 +4009,7 @@ declare const sessionEnvelopeSchema: z.ZodEffects<z.ZodObject<{
         title: string;
         description: string;
         args: Record<string, unknown>;
+        permissionRequestId?: string | undefined;
     } | {
         t: "tool-call-end";
         call: string;

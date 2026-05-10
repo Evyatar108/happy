@@ -38,7 +38,8 @@ const sessionToolCallStartEventSchema = z__namespace.object({
   name: z__namespace.string(),
   title: z__namespace.string(),
   description: z__namespace.string(),
-  args: z__namespace.record(z__namespace.string(), z__namespace.unknown())
+  args: z__namespace.record(z__namespace.string(), z__namespace.unknown()),
+  permissionRequestId: z__namespace.string().optional()
 });
 const sessionToolCallEndEventSchema = z__namespace.object({
   t: z__namespace.literal("tool-call-end"),

@@ -17,7 +17,8 @@ const sessionToolCallStartEventSchema = z.object({
   name: z.string(),
   title: z.string(),
   description: z.string(),
-  args: z.record(z.string(), z.unknown())
+  args: z.record(z.string(), z.unknown()),
+  permissionRequestId: z.string().optional()
 });
 const sessionToolCallEndEventSchema = z.object({
   t: z.literal("tool-call-end"),

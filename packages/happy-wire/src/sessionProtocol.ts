@@ -23,6 +23,7 @@ export const sessionToolCallStartEventSchema = z.object({
   title: z.string(),
   description: z.string(),
   args: z.record(z.string(), z.unknown()),
+  permissionRequestId: z.string().optional(),
 });
 
 export const sessionToolCallEndEventSchema = z.object({
