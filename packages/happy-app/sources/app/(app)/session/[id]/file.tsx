@@ -12,6 +12,7 @@ import { layout } from '@/components/layout';
 import { t } from '@/text';
 import { FileIcon } from '@/components/FileIcon';
 import { resolveSessionFilePath } from '@/utils/sessionFileLinks';
+import { shellQuoteForOs } from '@/utils/shellQuote';
 
 interface FileContent {
     content: string;
@@ -88,6 +89,10 @@ export default React.memo(function FileScreen() {
     const encodedPath = searchParams.path as string;
     const lineParam = searchParams.line as string | undefined;
     const columnParam = searchParams.column as string | undefined;
+    const refreshParam = searchParams.refresh as string | undefined;
+    const viewParam = searchParams.view as string | undefined;
+    const forceRefresh = refreshParam === '1';
+    const requestedView = viewParam === 'file' || viewParam === 'diff' ? viewParam : null;
     const requestedLine = lineParam ? Number.parseInt(lineParam, 10) : null;
     const requestedColumn = columnParam ? Number.parseInt(columnParam, 10) : null;
     const session = storage.getState().sessions[sessionId!];
@@ -107,14 +112,15 @@ export default React.memo(function FileScreen() {
 
     // Read from Zustand cache for instant rendering on revisit
     const cached = useSessionFileCache(sessionId!, filePath);
+    const paintCachedContent = !forceRefresh;
 
     const [fileContent, setFileContent] = React.useState<FileContent | null>(() => {
-        if (!cached) return null;
+        if (!paintCachedContent || !cached) return null;
         return { content: cached.content ?? '', encoding: 'utf8', isBinary: cached.isBinary };
     });
-    const [diffContent, setDiffContent] = React.useState<string | null>(() => cached?.diff ?? null);
-    const [displayMode, setDisplayMode] = React.useState<'file' | 'diff'>('diff');
-    const [isLoading, setIsLoading] = React.useState(!cached);
+    const [diffContent, setDiffContent] = React.useState<string | null>(() => paintCachedContent ? cached?.diff ?? null : null);
+    const [displayMode, setDisplayMode] = React.useState<'file' | 'diff'>(() => requestedView ?? 'diff');
+    const [isLoading, setIsLoading] = React.useState(forceRefresh || !cached);
     const [error, setError] = React.useState<string | null>(null);
     const scrollViewRef = React.useRef<ScrollView | null>(null);
 
@@ -197,9 +203,15 @@ export default React.memo(function FileScreen() {
 
         const loadFile = async () => {
             try {
-                // Only show loading spinner if no cache
-                if (!cached) {
+                if (forceRefresh) {
+                    setFileContent(null);
+                    setDiffContent(null);
                     setIsLoading(true);
+                } else if (!cached) {
+                    setIsLoading(true);
+                } else {
+                    setFileContent({ content: cached.content ?? '', encoding: 'utf8', isBinary: cached.isBinary });
+                    setDiffContent(cached.diff ?? null);
                 }
                 setError(null);
 
@@ -215,10 +227,10 @@ export default React.memo(function FileScreen() {
                 let fetchedDiff: string | null = null;
 
                 // Fetch git diff for the file (if in git repo)
-                if (sessionPath && sessionId && gitDiffPath && gitDiffPath !== '.') {
+                if (requestedView !== 'file' && sessionPath && sessionId && gitDiffPath && gitDiffPath !== '.') {
                     try {
                         const diffResponse = await sessionBash(sessionId, {
-                            command: `git diff --no-ext-diff -- "${gitDiffPath}"`,
+                            command: `git diff --no-ext-diff -- ${shellQuoteForOs(gitDiffPath, session?.metadata?.os)}`,
                             cwd: sessionPath,
                             timeout: 5000
                         });
@@ -278,7 +290,7 @@ export default React.memo(function FileScreen() {
         return () => {
             isCancelled = true;
         };
-    }, [filePath, gitDiffPath, isBinaryFile, sessionId, sessionPath]);
+    }, [filePath, forceRefresh, gitDiffPath, isBinaryFile, requestedView, session?.metadata?.os, sessionId, sessionPath]);
 
     // Show error modal if there's an error
     React.useEffect(() => {
@@ -289,14 +301,16 @@ export default React.memo(function FileScreen() {
 
     // Set default display mode based on diff availability
     React.useEffect(() => {
-        if (requestedLine !== null && requestedLine > 0) {
+        if (requestedView) {
+            setDisplayMode(requestedView);
+        } else if (requestedLine !== null && requestedLine > 0) {
             setDisplayMode('file');
         } else if (diffContent) {
             setDisplayMode('diff');
         } else if (fileContent) {
             setDisplayMode('file');
         }
-    }, [diffContent, fileContent, requestedLine]);
+    }, [diffContent, fileContent, requestedLine, requestedView]);
 
     React.useEffect(() => {
         if (!fileContent?.content || displayMode !== 'file' || requestedLine === null || requestedLine <= 0) {
@@ -501,6 +515,15 @@ export default React.memo(function FileScreen() {
                         ...Typography.default()
                     }}>
                         {t('files.fileEmpty')}
+                    </Text>
+                ) : displayMode === 'diff' && !diffContent ? (
+                    <Text style={{
+                        fontSize: 16,
+                        color: theme.colors.textSecondary,
+                        fontStyle: 'italic',
+                        ...Typography.default()
+                    }}>
+                        {t('files.noChanges')}
                     </Text>
                 ) : !diffContent && !fileContent?.content ? (
                     <Text style={{
