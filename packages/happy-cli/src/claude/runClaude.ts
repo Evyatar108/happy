@@ -75,6 +75,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         pendingSwitch: null,
         turnActive: false,
     };
+    let closing = false;
 
     // Get machine ID from settings (should already be set up)
     const settings = await readSettings();
@@ -163,7 +164,9 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
                 const scanner = await createSessionScanner({
                     sessionId: null,
                     workingDirectory,
-                    onMessage: (msg) => session.sendClaudeSessionMessage(msg)
+                    onMessage: (msg) => {
+                        if (!closing) session.sendClaudeSessionMessage(msg);
+                    }
                 });
                 if (offlineSessionId) scanner.onNewSession(offlineSessionId);
                 return { session, scanner };
@@ -336,7 +339,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
     // Exit when session is archived from web/mobile
     session.on('archived', () => {
         logger.debug('[loop] Session archived from web/mobile, cleaning up...');
-        cleanup();
+        void cleanup();
     });
 
     const VALID_CLAUDE_PERMISSION_MODES: readonly PermissionMode[] = [
@@ -379,6 +382,8 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
     }
 
     session.onUserMessage((message) => {
+        if (closing) return;
+
         const taggedDeferredSwitch = message.meta?.capabilities?.deferredSwitch === true;
 
         if (!taggedDeferredSwitch) {
@@ -569,42 +574,50 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
     });
 
     // Setup signal handlers for graceful shutdown
+    let cleanupPromise: Promise<void> | null = null;
     const cleanup = async () => {
-        logger.debug('[START] Received termination signal, cleaning up...');
+        if (cleanupPromise) return cleanupPromise;
+        closing = true;
 
-        try {
-            // Update lifecycle state to archived before closing
-            if (session) {
-                session.updateMetadata((currentMetadata) => ({
-                    ...currentMetadata,
-                    lifecycleState: 'archived',
-                    lifecycleStateSince: Date.now(),
-                    archivedBy: 'cli',
-                    archiveReason: 'User terminated'
-                }));
-                
-                // Cleanup session resources (intervals, callbacks)
-                currentSession?.cleanup();
+        cleanupPromise = (async () => {
+            logger.debug('[START] Received termination signal, cleaning up...');
 
-                // Send session death message
-                session.sendSessionDeath();
-                await session.flush();
-                await session.close();
+            try {
+                // Update lifecycle state to archived before closing
+                if (session) {
+                    session.updateMetadata((currentMetadata) => ({
+                        ...currentMetadata,
+                        lifecycleState: 'archived',
+                        lifecycleStateSince: Date.now(),
+                        archivedBy: 'cli',
+                        archiveReason: 'User terminated'
+                    }));
+
+                    // Cleanup session resources (intervals, callbacks)
+                    currentSession?.cleanup();
+
+                    // Send session death message
+                    session.sendSessionDeath();
+                    await session.flush();
+                    await session.close();
+                }
+
+                // Stop Happy MCP server
+                happyServer.stop();
+
+                // Stop Hook server and cleanup settings file
+                hookServer.stop();
+                cleanupHookSettingsFile(hookSettingsPath);
+
+                logger.debug('[START] Cleanup complete, exiting');
+                process.exit(0);
+            } catch (error) {
+                logger.debug('[START] Error during cleanup:', error);
+                process.exit(1);
             }
+        })();
 
-            // Stop Happy MCP server
-            happyServer.stop();
-
-            // Stop Hook server and cleanup settings file
-            hookServer.stop();
-            cleanupHookSettingsFile(hookSettingsPath);
-
-            logger.debug('[START] Cleanup complete, exiting');
-            process.exit(0);
-        } catch (error) {
-            logger.debug('[START] Error during cleanup:', error);
-            process.exit(1);
-        }
+        return cleanupPromise;
     };
 
     // Handle termination signals
@@ -634,6 +647,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         api,
         allowedTools: happyServer.toolNames.map(toolName => `mcp__happy__${toolName}`),
         onModeChange: (newMode) => {
+            if (closing) return;
             currentMode = newMode;
             session.sendSessionEvent({ type: 'switch', mode: newMode });
             session.updateAgentState((currentState) => ({

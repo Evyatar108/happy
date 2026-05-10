@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { HAPPY_FORKED_FROM_SESSION_ID } from '@/utils/envNames';
 
 const mocks = vi.hoisted(() => {
+    const rpcHandlers = new Map<string, (...args: any[]) => any>();
+    const mockAbortTurnWithFallback = vi.fn(async () => ({ forcedRestart: false, resumedThread: true }));
+    let lastCodexClient: any = null;
+
     const mockSession = {
         on: vi.fn(),
         onUserMessage: vi.fn(),
@@ -18,7 +22,9 @@ const mocks = vi.hoisted(() => {
         close: vi.fn(async () => {}),
         getMetadata: vi.fn(() => ({})),
         rpcHandlerManager: {
-            registerHandler: vi.fn(),
+            registerHandler: vi.fn((name: string, handler: (...args: any[]) => any) => {
+                rpcHandlers.set(name, handler);
+            }),
         },
         sessionId: 'session-1',
     };
@@ -34,6 +40,10 @@ const mocks = vi.hoisted(() => {
     }
 
     class MockCodexAppServerClient {
+        constructor() {
+            lastCodexClient = this;
+        }
+
         sandboxEnabled = false;
         connect = vi.fn(async () => {});
         disconnect = vi.fn(async () => {});
@@ -42,13 +52,17 @@ const mocks = vi.hoisted(() => {
         hasActiveThread = vi.fn(() => true);
         startThread = vi.fn(async () => ({ threadId: 'thread-1' }));
         sendTurnAndWait = vi.fn(async () => ({ aborted: false }));
-        abortTurnWithFallback = vi.fn(async () => ({ forcedRestart: false, resumedThread: true }));
+        abortTurnWithFallback = mockAbortTurnWithFallback;
     }
 
     return {
         mockSession,
         MockMessageQueue2,
         MockCodexAppServerClient,
+        mockAbortTurnWithFallback,
+        getLastCodexClient: () => lastCodexClient,
+        getRpcHandler: (name: string) => rpcHandlers.get(name),
+        clearRpcHandlers: () => rpcHandlers.clear(),
         mockExecSync: vi.fn(() => 'codex-cli 0.120.0'),
         mockApiCreate: vi.fn(),
         mockGetOrCreateMachine: vi.fn(async () => ({})),
@@ -153,9 +167,11 @@ async function runResume() {
 describe('runCodex fork boundary emission', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mocks.clearRpcHandlers();
         delete process.env[HAPPY_FORKED_FROM_SESSION_ID];
         mocks.mockApiCreate.mockResolvedValue(createApi());
         mocks.mockReadSettings.mockResolvedValue({ machineId: 'machine-1', sandboxConfig: undefined });
+        mocks.mockAbortTurnWithFallback.mockResolvedValue({ forcedRestart: false, resumedThread: true });
     });
 
     it('emits a session-fork-resume boundary after resuming when fork env is set', async () => {
@@ -181,5 +197,30 @@ describe('runCodex fork boundary emission', () => {
 
         expect(mocks.mockResumeExistingThread).toHaveBeenCalled();
         expect(mocks.mockSession.sendContextBoundary).not.toHaveBeenCalled();
+    });
+
+    it('coalesces concurrent abort RPC calls into one Codex interruption', async () => {
+        let resolveAbort!: () => void;
+        mocks.mockAbortTurnWithFallback.mockImplementationOnce(async () => {
+            await new Promise<void>((resolve) => {
+                resolveAbort = resolve;
+            });
+            return { forcedRestart: false, resumedThread: true };
+        });
+
+        await runResume();
+
+        const abortHandler = mocks.getRpcHandler('abort');
+        expect(abortHandler).toBeDefined();
+
+        const firstAbort = abortHandler!();
+        const secondAbort = abortHandler!();
+
+        await Promise.resolve();
+        expect(mocks.getLastCodexClient().abortTurnWithFallback).toHaveBeenCalledTimes(1);
+
+        resolveAbort();
+        await expect(Promise.all([firstAbort, secondAbort])).resolves.toEqual([undefined, undefined]);
+        expect(mocks.getLastCodexClient().abortTurnWithFallback).toHaveBeenCalledTimes(1);
     });
 });

@@ -95,8 +95,9 @@ User runs `happy` directly:
 
 Via RPC `stop-session` or health check:
 1. `stopSession()` finds session by `happySessionId`
-2. Sends SIGTERM to process
-3. `on('exit')` handler removes from tracking map
+2. Sends SIGTERM to process and waits up to 5 seconds
+3. Sends SIGKILL if the process ignores SIGTERM
+4. Keeps daemon-spawned sessions in `pidToTrackedSession` until the child `exit` handler runs, so resume metadata can still be preserved
 
 ## 3. HTTP Control Server
 

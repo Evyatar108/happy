@@ -35,6 +35,7 @@ import { pickFreeLoopbackPort } from '@/utils/pickFreeLoopbackPort';
 import { loadOrCreateTofuKeypairs } from '@/tofu/keypairManager';
 import { TunnelManager } from '@/tunnel/tunnelManager';
 import { forkSession } from './forkSession';
+import { stopTrackedSession } from './stopTrackedSession';
 
 // Prepare initial metadata
 // Suffix host with `-dev` for the HAPPY_VARIANT=dev variant so the dev daemon
@@ -751,39 +752,18 @@ export async function startDaemon(): Promise<void> {
     });
 
     // Stop a session by sessionId or PID fallback
-    const stopSession = (sessionId: string): boolean => {
+    const stopSession = async (sessionId: string): Promise<boolean> => {
       logger.debug(`[DAEMON RUN] Attempting to stop session ${sessionId}`);
 
-      // Try to find by sessionId first
-      for (const [pid, session] of pidToTrackedSession.entries()) {
-        if (session.happySessionId === sessionId ||
-          (sessionId.startsWith('PID-') && pid === parseInt(sessionId.replace('PID-', '')))) {
+      const stopped = await stopTrackedSession({
+        sessionId,
+        sessions: pidToTrackedSession,
+      });
 
-          if (session.startedBy === 'daemon' && session.childProcess) {
-            try {
-              session.childProcess.kill('SIGTERM');
-              logger.debug(`[DAEMON RUN] Sent SIGTERM to daemon-spawned session ${sessionId}`);
-            } catch (error) {
-              logger.debug(`[DAEMON RUN] Failed to kill session ${sessionId}:`, error);
-            }
-          } else {
-            // For externally started sessions, try to kill by PID
-            try {
-              process.kill(pid, 'SIGTERM');
-              logger.debug(`[DAEMON RUN] Sent SIGTERM to external session PID ${pid}`);
-            } catch (error) {
-              logger.debug(`[DAEMON RUN] Failed to kill external session PID ${pid}:`, error);
-            }
-          }
-
-          pidToTrackedSession.delete(pid);
-          logger.debug(`[DAEMON RUN] Removed session ${sessionId} from tracking`);
-          return true;
-        }
-      }
-
-      logger.debug(`[DAEMON RUN] Session ${sessionId} not found`);
-      return false;
+      logger.debug(stopped
+        ? `[DAEMON RUN] Stop signal completed for session ${sessionId}`
+        : `[DAEMON RUN] Session ${sessionId} not found`);
+      return stopped;
     };
 
     // Handle child process exit — preserve session data for resume
