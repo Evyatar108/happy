@@ -761,26 +761,27 @@ export function formatTime(date: Date): string {
                         ) : null}
 
                         {selectedExample === 'all' || selectedExample === 'p1BugFixes' ? (
-                            <>
-                                <Text style={styles.subsectionTitle}>P1 Bug Fixes</Text>
-                                {renderExample('taskOutputRunning', examples.taskOutputRunning, null, 'p1BugFixes')}
-                                {renderExample('taskOutputSchemaMatch', examples.taskOutputSchemaMatch, null, 'p1BugFixes')}
-                                {renderExample('taskOutputString', examples.taskOutputString, null, 'p1BugFixes')}
-                                {renderExample('taskOutputObjectMismatch', examples.taskOutputObjectMismatch, null, 'p1BugFixes')}
-                                {renderExample('taskOutputNull', examples.taskOutputNull, null, 'p1BugFixes')}
-                                {renderExample('taskStopRunning', examples.taskStopRunning, null, 'p1BugFixes')}
-                                {renderExample('taskStopSchemaMatch', examples.taskStopSchemaMatch, null, 'p1BugFixes')}
-                                {renderExample('taskStopString', examples.taskStopString, null, 'p1BugFixes')}
-                                {renderExample('taskStopObjectMismatch', examples.taskStopObjectMismatch, null, 'p1BugFixes')}
-                                {renderExample('taskStopNull', examples.taskStopNull, null, 'p1BugFixes')}
-                                {renderExample('editFix', examples.editFix, pathFixtureMetadata, 'p1BugFixes')}
-                                {renderExample('multiEditFix', examples.multiEditFix, pathFixtureMetadata, 'p1BugFixes')}
-                                {renderExample('codexPatchUpdate', examples.codexPatchUpdate, pathFixtureMetadata, 'p1BugFixes')}
-                                {renderExample('codexPatchUpdateMove', examples.codexPatchUpdateMove, pathFixtureMetadata, 'p1BugFixes')}
-                                {renderExample('codexPatchAdd', examples.codexPatchAdd, pathFixtureMetadata, 'p1BugFixes')}
-                                {renderExample('codexPatchDelete', examples.codexPatchDelete, pathFixtureMetadata, 'p1BugFixes')}
-                                {renderExample('codexPatchLegacyWrapper', examples.codexPatchLegacyWrapper, pathFixtureMetadata, 'p1BugFixes')}
-                            </>
+                            <ItemGroup title="P1 Bug Fixes" containerStyle={styles.fixtureGroupContainer}>
+                                <>
+                                    {renderExample('taskOutputRunning', examples.taskOutputRunning, null, 'p1BugFixes')}
+                                    {renderExample('taskOutputSchemaMatch', examples.taskOutputSchemaMatch, null, 'p1BugFixes')}
+                                    {renderExample('taskOutputString', examples.taskOutputString, null, 'p1BugFixes')}
+                                    {renderExample('taskOutputObjectMismatch', examples.taskOutputObjectMismatch, null, 'p1BugFixes')}
+                                    {renderExample('taskOutputNull', examples.taskOutputNull, null, 'p1BugFixes')}
+                                    {renderExample('taskStopRunning', examples.taskStopRunning, null, 'p1BugFixes')}
+                                    {renderExample('taskStopSchemaMatch', examples.taskStopSchemaMatch, null, 'p1BugFixes')}
+                                    {renderExample('taskStopString', examples.taskStopString, null, 'p1BugFixes')}
+                                    {renderExample('taskStopObjectMismatch', examples.taskStopObjectMismatch, null, 'p1BugFixes')}
+                                    {renderExample('taskStopNull', examples.taskStopNull, null, 'p1BugFixes')}
+                                    {renderExample('editFix', examples.editFix, pathFixtureMetadata, 'p1BugFixes')}
+                                    {renderExample('multiEditFix', examples.multiEditFix, pathFixtureMetadata, 'p1BugFixes')}
+                                    {renderExample('codexPatchUpdate', examples.codexPatchUpdate, pathFixtureMetadata, 'p1BugFixes')}
+                                    {renderExample('codexPatchUpdateMove', examples.codexPatchUpdateMove, pathFixtureMetadata, 'p1BugFixes')}
+                                    {renderExample('codexPatchAdd', examples.codexPatchAdd, pathFixtureMetadata, 'p1BugFixes')}
+                                    {renderExample('codexPatchDelete', examples.codexPatchDelete, pathFixtureMetadata, 'p1BugFixes')}
+                                    {renderExample('codexPatchLegacyWrapper', examples.codexPatchLegacyWrapper, pathFixtureMetadata, 'p1BugFixes')}
+                                </>
+                            </ItemGroup>
                         ) : null}
 
                         {selectedExample === 'all' || selectedExample === 'bash' ? (
@@ -869,6 +870,14 @@ const styles = StyleSheet.create({
     exampleContainer: {
         marginBottom: 16,
         paddingHorizontal: 16,
+    },
+    fixtureGroupContainer: {
+        backgroundColor: 'transparent',
+        marginHorizontal: 0,
+        borderRadius: 0,
+        shadowOpacity: 0,
+        elevation: 0,
+        overflow: 'visible',
     },
     exampleTitle: {
         fontSize: 14,
