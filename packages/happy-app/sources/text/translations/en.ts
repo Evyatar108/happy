@@ -603,6 +603,7 @@ export const en: TranslationStructure = {
         taskView: {
             initializing: 'Initializing agent...',
             moreTools: ({ count }: { count: number }) => `+${count} more ${plural({ count, singular: 'tool', plural: 'tools' })}`,
+            moreSteps: ({ count }: { count: number }) => `+${count} more ${plural({ count, singular: 'step', plural: 'steps' })}`,
         },
         multiEdit: {
             editNumber: ({ index, total }: { index: number; total: number }) => `Edit ${index} of ${total}`,

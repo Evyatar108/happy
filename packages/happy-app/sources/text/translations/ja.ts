@@ -591,6 +591,7 @@ export const ja: TranslationStructure = {
         taskView: {
             initializing: 'エージェントを初期化中...',
             moreTools: ({ count }: { count: number }) => `+${count} 個のツール`,
+            moreSteps: ({ count }: { count: number }) => `+${count} 件の手順`,
         },
         askUserQuestion: {
             submit: '回答を送信',

@@ -3,17 +3,11 @@ import { ToolViewProps } from './_all';
 import { View, ActivityIndicator, Platform } from 'react-native';
 import { knownTools } from '../../tools/knownTools';
 import { Ionicons } from '@expo/vector-icons';
-import { ToolCall } from '@/sync/typesMessage';
+import { Message, ToolCall } from '@/sync/typesMessage';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { t } from '@/text';
 import { AnimatedText } from '@/components/StyledText';
 import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
-
-interface FilteredTool {
-    tool: ToolCall;
-    title: string;
-    state: 'running' | 'completed' | 'error';
-}
 
 const styles = StyleSheet.create((theme) => ({
     container: {
@@ -34,89 +28,83 @@ const styles = StyleSheet.create((theme) => ({
         fontFamily: 'monospace',
         flex: 1,
     },
+    toolTitleContainer: {
+        flex: 1,
+        minWidth: 0,
+    },
+    toolSubtitle: {
+        fontSize: 12,
+        color: theme.colors.textSecondary,
+        opacity: 0.8,
+        flex: 1,
+    },
     statusContainer: {
         marginLeft: 'auto',
         paddingLeft: 8,
-    },
-    moreToolsItem: {
-        paddingVertical: 4,
-        paddingHorizontal: 4,
-    },
-    moreToolsText: {
-        fontSize: 14,
-        color: theme.colors.textSecondary,
-        fontStyle: 'italic',
-        opacity: 0.7,
     },
 }));
 
 export const TaskView = React.memo<ToolViewProps>(({ tool, metadata, messages }) => {
     const { theme } = useUnistyles();
-    const animatedMoreToolsTextStyle = useChatScaleAnimatedTextStyle(styles.moreToolsText.fontSize);
     const animatedToolTitleStyle = useChatScaleAnimatedTextStyle(styles.toolTitle.fontSize);
-    const filtered: FilteredTool[] = [];
+    const animatedToolSubtitleStyle = useChatScaleAnimatedTextStyle(styles.toolSubtitle.fontSize);
+    const lastToolMessage = findLastToolMessage(messages);
 
-    for (let m of messages) {
-        if (m.kind === 'tool-call') {
-            const knownTool = knownTools[m.tool.name as keyof typeof knownTools] as any;
-            
-            // Extract title using extractDescription if available, otherwise use title
-            let title = m.tool.name;
-            if (knownTool) {
-                if ('extractDescription' in knownTool && typeof knownTool.extractDescription === 'function') {
-                    title = knownTool.extractDescription({ tool: m.tool, metadata });
-                } else if (knownTool.title) {
-                    // Handle optional title and function type
-                    if (typeof knownTool.title === 'function') {
-                        title = knownTool.title({ tool: m.tool, metadata });
-                    } else {
-                        title = knownTool.title;
-                    }
-                }
-            }
-
-            if (m.tool.state === 'running' || m.tool.state === 'completed' || m.tool.state === 'error') {
-                filtered.push({
-                    tool: m.tool,
-                    title,
-                    state: m.tool.state
-                });
-            }
-        }
-    }
-
-    if (filtered.length === 0) {
+    if (!lastToolMessage) {
         return null;
     }
 
-    const visibleTools = filtered.slice(filtered.length - 3);
-    const remainingCount = filtered.length - 3;
+    const subagentType = typeof tool.input?.subagent_type === 'string' ? tool.input.subagent_type : null;
+    const agentLabel = subagentType ? `${t('tools.names.agent')} (${subagentType})` : t('tools.names.agent');
+    const lastActionTitle = getToolTitle(lastToolMessage.tool, metadata);
 
     return (
         <View style={styles.container}>
-            {visibleTools.map((item, index) => (
-                <View key={`${item.tool.name}-${index}`} style={styles.toolItem}>
-                    <AnimatedText style={[styles.toolTitle, animatedToolTitleStyle]}>{item.title}</AnimatedText>
-                    <View style={styles.statusContainer}>
-                        {item.state === 'running' && (
-                            <ActivityIndicator size={Platform.OS === 'ios' ? "small" : 14 as any} color={theme.colors.warning} />
-                        )}
-                        {item.state === 'completed' && (
-                            <Ionicons name="checkmark-circle" size={16} color={theme.colors.success} />
-                        )}
-                        {item.state === 'error' && (
-                            <Ionicons name="close-circle" size={16} color={theme.colors.textDestructive} />
-                        )}
-                    </View>
+            <View style={styles.toolItem}>
+                <View style={styles.toolTitleContainer}>
+                    <AnimatedText style={[styles.toolTitle, animatedToolTitleStyle]} numberOfLines={1}>{agentLabel}</AnimatedText>
+                    <AnimatedText style={[styles.toolSubtitle, animatedToolSubtitleStyle]} numberOfLines={1}>{lastActionTitle}</AnimatedText>
                 </View>
-            ))}
-            {remainingCount > 0 && (
-                <View style={styles.moreToolsItem}>
-                    <AnimatedText style={[styles.moreToolsText, animatedMoreToolsTextStyle]}>
-                        {t('tools.taskView.moreTools', { count: remainingCount })}
-                    </AnimatedText>
+                <View style={styles.statusContainer}>
+                    {tool.state === 'running' && (
+                        <ActivityIndicator size={Platform.OS === 'ios' ? "small" : 14 as any} color={theme.colors.warning} />
+                    )}
+                    {tool.state === 'completed' && (
+                        <Ionicons name="checkmark-circle" size={16} color={theme.colors.success} />
+                    )}
+                    {tool.state === 'error' && (
+                        <Ionicons name="close-circle" size={16} color={theme.colors.textDestructive} />
+                    )}
                 </View>
-            )}
+            </View>
         </View>
     );
 });
+
+function findLastToolMessage(messages: Message[]): Extract<Message, { kind: 'tool-call' }> | null {
+    for (let i = messages.length - 1; i >= 0; i--) {
+        const message = messages[i];
+
+        if (message.kind === 'tool-call') {
+            return message;
+        }
+    }
+
+    return null;
+}
+
+function getToolTitle(tool: ToolCall, metadata: ToolViewProps['metadata']): string {
+    const knownTool = knownTools[tool.name as keyof typeof knownTools] as any;
+
+    if (knownTool?.extractDescription && typeof knownTool.extractDescription === 'function') {
+        return knownTool.extractDescription({ tool, metadata });
+    }
+
+    if (knownTool?.title) {
+        return typeof knownTool.title === 'function'
+            ? knownTool.title({ tool, metadata })
+            : knownTool.title;
+    }
+
+    return tool.name;
+}

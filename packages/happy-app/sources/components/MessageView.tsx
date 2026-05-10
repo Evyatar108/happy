@@ -14,6 +14,7 @@ import { AnimatedText } from './StyledText';
 import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
 import { BoundaryDivider } from './BoundaryDivider';
 
+const MAX_NESTED_CHILD_DEPTH = 3;
 
 export const MessageView = React.memo((props: {
   message: Message;
@@ -49,7 +50,14 @@ function RenderBlock(props: {
   metadata: Metadata | null;
   sessionId: string;
   getMessageById?: (id: string) => Message | null;
+  depth?: number;
 }): React.ReactElement {
+  const depth = props.depth ?? 0;
+
+  if (depth > MAX_NESTED_CHILD_DEPTH) {
+    return <NestedStepsSummary count={countNestedSteps([props.message])} />;
+  }
+
   switch (props.message.kind) {
     case 'user-text':
       return <UserTextBlock message={props.message} sessionId={props.sessionId} />;
@@ -63,6 +71,7 @@ function RenderBlock(props: {
         metadata={props.metadata}
         sessionId={props.sessionId}
         getMessageById={props.getMessageById}
+        depth={depth}
       />;
 
     case 'agent-event':
@@ -195,10 +204,15 @@ function ToolCallBlock(props: {
   metadata: Metadata | null;
   sessionId: string;
   getMessageById?: (id: string) => Message | null;
+  depth: number;
 }) {
   if (!props.message.tool) {
     return null;
   }
+
+  const childDepth = props.depth + 1;
+  const nestedStepCount = countNestedSteps(props.message.children);
+
   return (
     <View style={styles.toolContainer}>
       <ToolView
@@ -208,8 +222,48 @@ function ToolCallBlock(props: {
         sessionId={props.sessionId}
         messageId={props.message.id}
       />
+      {nestedStepCount > 0 && (
+        <View style={styles.nestedChildren}>
+          {childDepth > MAX_NESTED_CHILD_DEPTH ? (
+            <NestedStepsSummary count={nestedStepCount} />
+          ) : (
+            props.message.children.map(child => (
+              <RenderBlock
+                key={child.id}
+                message={child}
+                metadata={props.metadata}
+                sessionId={props.sessionId}
+                getMessageById={props.getMessageById}
+                depth={childDepth}
+              />
+            ))
+          )}
+        </View>
+      )}
     </View>
   );
+}
+
+function NestedStepsSummary(props: { count: number }) {
+  const animatedTextStyle = useChatScaleAnimatedTextStyle(13);
+
+  return (
+    <View style={styles.nestedStepsSummary}>
+      <AnimatedText style={[styles.nestedStepsText, animatedTextStyle]}>
+        {t('tools.taskView.moreSteps', { count: props.count })}
+      </AnimatedText>
+    </View>
+  );
+}
+
+function countNestedSteps(messages: Message[]): number {
+  return messages.reduce((count, message) => {
+    if (message.kind === 'tool-call') {
+      return count + 1 + countNestedSteps(message.children);
+    }
+
+    return count + 1;
+  }, 0);
 }
 
 const styles = StyleSheet.create((theme) => ({
@@ -247,6 +301,20 @@ const styles = StyleSheet.create((theme) => ({
     marginHorizontal: 8,
     maxWidth: '100%',
     overflow: 'hidden',
+  },
+  nestedChildren: {
+    marginLeft: 16,
+    borderLeftWidth: 2,
+    borderLeftColor: theme.colors.textSecondary,
+    paddingLeft: 12,
+  },
+  nestedStepsSummary: {
+    paddingVertical: 8,
+  },
+  nestedStepsText: {
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    fontStyle: 'italic',
   },
   agentEventText: {
     color: theme.colors.agentEventText,

@@ -590,6 +590,7 @@ export const ca: TranslationStructure = {
         taskView: {
             initializing: 'Inicialitzant l\'agent...',
             moreTools: ({ count }: { count: number }) => `+${count} més ${plural({ count, singular: 'eina', plural: 'eines' })}`,
+            moreSteps: ({ count }: { count: number }) => `+${count} més ${plural({ count, singular: 'pas', plural: 'passos' })}`,
         },
         multiEdit: {
             editNumber: ({ index, total }: { index: number; total: number }) => `Edició ${index} de ${total}`,
