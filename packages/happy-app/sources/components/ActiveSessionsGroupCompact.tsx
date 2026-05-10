@@ -267,11 +267,13 @@ export function ActiveSessionsGroupCompact({ sessions, selectedSessionId }: Acti
                 const alphabeticallySortedProjects = Array.from(machineGroup.projects.entries()).sort(
                     ([, a], [, b]) => a.displayPath.localeCompare(b.displayPath)
                 );
-                const sortedProjects = applyOrderToProjectEntries(
-                    alphabeticallySortedProjects,
-                    machineGroup.machineId,
-                    sessionGroupOrder,
-                );
+                const sortedProjects = Platform.OS === 'web'
+                    ? applyOrderToProjectEntries(
+                        alphabeticallySortedProjects,
+                        machineGroup.machineId,
+                        sessionGroupOrder,
+                    )
+                    : alphabeticallySortedProjects;
 
                 return (
                     <React.Fragment key={machineGroup.machineId}>
