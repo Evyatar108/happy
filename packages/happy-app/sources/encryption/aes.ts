@@ -24,16 +24,20 @@ async function encryptAESGCMStringWeb(data: string, key64: string): Promise<stri
     if (!key || !globalThis.crypto?.subtle) {
         return null;
     }
-    const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
-    const encrypted = new Uint8Array(await globalThis.crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv },
-        key,
-        toArrayBuffer(encodeUTF8(data)),
-    ));
-    const combined = new Uint8Array(iv.length + encrypted.length);
-    combined.set(iv);
-    combined.set(encrypted, iv.length);
-    return encodeBase64(combined);
+    try {
+        const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
+        const encrypted = new Uint8Array(await globalThis.crypto.subtle.encrypt(
+            { name: 'AES-GCM', iv },
+            key,
+            toArrayBuffer(encodeUTF8(data)),
+        ));
+        const combined = new Uint8Array(iv.length + encrypted.length);
+        combined.set(iv);
+        combined.set(encrypted, iv.length);
+        return encodeBase64(combined);
+    } catch {
+        return null;
+    }
 }
 
 async function decryptAESGCMStringWeb(data: string, key64: string): Promise<string | null> {
@@ -41,15 +45,19 @@ async function decryptAESGCMStringWeb(data: string, key64: string): Promise<stri
     if (!key || !globalThis.crypto?.subtle) {
         return null;
     }
-    const combined = decodeBase64(data);
-    const iv = combined.slice(0, 12);
-    const ciphertext = combined.slice(12);
-    const decrypted = await globalThis.crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv },
-        key,
-        toArrayBuffer(ciphertext),
-    );
-    return decodeUTF8(new Uint8Array(decrypted));
+    try {
+        const combined = decodeBase64(data);
+        const iv = combined.slice(0, 12);
+        const ciphertext = combined.slice(12);
+        const decrypted = await globalThis.crypto.subtle.decrypt(
+            { name: 'AES-GCM', iv },
+            key,
+            toArrayBuffer(ciphertext),
+        );
+        return decodeUTF8(new Uint8Array(decrypted));
+    } catch {
+        return null;
+    }
 }
 
 export async function encryptAESGCMString(data: string, key64: string): Promise<string> {
