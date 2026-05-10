@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Pressable, Platform } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Text } from '@/components/StyledText';
-import { Machine } from '@/sync/storageTypes';
+import { Machine, Session } from '@/sync/storageTypes';
 import { SessionRowData } from '@/sync/storage';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { type SessionState, formatPathRelativeToHome, vibingMessages, formatLastSeen } from '@/utils/sessionUtils';
@@ -268,23 +268,59 @@ export function ActiveSessionsGroupCompact({ sessions, selectedSessionId }: Acti
     );
 }
 
+// Swipeable archive action — only mounted when the full Session is hydrated (non-null).
+// Accepts a non-null Session so useSessionQuickActions is never called with a null value.
+const CompactSessionRowSwipeInner = ({ session, children }: { session: Session; children: React.ReactNode }) => {
+    const styles = stylesheet;
+    const swipeableRef = React.useRef<Swipeable | null>(null);
+    const { archiveSession, archivingSession } = useSessionQuickActions(session);
+
+    const handleArchive = React.useCallback(() => {
+        swipeableRef.current?.close();
+        archiveSession();
+    }, [archiveSession]);
+
+    const renderRightActions = () => (
+        <Pressable
+            style={styles.swipeAction}
+            onPress={handleArchive}
+            disabled={archivingSession}
+        >
+            <Ionicons name="archive-outline" size={20} color="#FFFFFF" />
+            <Text style={styles.swipeActionText} numberOfLines={2}>
+                {t('sessionInfo.archiveSession')}
+            </Text>
+        </Pressable>
+    );
+
+    return (
+        <Swipeable
+            ref={swipeableRef}
+            renderRightActions={renderRightActions}
+            overshootRight={false}
+            enabled={!archivingSession}
+        >
+            {children}
+        </Swipeable>
+    );
+};
+
+const CompactSessionRowSwipe = ({ sessionId, children }: { sessionId: string; children: React.ReactNode }) => {
+    const sessionForActions = useSession(sessionId);
+    if (!sessionForActions) {
+        return <>{children}</>;
+    }
+    return <CompactSessionRowSwipeInner session={sessionForActions}>{children}</CompactSessionRowSwipeInner>;
+};
+
 // Compact session row with status dot indicator
 const CompactSessionRow = React.memo(({ session, selected, showBorder }: { session: SessionRowData; selected?: boolean; showBorder?: boolean }) => {
     const styles = stylesheet;
     const { theme } = useUnistyles();
     const status = STATUS_CONFIG[session.state];
     const navigateToSession = useNavigateToSession();
-    const swipeableRef = React.useRef<Swipeable | null>(null);
     const swipeEnabled = Platform.OS !== 'web';
     const [actionsAnchor, setActionsAnchor] = React.useState<SessionActionsAnchor | null>(null);
-
-    const sessionForActions = useSession(session.id);
-    const { archiveSession, archivingSession } = useSessionQuickActions(sessionForActions!);
-
-    const handleArchive = React.useCallback(() => {
-        swipeableRef.current?.close();
-        archiveSession();
-    }, [archiveSession]);
 
     const handlePress = React.useCallback(() => {
         navigateToSession(session.id);
@@ -378,28 +414,10 @@ const CompactSessionRow = React.memo(({ session, selected, showBorder }: { sessi
         );
     }
 
-    const renderRightActions = () => (
-        <Pressable
-            style={styles.swipeAction}
-            onPress={handleArchive}
-            disabled={archivingSession}
-        >
-            <Ionicons name="archive-outline" size={20} color="#FFFFFF" />
-            <Text style={styles.swipeActionText} numberOfLines={2}>
-                {t('sessionInfo.archiveSession')}
-            </Text>
-        </Pressable>
-    );
-
     return (
-        <Swipeable
-            ref={swipeableRef}
-            renderRightActions={renderRightActions}
-            overshootRight={false}
-            enabled={!archivingSession}
-        >
+        <CompactSessionRowSwipe sessionId={session.id}>
             {itemContent}
-        </Swipeable>
+        </CompactSessionRowSwipe>
     );
 });
 
