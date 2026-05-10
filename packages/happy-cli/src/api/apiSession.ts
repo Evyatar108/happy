@@ -29,10 +29,14 @@ import { normalizeSessionLogMessage } from '@/claude/utils/normalizeSessionLogMe
 import { InvalidateSync } from '@/utils/sync';
 import axios from 'axios';
 
-const CONSUMPTION_ACK_TIMEOUT_MS =
-    typeof process.env.HAPPY_CONSUMPTION_ACK_TIMEOUT_MS === 'string' && process.env.HAPPY_CONSUMPTION_ACK_TIMEOUT_MS.length > 0
-        ? parseInt(process.env.HAPPY_CONSUMPTION_ACK_TIMEOUT_MS, 10)
-        : 60_000;
+const CONSUMPTION_ACK_TIMEOUT_MS = (() => {
+    const raw = process.env.HAPPY_CONSUMPTION_ACK_TIMEOUT_MS;
+    if (typeof raw !== 'string' || raw.length === 0) {
+        return 60_000;
+    }
+    const parsed = parseInt(raw, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 60_000;
+})();
 
 export class MessageConsumptionTimeoutError extends Error {
     readonly messageId: string;
