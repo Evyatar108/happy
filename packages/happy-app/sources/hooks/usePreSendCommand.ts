@@ -41,13 +41,13 @@ export function usePreSendCommand(sessionId: string | undefined) {
 
                 await sessionUpdateMetadata(
                     renameRequest.sessionId,
-                    {
-                        ...session.metadata,
+                    (latest) => ({
+                        ...latest,
                         summary: {
                             text: renameRequest.name,
                             updatedAt: Date.now(),
                         },
-                    },
+                    }),
                     session.metadataVersion,
                 );
             } catch {

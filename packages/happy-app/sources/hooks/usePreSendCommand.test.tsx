@@ -127,17 +127,15 @@ describe('usePreSendCommand', () => {
         expect(shared.performRenameMock).toHaveBeenCalledOnce();
         await shared.latestActionPromise;
         expect(shared.sessionUpdateMetadataMock).toHaveBeenCalledOnce();
-        expect(shared.sessionUpdateMetadataMock).toHaveBeenCalledWith(
-            'session-1',
-            expect.objectContaining({
-                path: '/workspace/repo',
-                host: 'devbox',
-                summary: expect.objectContaining({
-                    text: 'Fresh Name',
-                }),
-            }),
-            7,
-        );
+        const [calledSessionId, calledPatchFn, calledVersion] = shared.sessionUpdateMetadataMock.mock.calls[0];
+        expect(calledSessionId).toBe('session-1');
+        expect(calledVersion).toBe(7);
+        expect(typeof calledPatchFn).toBe('function');
+        expect(calledPatchFn({ path: '/workspace/repo', host: 'devbox', summary: { text: 'Old name', updatedAt: 123 } })).toMatchObject({
+            path: '/workspace/repo',
+            host: 'devbox',
+            summary: expect.objectContaining({ text: 'Fresh Name' }),
+        });
     });
 
     it('shows the localized empty-name alert without using the rename action', async () => {
@@ -196,8 +194,11 @@ describe('usePreSendCommand', () => {
 
         expect(shared.sessionUpdateMetadataMock).toHaveBeenCalledTimes(2);
         const calls = shared.sessionUpdateMetadataMock.mock.calls;
-        expect(calls[0][1]).toMatchObject({ summary: expect.objectContaining({ text: 'Alpha' }) });
-        expect(calls[1][1]).toMatchObject({ summary: expect.objectContaining({ text: 'Beta' }) });
+        const baseMetadata = { path: '/workspace/repo', host: 'devbox', summary: { text: 'Old name', updatedAt: 123 } };
+        expect(typeof calls[0][1]).toBe('function');
+        expect(calls[0][1](baseMetadata)).toMatchObject({ summary: expect.objectContaining({ text: 'Alpha' }) });
+        expect(typeof calls[1][1]).toBe('function');
+        expect(calls[1][1](baseMetadata)).toMatchObject({ summary: expect.objectContaining({ text: 'Beta' }) });
     });
 
     it('converts rename failures into a HappyError with the localized failure message', async () => {

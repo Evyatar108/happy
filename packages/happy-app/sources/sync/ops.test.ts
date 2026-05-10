@@ -32,26 +32,27 @@ import { cancelPendingSwitch, requestSwitch, sessionEmitAgentConfiguration, sess
 import { sync } from './sync';
 
 describe('sessionUpdateMetadata', () => {
-    const targetMetadata: Metadata = {
+    const initialSessionMetadata: Metadata = {
         path: '/workspace/project',
         host: 'devbox',
         summary: {
-            text: 'Renamed chat',
-            updatedAt: 200,
+            text: 'Old title',
+            updatedAt: 150,
         },
     };
 
     beforeEach(() => {
         vi.clearAllMocks();
-        mockSessions.value = {};
+        mockSessions.value = {
+            'session-1': {
+                metadata: initialSessionMetadata,
+                metadataVersion: 7,
+            },
+        };
     });
 
-    it('encrypts metadata, retries on version mismatch, and emits update-metadata with the bumped version', async () => {
-        const encryptMetadata = vi
-            .fn()
-            .mockResolvedValueOnce('encrypted-v7')
-            .mockResolvedValueOnce('encrypted-v8');
-        const decryptMetadata = vi.fn().mockResolvedValue({
+    it('applies patchFn to session metadata, retries with freshly-decrypted server metadata on version mismatch', async () => {
+        const serverMetadataAfterConflict: Metadata = {
             path: '/workspace/project',
             host: 'devbox',
             currentModelCode: 'claude-sonnet',
@@ -59,7 +60,13 @@ describe('sessionUpdateMetadata', () => {
                 text: 'Old title',
                 updatedAt: 150,
             },
-        } satisfies Metadata);
+        };
+
+        const encryptMetadata = vi
+            .fn()
+            .mockResolvedValueOnce('encrypted-v7')
+            .mockResolvedValueOnce('encrypted-v8');
+        const decryptMetadata = vi.fn().mockResolvedValue(serverMetadataAfterConflict);
 
         vi.mocked(sync.encryption.getSessionEncryption).mockReturnValue({
             encryptMetadata,
@@ -78,24 +85,30 @@ describe('sessionUpdateMetadata', () => {
                 metadata: 'encrypted-v8',
             });
 
-        const result = await sessionUpdateMetadata('session-1', targetMetadata, 7);
+        // patchFn applies only the summary field — simulating the /rename caller
+        const patchFn = (latest: Metadata): Metadata => ({
+            ...latest,
+            summary: { text: 'Renamed chat', updatedAt: 200 },
+        });
+
+        const result = await sessionUpdateMetadata('session-1', patchFn, 7);
 
         expect(result).toEqual({ version: 9, metadata: 'encrypted-v8' });
-        expect(encryptMetadata).toHaveBeenNthCalledWith(1, targetMetadata);
+        // First attempt: patchFn applied to the initial session metadata
+        expect(encryptMetadata).toHaveBeenNthCalledWith(1, {
+            ...initialSessionMetadata,
+            summary: { text: 'Renamed chat', updatedAt: 200 },
+        });
         expect(apiSocket.emitWithAck).toHaveBeenNthCalledWith(1, 'update-metadata', {
             sid: 'session-1',
             metadata: 'encrypted-v7',
             expectedVersion: 7,
         });
         expect(decryptMetadata).toHaveBeenCalledWith(8, 'server-metadata-v8');
+        // Second attempt: patchFn applied to fresh server metadata, preserving concurrent server fields
         expect(encryptMetadata).toHaveBeenNthCalledWith(2, {
-            path: '/workspace/project',
-            host: 'devbox',
-            currentModelCode: 'claude-sonnet',
-            summary: {
-                text: 'Renamed chat',
-                updatedAt: 200,
-            },
+            ...serverMetadataAfterConflict,
+            summary: { text: 'Renamed chat', updatedAt: 200 },
         });
         expect(apiSocket.emitWithAck).toHaveBeenNthCalledWith(2, 'update-metadata', {
             sid: 'session-1',

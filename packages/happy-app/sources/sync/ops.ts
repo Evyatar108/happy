@@ -346,22 +346,34 @@ export async function machineUpdateMetadata(
 }
 
 /**
- * Update session metadata with optimistic concurrency control and automatic retry
+ * Update session metadata with optimistic concurrency control and automatic retry.
+ *
+ * @param patchFn - Receives the current server-authoritative metadata and returns the
+ *   desired new metadata. Called both on the first attempt (with the caller's snapshot)
+ *   and on every version-mismatch retry (with the freshly-decrypted server metadata).
+ *   This ensures that only the fields the caller intends to change are applied, even
+ *   when concurrent writes from other devices are present.
  */
 export async function sessionUpdateMetadata(
     sessionId: string,
-    metadata: Metadata,
+    patchFn: (latest: Metadata) => Metadata,
     expectedVersion: number,
     maxRetries: number = 3
 ): Promise<{ version: number; metadata: string }> {
     let currentVersion = expectedVersion;
-    let currentMetadata = { ...metadata };
     let retryCount = 0;
 
     const sessionEncryption = sync.encryption.getSessionEncryption(sessionId);
     if (!sessionEncryption) {
         throw new Error(`Session encryption not found for ${sessionId}`);
     }
+
+    const initialMetadata = storage.getState().sessions[sessionId]?.metadata;
+    if (!initialMetadata) {
+        throw new Error(`Session metadata not found for ${sessionId}`);
+    }
+
+    let currentMetadata = patchFn(initialMetadata);
 
     while (retryCount < maxRetries) {
         const encryptedMetadata = await sessionEncryption.encryptMetadata(currentMetadata);
@@ -390,10 +402,7 @@ export async function sessionUpdateMetadata(
                 throw new Error('Failed to decrypt latest session metadata after version mismatch');
             }
 
-            currentMetadata = {
-                ...latestMetadata,
-                ...metadata
-            };
+            currentMetadata = patchFn(latestMetadata);
 
             retryCount++;
 
@@ -426,12 +435,12 @@ export async function sessionEmitAgentConfiguration({
 
     return sessionUpdateMetadata(
         sessionId,
-        {
-            ...session.metadata,
+        (latest) => ({
+            ...latest,
             ...(model !== undefined && { currentModelCode: model }),
             ...(permissionMode !== undefined && { currentPermissionModeCode: permissionMode }),
             ...(thinkingLevel !== undefined && { currentThoughtLevelCode: thinkingLevel }),
-        },
+        }),
         session.metadataVersion,
     );
 }
