@@ -329,12 +329,6 @@ export const knownTools = {
             oldContent: z.string().optional(),
             newContent: z.string().optional(),
         }).partial().passthrough(),
-        extractStatus: () => {
-            return null;
-        },
-        extractSubtitle: () => {
-            return null;
-        },
     },
     'MultiEdit': {
         title: (opts: { metadata: Metadata | null, tool: ToolCall }) => {

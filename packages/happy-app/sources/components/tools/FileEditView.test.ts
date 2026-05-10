@@ -15,8 +15,6 @@ describe('file-edit tool registration', () => {
         expect(knownTools).toContain('oldContent: z.string().optional(),');
         expect(knownTools).toContain('newContent: z.string().optional(),');
         expect(knownTools).toContain('icon: ICON_EDIT,');
-        expect(knownTools).toContain('extractStatus: () => {');
-        expect(knownTools).toContain('extractSubtitle: () => {');
     });
 
     it('routes file-edit through FileEditView and file navigation', () => {
