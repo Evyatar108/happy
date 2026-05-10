@@ -322,6 +322,8 @@ export const zhHans: TranslationStructure = {
         requestSwitchFailed: '更新切换请求失败',
         sendFailed: '发送消息失败',
         attachmentTooLarge: 'Image attachments must be 4 MB or smaller',
+        attachmentUnsupportedType: 'Only JPEG and PNG images can be attached',
+        attachmentPickFailed: 'Failed to attach image',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -348,6 +350,7 @@ export const zhHans: TranslationStructure = {
         title: '开始新会话',
         selectMachineRequired: '请选择一台设备',
         machineOffline: '设备离线',
+        imageAttachment: 'Image attachment',
         switchMachinesHint: '• 点击上方的设备来切换设备',
     },
 

@@ -319,6 +319,8 @@ export const en = {
         requestSwitchFailed: 'Failed to update switch request',
         sendFailed: 'Failed to send message',
         attachmentTooLarge: 'Image attachments must be 4 MB or smaller',
+        attachmentUnsupportedType: 'Only JPEG and PNG images can be attached',
+        attachmentPickFailed: 'Failed to attach image',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -346,6 +348,7 @@ export const en = {
         selectMachineRequired: 'Please select a machine',
         machineOffline: 'Machine is offline',
         switchMachinesHint: '• Switch machines by clicking on the machine above',
+        imageAttachment: 'Image attachment',
     },
 
     sessionHistory: {

@@ -15,7 +15,8 @@ describe('/new unified composer wiring', () => {
         expect(source).toContain('<AgentInput');
         expect(source).toContain('mode="new"');
         expect(source).toContain('newSessionSlots={contextRow.slots}');
-        expect(source).toContain('onAttachmentPress={() => {}}');
+        expect(source).toContain('onAttachmentPress={handleAttachmentPress}');
+        expect(source).toContain('attachmentsPreview={attachmentsPreview}');
         expect(source).toContain('isSendDisabled={!canSend}');
     });
 
@@ -37,5 +38,12 @@ describe('/new unified composer wiring', () => {
 
     it('remains the default export for the /new route', () => {
         expect(source).toContain('export default React.memo(NewSessionScreen);');
+    });
+
+    it('uses the non-persisted attachment staging store and clears it after route/send transitions', () => {
+        expect(source).toContain("from '@/hooks/useNewSessionAttachments'");
+        expect(source).toContain('useNewSessionAttachments((state) => state.attachments)');
+        expect(source).toContain('clearStagedAttachments();');
+        expect(source).not.toContain('useNewSessionDraft((state) => state.attachments)');
     });
 });

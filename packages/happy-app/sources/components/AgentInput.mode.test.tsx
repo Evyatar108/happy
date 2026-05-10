@@ -204,4 +204,26 @@ describe('AgentInput mode rendering', () => {
         expect(directModeComparisons.length).toBeLessThanOrEqual(3);
         expect(selectorCallSites).toHaveLength(1);
     });
+
+    it('renders the new-session attachment button and invokes its picker callback', () => {
+        const onAttachmentPress = vi.fn();
+
+        let renderer: TestRendererInstance;
+        act(() => {
+            renderer = TestRenderer.create(
+                <AgentInput
+                    {...baseProps()}
+                    mode="new"
+                    onAttachmentPress={onAttachmentPress}
+                />,
+            );
+        });
+
+        const attachmentButton = renderer!.root.findByProps({ testID: 'agent-input-attachment-button' });
+        act(() => {
+            attachmentButton.props.onPress();
+        });
+
+        expect(onAttachmentPress).toHaveBeenCalledOnce();
+    });
 });

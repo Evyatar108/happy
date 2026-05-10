@@ -321,6 +321,8 @@ export const ca: TranslationStructure = {
         requestSwitchFailed: 'No s\'ha pogut actualitzar la sol·licitud de canvi',
         sendFailed: 'No s\'ha pogut enviar el missatge',
         attachmentTooLarge: 'Image attachments must be 4 MB or smaller',
+        attachmentUnsupportedType: 'Only JPEG and PNG images can be attached',
+        attachmentPickFailed: 'Failed to attach image',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -347,6 +349,7 @@ export const ca: TranslationStructure = {
         title: 'Iniciar nova sessió',
         selectMachineRequired: 'Selecciona una màquina',
         machineOffline: 'La màquina està fora de línia',
+        imageAttachment: 'Image attachment',
         switchMachinesHint: '• Canvia de màquina fent clic a la màquina de dalt',
     },
 

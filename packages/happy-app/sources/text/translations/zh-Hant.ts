@@ -321,6 +321,8 @@ export const zhHant: TranslationStructure = {
         requestSwitchFailed: '更新切換請求失敗',
         sendFailed: '傳送訊息失敗',
         attachmentTooLarge: 'Image attachments must be 4 MB or smaller',
+        attachmentUnsupportedType: 'Only JPEG and PNG images can be attached',
+        attachmentPickFailed: 'Failed to attach image',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -347,6 +349,7 @@ export const zhHant: TranslationStructure = {
         title: '開始新工作階段',
         selectMachineRequired: '請選擇一台裝置',
         machineOffline: '裝置離線',
+        imageAttachment: 'Image attachment',
         switchMachinesHint: '• 點擊上方的裝置來切換裝置',
     },
 

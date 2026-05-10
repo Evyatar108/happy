@@ -309,6 +309,8 @@ export const ru: TranslationStructure = {
         requestSwitchFailed: 'Не удалось обновить запрос на переключение',
         sendFailed: 'Не удалось отправить сообщение',
         attachmentTooLarge: 'Image attachments must be 4 MB or smaller',
+        attachmentUnsupportedType: 'Only JPEG and PNG images can be attached',
+        attachmentPickFailed: 'Failed to attach image',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -335,6 +337,7 @@ export const ru: TranslationStructure = {
         title: 'Начать новую сессию',
         selectMachineRequired: 'Выберите машину',
         machineOffline: 'Машина недоступна',
+        imageAttachment: 'Image attachment',
         switchMachinesHint: '• Переключите машину, нажав на неё выше',
     },
 

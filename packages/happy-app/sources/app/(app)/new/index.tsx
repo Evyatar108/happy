@@ -1,6 +1,7 @@
 import React from 'react';
 import {
     View,
+    Text,
     Platform,
     Pressable,
     Modal as RNModal,
@@ -35,6 +36,11 @@ import { Modal } from '@/modal';
 import { AgentInput } from '@/components/AgentInput';
 import { NewSessionContextRow, useNewSessionContextRowController } from '@/components/NewSessionContextRow';
 import type { SendMessageOptions } from '@/sync/sync';
+import {
+    pickNewSessionImageAttachment,
+    useNewSessionAttachments,
+    type NewSessionImageAttachment,
+} from '@/hooks/useNewSessionAttachments';
 
 const COMPOSER_INPUT_VERTICAL_PADDING = Platform.OS === 'web' ? 10 : 8;
 const COMPOSER_SEND_BUTTON_SIZE = 32;
@@ -139,6 +145,10 @@ function NewSessionScreen() {
     const agentInputEnterToSend = useSetting('agentInputEnterToSend');
     const unifiedNewSessionComposer = useLocalSetting('unifiedNewSessionComposer');
     const contextRow = useNewSessionContextRowController();
+    const stagedAttachments = useNewSessionAttachments((state) => state.attachments);
+    const setStagedAttachment = useNewSessionAttachments((state) => state.setAttachment);
+    const clearStagedAttachment = useNewSessionAttachments((state) => state.clearAttachment);
+    const clearStagedAttachments = useNewSessionAttachments((state) => state.clearAttachments);
 
     // Persisted draft state (survives navigation)
     const draft = useNewSessionDraft();
@@ -156,7 +166,45 @@ function NewSessionScreen() {
 
     // Local-only UI state (not persisted)
     const [isSpawning, setIsSpawning] = React.useState(false);
-    const attachments = React.useMemo<NonNullable<SendMessageOptions['attachments']>>(() => [], []);
+    const attachments = React.useMemo<NonNullable<SendMessageOptions['attachments']>>(
+        () => stagedAttachments.map((attachment) => ({
+            type: attachment.type,
+            ref: attachment.ref,
+            mimeType: attachment.mimeType,
+        })),
+        [stagedAttachments],
+    );
+
+    React.useEffect(() => () => {
+        clearStagedAttachments();
+    }, [clearStagedAttachments]);
+
+    React.useEffect(() => {
+        clearStagedAttachments();
+    }, [selectedMachineId, selectedPath, worktreeKey, selectedAgent, clearStagedAttachments]);
+
+    const handleAttachmentPress = React.useCallback(async () => {
+        try {
+            const attachment = await pickNewSessionImageAttachment();
+            if (attachment) {
+                setStagedAttachment(attachment);
+            }
+        } catch (error) {
+            const message = error instanceof Error && error.message === 'unsupported-type'
+                ? t('errors.attachmentUnsupportedType')
+                : error instanceof Error && error.message === 'too-large'
+                    ? t('errors.attachmentTooLarge')
+                    : t('errors.attachmentPickFailed');
+            Modal.alert(t('common.error'), message);
+        }
+    }, [setStagedAttachment]);
+
+    const attachmentsPreview = stagedAttachments.length > 0 ? (
+        <NewSessionAttachmentsPreview
+            attachments={stagedAttachments}
+            onClear={clearStagedAttachment}
+        />
+    ) : null;
     // Spawn session handler
     const handleSend = React.useCallback(async (approvedNewDirectoryCreation: boolean = false) => {
         const trimmedPrompt = prompt.trim();
@@ -225,6 +273,7 @@ function NewSessionScreen() {
                     // Send initial message if provided
                     if (trimmedPrompt) {
                         await sync.sendMessage(result.sessionId, trimmedPrompt, { source: 'new_session', attachments });
+                        clearStagedAttachments();
                     }
 
                     router.back();
@@ -253,7 +302,7 @@ function NewSessionScreen() {
         } finally {
             setIsSpawning(false);
         }
-    }, [attachments, selectedMachineId, selectedMachine, selectedPath, selectedAgent, prompt, preSendCommand, router, navigateToSession, currentPermission.key, currentModelKey, worktreeKey, setPrompt]);
+    }, [attachments, selectedMachineId, selectedMachine, selectedPath, selectedAgent, prompt, preSendCommand, router, navigateToSession, currentPermission.key, currentModelKey, worktreeKey, setPrompt, clearStagedAttachments]);
 
     const canSend = selectedMachineId && selectedMachine && isMachineOnline(selectedMachine) && !isSpawning;
 
@@ -300,7 +349,8 @@ function NewSessionScreen() {
             autocompletePrefixes={[]}
             autocompleteSuggestions={async () => []}
             newSessionSlots={contextRow.slots}
-            onAttachmentPress={() => {}}
+            onAttachmentPress={handleAttachmentPress}
+            attachmentsPreview={attachmentsPreview}
         />
     );
 
@@ -407,6 +457,36 @@ function NewSessionScreen() {
     );
 }
 
+function NewSessionAttachmentsPreview({
+    attachments,
+    onClear,
+}: {
+    attachments: NewSessionImageAttachment[];
+    onClear: (id: string) => void;
+}) {
+    const { theme } = useUnistyles();
+
+    return (
+        <View style={styles.attachmentPreviewRow}>
+            {attachments.map((attachment) => (
+                <View key={attachment.id} style={styles.attachmentChip} testID="new-session-attachment-chip">
+                    <Octicons name="image" size={14} color={theme.colors.textSecondary} />
+                    <Text style={styles.attachmentChipText} numberOfLines={1}>
+                        {attachment.name || t('newSession.imageAttachment')}
+                    </Text>
+                    <Pressable
+                        onPress={() => onClear(attachment.id)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        testID="new-session-attachment-clear"
+                    >
+                        <Octicons name="x" size={14} color={theme.colors.textSecondary} />
+                    </Pressable>
+                </View>
+            ))}
+        </View>
+    );
+}
+
 const styles = StyleSheet.create((theme) => ({
     container: {
         flex: 1,
@@ -461,6 +541,28 @@ const styles = StyleSheet.create((theme) => ({
             },
             default: {},
         }),
+    },
+    attachmentPreviewRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 6,
+        paddingHorizontal: 8,
+        paddingTop: 8,
+    },
+    attachmentChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        maxWidth: '100%',
+        height: 30,
+        paddingHorizontal: 8,
+        borderRadius: 8,
+        backgroundColor: theme.colors.surfacePressed,
+    },
+    attachmentChipText: {
+        maxWidth: 220,
+        color: theme.colors.text,
+        fontSize: 12,
     },
 }));
 

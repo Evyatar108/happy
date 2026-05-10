@@ -335,6 +335,8 @@ export const en: TranslationStructure = {
         requestSwitchFailed: 'Failed to update switch request',
         sendFailed: 'Failed to send message',
         attachmentTooLarge: 'Image attachments must be 4 MB or smaller',
+        attachmentUnsupportedType: 'Only JPEG and PNG images can be attached',
+        attachmentPickFailed: 'Failed to attach image',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -361,6 +363,7 @@ export const en: TranslationStructure = {
         title: 'Start New Session',
         selectMachineRequired: 'Please select a machine',
         machineOffline: 'Machine is offline',
+        imageAttachment: 'Image attachment',
         switchMachinesHint: '• Switch machines by clicking on the machine above',
     },
 

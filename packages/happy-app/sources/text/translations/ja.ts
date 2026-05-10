@@ -322,6 +322,8 @@ export const ja: TranslationStructure = {
         requestSwitchFailed: '切り替えリクエストを更新できませんでした',
         sendFailed: 'メッセージを送信できませんでした',
         attachmentTooLarge: 'Image attachments must be 4 MB or smaller',
+        attachmentUnsupportedType: 'Only JPEG and PNG images can be attached',
+        attachmentPickFailed: 'Failed to attach image',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -348,6 +350,7 @@ export const ja: TranslationStructure = {
         title: '新しいセッションを開始',
         selectMachineRequired: 'マシンを選択してください',
         machineOffline: 'マシンがオフラインです',
+        imageAttachment: 'Image attachment',
         switchMachinesHint: '• 上のマシンをクリックしてマシンを切り替えてください',
     },
 
