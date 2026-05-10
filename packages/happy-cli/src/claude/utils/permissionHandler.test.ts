@@ -124,6 +124,24 @@ describe('PermissionHandler mode mapping', () => {
         await expectPending(promise);
     });
 
+    it('records ExitPlanMode pending requests under the SDK toolUseID', async () => {
+        const { session, getState } = createStubSession();
+        const handler = new PermissionHandler(session);
+        const input = { plan: 'Make the requested change.' };
+
+        const promise = callTool(handler, 'ExitPlanMode', 'plan', {
+            input,
+            toolUseID: 'toolu-exit-plan',
+        });
+
+        await expectPending(promise);
+        expect(getState().requests?.['toolu-exit-plan']).toEqual({
+            tool: 'ExitPlanMode',
+            arguments: input,
+            createdAt: expect.any(Number),
+        });
+    });
+
     it('auto-allows edits when mode is acceptEdits', async () => {
         const { session } = createStubSession();
         const handler = new PermissionHandler(session);

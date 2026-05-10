@@ -117,6 +117,7 @@ import { AgentState, TodoItem, TodoItemsSchema } from "../storageTypes";
 import { MessageMeta } from "../typesMessageMeta";
 import { parseMessageAsEvent } from "./messageToEvent";
 import type { SessionContextBoundaryKind } from "@slopus/happy-wire";
+import equal from 'fast-deep-equal';
 
 export type LatestBoundary = {
     id: string;
@@ -214,6 +215,113 @@ function mergeToolInputs(existingInput: unknown, nextInput: unknown): unknown {
         return { ...nextInput, ...existingInput };
     }
     return nextInput ?? existingInput;
+}
+
+function isExitPlanModeTool(name: string): boolean {
+    return name === 'ExitPlanMode' || name === 'exit_plan_mode';
+}
+
+function findMatchingExitPlanToolMessageId(
+    state: ReducerState,
+    toolName: string,
+    input: unknown,
+): string | null {
+    if (!isExitPlanModeTool(toolName)) {
+        return null;
+    }
+
+    let matched: { id: string; createdAt: number } | null = null;
+    for (const [id, message] of state.messages.entries()) {
+        if (!message.tool || !isExitPlanModeTool(message.tool.name)) {
+            continue;
+        }
+        if (!equal(message.tool.input, input)) {
+            continue;
+        }
+        if (!matched || message.createdAt > matched.createdAt) {
+            matched = { id, createdAt: message.createdAt };
+        }
+    }
+
+    return matched?.id ?? null;
+}
+
+function toStoredPermission(
+    permission: {
+        tool: string;
+        arguments?: any;
+        createdAt?: number | null;
+        completedAt?: number | null;
+        status: StoredPermission['status'];
+        reason?: string | null;
+        mode?: string | null;
+        allowedTools?: string[] | null;
+        decision?: StoredPermission['decision'] | null;
+    },
+): StoredPermission {
+    return {
+        tool: permission.tool,
+        arguments: permission.arguments,
+        createdAt: permission.createdAt || Date.now(),
+        completedAt: permission.completedAt || undefined,
+        status: permission.status,
+        reason: permission.reason || undefined,
+        mode: permission.mode || undefined,
+        allowedTools: permission.allowedTools || undefined,
+        decision: permission.decision || undefined,
+    };
+}
+
+function attachPermissionToToolMessage(
+    message: ReducerMessage,
+    permissionId: string,
+    permission: StoredPermission,
+): boolean {
+    let changed = false;
+
+    if (!message.tool) {
+        return false;
+    }
+
+    if (!message.tool.permission) {
+        message.tool.permission = {
+            id: permissionId,
+            status: permission.status,
+            reason: permission.reason,
+            mode: permission.mode,
+            allowedTools: permission.allowedTools,
+            decision: permission.decision,
+        };
+        changed = true;
+    } else if (
+        message.tool.permission.id !== permissionId ||
+        message.tool.permission.status !== permission.status ||
+        message.tool.permission.reason !== permission.reason ||
+        message.tool.permission.mode !== permission.mode ||
+        message.tool.permission.allowedTools !== permission.allowedTools ||
+        message.tool.permission.decision !== permission.decision
+    ) {
+        message.tool.permission.id = permissionId;
+        message.tool.permission.status = permission.status;
+        message.tool.permission.mode = permission.mode;
+        message.tool.permission.allowedTools = permission.allowedTools;
+        message.tool.permission.decision = permission.decision;
+        if (permission.reason) {
+            message.tool.permission.reason = permission.reason;
+        }
+        changed = true;
+    }
+
+    if (permission.status !== 'approved' && permission.status !== 'pending' && message.tool.state !== 'error' && message.tool.state !== 'completed') {
+        message.tool.state = 'error';
+        message.tool.completedAt = permission.completedAt || Date.now();
+        if (!message.tool.result && permission.reason) {
+            message.tool.result = { error: permission.reason };
+        }
+        changed = true;
+    }
+
+    return changed;
 }
 
 function getSidechainOwner(state: ReducerState, sidechainId: string): ReducerMessage | null {
@@ -482,8 +590,10 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                 }
 
                 // Check if we already have a message for this permission ID
-                const existingMessageId = state.toolIdToMessageId.get(permId);
+                const existingMessageId = state.toolIdToMessageId.get(permId)
+                    ?? findMatchingExitPlanToolMessageId(state, request.tool, request.arguments);
                 if (existingMessageId) {
+                    state.toolIdToMessageId.set(permId, existingMessageId);
                     // Update existing tool message with permission info
                     const message = state.messages.get(existingMessageId);
                     if (message?.tool && !message.tool.permission) {
@@ -549,8 +659,11 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
         if (agentState.completedRequests) {
             for (const [permId, completed] of Object.entries(agentState.completedRequests)) {
                 // Check if we have a message for this permission ID
-                const messageId = state.toolIdToMessageId.get(permId);
+                const completedPermission = toStoredPermission(completed);
+                const messageId = state.toolIdToMessageId.get(permId)
+                    ?? findMatchingExitPlanToolMessageId(state, completed.tool, completed.arguments);
                 if (messageId) {
+                    state.toolIdToMessageId.set(permId, messageId);
                     const message = state.messages.get(messageId);
                     if (message?.tool) {
                         // Skip if tool has already started actual execution with approval
@@ -619,17 +732,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                         }
 
                         // Update stored permission
-                        state.permissions.set(permId, {
-                            tool: completed.tool,
-                            arguments: completed.arguments,
-                            createdAt: completed.createdAt || Date.now(),
-                            completedAt: completed.completedAt || undefined,
-                            status: completed.status,
-                            reason: completed.reason || undefined,
-                            mode: completed.mode || undefined,
-                            allowedTools: completed.allowedTools || undefined,
-                            decision: completed.decision || undefined
-                        });
+                        state.permissions.set(permId, completedPermission);
 
                         if (hasChanged) {
                             changed.add(messageId);
@@ -648,7 +751,10 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                             createdAt: completed.createdAt || Date.now(),
                             completedAt: completed.completedAt || undefined,
                             status: completed.status,
-                            reason: completed.reason || undefined
+                            reason: completed.reason || undefined,
+                            mode: completed.mode || undefined,
+                            allowedTools: completed.allowedTools || undefined,
+                            decision: completed.decision || undefined
                         });
                         continue;
                     }
@@ -695,17 +801,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                     state.toolIdToMessageId.set(permId, mid);
 
                     // Store permission details
-                    state.permissions.set(permId, {
-                        tool: completed.tool,
-                        arguments: completed.arguments,
-                        createdAt: completed.createdAt || Date.now(),
-                        completedAt: completed.completedAt || undefined,
-                        status: completed.status,
-                        reason: completed.reason || undefined,
-                        mode: completed.mode || undefined,
-                        allowedTools: completed.allowedTools || undefined,
-                        decision: completed.decision || undefined
-                    });
+                    state.permissions.set(permId, completedPermission);
 
                     changed.add(mid);
                 }
@@ -798,9 +894,11 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
             for (let c of msg.content) {
                 if (c.type === 'tool-call') {
                     // Direct lookup by tool ID (since permission ID = tool ID now)
-                    const existingMessageId = state.toolIdToMessageId.get(c.id);
+                    const existingMessageId = state.toolIdToMessageId.get(c.id)
+                        ?? findMatchingExitPlanToolMessageId(state, c.name, c.input);
 
                     if (existingMessageId) {
+                        state.toolIdToMessageId.set(c.id, existingMessageId);
                         if (ENABLE_LOGGING) {
                             console.log(`[REDUCER] Found existing message for tool ${c.id}`);
                         }
@@ -808,6 +906,11 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                         const message = state.messages.get(existingMessageId);
                         if (message?.tool) {
                             message.realID = msg.id;
+                            const permission = state.permissions.get(c.id)
+                                ?? (message.tool.permission?.id ? state.permissions.get(message.tool.permission.id) : undefined);
+                            if (permission) {
+                                attachPermissionToToolMessage(message, message.tool.permission?.id ?? c.id, permission);
+                            }
                             message.tool.input = mergeToolInputs(message.tool.input, c.input);
                             message.tool.description = c.description;
                             message.tool.startedAt = msg.createdAt;

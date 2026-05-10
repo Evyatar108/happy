@@ -778,6 +778,115 @@ describe('reducer', () => {
             }
         });
 
+        it('attaches ExitPlanMode permission when tool envelope arrives before agentState', () => {
+            const state = createReducer();
+            const input = { plan: 'Add the requested function and tests.' };
+            const toolMessage = createToolCallMessage(
+                'msg-exit-plan',
+                1000,
+                'toolu-exit-plan',
+                'ExitPlanMode',
+                input,
+            );
+
+            const result1 = reducer(state, [toolMessage]);
+            expect(result1.messages).toHaveLength(1);
+            expect(result1.messages[0].kind).toBe('tool-call');
+            if (result1.messages[0].kind === 'tool-call') {
+                expect(result1.messages[0].tool.permission).toBeUndefined();
+            }
+
+            const pendingState: AgentState = {
+                requests: {
+                    'permission-exit-plan': {
+                        tool: 'ExitPlanMode',
+                        arguments: input,
+                        createdAt: 1100,
+                    },
+                },
+            };
+            const result2 = reducer(state, [], pendingState);
+
+            expect(result2.messages).toHaveLength(1);
+            expect(state.toolIdToMessageId.get('toolu-exit-plan')).toBe(state.toolIdToMessageId.get('permission-exit-plan'));
+            expect(result2.messages[0].kind).toBe('tool-call');
+            if (result2.messages[0].kind === 'tool-call') {
+                expect(result2.messages[0].tool.name).toBe('ExitPlanMode');
+                expect(result2.messages[0].tool.permission).toEqual({
+                    id: 'permission-exit-plan',
+                    status: 'pending',
+                });
+            }
+
+            const completedState: AgentState = {
+                completedRequests: {
+                    'permission-exit-plan': {
+                        tool: 'ExitPlanMode',
+                        arguments: input,
+                        createdAt: 1100,
+                        completedAt: 1200,
+                        status: 'approved',
+                        mode: 'default',
+                        decision: 'approved',
+                    },
+                },
+            };
+            const result3 = reducer(state, [], completedState);
+
+            expect(result3.messages).toHaveLength(1);
+            expect(result3.messages[0].kind).toBe('tool-call');
+            if (result3.messages[0].kind === 'tool-call') {
+                expect(result3.messages[0].tool.permission).toMatchObject({
+                    id: 'permission-exit-plan',
+                    status: 'approved',
+                    mode: 'default',
+                    decision: 'approved',
+                });
+            }
+        });
+
+        it('attaches ExitPlanMode permission when agentState arrives before tool envelope', () => {
+            const state = createReducer();
+            const input = { plan: 'Refactor the reducer correlation path.' };
+            const pendingState: AgentState = {
+                requests: {
+                    'permission-exit-plan': {
+                        tool: 'exit_plan_mode',
+                        arguments: input,
+                        createdAt: 1000,
+                    },
+                },
+            };
+
+            const result1 = reducer(state, [], pendingState);
+            expect(result1.messages).toHaveLength(1);
+
+            const toolMessage = createToolCallMessage(
+                'msg-exit-plan',
+                1100,
+                'toolu-exit-plan',
+                'ExitPlanMode',
+                input,
+            );
+            const result2 = reducer(state, [toolMessage], pendingState);
+
+            expect(result2.messages).toHaveLength(1);
+            expect(state.toolIdToMessageId.get('toolu-exit-plan')).toBe(state.toolIdToMessageId.get('permission-exit-plan'));
+            expect(result2.messages[0].kind).toBe('tool-call');
+            if (result2.messages[0].kind === 'tool-call') {
+                expect(result2.messages[0].tool.name).toBe('exit_plan_mode');
+                expect(result2.messages[0].tool.state).toBe('running');
+                expect(result2.messages[0].tool.startedAt).toBe(1100);
+                expect(result2.messages[0].tool.permission).toEqual({
+                    id: 'permission-exit-plan',
+                    status: 'pending',
+                });
+            }
+
+            const result3 = reducer(state, [toolMessage], pendingState);
+            expect(result3.messages).toHaveLength(0);
+        });
+
         it('should merge real tool-call patch args into matched permission messages', () => {
             const state = createReducer();
             const fileChanges = {
