@@ -46,4 +46,15 @@ describe('/new unified composer wiring', () => {
         expect(source).toContain('clearStagedAttachments();');
         expect(source).not.toContain('useNewSessionDraft((state) => state.attachments)');
     });
+
+    it('routes attachment-only sends to sync.sendMessage and clears staged attachments', () => {
+        // The send guard must include attachments.length > 0 so image-only sends
+        // (empty prompt, non-empty attachments) are not silently dropped.
+        expect(source).toContain('trimmedPrompt || attachments.length > 0');
+        // clearStagedAttachments must be called inside the same branch so staged
+        // images are always cleaned up after a successful send.
+        const sendIndex = source.indexOf('trimmedPrompt || attachments.length > 0');
+        const clearIndex = source.indexOf('clearStagedAttachments();', sendIndex);
+        expect(clearIndex).toBeGreaterThan(sendIndex);
+    });
 });

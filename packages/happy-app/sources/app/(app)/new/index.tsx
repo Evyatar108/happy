@@ -270,8 +270,8 @@ function NewSessionScreen() {
                     // Clear input text so draft doesn't repeat the sent message
                     setPrompt('');
 
-                    // Send initial message if provided
-                    if (trimmedPrompt) {
+                    // Send initial message if provided (text prompt or staged attachments)
+                    if (trimmedPrompt || attachments.length > 0) {
                         await sync.sendMessage(result.sessionId, trimmedPrompt, { source: 'new_session', attachments });
                         clearStagedAttachments();
                     }
