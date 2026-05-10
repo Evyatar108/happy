@@ -497,6 +497,13 @@ const MyComponent = () => {
 
 ### Special Component Considerations
 
+#### Topic-Aware Brutalist Avatars
+
+`sources/components/AvatarTopicBrutalist.tsx` resolves through `sources/utils/avatarTopic.ts`.
+On BOOX monochrome, topic identity is encoded in `imageIndex` only; `colorIndex` is invisible.
+Preserve legacy `brutalist` beside `brutalist-topic` as the deliberate "no backward compatibility ever" exception.
+Per-session icon pins follow the local-MMKV map pattern used by session-local UI state.
+
 #### Expo Image
 - **Size properties** (`width`, `height`) must be set outside of Unistyles stylesheet as inline styles
 - **`tintColor` property** must be set directly on the component, not in style prop

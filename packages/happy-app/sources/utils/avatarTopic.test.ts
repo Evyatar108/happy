@@ -44,6 +44,19 @@ const histogramFixtures = Array.from({ length: 50 }, (_, index) => ({
     flavor: ['claude', 'codex', 'gemini', 'openclaw', 'local'][index % 5],
 }));
 
+const distinctImageFixtures = [
+    { summaryText: 'Profile slow SQLite startup on Android', name: 'SQLite startup', flavor: 'codex' },
+    { summaryText: 'Design markdown table layout for tablet chat', name: 'Markdown tables', flavor: 'claude' },
+    { summaryText: 'Audit Firebase App Distribution release flow', name: 'Firebase release', flavor: 'gemini' },
+    { summaryText: 'Investigate websocket reconnect after tunnel restart', name: 'Tunnel reconnect', flavor: 'openclaw' },
+    { summaryText: 'Compare voice room mute state transitions', name: 'Voice mute', flavor: 'local' },
+    { summaryText: 'Review encrypted draft persistence edge cases', name: 'Draft persistence', flavor: 'codex' },
+    { summaryText: 'Tune e-ink sidebar render cost for active sessions', name: 'Sidebar performance', flavor: 'claude' },
+    { summaryText: 'Trace slash command interception before send', name: 'Slash commands', flavor: 'gemini' },
+    { summaryText: 'Validate context boundary pagination behavior', name: 'Boundary pagination', flavor: 'openclaw' },
+    { summaryText: 'Prepare changelog copy for avatar settings', name: 'Avatar changelog', flavor: 'local' },
+];
+
 describe('avatarTopic', () => {
     it('exports the shared brutalist asset table and legacy hash primitives', () => {
         expect(allImages).toHaveLength(420);
@@ -133,6 +146,14 @@ describe('avatarTopic', () => {
 
         expect(Math.max(...pairs.values())).toBeLessThanOrEqual(5);
         expect(Math.max(...images.values())).toBeLessThanOrEqual(8);
+    });
+
+    it('assigns distinct image buckets for the committed 10-tuple e-ink fixture set', () => {
+        const imageIndexes = distinctImageFixtures.map(fixture =>
+            resolveTopicBrutalistAvatar({ id: 'distinct-image-fallback', ...fixture }).imageIndex
+        );
+
+        expect(new Set(imageIndexes).size).toBe(10);
     });
 
     it('does not import sync, socket, network, or HTTP client modules', () => {
