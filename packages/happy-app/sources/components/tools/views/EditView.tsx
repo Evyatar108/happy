@@ -7,20 +7,26 @@ import { knownTools } from '../../tools/knownTools';
 import { trimIdent } from '@/utils/trimIdent';
 import { useSetting } from '@/sync/storage';
 import { resolvePath } from '@/utils/pathUtils';
+import { ToolError } from '@/components/tools/ToolError';
+import { warnToolInputParseFailure } from './parseFailure';
 
 
 export const EditView = React.memo<ToolViewProps>(({ tool, metadata }) => {
     const showLineNumbersInToolViews = useSetting('showLineNumbersInToolViews');
     
-    let oldString = '';
-    let newString = '';
-    let fileName = '';
     const parsed = knownTools.Edit.input.safeParse(tool.input);
-    if (parsed.success) {
-        fileName = resolvePath(parsed.data.file_path ?? '', metadata);
-        oldString = trimIdent(parsed.data.old_string ?? '');
-        newString = trimIdent(parsed.data.new_string ?? '');
+    if (!parsed.success) {
+        const message = warnToolInputParseFailure('Edit', parsed.error);
+        return (
+            <ToolSectionView fullWidth>
+                <ToolError message={message} />
+            </ToolSectionView>
+        );
     }
+
+    const fileName = resolvePath(parsed.data.file_path ?? '', metadata);
+    const oldString = trimIdent(parsed.data.old_string ?? '');
+    const newString = trimIdent(parsed.data.new_string ?? '');
 
     return (
         <>

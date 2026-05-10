@@ -7,6 +7,8 @@ import { toolFullViewStyles } from '../ToolFullView';
 import { ToolDiffView } from '@/components/tools/ToolDiffView';
 import { trimIdent } from '@/utils/trimIdent';
 import { resolvePath } from '@/utils/pathUtils';
+import { ToolError } from '@/components/tools/ToolError';
+import { warnToolInputParseFailure } from './parseFailure';
 
 interface EditViewFullProps {
     tool: ToolCall;
@@ -16,16 +18,19 @@ interface EditViewFullProps {
 export const EditViewFull = React.memo<EditViewFullProps>(({ tool, metadata }) => {
     const { input } = tool;
 
-    // Parse the input
-    let oldString = '';
-    let newString = '';
-    let fileName = '';
     const parsed = knownTools.Edit.input.safeParse(input);
-    if (parsed.success) {
-        fileName = resolvePath(parsed.data.file_path ?? '', metadata);
-        oldString = trimIdent(parsed.data.old_string ?? '');
-        newString = trimIdent(parsed.data.new_string ?? '');
+    if (!parsed.success) {
+        const message = warnToolInputParseFailure('Edit', parsed.error);
+        return (
+            <View style={toolFullViewStyles.sectionFullWidth}>
+                <ToolError message={message} />
+            </View>
+        );
     }
+
+    const fileName = resolvePath(parsed.data.file_path ?? '', metadata);
+    const oldString = trimIdent(parsed.data.old_string ?? '');
+    const newString = trimIdent(parsed.data.new_string ?? '');
 
     return (
         <View style={toolFullViewStyles.sectionFullWidth}>

@@ -10,6 +10,8 @@ import { t } from '@/text';
 import { AnimatedText } from '@/components/StyledText';
 import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
 import { resolvePath } from '@/utils/pathUtils';
+import { ToolError } from '@/components/tools/ToolError';
+import { warnToolInputParseFailure } from './parseFailure';
 
 interface MultiEditViewFullProps {
     tool: ToolCall;
@@ -26,14 +28,18 @@ function AnimatedMultiEditText(props: React.ComponentProps<typeof AnimatedText> 
 export const MultiEditViewFull = React.memo<MultiEditViewFullProps>(({ tool, metadata }) => {
     const { input } = tool;
 
-    let edits: Array<{ old_string: string; new_string: string; replace_all?: boolean }> = [];
-    let fileName = '';
-
     const parsed = knownTools.MultiEdit.input.safeParse(input);
-    if (parsed.success) {
-        fileName = resolvePath(parsed.data.file_path ?? '', metadata);
-        edits = parsed.data.edits ?? [];
+    if (!parsed.success) {
+        const message = warnToolInputParseFailure('MultiEdit', parsed.error);
+        return (
+            <View style={toolFullViewStyles.sectionFullWidth}>
+                <ToolError message={message} />
+            </View>
+        );
     }
+
+    const fileName = resolvePath(parsed.data.file_path ?? '', metadata);
+    const edits = parsed.data.edits ?? [];
 
     return (
         <View style={toolFullViewStyles.sectionFullWidth}>

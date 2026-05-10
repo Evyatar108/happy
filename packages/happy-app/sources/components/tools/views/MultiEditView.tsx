@@ -9,16 +9,22 @@ import { trimIdent } from '@/utils/trimIdent';
 import { resolvePath } from '@/utils/pathUtils';
 import { t } from '@/text';
 import { Text } from '@/components/StyledText';
+import { ToolError } from '@/components/tools/ToolError';
+import { warnToolInputParseFailure } from './parseFailure';
 
 export const MultiEditView = React.memo<ToolViewProps>(({ tool, metadata }) => {
-    let edits: Array<{ old_string: string; new_string: string; replace_all?: boolean }> = [];
-    let fileName = '';
-
     const parsed = knownTools.MultiEdit.input.safeParse(tool.input);
-    if (parsed.success) {
-        fileName = resolvePath(parsed.data.file_path ?? '', metadata);
-        edits = parsed.data.edits ?? [];
+    if (!parsed.success) {
+        const message = warnToolInputParseFailure('MultiEdit', parsed.error);
+        return (
+            <ToolSectionView fullWidth>
+                <ToolError message={message} />
+            </ToolSectionView>
+        );
     }
+
+    const fileName = resolvePath(parsed.data.file_path ?? '', metadata);
+    const edits = parsed.data.edits ?? [];
 
     return (
         <ToolSectionView fullWidth>
