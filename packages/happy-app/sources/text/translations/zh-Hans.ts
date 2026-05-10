@@ -321,6 +321,9 @@ export const zhHans: TranslationStructure = {
         sessionDeletedDescription: '此会话已被永久删除',
         requestSwitchFailed: '更新切换请求失败',
         sendFailed: '发送消息失败',
+        attachmentPerFileTooLarge: '每个附件必须不超过 25 MB',
+        attachmentTotalTooLarge: '附件总大小必须不超过 100 MB',
+        attachmentUploadFailed: '无法附加文件。请重试。',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -584,6 +587,13 @@ export const zhHans: TranslationStructure = {
             fileLabel: '文件',
             folderLabel: '文件夹',
         },
+        attachments: {
+            attachButton: '附加文件',
+            dropIdle: '将文件拖放到这里',
+            dropActive: '松开以附加',
+            pasteHint: '粘贴文件以附加',
+            removeButton: ({ name }: { name: string }) => `移除 ${name}`,
+        },
         noMachinesAvailable: '无设备',
     },
 
@@ -711,6 +721,8 @@ export const zhHans: TranslationStructure = {
 
     files: {
         changes: '更改',
+        refreshChanges: '刷新更改',
+        refreshChangesHint: '获取最新的文件更改',
         searchPlaceholder: '搜索文件...',
         detachedHead: '游离 HEAD',
         summary: ({ staged, unstaged }: { staged: number; unstaged: number }) => `${staged} 已暂存 • ${unstaged} 未暂存`,

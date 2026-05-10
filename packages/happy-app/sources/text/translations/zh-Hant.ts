@@ -320,6 +320,9 @@ export const zhHant: TranslationStructure = {
         sessionDeletedDescription: '此工作階段已被永久刪除',
         requestSwitchFailed: '更新切換請求失敗',
         sendFailed: '傳送訊息失敗',
+        attachmentPerFileTooLarge: '每個附件必須不超過 25 MB',
+        attachmentTotalTooLarge: '附件總大小必須不超過 100 MB',
+        attachmentUploadFailed: '無法附加檔案。請重試。',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -583,6 +586,13 @@ export const zhHant: TranslationStructure = {
             fileLabel: '檔案',
             folderLabel: '資料夾',
         },
+        attachments: {
+            attachButton: '附加檔案',
+            dropIdle: '將檔案拖放到這裡',
+            dropActive: '放開以附加',
+            pasteHint: '貼上檔案以附加',
+            removeButton: ({ name }: { name: string }) => `移除 ${name}`,
+        },
         noMachinesAvailable: '無裝置',
     },
 
@@ -710,6 +720,8 @@ export const zhHant: TranslationStructure = {
 
     files: {
         changes: '變更',
+        refreshChanges: '重新整理變更',
+        refreshChangesHint: '取得最新的檔案變更',
         searchPlaceholder: '搜尋檔案...',
         detachedHead: '游離 HEAD',
         summary: ({ staged, unstaged }: { staged: number; unstaged: number }) => `${staged} 已暫存 • ${unstaged} 未暫存`,

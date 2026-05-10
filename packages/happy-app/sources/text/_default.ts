@@ -318,6 +318,9 @@ export const en = {
         sessionDeletedDescription: 'This session has been permanently removed',
         requestSwitchFailed: 'Failed to update switch request',
         sendFailed: 'Failed to send message',
+        attachmentPerFileTooLarge: 'Each attachment must be 25 MB or smaller',
+        attachmentTotalTooLarge: 'Attachments must total 100 MB or less',
+        attachmentUploadFailed: 'Could not attach file. Please try again.',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -580,6 +583,13 @@ export const en = {
             fileLabel: 'FILE',
             folderLabel: 'FOLDER',
         },
+        attachments: {
+            attachButton: 'Attach file',
+            dropIdle: 'Drop files here',
+            dropActive: 'Release to attach',
+            pasteHint: 'Paste files to attach',
+            removeButton: ({ name }: { name: string }) => `Remove ${name}`,
+        },
         noMachinesAvailable: 'No machines',
     },
 
@@ -707,6 +717,8 @@ export const en = {
 
     files: {
         changes: 'Changes',
+        refreshChanges: 'Refresh changes',
+        refreshChangesHint: 'Fetch the latest changed files',
         searchPlaceholder: 'Search files...',
         detachedHead: 'detached HEAD',
         summary: ({ staged, unstaged }: { staged: number; unstaged: number }) => `${staged} staged • ${unstaged} unstaged`,

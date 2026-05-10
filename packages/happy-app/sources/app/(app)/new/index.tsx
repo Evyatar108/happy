@@ -28,9 +28,9 @@ import { useHeaderHeight } from '@/utils/responsive';
 import { t } from '@/text';
 import { useAllMachines, useSessions, useSetting, storage } from '@/sync/storage';
 import type { NewSessionAgentType } from '@/sync/persistence';
-import { sync } from '@/sync/sync';
+import { generateLocalMessageId, sync } from '@/sync/sync';
 import { isMachineOnline } from '@/utils/machineUtils';
-import { machineSpawnNewSession } from '@/sync/ops';
+import { machineSpawnNewSession, sessionWriteFile } from '@/sync/ops';
 import { createWorktree, listWorktrees } from '@/utils/worktree';
 import { resolveAbsolutePath } from '@/utils/pathUtils';
 import { formatPathRelativeToHome, formatLastSeen } from '@/utils/sessionUtils';
@@ -38,6 +38,8 @@ import { useNavigateToSession } from '@/hooks/useNavigateToSession';
 import { useNewSessionDraft } from '@/hooks/useNewSessionDraft';
 import { usePreSendCommand } from '@/hooks/usePreSendCommand';
 import { Modal } from '@/modal';
+import { useFileAttachment } from '@/hooks/useFileAttachment';
+import { AttachmentChip, buildMessageWithAttachmentRefs } from '@/components/composer/AttachmentChip';
 import { PickerContent, PathPickerContent, type PickerItem } from '@/components/pickers';
 import type { Machine, Session } from '@/sync/storageTypes';
 import {
@@ -53,6 +55,7 @@ import {
     type EffortLevel,
 } from '@/components/modelModeOptions';
 import { isRunningOnMac } from '@/utils/platform';
+import { dedupeAttachmentNames, sanitizeAttachmentName } from '@/utils/attachmentName';
 
 // Agent icon assets
 const agentIcons = {
@@ -120,6 +123,7 @@ function getPermissionStyle(key: string): PermissionStyle | null {
             return null;
     }
 }
+
 
 // Bottom sheet modal — native formSheet on iOS, slide-up sheet on Android
 function BottomSheet({
@@ -214,6 +218,13 @@ function NewSessionScreen() {
     const router = useRouter();
     const navigateToSession = useNavigateToSession();
     const preSendCommand = usePreSendCommand(undefined);
+    const fileAttachment = useFileAttachment();
+    const attachmentWeb = fileAttachment as typeof fileAttachment & {
+        inputProps?: React.InputHTMLAttributes<HTMLInputElement>;
+        rootProps?: Record<string, unknown>;
+        openFilePicker?: () => void;
+        isDragActive?: boolean;
+    };
 
     // Real data sources
     const allMachines = useAllMachines({ includeOffline: true });
@@ -592,13 +603,41 @@ function NewSessionScreen() {
                     storage.getState().updateSessionPermissionMode(result.sessionId, currentPermission.key, true);
                     storage.getState().updateSessionModelMode(result.sessionId, currentModelKey);
 
-                    // Clear input text so draft doesn't repeat the sent message
-                    setPrompt('');
+                    const attachments = fileAttachment.attachments;
+                    const localId = attachments.length > 0 ? generateLocalMessageId() : undefined;
+                    const dedupedNames = dedupeAttachmentNames(attachments.map(file => sanitizeAttachmentName(file.name)));
+                    const attachmentRefs = attachments.map((file, index) => ({
+                        remotePath: `.happy/attachments/${localId}/${dedupedNames[index]}`,
+                        name: dedupedNames[index],
+                        size: file.size,
+                    }));
+
+                    for (const [index, attachment] of attachments.entries()) {
+                        const writeResult = await sessionWriteFile(
+                            result.sessionId,
+                            attachmentRefs[index].remotePath,
+                            attachment.base64,
+                            { createParents: true }
+                        );
+
+                        if (!writeResult.success) {
+                            Modal.alert(t('common.error'), writeResult.error || t('errors.attachmentUploadFailed'), [{ text: t('common.ok') }]);
+                            return;
+                        }
+                    }
 
                     // Send initial message if provided
-                    if (trimmedPrompt) {
-                        await sync.sendMessage(result.sessionId, trimmedPrompt, { source: 'new_session' });
+                    if (trimmedPrompt || attachmentRefs.length > 0) {
+                        const body = buildMessageWithAttachmentRefs(trimmedPrompt, attachmentRefs);
+                        await sync.sendMessage(result.sessionId, body, {
+                            source: 'new_session',
+                            ...(localId ? { localId, attachmentRefs, displayText: trimmedPrompt } : {}),
+                        });
                     }
+
+                    // Clear input text only after sendMessage succeeds
+                    setPrompt('');
+                    fileAttachment.clear();
 
                     router.back();
                     navigateToSession(result.sessionId);
@@ -626,7 +665,7 @@ function NewSessionScreen() {
         } finally {
             setIsSpawning(false);
         }
-    }, [selectedMachineId, selectedMachine, selectedPath, selectedAgent, prompt, preSendCommand, router, navigateToSession, currentPermission.key, currentModelKey, worktreeKey, setPrompt]);
+    }, [selectedMachineId, selectedMachine, selectedPath, selectedAgent, prompt, preSendCommand, router, navigateToSession, currentPermission.key, currentModelKey, worktreeKey, setPrompt, fileAttachment]);
 
     const canSend = selectedMachineId && selectedMachine && isMachineOnline(selectedMachine) && !isSpawning;
 
@@ -915,7 +954,48 @@ function NewSessionScreen() {
 
                 <View style={{ maxWidth: layout.maxWidth, width: '100%', alignSelf: 'center', paddingHorizontal: 12, gap: 8 }}>
                     {/* Input box */}
-                    <View style={styles.inputBox}>
+                    <View style={styles.inputBox} testID="new-session-attachment-root" {...(attachmentWeb.rootProps ?? {})}>
+                        {Platform.OS === 'web' && attachmentWeb.inputProps
+                            ? React.createElement('input', {
+                                ...attachmentWeb.inputProps,
+                                'aria-label': t('agentInput.attachments.attachButton'),
+                                style: { display: 'none' },
+                            })
+                            : null}
+                        <View style={styles.attachmentDropHint}>
+                            <Octicons
+                                name="paperclip"
+                                size={13}
+                                color={attachmentWeb.isDragActive ? theme.colors.button.secondary.tint : theme.colors.textSecondary}
+                            />
+                            <Text style={[
+                                styles.attachmentDropHintText,
+                                attachmentWeb.isDragActive ? styles.attachmentDropHintActiveText : undefined,
+                            ]}>
+                                {attachmentWeb.isDragActive ? t('agentInput.attachments.dropActive') : t('agentInput.attachments.dropIdle')}
+                            </Text>
+                            {Platform.OS === 'web' ? (
+                                <Text style={styles.attachmentDropHintText}>{t('agentInput.attachments.pasteHint')}</Text>
+                            ) : null}
+                        </View>
+                        {fileAttachment.attachments.length > 0 && (
+                            <View style={styles.attachmentChips}>
+                                {fileAttachment.attachments.map((attachment) => (
+                                    <AttachmentChip
+                                        key={attachment.id}
+                                        attachment={attachment}
+                                        onRemove={() => fileAttachment.removeAttachment(attachment.id)}
+                                        chipStyles={{
+                                            chip: styles.attachmentChip,
+                                            chipText: styles.attachmentChipText,
+                                            chipSize: styles.attachmentChipSize,
+                                            chipRemove: styles.attachmentChipRemove,
+                                            chipRemovePressed: styles.configRowPressed,
+                                        }}
+                                    />
+                                ))}
+                            </View>
+                        )}
                         <View style={styles.inputField}>
                             <View style={{ flex: 1 }}>
                                 <MultiTextInput
@@ -930,6 +1010,21 @@ function NewSessionScreen() {
                                     onKeyPress={handleKeyPress}
                                 />
                             </View>
+                            <Pressable
+                                onPress={() => {
+                                    if (attachmentWeb.openFilePicker) {
+                                        attachmentWeb.openFilePicker();
+                                    } else {
+                                        void attachmentWeb.pickFiles?.();
+                                    }
+                                }}
+                                hitSlop={{ top: 5, bottom: 10, left: 0, right: 0 }}
+                                accessibilityLabel={t('agentInput.attachments.attachButton')}
+                                style={({ pressed }) => [styles.attachButton, pressed ? styles.configRowPressed : undefined]}
+                                testID="attachment-open-picker"
+                            >
+                                <Octicons name="paperclip" size={16} color={theme.colors.textSecondary} />
+                            </Pressable>
                             <View style={[
                                 styles.sendButton,
                                 canSend ? styles.sendButtonActive : styles.sendButtonInactive,
@@ -944,6 +1039,7 @@ function NewSessionScreen() {
                                     })}
                                     disabled={!canSend}
                                     onPress={() => handleSend()}
+                                    testID="new-session-send"
                                 >
                                     {isSpawning ? (
                                         <ActivityIndicator
@@ -1110,6 +1206,66 @@ const styles = StyleSheet.create((theme) => ({
         paddingVertical: 4,
         minHeight: 40,
         gap: 8,
+    },
+    attachmentDropHint: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 8,
+        paddingTop: 6,
+    },
+    attachmentDropHintText: {
+        color: theme.colors.textSecondary,
+        fontSize: 12,
+        ...Typography.default(),
+    },
+    attachmentDropHintActiveText: {
+        color: theme.colors.button.secondary.tint,
+        ...Typography.default('semiBold'),
+    },
+    attachmentChips: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 6,
+        paddingHorizontal: 8,
+        paddingTop: 6,
+    },
+    attachmentChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        maxWidth: 220,
+        borderRadius: 8,
+        paddingHorizontal: 8,
+        paddingVertical: 5,
+        backgroundColor: theme.colors.input.background,
+    },
+    attachmentChipText: {
+        flexShrink: 1,
+        color: theme.colors.text,
+        fontSize: 12,
+        ...Typography.default('semiBold'),
+    },
+    attachmentChipSize: {
+        color: theme.colors.textSecondary,
+        fontSize: 11,
+        ...Typography.default(),
+    },
+    attachmentChipRemove: {
+        width: 18,
+        height: 18,
+        borderRadius: 9,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    attachButton: {
+        width: COMPOSER_SEND_BUTTON_SIZE,
+        height: COMPOSER_SEND_BUTTON_SIZE,
+        borderRadius: COMPOSER_SEND_BUTTON_SIZE / 2,
+        justifyContent: 'center',
+        alignItems: 'center',
+        flexShrink: 0,
+        marginBottom: COMPOSER_SEND_BUTTON_MARGIN_BOTTOM,
     },
     sendButton: {
         width: COMPOSER_SEND_BUTTON_SIZE,

@@ -304,9 +304,15 @@ Notes:
   allowedTools?: string[] | null;
   disallowedTools?: string[] | null;
   displayText?: string;
+  attachmentRefs?: Array<{ remotePath: string; name: string; size: number }>;
   contextBoundaryFallback?: boolean;
 }
 ```
+
+`attachmentRefs` carries references to files uploaded via the P4 attachment
+feature (composer drag/drop/paste flows write under
+`.happy/attachments/<localId>/` via `sessionWriteFile`). Each entry records the
+session-relative `remotePath`, the original `name`, and the byte `size`.
 
 `contextBoundaryFallback` marks legacy lifecycle events emitted only as
 compatibility fallbacks for a typed `context-boundary` session event. New

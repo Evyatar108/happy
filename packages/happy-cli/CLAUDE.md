@@ -117,6 +117,8 @@ Absence of `currentPermissionModeCode` is meaningful: it represents "no opinion 
 
 **Codex fork boundary attribution:** `runCodex.ts` reads `HAPPY_FORKED_FROM_SESSION_ID` at startup and, after `resumeExistingThread()` has returned the new Codex thread id, emits `sendContextBoundary({ kind: 'session-fork-resume', forkedFromSid })` when the env var is present. Keep using the shared `HAPPY_FORKED_FROM_SESSION_ID` constant from `src/utils/envNames.ts` on writer and reader sides.
 
+**Codex patch approvals:** approval request payloads must be immutable snapshots. `codexAppServerClient.ts` snapshots file changes from `rawFileChangesByItemId` before invoking the approval handler, and `runCodex.ts` snapshots again before creating `CodexPatch` input for `BasePermissionHandler`; do not hand renderer-bound approval state a live map reference.
+
 **Context-boundary emission:** lifecycle signals must go through `ApiSessionClient.sendContextBoundary()` so the typed envelope, legacy dual-emit fallback, and `metadata.latestBoundary` update stay in lockstep. The helper sends the typed `context-boundary` envelope first, then the legacy compatibility event with `meta.contextBoundaryFallback: true`; app clients suppress that flagged fallback. If a Claude log mapper detects a boundary-worthy tool call, return a boundary intent from the mapper and route it through `sendContextBoundary()` in `apiSession.ts`; do not emit a `context-boundary` envelope directly from the mapper.
 
 **Non-renderable Claude JSONL filter:** the shared registry lives in `packages/happy-wire/src/nonRenderablePolicy.ts`. `ApiSessionClient.sendClaudeSessionMessage(...)` in `src/api/apiSession.ts` must call `findSenderDropEntry(body)` at the very top, before `normalizeSessionLogMessage(...)`, mapper calls, envelope creation, or outbox enqueue. The sender contract is deliberately strict: it drops only whole raw `type === 'user'` messages that are known non-renderable (`skill-body` and standalone `local-command-caveat` in v0), and logs only `{ class: entry.name }` for privacy. The receiver contract stays more permissive: happy-app imports the same registry and still strips matching render-time artifacts as defense in depth for old stored sessions and SDK drift.
@@ -185,6 +187,8 @@ User interface components.
 - All communications encrypted using TweetNaCl
 - Challenge-response authentication prevents replay attacks
 - Session isolation through unique session IDs
+- `writeFile` RPC `createParents: true` is only for `.happy/attachments/*` targets and must keep both gates: lexical attachments allowlist plus `validatePathRealpath(...)` symlink/realpath confinement before directory creation.
+- Message metadata fields shared with the app must be added to every `MessageMetaSchema` copy: `packages/happy-app/sources/sync/typesMessageMeta.ts`, `packages/happy-wire/src/messageMeta.ts`, and `packages/happy-cli/src/api/types.ts`; otherwise Zod parsing strips the field on at least one side.
 
 ## Dependencies
 

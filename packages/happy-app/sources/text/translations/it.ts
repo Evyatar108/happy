@@ -318,6 +318,9 @@ export const it: TranslationStructure = {
         sessionDeletedDescription: 'Questa sessione è stata rimossa definitivamente',
         requestSwitchFailed: 'Impossibile aggiornare la richiesta di cambio',
         sendFailed: 'Impossibile inviare il messaggio',
+        attachmentPerFileTooLarge: 'Ogni allegato deve essere di 25 MB o meno',
+        attachmentTotalTooLarge: 'Gli allegati devono totalizzare 100 MB o meno',
+        attachmentUploadFailed: 'Impossibile allegare il file. Riprova.',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -581,6 +584,13 @@ export const it: TranslationStructure = {
             fileLabel: 'FILE',
             folderLabel: 'CARTELLA',
         },
+        attachments: {
+            attachButton: 'Allega file',
+            dropIdle: 'Rilascia i file qui',
+            dropActive: 'Rilascia per allegare',
+            pasteHint: 'Incolla i file da allegare',
+            removeButton: ({ name }: { name: string }) => `Rimuovi ${name}`,
+        },
         noMachinesAvailable: 'Nessuna macchina',
     },
 
@@ -708,6 +718,8 @@ export const it: TranslationStructure = {
 
     files: {
         changes: 'Modifiche',
+        refreshChanges: 'Aggiorna modifiche',
+        refreshChangesHint: 'Recupera le modifiche file più recenti',
         searchPlaceholder: 'Cerca file...',
         detachedHead: 'HEAD scollegato',
         summary: ({ staged, unstaged }: { staged: number; unstaged: number }) => `${staged} in stage • ${unstaged} non in stage`,

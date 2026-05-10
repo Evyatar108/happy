@@ -1,13 +1,14 @@
 import { logger } from '@/ui/logger';
 import { exec, ExecOptions } from 'child_process';
 import { promisify } from 'util';
-import { readFile, writeFile, readdir, stat } from 'fs/promises';
+import { mkdir, readFile, writeFile, readdir, stat } from 'fs/promises';
 import { createHash } from 'crypto';
-import { join } from 'path';
+import { dirname, join, resolve, sep } from 'path';
 import { run as runRipgrep } from '@/modules/ripgrep/index';
 import { run as runDifftastic } from '@/modules/difftastic/index';
 import { RpcHandlerManager } from '../../api/rpc/RpcHandlerManager';
-import { validatePath } from './pathSecurity';
+import { validatePath, validatePathRealpath } from './pathSecurity';
+import type { PathValidationResult } from './pathSecurity';
 
 const execAsync = promisify(exec);
 
@@ -39,6 +40,7 @@ interface WriteFileRequest {
     path: string;
     content: string; // base64 encoded
     expectedHash?: string | null; // null for new files, hash for existing files
+    createParents?: boolean;
 }
 
 interface WriteFileResponse {
@@ -134,6 +136,19 @@ export type SpawnSessionResult =
  * Register all RPC handlers with the session
  */
 export function registerCommonHandlers(rpcHandlerManager: RpcHandlerManager, workingDirectory: string) {
+
+    function validateAttachmentsAllowlist(targetPath: string): PathValidationResult {
+        const resolvedTarget = resolve(workingDirectory, targetPath);
+        const attachmentsRoot = resolve(workingDirectory, '.happy/attachments');
+        if (!resolvedTarget.startsWith(attachmentsRoot + sep)) {
+            return {
+                valid: false,
+                resolvedPath: resolvedTarget,
+                error: `Access denied: createParents is only allowed under .happy/attachments`
+            };
+        }
+        return { valid: true, resolvedPath: resolvedTarget };
+    }
 
     // Shell command handler - executes commands in the default shell
     rpcHandlerManager.registerHandler<BashRequest, BashResponse>('bash', async (data) => {
@@ -245,8 +260,15 @@ export function registerCommonHandlers(rpcHandlerManager: RpcHandlerManager, wor
     rpcHandlerManager.registerHandler<WriteFileRequest, WriteFileResponse>('writeFile', async (data) => {
         logger.debug('Write file request:', data.path);
 
+        const allowlistValidation = data.createParents ? validateAttachmentsAllowlist(data.path) : null;
+        if (allowlistValidation && !allowlistValidation.valid) {
+            return { success: false, error: allowlistValidation.error };
+        }
+
         // Validate path is within working directory
-        const validation = validatePath(data.path, workingDirectory);
+        const validation = data.createParents
+            ? await validatePathRealpath(data.path, workingDirectory)
+            : validatePath(data.path, workingDirectory);
         if (!validation.valid) {
             return { success: false, error: validation.error };
         }
@@ -295,6 +317,9 @@ export function registerCommonHandlers(rpcHandlerManager: RpcHandlerManager, wor
 
             // Write the file
             const buffer = Buffer.from(data.content, 'base64');
+            if (data.createParents) {
+                await mkdir(dirname(validation.resolvedPath!), { recursive: true });
+            }
             await writeFile(validation.resolvedPath!, buffer);
 
             // Calculate and return hash of written file

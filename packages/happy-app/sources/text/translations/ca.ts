@@ -320,6 +320,9 @@ export const ca: TranslationStructure = {
         sessionDeletedDescription: 'Aquesta sessió s\'ha eliminat permanentment',
         requestSwitchFailed: 'No s\'ha pogut actualitzar la sol·licitud de canvi',
         sendFailed: 'No s\'ha pogut enviar el missatge',
+        attachmentPerFileTooLarge: 'Cada adjunt ha de tenir 25 MB o menys',
+        attachmentTotalTooLarge: 'Els adjunts han de sumar 100 MB o menys',
+        attachmentUploadFailed: 'No s\'ha pogut adjuntar el fitxer. Torneu-ho a provar.',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -583,6 +586,13 @@ export const ca: TranslationStructure = {
             fileLabel: 'FITXER',
             folderLabel: 'CARPETA',
         },
+        attachments: {
+            attachButton: 'Adjunta un fitxer',
+            dropIdle: 'Deixa els fitxers aquí',
+            dropActive: 'Deixa anar per adjuntar',
+            pasteHint: 'Enganxa fitxers per adjuntar-los',
+            removeButton: ({ name }: { name: string }) => `Elimina ${name}`,
+        },
         noMachinesAvailable: 'Sense màquines',
     },
 
@@ -710,6 +720,8 @@ export const ca: TranslationStructure = {
 
     files: {
         changes: 'Canvis',
+        refreshChanges: 'Actualitza els canvis',
+        refreshChangesHint: 'Obtén els canvis de fitxers més recents',
         searchPlaceholder: 'Cerca fitxers...',
         detachedHead: 'HEAD separat',
         summary: ({ staged, unstaged }: { staged: number; unstaged: number }) => `${staged} preparats • ${unstaged} sense preparar`,

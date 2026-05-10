@@ -24,13 +24,15 @@ import { t } from '@/text';
 import { Metadata } from '@/sync/storageTypes';
 import { useChatWidth, CHAT_WIDTH_MARGIN_OPTIONS } from '@/hooks/useChatWidth';
 import { useIsTablet } from '@/utils/responsive';
+import { useFileAttachment, type FileAttachment } from '@/hooks/useFileAttachment';
+import { AttachmentChip } from '@/components/composer/AttachmentChip';
 
 interface AgentInputProps {
     value: string;
     placeholder: string;
     onChangeText: (text: string) => void;
     sessionId?: string;
-    onSend: (switchMode: 'now' | 'when-idle') => void;
+    onSend: (switchMode: 'now' | 'when-idle', attachments: readonly FileAttachment[]) => void | boolean | Promise<void | boolean>;
     sendIcon?: React.ReactNode;
     onMicPress?: () => void;
     isMicActive?: boolean;
@@ -319,6 +321,59 @@ const stylesheet = StyleSheet.create((theme, runtime) => ({
     sendButtonIcon: {
         color: theme.colors.button.primary.tint,
     },
+    attachmentDropHint: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 8,
+        paddingTop: 6,
+    },
+    attachmentDropHintText: {
+        fontSize: 11,
+        color: theme.colors.textSecondary,
+        ...Typography.default(),
+    },
+    attachmentDropHintActiveText: {
+        color: theme.colors.button.secondary.tint,
+    },
+    attachmentChips: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 6,
+        paddingHorizontal: 8,
+        paddingTop: 6,
+    },
+    attachmentChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        maxWidth: '100%',
+        borderRadius: Platform.select({ default: 14, android: 18 }),
+        borderWidth: 1,
+        borderColor: theme.colors.divider,
+        backgroundColor: theme.colors.surfacePressed,
+        paddingLeft: 8,
+        paddingRight: 4,
+        height: 30,
+        gap: 6,
+    },
+    attachmentChipText: {
+        flexShrink: 1,
+        fontSize: 12,
+        color: theme.colors.text,
+        ...Typography.default('semiBold'),
+    },
+    attachmentChipSize: {
+        fontSize: 11,
+        color: theme.colors.textSecondary,
+        ...Typography.default(),
+    },
+    attachmentChipRemove: {
+        width: 24,
+        height: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 12,
+    },
 }));
 
 const getContextWarning = (contextSize: number, alwaysShow: boolean = false, theme: Theme) => {
@@ -336,6 +391,7 @@ const getContextWarning = (contextSize: number, alwaysShow: boolean = false, the
     return null; // No display needed
 };
 
+
 export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, AgentInputProps>((props, ref) => {
     const styles = stylesheet;
     const { theme } = useUnistyles();
@@ -344,11 +400,18 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
     const isTablet = useIsTablet();
     const isSendBlocked = props.blockSend ?? false;
     const innerContainerWidthStyle = React.useMemo(() => ({ maxWidth: bodyMaxWidth }), [bodyMaxWidth]);
+    const fileAttachment = useFileAttachment();
+    const attachmentWeb = fileAttachment as typeof fileAttachment & {
+        rootProps?: Record<string, unknown>;
+        inputProps?: Record<string, unknown>;
+        openFilePicker?: () => void;
+        pickFiles?: () => void | Promise<void>;
+        isDragActive?: boolean;
+    };
+    const attachmentCount = fileAttachment.attachments.length;
 
     const hasText = props.value.trim().length > 0;
-    const canPressSendButton = !props.isSending
-        && !props.isSendDisabled
-        && (isSendBlocked ? hasText : (hasText || !!props.onMicPress));
+    const hasSendableContent = hasText || attachmentCount > 0;
 
     // Check if this is a Codex, Gemini, or OpenClaw session
     // Use metadata.flavor for existing sessions, agentType prop for new sessions
@@ -395,6 +458,14 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
 
     const agentInputEnterToSend = useSetting('agentInputEnterToSend');
 
+
+    // Local send-pending guard — prevents duplicate submissions while onSend is in-flight
+    const [isSendPending, setIsSendPending] = React.useState(false);
+
+    const canPressSendButton = !props.isSending
+        && !props.isSendDisabled
+        && !isSendPending
+        && (isSendBlocked ? hasSendableContent : (hasSendableContent || !!props.onMicPress));
 
     // Abort button state
     const [isAborting, setIsAborting] = React.useState(false);
@@ -542,36 +613,49 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
     }, [props.onAbort]);
 
     const handleBlockedSendAttempt = React.useCallback(() => {
-        if (!isSendBlocked || !hasText || props.isSending) return;
+        if (!isSendBlocked || !hasSendableContent || props.isSending) return;
         hapticsError();
         sendBlockShakerRef.current?.shake();
-    }, [hasText, isSendBlocked, props.isSending]);
+    }, [hasSendableContent, isSendBlocked, props.isSending]);
+
+    const submitSend = React.useCallback((switchMode: 'now' | 'when-idle') => {
+        if (isSendPending) return;
+        setIsSendPending(true);
+        const sentAttachments = fileAttachment.attachments;
+        Promise.resolve(props.onSend(switchMode, sentAttachments)).then((result) => {
+            if (result !== false) {
+                fileAttachment.clear();
+            }
+        }).catch(() => undefined).finally(() => {
+            setIsSendPending(false);
+        });
+    }, [isSendPending, fileAttachment, props]);
 
     const handleSendPress = React.useCallback(() => {
         if (isSendBlocked) {
             handleBlockedSendAttempt();
             return;
         }
-        if (props.isSendDisabled || props.isSending) return;
+        if (props.isSendDisabled || props.isSending || isSendPending) return;
 
         hapticsLight();
-        if (hasText) {
-            props.onSend('now');
+        if (hasSendableContent) {
+            submitSend('now');
         } else {
             props.onMicPress?.();
         }
-    }, [handleBlockedSendAttempt, hasText, isSendBlocked, props]);
+    }, [handleBlockedSendAttempt, hasSendableContent, isSendBlocked, props, submitSend]);
 
     const handleSendWhenIdlePress = React.useCallback(() => {
         if (isSendBlocked) {
             handleBlockedSendAttempt();
             return;
         }
-        if (!hasText || props.isSendDisabled || props.isSending) return;
+        if (!hasSendableContent || props.isSendDisabled || props.isSending || isSendPending) return;
 
         hapticsLight();
-        props.onSend('when-idle');
-    }, [handleBlockedSendAttempt, hasText, isSendBlocked, props]);
+        submitSend('when-idle');
+    }, [handleBlockedSendAttempt, hasSendableContent, isSendBlocked, props, submitSend]);
 
     // Handle keyboard navigation
     const handleKeyPress = React.useCallback((event: KeyPressEvent): boolean => {
@@ -616,11 +700,11 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
             // to avoid false positives on Windows touch-screen laptops with keyboards.
             const isTouchDevice = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
             if (agentInputEnterToSend && event.key === 'Enter' && !event.shiftKey && !isTouchDevice) {
-                if (props.value.trim()) {
+                if (hasSendableContent) {
                     if (isSendBlocked) {
                         handleBlockedSendAttempt();
                     } else if (!props.isSendDisabled) {
-                        props.onSend('now');
+                        submitSend('now');
                     }
                     return true; // Key was handled
                 }
@@ -636,7 +720,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
 
         }
         return false; // Key was not handled
-    }, [suggestions, moveUp, moveDown, selected, handleSuggestionSelect, props.showAbortButton, props.onAbort, isAborting, handleAbortPress, agentInputEnterToSend, props.value, props.onSend, props.onPermissionModeChange, availableModes, permissionModeKey, isSendBlocked, handleBlockedSendAttempt, props.isSendDisabled]);
+    }, [suggestions, moveUp, moveDown, selected, handleSuggestionSelect, props.showAbortButton, props.onAbort, isAborting, handleAbortPress, agentInputEnterToSend, hasSendableContent, isSendBlocked, handleBlockedSendAttempt, props, submitSend, availableModes, permissionModeKey]);
 
 
 
@@ -1238,7 +1322,48 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
 
                 {/* Box 2: Action Area (Input + Send) */}
                 <Shaker ref={sendBlockShakerRef}>
-                <View style={styles.unifiedPanel}>
+                <View style={styles.unifiedPanel} testID="agent-input-attachment-root" {...(attachmentWeb.rootProps ?? {})}>
+                    {Platform.OS === 'web' && attachmentWeb.inputProps
+                        ? React.createElement('input', {
+                            ...attachmentWeb.inputProps,
+                            'aria-label': t('agentInput.attachments.attachButton'),
+                            style: { display: 'none' },
+                        })
+                        : null}
+                    <View style={styles.attachmentDropHint}>
+                        <Octicons
+                            name="paperclip"
+                            size={13}
+                            color={attachmentWeb.isDragActive ? theme.colors.button.secondary.tint : theme.colors.textSecondary}
+                        />
+                        <Text style={[
+                            styles.attachmentDropHintText,
+                            attachmentWeb.isDragActive ? styles.attachmentDropHintActiveText : undefined,
+                        ]}>
+                            {attachmentWeb.isDragActive ? t('agentInput.attachments.dropActive') : t('agentInput.attachments.dropIdle')}
+                        </Text>
+                        {Platform.OS === 'web' ? (
+                            <Text style={styles.attachmentDropHintText}>{t('agentInput.attachments.pasteHint')}</Text>
+                        ) : null}
+                    </View>
+                    {fileAttachment.attachments.length > 0 && (
+                        <View style={styles.attachmentChips}>
+                            {fileAttachment.attachments.map((attachment) => (
+                                <AttachmentChip
+                                    key={attachment.id}
+                                    attachment={attachment}
+                                    onRemove={() => fileAttachment.removeAttachment(attachment.id)}
+                                    chipStyles={{
+                                        chip: styles.attachmentChip,
+                                        chipText: styles.attachmentChipText,
+                                        chipSize: styles.attachmentChipSize,
+                                        chipRemove: styles.attachmentChipRemove,
+                                        chipRemovePressed: styles.actionButtonPressed,
+                                    }}
+                                />
+                            ))}
+                        </View>
+                    )}
                     {/* Input field */}
                     <View style={[styles.inputContainer, props.minHeight ? { minHeight: props.minHeight } : undefined]}>
                         <MultiTextInput
@@ -1260,6 +1385,37 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                             {/* Row 1: Settings, Profile (FIRST), Agent, Abort, Git Status */}
                             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <View style={styles.actionButtonsLeft}>
+
+                                {/* Attachment button */}
+                                <Pressable
+                                    onPress={() => {
+                                        hapticsLight();
+                                        if (attachmentWeb.openFilePicker) {
+                                            attachmentWeb.openFilePicker();
+                                        } else {
+                                            void attachmentWeb.pickFiles?.();
+                                        }
+                                    }}
+                                    hitSlop={{ top: 5, bottom: 10, left: 0, right: 0 }}
+                                    accessibilityLabel={t('agentInput.attachments.attachButton')}
+                                    style={(p) => ({
+                                        flexDirection: 'row',
+                                        alignItems: 'center',
+                                        borderRadius: Platform.select({ default: 16, android: 20 }),
+                                        paddingHorizontal: 8,
+                                        paddingVertical: 6,
+                                        justifyContent: 'center',
+                                        height: 32,
+                                        opacity: p.pressed ? 0.7 : 1,
+                                    })}
+                                    testID="attachment-open-picker"
+                                >
+                                    <Octicons
+                                        name="paperclip"
+                                        size={16}
+                                        color={theme.colors.button.secondary.tint}
+                                    />
+                                </Pressable>
 
                                 {/* Settings button */}
                                 {props.onPermissionModeChange && (
@@ -1409,7 +1565,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                         onPress={handleSendWhenIdlePress}
                                         hitSlop={{ top: 5, bottom: 10, left: 0, right: 0 }}
                                         accessibilityLabel={t('requestSwitch.whenIdle')}
-                                        disabled={!hasText || props.isSendDisabled || props.isSending}
+                                        disabled={!hasSendableContent || props.isSendDisabled || props.isSending || isSendPending}
                                         style={(p) => ({
                                             flexDirection: 'row',
                                             alignItems: 'center',
@@ -1418,7 +1574,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                             paddingVertical: 6,
                                             justifyContent: 'center',
                                             height: 32,
-                                            opacity: (!hasText || props.isSendDisabled || props.isSending) ? 0.45 : p.pressed ? 0.7 : 1,
+                                            opacity: (!hasSendableContent || props.isSendDisabled || props.isSending || isSendPending) ? 0.45 : p.pressed ? 0.7 : 1,
                                             gap: 6,
                                         })}
                                     >
@@ -1443,7 +1599,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                     style={[
                                         styles.sendButton,
                                         isSendBlocked ? styles.sendButtonLocked :
-                                        (hasText || props.isSending || (props.onMicPress && !props.isMicActive))
+                                        (hasSendableContent || props.isSending || (props.onMicPress && !props.isMicActive))
                                             ? styles.sendButtonActive
                                             : styles.sendButtonInactive
                                     ]}
@@ -1459,6 +1615,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                         hitSlop={{ top: 5, bottom: 10, left: 0, right: 0 }}
                                         onPress={handleSendPress}
                                         disabled={!canPressSendButton}
+                                        testID="agent-input-send"
                                     >
                                         {props.isSending ? (
                                             <ActivityIndicator
@@ -1471,7 +1628,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                                 size={15}
                                                 color={theme.colors.textSecondary}
                                             />
-                                        ) : hasText ? (
+                                        ) : hasSendableContent ? (
                                             <Octicons
                                                 name="arrow-up"
                                                 size={16}

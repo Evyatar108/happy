@@ -26,12 +26,12 @@ import { voiceHooks } from '@/realtime/hooks/voiceHooks';
 import { getCurrentVoiceConversationId, getCurrentVoiceSessionDurationSeconds, startRealtimeSession, stopRealtimeSession } from '@/realtime/RealtimeSession';
 import { shouldShowBoundaryAdvisory, updateComposeStartAt } from './composeBoundaryAdvisory';
 import { gitStatusSync } from '@/sync/gitStatusSync';
-import { cancelPendingSwitch, requestSwitch, sessionAbort, sessionEmitAgentConfiguration } from '@/sync/ops';
+import { cancelPendingSwitch, requestSwitch, sessionAbort, sessionEmitAgentConfiguration, sessionWriteFile } from '@/sync/ops';
 import { storage, useIsDataReady, useLatestBoundary, useLocalSetting, useLocalSettingMutable, useMachine, useRealtimeStatus, useSessionMessages, useSessionUsage, useSetting } from '@/sync/storage';
 import { useSidebar } from '@/components/SidebarContext';
 import { useSession } from '@/sync/storage';
 import { Session } from '@/sync/storageTypes';
-import { sync } from '@/sync/sync';
+import { generateLocalMessageId, sync } from '@/sync/sync';
 import { t } from '@/text';
 import { tracking } from '@/track';
 import { getVoiceMessageCount, getVoiceOnboardingPromptLoadCount } from '@/sync/persistence';
@@ -39,12 +39,14 @@ import { resolveTopicBrutalistAvatar } from '@/utils/avatarTopic';
 import { isRunningOnMac } from '@/utils/platform';
 import { useDeviceType, useHeaderHeight, useIsLandscape, useIsTablet } from '@/utils/responsive';
 import { FilesSidebar } from '@/components/FilesSidebar';
-import { InlineFileDiff } from '@/components/InlineFileDiff';
 import { prefetchPierreDiff } from '@/components/diff/PierreDiffView';
 import { GitFileStatus } from '@/sync/gitStatusFiles';
 import { formatPathRelativeToHome, getResumeCommandBlock, getSessionAvatarId, getSessionMode, getSessionName, useSessionStatus } from '@/utils/sessionUtils';
 import { useSessionQuickActions } from '@/hooks/useSessionQuickActions';
 import { isVersionSupported, MINIMUM_CLI_VERSION } from '@/utils/versionUtils';
+import { encodeBase64Url } from '@/utils/base64url';
+import { dedupeAttachmentNames, sanitizeAttachmentName } from '@/utils/attachmentName';
+import { buildMessageWithAttachmentRefs } from '@/components/composer/AttachmentChip';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as React from 'react';
@@ -61,6 +63,7 @@ export function getCanSendWhenIdle(session: Session): boolean {
         && session.agentState?.turnActive === true
         && session.agentState?.pendingSwitch == null;
 }
+
 
 export const SessionView = React.memo((props: { id: string }) => {
     const sessionId = props.id;
@@ -110,16 +113,9 @@ export const SessionView = React.memo((props: { id: string }) => {
         setSidebarCollapsed(!sidebarCollapsed);
     }, [sidebarCollapsed, setSidebarCollapsed]);
 
-    const [selectedFile, setSelectedFile] = React.useState<GitFileStatus | null>(null);
     const handleSidebarFilePress = React.useCallback((file: GitFileStatus) => {
-        setSelectedFile((current) => (current?.fullPath === file.fullPath ? null : file));
-    }, []);
-    const clearSelectedFile = React.useCallback(() => setSelectedFile(null), []);
-
-    // When sidebar is hidden or disabled, don't keep a stale selection.
-    React.useEffect(() => {
-        if (!showSidebar || sidebarCollapsed) setSelectedFile(null);
-    }, [showSidebar, sidebarCollapsed]);
+        router.push(`/session/${sessionId}/file?path=${encodeBase64Url(file.fullPath)}&refresh=1&view=diff`);
+    }, [router, sessionId]);
 
     // Warm Pierre's lazy web chunks while the user is still reading chat.
     React.useEffect(() => {
@@ -200,15 +196,7 @@ export const SessionView = React.memo((props: { id: string }) => {
                 }}>
                     <ChatHeaderView
                         {...headerProps}
-                        onBackPress={() => {
-                            // If a sidebar file is currently shown inline, first
-                            // close the diff; only leave the session on the next press.
-                            if (selectedFile) {
-                                setSelectedFile(null);
-                                return;
-                            }
-                            router.back();
-                        }}
+                        onBackPress={() => router.back()}
                         avatarMenuExpanded={Platform.OS === 'web' && !!sessionActionsAnchor}
                         avatarMenuSession={session}
                         onAfterAvatarArchive={() => {
@@ -272,38 +260,15 @@ export const SessionView = React.memo((props: { id: string }) => {
     }
 
     // Desktop layout: chat + sidebar at the same level (full height).
-    // When a sidebar file is selected, InlineFileDiff overlays the main content
-    // (chat stays mounted underneath so state is preserved).
     return (
         <View style={{ flex: 1, flexDirection: 'row' }}>
             <View style={{ flex: 1 }}>
                 {mainContent}
-                {selectedFile && !sidebarCollapsed && (
-                    <View
-                        pointerEvents="box-none"
-                        style={{
-                            position: 'absolute',
-                            top: safeArea.top + headerHeight,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            backgroundColor: theme.colors.surface,
-                        }}
-                    >
-                        <InlineFileDiff
-                            sessionId={sessionId}
-                            fullPath={selectedFile.fullPath}
-                            status={selectedFile.status}
-                            onClose={clearSelectedFile}
-                        />
-                    </View>
-                )}
             </View>
             <Animated.View style={[{ minWidth: 0, alignSelf: 'stretch' }, animatedSidebarStyle]}>
                 <View style={{ width: sidebarWidth, flex: 1 }}>
                     <FilesSidebar
                         sessionId={sessionId}
-                        selectedPath={selectedFile?.fullPath ?? null}
                         onFilePress={handleSidebarFilePress}
                     />
                 </View>
@@ -668,17 +633,46 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
             }}
             blockSend={false}
             canSendWhenIdle={canSendWhenIdle}
-            onSend={async (switchMode) => {
+            onSend={async (switchMode, attachments) => {
                 const trimmedMessage = message.trim();
-                if (trimmedMessage) {
+                if (trimmedMessage || attachments.length > 0) {
                     const intercept = preSendCommand(trimmedMessage);
                     composeStartAtRef.current = null;
-                    if (intercept.intercepted) {
+                    if (trimmedMessage && intercept.intercepted) {
                         setMessage('');
                         clearDraft();
                         intercept.execute();
-                        return;
+                        return false;
                     }
+
+                    const localId = attachments.length > 0 ? generateLocalMessageId() : undefined;
+                    const dedupedNames = dedupeAttachmentNames(attachments.map(file => sanitizeAttachmentName(file.name)));
+                    const attachmentRefs = attachments.map((file, index) => ({
+                        remotePath: `.happy/attachments/${localId}/${dedupedNames[index]}`,
+                        name: dedupedNames[index],
+                        size: file.size,
+                    }));
+
+                    for (const [index, attachment] of attachments.entries()) {
+                        const result = await sessionWriteFile(
+                            sessionId,
+                            attachmentRefs[index].remotePath,
+                            attachment.base64,
+                            { createParents: true }
+                        );
+
+                        if (!result.success) {
+                            Modal.alert(t('common.error'), result.error || t('errors.attachmentUploadFailed'), [{ text: t('common.ok') }]);
+                            return false;
+                        }
+                    }
+
+                    const body = buildMessageWithAttachmentRefs(message, attachmentRefs);
+                    const sendOptions = {
+                        source: 'chat' as const,
+                        switchMode,
+                        ...(localId ? { localId, attachmentRefs, displayText: message } : {}),
+                    };
 
                     if (switchMode === 'when-idle') {
                         const snapshot = message;
@@ -686,18 +680,30 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                         setMessage('');
                         clearDraft();
                         try {
-                            await sync.sendMessage(sessionId, snapshot, { source: 'chat', switchMode });
+                            await sync.sendMessage(sessionId, body, sendOptions);
                         } catch {
                             if (messageRef.current === '') {
                                 messageRef.current = snapshot;
                                 setMessage(snapshot);
                             }
+                            return false;
                         }
                     } else {
+                        const snapshot = message;
+                        messageRef.current = '';
                         setMessage('');
                         clearDraft();
-                        sync.sendMessage(sessionId, message, { source: 'chat', switchMode });
+                        try {
+                            await sync.sendMessage(sessionId, body, sendOptions);
+                        } catch {
+                            if (messageRef.current === '') {
+                                messageRef.current = snapshot;
+                                setMessage(snapshot);
+                            }
+                            return false;
+                        }
                     }
+                    return true;
                 }
             }}
             onMicPress={isDisconnected ? undefined : micButtonState.onMicPress}

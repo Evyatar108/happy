@@ -79,8 +79,20 @@ type OutboxMessage = {
     content: string;
 };
 
+export type AttachmentRef = {
+    remotePath: string;
+    name: string;
+    size: number;
+};
+
+export function generateLocalMessageId() {
+    return randomUUID();
+}
+
 export type SendMessageOptions = {
     displayText?: string;
+    localId?: string;
+    attachmentRefs?: AttachmentRef[];
     source?: MessageSentSource;
     switchMode?: 'now' | 'when-idle' | 'none';
 };
@@ -836,7 +848,7 @@ class Sync {
         }
 
         const { permissionMode, model, thinkingLevel } = resolveMessageModeMeta(session);
-        const { displayText, source = 'chat' } = options ?? {};
+        const { attachmentRefs, displayText, localId, source = 'chat' } = options ?? {};
         const shouldRequestDeferredSwitch = isWhenIdle
             && session.metadata?.flavor === 'claude'
             && getSessionMode(session) === 'local';
@@ -871,6 +883,8 @@ class Sync {
         try {
             await this.enqueueUserMessage(sessionId, text, session, {
                 displayText,
+                localId,
+                attachmentRefs,
                 source,
                 permissionMode,
                 model,
@@ -891,6 +905,8 @@ class Sync {
         session: Session,
         options: {
             displayText?: string;
+            localId?: string;
+            attachmentRefs?: AttachmentRef[];
             source: MessageSentSource;
             permissionMode: string | undefined;
             model: string | null;
@@ -903,8 +919,7 @@ class Sync {
             throw new Error(`Session ${sessionId} not found`);
         }
 
-        // Generate local ID
-        const localId = randomUUID();
+        const localId = options.localId ?? generateLocalMessageId();
 
         // Determine sentFrom based on platform
         let sentFrom: string;
@@ -940,6 +955,7 @@ class Sync {
                 fallbackModel,
                 appendSystemPrompt: systemPrompt,
                 ...(options.tagDeferredSwitch && { capabilities: { deferredSwitch: true } }),
+                ...(options.attachmentRefs !== undefined && { attachmentRefs: options.attachmentRefs }),
                 ...(options.displayText && { displayText: options.displayText }) // Add displayText if provided
             }
         };
@@ -2373,6 +2389,9 @@ class Sync {
                 const metadata = updateData.body.metadata && sessionEncryption
                     ? await sessionEncryption.decryptMetadata(updateData.body.metadata.version, updateData.body.metadata.value)
                     : session.metadata;
+                const metadataPathChanged = updateData.body.metadata
+                    ? metadata?.path !== session.metadata?.path
+                    : false;
 
                 // NOTE: same corruption rule as in the `new-message` handler — do not
                 // write `updateData.seq` (account-global) into `session.seq` (session-local).
@@ -2390,9 +2409,12 @@ class Sync {
                 }]);
 
                 // Invalidate git status when agent state changes (files may have been modified)
-                if (updateData.body.agentState) {
+                // or when the working directory changes underneath the same session.
+                if (updateData.body.agentState || metadataPathChanged) {
                     gitStatusSync.invalidate(sessionId);
+                }
 
+                if (updateData.body.agentState) {
                     // Check for new permission requests and notify voice assistant
                     if (agentState?.requests && Object.keys(agentState.requests).length > 0) {
                         const requestIds = Object.keys(agentState.requests);
@@ -2787,6 +2809,8 @@ class Sync {
             }
         }
     }
+
+    generateLocalMessageId = () => generateLocalMessageId();
 
 }
 

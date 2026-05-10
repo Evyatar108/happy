@@ -210,6 +210,11 @@ export const MessageMetaSchema = z.object({
   capabilities: z.object({
     deferredSwitch: z.boolean().optional(),
   }).optional(),
+  attachmentRefs: z.array(z.object({
+    remotePath: z.string(),
+    name: z.string(),
+    size: z.number(),
+  })).optional(),
   contextBoundaryFallback: z.boolean().optional()
 })
 

@@ -14,8 +14,8 @@ import { useGitStatusFiles } from '@/hooks/useGitStatusFiles';
 import { useUnistyles, StyleSheet } from 'react-native-unistyles';
 import { layout } from '@/components/layout';
 import { FileIcon } from '@/components/FileIcon';
-import { Shaker, ShakeInstance } from '@/components/Shaker';
 import { usePrefetchFileContents } from '@/hooks/usePrefetchFileContents';
+import { encodeBase64Url } from '@/utils/base64url';
 
 export default React.memo(function FilesScreen() {
     const router = useRouter();
@@ -32,9 +32,6 @@ export default React.memo(function FilesScreen() {
     const sessionGitStatus = useSessionGitStatus(sessionId!);
     const gitStatus = projectGitStatus || sessionGitStatus;
     const { theme } = useUnistyles();
-
-    // Refs for shaking deleted file items
-    const shakerRefs = React.useRef(new Map<string, ShakeInstance>());
 
     // Handle search and file loading
     React.useEffect(() => {
@@ -66,13 +63,9 @@ export default React.memo(function FilesScreen() {
     }, [searchQuery, gitStatusFiles, sessionId, isLoading]);
 
     const handleFilePress = React.useCallback((file: GitFileStatus | FileItem) => {
-        // Deleted files: shake and don't navigate
-        if ('status' in file && file.status === 'deleted') {
-            shakerRefs.current.get(file.fullPath)?.shake();
-            return;
-        }
-        const encodedPath = btoa(file.fullPath);
-        router.push(`/session/${sessionId}/file?path=${encodedPath}`);
+        const encodedPath = encodeBase64Url(file.fullPath);
+        const view = 'status' in file ? 'diff' : 'file';
+        router.push(`/session/${sessionId}/file?path=${encodedPath}&refresh=1&view=${view}`);
     }, [router, sessionId]);
 
     const renderFileIcon = (file: GitFileStatus) => {
@@ -149,8 +142,7 @@ export default React.memo(function FilesScreen() {
     };
 
     const renderGitFileItem = (file: GitFileStatus, index: number, prefix: string, isLast: boolean) => {
-        const isDeleted = file.status === 'deleted';
-        const item = (
+        return (
             <Item
                 key={`${prefix}-${file.fullPath}-${index}`}
                 title={file.fileName}
@@ -161,21 +153,6 @@ export default React.memo(function FilesScreen() {
                 showDivider={!isLast}
             />
         );
-
-        if (isDeleted) {
-            return (
-                <Shaker
-                    key={`shaker-${prefix}-${file.fullPath}-${index}`}
-                    ref={(ref) => {
-                        if (ref) shakerRefs.current.set(file.fullPath, ref);
-                        else shakerRefs.current.delete(file.fullPath);
-                    }}
-                >
-                    {item}
-                </Shaker>
-            );
-        }
-        return item;
     };
 
     return (

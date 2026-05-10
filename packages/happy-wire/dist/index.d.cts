@@ -11,6 +11,19 @@ declare const MessageMetaSchema: z.ZodObject<{
     allowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
     disallowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
     displayText: z.ZodOptional<z.ZodString>;
+    attachmentRefs: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        remotePath: z.ZodString;
+        name: z.ZodString;
+        size: z.ZodNumber;
+    }, "strip", z.ZodTypeAny, {
+        name: string;
+        size: number;
+        remotePath: string;
+    }, {
+        name: string;
+        size: number;
+        remotePath: string;
+    }>, "many">>;
     contextBoundaryFallback: z.ZodOptional<z.ZodBoolean>;
 }, "strip", z.ZodTypeAny, {
     permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -23,6 +36,11 @@ declare const MessageMetaSchema: z.ZodObject<{
     allowedTools?: string[] | null | undefined;
     disallowedTools?: string[] | null | undefined;
     displayText?: string | undefined;
+    attachmentRefs?: {
+        name: string;
+        size: number;
+        remotePath: string;
+    }[] | undefined;
     contextBoundaryFallback?: boolean | undefined;
 }, {
     permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -35,6 +53,11 @@ declare const MessageMetaSchema: z.ZodObject<{
     allowedTools?: string[] | null | undefined;
     disallowedTools?: string[] | null | undefined;
     displayText?: string | undefined;
+    attachmentRefs?: {
+        name: string;
+        size: number;
+        remotePath: string;
+    }[] | undefined;
     contextBoundaryFallback?: boolean | undefined;
 }>;
 type MessageMeta = z.infer<typeof MessageMetaSchema>;
@@ -686,6 +709,19 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
         allowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         disallowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         displayText: z.ZodOptional<z.ZodString>;
+        attachmentRefs: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            remotePath: z.ZodString;
+            name: z.ZodString;
+            size: z.ZodNumber;
+        }, "strip", z.ZodTypeAny, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }>, "many">>;
         contextBoundaryFallback: z.ZodOptional<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -698,6 +734,11 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -710,6 +751,11 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
@@ -790,6 +836,11 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
 }, {
@@ -870,6 +921,11 @@ declare const SessionProtocolMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
 }>;
@@ -898,6 +954,19 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         disallowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         displayText: z.ZodOptional<z.ZodString>;
+        attachmentRefs: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            remotePath: z.ZodString;
+            name: z.ZodString;
+            size: z.ZodNumber;
+        }, "strip", z.ZodTypeAny, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }>, "many">>;
         contextBoundaryFallback: z.ZodOptional<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -910,6 +979,11 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -922,6 +996,11 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
@@ -941,6 +1020,11 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
     localKey?: string | undefined;
@@ -961,6 +1045,11 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
     localKey?: string | undefined;
@@ -984,6 +1073,19 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         disallowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         displayText: z.ZodOptional<z.ZodString>;
+        attachmentRefs: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            remotePath: z.ZodString;
+            name: z.ZodString;
+            size: z.ZodNumber;
+        }, "strip", z.ZodTypeAny, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }>, "many">>;
         contextBoundaryFallback: z.ZodOptional<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -996,6 +1098,11 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -1008,6 +1115,11 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
@@ -1028,6 +1140,11 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
 }, {
@@ -1048,6 +1165,11 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
 }>, z.ZodObject<{
@@ -1506,6 +1628,19 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         disallowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         displayText: z.ZodOptional<z.ZodString>;
+        attachmentRefs: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            remotePath: z.ZodString;
+            name: z.ZodString;
+            size: z.ZodNumber;
+        }, "strip", z.ZodTypeAny, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }>, "many">>;
         contextBoundaryFallback: z.ZodOptional<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -1518,6 +1653,11 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -1530,6 +1670,11 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
@@ -1610,6 +1755,11 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
 }, {
@@ -1690,6 +1840,11 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
 }>]>;
@@ -2880,6 +3035,19 @@ declare const UserMessageSchema: z.ZodObject<{
         allowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         disallowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         displayText: z.ZodOptional<z.ZodString>;
+        attachmentRefs: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            remotePath: z.ZodString;
+            name: z.ZodString;
+            size: z.ZodNumber;
+        }, "strip", z.ZodTypeAny, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }>, "many">>;
         contextBoundaryFallback: z.ZodOptional<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -2892,6 +3060,11 @@ declare const UserMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -2904,6 +3077,11 @@ declare const UserMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
@@ -2923,6 +3101,11 @@ declare const UserMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
     localKey?: string | undefined;
@@ -2943,6 +3126,11 @@ declare const UserMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
     localKey?: string | undefined;
@@ -2968,6 +3156,19 @@ declare const AgentMessageSchema: z.ZodObject<{
         allowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         disallowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         displayText: z.ZodOptional<z.ZodString>;
+        attachmentRefs: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            remotePath: z.ZodString;
+            name: z.ZodString;
+            size: z.ZodNumber;
+        }, "strip", z.ZodTypeAny, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }>, "many">>;
         contextBoundaryFallback: z.ZodOptional<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -2980,6 +3181,11 @@ declare const AgentMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -2992,6 +3198,11 @@ declare const AgentMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
@@ -3012,6 +3223,11 @@ declare const AgentMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
 }, {
@@ -3032,6 +3248,11 @@ declare const AgentMessageSchema: z.ZodObject<{
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
 }>;
@@ -3060,6 +3281,19 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
         allowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         disallowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         displayText: z.ZodOptional<z.ZodString>;
+        attachmentRefs: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            remotePath: z.ZodString;
+            name: z.ZodString;
+            size: z.ZodNumber;
+        }, "strip", z.ZodTypeAny, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }>, "many">>;
         contextBoundaryFallback: z.ZodOptional<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -3072,6 +3306,11 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -3084,6 +3323,11 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
@@ -3103,6 +3347,11 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
     localKey?: string | undefined;
@@ -3123,6 +3372,11 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
     localKey?: string | undefined;
@@ -3146,6 +3400,19 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
         allowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         disallowedTools: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
         displayText: z.ZodOptional<z.ZodString>;
+        attachmentRefs: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            remotePath: z.ZodString;
+            name: z.ZodString;
+            size: z.ZodNumber;
+        }, "strip", z.ZodTypeAny, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }, {
+            name: string;
+            size: number;
+            remotePath: string;
+        }>, "many">>;
         contextBoundaryFallback: z.ZodOptional<z.ZodBoolean>;
     }, "strip", z.ZodTypeAny, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -3158,6 +3425,11 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }, {
         permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan" | "read-only" | "safe-yolo" | "yolo" | undefined;
@@ -3170,6 +3442,11 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     }>>;
 }, "strip", z.ZodTypeAny, {
@@ -3190,6 +3467,11 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
 }, {
@@ -3210,6 +3492,11 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
         allowedTools?: string[] | null | undefined;
         disallowedTools?: string[] | null | undefined;
         displayText?: string | undefined;
+        attachmentRefs?: {
+            name: string;
+            size: number;
+            remotePath: string;
+        }[] | undefined;
         contextBoundaryFallback?: boolean | undefined;
     } | undefined;
 }>]>;

@@ -319,6 +319,9 @@ export const pt: TranslationStructure = {
         sessionDeletedDescription: 'Esta sessão foi removida permanentemente',
         requestSwitchFailed: 'Falha ao atualizar a solicitação de alternância',
         sendFailed: 'Falha ao enviar mensagem',
+        attachmentPerFileTooLarge: 'Cada anexo deve ter 25 MB ou menos',
+        attachmentTotalTooLarge: 'Os anexos devem somar 100 MB ou menos',
+        attachmentUploadFailed: 'Não foi possível anexar o arquivo. Tente novamente.',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -582,6 +585,13 @@ export const pt: TranslationStructure = {
             fileLabel: 'ARQUIVO',
             folderLabel: 'PASTA',
         },
+        attachments: {
+            attachButton: 'Anexar arquivo',
+            dropIdle: 'Solte arquivos aqui',
+            dropActive: 'Solte para anexar',
+            pasteHint: 'Cole arquivos para anexar',
+            removeButton: ({ name }: { name: string }) => `Remover ${name}`,
+        },
         noMachinesAvailable: 'Sem máquinas',
     },
 
@@ -709,6 +719,8 @@ export const pt: TranslationStructure = {
 
     files: {
         changes: 'Alterações',
+        refreshChanges: 'Atualizar alterações',
+        refreshChangesHint: 'Buscar alterações de arquivos mais recentes',
         searchPlaceholder: 'Buscar arquivos...',
         detachedHead: 'HEAD desanexado',
         summary: ({ staged, unstaged }: { staged: number; unstaged: number }) => `${staged} preparados • ${unstaged} não preparados`,

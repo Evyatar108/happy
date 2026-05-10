@@ -321,6 +321,9 @@ export const ja: TranslationStructure = {
         sessionDeletedDescription: 'このセッションは完全に削除されました',
         requestSwitchFailed: '切り替えリクエストを更新できませんでした',
         sendFailed: 'メッセージを送信できませんでした',
+        attachmentPerFileTooLarge: '各添付ファイルは25 MB以下にしてください',
+        attachmentTotalTooLarge: '添付ファイルの合計は100 MB以下にしてください',
+        attachmentUploadFailed: 'ファイルを添付できませんでした。もう一度お試しください。',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -584,6 +587,13 @@ export const ja: TranslationStructure = {
             fileLabel: 'ファイル',
             folderLabel: 'フォルダ',
         },
+        attachments: {
+            attachButton: 'ファイルを添付',
+            dropIdle: 'ここにファイルをドロップ',
+            dropActive: '離して添付',
+            pasteHint: 'ファイルを貼り付けて添付',
+            removeButton: ({ name }: { name: string }) => `${name}を削除`,
+        },
         noMachinesAvailable: 'マシンなし',
     },
 
@@ -711,6 +721,8 @@ export const ja: TranslationStructure = {
 
     files: {
         changes: '変更',
+        refreshChanges: '変更を更新',
+        refreshChangesHint: '最新のファイル変更を取得',
         searchPlaceholder: 'ファイルを検索...',
         detachedHead: 'detached HEAD',
         summary: ({ staged, unstaged }: { staged: number; unstaged: number }) => `ステージ済み ${staged} • 未ステージ ${unstaged}`,

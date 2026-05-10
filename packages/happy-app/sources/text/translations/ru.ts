@@ -308,6 +308,9 @@ export const ru: TranslationStructure = {
         sessionDeletedDescription: 'Эта сессия была окончательно удалена',
         requestSwitchFailed: 'Не удалось обновить запрос на переключение',
         sendFailed: 'Не удалось отправить сообщение',
+        attachmentPerFileTooLarge: 'Каждое вложение должно быть не больше 25 МБ',
+        attachmentTotalTooLarge: 'Общий размер вложений не должен превышать 100 МБ',
+        attachmentUploadFailed: 'Не удалось прикрепить файл. Повторите попытку.',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -599,6 +602,13 @@ export const ru: TranslationStructure = {
             fileLabel: 'ФАЙЛ',
             folderLabel: 'ПАПКА',
         },
+        attachments: {
+            attachButton: 'Прикрепить файл',
+            dropIdle: 'Перетащите файлы сюда',
+            dropActive: 'Отпустите, чтобы прикрепить',
+            pasteHint: 'Вставьте файлы, чтобы прикрепить',
+            removeButton: ({ name }: { name: string }) => `Удалить ${name}`,
+        },
         noMachinesAvailable: 'Нет машин',
     },
 
@@ -726,6 +736,8 @@ export const ru: TranslationStructure = {
 
     files: {
         changes: 'Изменения',
+        refreshChanges: 'Обновить изменения',
+        refreshChangesHint: 'Загрузить последние изменения файлов',
         searchPlaceholder: 'Поиск файлов...',
         detachedHead: 'отделённый HEAD',
         summary: ({ staged, unstaged }: { staged: number; unstaged: number }) => `${staged} подготовлено • ${unstaged} не подготовлено`,

@@ -1,6 +1,7 @@
 import * as React from "react";
-import { View } from "react-native";
-import { StyleSheet } from 'react-native-unistyles';
+import { View, Text } from "react-native";
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { Octicons } from '@expo/vector-icons';
 import { MarkdownView } from "./markdown/MarkdownView";
 import { t } from '@/text';
 import { Message, UserTextMessage, AgentTextMessage, ToolCallMessage } from "@/sync/typesMessage";
@@ -13,6 +14,8 @@ import { isSkillBodyMessage } from './markdown/skillBody';
 import { AnimatedText } from './StyledText';
 import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
 import { BoundaryDivider } from './BoundaryDivider';
+import { Typography } from '@/constants/Typography';
+import { formatAttachmentSize } from '@/components/composer/AttachmentChip';
 
 const MAX_NESTED_CHILD_DEPTH = 3;
 
@@ -85,6 +88,29 @@ function RenderBlock(props: {
   }
 }
 
+
+function MessageAttachmentChips(props: {
+  attachmentRefs: NonNullable<UserTextMessage['meta']>['attachmentRefs'];
+}) {
+  const { theme } = useUnistyles();
+
+  if (!props.attachmentRefs || props.attachmentRefs.length === 0) {
+    return null;
+  }
+
+  return (
+    <View style={styles.messageAttachmentChips}>
+      {props.attachmentRefs.map((ref, index) => (
+        <View key={index} style={styles.messageAttachmentChip} testID="message-attachment-chip">
+          <Octicons name="paperclip" size={13} color={theme.colors.textSecondary} />
+          <Text style={styles.messageAttachmentChipText} numberOfLines={1}>{ref.name}</Text>
+          <Text style={styles.messageAttachmentChipSize}>{formatAttachmentSize(ref.size)}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function UserTextBlock(props: {
   message: UserTextMessage;
   sessionId: string;
@@ -113,6 +139,7 @@ function UserTextBlock(props: {
           <Text style={styles.debugText}>{JSON.stringify(props.message.meta)}</Text>
         )} */}
       </View>
+      <MessageAttachmentChips attachmentRefs={props.message.meta?.attachmentRefs} />
     </View>
   );
 }
@@ -285,6 +312,37 @@ const styles = StyleSheet.create((theme) => ({
   },
   userMessageBubble: {
     paddingHorizontal: 16,
+  },
+  messageAttachmentChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  messageAttachmentChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    maxWidth: '100%',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.divider,
+    backgroundColor: theme.colors.surfacePressed,
+    paddingLeft: 8,
+    paddingRight: 8,
+    height: 30,
+    gap: 6,
+  },
+  messageAttachmentChipText: {
+    flexShrink: 1,
+    fontSize: 12,
+    color: theme.colors.text,
+    ...Typography.default('semiBold'),
+  },
+  messageAttachmentChipSize: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+    ...Typography.default(),
   },
   agentMessageContainer: {
     marginHorizontal: 16,

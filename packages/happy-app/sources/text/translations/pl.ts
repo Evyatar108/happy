@@ -337,6 +337,9 @@ export const pl: TranslationStructure = {
         sessionDeletedDescription: 'Ta sesja została trwale usunięta',
         requestSwitchFailed: 'Nie udało się zaktualizować żądania przełączenia',
         sendFailed: 'Nie udało się wysłać wiadomości',
+        attachmentPerFileTooLarge: 'Każdy załącznik musi mieć 25 MB lub mniej',
+        attachmentTotalTooLarge: 'Załączniki muszą mieć łącznie 100 MB lub mniej',
+        attachmentUploadFailed: 'Nie udało się dołączyć pliku. Spróbuj ponownie.',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -599,6 +602,13 @@ export const pl: TranslationStructure = {
             fileLabel: 'PLIK',
             folderLabel: 'FOLDER',
         },
+        attachments: {
+            attachButton: 'Dołącz plik',
+            dropIdle: 'Upuść pliki tutaj',
+            dropActive: 'Puść, aby dołączyć',
+            pasteHint: 'Wklej pliki, aby dołączyć',
+            removeButton: ({ name }: { name: string }) => `Usuń ${name}`,
+        },
         noMachinesAvailable: 'Brak maszyn',
     },
 
@@ -726,6 +736,8 @@ export const pl: TranslationStructure = {
 
     files: {
         changes: 'Zmiany',
+        refreshChanges: 'Odśwież zmiany',
+        refreshChangesHint: 'Pobierz najnowsze zmiany plików',
         searchPlaceholder: 'Wyszukaj pliki...',
         detachedHead: 'odłączony HEAD',
         summary: ({ staged, unstaged }: { staged: number; unstaged: number }) => `${staged} przygotowanych • ${unstaged} nieprzygotowanych`,
