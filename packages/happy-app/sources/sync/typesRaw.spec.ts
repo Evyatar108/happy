@@ -972,6 +972,31 @@ describe('Zod Transform - WOLOG Content Normalization', () => {
                 expect(result.data.content.text).toBe('User input message');
             }
         });
+
+        it('preserves user image attachments through parsing and normalization', () => {
+            const userMessage = {
+                role: 'user',
+                content: {
+                    type: 'text',
+                    text: 'User input with image',
+                    attachments: [
+                        { type: 'image', ref: 'data:image/png;base64,abc123', mimeType: 'image/png' }
+                    ]
+                }
+            };
+
+            const result = RawRecordSchema.safeParse(userMessage);
+            const normalized = normalizeRawMessage('msg-1', null, 1, 7, userMessage as any);
+
+            expect(result.success).toBe(true);
+            if (result.success && result.data.role === 'user') {
+                expect(result.data.content.attachments).toEqual(userMessage.content.attachments);
+            }
+            expect(normalized?.role).toBe('user');
+            if (normalized?.role === 'user') {
+                expect(normalized.content.attachments).toEqual(userMessage.content.attachments);
+            }
+        });
     });
 
     describe('Field preservation and edge cases', () => {

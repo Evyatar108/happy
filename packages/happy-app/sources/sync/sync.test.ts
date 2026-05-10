@@ -190,6 +190,22 @@ describe('sync.sendMessage switch policy', () => {
         expect(encryptRawRecord.mock.calls[0][0].meta.capabilities).toBeUndefined();
     });
 
+    it('includes image attachments in the encrypted user message content', async () => {
+        const { encryptRawRecord } = installSyncHarness();
+        const attachments = [
+            { type: 'image' as const, ref: 'data:image/png;base64,abc123', mimeType: 'image/png' }
+        ];
+
+        await sync.sendMessage('session-1', 'hello', { attachments });
+
+        expect(encryptRawRecord).toHaveBeenCalledOnce();
+        expect(encryptRawRecord.mock.calls[0][0].content).toEqual({
+            type: 'text',
+            text: 'hello',
+            attachments,
+        });
+    });
+
     it('requests when-idle before enqueueing and tags only deferred responses', async () => {
         const order: string[] = [];
         mocks.sessionRPC.mockImplementation(async () => {

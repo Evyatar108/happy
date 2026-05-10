@@ -140,6 +140,26 @@ describe('shared wire message schemas', () => {
     expect(parsed.success).toBe(true);
   });
 
+  it('parses legacy user message image attachments', () => {
+    const parsed = UserMessageSchema.safeParse({
+      role: 'user',
+      content: {
+        type: 'text',
+        text: 'describe this image',
+        attachments: [
+          { type: 'image', ref: 'data:image/png;base64,abc123', mimeType: 'image/png' },
+        ],
+      },
+    });
+
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.content.attachments).toEqual([
+        { type: 'image', ref: 'data:image/png;base64,abc123', mimeType: 'image/png' },
+      ]);
+    }
+  });
+
   it('parses legacy decrypted agent message payload', () => {
     const parsed = AgentMessageSchema.safeParse({
       role: 'agent',

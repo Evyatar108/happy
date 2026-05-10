@@ -79,10 +79,17 @@ type OutboxMessage = {
     content: string;
 };
 
+type UserMessageAttachment = {
+    type: 'image';
+    ref: string;
+    mimeType?: string;
+};
+
 export type SendMessageOptions = {
     displayText?: string;
     source?: MessageSentSource;
     switchMode?: 'now' | 'when-idle' | 'none';
+    attachments?: UserMessageAttachment[];
 };
 
 type RequestSwitchResponse = {
@@ -836,7 +843,7 @@ class Sync {
         }
 
         const { permissionMode, model, thinkingLevel } = resolveMessageModeMeta(session);
-        const { displayText, source = 'chat' } = options ?? {};
+        const { displayText, source = 'chat', attachments } = options ?? {};
         const shouldRequestDeferredSwitch = isWhenIdle
             && session.metadata?.flavor === 'claude'
             && getSessionMode(session) === 'local';
@@ -876,6 +883,7 @@ class Sync {
                 model,
                 thinkingLevel,
                 tagDeferredSwitch,
+                attachments,
             });
         } catch (error) {
             if (isWhenIdle) {
@@ -896,6 +904,7 @@ class Sync {
             model: string | null;
             thinkingLevel: string | undefined;
             tagDeferredSwitch: boolean;
+            attachments?: UserMessageAttachment[];
         }
     ) {
         const encryption = this.getEncryptionForSession(sessionId)?.getSessionEncryption(sessionId);
@@ -930,7 +939,8 @@ class Sync {
             role: 'user',
             content: {
                 type: 'text',
-                text
+                text,
+                ...(options.attachments !== undefined && { attachments: options.attachments })
             },
             meta: {
                 sentFrom,

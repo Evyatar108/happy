@@ -321,6 +321,34 @@ describe('reducer', () => {
             expect(state.localIds.has('local123')).toBe(true);
         });
 
+        it('should render user message text when attachments are present', () => {
+            const state = createReducer();
+            const messages: NormalizedMessage[] = [
+                {
+                    id: 'msg1',
+                    localId: 'local123',
+                    createdAt: 1000,
+                    seq: 1,
+                    role: 'user',
+                    content: {
+                        type: 'text',
+                        text: 'Hello with image',
+                        attachments: [
+                            { type: 'image', ref: 'data:image/png;base64,abc123', mimeType: 'image/png' }
+                        ],
+                    },
+                    isSidechain: false
+                }
+            ];
+
+            const result = reducer(state, messages);
+            expect(result.messages).toHaveLength(1);
+            expect(result.messages[0].kind).toBe('user-text');
+            if (result.messages[0].kind === 'user-text') {
+                expect(result.messages[0].text).toBe('Hello with image');
+            }
+        });
+
         it('should deduplicate user messages by localId', () => {
             const state = createReducer();
             
