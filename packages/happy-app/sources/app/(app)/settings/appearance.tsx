@@ -19,14 +19,8 @@ const CHAT_TEXT_SCALE_STEP = 0.05;
 const CHAT_TEXT_PREVIEW_FONT_SIZE = 18;
 const CHAT_TEXT_PREVIEW_LINE_HEIGHT = 28;
 
-// Define known avatar styles for this version of the app
-type KnownAvatarStyle = 'pixelated' | 'gradient' | 'brutalist' | 'brutalist-topic';
-
-const AVATAR_STYLE_OPTIONS: KnownAvatarStyle[] = ['pixelated', 'gradient', 'brutalist', 'brutalist-topic'];
-
-const isKnownAvatarStyle = (style: string): style is KnownAvatarStyle => {
-    return AVATAR_STYLE_OPTIONS.includes(style as KnownAvatarStyle);
-};
+import { KnownAvatarStyle, AVATAR_STYLE_OPTIONS, isKnownAvatarStyle, cycleAvatarStyle } from './avatarStyleCycle';
+export { cycleAvatarStyle };
 
 const clampChatFontScale = (value: number) => {
     return Math.min(CHAT_FONT_SCALE_MAX, Math.max(CHAT_FONT_SCALE_MIN, value));
@@ -294,10 +288,7 @@ export default function AppearanceSettingsScreen() {
                     icon={<Ionicons name="person-circle-outline" size={29} color="#5856D6" />}
                     detail={displayStyle === 'pixelated' ? t('settingsAppearance.avatarOptions.pixelated') : displayStyle === 'gradient' ? t('settingsAppearance.avatarOptions.gradient') : displayStyle === 'brutalist' ? t('settingsAppearance.avatarOptions.brutalist') : t('settingsAppearance.avatarOptions.brutalistTopic')}
                     onPress={() => {
-                        const currentIndex = AVATAR_STYLE_OPTIONS.indexOf(displayStyle);
-                        const nextIndex = (currentIndex + 1) % 4;
-                        const nextStyle = AVATAR_STYLE_OPTIONS[nextIndex];
-                        setAvatarStyle(nextStyle);
+                        setAvatarStyle(cycleAvatarStyle(displayStyle));
                     }}
                 />
                 <Item
