@@ -1,3 +1,4 @@
+// Stripe-removal for completed tool cards: see ToolView.tsx containerCompleted/headerCompleted (US-004, commit 4b61ecef). This file is unchanged from main; the adjacent test is a regression guard only.
 import * as React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';

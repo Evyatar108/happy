@@ -310,6 +310,38 @@ describe('MarkdownView', () => {
         expect(renderer!.root.findAllByProps({ accessibilityLabel: 'No session preview' })).toHaveLength(1);
     });
 
+    it('does not call setState after unmount when sessionReadFile resolves late', async () => {
+        platform.OS = 'web';
+        vi.stubGlobal('window', { location: { origin: 'http://localhost:8095' } });
+
+        let resolveRead!: (value: { success: boolean; content: string }) => void;
+        sessionReadFile.mockReturnValue(new Promise<{ success: boolean; content: string }>((res) => { resolveRead = res; }));
+        mockImageMarkdown('/tmp/late.png');
+
+        let renderer: any;
+        act(() => {
+            renderer = TestRenderer.create(<MarkdownView markdown="raw" sessionId="session-1" />);
+        });
+
+        act(() => {
+            renderer!.root.findByType('Image').props.onError();
+        });
+
+        act(() => {
+            renderer!.unmount();
+        });
+
+        const consoleSpy = vi.spyOn(console, 'error');
+
+        await act(async () => {
+            resolveRead({ success: true, content: 'iVBORw0KGgo=' });
+        });
+
+        expect(consoleSpy).not.toHaveBeenCalled();
+        consoleSpy.mockRestore();
+        vi.unstubAllGlobals();
+    });
+
     it('leaves native absolute image paths as pass-through sources', () => {
         platform.OS = 'android';
         mockImageMarkdown('/tmp/screenshots/native.png');

@@ -286,7 +286,15 @@ function SessionImageBlock(props: { url: string, alt: string, sessionId?: string
     const [failed, setFailed] = React.useState(false);
     const [didTrySessionRead, setDidTrySessionRead] = React.useState(false);
     const latestUrlRef = React.useRef(props.url);
+    const mountedRef = React.useRef(true);
     const accessibleLabel = props.alt || 'Markdown image';
+
+    React.useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
 
     React.useEffect(() => {
         latestUrlRef.current = props.url;
@@ -309,7 +317,7 @@ function SessionImageBlock(props: { url: string, alt: string, sessionId?: string
         const normalizedPath = normalizeSessionImagePath(props.url);
         const requestUrl = props.url;
         void sessionReadFile(props.sessionId, normalizedPath).then((response) => {
-            if (latestUrlRef.current !== requestUrl) {
+            if (!mountedRef.current || latestUrlRef.current !== requestUrl) {
                 return;
             }
             if (response.success && response.content) {
@@ -319,7 +327,7 @@ function SessionImageBlock(props: { url: string, alt: string, sessionId?: string
             }
             setFailed(true);
         }).catch(() => {
-            if (latestUrlRef.current !== requestUrl) {
+            if (!mountedRef.current || latestUrlRef.current !== requestUrl) {
                 return;
             }
             setFailed(true);
