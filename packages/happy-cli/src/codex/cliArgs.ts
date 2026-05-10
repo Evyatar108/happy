@@ -1,4 +1,16 @@
+import type { ReasoningEffort } from './codexAppServerTypes';
+
 export type CodexTransportFlag = 'stdio' | 'ws';
+
+const VALID_CODEX_EFFORT_LEVELS: readonly ReasoningEffort[] = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'];
+
+function parseCodexEffort(value: string): ReasoningEffort {
+    const normalized = value.trim();
+    if (VALID_CODEX_EFFORT_LEVELS.includes(normalized as ReasoningEffort)) {
+        return normalized as ReasoningEffort;
+    }
+    throw new Error('Codex effort must be one of: none, minimal, low, medium, high, xhigh');
+}
 
 export function extractCodexResumeFlag(args: string[]): { resumeThreadId: string | null; args: string[] } {
     const remainingArgs: string[] = [];
@@ -41,6 +53,46 @@ export function extractCodexResumeFlag(args: string[]): { resumeThreadId: string
 
     return {
         resumeThreadId,
+        args: remainingArgs,
+    };
+}
+
+export function extractCodexEffortFlag(args: string[]): { effortLevel: ReasoningEffort | undefined; args: string[] } {
+    const remainingArgs: string[] = [];
+    let effortLevel: ReasoningEffort | undefined = undefined;
+
+    for (let i = 0; i < args.length; i++) {
+        const arg = args[i];
+
+        if (arg === '--effort') {
+            if (effortLevel !== undefined) {
+                throw new Error('Codex effort flag can only be provided once.');
+            }
+
+            const nextArg = args[i + 1];
+            if (!nextArg || nextArg.startsWith('-')) {
+                throw new Error('Codex effort requires a value: happy codex --effort <level>');
+            }
+
+            effortLevel = parseCodexEffort(nextArg);
+            i++;
+            continue;
+        }
+
+        if (arg.startsWith('--effort=')) {
+            if (effortLevel !== undefined) {
+                throw new Error('Codex effort flag can only be provided once.');
+            }
+
+            effortLevel = parseCodexEffort(arg.slice('--effort='.length));
+            continue;
+        }
+
+        remainingArgs.push(arg);
+    }
+
+    return {
+        effortLevel,
         args: remainingArgs,
     };
 }

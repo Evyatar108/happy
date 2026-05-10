@@ -61,6 +61,7 @@ export async function runCodex(opts: {
     startedBy?: 'daemon' | 'terminal';
     noSandbox?: boolean;
     resumeThreadId?: string;
+    effortLevel?: ReasoningEffort;
     codexTransport?: CodexTransportFlag | undefined;
 }): Promise<void> {
     // Early check: ensure Codex CLI is installed before proceeding
@@ -221,7 +222,7 @@ export async function runCodex(opts: {
     // Use shared PermissionMode type from api/types for cross-agent compatibility
     let currentPermissionMode: import('@/api/types').PermissionMode | undefined = undefined;
     let currentModel: string | undefined = undefined;
-    let currentThinkingLevel: ReasoningEffort | undefined = undefined;
+    let currentThinkingLevel: ReasoningEffort | undefined = opts.effortLevel;
 
     // Valid Codex permission modes from remote messages. Restricted to the
     // native Codex modes exposed by the mobile UI (see modelModeOptions.ts:

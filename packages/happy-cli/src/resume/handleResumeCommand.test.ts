@@ -7,6 +7,15 @@ describe('parseResumeCommandArgs', () => {
         expect(parseResumeCommandArgs(['cmmij8olq00dp5jcxr3wtbpau'])).toEqual({
             showHelp: false,
             sessionId: 'cmmij8olq00dp5jcxr3wtbpau',
+            effortLevel: undefined,
+        });
+    });
+
+    it('parses the optional effort flag', () => {
+        expect(parseResumeCommandArgs(['cmmij8olq00dp5jcxr3wtbpau', '--effort', 'high'])).toEqual({
+            showHelp: false,
+            sessionId: 'cmmij8olq00dp5jcxr3wtbpau',
+            effortLevel: 'high',
         });
     });
 
@@ -42,6 +51,26 @@ describe('buildResumeLaunch', () => {
         })).toEqual({
             cwd: '/tmp/p1-control-flow',
             args: ['codex', '--resume', '019ccca5-726b-7c61-b914-16de27dfab6e'],
+        });
+    });
+
+    it('flows effort level into Codex resume launch args', () => {
+        expect(buildResumeLaunch({
+            id: 'session-1',
+            active: false,
+            metadata: {
+                path: '/tmp/p1-control-flow',
+                flavor: 'codex',
+                codexThreadId: '019ccca5-726b-7c61-b914-16de27dfab6e',
+                host: 'localhost',
+                homeDir: '/tmp',
+                happyHomeDir: '/tmp/.happy',
+                happyLibDir: '/tmp/happy',
+                happyToolsDir: '/tmp/happy/tools',
+            },
+        }, { effortLevel: 'high' })).toEqual({
+            cwd: '/tmp/p1-control-flow',
+            args: ['codex', '--resume', '019ccca5-726b-7c61-b914-16de27dfab6e', '--effort', 'high'],
         });
     });
 

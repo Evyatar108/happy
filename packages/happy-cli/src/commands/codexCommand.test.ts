@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   mockAuthAndSetupMachineIfNeeded: vi.fn(),
   mockRunCodex: vi.fn(),
+  mockExtractCodexEffortFlag: vi.fn(),
   mockExtractCodexResumeFlag: vi.fn(),
   mockExtractCodexTransportFlag: vi.fn(),
   mockExtractNoSandboxFlag: vi.fn(),
@@ -18,6 +19,7 @@ vi.mock('@/codex/runCodex', () => ({
 }))
 
 vi.mock('@/codex/cliArgs', () => ({
+  extractCodexEffortFlag: mocks.mockExtractCodexEffortFlag,
   extractCodexResumeFlag: mocks.mockExtractCodexResumeFlag,
   extractCodexTransportFlag: mocks.mockExtractCodexTransportFlag,
 }))
@@ -46,6 +48,10 @@ describe('handleCodexCommand', () => {
       resumeThreadId: null,
       args,
     }))
+    mocks.mockExtractCodexEffortFlag.mockImplementation((args: string[]) => ({
+      effortLevel: undefined,
+      args,
+    }))
     mocks.mockExtractCodexTransportFlag.mockImplementation((args: string[]) => ({
       transport: undefined,
       args,
@@ -63,6 +69,7 @@ describe('handleCodexCommand', () => {
       startedBy: 'terminal',
       noSandbox: false,
       resumeThreadId: undefined,
+      effortLevel: undefined,
       codexTransport: undefined,
     })
     expect(
@@ -77,6 +84,10 @@ describe('handleCodexCommand', () => {
     })
     mocks.mockExtractCodexResumeFlag.mockReturnValue({
       resumeThreadId: 'thread-123',
+      args: ['--effort', 'high', '--codex-transport', 'ws', '--started-by', 'daemon'],
+    })
+    mocks.mockExtractCodexEffortFlag.mockReturnValue({
+      effortLevel: 'high',
       args: ['--codex-transport', 'ws', '--started-by', 'daemon'],
     })
     mocks.mockExtractCodexTransportFlag.mockReturnValue({
@@ -91,6 +102,7 @@ describe('handleCodexCommand', () => {
       startedBy: 'daemon',
       noSandbox: true,
       resumeThreadId: 'thread-123',
+      effortLevel: 'high',
       codexTransport: 'ws',
     })
   })
