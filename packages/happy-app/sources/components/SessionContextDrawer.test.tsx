@@ -98,6 +98,7 @@ function baseProps() {
 
     return {
         machineName: 'Devbox',
+        workdirPath: '/home/user/my-project',
         modelMode: sonnet,
         availableModels: [sonnet, option('opus', 'Opus')],
         permissionMode: plan,
@@ -153,13 +154,24 @@ describe('SessionContextDrawer', () => {
         shared.latestPatchModel = null;
     });
 
-    it('renders the collapsed bar with machine, model, and permission chips from session metadata props', () => {
+    it('renders the collapsed bar with machine, path basename, model, and permission chips from session metadata props', () => {
         let renderer: TestRendererInstance;
         act(() => {
             renderer = TestRenderer.create(<SessionContextDrawer {...baseProps()} />);
         });
 
-        expect(textValues(renderer!.root)).toEqual(expect.arrayContaining(['Devbox', 'Sonnet', 'Plan']));
+        expect(textValues(renderer!.root)).toEqual(expect.arrayContaining(['Devbox', 'my-project', 'Sonnet', 'Plan']));
+    });
+
+    it('omits the path chip when workdirPath is not provided', () => {
+        let renderer: TestRendererInstance;
+        act(() => {
+            renderer = TestRenderer.create(<SessionContextDrawer {...baseProps()} workdirPath={null} />);
+        });
+
+        const texts = textValues(renderer!.root);
+        expect(texts).not.toContain('my-project');
+        expect(texts).toEqual(expect.arrayContaining(['Devbox', 'Sonnet', 'Plan']));
     });
 
     it('toggles expanded state from the chevron control', () => {

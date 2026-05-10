@@ -727,6 +727,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
         <CenteredInputWidth horizontalPadding={sessionInputHorizontalPadding}>
             <SessionContextDrawer
                 machineName={machineName}
+                workdirPath={session.metadata?.path}
                 modelMode={drawerModelMode}
                 availableModels={availableModels}
                 permissionMode={drawerPermissionMode}

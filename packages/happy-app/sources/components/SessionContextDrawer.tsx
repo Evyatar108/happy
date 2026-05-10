@@ -20,6 +20,7 @@ type AgentConfigurationUpdate = {
 
 type SessionContextDrawerProps = {
     machineName: string | null;
+    workdirPath?: string | null;
     modelMode: ModelMode | null;
     availableModels: ModelMode[];
     permissionMode: PermissionMode | null;
@@ -134,6 +135,9 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
                         {props.machineName ?? t('status.unknown')}
                     </Text>
                 </View>
+                {!!props.workdirPath && (
+                    <PathChip label={pathBasename(props.workdirPath)} />
+                )}
                 <View style={styles.chipGroup}>
                     <ContextChip label={props.modelMode?.name ?? t('agentInput.model.title')} />
                     <ContextChip label={props.permissionMode?.name ?? t('agentInput.permissionMode.title')} />
@@ -238,6 +242,12 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
     );
 });
 
+function pathBasename(path: string): string {
+    const normalized = path.replace(/\\/g, '/').replace(/\/+$/, '');
+    const slash = normalized.lastIndexOf('/');
+    return slash >= 0 ? normalized.slice(slash + 1) : normalized;
+}
+
 function toPickerItems<T extends { key: string; name: string; description?: string | null }>(items: T[]): PickerItem[] {
     return items.map((item) => ({
         key: item.key,
@@ -250,6 +260,16 @@ function ContextChip(props: { label: string }) {
     return (
         <View style={styles.chip}>
             <Text style={styles.chipText} numberOfLines={1}>{props.label}</Text>
+        </View>
+    );
+}
+
+function PathChip(props: { label: string }) {
+    const { theme } = useUnistyles();
+    return (
+        <View style={styles.pathChip}>
+            <Ionicons name="folder-outline" size={11} color={theme.colors.textSecondary} />
+            <Text style={styles.pathChipText} numberOfLines={1}>{props.label}</Text>
         </View>
     );
 }
@@ -322,6 +342,24 @@ const styles = StyleSheet.create((theme) => ({
         color: theme.colors.text,
         fontSize: 13,
         fontWeight: '600',
+    },
+    pathChip: {
+        minWidth: 0,
+        flexShrink: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        height: 24,
+        borderRadius: 8,
+        backgroundColor: theme.colors.surfacePressed,
+        paddingHorizontal: 8,
+    },
+    pathChipText: {
+        minWidth: 0,
+        flexShrink: 1,
+        color: theme.colors.textSecondary,
+        fontSize: 12,
+        fontWeight: '500',
     },
     chipGroup: {
         minWidth: 0,
