@@ -100,6 +100,12 @@ const sessionAgentConfigurationChangedEventSchema = z__namespace.object({
   thinkingLevel: z__namespace.string().nullable().optional(),
   sandbox: z__namespace.string().nullable().optional()
 });
+const sessionMessageConsumptionEventSchema = z__namespace.object({
+  t: z__namespace.literal("message-consumption"),
+  messageId: z__namespace.string(),
+  consumedAt: z__namespace.number(),
+  agentFlavor: z__namespace.enum(["claude", "codex"])
+});
 const sessionEventSchema = z__namespace.discriminatedUnion("t", [
   sessionTextEventSchema,
   sessionServiceMessageEventSchema,
@@ -111,7 +117,8 @@ const sessionEventSchema = z__namespace.discriminatedUnion("t", [
   sessionTurnEndEventSchema,
   sessionStopEventSchema,
   sessionContextBoundaryEventSchema,
-  sessionAgentConfigurationChangedEventSchema
+  sessionAgentConfigurationChangedEventSchema,
+  sessionMessageConsumptionEventSchema
 ]);
 const sessionEnvelopeSchema = z__namespace.object({
   id: z__namespace.string(),
@@ -444,6 +451,7 @@ exports.sessionContextBoundaryTriggeredBySchema = sessionContextBoundaryTriggere
 exports.sessionEnvelopeSchema = sessionEnvelopeSchema;
 exports.sessionEventSchema = sessionEventSchema;
 exports.sessionFileEventSchema = sessionFileEventSchema;
+exports.sessionMessageConsumptionEventSchema = sessionMessageConsumptionEventSchema;
 exports.sessionRoleSchema = sessionRoleSchema;
 exports.sessionServiceMessageEventSchema = sessionServiceMessageEventSchema;
 exports.sessionStartEventSchema = sessionStartEventSchema;
