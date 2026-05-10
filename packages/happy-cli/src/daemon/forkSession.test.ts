@@ -5,6 +5,27 @@ import { HAPPY_FORKED_FROM_SESSION_ID } from '@/utils/envNames';
 import type { TrackedSession } from './types';
 import { forkSession } from './forkSession';
 
+const PARENT_REPO_ROOT = '/parent';
+const defaultRealpath = (p: string) => Promise.resolve(p);
+const defaultRunGit = async (_cwd: string, args: string[]): Promise<string> => {
+  if (args[0] === 'rev-parse' && args[1] === '--show-toplevel') {
+    return `${PARENT_REPO_ROOT}\n`;
+  }
+  if (args[0] === 'worktree' && args[1] === 'list' && args[2] === '--porcelain') {
+    return [
+      `worktree ${PARENT_REPO_ROOT}`,
+      'HEAD 0000000000000000000000000000000000000000',
+      'branch refs/heads/main',
+      '',
+      'worktree /fork/worktree',
+      'HEAD 0000000000000000000000000000000000000000',
+      'branch refs/heads/fork',
+      '',
+    ].join('\n');
+  }
+  return '';
+};
+
 function codexMetadata(overrides: Partial<Metadata> = {}): Metadata {
   return {
     path: '/parent/worktree',
@@ -51,6 +72,8 @@ describe('forkSession', () => {
       fetchServerSessionMetadata: vi.fn(),
       spawnTrackedHappyProcess,
       stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
+      realpath: vi.fn(defaultRealpath),
+      runGit: vi.fn(defaultRunGit),
       baseEnv: {
         PATH: '/bin',
         HAPPY_RECONNECT_SESSION_ID: 'old-session',
@@ -83,6 +106,8 @@ describe('forkSession', () => {
       fetchServerSessionMetadata,
       spawnTrackedHappyProcess,
       stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
+      realpath: vi.fn(defaultRealpath),
+      runGit: vi.fn(defaultRunGit),
       baseEnv: {},
     });
 
@@ -102,6 +127,8 @@ describe('forkSession', () => {
       fetchServerSessionMetadata,
       spawnTrackedHappyProcess,
       stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
+      realpath: vi.fn(defaultRealpath),
+      runGit: vi.fn(defaultRunGit),
       baseEnv: {},
     });
 
@@ -119,6 +146,8 @@ describe('forkSession', () => {
       fetchServerSessionMetadata,
       spawnTrackedHappyProcess,
       stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
+      realpath: vi.fn(defaultRealpath),
+      runGit: vi.fn(defaultRunGit),
       baseEnv: {},
     });
 
@@ -132,6 +161,8 @@ describe('forkSession', () => {
       fetchServerSessionMetadata: vi.fn(),
       spawnTrackedHappyProcess: vi.fn(),
       stat: vi.fn(),
+      realpath: vi.fn(defaultRealpath),
+      runGit: vi.fn(defaultRunGit),
       baseEnv: {},
     });
     expect(parentMissing.type).toBe('error');
@@ -142,6 +173,8 @@ describe('forkSession', () => {
       fetchServerSessionMetadata: vi.fn(),
       spawnTrackedHappyProcess: vi.fn(),
       stat: vi.fn().mockRejectedValue(new Error('ENOENT')),
+      realpath: vi.fn(defaultRealpath),
+      runGit: vi.fn(defaultRunGit),
       baseEnv: {},
     });
     expect(worktreeMissing.type).toBe('error');
@@ -152,6 +185,8 @@ describe('forkSession', () => {
       fetchServerSessionMetadata: vi.fn(),
       spawnTrackedHappyProcess: vi.fn(),
       stat: vi.fn(),
+      realpath: vi.fn(defaultRealpath),
+      runGit: vi.fn(defaultRunGit),
       baseEnv: {},
     });
     expect(flavorUnsupported.type).toBe('error');
@@ -164,6 +199,8 @@ describe('forkSession', () => {
       fetchServerSessionMetadata: vi.fn(),
       spawnTrackedHappyProcess: vi.fn(),
       stat: vi.fn(),
+      realpath: vi.fn(defaultRealpath),
+      runGit: vi.fn(defaultRunGit),
       baseEnv: {},
     });
     expect(result.type).toBe('error');
@@ -176,6 +213,8 @@ describe('forkSession', () => {
       fetchServerSessionMetadata: vi.fn(),
       spawnTrackedHappyProcess: vi.fn(),
       stat: vi.fn().mockResolvedValue({ isDirectory: () => false }),
+      realpath: vi.fn(defaultRealpath),
+      runGit: vi.fn(defaultRunGit),
       baseEnv: {},
     });
     expect(result.type).toBe('error');
@@ -188,9 +227,43 @@ describe('forkSession', () => {
       fetchServerSessionMetadata: vi.fn(),
       spawnTrackedHappyProcess: vi.fn().mockResolvedValue({ type: 'requestToApproveDirectoryCreation', directory: '/fork/worktree' }),
       stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
+      realpath: vi.fn(defaultRealpath),
+      runGit: vi.fn(defaultRunGit),
       baseEnv: {},
     });
 
     expect(result).toEqual({ type: 'requestToApproveDirectoryCreation', directory: '/fork/worktree' });
+  });
+
+  it('rejects an absolute worktree directory outside the parent repo and not registered as a worktree', async () => {
+    const parent = trackedSession();
+    const runGit = vi.fn(async (_cwd: string, args: string[]): Promise<string> => {
+      if (args[0] === 'rev-parse') return `${PARENT_REPO_ROOT}\n`;
+      if (args[0] === 'worktree') {
+        return [
+          `worktree ${PARENT_REPO_ROOT}`,
+          'HEAD 0000000000000000000000000000000000000000',
+          'branch refs/heads/main',
+          '',
+        ].join('\n');
+      }
+      return '';
+    });
+
+    const result = await forkSession({
+      parentSessionId: 'parent-local-id',
+      worktreePath: '/etc/elsewhere',
+    }, {
+      findTrackedSessionById: vi.fn().mockReturnValue(parent),
+      fetchServerSessionMetadata: vi.fn(),
+      spawnTrackedHappyProcess: vi.fn(),
+      stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
+      realpath: vi.fn(defaultRealpath),
+      runGit,
+      baseEnv: {},
+    });
+
+    expect(result.type).toBe('error');
+    expect(result).toMatchObject({ errorMessage: expect.stringContaining('not a registered worktree') });
   });
 });

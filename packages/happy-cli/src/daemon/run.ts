@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import os from 'os';
+import { execFile } from 'node:child_process';
 import * as tmp from 'tmp';
 import axios from 'axios';
 import { createHappyServer, type HappyServerHandle } from 'happy-server';
@@ -739,6 +740,13 @@ export async function startDaemon(): Promise<void> {
       fetchServerSessionMetadata,
       spawnTrackedHappyProcess,
       stat: fs.stat,
+      realpath: fs.realpath,
+      runGit: (cwd, args) => new Promise<string>((resolve, reject) => {
+        execFile('git', args, { cwd, encoding: 'utf8', windowsHide: true }, (err, stdout) => {
+          if (err) reject(err);
+          else resolve(stdout);
+        });
+      }),
       baseEnv: process.env,
     });
 

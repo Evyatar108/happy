@@ -1,4 +1,4 @@
-import { isAbsolute } from 'path';
+import { isAbsolute, relative, sep } from 'path';
 
 import type { ForkSessionOptions } from '@/api/apiMachine';
 import type { Metadata } from '@/api/types';
@@ -19,8 +19,35 @@ export type ForkSessionDeps = {
     message?: string;
   }) => Promise<SpawnSessionResult>;
   stat: (path: string) => Promise<{ isDirectory(): boolean }>;
+  realpath: (path: string) => Promise<string>;
+  runGit: (cwd: string, args: string[]) => Promise<string>;
   baseEnv: NodeJS.ProcessEnv;
 };
+
+function isPathPrefixDescendant(child: string, parent: string): boolean {
+  if (child === parent) return true;
+  const rel = relative(parent, child);
+  if (rel.length === 0) return true;
+  if (rel.startsWith('..')) return false;
+  if (isAbsolute(rel)) return false;
+  return true;
+}
+
+function parseWorktreeListPorcelain(stdout: string): string[] {
+  const paths: string[] = [];
+  for (const line of stdout.split(/\r?\n/)) {
+    if (line.startsWith('worktree ')) {
+      paths.push(line.slice('worktree '.length));
+    }
+  }
+  return paths;
+}
+
+function pathsMatch(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (sep === '\\') return a.toLowerCase() === b.toLowerCase();
+  return false;
+}
 
 export async function forkSession(options: ForkSessionOptions, deps: ForkSessionDeps): Promise<SpawnSessionResult> {
   const { parentSessionId, worktreePath, model, permissionMode, effortLevel } = options;
@@ -62,11 +89,66 @@ export async function forkSession(options: ForkSessionOptions, deps: ForkSession
       return { type: 'error', errorMessage: `worktreePath must be a directory: ${worktreePath}` };
     }
 
+    let canonicalWorktreePath: string;
+    try {
+      canonicalWorktreePath = await deps.realpath(worktreePath);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { type: 'error', errorMessage: `worktreePath could not be canonicalized: ${errorMessage}` };
+    }
+
+    if (!metadata.path || !isAbsolute(metadata.path)) {
+      return { type: 'error', errorMessage: `Parent session ${parentSessionId} has no usable absolute path in metadata; cannot validate worktree confinement.` };
+    }
+
+    let parentRepoRoot: string;
+    try {
+      parentRepoRoot = (await deps.runGit(metadata.path, ['rev-parse', '--show-toplevel'])).trim();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { type: 'error', errorMessage: `Could not resolve parent repo root from ${metadata.path}: ${errorMessage}` };
+    }
+    if (!parentRepoRoot) {
+      return { type: 'error', errorMessage: `Parent path ${metadata.path} is not inside a git repository.` };
+    }
+
+    let canonicalParentRepoRoot: string;
+    try {
+      canonicalParentRepoRoot = await deps.realpath(parentRepoRoot);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return { type: 'error', errorMessage: `Parent repo root could not be canonicalized: ${errorMessage}` };
+    }
+
+    let registeredWorktreeMatch = false;
+    try {
+      const worktreeList = await deps.runGit(canonicalParentRepoRoot, ['worktree', 'list', '--porcelain']);
+      for (const registered of parseWorktreeListPorcelain(worktreeList)) {
+        let canonicalRegistered: string;
+        try {
+          canonicalRegistered = await deps.realpath(registered);
+        } catch {
+          continue;
+        }
+        if (pathsMatch(canonicalRegistered, canonicalWorktreePath)) {
+          registeredWorktreeMatch = true;
+          break;
+        }
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.debug(`[DAEMON RUN] git worktree list failed for ${canonicalParentRepoRoot}: ${errorMessage}`);
+    }
+
+    if (!registeredWorktreeMatch && !isPathPrefixDescendant(canonicalWorktreePath, canonicalParentRepoRoot)) {
+      return { type: 'error', errorMessage: `worktreePath ${worktreePath} is not a registered worktree of the parent repository and is not a descendant of ${canonicalParentRepoRoot}.` };
+    }
+
     const launch = buildResumeLaunch(
       { id: parentSessionId, active: true, metadata },
       { startedBy: 'daemon', effortLevel },
     );
-    launch.cwd = worktreePath;
+    launch.cwd = canonicalWorktreePath;
 
     if (model) {
       launch.args.push('--model', model);
@@ -85,7 +167,7 @@ export async function forkSession(options: ForkSessionOptions, deps: ForkSession
 
     return deps.spawnTrackedHappyProcess({
       args: launch.args,
-      cwd: worktreePath,
+      cwd: canonicalWorktreePath,
       env,
     });
   } catch (error) {
