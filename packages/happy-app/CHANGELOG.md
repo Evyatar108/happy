@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 29 - 2026-05-10
+
+Project and worktree groups in the sidebar can now be arranged on web. Drag a group's handle to save a custom order for your account, while mobile and tablet layouts keep their existing alphabetical behavior.
+
+- Added drag-to-reorder for project/worktree groups in the sidebar on web.
+- Saved the custom group order across reloads and devices for the same account.
+- Kept chats inside each project sorted by recency, so only the project/worktree group order changes.
+
 ## Version 28 - 2026-04-30
 
 Scrolling back through long chats is even smoother. The older-message prefetch now starts earlier and preloads the next page on chat open, so the first scroll-up no longer pauses while a fresh batch is fetched.

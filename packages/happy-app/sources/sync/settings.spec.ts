@@ -57,6 +57,22 @@ describe('settings', () => {
             });
         });
 
+        it('should default missing sessionGroupOrder to an empty array', () => {
+            expect(settingsParse({ compactSessionView: true }).sessionGroupOrder).toEqual([]);
+        });
+
+        it('should parse settings when sessionGroupOrder is omitted', () => {
+            expect(() => settingsParse({ hideInactiveSessions: true })).not.toThrow();
+            expect(settingsParse({ hideInactiveSessions: true })).toEqual({
+                ...settingsDefaults,
+                hideInactiveSessions: true,
+            });
+        });
+
+        it('preserves a populated sessionGroupOrder', () => {
+            expect(settingsParse({ sessionGroupOrder: ['m::/repo', 'm::/other'] }).sessionGroupOrder).toEqual(['m::/repo', 'm::/other']);
+        });
+
         it('should handle settings with null/undefined values', () => {
             const settingsWithNull = {
                 viewInline: null,
@@ -188,6 +204,7 @@ describe('settings', () => {
                 avatarStyle: 'brutalist',
                 showFlavorIcons: false,
                 compactSessionView: false,
+                sessionGroupOrder: [],
                 fileDiffsSidebar: false,
 
                 agentInputEnterToSend: true,

@@ -9,7 +9,7 @@ import { type SessionState, formatPathRelativeToHome, vibingMessages, formatLast
 import { Avatar } from './Avatar';
 import { Typography } from '@/constants/Typography';
 import { StatusDot } from './StatusDot';
-import { useAllMachines, useSessionProjectGitStatus, useSessionGitStatus } from '@/sync/storage';
+import { useAllMachines, useSessionProjectGitStatus, useSessionGitStatus, useSettingMutable } from '@/sync/storage';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { t } from '@/text';
 import { useNavigateToSession } from '@/hooks/useNavigateToSession';
@@ -21,6 +21,12 @@ import { sessionKill } from '@/sync/ops';
 import { isWorktreePath, getRepoPath, getWorktreeName } from '@/utils/worktree';
 import { useNewSessionDraft } from '@/hooks/useNewSessionDraft';
 import { useRouter } from 'expo-router';
+import {
+    applyOrderToProjectEntries,
+    makeSessionGroupKey,
+    moveSessionGroup,
+    type SessionGroupDropPosition,
+} from '@/sync/sessionGroupOrdering';
 
 const STATUS_CONFIG: Record<SessionState, { color: string; dotColor: string; isPulsing: boolean; isConnected: boolean }> = {
     disconnected: { color: '#999', dotColor: '#999', isPulsing: false, isConnected: false },
@@ -57,7 +63,7 @@ function useSectionGitInfo(sessionId: string) {
 }
 
 // Section header: avatar | path + branch + tree icon + line changes | + button
-const SectionHeader = React.memo(({ session, displayPath }: { session: SessionRowData; displayPath: string }) => {
+const SectionHeader = React.memo(({ session, displayPath, dragHandle }: { session: SessionRowData; displayPath: string; dragHandle?: React.ReactNode }) => {
     const styles = stylesheet;
     const { theme } = useUnistyles();
     const router = useRouter();
@@ -97,6 +103,8 @@ const SectionHeader = React.memo(({ session, displayPath }: { session: SessionRo
             // @ts-ignore - Web only events
             onMouseLeave={() => setIsHovered(false)}
         >
+            {dragHandle}
+
             {/* Avatar — vertically centered */}
             <View style={styles.sectionHeaderAvatar}>
                 <Avatar id={session.avatarId} size={24} flavor={null} />
@@ -166,7 +174,11 @@ const MachineSeparator = React.memo(({ machineName, machineId }: { machineName: 
 
 export function ActiveSessionsGroupCompact({ sessions, selectedSessionId }: ActiveSessionsGroupProps) {
     const styles = stylesheet;
+    const { theme } = useUnistyles();
     const machines = useAllMachines();
+    const [sessionGroupOrder, setSessionGroupOrder] = useSettingMutable('sessionGroupOrder');
+    const [draggingKey, setDraggingKey] = React.useState<string | null>(null);
+    const [dragOverKey, setDragOverKey] = React.useState<string | null>(null);
 
     const machinesMap = React.useMemo(() => {
         const map: Record<string, Machine> = {};
@@ -177,7 +189,7 @@ export function ActiveSessionsGroupCompact({ sessions, selectedSessionId }: Acti
     }, [machines]);
 
     // Group sessions by machine, then by project within each machine
-    const { machineGroups, hasMultipleMachines } = React.useMemo(() => {
+    const { machineGroups, hasMultipleMachines, allVisibleKeys } = React.useMemo(() => {
         const unknownText = t('status.unknown');
         const byMachine = new Map<string, {
             machineId: string;
@@ -223,15 +235,45 @@ export function ActiveSessionsGroupCompact({ sessions, selectedSessionId }: Acti
             a.machineName.localeCompare(b.machineName)
         );
 
-        return { machineGroups: sorted, hasMultipleMachines: byMachine.size > 1 };
+        const visibleKeys = new Set<string>();
+        sorted.forEach(machineGroup => {
+            Array.from(machineGroup.projects.entries())
+                .sort(([, a], [, b]) => a.displayPath.localeCompare(b.displayPath))
+                .forEach(([projectPath]) => {
+                    visibleKeys.add(makeSessionGroupKey(machineGroup.machineId, projectPath));
+                });
+        });
+
+        return {
+            machineGroups: sorted,
+            hasMultipleMachines: byMachine.size > 1,
+            allVisibleKeys: Array.from(visibleKeys),
+        };
     }, [sessions, machinesMap]);
+
+    const clearDragState = React.useCallback(() => {
+        setDraggingKey(null);
+        setDragOverKey(null);
+    }, []);
+
+    const getDropPosition = React.useCallback((event: React.DragEvent<HTMLElement>): SessionGroupDropPosition => {
+        const bounds = event.currentTarget.getBoundingClientRect();
+        return event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after';
+    }, []);
 
     return (
         <View style={styles.container}>
             {machineGroups.map(machineGroup => {
-                const sortedProjects = Array.from(machineGroup.projects.entries()).sort(
+                const alphabeticallySortedProjects = Array.from(machineGroup.projects.entries()).sort(
                     ([, a], [, b]) => a.displayPath.localeCompare(b.displayPath)
                 );
+                const sortedProjects = Platform.OS === 'web'
+                    ? applyOrderToProjectEntries(
+                        alphabeticallySortedProjects,
+                        machineGroup.machineId,
+                        sessionGroupOrder,
+                    )
+                    : alphabeticallySortedProjects;
 
                 return (
                     <React.Fragment key={machineGroup.machineId}>
@@ -244,12 +286,67 @@ export function ActiveSessionsGroupCompact({ sessions, selectedSessionId }: Acti
                         {sortedProjects.map(([projectPath, projectGroup]) => {
                             const firstSession = projectGroup.sessions[0];
                             if (!firstSession) return null;
+                            const projectKey = makeSessionGroupKey(machineGroup.machineId, projectPath);
+                            const dragHandle = Platform.OS === 'web' ? (
+                                <View
+                                    style={[
+                                        styles.dragHandle,
+                                        draggingKey === projectKey && styles.dragHandleDragging,
+                                        dragOverKey === projectKey && styles.dragHandleOver,
+                                    ]}
+                                    // @ts-ignore - Web only events
+                                    draggable
+                                    // @ts-ignore - Web only events
+                                    onDragStart={(event: React.DragEvent<HTMLElement>) => {
+                                        event.stopPropagation();
+                                        event.dataTransfer.effectAllowed = 'move';
+                                        event.dataTransfer.setData('text/plain', projectKey);
+                                        setDraggingKey(projectKey);
+                                    }}
+                                    // @ts-ignore - Web only events
+                                    onDragEnter={(event: React.DragEvent<HTMLElement>) => {
+                                        event.stopPropagation();
+                                        setDragOverKey(projectKey);
+                                    }}
+                                    // @ts-ignore - Web only events
+                                    onDragOver={(event: React.DragEvent<HTMLElement>) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        setDragOverKey(projectKey);
+                                    }}
+                                    // @ts-ignore - Web only events
+                                    onDrop={(event: React.DragEvent<HTMLElement>) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        const fromKey = draggingKey;
+                                        if (fromKey && allVisibleKeys.includes(fromKey)) {
+                                            const position = getDropPosition(event);
+                                            setSessionGroupOrder(moveSessionGroup(
+                                                sessionGroupOrder,
+                                                allVisibleKeys,
+                                                fromKey,
+                                                projectKey,
+                                                position,
+                                            ));
+                                        }
+                                        clearDragState();
+                                    }}
+                                    // @ts-ignore - Web only events
+                                    onDragEnd={(event: React.DragEvent<HTMLElement>) => {
+                                        event.stopPropagation();
+                                        clearDragState();
+                                    }}
+                                >
+                                    <Ionicons name="reorder-three-outline" size={17} color={theme.colors.textSecondary} />
+                                </View>
+                            ) : null;
 
                             return (
                                 <View key={projectPath}>
                                     <SectionHeader
                                         session={firstSession}
                                         displayPath={projectGroup.displayPath}
+                                        dragHandle={dragHandle}
                                     />
                                     <View style={styles.projectCard}>
                                         {projectGroup.sessions.map((session, index) => (
@@ -432,6 +529,22 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     sectionHeaderAvatar: {
         marginRight: 8,
+    },
+    dragHandle: {
+        width: 24,
+        height: 24,
+        marginRight: 4,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 6,
+        opacity: 0.55,
+    },
+    dragHandleDragging: {
+        opacity: 0.35,
+    },
+    dragHandleOver: {
+        backgroundColor: theme.colors.surfaceSelected,
+        opacity: 1,
     },
     sectionHeaderContent: {
         flex: 1,
