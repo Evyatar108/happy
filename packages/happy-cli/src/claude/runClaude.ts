@@ -564,7 +564,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
             allowedTools: messageAllowedTools,
             disallowedTools: messageDisallowedTools
         };
-        messageQueue.push(message.content.text, enhancedMode);
+        messageQueue.pushWithAttachments(message.content.text, enhancedMode, message.content.attachments);
         logger.debugLargeJson('User message pushed to queue:', message)
     });
 

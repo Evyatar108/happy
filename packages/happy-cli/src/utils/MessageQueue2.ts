@@ -1,11 +1,26 @@
 import { logger } from "@/ui/logger";
 
+export type MessageQueueAttachment = {
+    type: 'image';
+    ref: string;
+    mimeType?: string;
+};
+
 interface QueueItem<T> {
     message: string;
     mode: T;
     modeHash: string;
+    attachments?: MessageQueueAttachment[];
     isolate?: boolean; // If true, this message must be processed alone
 }
+
+export type MessageQueueBatch<T> = {
+    message: string;
+    mode: T;
+    isolate: boolean;
+    hash: string;
+    attachments?: MessageQueueAttachment[];
+};
 
 /**
  * A mode-aware message queue that stores messages with their modes.
@@ -38,6 +53,14 @@ export class MessageQueue2<T> {
      * Push a message to the queue with a mode.
      */
     push(message: string, mode: T): void {
+        this.pushItem(message, mode);
+    }
+
+    pushWithAttachments(message: string, mode: T, attachments?: MessageQueueAttachment[]): void {
+        this.pushItem(message, mode, attachments);
+    }
+
+    private pushItem(message: string, mode: T, attachments?: MessageQueueAttachment[]): void {
         if (this.closed) {
             throw new Error('Cannot push to closed queue');
         }
@@ -49,6 +72,7 @@ export class MessageQueue2<T> {
             message,
             mode,
             modeHash,
+            attachments,
             isolate: false
         });
 
@@ -221,7 +245,7 @@ export class MessageQueue2<T> {
      * Wait for messages and return all messages with the same mode as a single string
      * Returns { message: string, mode: T } or null if aborted/closed
      */
-    async waitForMessagesAndGetAsString(abortSignal?: AbortSignal): Promise<{ message: string, mode: T, isolate: boolean, hash: string } | null> {
+    async waitForMessagesAndGetAsString(abortSignal?: AbortSignal): Promise<MessageQueueBatch<T> | null> {
         // If we have messages, return them immediately
         if (this.queue.length > 0) {
             return this.collectBatch();
@@ -245,7 +269,7 @@ export class MessageQueue2<T> {
     /**
      * Collect a batch of messages with the same mode, respecting isolation requirements
      */
-    private collectBatch(): { message: string, mode: T, hash: string, isolate: boolean } | null {
+    private collectBatch(): MessageQueueBatch<T> | null {
         if (this.queue.length === 0) {
             return null;
         }
@@ -255,17 +279,20 @@ export class MessageQueue2<T> {
         let mode = firstItem.mode;
         let isolate = firstItem.isolate ?? false;
         const targetModeHash = firstItem.modeHash;
+        let attachments: MessageQueueAttachment[] | undefined;
 
         // If the first message requires isolation, only process it alone
-        if (firstItem.isolate) {
+        if (firstItem.isolate || firstItem.attachments) {
             const item = this.queue.shift()!;
             sameModeMessages.push(item.message);
+            attachments = item.attachments;
             logger.debug(`[MessageQueue2] Collected isolated message with mode hash: ${targetModeHash}`);
         } else {
             // Collect all messages with the same mode until we hit an isolated message
             while (this.queue.length > 0 &&
                 this.queue[0].modeHash === targetModeHash &&
-                !this.queue[0].isolate) {
+                !this.queue[0].isolate &&
+                !this.queue[0].attachments) {
                 const item = this.queue.shift()!;
                 sameModeMessages.push(item.message);
             }
@@ -279,7 +306,8 @@ export class MessageQueue2<T> {
             message: combinedMessage,
             mode,
             hash: targetModeHash,
-            isolate
+            isolate,
+            attachments
         };
     }
 

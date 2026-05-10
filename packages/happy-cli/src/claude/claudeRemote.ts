@@ -13,8 +13,12 @@ import { PermissionResult } from "./sdk/types";
 import type { JsRuntime } from "./runClaude";
 import { mapSystemInitToMetadata, type SDKInitMetadata } from "./utils/sdkMetadata";
 import type { SessionContextBoundaryEvent } from '@slopus/happy-wire';
+import type { MessageQueueAttachment } from '@/utils/MessageQueue2';
+import type { ContentBlockParam } from '@anthropic-ai/sdk/resources/messages';
 
 export type ClaudeRemoteContextBoundary = Omit<SessionContextBoundaryEvent, 't'>;
+type ClaudeRemoteQueuedMessage = { message: string, mode: EnhancedMode, attachments?: MessageQueueAttachment[] };
+type ClaudeImageMediaType = 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';
 
 const VALID_CLAUDE_EFFORT_LEVELS: ReadonlyArray<NonNullable<QueryOptions['effort']>> = ['low', 'medium', 'high', 'max'];
 
@@ -27,6 +31,36 @@ function validateClaudeEffort(value: unknown): QueryOptions['effort'] {
     }
     logger.debug(`[claudeRemote] Ignoring invalid thinking effort: ${value}`);
     return undefined;
+}
+
+function toClaudeImageMediaType(mimeType?: string): ClaudeImageMediaType {
+    switch (mimeType) {
+        case 'image/png':
+        case 'image/jpeg':
+        case 'image/gif':
+        case 'image/webp':
+            return mimeType;
+        default:
+            return 'image/png';
+    }
+}
+
+function toClaudeUserContent(message: string, attachments?: MessageQueueAttachment[]): string | ContentBlockParam[] {
+    if (!attachments || attachments.length === 0) {
+        return message;
+    }
+
+    return [
+        { type: 'text', text: message },
+        ...attachments.map((attachment): ContentBlockParam => ({
+            type: 'image',
+            source: {
+                type: 'base64',
+                media_type: toClaudeImageMediaType(attachment.mimeType),
+                data: attachment.ref,
+            },
+        })),
+    ];
 }
 
 export async function claudeRemote(opts: {
@@ -48,7 +82,7 @@ export async function claudeRemote(opts: {
     jsRuntime?: JsRuntime,
 
     // Dynamic parameters
-    nextMessage: () => Promise<{ message: string, mode: EnhancedMode } | null>,
+    nextMessage: () => Promise<ClaudeRemoteQueuedMessage | null>,
     onReady: () => void,
     isAborted: (toolCallId: string) => boolean,
 
@@ -173,7 +207,7 @@ export async function claudeRemote(opts: {
         parent_tool_use_id: null,
         message: {
             role: 'user',
-            content: initial.message,
+            content: toClaudeUserContent(initial.message, initial.attachments),
         },
     });
 
@@ -255,7 +289,7 @@ export async function claudeRemote(opts: {
                     } else {
                         mode = next.mode;
                         sdkOptions.effort = validateClaudeEffort(next.mode.thinkingLevel);
-                        messages.push({ type: 'user', parent_tool_use_id: null, message: { role: 'user', content: next.message } });
+                        messages.push({ type: 'user', parent_tool_use_id: null, message: { role: 'user', content: toClaudeUserContent(next.message, next.attachments) } });
                     }
                 }).catch(() => {
                     messages.end();

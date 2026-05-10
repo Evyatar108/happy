@@ -392,6 +392,44 @@ describe('MessageQueue2', () => {
         expect(batch2?.mode.type).toBe('A');
     });
 
+    it('should isolate image-bearing messages from surrounding text batches', async () => {
+        const queue = new MessageQueue2<{ type: string }>((mode) => mode.type);
+        const attachments = [{ type: 'image' as const, ref: 'base64-image', mimeType: 'image/png' }];
+
+        queue.push('before', { type: 'A' });
+        queue.pushWithAttachments('image prompt', { type: 'A' }, attachments);
+        queue.push('after', { type: 'A' });
+
+        const batch1 = await queue.waitForMessagesAndGetAsString();
+        expect(batch1?.message).toBe('before');
+        expect(batch1?.attachments).toBeUndefined();
+
+        const batch2 = await queue.waitForMessagesAndGetAsString();
+        expect(batch2?.message).toBe('image prompt');
+        expect(batch2?.message).not.toContain('\n');
+        expect(batch2?.attachments).toEqual(attachments);
+
+        const batch3 = await queue.waitForMessagesAndGetAsString();
+        expect(batch3?.message).toBe('after');
+        expect(batch3?.attachments).toBeUndefined();
+    });
+
+    it('should not join an image-bearing first message with following text', async () => {
+        const queue = new MessageQueue2<{ type: string }>((mode) => mode.type);
+
+        queue.pushWithAttachments('image prompt', { type: 'A' }, [{ type: 'image', ref: 'base64-image' }]);
+        queue.push('after', { type: 'A' });
+
+        const batch1 = await queue.waitForMessagesAndGetAsString();
+        expect(batch1?.message).toBe('image prompt');
+        expect(batch1?.message).not.toContain('\n');
+        expect(batch1?.attachments).toEqual([{ type: 'image', ref: 'base64-image' }]);
+
+        const batch2 = await queue.waitForMessagesAndGetAsString();
+        expect(batch2?.message).toBe('after');
+        expect(batch2?.attachments).toBeUndefined();
+    });
+
     it('should stop batching when hitting isolated message', async () => {
         const queue = new MessageQueue2<{ type: string }>((mode) => mode.type);
         

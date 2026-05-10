@@ -355,7 +355,8 @@ export async function claudeRemoteLauncher(session: Session): Promise<'switch' |
                             permissionHandler.handleModeChange(mode.permissionMode);
                             return {
                                 message: msg.message,
-                                mode: msg.mode
+                                mode: msg.mode,
+                                attachments: msg.attachments,
                             }
                         }
 
