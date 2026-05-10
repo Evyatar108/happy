@@ -16,6 +16,7 @@ function createStubSession(): Session {
                 registerHandler: vi.fn(),
             },
             updateAgentState: vi.fn(),
+            sendPushEvent: vi.fn(),
             sessionId: 'test-session',
             getMetadata: vi.fn().mockReturnValue({}),
         },
