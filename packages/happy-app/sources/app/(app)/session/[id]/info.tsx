@@ -207,7 +207,17 @@ function SessionInfoContent({ session }: { session: Session }) {
                 {/* Session Header */}
                 <View style={{ maxWidth: layout.maxWidth, alignSelf: 'center', width: '100%' }}>
                     <View style={{ alignItems: 'center', paddingVertical: 24, backgroundColor: theme.colors.surface, marginBottom: 8, borderRadius: 12, marginHorizontal: 16, marginTop: 16 }}>
-                        <Avatar id={getSessionAvatarId(session)} size={80} monochrome={!sessionStatus.isConnected} flavor={session.metadata?.flavor} />
+                        <Avatar
+                            id={getSessionAvatarId(session)}
+                            size={80}
+                            monochrome={!sessionStatus.isConnected}
+                            flavor={session.metadata?.flavor}
+                            summaryText={session.metadata?.summary?.text}
+                            metadataName={session.metadata?.name}
+                            summaryUpdatedAt={session.metadata?.summary?.updatedAt}
+                            pinnedAvatarImageIndex={session.pinnedAvatarImageIndex}
+                            pinnedAvatarColorIndex={session.pinnedAvatarColorIndex}
+                        />
                         <Text style={{
                             fontSize: 20,
                             fontWeight: '600',

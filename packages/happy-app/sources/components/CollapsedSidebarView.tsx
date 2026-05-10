@@ -64,7 +64,16 @@ export const CollapsedSidebarView = React.memo(({
                 onPress={() => navigateToSession(item.id)}
                 accessibilityLabel={item.name}
             >
-                <Avatar id={item.avatarId} size={40} flavor={item.flavor} />
+                <Avatar
+                    id={item.avatarId}
+                    size={40}
+                    flavor={item.flavor}
+                    summaryText={item.summaryText}
+                    metadataName={item.metadataName}
+                    summaryUpdatedAt={item.summaryUpdatedAt}
+                    pinnedAvatarImageIndex={item.pinnedAvatarImageIndex}
+                    pinnedAvatarColorIndex={item.pinnedAvatarColorIndex}
+                />
             </Pressable>
         );
     }, [pathname, navigateToSession]);

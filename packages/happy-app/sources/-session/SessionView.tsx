@@ -134,7 +134,7 @@ export const SessionView = React.memo((props: { id: string }) => {
                 avatarId: undefined,
                 onAvatarPress: undefined,
                 isConnected: false,
-                flavor: null
+                flavor: null,
             };
         }
 
@@ -145,7 +145,7 @@ export const SessionView = React.memo((props: { id: string }) => {
                 avatarId: undefined,
                 onAvatarPress: undefined,
                 isConnected: false,
-                flavor: null
+                flavor: null,
             };
         }
 
@@ -157,6 +157,11 @@ export const SessionView = React.memo((props: { id: string }) => {
             onAvatarPress: () => router.push(`/session/${sessionId}/info`),
             isConnected: isConnected,
             flavor: session.metadata?.flavor || null,
+            summaryText: session.metadata?.summary?.text,
+            metadataName: session.metadata?.name,
+            summaryUpdatedAt: session.metadata?.summary?.updatedAt,
+            pinnedAvatarImageIndex: session.pinnedAvatarImageIndex,
+            pinnedAvatarColorIndex: session.pinnedAvatarColorIndex,
             tintColor: isConnected ? '#000' : '#8E8E93'
         };
     }, [session, isDataReady, sessionId, router]);

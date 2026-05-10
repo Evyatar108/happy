@@ -95,6 +95,11 @@ export interface SessionRowData {
     subtitle: string;
     avatarId: string;
     flavor: string | null;
+    summaryText?: string;
+    metadataName?: string;
+    summaryUpdatedAt?: number;
+    pinnedAvatarImageIndex?: number;
+    pinnedAvatarColorIndex?: number;
     state: SessionState;
     // Only present on inactive sessions — active sessions never show "last seen"
     // and activeAt updates on every heartbeat, causing needless deep-equal diffs
@@ -133,6 +138,11 @@ function buildSessionRowData(session: Session, machines: Record<string, Machine>
         subtitle: getSessionSubtitle(session),
         avatarId: getSessionAvatarId(session),
         flavor: session.metadata?.flavor ?? null,
+        summaryText: session.metadata?.summary?.text,
+        metadataName: session.metadata?.name,
+        summaryUpdatedAt: session.metadata?.summary?.updatedAt,
+        pinnedAvatarImageIndex: session.pinnedAvatarImageIndex,
+        pinnedAvatarColorIndex: session.pinnedAvatarColorIndex,
         state,
         ...(!session.active && { activeAt: session.activeAt, createdAt: session.createdAt }),
         hasDraft: !!session.draft,

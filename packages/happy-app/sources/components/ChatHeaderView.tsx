@@ -24,6 +24,11 @@ interface ChatHeaderViewProps {
     tintColor?: string;
     isConnected?: boolean;
     flavor?: string | null;
+    summaryText?: string;
+    metadataName?: string;
+    summaryUpdatedAt?: number;
+    pinnedAvatarImageIndex?: number;
+    pinnedAvatarColorIndex?: number;
     onAvatarMenuRequest?: (anchor: SessionActionsAnchor) => void;
     avatarMenuExpanded?: boolean;
     avatarMenuSession?: Session | null;
@@ -41,6 +46,11 @@ export const ChatHeaderView: React.FC<ChatHeaderViewProps> = ({
     avatarId,
     isConnected = true,
     flavor,
+    summaryText,
+    metadataName,
+    summaryUpdatedAt,
+    pinnedAvatarImageIndex,
+    pinnedAvatarColorIndex,
     onAvatarMenuRequest,
     avatarMenuExpanded = false,
     avatarMenuSession,
@@ -206,6 +216,11 @@ export const ChatHeaderView: React.FC<ChatHeaderViewProps> = ({
                                             size={32}
                                             monochrome={!isConnected}
                                             flavor={flavor}
+                                            summaryText={summaryText}
+                                            metadataName={metadataName}
+                                            summaryUpdatedAt={summaryUpdatedAt}
+                                            pinnedAvatarImageIndex={pinnedAvatarImageIndex}
+                                            pinnedAvatarColorIndex={pinnedAvatarColorIndex}
                                         />
                                     </Pressable>
                                 </SessionActionsNativeMenu>
@@ -221,6 +236,11 @@ export const ChatHeaderView: React.FC<ChatHeaderViewProps> = ({
                                         size={32}
                                         monochrome={!isConnected}
                                         flavor={flavor}
+                                        summaryText={summaryText}
+                                        metadataName={metadataName}
+                                        summaryUpdatedAt={summaryUpdatedAt}
+                                        pinnedAvatarImageIndex={pinnedAvatarImageIndex}
+                                        pinnedAvatarColorIndex={pinnedAvatarColorIndex}
                                     />
                                 </Pressable>
                             )}
