@@ -8,6 +8,17 @@ import { logger } from '@/ui/logger';
 import { HAPPY_FORKED_FROM_SESSION_ID } from '@/utils/envNames';
 import type { TrackedSession } from './types';
 
+/**
+ * Spawn env passthrough contract for fork-into-worktree (see happy-cli/CLAUDE.md
+ * "Codex fork-into-worktree RPC" + "Spawn env passthrough contract"):
+ * fork is clone semantics, not reconnect. The child must NOT inherit reconnect
+ * wiring from the daemon process, and must NOT inherit any daemon-private
+ * scoped env. Maintenance rule: when introducing any new env prefix that is
+ * scoped to the daemon process or to a reconnect path, add it here so fork
+ * children continue to be spawned with a clone-clean env.
+ */
+export const FORK_ENV_DENYLIST_PATTERN = /^HAPPY_(RECONNECT|DAEMON_PRIVATE)_/;
+
 export type ForkSessionDeps = {
   findTrackedSessionById: (happySessionId: string) => TrackedSession | undefined;
   fetchServerSessionMetadata: (sessionId: string, encryptionKey: Uint8Array, encryptionVariant: 'legacy' | 'dataKey') => Promise<Metadata | null>;
@@ -159,7 +170,7 @@ export async function forkSession(options: ForkSessionOptions, deps: ForkSession
 
     const env: NodeJS.ProcessEnv = {};
     for (const [key, value] of Object.entries(deps.baseEnv)) {
-      if (!key.startsWith('HAPPY_RECONNECT_')) {
+      if (!FORK_ENV_DENYLIST_PATTERN.test(key)) {
         env[key] = value;
       }
     }

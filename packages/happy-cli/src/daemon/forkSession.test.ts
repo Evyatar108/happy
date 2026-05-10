@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Metadata } from '@/api/types';
 import { HAPPY_FORKED_FROM_SESSION_ID } from '@/utils/envNames';
 import type { TrackedSession } from './types';
-import { forkSession } from './forkSession';
+import { FORK_ENV_DENYLIST_PATTERN, forkSession } from './forkSession';
 
 const PARENT_REPO_ROOT = '/parent';
 const defaultRealpath = (p: string) => Promise.resolve(p);
@@ -233,6 +233,45 @@ describe('forkSession', () => {
     });
 
     expect(result).toEqual({ type: 'requestToApproveDirectoryCreation', directory: '/fork/worktree' });
+  });
+
+  it('strips every env var matching the fork denylist pattern (HAPPY_RECONNECT_*, HAPPY_DAEMON_PRIVATE_*)', async () => {
+    expect(FORK_ENV_DENYLIST_PATTERN.test('HAPPY_RECONNECT_SESSION_ID')).toBe(true);
+    expect(FORK_ENV_DENYLIST_PATTERN.test('HAPPY_RECONNECT_ENCRYPTION_KEY')).toBe(true);
+    expect(FORK_ENV_DENYLIST_PATTERN.test('HAPPY_DAEMON_PRIVATE_TOKEN')).toBe(true);
+    expect(FORK_ENV_DENYLIST_PATTERN.test('HAPPY_DAEMON_PRIVATE_FUTURE_KEY')).toBe(true);
+    expect(FORK_ENV_DENYLIST_PATTERN.test('HAPPY_OTHER_VAR')).toBe(false);
+    expect(FORK_ENV_DENYLIST_PATTERN.test('PATH')).toBe(false);
+
+    const parent = trackedSession();
+    const spawnTrackedHappyProcess = vi.fn().mockResolvedValue({ type: 'success', sessionId: 'fork-child-id' });
+
+    await forkSession({ parentSessionId: 'parent-local-id', worktreePath: '/fork/worktree' }, {
+      findTrackedSessionById: vi.fn().mockReturnValue(parent),
+      fetchServerSessionMetadata: vi.fn(),
+      spawnTrackedHappyProcess,
+      stat: vi.fn().mockResolvedValue({ isDirectory: () => true }),
+      realpath: vi.fn(defaultRealpath),
+      runGit: vi.fn(defaultRunGit),
+      baseEnv: {
+        PATH: '/bin',
+        HAPPY_RECONNECT_SESSION_ID: 'old-session',
+        HAPPY_RECONNECT_ENCRYPTION_KEY: 'old-key',
+        HAPPY_DAEMON_PRIVATE_TOKEN: 'private-token',
+        HAPPY_DAEMON_PRIVATE_FUTURE_KEY: 'future',
+        HAPPY_OTHER_VAR: 'kept',
+      },
+    });
+
+    const launchEnv = spawnTrackedHappyProcess.mock.calls[0][0].env;
+    expect(Object.keys(launchEnv).filter((key: string) => FORK_ENV_DENYLIST_PATTERN.test(key))).toHaveLength(0);
+    expect(launchEnv.HAPPY_RECONNECT_SESSION_ID).toBeUndefined();
+    expect(launchEnv.HAPPY_RECONNECT_ENCRYPTION_KEY).toBeUndefined();
+    expect(launchEnv.HAPPY_DAEMON_PRIVATE_TOKEN).toBeUndefined();
+    expect(launchEnv.HAPPY_DAEMON_PRIVATE_FUTURE_KEY).toBeUndefined();
+    expect(launchEnv.HAPPY_OTHER_VAR).toBe('kept');
+    expect(launchEnv.PATH).toBe('/bin');
+    expect(launchEnv[HAPPY_FORKED_FROM_SESSION_ID]).toBe('parent-local-id');
   });
 
   it('rejects an absolute worktree directory outside the parent repo and not registered as a worktree', async () => {
