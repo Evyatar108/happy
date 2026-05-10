@@ -150,6 +150,7 @@ Local HTTP server (127.0.0.1 only) provides:
 - Atomic fan-out spawns persist one JSON file per transaction under `<happyHomeDir>/pending-worktrees/`.
 - The daemon records `worktreeCreated`, then `processSpawned` with PID via the `spawnTrackedHappyProcess` PID hook, then `sessionRegistered` after the local `/session-started` webhook.
 - Crash recovery should treat `sessionRegistered` records as hands-off and only clean earlier states.
+- Worktree transaction recovery uses `execFile('git', args)` and OS PID liveness checks (`tasklist` on Win32, `process.kill(pid, 0)` elsewhere); keep cleanup logic shell-free for Windows quoting safety.
 
 ## 6. WebSocket Communication
 

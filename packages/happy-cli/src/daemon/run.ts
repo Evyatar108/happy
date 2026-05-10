@@ -36,6 +36,7 @@ import { loadOrCreateTofuKeypairs } from '@/tofu/keypairManager';
 import { TunnelManager } from '@/tunnel/tunnelManager';
 import { forkSession } from './forkSession';
 import { spawnInWorktree } from './spawnInWorktree';
+import { recoverPending } from './worktreeTransactions';
 import { stopTrackedSession } from './stopTrackedSession';
 
 // Prepare initial metadata
@@ -168,6 +169,9 @@ export async function startDaemon(): Promise<void> {
     // Ensure auth and machine registration BEFORE anything else
     const { credentials, machineId } = await authAndSetupMachineIfNeeded();
     logger.debug('[DAEMON RUN] Auth and machine setup complete');
+
+    await recoverPending(configuration.happyHomeDir);
+    logger.debug('[DAEMON RUN] Pending worktree transaction recovery complete');
 
     const tofuKeypairs = await loadOrCreateTofuKeypairs(configuration.happyHomeDir);
     if (tofuKeypairs.createdEd25519) {
