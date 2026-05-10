@@ -1,6 +1,7 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { performance } from 'node:perf_hooks';
 import { describe, expect, it, vi } from 'vitest';
 
 import { readPendingWorktreeTransactions } from './worktreeTransactions';
@@ -22,6 +23,31 @@ function deps(overrides: Partial<SpawnInWorktreeDeps> = {}): SpawnInWorktreeDeps
     killProcess: vi.fn(),
     ...overrides,
   };
+}
+
+function fanoutDeps(): SpawnInWorktreeDeps & { createdWorktrees: Set<string> } {
+  let sessionCounter = 0;
+  const createdWorktrees = new Set<string>();
+
+  const testDeps = deps({
+    runGit: vi.fn(async (_cwd, args) => {
+      if (args[0] === 'worktree' && args[1] === 'add') {
+        const worktreePath = args[4];
+        if (createdWorktrees.has(worktreePath)) {
+          throw new Error(`worktree path already exists: ${worktreePath}`);
+        }
+        createdWorktrees.add(worktreePath);
+      }
+      return '';
+    }),
+    spawnTrackedHappyProcess: vi.fn(async ({ onProcessSpawned }) => {
+      const sessionNumber = ++sessionCounter;
+      await onProcessSpawned?.(4000 + sessionNumber);
+      return { type: 'success' as const, sessionId: `session-${sessionNumber}` };
+    }),
+  });
+
+  return Object.assign(testDeps, { createdWorktrees });
 }
 
 describe('spawnInWorktree', () => {
@@ -103,5 +129,52 @@ describe('spawnInWorktree', () => {
     expect(result).toMatchObject({ type: 'error', errorMessage: expect.stringContaining('Machine mismatch') });
     expect(testDeps.runGit).not.toHaveBeenCalled();
     expect(await readPendingWorktreeTransactions(testDeps.daemonHome)).toEqual([]);
+  });
+
+  it('handles two concurrent new-worktree spawns within 100ms without path or session collisions across ten trials', async () => {
+    for (let trial = 0; trial < 10; trial++) {
+      const repoPath = mkdtempSync(join(tmpdir(), 'happy-repo-pair-'));
+      const testDeps = fanoutDeps();
+      const issuedAt: number[] = [];
+
+      const first = (() => {
+        issuedAt.push(performance.now());
+        return spawnInWorktree({ machineId: 'machine-1', repoPath, runId: `run-pair-${trial}`, agent: 'codex' }, testDeps);
+      })();
+      const second = (() => {
+        issuedAt.push(performance.now());
+        return spawnInWorktree({ machineId: 'machine-1', repoPath, runId: `run-pair-${trial}`, agent: 'codex' }, testDeps);
+      })();
+
+      const results = await Promise.all([first, second]);
+      const successes = results.filter(result => result.type === 'success');
+      const worktreePaths = successes.map(result => result.worktreePath);
+      const sessionIds = successes.map(result => result.sessionId);
+
+      expect(Math.max(...issuedAt) - Math.min(...issuedAt)).toBeLessThan(100);
+      expect(successes).toHaveLength(2);
+      expect(new Set(worktreePaths).size).toBe(2);
+      expect(new Set(sessionIds).size).toBe(2);
+      expect(testDeps.createdWorktrees.size).toBe(2);
+    }
+  });
+
+  it('handles a ten-spawn burst within one second without generated-name collisions', async () => {
+    const repoPath = mkdtempSync(join(tmpdir(), 'happy-repo-burst-'));
+    const testDeps = fanoutDeps();
+    const issuedAt: number[] = [];
+
+    const results = await Promise.all(Array.from({ length: 10 }, (_value, index) => {
+      issuedAt.push(performance.now());
+      return spawnInWorktree({ machineId: 'machine-1', repoPath, runId: 'run-burst', agent: index % 2 === 0 ? 'codex' : 'claude' }, testDeps);
+    }));
+
+    const successes = results.filter(result => result.type === 'success');
+    const worktreePaths = successes.map(result => result.worktreePath);
+
+    expect(Math.max(...issuedAt) - Math.min(...issuedAt)).toBeLessThan(1000);
+    expect(successes).toHaveLength(10);
+    expect(new Set(worktreePaths).size).toBe(10);
+    expect(testDeps.createdWorktrees.size).toBe(10);
   });
 });

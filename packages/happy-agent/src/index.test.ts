@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { execFileSync, execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
