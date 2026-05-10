@@ -684,7 +684,11 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                     } else {
                         setMessage('');
                         clearDraft();
-                        sync.sendMessage(sessionId, body, sendOptions);
+                        try {
+                            await sync.sendMessage(sessionId, body, sendOptions);
+                        } catch {
+                            return false;
+                        }
                     }
                     return true;
                 }

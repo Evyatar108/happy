@@ -271,4 +271,25 @@ describe('SessionView file sidebar routing', () => {
         expect(sendMessage).not.toHaveBeenCalled();
         expect(modalAlert).toHaveBeenCalledWith('common.error', 'write failed', [{ text: 'common.ok' }]);
     });
+
+    it('returns false when sync.sendMessage rejects on the now path so AgentInput preserves attachments', async () => {
+        sessionWriteFile.mockResolvedValue({ success: true });
+        sendMessage.mockRejectedValue(new Error('network error'));
+
+        await act(async () => {
+            TestRenderer.create(<SessionView id="session-1" />);
+        });
+
+        await act(async () => {
+            agentInputProps?.onChangeText?.('hello');
+        });
+
+        let result: boolean | void = undefined;
+        await act(async () => {
+            result = await agentInputProps?.onSend?.('now', []);
+        });
+
+        expect(sendMessage).toHaveBeenCalledOnce();
+        expect(result).toBe(false);
+    });
 });
