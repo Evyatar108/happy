@@ -23,6 +23,10 @@ Two clones on disk because Windows' 260-char MAX_PATH blows up Android native bu
 
 When you edit code in `D:\harness-efforts\happy`, either commit + push to fork and `git pull` in `D:\h` before rebuilding, or edit in `D:\h` directly and sync back. The 2026-04-22 PR-A..PR-D batch was built in a git worktree under `D:\harness-efforts\happy\.ralph\jobs\chat-text-ux-eink\worktree`, rebased onto fresh `origin/main`, pushed to `fork/main`, then pulled into `D:\h` for the dev-client Metro reload.
 
+## Codex sandbox verification notes
+
+2026-05-10 verified-clean investigation for Bug 3 / US-002, run on Windows 11 + Git Bash with `codex-cli 0.128.0-copilot-api.1`. No policy code was changed. Deterministic coverage confirms the local policy path for all four Codex modes: without Happy-managed sandbox, `default` maps to `untrusted` + `workspace-write`, `read-only` maps to `never` + `read-only`, `safe-yolo` maps to `on-failure` + `workspace-write`, and `yolo` maps to `on-failure` + `danger-full-access`. With Happy-managed sandbox enabled, all four modes intentionally send Codex `never` + `danger-full-access` so the outer Happy sandbox owns filesystem enforcement and Codex does not double-block operations that Happy has already allowed. `CodexAppServerClient` serializes those modes to `thread/start.sandbox` and `turn/start.sandboxPolicy` unchanged. The real web-session operation matrix still needs human/runtime validation when a live Codex web session is available; no targeted code fix was justified by the local evidence.
+
 ## Branches
 
 | Branch | Status | What's in it |

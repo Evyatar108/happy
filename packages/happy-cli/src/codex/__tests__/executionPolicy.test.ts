@@ -28,4 +28,23 @@ describe('resolveCodexExecutionPolicy', () => {
             sandbox: 'read-only',
         });
     });
+
+    it.each([
+        ['default', 'untrusted', 'workspace-write'],
+        ['read-only', 'never', 'read-only'],
+        ['safe-yolo', 'on-failure', 'workspace-write'],
+        ['yolo', 'on-failure', 'danger-full-access'],
+    ] as const)('maps %s to the expected Codex policy without managed sandbox', (mode, approvalPolicy, sandbox) => {
+        expect(resolveCodexExecutionPolicy(mode, false)).toEqual({ approvalPolicy, sandbox });
+    });
+
+    it.each(['default', 'read-only', 'safe-yolo', 'yolo'] as const)(
+        'lets the Happy-managed sandbox own enforcement for %s',
+        (mode) => {
+            expect(resolveCodexExecutionPolicy(mode, true)).toEqual({
+                approvalPolicy: 'never',
+                sandbox: 'danger-full-access',
+            });
+        },
+    );
 });
