@@ -70,16 +70,28 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
     const effortItems = React.useMemo(() => toPickerItems(props.availableEffortLevels), [props.availableEffortLevels]);
 
     const handleSelectModel = React.useCallback((key: string) => {
+        const mode = props.availableModels.find((m) => m.key === key);
+        if (mode) {
+            props.updateModelMode(mode);
+        }
         void sessionEmitAgentConfiguration({ model: key });
-    }, [sessionEmitAgentConfiguration]);
+    }, [sessionEmitAgentConfiguration, props.availableModels, props.updateModelMode]);
 
     const handleSelectPermissionMode = React.useCallback((key: string) => {
+        const mode = props.availableModes.find((m) => m.key === key);
+        if (mode) {
+            props.updatePermissionMode(mode);
+        }
         void sessionEmitAgentConfiguration({ permissionMode: key });
-    }, [sessionEmitAgentConfiguration]);
+    }, [sessionEmitAgentConfiguration, props.availableModes, props.updatePermissionMode]);
 
     const handleSelectEffortLevel = React.useCallback((key: string) => {
+        const level = props.availableEffortLevels.find((l) => l.key === key);
+        if (level) {
+            props.updateEffortLevel(level);
+        }
         void sessionEmitAgentConfiguration({ thinkingLevel: key });
-    }, [sessionEmitAgentConfiguration]);
+    }, [sessionEmitAgentConfiguration, props.availableEffortLevels, props.updateEffortLevel]);
 
     const handleResume = React.useCallback(() => {
         if (!canResume || isResuming) {
