@@ -352,6 +352,11 @@ Goal: make it possible to customize any part of the Happy interface from within 
 
 Goal: the brutalist icons are a big part of what makes Happy feel good to use — lean into that.
 
+Status: **v1 shipped 2026-05-10** as the opt-in `brutalist-topic` avatar style (Settings → Appearance). Deterministic mapping from `(metadata.summary.text + name + flavor)` into the existing 420-PNG curated brutalist set via djb2 over a normalized stop-word-filtered token bag — on-device, no network, no APK growth. Per-session pin toggle in `SessionContextDrawer` freezes the resolved tuple in local MMKV. Legacy `brutalist` variant preserved as a peer choice (deliberate "no backward compatibility ever" exception). See `packages/happy-app/sources/components/AvatarTopicBrutalist.tsx`, `sources/utils/avatarTopic.ts`, `sources/components/avatarBrutalistAssets.ts`. v1 only promises topic-derived deterministic selection (identical normalized tuple → identical icon), NOT semantic clustering.
+
+Future / v2:
+
+- Semantic clustering so "kitchen renovation" and "remodel kitchen" map to nearby icons (SimHash or feature-hashing over token bags is the documented upgrade path)
 - Generate custom brutalist-style vector icons per session based on the topic
 - Keep the same aesthetic — bold, minimal, appealing
 - Potential paid feature
