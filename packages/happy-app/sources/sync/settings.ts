@@ -27,7 +27,8 @@ export const SettingsSchema = z.object({
     compactSessionView: z.boolean().describe('Whether to use compact view for active sessions'),
 
     hideInactiveSessions: z.boolean().describe('Hide inactive sessions in the main list'),
-    expResumeSession: z.boolean().describe('Enable experimental session resume feature'),
+    /** @deprecated The resume feature is now always enabled; this field is kept for schema backward compatibility only. */
+    expResumeSession: z.boolean().describe('Deprecated: resume feature is always enabled; field retained for backward compatibility'),
     fileDiffsSidebar: z.boolean().describe('Show the file diffs sidebar next to the chat on desktop'),
     reviewPromptAnswered: z.boolean().describe('Whether the review prompt has been answered'),
     reviewPromptLikedApp: z.boolean().nullish().describe('Whether user liked the app when asked'),

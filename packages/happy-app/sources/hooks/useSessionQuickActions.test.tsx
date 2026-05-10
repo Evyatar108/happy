@@ -71,7 +71,6 @@ vi.mock('@/sync/storage', () => ({
             resumeSupport: { rpcAvailable: true },
         },
     }),
-    useSetting: (key: string) => key === 'expResumeSession',
     useSession: vi.fn(),
 }));
 
