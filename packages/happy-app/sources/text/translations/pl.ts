@@ -337,6 +337,7 @@ export const pl: TranslationStructure = {
         sessionDeletedDescription: 'Ta sesja została trwale usunięta',
         requestSwitchFailed: 'Nie udało się zaktualizować żądania przełączenia',
         sendFailed: 'Nie udało się wysłać wiadomości',
+        attachmentTooLarge: 'Image attachments must be 4 MB or smaller',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

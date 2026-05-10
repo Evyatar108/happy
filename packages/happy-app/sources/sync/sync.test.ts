@@ -206,6 +206,18 @@ describe('sync.sendMessage switch policy', () => {
         });
     });
 
+    it('rejects image attachments larger than 4 MB encoded before encrypting', async () => {
+        const { encryptRawRecord } = installSyncHarness();
+        const attachments = [
+            { type: 'image' as const, ref: 'data:image/png;base64,' + 'a'.repeat(4 * 1024 * 1024 + 1), mimeType: 'image/png' }
+        ];
+
+        await sync.sendMessage('session-1', 'hello', { attachments });
+
+        expect(encryptRawRecord).not.toHaveBeenCalled();
+        expect(Modal.alert).toHaveBeenCalledWith('common.error', 'errors.attachmentTooLarge');
+    });
+
     it('requests when-idle before enqueueing and tags only deferred responses', async () => {
         const order: string[] = [];
         mocks.sessionRPC.mockImplementation(async () => {

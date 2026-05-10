@@ -320,6 +320,7 @@ export const ca: TranslationStructure = {
         sessionDeletedDescription: 'Aquesta sessió s\'ha eliminat permanentment',
         requestSwitchFailed: 'No s\'ha pogut actualitzar la sol·licitud de canvi',
         sendFailed: 'No s\'ha pogut enviar el missatge',
+        attachmentTooLarge: 'Image attachments must be 4 MB or smaller',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

@@ -319,6 +319,7 @@ export const pt: TranslationStructure = {
         sessionDeletedDescription: 'Esta sessão foi removida permanentemente',
         requestSwitchFailed: 'Falha ao atualizar a solicitação de alternância',
         sendFailed: 'Falha ao enviar mensagem',
+        attachmentTooLarge: 'Image attachments must be 4 MB or smaller',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

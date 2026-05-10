@@ -321,6 +321,7 @@ export const zhHans: TranslationStructure = {
         sessionDeletedDescription: '此会话已被永久删除',
         requestSwitchFailed: '更新切换请求失败',
         sendFailed: '发送消息失败',
+        attachmentTooLarge: 'Image attachments must be 4 MB or smaller',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

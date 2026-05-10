@@ -85,6 +85,17 @@ type UserMessageAttachment = {
     mimeType?: string;
 };
 
+const MAX_ENCODED_ATTACHMENT_BYTES = 4 * 1024 * 1024;
+
+function getEncodedAttachmentSize(ref: string): number {
+    const dataUrlSeparator = ref.indexOf(',');
+    return dataUrlSeparator === -1 ? ref.length : ref.length - dataUrlSeparator - 1;
+}
+
+function hasOversizeAttachment(attachments: UserMessageAttachment[] | undefined): boolean {
+    return attachments?.some(attachment => getEncodedAttachmentSize(attachment.ref) > MAX_ENCODED_ATTACHMENT_BYTES) ?? false;
+}
+
 export type SendMessageOptions = {
     displayText?: string;
     source?: MessageSentSource;
@@ -844,6 +855,10 @@ class Sync {
 
         const { permissionMode, model, thinkingLevel } = resolveMessageModeMeta(session);
         const { displayText, source = 'chat', attachments } = options ?? {};
+        if (hasOversizeAttachment(attachments)) {
+            Modal.alert(t('common.error'), t('errors.attachmentTooLarge'));
+            return;
+        }
         const shouldRequestDeferredSwitch = isWhenIdle
             && session.metadata?.flavor === 'claude'
             && getSessionMode(session) === 'local';

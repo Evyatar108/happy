@@ -40,6 +40,7 @@ const REQUIRED_DEFERRED_SWITCH_KEYS = [
     'abortPrompt.cancel',
     'errors.requestSwitchFailed',
     'errors.sendFailed',
+    'errors.attachmentTooLarge',
 ] as const;
 
 const REQUIRED_SESSION_DRAWER_KEYS = [

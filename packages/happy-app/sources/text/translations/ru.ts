@@ -308,6 +308,7 @@ export const ru: TranslationStructure = {
         sessionDeletedDescription: 'Эта сессия была окончательно удалена',
         requestSwitchFailed: 'Не удалось обновить запрос на переключение',
         sendFailed: 'Не удалось отправить сообщение',
+        attachmentTooLarge: 'Image attachments must be 4 MB or smaller',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

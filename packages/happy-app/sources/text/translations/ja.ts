@@ -321,6 +321,7 @@ export const ja: TranslationStructure = {
         sessionDeletedDescription: 'このセッションは完全に削除されました',
         requestSwitchFailed: '切り替えリクエストを更新できませんでした',
         sendFailed: 'メッセージを送信できませんでした',
+        attachmentTooLarge: 'Image attachments must be 4 MB or smaller',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>

@@ -320,6 +320,7 @@ export const zhHant: TranslationStructure = {
         sessionDeletedDescription: '此工作階段已被永久刪除',
         requestSwitchFailed: '更新切換請求失敗',
         sendFailed: '傳送訊息失敗',
+        attachmentTooLarge: 'Image attachments must be 4 MB or smaller',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
