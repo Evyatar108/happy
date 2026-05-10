@@ -5,6 +5,7 @@ import axios from 'axios';
 import { createHappyServer, type HappyServerHandle } from 'happy-server';
 
 import { ApiClient } from '@/api/api';
+import type { ForkSessionOptions } from '@/api/apiMachine';
 import { TrackedSession, SessionEncryptionData } from './types';
 import { MachineMetadata, DaemonState, Metadata } from '@/api/types';
 import { SpawnSessionOptions, SpawnSessionResult } from '@/modules/common/registerCommonHandlers';
@@ -32,6 +33,7 @@ import { encodeBase64, decodeBase64, decrypt } from '@/api/encryption';
 import { pickFreeLoopbackPort } from '@/utils/pickFreeLoopbackPort';
 import { loadOrCreateTofuKeypairs } from '@/tofu/keypairManager';
 import { TunnelManager } from '@/tunnel/tunnelManager';
+import { forkSession } from './forkSession';
 
 // Prepare initial metadata
 // Suffix host with `-dev` for the HAPPY_VARIANT=dev variant so the dev daemon
@@ -732,6 +734,14 @@ export async function startDaemon(): Promise<void> {
       }
     };
 
+    const forkSessionHandler = (options: ForkSessionOptions): Promise<SpawnSessionResult> => forkSession(options, {
+      findTrackedSessionById,
+      fetchServerSessionMetadata,
+      spawnTrackedHappyProcess,
+      stat: fs.stat,
+      baseEnv: process.env,
+    });
+
     // Stop a session by sessionId or PID fallback
     const stopSession = (sessionId: string): boolean => {
       logger.debug(`[DAEMON RUN] Attempting to stop session ${sessionId}`);
@@ -845,6 +855,7 @@ export async function startDaemon(): Promise<void> {
     apiMachine.setRPCHandlers({
       spawnSession,
       resumeSession,
+      forkSession: forkSessionHandler,
       stopSession,
       requestShutdown: () => requestShutdown('happy-app')
     });

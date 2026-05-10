@@ -75,9 +75,18 @@ interface DaemonToServerEvents {
 type MachineRpcHandlers = {
     spawnSession: (options: SpawnSessionOptions) => Promise<SpawnSessionResult>;
     resumeSession?: (sessionId: string, options?: { model?: string; permissionMode?: string }) => Promise<SpawnSessionResult>;
+    forkSession?: (options: ForkSessionOptions) => Promise<SpawnSessionResult>;
     stopSession: (sessionId: string) => boolean;
     requestShutdown: () => void;
 }
+
+export type ForkSessionOptions = {
+    parentSessionId: string;
+    worktreePath: string;
+    model?: string;
+    permissionMode?: string;
+    effortLevel?: string;
+};
 
 export class ApiMachineClient {
     private socket!: Socket<ServerToDaemonEvents, DaemonToServerEvents>;
@@ -86,6 +95,7 @@ export class ApiMachineClient {
     private lastKnownResumeSupport: ResumeSupport | null = null;
     private rpcHandlerManager: RpcHandlerManager;
     private resumeSessionHandler: ((sessionId: string, options?: { model?: string; permissionMode?: string }) => Promise<SpawnSessionResult>) | null = null;
+    private forkSessionHandler: ((options: ForkSessionOptions) => Promise<SpawnSessionResult>) | null = null;
     private reconnectInterval: NodeJS.Timeout | null = null;
 
     constructor(
@@ -107,17 +117,19 @@ export class ApiMachineClient {
         return {
             ...detectResumeSupport(),
             rpcAvailable: !!this.resumeSessionHandler,
-            forkRpcAvailable: true,
+            forkRpcAvailable: !!this.forkSessionHandler,
         };
     }
 
     setRPCHandlers({
         spawnSession,
         resumeSession,
+        forkSession,
         stopSession,
         requestShutdown
     }: MachineRpcHandlers) {
         this.resumeSessionHandler = resumeSession ?? null;
+        this.forkSessionHandler = forkSession ?? null;
 
         // Register spawn session handler
         this.rpcHandlerManager.registerHandler('spawn-happy-session', async (params: any) => {
@@ -145,6 +157,24 @@ export class ApiMachineClient {
         });
 
         this.syncResumeSessionRpcRegistration();
+
+        this.rpcHandlerManager.registerHandler('fork-into-worktree', async (params: any) => {
+            const { parentSessionId, worktreePath, model, permissionMode, effortLevel } = params || {};
+
+            if (!parentSessionId || typeof parentSessionId !== 'string') {
+                return { type: 'error', errorMessage: 'Parent session ID is required' };
+            }
+            if (!worktreePath || typeof worktreePath !== 'string') {
+                return { type: 'error', errorMessage: 'Worktree path is required' };
+            }
+
+            const handler = this.forkSessionHandler;
+            if (!handler) {
+                return { type: 'error', errorMessage: 'Fork session handler not available' };
+            }
+
+            return handler({ parentSessionId, worktreePath, model, permissionMode, effortLevel });
+        });
 
         // Register stop session handler
         this.rpcHandlerManager.registerHandler('stop-session', (params: any) => {

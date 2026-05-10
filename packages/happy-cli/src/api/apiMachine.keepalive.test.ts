@@ -88,6 +88,7 @@ describe('ApiMachineClient keepalive metadata refresh', () => {
         client.setRPCHandlers({
             spawnSession: vi.fn(),
             resumeSession: vi.fn(),
+            forkSession: vi.fn(),
             stopSession: vi.fn(),
             requestShutdown: vi.fn(),
         });
