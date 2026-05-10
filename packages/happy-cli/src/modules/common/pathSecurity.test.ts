@@ -99,4 +99,23 @@ describe('validatePathRealpath', () => {
             rmSync(elsewhere, { recursive: true, force: true });
         }
     });
+
+    it('allows writes when the session root itself is a junction/symlink', async () => {
+        const realDir = makeTempDir();
+        const junctionRoot = join(tmpdir(), `happy-path-security-junction-${Date.now()}`);
+        try {
+            mkdirSync(join(realDir, '.happy', 'attachments'), { recursive: true });
+            symlinkSync(realDir, junctionRoot, process.platform === 'win32' ? 'junction' : 'dir');
+
+            const result = await validatePathRealpath('.happy/attachments/file.txt', junctionRoot);
+
+            expect(result).toEqual({
+                valid: true,
+                resolvedPath: resolve(junctionRoot, '.happy/attachments/file.txt'),
+            });
+        } finally {
+            rmSync(junctionRoot, { recursive: true, force: true });
+            rmSync(realDir, { recursive: true, force: true });
+        }
+    });
 });

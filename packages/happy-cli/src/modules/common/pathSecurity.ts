@@ -55,15 +55,6 @@ export async function validatePathRealpath(targetPath: string, workingDirectory:
         let currentPath = resolvedWorkingDir;
         let deepestExistingPath = resolvedWorkingDir;
 
-        const rootStats = await lstat(resolvedWorkingDir);
-        if (rootStats.isSymbolicLink()) {
-            return {
-                valid: false,
-                resolvedPath: resolvedTarget,
-                error: `Access denied: Path '${targetPath}' resolves through a symbolic link`
-            };
-        }
-
         for (const segment of pathSegments) {
             currentPath = join(currentPath, segment);
             try {
