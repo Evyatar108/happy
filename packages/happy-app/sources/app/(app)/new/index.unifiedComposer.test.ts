@@ -15,8 +15,8 @@ describe('/new unified composer wiring', () => {
         expect(source).toContain('<AgentInput');
         expect(source).toContain('mode="new"');
         expect(source).toContain('newSessionSlots={contextRow.slots}');
-        expect(source).toContain('onAttachmentPress={handleAttachmentPress}');
-        expect(source).toContain('attachmentsPreview={attachmentsPreview}');
+        expect(source).toContain("onAttachmentPress={selectedAgent === 'claude' ? handleAttachmentPress : undefined}");
+        expect(source).toContain("attachmentsPreview={selectedAgent === 'claude' ? attachmentsPreview : null}");
         expect(source).toContain('isSendDisabled={!canSend}');
     });
 

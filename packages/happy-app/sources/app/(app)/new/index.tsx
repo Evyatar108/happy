@@ -349,8 +349,8 @@ function NewSessionScreen() {
             autocompletePrefixes={[]}
             autocompleteSuggestions={async () => []}
             newSessionSlots={contextRow.slots}
-            onAttachmentPress={handleAttachmentPress}
-            attachmentsPreview={attachmentsPreview}
+            onAttachmentPress={selectedAgent === 'claude' ? handleAttachmentPress : undefined}
+            attachmentsPreview={selectedAgent === 'claude' ? attachmentsPreview : null}
         />
     );
 
