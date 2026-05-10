@@ -40,6 +40,23 @@ describe('parseMarkdown', () => {
         ]);
     });
 
+    it('parses standalone absolute-path markdown image blocks', () => {
+        expect(parseMarkdown('![POSIX screenshot](/tmp/screenshots/result.png)')).toEqual([
+            {
+                type: 'image',
+                alt: 'POSIX screenshot',
+                url: '/tmp/screenshots/result.png',
+            },
+        ]);
+        expect(parseMarkdown('![Windows screenshot](C:/Users/me/Pictures/result.png)')).toEqual([
+            {
+                type: 'image',
+                alt: 'Windows screenshot',
+                url: 'C:/Users/me/Pictures/result.png',
+            },
+        ]);
+    });
+
     it('auto-linkifies bare URLs in text blocks', () => {
         const blocks = parseMarkdown('Visit https://example.com/docs for more.');
 

@@ -11,6 +11,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const push = vi.fn((url: string) => url);
 const storeTempText = vi.fn((content: string) => 'temp-text-id');
 const parseMarkdown = vi.fn((markdown: string, taskNotifications?: unknown[]) => [] as unknown[]);
+const platform = { OS: 'android' };
+const sessionReadFile = vi.fn();
 const processClaudeMetaTags = vi.fn((raw: string) => ({
     renderMarkdown: raw,
     copyMarkdown: raw,
@@ -19,9 +21,7 @@ const processClaudeMetaTags = vi.fn((raw: string) => ({
 
 vi.mock('react-native', () => ({
     Image: 'Image',
-    Platform: {
-        OS: 'android',
-    },
+    Platform: platform,
     Pressable: 'Pressable',
     ScrollView: 'ScrollView',
     StyleSheet: {
@@ -92,6 +92,10 @@ vi.mock('@/sync/persistence', () => ({
     storeTempText: (content: string) => storeTempText(content),
 }));
 
+vi.mock('@/sync/ops', () => ({
+    sessionReadFile: (sessionId: string, path: string) => sessionReadFile(sessionId, path),
+}));
+
 vi.mock('expo-router', () => ({
     useRouter: () => ({ push }),
 }));
@@ -146,12 +150,25 @@ describe('MarkdownView', () => {
     };
 
     beforeEach(() => {
+        platform.OS = 'android';
         push.mockReset();
         storeTempText.mockReset();
         storeTempText.mockReturnValue('temp-text-id');
         parseMarkdown.mockReset();
+        sessionReadFile.mockReset();
         processClaudeMetaTags.mockReset();
     });
+
+    function mockImageMarkdown(url: string, alt = 'Preview image') {
+        processClaudeMetaTags.mockReturnValue({
+            renderMarkdown: `![${alt}](${url})`,
+            copyMarkdown: `![${alt}](${url})`,
+            taskNotifications: [],
+        });
+        parseMarkdown.mockReturnValue([
+            { type: 'image', url, alt },
+        ]);
+    }
 
     it('threads task notifications into parseMarkdown and renders the pill block', () => {
         processClaudeMetaTags.mockReturnValue({
@@ -195,5 +212,113 @@ describe('MarkdownView', () => {
         expect(storeTempText).toHaveBeenCalledWith('Task finished cleanly.');
         expect(storeTempText).not.toHaveBeenCalledWith('__HAPPY_TASK_NOTIFICATION_0__');
         expect(push).toHaveBeenCalledWith('/text-selection?textId=temp-text-id');
+    });
+
+    it('prefixes web absolute image paths with the current origin', () => {
+        platform.OS = 'web';
+        vi.stubGlobal('window', { location: { origin: 'http://localhost:8095' } });
+        mockImageMarkdown('/tmp/screenshots/result.png');
+
+        let renderer: any;
+        act(() => {
+            renderer = TestRenderer.create(<MarkdownView markdown="raw" sessionId="session-1" />);
+        });
+
+        expect(renderer!.root.findByType('Image').props.source).toEqual({
+            uri: 'http://localhost:8095/tmp/screenshots/result.png',
+        });
+        expect(sessionReadFile).not.toHaveBeenCalled();
+        vi.unstubAllGlobals();
+    });
+
+    it('passes through https and data image URIs unchanged', () => {
+        platform.OS = 'web';
+        mockImageMarkdown('https://example.com/image.png');
+
+        let renderer: any;
+        act(() => {
+            renderer = TestRenderer.create(<MarkdownView markdown="raw" sessionId="session-1" />);
+        });
+
+        expect(renderer!.root.findByType('Image').props.source).toEqual({ uri: 'https://example.com/image.png' });
+
+        mockImageMarkdown('data:image/png;base64,abc123');
+        act(() => {
+            renderer!.update(<MarkdownView markdown="raw-data" sessionId="session-1" />);
+        });
+
+        expect(renderer!.root.findByType('Image').props.source).toEqual({ uri: 'data:image/png;base64,abc123' });
+        expect(sessionReadFile).not.toHaveBeenCalled();
+    });
+
+    it('falls back to sessionReadFile data URIs after web absolute image load errors', async () => {
+        platform.OS = 'web';
+        vi.stubGlobal('window', { location: { origin: 'http://localhost:8095' } });
+        sessionReadFile.mockResolvedValue({ success: true, content: 'iVBORw0KGgo=' });
+        mockImageMarkdown('C:\\Users\\me\\Pictures\\diagram.svg');
+
+        let renderer: any;
+        act(() => {
+            renderer = TestRenderer.create(<MarkdownView markdown="raw" sessionId="session-1" />);
+        });
+
+        await act(async () => {
+            renderer!.root.findByType('Image').props.onError();
+        });
+
+        expect(sessionReadFile).toHaveBeenCalledWith('session-1', 'C:/Users/me/Pictures/diagram.svg');
+        expect(renderer!.root.findByType('Image').props.source).toEqual({
+            uri: 'data:image/svg+xml;base64,iVBORw0KGgo=',
+        });
+        vi.unstubAllGlobals();
+    });
+
+    it('renders a placeholder when a web absolute image cannot be read from the session', async () => {
+        platform.OS = 'web';
+        sessionReadFile.mockResolvedValue({ success: false, error: 'not found' });
+        mockImageMarkdown('/tmp/missing.webp', 'Missing preview');
+
+        let renderer: any;
+        act(() => {
+            renderer = TestRenderer.create(<MarkdownView markdown="raw" sessionId="session-1" />);
+        });
+
+        await act(async () => {
+            renderer!.root.findByType('Image').props.onError();
+        });
+
+        expect(sessionReadFile).toHaveBeenCalledWith('session-1', '/tmp/missing.webp');
+        expect(renderer!.root.findAllByType('Image')).toHaveLength(0);
+        expect(renderer!.root.findAllByProps({ accessibilityLabel: 'Missing preview' })).toHaveLength(1);
+    });
+
+    it('renders a placeholder after web absolute image errors when sessionId is absent', () => {
+        platform.OS = 'web';
+        mockImageMarkdown('/tmp/no-session.png', 'No session preview');
+
+        let renderer: any;
+        act(() => {
+            renderer = TestRenderer.create(<MarkdownView markdown="raw" />);
+        });
+
+        act(() => {
+            renderer!.root.findByType('Image').props.onError();
+        });
+
+        expect(sessionReadFile).not.toHaveBeenCalled();
+        expect(renderer!.root.findAllByType('Image')).toHaveLength(0);
+        expect(renderer!.root.findAllByProps({ accessibilityLabel: 'No session preview' })).toHaveLength(1);
+    });
+
+    it('leaves native absolute image paths as pass-through sources', () => {
+        platform.OS = 'android';
+        mockImageMarkdown('/tmp/screenshots/native.png');
+
+        let renderer: any;
+        act(() => {
+            renderer = TestRenderer.create(<MarkdownView markdown="raw" sessionId="session-1" />);
+        });
+
+        expect(renderer!.root.findByType('Image').props.source).toEqual({ uri: '/tmp/screenshots/native.png' });
     });
 });

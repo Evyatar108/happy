@@ -19,6 +19,7 @@ import { t } from '@/text';
 import { isHttpMarkdownLink } from './linkUtils';
 import { useChatScaleAnimatedTextStyle, useChatScaledStyles } from '@/hooks/useChatFontScale';
 import processClaudeMetaTags from './processClaudeMetaTags';
+import { sessionReadFile } from '@/sync/ops';
 
 // Option type for callback
 export type Option = {
@@ -92,7 +93,7 @@ export const MarkdownView = React.memo((props: {
                     } else if (block.type === 'table') {
                         return <RenderTableBlock headers={block.headers} rows={block.rows} onLinkPress={handleLinkPress} selectable={selectable} key={index} first={index === 0} last={index === blocks.length - 1} />;
                     } else if (block.type === 'image') {
-                        return <RenderImageBlock url={block.url} alt={block.alt} key={index} first={index === 0} last={index === blocks.length - 1} />;
+                        return <RenderImageBlock url={block.url} alt={block.alt} sessionId={props.sessionId} key={index} first={index === 0} last={index === blocks.length - 1} />;
                     } else if (block.type === 'task-notification') {
                         return <TaskNotificationPill data={block.data} key={index} />;
                     } else {
@@ -228,17 +229,122 @@ function RenderCodeBlock(props: { content: string, language: string | null, firs
     );
 }
 
-function RenderImageBlock(props: { url: string, alt: string, first: boolean, last: boolean }) {
+const WEB_REMOTE_IMAGE_URI = /^(?:https?:|data:)/i;
+const WINDOWS_ABSOLUTE_IMAGE_PATH = /^[A-Za-z]:[\\/]/;
+
+function normalizeSessionImagePath(url: string) {
+    let decoded = url;
+    try {
+        decoded = decodeURI(url);
+    } catch {
+        decoded = url;
+    }
+    return decoded.replace(/\\/g, '/');
+}
+
+function isSessionImagePath(url: string) {
+    if (WEB_REMOTE_IMAGE_URI.test(url)) {
+        return false;
+    }
+    return url.startsWith('/') || WINDOWS_ABSOLUTE_IMAGE_PATH.test(url);
+}
+
+function inferImageMime(path: string) {
+    const extension = path.split(/[?#]/, 1)[0]?.split('.').pop()?.toLowerCase();
+    switch (extension) {
+        case 'png':
+            return 'image/png';
+        case 'jpg':
+        case 'jpeg':
+            return 'image/jpeg';
+        case 'gif':
+            return 'image/gif';
+        case 'webp':
+            return 'image/webp';
+        case 'svg':
+            return 'image/svg+xml';
+        default:
+            return 'application/octet-stream';
+    }
+}
+
+function getOriginImageUri(url: string) {
+    if (Platform.OS !== 'web' || !isSessionImagePath(url)) {
+        return url;
+    }
+
+    const normalizedPath = normalizeSessionImagePath(url);
+    if (typeof window === 'undefined' || !window.location?.origin) {
+        return normalizedPath;
+    }
+
+    return `${window.location.origin}/${normalizedPath.replace(/^\/+/, '')}`;
+}
+
+function SessionImageBlock(props: { url: string, alt: string, sessionId?: string }) {
+    const [sourceUri, setSourceUri] = React.useState(() => getOriginImageUri(props.url));
+    const [failed, setFailed] = React.useState(false);
+    const [didTrySessionRead, setDidTrySessionRead] = React.useState(false);
+    const latestUrlRef = React.useRef(props.url);
     const accessibleLabel = props.alt || 'Markdown image';
 
+    React.useEffect(() => {
+        latestUrlRef.current = props.url;
+        setSourceUri(getOriginImageUri(props.url));
+        setFailed(false);
+        setDidTrySessionRead(false);
+    }, [props.url]);
+
+    const handleError = React.useCallback(() => {
+        if (Platform.OS !== 'web' || !isSessionImagePath(props.url)) {
+            return;
+        }
+
+        if (!props.sessionId || didTrySessionRead) {
+            setFailed(true);
+            return;
+        }
+
+        setDidTrySessionRead(true);
+        const normalizedPath = normalizeSessionImagePath(props.url);
+        const requestUrl = props.url;
+        void sessionReadFile(props.sessionId, normalizedPath).then((response) => {
+            if (latestUrlRef.current !== requestUrl) {
+                return;
+            }
+            if (response.success && response.content) {
+                setSourceUri(`data:${inferImageMime(normalizedPath)};base64,${response.content}`);
+                setFailed(false);
+                return;
+            }
+            setFailed(true);
+        }).catch(() => {
+            if (latestUrlRef.current !== requestUrl) {
+                return;
+            }
+            setFailed(true);
+        });
+    }, [didTrySessionRead, props.sessionId, props.url]);
+
+    if (failed) {
+        return <View accessibilityLabel={accessibleLabel} style={[style.image, style.imagePlaceholder]} />;
+    }
+
+    return (
+        <Image
+            source={{ uri: sourceUri }}
+            style={style.image}
+            accessibilityLabel={accessibleLabel}
+            resizeMode="contain"
+            onError={handleError}
+        />
+    );
+}
+
+function RenderImageBlock(props: { url: string, alt: string, sessionId?: string, first: boolean, last: boolean }) {
     return (
         <View style={[style.imageBlock, props.first && style.first, props.last && style.last]}>
-            <Image
-                source={{ uri: props.url }}
-                style={style.image}
-                accessibilityLabel={accessibleLabel}
-                resizeMode="contain"
-            />
+            <SessionImageBlock url={props.url} alt={props.alt} sessionId={props.sessionId} />
             {props.alt ? (
                 <AnimatedMarkdownText baseStyle={style.imageCaption}>{props.alt}</AnimatedMarkdownText>
             ) : null}
@@ -560,6 +666,10 @@ const style = StyleSheet.create((theme) => ({
         height: 240,
         borderRadius: 12,
         backgroundColor: theme.colors.surfaceHighest,
+    },
+    imagePlaceholder: {
+        borderWidth: 2,
+        borderColor: theme.colors.textSecondary,
     },
     imageCaption: {
         ...Typography.default(),
