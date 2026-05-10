@@ -372,6 +372,7 @@ export const it: TranslationStructure = {
 
     drawer: {
         fork: {
+            action: 'Biforca',
             comingSoon: 'Prossimamente',
         },
         applyFailed: 'Impossibile applicare — riprova',

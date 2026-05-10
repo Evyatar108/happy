@@ -493,6 +493,7 @@ export const ru: TranslationStructure = {
 
     drawer: {
         fork: {
+            action: 'Форк',
             comingSoon: 'Скоро',
         },
         applyFailed: 'Не удалось применить — попробуйте ещё раз',

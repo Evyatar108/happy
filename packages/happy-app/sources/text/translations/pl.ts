@@ -391,6 +391,7 @@ export const pl: TranslationStructure = {
 
     drawer: {
         fork: {
+            action: 'Forkuj',
             comingSoon: 'Wkrótce',
         },
         applyFailed: 'Nie udało się zastosować — spróbuj ponownie',

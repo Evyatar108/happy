@@ -375,6 +375,7 @@ export const ja: TranslationStructure = {
 
     drawer: {
         fork: {
+            action: 'フォーク',
             comingSoon: '近日公開',
         },
         applyFailed: '適用に失敗しました — もう一度お試しください',

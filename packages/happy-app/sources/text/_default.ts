@@ -372,6 +372,7 @@ export const en = {
 
     drawer: {
         fork: {
+            action: 'Fork',
             comingSoon: 'Coming soon',
         },
         applyFailed: 'Failed to apply — please try again',

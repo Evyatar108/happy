@@ -374,6 +374,7 @@ export const zhHant: TranslationStructure = {
 
     drawer: {
         fork: {
+            action: '派生',
             comingSoon: '即將推出',
         },
         applyFailed: '套用失敗 — 請再試一次',

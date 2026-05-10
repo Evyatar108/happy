@@ -373,6 +373,7 @@ export const pt: TranslationStructure = {
 
     drawer: {
         fork: {
+            action: 'Bifurcar',
             comingSoon: 'Em breve',
         },
         applyFailed: 'Falha ao aplicar — tente novamente',

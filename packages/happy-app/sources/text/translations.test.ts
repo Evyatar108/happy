@@ -43,6 +43,7 @@ const REQUIRED_DEFERRED_SWITCH_KEYS = [
 ] as const;
 
 const REQUIRED_SESSION_DRAWER_KEYS = [
+    'drawer.fork.action',
     'drawer.fork.comingSoon',
     'drawer.applyFailed',
     'pickers.noResults',

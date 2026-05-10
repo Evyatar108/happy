@@ -11,6 +11,7 @@ import { sync } from '@/sync/sync';
 import { t } from '@/text';
 import { HappyError } from '@/utils/errors';
 import { copySessionMetadataToClipboard, copySessionMetadataAndLogsToClipboard } from '@/utils/copySessionMetadataToClipboard';
+import { forkAvailability } from '@/utils/forkAvailability';
 import { useSessionStatus } from '@/utils/sessionUtils';
 import { getResumeAvailability } from '@/utils/resumeAvailability';
 import { useRouter } from 'expo-router';
@@ -48,6 +49,7 @@ export function useSessionQuickActions(
         () => getResumeAvailability(session, machine, sessionStatus.isConnected),
         [machine, session, sessionStatus.isConnected],
     );
+    const canFork = forkAvailability(session, machine);
 
     const openDetails = React.useCallback(() => {
         router.push(`/session/${session.id}/info`);
@@ -139,6 +141,10 @@ export function useSessionQuickActions(
         performResume();
     }, [performResume]);
 
+    const forkSession = React.useCallback(() => {
+        router.push(`/session/${session.id}/fork-composer`);
+    }, [router, session.id]);
+
     const canCopySessionMetadata = __DEV__ || devModeEnabled;
 
     const actionItems = React.useMemo<SessionActionItem[]>(() => {
@@ -148,6 +154,10 @@ export function useSessionQuickActions(
 
         if (resumeAvailability.canShowResume) {
             items.push({ id: 'resume', icon: 'play-circle-outline', label: t('sessionInfo.resumeSession'), onPress: resumeSession });
+        }
+
+        if (canFork) {
+            items.push({ id: 'fork', icon: 'git-branch-outline', label: t('drawer.fork.action'), onPress: forkSession });
         }
 
         if (canCopySessionMetadata) {
@@ -160,9 +170,11 @@ export function useSessionQuickActions(
         return items;
     }, [
         archiveSession,
+        canFork,
         canCopySessionMetadata,
         copySessionMetadata,
         copySessionMetadataAndLogs,
+        forkSession,
         openDetails,
         resumeAvailability.canShowResume,
         resumeSession,
@@ -185,10 +197,12 @@ export function useSessionQuickActions(
         archivingSession,
         canArchive: true,
         canCopySessionMetadata,
+        canFork,
         canResume: resumeAvailability.canResume,
         canShowResume: resumeAvailability.canShowResume,
         copySessionMetadata,
         copySessionMetadataAndLogs,
+        forkSession,
         openDetails,
         resumeSession,
         resumeSessionInline,

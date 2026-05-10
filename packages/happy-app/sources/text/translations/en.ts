@@ -388,6 +388,7 @@ export const en: TranslationStructure = {
 
     drawer: {
         fork: {
+            action: 'Fork',
             comingSoon: 'Coming soon',
         },
         applyFailed: 'Failed to apply — please try again',

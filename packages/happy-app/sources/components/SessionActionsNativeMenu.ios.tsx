@@ -23,9 +23,11 @@ export function SessionActionsNativeMenu({
     const {
         archiveSession,
         canArchive,
+        canFork,
         canCopySessionMetadata,
         canShowResume,
         copySessionMetadata,
+        forkSession,
         openDetails,
         resumeSession,
     } = useSessionQuickActions(session, {
@@ -43,6 +45,9 @@ export function SessionActionsNativeMenu({
                     )}
                     {canShowResume && (
                         <Button onPress={resumeSession} systemImage={iosSymbol('play.circle')} label="Resume" />
+                    )}
+                    {canFork && (
+                        <Button onPress={forkSession} systemImage={iosSymbol('arrow.triangle.branch')} label={t('drawer.fork.action')} />
                     )}
                     {canCopySessionMetadata && (
                         <Button onPress={copySessionMetadata} systemImage={iosSymbol('ladybug')} label={t('sessionInfo.copyMetadata')} />

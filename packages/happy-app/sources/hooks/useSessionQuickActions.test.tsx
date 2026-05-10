@@ -2,7 +2,7 @@ import * as React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSessionQuickActions } from './useSessionQuickActions';
-import type { Session } from '@/sync/storageTypes';
+import type { Machine, Session } from '@/sync/storageTypes';
 
 const reactActEnvironment = globalThis as typeof globalThis & {
     IS_REACT_ACT_ENVIRONMENT?: boolean;
@@ -11,12 +11,15 @@ const reactActEnvironment = globalThis as typeof globalThis & {
 const shared = vi.hoisted(() => ({
     machineResumeSessionMock: vi.fn(),
     refreshSessionsMock: vi.fn(),
+    routerPushMock: vi.fn(),
     updateSessionPermissionModeMock: vi.fn(),
     updateSessionModelModeMock: vi.fn(),
     navigateToSessionMock: vi.fn(),
     latestResumeSession: null as null | (() => void),
     latestResumeSessionInline: null as null | (() => Promise<unknown>),
+    latestActionItems: [] as Array<{ id: string; onPress: () => void }>,
     latestActionPromise: null as Promise<void> | null,
+    machine: null as Machine | null,
     storageState: {
         sessions: {} as Record<string, unknown>,
         updateSessionPermissionMode: vi.fn(),
@@ -25,7 +28,7 @@ const shared = vi.hoisted(() => ({
 }));
 
 vi.mock('expo-router', () => ({
-    useRouter: () => ({ push: vi.fn() }),
+    useRouter: () => ({ push: shared.routerPushMock }),
 }));
 
 vi.mock('@/hooks/useNavigateToSession', () => ({
@@ -65,17 +68,12 @@ vi.mock('@/sync/storage', () => ({
         getState: () => shared.storageState,
     },
     useLocalSetting: () => false,
-    useMachine: () => ({
-        id: 'machine-1',
-        metadata: {
-            resumeSupport: { rpcAvailable: true },
-        },
-    }),
+    useMachine: () => shared.machine,
     useSession: vi.fn(),
 }));
 
 vi.mock('@/utils/machineUtils', () => ({
-    isMachineOnline: () => true,
+    isMachineOnline: (machine: Machine) => machine.active,
 }));
 
 vi.mock('@/utils/sessionUtils', () => ({
@@ -116,10 +114,55 @@ function createSession(permissionModeUserChosen: boolean): Session {
     };
 }
 
+function createMachine(overrides: Partial<Machine> = {}): Machine {
+    return {
+        id: 'machine-1',
+        seq: 1,
+        createdAt: 100,
+        updatedAt: 100,
+        active: true,
+        activeAt: 100,
+        metadata: {
+            host: 'devbox',
+            platform: 'linux',
+            homeDir: '/workspace',
+            happyHomeDir: '/workspace/.happy',
+            happyCliVersion: '1.0.0',
+            resumeSupport: {
+                rpcAvailable: true,
+                forkRpcAvailable: true,
+                requiresSameMachine: true,
+                requiresHappyAgentAuth: true,
+                happyAgentAuthenticated: true,
+                detectedAt: 100,
+            },
+        },
+        metadataVersion: 1,
+        daemonState: null,
+        daemonStateVersion: 1,
+        ...overrides,
+    };
+}
+
+function createCodexSession(overrides: Partial<Session> = {}): Session {
+    const session = createSession(false);
+    return {
+        ...session,
+        metadata: {
+            ...session.metadata,
+            host: session.metadata?.host ?? 'devbox',
+            path: session.metadata?.path ?? '/workspace/project',
+            flavor: 'codex',
+        },
+        ...overrides,
+    };
+}
+
 function Harness({ session }: { session: Session }) {
     const actions = useSessionQuickActions(session);
     shared.latestResumeSession = actions.resumeSession;
     shared.latestResumeSessionInline = actions.resumeSessionInline;
+    shared.latestActionItems = actions.actionItems;
     return null;
 }
 
@@ -140,12 +183,15 @@ describe('useSessionQuickActions resume permission mode copy', () => {
         reactActEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
         shared.machineResumeSessionMock.mockReset();
         shared.refreshSessionsMock.mockReset();
+        shared.routerPushMock.mockReset();
         shared.updateSessionPermissionModeMock.mockReset();
         shared.updateSessionModelModeMock.mockReset();
         shared.navigateToSessionMock.mockReset();
         shared.latestResumeSession = null;
         shared.latestResumeSessionInline = null;
+        shared.latestActionItems = [];
         shared.latestActionPromise = null;
+        shared.machine = createMachine();
         shared.storageState = {
             sessions: { 'resumed-session': { id: 'resumed-session' } },
             updateSessionPermissionMode: shared.updateSessionPermissionModeMock,
@@ -198,5 +244,53 @@ describe('useSessionQuickActions resume permission mode copy', () => {
         expect(result).toEqual({ type: 'error', errorMessage: 'resume failed' });
         expect(shared.latestActionPromise).toBeNull();
         expect(shared.navigateToSessionMock).not.toHaveBeenCalled();
+    });
+
+    it('shows the fork action under capable Codex conditions and navigates to the fork composer', async () => {
+        await act(async () => {
+            TestRenderer.create(<Harness session={createCodexSession()} />);
+        });
+
+        const forkAction = shared.latestActionItems.find((item) => item.id === 'fork');
+
+        expect(forkAction).toBeDefined();
+        act(() => {
+            forkAction!.onPress();
+        });
+        expect(shared.routerPushMock).toHaveBeenCalledWith('/session/source-session/fork-composer');
+    });
+
+    it('omits the fork action for non-Codex sessions', async () => {
+        await act(async () => {
+            TestRenderer.create(<Harness session={createSession(false)} />);
+        });
+
+        expect(shared.latestActionItems.some((item) => item.id === 'fork')).toBe(false);
+    });
+
+    it('omits the fork action when the machine lacks the fork RPC capability', async () => {
+        shared.machine = createMachine({
+            metadata: {
+                host: 'devbox',
+                platform: 'linux',
+                homeDir: '/workspace',
+                happyHomeDir: '/workspace/.happy',
+                happyCliVersion: '1.0.0',
+                resumeSupport: {
+                    rpcAvailable: true,
+                    forkRpcAvailable: false,
+                    requiresSameMachine: true,
+                    requiresHappyAgentAuth: true,
+                    happyAgentAuthenticated: true,
+                    detectedAt: 100,
+                },
+            },
+        });
+
+        await act(async () => {
+            TestRenderer.create(<Harness session={createCodexSession()} />);
+        });
+
+        expect(shared.latestActionItems.some((item) => item.id === 'fork')).toBe(false);
     });
 });

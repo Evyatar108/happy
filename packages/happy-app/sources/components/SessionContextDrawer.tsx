@@ -10,7 +10,9 @@ import type { EffortLevel } from './modelModeOptions';
 import type { ResumeCommandBlock } from '@/utils/resumeCommand';
 import type { ResumeAvailability } from '@/utils/resumeAvailability';
 import type { SpawnSessionResult } from '@/sync/ops';
+import type { Machine, Session } from '@/sync/storageTypes';
 import { t } from '@/text';
+import { forkAvailability } from '@/utils/forkAvailability';
 
 type AgentConfigurationUpdate = {
     permissionMode?: string;
@@ -30,6 +32,9 @@ type SessionContextDrawerProps = {
     canResume: boolean;
     resumeAvailability: ResumeAvailability;
     resumeCommandBlock: ResumeCommandBlock | null;
+    session: Session;
+    machine: Machine | null | undefined;
+    onForkPress: () => void;
     updatePermissionMode: (mode: PermissionMode) => void;
     updateModelMode: (mode: ModelMode) => void;
     updateEffortLevel: (level: EffortLevel) => void;
@@ -44,6 +49,7 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
     const { theme } = useUnistyles();
     const { height: windowHeight } = useWindowDimensions();
     const { canResume, resumeAvailability, resumeCommandBlock, resumeSessionInline, sessionEmitAgentConfiguration } = props;
+    const canFork = forkAvailability(props.session, props.machine);
     const [isExpanded, setIsExpanded] = React.useState(false);
     const [isResuming, setIsResuming] = React.useState(false);
     const [inlineResumeError, setInlineResumeError] = React.useState<string | null>(null);
@@ -228,13 +234,20 @@ export const SessionContextDrawer = React.memo((props: SessionContextDrawerProps
                         </View>
                     )}
                     <Pressable
-                        disabled={true}
+                        onPress={canFork ? props.onForkPress : undefined}
+                        disabled={!canFork}
                         accessibilityRole="button"
-                        accessibilityState={{ disabled: true }}
-                        style={styles.forkButton}
+                        accessibilityState={{ disabled: !canFork }}
+                        style={({ pressed }) => [
+                            styles.forkButton,
+                            !canFork && styles.forkButtonDisabled,
+                            pressed && canFork && styles.forkButtonPressed,
+                        ]}
                     >
-                        <Ionicons name="git-branch-outline" size={16} color={theme.colors.textSecondary} />
-                        <Text style={styles.forkButtonText}>{t('drawer.fork.comingSoon')}</Text>
+                        <Ionicons name="git-branch-outline" size={16} color={canFork ? theme.colors.text : theme.colors.textSecondary} />
+                        <Text style={[styles.forkButtonText, canFork && styles.forkButtonTextEnabled]}>
+                            {canFork ? t('drawer.fork.action') : t('drawer.fork.comingSoon')}
+                        </Text>
                     </Pressable>
                 </ScrollView>
             </Animated.View>
@@ -493,15 +506,23 @@ const styles = StyleSheet.create((theme) => ({
         borderWidth: 1,
         borderColor: theme.colors.divider,
         backgroundColor: theme.colors.input.background,
-        opacity: 0.45,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
     },
+    forkButtonDisabled: {
+        opacity: 0.45,
+    },
+    forkButtonPressed: {
+        backgroundColor: theme.colors.surfacePressed,
+    },
     forkButtonText: {
         color: theme.colors.textSecondary,
         fontSize: 13,
         fontWeight: '700',
+    },
+    forkButtonTextEnabled: {
+        color: theme.colors.text,
     },
 }));
