@@ -60,6 +60,7 @@ export const ja: TranslationStructure = {
         fileViewer: 'ファイルビューアー',
         loading: '読み込み中...',
         retry: '再試行',
+        archive: 'アーカイブ',
         delete: '削除',
         optional: '任意',
         saveAs: '名前を付けて保存',
@@ -431,7 +432,7 @@ export const ja: TranslationStructure = {
         killSession: 'セッションを終了',
         killSessionConfirm: 'このセッションを終了してもよろしいですか？',
         archiveSession: 'セッションをアーカイブ',
-        archiveSessionConfirm: 'このセッションをアーカイブしてもよろしいですか？',
+        archiveSessionConfirm: 'このセッションをアーカイブしますか？アーカイブしたセッションはいつでも再開できます。',
         happySessionIdCopied: 'Happy Session IDがクリップボードにコピーされました',
         failedToCopySessionId: 'Happy Session IDのコピーに失敗しました',
         happySessionId: 'Happy Session ID',
@@ -619,6 +620,7 @@ export const ja: TranslationStructure = {
         taskView: {
             initializing: 'エージェントを初期化中...',
             moreTools: ({ count }: { count: number }) => `+${count} 個のツール`,
+            moreSteps: ({ count }: { count: number }) => `+${count} 件の手順`,
         },
         askUserQuestion: {
             submit: '回答を送信',

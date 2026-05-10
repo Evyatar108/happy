@@ -69,6 +69,7 @@ export const pl: TranslationStructure = {
         fileViewer: 'Przeglądarka plików',
         loading: 'Ładowanie...',
         retry: 'Ponów',
+        archive: 'Zarchiwizuj',
         delete: 'Usuń',
         optional: 'opcjonalnie',
     },
@@ -447,7 +448,7 @@ export const pl: TranslationStructure = {
         killSession: 'Zakończ sesję',
         killSessionConfirm: 'Czy na pewno chcesz zakończyć tę sesję?',
         archiveSession: 'Zarchiwizuj sesję',
-        archiveSessionConfirm: 'Czy na pewno chcesz zarchiwizować tę sesję?',
+        archiveSessionConfirm: 'Zarchiwizować tę sesję? Zarchiwizowane sesje można wznowić w dowolnym momencie.',
         happySessionIdCopied: 'ID sesji Happy skopiowane do schowka',
         failedToCopySessionId: 'Nie udało się skopiować ID sesji Happy',
         happySessionId: 'ID sesji Happy',
@@ -634,6 +635,7 @@ export const pl: TranslationStructure = {
         taskView: {
             initializing: 'Inicjalizacja agenta...',
             moreTools: ({ count }: { count: number }) => `+${count} ${plural({ count, one: 'więcej narzędzie', few: 'więcej narzędzia', many: 'więcej narzędzi' })}`,
+            moreSteps: ({ count }: { count: number }) => `+${count} ${plural({ count, one: 'więcej krok', few: 'więcej kroki', many: 'więcej kroków' })}`,
         },
         taskOutput: {
             taskId: ({ taskId }: { taskId: string }) => `Task ${taskId}`,

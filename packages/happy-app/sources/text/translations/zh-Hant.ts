@@ -60,6 +60,7 @@ export const zhHant: TranslationStructure = {
         fileViewer: '檔案檢視器',
         loading: '載入中...',
         retry: '重試',
+        archive: '封存',
         delete: '刪除',
         optional: '選填',
     },
@@ -430,7 +431,7 @@ export const zhHant: TranslationStructure = {
         killSession: '終止工作階段',
         killSessionConfirm: '您確定要終止此工作階段嗎？',
         archiveSession: '封存工作階段',
-        archiveSessionConfirm: '您確定要封存此工作階段嗎？',
+        archiveSessionConfirm: '封存此工作階段？已封存的工作階段可隨時繼續。',
         happySessionIdCopied: 'Happy 工作階段 ID 已複製到剪貼簿',
         failedToCopySessionId: '複製 Happy 工作階段 ID 失敗',
         happySessionId: 'Happy 工作階段 ID',
@@ -618,6 +619,7 @@ export const zhHant: TranslationStructure = {
         taskView: {
             initializing: '正在初始化 agent...',
             moreTools: ({ count }: { count: number }) => `+${count} 個更多${plural({ count, singular: '工具', plural: '工具' })}`,
+            moreSteps: ({ count }: { count: number }) => `+${count} 個更多${plural({ count, singular: '步驟', plural: '步驟' })}`,
         },
         taskOutput: {
             taskId: ({ taskId }: { taskId: string }) => `Task ${taskId}`,

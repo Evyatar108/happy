@@ -60,6 +60,7 @@ export const zhHans: TranslationStructure = {
         fileViewer: '文件查看器',
         loading: '加载中...',
         retry: '重试',
+        archive: '归档',
         delete: '删除',
         optional: '可选的',
     },
@@ -431,7 +432,7 @@ export const zhHans: TranslationStructure = {
         killSession: '终止会话',
         killSessionConfirm: '您确定要终止此会话吗？',
         archiveSession: '归档会话',
-        archiveSessionConfirm: '您确定要归档此会话吗？',
+        archiveSessionConfirm: '归档此会话？已归档的会话可随时恢复。',
         happySessionIdCopied: 'Happy 会话 ID 已复制到剪贴板',
         failedToCopySessionId: '复制 Happy 会话 ID 失败',
         happySessionId: 'Happy 会话 ID',
@@ -619,6 +620,7 @@ export const zhHans: TranslationStructure = {
         taskView: {
             initializing: '正在初始化 agent...',
             moreTools: ({ count }: { count: number }) => `+${count} 个更多${plural({ count, singular: '工具', plural: '工具' })}`,
+            moreSteps: ({ count }: { count: number }) => `+${count} 个更多${plural({ count, singular: '步骤', plural: '步骤' })}`,
         },
         taskOutput: {
             taskId: ({ taskId }: { taskId: string }) => `Task ${taskId}`,

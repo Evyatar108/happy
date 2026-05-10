@@ -172,6 +172,18 @@ describe('CollapsibleDiffPreview', () => {
         expect(output).toContain('tools.diff.showMore:2');
     });
 
+    it('renders the expand toggle without the old left-edge accent stripe', () => {
+        let renderer: Renderer;
+
+        act(() => {
+            renderer = renderWithDiffView('', numberedLines(12));
+        });
+
+        const toggleStyle = renderer!.root.findByType('Pressable').props.style;
+        expect(toggleStyle.borderLeftWidth).toBeUndefined();
+        expect(toggleStyle.borderLeftColor).toBeUndefined();
+    });
+
     it('expands, then collapses back to the first 10 visible lines', () => {
         let renderer: Renderer;
 

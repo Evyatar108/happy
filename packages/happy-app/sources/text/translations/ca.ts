@@ -58,6 +58,7 @@ export const ca: TranslationStructure = {
         fileViewer: 'Visualitzador de fitxers',
         loading: 'Carregant...',
         retry: 'Torna-ho a provar',
+        archive: 'Arxiva',
         delete: 'Elimina',
         optional: 'Opcional',
     },
@@ -430,7 +431,7 @@ export const ca: TranslationStructure = {
         killSession: 'Finalitza la sessió',
         killSessionConfirm: 'Segur que vols finalitzar aquesta sessió?',
         archiveSession: 'Arxiva la sessió',
-        archiveSessionConfirm: 'Segur que vols arxivar aquesta sessió?',
+        archiveSessionConfirm: 'Arxivar aquesta sessió? Les sessions arxivades es poden reprendre en qualsevol moment.',
         happySessionIdCopied: 'ID de la sessió de Happy copiat al porta-retalls',
         failedToCopySessionId: 'Ha fallat copiar l\'ID de la sessió de Happy',
         happySessionId: 'ID de la sessió de Happy',
@@ -618,6 +619,7 @@ export const ca: TranslationStructure = {
         taskView: {
             initializing: 'Inicialitzant l\'agent...',
             moreTools: ({ count }: { count: number }) => `+${count} més ${plural({ count, singular: 'eina', plural: 'eines' })}`,
+            moreSteps: ({ count }: { count: number }) => `+${count} més ${plural({ count, singular: 'pas', plural: 'passos' })}`,
         },
         taskOutput: {
             taskId: ({ taskId }: { taskId: string }) => `Task ${taskId}`,

@@ -57,6 +57,7 @@ export const it: TranslationStructure = {
         fileViewer: 'Visualizzatore file',
         loading: 'Caricamento...',
         retry: 'Riprova',
+        archive: 'Archivia',
         delete: 'Elimina',
         optional: 'opzionale',
         saveAs: 'Salva con nome',
@@ -428,7 +429,7 @@ export const it: TranslationStructure = {
         killSession: 'Termina sessione',
         killSessionConfirm: 'Sei sicuro di voler terminare questa sessione?',
         archiveSession: 'Archivia sessione',
-        archiveSessionConfirm: 'Sei sicuro di voler archiviare questa sessione?',
+        archiveSessionConfirm: 'Archiviare questa sessione? Le sessioni archiviate possono essere riprese in qualsiasi momento.',
         happySessionIdCopied: 'ID sessione Happy copiato negli appunti',
         failedToCopySessionId: 'Impossibile copiare l\'ID sessione Happy',
         happySessionId: 'ID sessione Happy',
@@ -616,6 +617,7 @@ export const it: TranslationStructure = {
         taskView: {
             initializing: 'Inizializzazione agente...',
             moreTools: ({ count }: { count: number }) => `+${count} altri ${plural({ count, singular: 'strumento', plural: 'strumenti' })}`,
+            moreSteps: ({ count }: { count: number }) => `+${count} altri ${plural({ count, singular: 'passaggio', plural: 'passaggi' })}`,
         },
         askUserQuestion: {
             submit: 'Invia risposta',

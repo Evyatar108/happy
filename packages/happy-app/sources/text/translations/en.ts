@@ -73,6 +73,7 @@ export const en: TranslationStructure = {
         fileViewer: 'File Viewer',
         loading: 'Loading...',
         retry: 'Retry',
+        archive: 'Archive',
         delete: 'Delete',
         optional: 'optional',
     },
@@ -444,7 +445,7 @@ export const en: TranslationStructure = {
         killSession: 'Kill Session',
         killSessionConfirm: 'Are you sure you want to terminate this session?',
         archiveSession: 'Archive Session',
-        archiveSessionConfirm: 'Are you sure you want to archive this session?',
+        archiveSessionConfirm: 'Archive this session? Archived sessions can be resumed at any time.',
         happySessionIdCopied: 'Happy Session ID copied to clipboard',
         failedToCopySessionId: 'Failed to copy Happy Session ID',
         happySessionId: 'Happy Session ID',
@@ -631,6 +632,7 @@ export const en: TranslationStructure = {
         taskView: {
             initializing: 'Initializing agent...',
             moreTools: ({ count }: { count: number }) => `+${count} more ${plural({ count, singular: 'tool', plural: 'tools' })}`,
+            moreSteps: ({ count }: { count: number }) => `+${count} more ${plural({ count, singular: 'step', plural: 'steps' })}`,
         },
         taskOutput: {
             taskId: ({ taskId }: { taskId: string }) => `Task ${taskId}`,

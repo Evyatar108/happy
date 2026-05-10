@@ -69,6 +69,7 @@ export const ru: TranslationStructure = {
         fileViewer: 'Просмотр файла',
         loading: 'Загрузка...',
         retry: 'Повторить',
+        archive: 'Архивировать',
         delete: 'Удалить',
         optional: 'необязательно',
     },
@@ -368,7 +369,7 @@ export const ru: TranslationStructure = {
         killSession: 'Завершить сессию',
         killSessionConfirm: 'Вы уверены, что хотите завершить эту сессию?',
         archiveSession: 'Архивировать сессию',
-        archiveSessionConfirm: 'Вы уверены, что хотите архивировать эту сессию?',
+        archiveSessionConfirm: 'Архивировать эту сессию? Архивированные сессии можно возобновить в любое время.',
         happySessionIdCopied: 'ID сессии Happy скопирован в буфер обмена',
         failedToCopySessionId: 'Не удалось скопировать ID сессии Happy',
         happySessionId: 'ID сессии Happy',
@@ -634,6 +635,7 @@ export const ru: TranslationStructure = {
         taskView: {
             initializing: 'Инициализация агента...',
             moreTools: ({ count }: { count: number }) => `+${count} ещё ${plural({ count, one: 'инструмент', few: 'инструмента', many: 'инструментов' })}`,
+            moreSteps: ({ count }: { count: number }) => `+${count} ещё ${plural({ count, one: 'шаг', few: 'шага', many: 'шагов' })}`,
         },
         taskOutput: {
             taskId: ({ taskId }: { taskId: string }) => `Task ${taskId}`,

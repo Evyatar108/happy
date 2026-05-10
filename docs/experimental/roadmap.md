@@ -234,6 +234,8 @@ Goal: make active-session agent controls feel first-class instead of scattered a
 
 ## P3. Session list, tool UI, and worktree-level ordering
 
+Status: p3-ui-polish-bundle shipped 2026-05-10 on `ralph/p3-ui-polish-bundle` — 7 stories (US-001..US-007) plus 6 review-loop fixes. Shipped: archive-confirmation modal with reversible-resume copy across popover/info-screen/native-swipe (US-007); subagent presentation grouping with depth cap of 3 and single-owner rendering in `MessageView` (US-006, also resolves the provider-tool-call flattening concern); tool-button background polish + grouped permission-footer actions when streaming completes (US-004); `file-edit` registered as a known tool with a dedicated `FileEditView`, eliminating the duplicated plan presentation (US-003); black-stripe artifact in file-edit tool-call web rendering fixed via `PierreDiffViewWeb` (US-001); markdown absolute-path image rendering on web via origin-prefix and `sessionReadFile` fallback (US-005); long-worktree-path overlap with the git-changes row in `ActiveSessionsGroupCompact` fixed (US-002). Right-click archive and related quick actions remain available on web (preserved behavior). Two follow-ups remain: worktree/project-level ordering by importance, and drag-and-drop of worktree/project groups on web first.
+
 Goal: reduce visual bloat, improve scanability, and make high-priority work easier to manage without touching per-chat ordering.
 
 ### Required outcomes
@@ -244,18 +246,18 @@ Goal: reduce visual bloat, improve scanability, and make high-priority work easi
 
 ### Concrete requirements
 
-- Add archive confirmation. Archiving should feel safe because resuming an existing session is trivial.
 - Keep right-click archive and related quick actions available on web.
-- Improve subagent presentation so nested work is clearly attributed and grouped.
-- Do not show provider tool calls in a way that flattens or hides the subagent structure.
-- Reduce tool UI bloat on web:
+- Improve subagent presentation so nested work is clearly attributed and grouped. **(Shipped 2026-05-10 in `p3-ui-polish-bundle` via US-006 — single-owner nested-child rendering in `MessageView` with depth cap of 3; `TaskView` reduced to a header summary.)**
+- Do not show provider tool calls in a way that flattens or hides the subagent structure. **(Shipped 2026-05-10 in `p3-ui-polish-bundle` via US-006 — same single-owner rendering rule preserves attribution.)**
+- Reduce tool UI bloat on web: **(Shipped 2026-05-10 in `p3-ui-polish-bundle` via US-004 — `ToolView` gates `surfaceHigh` container background on completed tools and `PermissionFooter` switches to a row layout with `gap: 8, flexWrap: 'wrap'` when streaming ends.)**
   - remove unnecessary button backgrounds and layering
   - make tool action buttons less bulky
   - group them more cleanly once the relevant output is done
-- Eliminate the duplicated plan presentation where both raw file-edit content and the plan tool are effectively shown twice.
-- Fix the black stripe artifact in file edit tool-call rendering.
-- Fix markdown image rendering in session/chat messages so absolute-path screenshot syntax like `![](/absolute/path.png)` previews inline on web instead of failing silently during manager review.
-- Ensure long worktree paths do not overlap with git changes or other row content.
+- Eliminate the duplicated plan presentation where both raw file-edit content and the plan tool are effectively shown twice. **(Shipped 2026-05-10 in `p3-ui-polish-bundle` via US-003 — `file-edit` registered in `knownTools.tsx` with a dedicated `FileEditView`, killing the raw-JSON fallback.)**
+- Fix the black stripe artifact in file edit tool-call rendering. **(Shipped 2026-05-10 in `p3-ui-polish-bundle` via US-001 — actual fix lives in US-004's `ToolView` `containerCompleted`/`headerCompleted` styles; US-001 contributes the regression-guard test in `CollapsibleDiffPreview.test.tsx`.)**
+- Fix markdown image rendering in session/chat messages so absolute-path screenshot syntax like `![](/absolute/path.png)` previews inline on web instead of failing silently during manager review. **(Shipped 2026-05-10 in `p3-ui-polish-bundle` via US-005 — new `SessionImageBlock` in `MarkdownView.tsx`: origin-prefix attempt then `sessionReadFile` data-URI fallback.)**
+- Ensure long worktree paths do not overlap with git changes or other row content. **(Shipped 2026-05-10 in `p3-ui-polish-bundle` via US-002 — `ActiveSessionsGroupCompact` path text uses `flex: 1, minWidth: 0, numberOfLines: 1, ellipsizeMode: 'middle'`; `branchRow` is `flexShrink: 0`.)**
+- Archive should require confirmation with reversible-resume copy. **(Shipped 2026-05-10 in `p3-ui-polish-bundle` via US-007 — `useSessionQuickActions.archiveSession` gated by `Modal.confirm`; native swipe also routed through the shared confirm-gated hook; copy updated across all 10 locales.)**
 - Add ordering by importance at the worktree/project level, not the individual chat level. **(Shipped 2026-05-10 in `packages/happy-app` v29; merge commit `3ae6c412`.)**
 - When implementing ordering, support dragging worktree/project groups on web first. **(Shipped — HTML5 drag-handle on project group headers, web-only. Native renders alphabetical with no drag affordance.)**
 

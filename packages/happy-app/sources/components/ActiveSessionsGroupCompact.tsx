@@ -2,22 +2,19 @@ import React from 'react';
 import { View, Pressable, Platform } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Text } from '@/components/StyledText';
-import { Machine } from '@/sync/storageTypes';
+import { Machine, Session } from '@/sync/storageTypes';
 import { SessionRowData } from '@/sync/storage';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { type SessionState, formatPathRelativeToHome, vibingMessages, formatLastSeen } from '@/utils/sessionUtils';
 import { Avatar } from './Avatar';
 import { Typography } from '@/constants/Typography';
 import { StatusDot } from './StatusDot';
-import { useAllMachines, useSessionProjectGitStatus, useSessionGitStatus, useSettingMutable } from '@/sync/storage';
+import { useAllMachines, useSession, useSessionProjectGitStatus, useSessionGitStatus, useSettingMutable } from '@/sync/storage';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { t } from '@/text';
 import { useNavigateToSession } from '@/hooks/useNavigateToSession';
-import { useHappyAction } from '@/hooks/useHappyAction';
-import { HappyError } from '@/utils/errors';
 import { SessionActionsAnchor, SessionActionsPopover } from './SessionActionsPopover';
-import { useSessionActionAlert } from '@/hooks/useSessionQuickActions';
-import { sessionKill } from '@/sync/ops';
+import { useSessionActionAlert, useSessionQuickActions } from '@/hooks/useSessionQuickActions';
 import { isWorktreePath, getRepoPath, getWorktreeName } from '@/utils/worktree';
 import { useNewSessionDraft } from '@/hooks/useNewSessionDraft';
 import { useRouter } from 'expo-router';
@@ -112,7 +109,7 @@ const SectionHeader = React.memo(({ session, displayPath, dragHandle }: { sessio
 
             {/* Path + branch */}
             <View style={styles.sectionHeaderContent}>
-                <Text style={styles.sectionHeaderPath} numberOfLines={1}>
+                <Text style={styles.sectionHeaderPath} numberOfLines={1} ellipsizeMode="middle">
                     {repoDisplayPath}
                 </Text>
                 {hasBranch && (
@@ -368,27 +365,59 @@ export function ActiveSessionsGroupCompact({ sessions, selectedSessionId }: Acti
     );
 }
 
+// Swipeable archive action — only mounted when the full Session is hydrated (non-null).
+// Accepts a non-null Session so useSessionQuickActions is never called with a null value.
+const CompactSessionRowSwipeInner = ({ session, children }: { session: Session; children: React.ReactNode }) => {
+    const styles = stylesheet;
+    const swipeableRef = React.useRef<Swipeable | null>(null);
+    const { archiveSession, archivingSession } = useSessionQuickActions(session);
+
+    const handleArchive = React.useCallback(() => {
+        swipeableRef.current?.close();
+        archiveSession();
+    }, [archiveSession]);
+
+    const renderRightActions = () => (
+        <Pressable
+            style={styles.swipeAction}
+            onPress={handleArchive}
+            disabled={archivingSession}
+        >
+            <Ionicons name="archive-outline" size={20} color="#FFFFFF" />
+            <Text style={styles.swipeActionText} numberOfLines={2}>
+                {t('sessionInfo.archiveSession')}
+            </Text>
+        </Pressable>
+    );
+
+    return (
+        <Swipeable
+            ref={swipeableRef}
+            renderRightActions={renderRightActions}
+            overshootRight={false}
+            enabled={!archivingSession}
+        >
+            {children}
+        </Swipeable>
+    );
+};
+
+const CompactSessionRowSwipe = ({ sessionId, children }: { sessionId: string; children: React.ReactNode }) => {
+    const sessionForActions = useSession(sessionId);
+    if (!sessionForActions) {
+        return <>{children}</>;
+    }
+    return <CompactSessionRowSwipeInner session={sessionForActions}>{children}</CompactSessionRowSwipeInner>;
+};
+
 // Compact session row with status dot indicator
 const CompactSessionRow = React.memo(({ session, selected, showBorder }: { session: SessionRowData; selected?: boolean; showBorder?: boolean }) => {
     const styles = stylesheet;
     const { theme } = useUnistyles();
     const status = STATUS_CONFIG[session.state];
     const navigateToSession = useNavigateToSession();
-    const swipeableRef = React.useRef<Swipeable | null>(null);
     const swipeEnabled = Platform.OS !== 'web';
     const [actionsAnchor, setActionsAnchor] = React.useState<SessionActionsAnchor | null>(null);
-
-    const [archivingSession, performArchive] = useHappyAction(async () => {
-        const result = await sessionKill(session.id);
-        if (!result.success) {
-            throw new HappyError(result.message || t('sessionInfo.failedToArchiveSession'), false);
-        }
-    });
-
-    const handleArchive = React.useCallback(() => {
-        swipeableRef.current?.close();
-        performArchive();
-    }, [performArchive]);
 
     const handlePress = React.useCallback(() => {
         navigateToSession(session.id);
@@ -482,28 +511,10 @@ const CompactSessionRow = React.memo(({ session, selected, showBorder }: { sessi
         );
     }
 
-    const renderRightActions = () => (
-        <Pressable
-            style={styles.swipeAction}
-            onPress={handleArchive}
-            disabled={archivingSession}
-        >
-            <Ionicons name="archive-outline" size={20} color="#FFFFFF" />
-            <Text style={styles.swipeActionText} numberOfLines={2}>
-                {t('sessionInfo.archiveSession')}
-            </Text>
-        </Pressable>
-    );
-
     return (
-        <Swipeable
-            ref={swipeableRef}
-            renderRightActions={renderRightActions}
-            overshootRight={false}
-            enabled={!archivingSession}
-        >
+        <CompactSessionRowSwipe sessionId={session.id}>
             {itemContent}
-        </Swipeable>
+        </CompactSessionRowSwipe>
     );
 });
 
@@ -558,11 +569,15 @@ const stylesheet = StyleSheet.create((theme) => ({
         lineHeight: Platform.select({ ios: 18, default: 20 }),
         letterSpacing: Platform.select({ ios: -0.08, default: 0.1 }),
         fontWeight: Platform.select({ ios: 'normal', default: '500' }),
+        flex: 1,
+        minWidth: 0,
     },
     branchRow: {
         flexDirection: 'row',
         alignItems: 'center',
         marginTop: 1,
+        marginLeft: 8,
+        flexShrink: 0,
     },
     branchText: {
         fontSize: 11,

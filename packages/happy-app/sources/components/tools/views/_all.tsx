@@ -19,6 +19,7 @@ import { CodexDiffView } from './CodexDiffView';
 import { AskUserQuestionView } from './AskUserQuestionView';
 import { GeminiEditView } from './GeminiEditView';
 import { GeminiExecuteView } from './GeminiExecuteView';
+import { FileEditView } from './FileEditView';
 
 export type ToolViewProps = {
     tool: ToolCall;
@@ -33,6 +34,7 @@ export type ToolViewComponent = React.ComponentType<ToolViewProps>;
 // Registry of tool-specific view components
 export const toolViewRegistry: Record<string, ToolViewComponent> = {
     Edit: EditView,
+    'file-edit': FileEditView,
     Bash: BashView,
     CodexBash: CodexBashView,
     CodexPatch: CodexPatchView,
@@ -73,6 +75,7 @@ export function getToolFullViewComponent(toolName: string): ToolViewComponent | 
 
 // Export individual components
 export { EditView } from './EditView';
+export { FileEditView } from './FileEditView';
 export { BashView } from './BashView';
 export { CodexBashView } from './CodexBashView';
 export { CodexPatchView } from './CodexPatchView';
