@@ -345,12 +345,10 @@ function attachPermissionToToolMessage(
     ) {
         message.tool.permission.id = permissionId;
         message.tool.permission.status = permission.status;
+        message.tool.permission.reason = permission.reason;
         message.tool.permission.mode = permission.mode;
         message.tool.permission.allowedTools = permission.allowedTools;
         message.tool.permission.decision = permission.decision;
-        if (permission.reason) {
-            message.tool.permission.reason = permission.reason;
-        }
         changed = true;
     }
 
@@ -755,12 +753,10 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                         } else {
                             // Update all fields
                             message.tool.permission.status = completed.status;
+                            message.tool.permission.reason = completed.reason || undefined;
                             message.tool.permission.mode = completed.mode || undefined;
                             message.tool.permission.allowedTools = completed.allowedTools || undefined;
                             message.tool.permission.decision = completed.decision || undefined;
-                            if (completed.reason) {
-                                message.tool.permission.reason = completed.reason;
-                            }
                             hasChanged = true;
                         }
 

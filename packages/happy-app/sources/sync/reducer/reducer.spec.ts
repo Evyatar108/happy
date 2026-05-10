@@ -780,9 +780,105 @@ describe('reducer', () => {
             }
         });
 
+        it('clears stale denial reason when a subsequent completedRequest update has no reason', () => {
+            const state = createReducer();
+
+            // Step 1: denied permission with a reason — message gets reason set
+            const agentState1: AgentState = {
+                completedRequests: {
+                    'perm-1': {
+                        tool: 'Bash',
+                        arguments: { command: 'rm -rf /' },
+                        createdAt: 1000,
+                        completedAt: 2000,
+                        status: 'denied',
+                        reason: 'Too dangerous',
+                    }
+                }
+            };
+
+            reducer(state, [], agentState1);
+
+            // Step 2: the same permission id is now approved without a reason — stale reason must be cleared.
+            const agentState2: AgentState = {
+                completedRequests: {
+                    'perm-1': {
+                        tool: 'Bash',
+                        arguments: { command: 'rm -rf /' },
+                        createdAt: 1000,
+                        completedAt: 3000,
+                        status: 'approved',
+                    }
+                }
+            };
+
+            const result2 = reducer(state, [], agentState2);
+            expect(result2.messages).toHaveLength(1);
+            if (result2.messages[0].kind === 'tool-call') {
+                expect(result2.messages[0].tool.permission?.status).toBe('approved');
+                expect(result2.messages[0].tool.permission?.reason).toBeUndefined();
+            }
+        });
+
+        it('clears stale reason via attachPermissionToToolMessage when tool-call arrives after approve-then-pending-without-reason', () => {
+            const state = createReducer();
+            const input = { plan: 'Implement the requested feature.' };
+
+            // Step 1: denied ExitPlanMode permission with a reason — creates a permission message
+            // with the stale denial text.
+            const deniedState: AgentState = {
+                completedRequests: {
+                    'perm-exit-1': {
+                        tool: 'ExitPlanMode',
+                        arguments: input,
+                        createdAt: 1000,
+                        completedAt: 2000,
+                        status: 'denied',
+                        reason: 'Not ready yet',
+                    }
+                }
+            };
+            const result1 = reducer(state, [], deniedState);
+            expect(result1.messages).toHaveLength(1);
+            expect(result1.messages[0].kind).toBe('tool-call');
+            if (result1.messages[0].kind === 'tool-call') {
+                expect(result1.messages[0].tool.permission?.reason).toBe('Not ready yet');
+            }
+
+            // Step 2: the tool-call wire message arrives and, simultaneously, the permission
+            // transitions to approved with no reason.  attachPermissionToToolMessage must clear
+            // the stale 'Not ready yet' reason.
+            const approvedState: AgentState = {
+                completedRequests: {
+                    'perm-exit-1': {
+                        tool: 'ExitPlanMode',
+                        arguments: input,
+                        createdAt: 1000,
+                        completedAt: 3000,
+                        status: 'approved',
+                        decision: 'approved',
+                    }
+                }
+            };
+            const toolMessage = createToolCallMessage(
+                'msg-exit-1',
+                3000,
+                'perm-exit-1',
+                'ExitPlanMode',
+                input,
+            );
+
+            const result2 = reducer(state, [toolMessage], approvedState);
+            expect(result2.messages).toHaveLength(1);
+            if (result2.messages[0].kind === 'tool-call') {
+                expect(result2.messages[0].tool.permission?.status).toBe('approved');
+                expect(result2.messages[0].tool.permission?.reason).toBeUndefined();
+            }
+        });
+
         it('should match incoming tool calls to approved permission messages', () => {
             const state = createReducer();
-            
+
             // First create an approved permission
             const agentState: AgentState = {
                 completedRequests: {
