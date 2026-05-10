@@ -16,12 +16,14 @@ import { OutgoingMessageQueue } from "./utils/OutgoingMessageQueue";
 import { getToolName } from "./utils/getToolName";
 import { getAskUserQuestionToolCallIds } from "./utils/questionNotification";
 import { mergeSDKInitMetadata } from "./utils/sdkMetadata";
+import type { MessageBatch } from "@/utils/MessageQueue2";
 
 interface PermissionsField {
     date: number;
     result: 'approved' | 'denied';
     mode?: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
     allowedTools?: string[];
+    decision?: 'approved' | 'approved_for_session' | 'denied' | 'abort';
 }
 
 function pickResumeForkSourceSid(claudeArgs: string[] | undefined, fallbackSid: string | null): string | null {
@@ -123,7 +125,8 @@ export async function claudeRemoteLauncher(session: Session): Promise<'switch' |
     // Removed catch-all stdin handler - now handled by RemoteModeDisplay keyboard handlers
 
     // Create permission handler
-    const permissionHandler = new PermissionHandler(session);
+    session.permissionAllowlist.rehydrateFromAgentState(session.client.getAgentState());
+    const permissionHandler = new PermissionHandler(session, session.permissionAllowlist);
 
     // Create outgoing message queue
     const messageQueue = new OutgoingMessageQueue(
@@ -228,6 +231,10 @@ export async function claudeRemoteLauncher(session: Session): Promise<'switch' |
                                 permissions.allowedTools = response.allowTools;
                             }
 
+                            if (response.decision) {
+                                permissions.decision = response.decision;
+                            }
+
                             // Add permissions directly to the tool_result content object
                             content[i] = {
                                 ...c,
@@ -287,10 +294,15 @@ export async function claudeRemoteLauncher(session: Session): Promise<'switch' |
     }
 
     try {
-        let pending: {
-            message: string;
-            mode: EnhancedMode;
-        } | null = null;
+        let pending: MessageBatch<EnhancedMode> | null = null;
+        const emitConsumptionReceipts = (batch: MessageBatch<EnhancedMode>) => {
+            for (const delivery of batch.consumedMessages) {
+                session.client.sendMessageConsumption({
+                    messageId: delivery.messageId,
+                    agentFlavor: 'claude',
+                });
+            }
+        };
 
         // Track session ID to detect when it actually changes
         // This prevents context loss when mode changes (permission mode, model, etc.)
@@ -307,7 +319,7 @@ export async function claudeRemoteLauncher(session: Session): Promise<'switch' |
             const isNewSession = session.sessionId !== previousSessionId;
             if (isNewSession) {
                 messageBuffer.addMessage('Starting new Claude session...', 'status');
-                permissionHandler.reset(); // Reset permissions before starting new session
+                permissionHandler.reset({ clearAllowlist: previousSessionId !== null }); // Reset session approvals only on an actual Claude session change
                 sdkToLogConverter.resetParentChain(); // Reset parent chain for new conversation
                 logger.debug(`[remote]: New session detected (previous: ${previousSessionId}, current: ${session.sessionId})`);
             } else {
@@ -338,6 +350,7 @@ export async function claudeRemoteLauncher(session: Session): Promise<'switch' |
                             let p = pending;
                             pending = null;
                             permissionHandler.handleModeChange(p.mode.permissionMode);
+                            emitConsumptionReceipts(p);
                             return p;
                         }
 
@@ -353,6 +366,7 @@ export async function claudeRemoteLauncher(session: Session): Promise<'switch' |
                             modeHash = msg.hash;
                             mode = msg.mode;
                             permissionHandler.handleModeChange(mode.permissionMode);
+                            emitConsumptionReceipts(msg);
                             return {
                                 message: msg.message,
                                 mode: msg.mode

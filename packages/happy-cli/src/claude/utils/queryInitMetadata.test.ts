@@ -251,7 +251,7 @@ describe('queryInitMetadata', () => {
             settingsPath: '/tmp/settings.json',
             timeoutMs: 25,
         })).resolves.toEqual({});
-        expect(mockLoggerDebug).toHaveBeenCalledWith(
+        expect(mockLoggerWarn).toHaveBeenCalledWith(
             expect.stringContaining('Timed out after 25ms'),
         );
     }, 10_000);
@@ -267,7 +267,7 @@ describe('queryInitMetadata', () => {
             cwd: '/tmp/project',
             settingsPath: '/tmp/settings.json',
         })).resolves.toEqual({});
-        expect(mockLoggerDebug).toHaveBeenCalledWith(
+        expect(mockLoggerWarn).toHaveBeenCalledWith(
             '[queryInitMetadata] Failed to query init metadata: sdk exploded',
         );
     });

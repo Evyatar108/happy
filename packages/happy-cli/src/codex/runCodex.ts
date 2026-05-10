@@ -15,6 +15,7 @@ import { initialMachineMetadata } from '@/daemon/run';
 import { configuration } from '@/configuration';
 import packageJson from '../../package.json';
 import { MessageQueue2 } from '@/utils/MessageQueue2';
+import type { MessageBatch, MessageDelivery } from '@/utils/MessageQueue2';
 import { hashObject } from '@/utils/deterministicJson';
 import { projectPath } from '@/projectPath';
 import { join } from 'node:path';
@@ -38,6 +39,12 @@ import { resumeExistingThread } from './resumeExistingThread';
 import { emitReadyIfIdle } from './emitReadyIfIdle';
 import type { ReasoningEffort } from './codexAppServerTypes';
 import { HAPPY_FORKED_FROM_SESSION_ID } from '@/utils/envNames';
+
+function getMessageDelivery(message: { messageId?: string; seq?: number }): MessageDelivery | undefined {
+    return typeof message.messageId === 'string' && typeof message.seq === 'number'
+        ? { messageId: message.messageId, seq: message.seq }
+        : undefined;
+}
 
 /**
  * Extracts a human-readable error from a codex task_complete/turn_aborted event.
@@ -166,6 +173,7 @@ export async function runCodex(opts: {
     let client!: CodexAppServerClient;
     let reasoningProcessor!: ReasoningProcessor;
     let abortInProgress: Promise<void> | null = null;
+    let closing = false;
     const { session: initialSession, reconnectionHandle } = setupOfflineReconnection({
         api,
         sessionTag,
@@ -265,6 +273,8 @@ export async function runCodex(opts: {
     }
 
     session.onUserMessage((message) => {
+        if (closing) return;
+
         // Resolve permission mode (validate against Codex-native modes)
         let messagePermissionMode = currentPermissionMode;
         if (message.meta?.permissionMode) {
@@ -303,7 +313,7 @@ export async function runCodex(opts: {
             model: messageModel,
             thinkingLevel: messageThinkingLevel,
         };
-        messageQueue.push(message.content.text, enhancedMode);
+        messageQueue.push(message.content.text, enhancedMode, getMessageDelivery(message));
     });
     let thinking = false;
     let currentTurnId: string | null = null;
@@ -313,10 +323,23 @@ export async function runCodex(opts: {
     session.keepAlive(thinking, 'remote');
     // Periodic keep-alive; store handle so we can clear on exit
     const keepAliveInterval = setInterval(() => {
-        session.keepAlive(thinking, 'remote');
+        if (!closing) session.keepAlive(thinking, 'remote');
     }, 2000);
 
+    const sendSessionEventIfOpen = (event: Parameters<typeof session.sendSessionEvent>[0]) => {
+        if (!closing) session.sendSessionEvent(event);
+    };
+
+    const sendSessionProtocolMessageIfOpen = (envelope: Parameters<typeof session.sendSessionProtocolMessage>[0]) => {
+        if (!closing) session.sendSessionProtocolMessage(envelope);
+    };
+
+    const keepAliveIfOpen = () => {
+        if (!closing) session.keepAlive(thinking, 'remote');
+    };
+
     const sendReady = () => {
+        if (closing) return;
         session.sendSessionEvent({ type: 'ready' });
         try {
             session.sendPushEvent({
@@ -390,7 +413,7 @@ export async function runCodex(opts: {
                     });
                     if (abortResult.forcedRestart) {
                         logger.warn('[Codex] Forced app-server restart after interrupt timeout');
-                        session.sendSessionEvent({
+                        sendSessionEventIfOpen({
                             type: 'message',
                             message: abortResult.resumedThread
                                 ? 'Force-stopped active task after interrupt timeout. Codex backend was restarted and the previous thread was resumed.'
@@ -423,43 +446,38 @@ export async function runCodex(opts: {
      * Kill terminates the entire process.
      */
     const handleKillSession = async () => {
+        closing = true;
         logger.debug('[Codex] Kill session requested - terminating process');
         await handleAbort();
         logger.debug('[Codex] Abort completed, proceeding with termination');
 
-        try {
-            // Update lifecycle state to archived before closing
-            if (session) {
-                session.updateMetadata((currentMetadata) => ({
-                    ...currentMetadata,
-                    lifecycleState: 'archived',
-                    lifecycleStateSince: Date.now(),
-                    archivedBy: 'cli',
-                    archiveReason: 'User terminated'
-                }));
-                
-                // Send session death message
-                session.sendSessionDeath();
-                await session.flush();
-                await session.close();
-            }
+        // Update lifecycle state to archived before closing
+        if (session) {
+            session.updateMetadata((currentMetadata) => ({
+                ...currentMetadata,
+                lifecycleState: 'archived',
+                lifecycleStateSince: Date.now(),
+                archivedBy: 'cli',
+                archiveReason: 'User terminated'
+            }));
 
-            // Force close Codex transport (best-effort) so we don't leave stray processes
-            try {
-                await client.disconnect({ terminateAppServer: true });
-            } catch (e) {
-                logger.debug('[Codex] Error disconnecting Codex during termination', e);
-            }
-
-            // Stop Happy MCP server
-            happyServer.stop();
-
-            logger.debug('[Codex] Session termination complete, exiting');
-            process.exit(0);
-        } catch (error) {
-            logger.debug('[Codex] Error during session termination:', error);
-            process.exit(1);
+            // Send session death message
+            session.sendSessionDeath();
+            await session.flush();
+            await session.close();
         }
+
+        // Force close Codex transport (best-effort) so we don't leave stray processes
+        try {
+            await client.disconnect({ terminateAppServer: true });
+        } catch (e) {
+            logger.debug('[Codex] Error disconnecting Codex during termination', e);
+        }
+
+        // Stop Happy MCP server
+        happyServer.stop();
+
+        logger.debug('[Codex] Session termination complete');
     };
 
     // Register abort handler
@@ -514,13 +532,13 @@ export async function runCodex(opts: {
     reasoningProcessor = new ReasoningProcessor((message) => {
         const envelopes = mapCodexProcessorMessageToSessionEnvelopes(message, { currentTurnId });
         for (const envelope of envelopes) {
-            session.sendSessionProtocolMessage(envelope);
+            sendSessionProtocolMessageIfOpen(envelope);
         }
     });
     const diffProcessor = new DiffProcessor((message) => {
         const envelopes = mapCodexProcessorMessageToSessionEnvelopes(message, { currentTurnId });
         for (const envelope of envelopes) {
-            session.sendSessionProtocolMessage(envelope);
+            sendSessionProtocolMessageIfOpen(envelope);
         }
     });
 
@@ -575,7 +593,7 @@ export async function runCodex(opts: {
             const failure = describeCodexFailure(msg);
             if (failure) {
                 messageBuffer.addMessage(`Task failed: ${failure}`, 'status');
-                session.sendSessionEvent({ type: 'message', message: `Codex error: ${failure}` });
+                sendSessionEventIfOpen({ type: 'message', message: `Codex error: ${failure}` });
             } else {
                 messageBuffer.addMessage('Task completed', 'status');
             }
@@ -583,7 +601,7 @@ export async function runCodex(opts: {
             const failure = describeCodexFailure(msg);
             if (failure) {
                 messageBuffer.addMessage(`Turn aborted: ${failure}`, 'status');
-                session.sendSessionEvent({ type: 'message', message: `Codex error: ${failure}` });
+                sendSessionEventIfOpen({ type: 'message', message: `Codex error: ${failure}` });
             } else {
                 messageBuffer.addMessage('Turn aborted', 'status');
             }
@@ -593,14 +611,14 @@ export async function runCodex(opts: {
             if (!thinking) {
                 logger.debug('thinking started');
                 thinking = true;
-                session.keepAlive(thinking, 'remote');
+                keepAliveIfOpen();
             }
         }
         if (msg.type === 'task_complete' || msg.type === 'turn_aborted') {
             if (thinking) {
                 logger.debug('thinking completed');
                 thinking = false;
-                session.keepAlive(thinking, 'remote');
+                keepAliveIfOpen();
             }
             // Reset diff processor on task end or abort
             diffProcessor.reset();
@@ -650,7 +668,7 @@ export async function runCodex(opts: {
             codexActiveSubagents = mapped.activeSubagents;
             codexProviderSubagentToSessionSubagent = mapped.providerSubagentToSessionSubagent;
             for (const envelope of mapped.envelopes) {
-                session.sendSessionProtocolMessage(envelope);
+                sendSessionProtocolMessageIfOpen(envelope);
             }
         }
     });
@@ -700,11 +718,19 @@ export async function runCodex(opts: {
             first = false;
         }
 
-        let pending: { message: string; mode: EnhancedMode; isolate: boolean; hash: string } | null = null;
+        let pending: MessageBatch<EnhancedMode> | null = null;
+        const emitConsumptionReceipts = (batch: MessageBatch<EnhancedMode>) => {
+            for (const delivery of batch.consumedMessages) {
+                session.sendMessageConsumption({
+                    messageId: delivery.messageId,
+                    agentFlavor: 'codex',
+                });
+            }
+        };
 
         while (!shouldExit) {
             logActiveHandles('loop-top');
-            let message: { message: string; mode: EnhancedMode; isolate: boolean; hash: string } | null = pending;
+            let message: MessageBatch<EnhancedMode> | null = pending;
             pending = null;
             if (!message) {
                 // Capture the current signal to distinguish idle-abort from queue close
@@ -726,6 +752,8 @@ export async function runCodex(opts: {
             if (!message) {
                 break;
             }
+
+            emitConsumptionReceipts(message);
 
             // Display user messages in the UI
             messageBuffer.addMessage(message.message, 'user');
@@ -775,14 +803,14 @@ export async function runCodex(opts: {
                 // Only actual errors reach here (process crash, connection failure, etc.)
                 logger.warn('Error in codex session:', error);
                 messageBuffer.addMessage('Process exited unexpectedly', 'status');
-                session.sendSessionEvent({ type: 'message', message: 'Process exited unexpectedly' });
+                sendSessionEventIfOpen({ type: 'message', message: 'Process exited unexpectedly' });
             } finally {
                 // Reset permission handler, reasoning processor, and diff processor
                 permissionHandler.reset();
                 reasoningProcessor.abort();  // Use abort to properly finish any in-progress tool calls
                 diffProcessor.reset();
                 thinking = false;
-                session.keepAlive(thinking, 'remote');
+                keepAliveIfOpen();
                 emitReadyIfIdle({
                     pending,
                     queueSize: () => messageQueue.size(),

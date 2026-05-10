@@ -23,6 +23,7 @@ export const sessionToolCallStartEventSchema = z.object({
   title: z.string(),
   description: z.string(),
   args: z.record(z.string(), z.unknown()),
+  permissionRequestId: z.string().optional(),
 });
 
 export const sessionToolCallEndEventSchema = z.object({
@@ -103,6 +104,14 @@ export const sessionAgentConfigurationChangedEventSchema = z.object({
 });
 export type SessionAgentConfigurationChangedEvent = z.infer<typeof sessionAgentConfigurationChangedEventSchema>;
 
+export const sessionMessageConsumptionEventSchema = z.object({
+  t: z.literal('message-consumption'),
+  messageId: z.string(),
+  consumedAt: z.number(),
+  agentFlavor: z.enum(['claude', 'codex']),
+});
+export type SessionMessageConsumptionEvent = z.infer<typeof sessionMessageConsumptionEventSchema>;
+
 export const sessionEventSchema = z.discriminatedUnion('t', [
   sessionTextEventSchema,
   sessionServiceMessageEventSchema,
@@ -115,6 +124,7 @@ export const sessionEventSchema = z.discriminatedUnion('t', [
   sessionStopEventSchema,
   sessionContextBoundaryEventSchema,
   sessionAgentConfigurationChangedEventSchema,
+  sessionMessageConsumptionEventSchema,
 ]);
 
 export type SessionEvent = z.infer<typeof sessionEventSchema>;

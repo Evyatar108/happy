@@ -583,6 +583,7 @@ function mapClaudeLogMessageToSessionEnvelopesInternal(
                     ? { ...baseArgs, sessionSubagent: sessionSubagentForCall }
                     : baseArgs;
                 const boundary = planModeBoundaryForTool(name);
+                const isExitPlan = name === 'ExitPlanMode' || name === 'exit_plan_mode';
 
                 envelopes.push(createEnvelope('agent', {
                     t: 'tool-call-start',
@@ -591,6 +592,7 @@ function mapClaudeLogMessageToSessionEnvelopesInternal(
                     title,
                     description: title,
                     args,
+                    ...(isExitPlan ? { permissionRequestId: call } : {}),
                 }, { turn: turnId, subagent }));
                 if (boundary) {
                     boundaries.push(boundary);

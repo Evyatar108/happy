@@ -87,6 +87,7 @@ describe('session protocol schemas', () => {
       { t: 'stop' },
       { t: 'context-boundary', kind: 'clear', at: 1234, triggeredBy: 'user' },
       { t: 'agent-configuration-changed', model: 'claude-sonnet-4-6' },
+      { t: 'message-consumption', messageId: 'user-message-1', consumedAt: 1234, agentFlavor: 'claude' },
     ];
 
     for (const event of events) {
@@ -102,6 +103,7 @@ describe('session protocol schemas', () => {
     expect(sessionEventSchema.safeParse({ t: 'turn-end', status: 'canceled' }).success).toBe(false);
     expect(sessionEventSchema.safeParse({ t: 'start', title: 1 }).success).toBe(false);
     expect(sessionEventSchema.safeParse({ t: 'service' }).success).toBe(false);
+    expect(sessionEventSchema.safeParse({ t: 'message-consumption', messageId: 'm1', consumedAt: 1, agentFlavor: 'gemini' }).success).toBe(false);
     expect(sessionEventSchema.safeParse({ t: 'not-real' }).success).toBe(false);
   });
 

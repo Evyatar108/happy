@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiSessionClient } from './apiSession';
+import { ApiSessionClient, MessageConsumptionTimeoutError } from './apiSession';
 import { decodeBase64, decrypt, encodeBase64, encrypt } from './encryption';
 import type { Update } from './types';
 
@@ -1427,5 +1427,233 @@ describe('ApiSessionClient v3 messages API migration', () => {
         expect(typeof resultA).toBe('number');
 
         await expect(seqPromiseB).rejects.toThrow(/did not return seq/);
+    });
+
+    it('resolves enqueueMessageWithConsumptionAck after message-consumption round-trip', async () => {
+        const client = new ApiSessionClient('fake-token', session);
+
+        mockAxiosPost.mockImplementationOnce(async (_url: string, body: { messages: Array<{ localId: string }> }) => ({
+            data: {
+                messages: [
+                    {
+                        id: 'user-message-1',
+                        seq: 1,
+                        localId: body.messages[0].localId,
+                        createdAt: 1,
+                        updatedAt: 1,
+                    }
+                ]
+            }
+        }));
+
+        const { seqPromise, consumedPromise } = client.enqueueMessageWithConsumptionAck({
+            role: 'user',
+            content: { type: 'text', text: 'hello' },
+        });
+
+        await expect(seqPromise).resolves.toBe(1);
+
+        (client as any).lastSeq = 1;
+        emitSocketEvent('update', createNewMessageUpdate(2, encryptContent(session, {
+            role: 'session',
+            content: {
+                id: 'consumption-1',
+                time: 10,
+                role: 'agent',
+                ev: {
+                    t: 'message-consumption',
+                    messageId: 'user-message-1',
+                    consumedAt: 10,
+                    agentFlavor: 'claude',
+                }
+            }
+        })));
+
+        await expect(consumedPromise).resolves.toMatchObject({
+            t: 'message-consumption',
+            messageId: 'user-message-1',
+            consumedAt: 10,
+            agentFlavor: 'claude',
+        });
+    });
+
+    it('rejects consumedPromise with session-closed error when close() is called while queued', async () => {
+        const client = new ApiSessionClient('fake-token', session);
+
+        mockAxiosPost.mockImplementationOnce(async (_url: string, body: { messages: Array<{ localId: string }> }) => ({
+            data: {
+                messages: [
+                    {
+                        id: 'user-message-close',
+                        seq: 1,
+                        localId: body.messages[0].localId,
+                        createdAt: 1,
+                        updatedAt: 1,
+                    }
+                ]
+            }
+        }));
+
+        const { seqPromise, consumedPromise } = client.enqueueMessageWithConsumptionAck({
+            role: 'user',
+            content: { type: 'text', text: 'disconnect-me' },
+        });
+
+        await expect(seqPromise).resolves.toBe(1);
+
+        await client.close();
+
+        await expect(consumedPromise).rejects.toThrow('Session closed before message consumption was observed');
+    });
+
+    it('rejects consumedPromise with MessageConsumptionTimeoutError after CONSUMPTION_ACK_TIMEOUT_MS', async () => {
+        vi.useFakeTimers();
+        const client = new ApiSessionClient('fake-token', session);
+
+        mockAxiosPost.mockImplementationOnce(async (_url: string, body: { messages: Array<{ localId: string }> }) => ({
+            data: {
+                messages: [
+                    {
+                        id: 'user-message-timeout',
+                        seq: 1,
+                        localId: body.messages[0].localId,
+                        createdAt: 1,
+                        updatedAt: 1,
+                    }
+                ]
+            }
+        }));
+
+        const { seqPromise, consumedPromise } = client.enqueueMessageWithConsumptionAck({
+            role: 'user',
+            content: { type: 'text', text: 'timeout-me' },
+        });
+
+        await vi.runAllTimersAsync();
+
+        await expect(seqPromise).resolves.toBe(1);
+        await expect(consumedPromise).rejects.toBeInstanceOf(MessageConsumptionTimeoutError);
+        await expect(consumedPromise).rejects.toMatchObject({ messageId: 'user-message-timeout' });
+
+        vi.useRealTimers();
+    });
+
+    it('rejects consumedPromise immediately when AbortSignal fires', async () => {
+        const client = new ApiSessionClient('fake-token', session);
+
+        mockAxiosPost.mockImplementationOnce(async (_url: string, body: { messages: Array<{ localId: string }> }) => ({
+            data: {
+                messages: [
+                    {
+                        id: 'user-message-abort',
+                        seq: 1,
+                        localId: body.messages[0].localId,
+                        createdAt: 1,
+                        updatedAt: 1,
+                    }
+                ]
+            }
+        }));
+
+        const controller = new AbortController();
+        const { seqPromise, consumedPromise } = client.enqueueMessageWithConsumptionAck(
+            { role: 'user', content: { type: 'text', text: 'abort-me' } },
+            controller.signal
+        );
+
+        await expect(seqPromise).resolves.toBe(1);
+
+        controller.abort(new Error('session killed'));
+        await expect(consumedPromise).rejects.toThrow('session killed');
+
+        expect((client as any).consumptionResolvers.size).toBe(0);
+    });
+
+    it('caps observedConsumptions at 256 entries and evicts the oldest on overflow', () => {
+        const client = new ApiSessionClient('fake-token', session);
+        const observed: Map<string, unknown> = (client as any).observedConsumptions;
+
+        for (let i = 0; i < 256; i += 1) {
+            (client as any).resolveConsumptionAck({
+                t: 'message-consumption',
+                messageId: `obs-${i}`,
+                consumedAt: i,
+                agentFlavor: 'claude',
+            });
+        }
+        expect(observed.size).toBe(256);
+        expect(observed.has('obs-0')).toBe(true);
+        expect(observed.has('obs-255')).toBe(true);
+
+        (client as any).resolveConsumptionAck({
+            t: 'message-consumption',
+            messageId: 'obs-256',
+            consumedAt: 256,
+            agentFlavor: 'claude',
+        });
+        expect(observed.size).toBe(256);
+        expect(observed.has('obs-0')).toBe(false);
+        expect(observed.has('obs-1')).toBe(true);
+        expect(observed.has('obs-256')).toBe(true);
+
+        (client as any).resolveConsumptionAck({
+            t: 'message-consumption',
+            messageId: 'obs-257',
+            consumedAt: 257,
+            agentFlavor: 'claude',
+        });
+        expect(observed.size).toBe(256);
+        expect(observed.has('obs-1')).toBe(false);
+        expect(observed.has('obs-2')).toBe(true);
+        expect(observed.has('obs-257')).toBe(true);
+    });
+
+    it('resolves batched consumption acks one envelope per original message seq', async () => {
+        const client = new ApiSessionClient('fake-token', session);
+
+        let nextSeq = 0;
+        mockAxiosPost.mockImplementation(async (_url: string, body: { messages: Array<{ localId: string }> }) => ({
+            data: {
+                messages: body.messages.map((message) => {
+                    nextSeq += 1;
+                    return {
+                        id: `user-message-${nextSeq}`,
+                        seq: nextSeq,
+                        localId: message.localId,
+                        createdAt: nextSeq,
+                        updatedAt: nextSeq,
+                    };
+                })
+            }
+        }));
+
+        const first = client.enqueueMessageWithConsumptionAck({ role: 'user', content: { type: 'text', text: 'one' } });
+        const second = client.enqueueMessageWithConsumptionAck({ role: 'user', content: { type: 'text', text: 'two' } });
+
+        await expect(first.seqPromise).resolves.toEqual(expect.any(Number));
+        await expect(second.seqPromise).resolves.toEqual(expect.any(Number));
+
+        client.sendMessageConsumption({ messageId: 'user-message-1', agentFlavor: 'claude' });
+        client.sendMessageConsumption({ messageId: 'user-message-2', agentFlavor: 'claude' });
+        await (client as any).flushOutbox();
+
+        const receipts = mockAxiosPost.mock.calls.slice(1).flatMap((call, callOffset) => {
+            const payload = call[1];
+            return payload.messages.map((_message: unknown, index: number) => decryptPostedMessage(session, index, callOffset + 1));
+        }).filter((message) => message.role === 'session' && message.content?.ev?.t === 'message-consumption');
+
+        const uniqueReceiptIds = [...new Set(receipts.map((receipt) => receipt.content.ev.messageId))];
+        expect(uniqueReceiptIds).toEqual([
+            'user-message-1',
+            'user-message-2',
+        ]);
+        expect(receipts.every((receipt) => receipt.content.ev.agentFlavor === 'claude')).toBe(true);
+
+        for (const receipt of receipts) {
+            (client as any).routeIncomingMessage(receipt);
+        }
+
+        await expect(first.consumedPromise).resolves.toMatchObject({ messageId: 'user-message-1' });
+        await expect(second.consumedPromise).resolves.toMatchObject({ messageId: 'user-message-2' });
     });
 });

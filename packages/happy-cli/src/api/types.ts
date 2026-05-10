@@ -241,6 +241,8 @@ export const UserMessageSchema = z.object({
     text: z.string()
   }),
   localKey: z.string().optional(), // Mobile messages include this
+  messageId: z.string().optional(),
+  seq: z.number().optional(),
   meta: MessageMetaSchema.optional()
 })
 

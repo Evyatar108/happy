@@ -80,6 +80,28 @@ function createUserTextMessage(id: string, createdAt: number, text: string): Nor
     };
 }
 
+function createMessageConsumptionEvent(
+    id: string,
+    createdAt: number,
+    messageId: string,
+    consumedAt: number,
+): NormalizedMessage {
+    return {
+        id,
+        localId: null,
+        createdAt,
+        seq: 1,
+        role: 'event',
+        isSidechain: false,
+        content: {
+            type: 'message-consumption',
+            messageId,
+            consumedAt,
+            agentFlavor: 'claude',
+        },
+    };
+}
+
 function createAgentTextMessage(
     id: string,
     createdAt: number,
@@ -437,6 +459,38 @@ describe('reducer', () => {
                 expect(result.messages[2].text).toBe('Third');
             }
         });
+
+        it('sets agentProcessedAt from message-consumption events', () => {
+            const state = createReducer();
+            const userMessage = createUserTextMessage('user-msg-1', 1000, 'Hello');
+            const consumption = createMessageConsumptionEvent('consumed-1', 1010, 'user-msg-1', 1005);
+
+            reducer(state, [userMessage]);
+            const result = reducer(state, [consumption]);
+
+            expect(result.messages).toHaveLength(1);
+            expect(result.messages[0]).toMatchObject({
+                kind: 'user-text',
+                text: 'Hello',
+                agentProcessedAt: 1005,
+            });
+        });
+
+        it('applies message-consumption when the ack arrives before the user message', () => {
+            const state = createReducer();
+            const userMessage = createUserTextMessage('user-msg-1', 1000, 'Hello');
+            const consumption = createMessageConsumptionEvent('consumed-1', 990, 'user-msg-1', 1005);
+
+            expect(reducer(state, [consumption]).messages).toHaveLength(0);
+            const result = reducer(state, [userMessage]);
+
+            expect(result.messages).toHaveLength(1);
+            expect(result.messages[0]).toMatchObject({
+                kind: 'user-text',
+                text: 'Hello',
+                agentProcessedAt: 1005,
+            });
+        });
     });
 
     describe('agent text message handling', () => {
@@ -726,9 +780,105 @@ describe('reducer', () => {
             }
         });
 
+        it('clears stale denial reason when a subsequent completedRequest update has no reason', () => {
+            const state = createReducer();
+
+            // Step 1: denied permission with a reason — message gets reason set
+            const agentState1: AgentState = {
+                completedRequests: {
+                    'perm-1': {
+                        tool: 'Bash',
+                        arguments: { command: 'rm -rf /' },
+                        createdAt: 1000,
+                        completedAt: 2000,
+                        status: 'denied',
+                        reason: 'Too dangerous',
+                    }
+                }
+            };
+
+            reducer(state, [], agentState1);
+
+            // Step 2: the same permission id is now approved without a reason — stale reason must be cleared.
+            const agentState2: AgentState = {
+                completedRequests: {
+                    'perm-1': {
+                        tool: 'Bash',
+                        arguments: { command: 'rm -rf /' },
+                        createdAt: 1000,
+                        completedAt: 3000,
+                        status: 'approved',
+                    }
+                }
+            };
+
+            const result2 = reducer(state, [], agentState2);
+            expect(result2.messages).toHaveLength(1);
+            if (result2.messages[0].kind === 'tool-call') {
+                expect(result2.messages[0].tool.permission?.status).toBe('approved');
+                expect(result2.messages[0].tool.permission?.reason).toBeUndefined();
+            }
+        });
+
+        it('clears stale reason via attachPermissionToToolMessage when tool-call arrives after approve-then-pending-without-reason', () => {
+            const state = createReducer();
+            const input = { plan: 'Implement the requested feature.' };
+
+            // Step 1: denied ExitPlanMode permission with a reason — creates a permission message
+            // with the stale denial text.
+            const deniedState: AgentState = {
+                completedRequests: {
+                    'perm-exit-1': {
+                        tool: 'ExitPlanMode',
+                        arguments: input,
+                        createdAt: 1000,
+                        completedAt: 2000,
+                        status: 'denied',
+                        reason: 'Not ready yet',
+                    }
+                }
+            };
+            const result1 = reducer(state, [], deniedState);
+            expect(result1.messages).toHaveLength(1);
+            expect(result1.messages[0].kind).toBe('tool-call');
+            if (result1.messages[0].kind === 'tool-call') {
+                expect(result1.messages[0].tool.permission?.reason).toBe('Not ready yet');
+            }
+
+            // Step 2: the tool-call wire message arrives and, simultaneously, the permission
+            // transitions to approved with no reason.  attachPermissionToToolMessage must clear
+            // the stale 'Not ready yet' reason.
+            const approvedState: AgentState = {
+                completedRequests: {
+                    'perm-exit-1': {
+                        tool: 'ExitPlanMode',
+                        arguments: input,
+                        createdAt: 1000,
+                        completedAt: 3000,
+                        status: 'approved',
+                        decision: 'approved',
+                    }
+                }
+            };
+            const toolMessage = createToolCallMessage(
+                'msg-exit-1',
+                3000,
+                'perm-exit-1',
+                'ExitPlanMode',
+                input,
+            );
+
+            const result2 = reducer(state, [toolMessage], approvedState);
+            expect(result2.messages).toHaveLength(1);
+            if (result2.messages[0].kind === 'tool-call') {
+                expect(result2.messages[0].tool.permission?.status).toBe('approved');
+                expect(result2.messages[0].tool.permission?.reason).toBeUndefined();
+            }
+        });
+
         it('should match incoming tool calls to approved permission messages', () => {
             const state = createReducer();
-            
+
             // First create an approved permission
             const agentState: AgentState = {
                 completedRequests: {
@@ -776,6 +926,115 @@ describe('reducer', () => {
                 expect(result2.messages[0].tool.state).toBe('running');
                 expect(result2.messages[0].tool.name).toBe('Bash');
             }
+        });
+
+        it('attaches ExitPlanMode permission when tool envelope arrives before agentState', () => {
+            const state = createReducer();
+            const input = { plan: 'Add the requested function and tests.' };
+            const toolMessage = createToolCallMessage(
+                'msg-exit-plan',
+                1000,
+                'toolu-exit-plan',
+                'ExitPlanMode',
+                input,
+            );
+
+            const result1 = reducer(state, [toolMessage]);
+            expect(result1.messages).toHaveLength(1);
+            expect(result1.messages[0].kind).toBe('tool-call');
+            if (result1.messages[0].kind === 'tool-call') {
+                expect(result1.messages[0].tool.permission).toBeUndefined();
+            }
+
+            const pendingState: AgentState = {
+                requests: {
+                    'permission-exit-plan': {
+                        tool: 'ExitPlanMode',
+                        arguments: input,
+                        createdAt: 1100,
+                    },
+                },
+            };
+            const result2 = reducer(state, [], pendingState);
+
+            expect(result2.messages).toHaveLength(1);
+            expect(state.toolIdToMessageId.get('toolu-exit-plan')).toBe(state.toolIdToMessageId.get('permission-exit-plan'));
+            expect(result2.messages[0].kind).toBe('tool-call');
+            if (result2.messages[0].kind === 'tool-call') {
+                expect(result2.messages[0].tool.name).toBe('ExitPlanMode');
+                expect(result2.messages[0].tool.permission).toEqual({
+                    id: 'permission-exit-plan',
+                    status: 'pending',
+                });
+            }
+
+            const completedState: AgentState = {
+                completedRequests: {
+                    'permission-exit-plan': {
+                        tool: 'ExitPlanMode',
+                        arguments: input,
+                        createdAt: 1100,
+                        completedAt: 1200,
+                        status: 'approved',
+                        mode: 'default',
+                        decision: 'approved',
+                    },
+                },
+            };
+            const result3 = reducer(state, [], completedState);
+
+            expect(result3.messages).toHaveLength(1);
+            expect(result3.messages[0].kind).toBe('tool-call');
+            if (result3.messages[0].kind === 'tool-call') {
+                expect(result3.messages[0].tool.permission).toMatchObject({
+                    id: 'permission-exit-plan',
+                    status: 'approved',
+                    mode: 'default',
+                    decision: 'approved',
+                });
+            }
+        });
+
+        it('attaches ExitPlanMode permission when agentState arrives before tool envelope', () => {
+            const state = createReducer();
+            const input = { plan: 'Refactor the reducer correlation path.' };
+            const pendingState: AgentState = {
+                requests: {
+                    'permission-exit-plan': {
+                        tool: 'exit_plan_mode',
+                        arguments: input,
+                        createdAt: 1000,
+                    },
+                },
+            };
+
+            const result1 = reducer(state, [], pendingState);
+            expect(result1.messages).toHaveLength(1);
+
+            const toolMessage = createToolCallMessage(
+                'msg-exit-plan',
+                1100,
+                'toolu-exit-plan',
+                'ExitPlanMode',
+                input,
+            );
+            const result2 = reducer(state, [toolMessage], pendingState);
+
+            expect(result2.messages).toHaveLength(1);
+            expect(state.toolIdToMessageId.get('toolu-exit-plan')).toBe(state.toolIdToMessageId.get('permission-exit-plan'));
+            expect(result2.messages[0].kind).toBe('tool-call');
+            if (result2.messages[0].kind === 'tool-call') {
+                expect(result2.messages[0].tool.name).toBe('exit_plan_mode');
+                expect(result2.messages[0].tool.state).toBe('running');
+                expect(result2.messages[0].tool.startedAt).toBe(1100);
+                expect(result2.messages[0].tool.permission).toEqual({
+                    id: 'permission-exit-plan',
+                    status: 'pending',
+                });
+            }
+
+            const result3 = reducer(state, [toolMessage], pendingState);
+            expect(result3.messages).toHaveLength(0);
         });
 
         it('should merge real tool-call patch args into matched permission messages', () => {

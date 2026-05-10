@@ -114,6 +114,15 @@ describe('mapClaudeLogMessageToSessionEnvelopes', () => {
         } as any, { currentTurnId: entered.currentTurnId });
 
         expect(exited.envelopes.some((envelope) => envelope.ev.t === 'context-boundary')).toBe(false);
+        expect(exited.envelopes).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                ev: expect.objectContaining({
+                    t: 'tool-call-start',
+                    call: 'tool-plan-exit',
+                    name: 'ExitPlanMode',
+                }),
+            }),
+        ]));
         expect(exited.boundaries).toEqual([
             {
                 kind: 'plan-mode-exit',

@@ -51,7 +51,7 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, 
 
         setLoadingAllEdits(true);
         try {
-            await sessionAllow(sessionId, permission.id, 'acceptEdits');
+            await sessionAllow(sessionId, permission.id, 'acceptEdits', undefined, 'approved_for_session');
             // Update the session permission mode to 'acceptEdits' for future permissions
             storage.getState().updateSessionPermissionMode(sessionId, 'acceptEdits', true);
         } catch (error) {
@@ -87,7 +87,7 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, 
                 toolIdentifier = `Bash(${command})`;
             }
             
-            await sessionAllow(sessionId, permission.id, undefined, [toolIdentifier]);
+            await sessionAllow(sessionId, permission.id, undefined, [toolIdentifier], 'approved_for_session');
         } catch (error) {
             console.error('Failed to approve for session:', error);
         } finally {

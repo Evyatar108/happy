@@ -30,9 +30,16 @@ import { publishAgentConfigurationMetadataIfChanged, publishPermissionModeIfChan
 import { decodeBase64, encodeBase64 } from '@/api/encryption';
 import type { Session as ApiSession } from '@/api/types';
 import type { AgentConfiguration } from '@/api/apiSession';
+import type { MessageDelivery } from '@/utils/MessageQueue2';
 
 /** JavaScript runtime to use for spawning Claude Code */
 export type JsRuntime = 'node' | 'bun'
+
+function getMessageDelivery(message: { messageId?: string; seq?: number }): MessageDelivery | undefined {
+    return typeof message.messageId === 'string' && typeof message.seq === 'number'
+        ? { messageId: message.messageId, seq: message.seq }
+        : undefined;
+}
 
 export interface StartOptions {
     model?: string
@@ -75,6 +82,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         pendingSwitch: null,
         turnActive: false,
     };
+    let closing = false;
 
     // Get machine ID from settings (should already be set up)
     const settings = await readSettings();
@@ -163,7 +171,9 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
                 const scanner = await createSessionScanner({
                     sessionId: null,
                     workingDirectory,
-                    onMessage: (msg) => session.sendClaudeSessionMessage(msg)
+                    onMessage: (msg) => {
+                        if (!closing) session.sendClaudeSessionMessage(msg);
+                    }
                 });
                 if (offlineSessionId) scanner.onNewSession(offlineSessionId);
                 return { session, scanner };
@@ -336,7 +346,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
     // Exit when session is archived from web/mobile
     session.on('archived', () => {
         logger.debug('[loop] Session archived from web/mobile, cleaning up...');
-        cleanup();
+        void cleanup();
     });
 
     const VALID_CLAUDE_PERMISSION_MODES: readonly PermissionMode[] = [
@@ -379,6 +389,8 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
     }
 
     session.onUserMessage((message) => {
+        if (closing) return;
+
         const taggedDeferredSwitch = message.meta?.capabilities?.deferredSwitch === true;
 
         if (!taggedDeferredSwitch) {
@@ -489,7 +501,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
                 allowedTools: messageAllowedTools,
                 disallowedTools: messageDisallowedTools
             };
-            messageQueue.pushIsolateAndClear(specialCommand.originalMessage || message.content.text, enhancedMode);
+            messageQueue.pushIsolateAndClear(specialCommand.originalMessage || message.content.text, enhancedMode, getMessageDelivery(message));
             logger.debugLargeJson('[start] /compact command pushed to queue:', message);
             return;
         }
@@ -506,7 +518,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
                 allowedTools: messageAllowedTools,
                 disallowedTools: messageDisallowedTools
             };
-            messageQueue.pushIsolateAndClear(specialCommand.originalMessage || message.content.text, enhancedMode);
+            messageQueue.pushIsolateAndClear(specialCommand.originalMessage || message.content.text, enhancedMode, getMessageDelivery(message));
             logger.debugLargeJson('[start] /compact command pushed to queue:', message);
             return;
         }
@@ -564,62 +576,69 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
             allowedTools: messageAllowedTools,
             disallowedTools: messageDisallowedTools
         };
-        messageQueue.push(message.content.text, enhancedMode);
+        messageQueue.push(message.content.text, enhancedMode, getMessageDelivery(message));
         logger.debugLargeJson('User message pushed to queue:', message)
     });
 
     // Setup signal handlers for graceful shutdown
+    let cleanupPromise: Promise<void> | null = null;
     const cleanup = async () => {
-        logger.debug('[START] Received termination signal, cleaning up...');
+        if (cleanupPromise) return cleanupPromise;
+        closing = true;
 
-        try {
-            // Update lifecycle state to archived before closing
-            if (session) {
-                session.updateMetadata((currentMetadata) => ({
-                    ...currentMetadata,
-                    lifecycleState: 'archived',
-                    lifecycleStateSince: Date.now(),
-                    archivedBy: 'cli',
-                    archiveReason: 'User terminated'
-                }));
-                
-                // Cleanup session resources (intervals, callbacks)
-                currentSession?.cleanup();
+        cleanupPromise = (async () => {
+            logger.debug('[START] Received termination signal, cleaning up...');
 
-                // Send session death message
-                session.sendSessionDeath();
-                await session.flush();
-                await session.close();
+            try {
+                // Update lifecycle state to archived before closing
+                if (session) {
+                    session.updateMetadata((currentMetadata) => ({
+                        ...currentMetadata,
+                        lifecycleState: 'archived',
+                        lifecycleStateSince: Date.now(),
+                        archivedBy: 'cli',
+                        archiveReason: 'User terminated'
+                    }));
+
+                    // Cleanup session resources (intervals, callbacks)
+                    currentSession?.cleanup();
+
+                    // Send session death message
+                    session.sendSessionDeath();
+                    await session.flush();
+                    await session.close();
+                }
+
+                // Stop Happy MCP server
+                happyServer.stop();
+
+                // Stop Hook server and cleanup settings file
+                hookServer.stop();
+                cleanupHookSettingsFile(hookSettingsPath);
+
+                logger.debug('[START] Cleanup complete');
+            } catch (error) {
+                logger.debug('[START] Error during cleanup:', error);
+                throw error;
             }
+        })();
 
-            // Stop Happy MCP server
-            happyServer.stop();
-
-            // Stop Hook server and cleanup settings file
-            hookServer.stop();
-            cleanupHookSettingsFile(hookSettingsPath);
-
-            logger.debug('[START] Cleanup complete, exiting');
-            process.exit(0);
-        } catch (error) {
-            logger.debug('[START] Error during cleanup:', error);
-            process.exit(1);
-        }
+        return cleanupPromise;
     };
 
     // Handle termination signals
-    process.on('SIGTERM', cleanup);
-    process.on('SIGINT', cleanup);
+    process.on('SIGTERM', () => cleanup().then(() => process.exit(0), () => process.exit(1)));
+    process.on('SIGINT', () => cleanup().then(() => process.exit(0), () => process.exit(1)));
 
     // Handle uncaught exceptions and rejections
     process.on('uncaughtException', (error) => {
         logger.debug('[START] Uncaught exception:', error);
-        cleanup();
+        cleanup().then(() => process.exit(1), () => process.exit(1));
     });
 
     process.on('unhandledRejection', (reason) => {
         logger.debug('[START] Unhandled rejection:', reason);
-        cleanup();
+        cleanup().then(() => process.exit(1), () => process.exit(1));
     });
 
     registerKillSessionHandler(session.rpcHandlerManager, cleanup);
@@ -634,6 +653,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         api,
         allowedTools: happyServer.toolNames.map(toolName => `mcp__happy__${toolName}`),
         onModeChange: (newMode) => {
+            if (closing) return;
             currentMode = newMode;
             session.sendSessionEvent({ type: 'switch', mode: newMode });
             session.updateAgentState((currentState) => ({

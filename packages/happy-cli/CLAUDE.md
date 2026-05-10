@@ -91,6 +91,8 @@ Claude and Codex runners publish their effective mode to session metadata as `cu
 
 `publishPermissionModeIfChanged(...)` intentionally mutates the runner-local metadata object before awaiting `updateMetadata(...)`. That ordering keeps the offline-reconnect seed metadata current because reconnect paths reuse the same object by reference.
 
+Claude remote permission approvals that last for a session live in `Session.permissionAllowlist` (`src/claude/utils/sessionAllowlist.ts`), not in `PermissionHandler` instance fields. `claudeRemoteLauncher` rehydrates that allowlist from `agentState.completedRequests` before constructing a handler; handler resets should only clear pending requests unless a real Claude session change requires clearing session approvals.
+
 Live drawer config changes arrive through `ApiSessionClient.onAgentConfiguration(...)`, which diffs decrypted `update-session` metadata fields (`currentModelCode`, `currentPermissionModeCode`, `currentThoughtLevelCode`) and notifies provider runners. The `agent-configuration-changed` envelope is schema-only in this slice; CLI control consumption is metadata-driven and must not emit a raw session-event audit envelope unless a future active-turn audit story explicitly adds it.
 
 Absence of `currentPermissionModeCode` is meaningful: it represents "no opinion yet", which lets the app avoid overwriting a CLI-owned mode until the user explicitly picks one. More detail is in `.ralph/jobs/preserve-permission-mode-layer1/plan.md`.

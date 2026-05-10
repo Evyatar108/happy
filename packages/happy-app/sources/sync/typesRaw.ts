@@ -39,6 +39,11 @@ const agentEventSchema = z.discriminatedUnion('type', [z.object({
     kind: sessionContextBoundaryKindSchema,
     at: z.number(),
     forkedFromSid: z.string().optional(),
+}), z.object({
+    type: z.literal('message-consumption'),
+    messageId: z.string(),
+    consumedAt: z.number(),
+    agentFlavor: z.enum(['claude', 'codex']),
 })]);
 export type AgentEvent = z.infer<typeof agentEventSchema>;
 
@@ -370,6 +375,51 @@ export type RawRecord = z.infer<typeof rawRecordSchema>;
 // Export schemas for validation
 export const RawRecordSchema = rawRecordSchema;
 
+export function getRawRecordLifecycleState(raw: unknown): { isTaskStarted: boolean; isTaskComplete: boolean } {
+    const parsed = rawRecordSchema.safeParse(raw);
+    if (!parsed.success) {
+        return getLegacyProviderLifecycleState(raw);
+    }
+
+    if (parsed.data.role === 'session') {
+        return {
+            isTaskStarted: parsed.data.content.data.ev.t === 'turn-start',
+            isTaskComplete: parsed.data.content.data.ev.t === 'turn-end',
+        };
+    }
+
+    if (parsed.data.role !== 'agent') {
+        return { isTaskStarted: false, isTaskComplete: false };
+    }
+
+    const content = parsed.data.content;
+
+    if (content.type === 'acp') {
+        return {
+            isTaskStarted: content.data.type === 'task_started',
+            isTaskComplete: content.data.type === 'task_complete' || content.data.type === 'turn_aborted',
+        };
+    }
+
+    if (content.type === 'codex') {
+        return getLegacyProviderLifecycleState(raw);
+    }
+
+    return { isTaskStarted: false, isTaskComplete: false };
+}
+
+function getLegacyProviderLifecycleState(raw: unknown): { isTaskStarted: boolean; isTaskComplete: boolean } {
+    const content = (raw as { content?: { type?: unknown; data?: { type?: unknown } } } | null)?.content;
+    if (content?.type !== 'acp' && content?.type !== 'codex') {
+        return { isTaskStarted: false, isTaskComplete: false };
+    }
+
+    return {
+        isTaskStarted: content.data?.type === 'task_started',
+        isTaskComplete: content.data?.type === 'task_complete' || content.data?.type === 'turn_aborted',
+    };
+}
+
 
 //
 // Normalized types
@@ -394,6 +444,7 @@ type NormalizedAgentContent =
         description: string | null;
         uuid: string;
         parentUUID: string | null;
+        permissionRequestId?: string;
     } | {
         type: 'tool-result'
         tool_use_id: string;
@@ -450,7 +501,7 @@ function normalizeSessionEnvelope(
 ): NormalizedMessageBase | null {
     // Session protocol requires turn id on all agent-originated envelopes.
     // Drop malformed agent events without turn to avoid attaching stray messages.
-    if (envelope.role === 'agent' && !envelope.turn && envelope.ev.t !== 'context-boundary') {
+    if (envelope.role === 'agent' && !envelope.turn && envelope.ev.t !== 'context-boundary' && envelope.ev.t !== 'message-consumption') {
         return null;
     }
 
@@ -480,6 +531,23 @@ function normalizeSessionEnvelope(
                 kind: envelope.ev.kind,
                 at: envelope.ev.at,
                 forkedFromSid: envelope.ev.forkedFromSid,
+            },
+            meta
+        } satisfies NormalizedMessageBase;
+    }
+
+    if (envelope.ev.t === 'message-consumption') {
+        return {
+            id: messageId,
+            localId,
+            createdAt: messageCreatedAt,
+            role: 'event',
+            isSidechain: false,
+            content: {
+                type: 'message-consumption',
+                messageId: envelope.ev.messageId,
+                consumedAt: envelope.ev.consumedAt,
+                agentFlavor: envelope.ev.agentFlavor,
             },
             meta
         } satisfies NormalizedMessageBase;
@@ -576,7 +644,8 @@ function normalizeSessionEnvelope(
                 input: envelope.ev.args,
                 description: envelope.ev.description,
                 uuid: contentUUID,
-                parentUUID
+                parentUUID,
+                ...(envelope.ev.permissionRequestId !== undefined ? { permissionRequestId: envelope.ev.permissionRequestId } : {}),
             }],
             meta
         } satisfies NormalizedMessageBase;

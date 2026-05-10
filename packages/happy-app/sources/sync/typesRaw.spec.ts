@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createId } from '@paralleldrive/cuid2';
 import { sessionEventSchema, type SessionEvent } from '@slopus/happy-wire';
-import { normalizeRawMessage } from './typesRaw';
+import { getRawRecordLifecycleState, normalizeRawMessage } from './typesRaw';
 
 /**
  * WOLOG Content Normalization Tests
@@ -1542,6 +1542,12 @@ describe('Zod Transform - WOLOG Content Normalization', () => {
                 model: 'claude-sonnet-4-6',
                 thinkingLevel: 'high',
                 sandbox: 'workspace-write'
+            },
+            'message-consumption': {
+                t: 'message-consumption',
+                messageId: 'user-message-1',
+                consumedAt: 1736300000100,
+                agentFlavor: 'claude'
             }
         } satisfies Record<SessionEvent['t'], SessionEvent>;
 
@@ -1825,6 +1831,40 @@ describe('Zod Transform - WOLOG Content Normalization', () => {
                 role: 'event',
                 content: { type: 'ready' }
             });
+        });
+
+        it('detects turn lifecycle from the post-normalized session envelope shape', () => {
+            expect(getRawRecordLifecycleState({
+                role: 'session',
+                content: {
+                    id: 'env-start',
+                    time: 1,
+                    role: 'agent',
+                    turn: 'turn-1',
+                    ev: { t: 'turn-start' }
+                }
+            })).toEqual({ isTaskStarted: true, isTaskComplete: false });
+
+            expect(getRawRecordLifecycleState({
+                role: 'session',
+                content: {
+                    id: 'env-end',
+                    time: 2,
+                    role: 'agent',
+                    turn: 'turn-1',
+                    ev: { t: 'turn-end', status: 'completed' }
+                }
+            })).toEqual({ isTaskStarted: false, isTaskComplete: true });
+        });
+
+        it('preserves legacy provider lifecycle detection for non-session messages', () => {
+            expect(getRawRecordLifecycleState({
+                role: 'agent',
+                content: {
+                    type: 'codex',
+                    data: { type: 'task_complete', id: 'legacy-turn-1' }
+                }
+            })).toEqual({ isTaskStarted: false, isTaskComplete: true });
         });
 
         it('normalizes no-turn context-boundary events to app event content', () => {
