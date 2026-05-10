@@ -73,6 +73,42 @@ describe('forkSession', () => {
     expect(Object.keys(launch.env).filter(key => key.startsWith('HAPPY_RECONNECT_'))).toHaveLength(0);
   });
 
+  it('always fetches server metadata and prefers fresh codexThreadId over stale cached one', async () => {
+    const parent = trackedSession(codexMetadata({ codexThreadId: 'stale-thread' }));
+    const spawnTrackedHappyProcess = vi.fn().mockResolvedValue({ type: 'success', sessionId: 'fork-child-id' });
+    const fetchServerSessionMetadata = vi.fn().mockResolvedValue(codexMetadata({ codexThreadId: 'fresh-thread' }));
+
+    await forkSession({ parentSessionId: 'parent-local-id', worktreePath: '/fork/worktree' }, {
+      findTrackedSessionById: vi.fn().mockReturnValue(parent),
+      fetchServerSessionMetadata,
+      spawnTrackedHappyProcess,
+      stat: vi.fn().mockResolvedValue({}) as any,
+      baseEnv: {},
+    });
+
+    expect(fetchServerSessionMetadata).toHaveBeenCalledTimes(1);
+    expect(fetchServerSessionMetadata).toHaveBeenCalledWith('parent-local-id', parent.encryption!.encryptionKey, 'legacy');
+    expect(spawnTrackedHappyProcess.mock.calls[0][0].args).toContain('fresh-thread');
+    expect(spawnTrackedHappyProcess.mock.calls[0][0].args).not.toContain('stale-thread');
+  });
+
+  it('falls back to local cached codexThreadId when server fetch fails', async () => {
+    const parent = trackedSession(codexMetadata({ codexThreadId: 'cached-thread' }));
+    const spawnTrackedHappyProcess = vi.fn().mockResolvedValue({ type: 'success', sessionId: 'fork-child-id' });
+    const fetchServerSessionMetadata = vi.fn().mockRejectedValue(new Error('network error'));
+
+    await forkSession({ parentSessionId: 'parent-local-id', worktreePath: '/fork/worktree' }, {
+      findTrackedSessionById: vi.fn().mockReturnValue(parent),
+      fetchServerSessionMetadata,
+      spawnTrackedHappyProcess,
+      stat: vi.fn().mockResolvedValue({}) as any,
+      baseEnv: {},
+    });
+
+    expect(fetchServerSessionMetadata).toHaveBeenCalledTimes(1);
+    expect(spawnTrackedHappyProcess.mock.calls[0][0].args).toContain('cached-thread');
+  });
+
   it('fetches fresh metadata when the webhook has Codex flavor but no thread id', async () => {
     const parent = trackedSession(codexMetadata({ codexThreadId: undefined }));
     const spawnTrackedHappyProcess = vi.fn().mockResolvedValue({ type: 'success', sessionId: 'fork-child-id' });

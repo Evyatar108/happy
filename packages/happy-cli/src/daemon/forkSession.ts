@@ -40,12 +40,15 @@ export async function forkSession(options: ForkSessionOptions, deps: ForkSession
       return { type: 'error', errorMessage: `Session ${parentSessionId} uses unsupported flavor "${metadata.flavor ?? 'unknown'}". Forking is currently supported for Codex sessions only.` };
     }
 
-    if (!metadata.codexThreadId) {
-      const serverMetadata = await deps.fetchServerSessionMetadata(parentSessionId, tracked.encryption.encryptionKey, tracked.encryption.encryptionVariant);
-      if (serverMetadata) {
-        metadata = serverMetadata;
-        tracked.happySessionMetadataFromLocalWebhook = serverMetadata;
-      }
+    let serverMetadata: Metadata | null = null;
+    try {
+      serverMetadata = await deps.fetchServerSessionMetadata(parentSessionId, tracked.encryption.encryptionKey, tracked.encryption.encryptionVariant);
+    } catch {
+      // fall back to local cache below
+    }
+    if (serverMetadata) {
+      metadata = serverMetadata;
+      tracked.happySessionMetadataFromLocalWebhook = serverMetadata;
     }
 
     await deps.stat(worktreePath);
