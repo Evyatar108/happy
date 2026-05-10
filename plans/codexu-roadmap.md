@@ -87,6 +87,11 @@ review before renaming.
 
 ### What's where
 
+## Ralph Rendered Fan-Out Runs
+
+<!-- ralph-render-section:start -->
+<!-- ralph-render-section:end -->
+
 | Component | Location | Repo |
 |---|---|---|
 | codexu monorepo (`packages/happy-{cli,app,server,agent,wire,app-logs}` + `packages/codexu-plugin` + `packages/codium`) | `C:/harness-efforts/codexu/` | `Evyatar108/codexu` |

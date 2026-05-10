@@ -57,7 +57,7 @@ Goal: make `happy-agent` the reliable control plane for dispatching and monitori
   - pending permission/tool requests
   - last meaningful output
   - whether real validation evidence has been attached
-- Add a reporting flow that writes status back into this roadmap under each task instead of leaving results scattered across chat history.
+- Add a reporting flow that records status in the append-only ledger and renders it into the roadmap through `tools/render-roadmap.ts`, instead of leaving results scattered across chat history.
 - Do not trust a spawned agent's "done" message by default. Require it to provide:
   - exact scope completed
   - concrete tests performed
@@ -80,7 +80,7 @@ Goal: make `happy-agent` the reliable control plane for dispatching and monitori
   4. send work to it
   5. monitor it to idle
   6. collect a real verification link
-  7. write the report back into this roadmap
+  7. write ledger records and render the report back into the roadmap
 - Only after this passes should the other roadmap items be delegated through `happy-agent`.
 
 ## P1. Control-flow, permissions, and protocol bugs
