@@ -7,8 +7,11 @@ const mocks = vi.hoisted(() => ({
     alert: vi.fn(),
     storageState: {
         sessions: {} as Record<string, any>,
+        applySessions: vi.fn(),
         applySettings: vi.fn(),
         applySettingsLocal: vi.fn(),
+        getActiveSessions: vi.fn(),
+        isMutableToolCall: vi.fn(),
         setSocketStatus: vi.fn(),
     },
     randomUUID: vi.fn(),
@@ -142,6 +145,17 @@ function makeSession(overrides: Partial<StoredSession> = {}): StoredSession {
     };
 }
 
+function resetStorageHarness() {
+    mocks.storageState.sessions = {};
+    mocks.storageState.applySessions.mockImplementation((sessions: StoredSession[]) => {
+        for (const session of sessions) {
+            mocks.storageState.sessions[session.id] = session;
+        }
+    });
+    mocks.storageState.getActiveSessions.mockImplementation(() => Object.values(mocks.storageState.sessions));
+    mocks.storageState.isMutableToolCall.mockReturnValue(false);
+}
+
 function installSyncHarness(options: { session?: StoredSession | null; encryptRawRecord?: ReturnType<typeof vi.fn> } = {}) {
     const encryptRawRecord = options.encryptRawRecord ?? vi.fn(async () => 'encrypted-record');
     const session = options.session === undefined ? makeSession() : options.session;
@@ -161,11 +175,49 @@ function installSyncHarness(options: { session?: StoredSession | null; encryptRa
     return { encryptRawRecord };
 }
 
+function makeEncryptedUpdate() {
+    return {
+        id: 'update-1',
+        seq: 1,
+        createdAt: 200,
+        body: {
+            t: 'new-message',
+            sid: 'session-1',
+            message: {
+                id: 'message-1',
+                seq: 1,
+                localId: null,
+                content: { t: 'encrypted', c: 'ciphertext' },
+                createdAt: 100,
+                updatedAt: 100,
+            },
+        },
+    };
+}
+
+function installIncomingMessageHarness(content: unknown, session: StoredSession) {
+    mocks.storageState.sessions = { 'session-1': session };
+
+    (sync as any).encryption = {
+        getSessionEncryption: vi.fn(() => ({
+            decryptMessage: vi.fn(async () => ({
+                id: 'message-1',
+                localId: null,
+                createdAt: 100,
+                seq: 1,
+                content,
+            })),
+        })),
+    };
+    vi.spyOn(sync as any, 'getMessagesSync').mockReturnValue({ invalidate: vi.fn() });
+    vi.spyOn(sync as any, 'onSessionVisible').mockImplementation(() => undefined);
+}
+
 describe('sync.sendMessage switch policy', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
         vi.clearAllMocks();
-        mocks.storageState.sessions = {};
+        resetStorageHarness();
         mocks.sessionRPC.mockResolvedValue({ deferred: true });
         mocks.randomUUID.mockReturnValue('local-1');
     });
@@ -333,6 +385,54 @@ describe('sync.sendMessage switch policy', () => {
         await sync.sendMessage('session-1', 'third', { switchMode: 'when-idle' });
 
         expect(apiSocket.sessionRPC).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe('sync new-message lifecycle state', () => {
+    beforeEach(() => {
+        vi.restoreAllMocks();
+        vi.clearAllMocks();
+        resetStorageHarness();
+    });
+
+    it('sets thinking on turn-start session envelopes', async () => {
+        installIncomingMessageHarness({
+            role: 'session',
+            content: {
+                id: 'env-start',
+                time: 100,
+                role: 'agent',
+                turn: 'turn-1',
+                ev: { t: 'turn-start' },
+            },
+        }, makeSession({ thinking: false }));
+
+        await (sync as any).handleUpdate(makeEncryptedUpdate());
+
+        expect(mocks.storageState.applySessions).toHaveBeenCalledWith([
+            expect.objectContaining({ id: 'session-1', thinking: true, updatedAt: 200 }),
+        ]);
+        expect(mocks.storageState.sessions['session-1'].thinking).toBe(true);
+    });
+
+    it('clears thinking on turn-end session envelopes', async () => {
+        installIncomingMessageHarness({
+            role: 'session',
+            content: {
+                id: 'env-end',
+                time: 100,
+                role: 'agent',
+                turn: 'turn-1',
+                ev: { t: 'turn-end', status: 'completed' },
+            },
+        }, makeSession({ thinking: true }));
+
+        await (sync as any).handleUpdate(makeEncryptedUpdate());
+
+        expect(mocks.storageState.applySessions).toHaveBeenCalledWith([
+            expect.objectContaining({ id: 'session-1', thinking: false, updatedAt: 200 }),
+        ]);
+        expect(mocks.storageState.sessions['session-1'].thinking).toBe(false);
     });
 });
 

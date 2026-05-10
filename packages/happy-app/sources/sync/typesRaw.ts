@@ -370,6 +370,47 @@ export type RawRecord = z.infer<typeof rawRecordSchema>;
 // Export schemas for validation
 export const RawRecordSchema = rawRecordSchema;
 
+export function getRawRecordLifecycleState(raw: unknown): { isTaskStarted: boolean; isTaskComplete: boolean } {
+    const parsed = rawRecordSchema.safeParse(raw);
+    if (!parsed.success) {
+        return getLegacyProviderLifecycleState(raw);
+    }
+
+    if (parsed.data.role === 'session') {
+        return {
+            isTaskStarted: parsed.data.content.data.ev.t === 'turn-start',
+            isTaskComplete: parsed.data.content.data.ev.t === 'turn-end',
+        };
+    }
+
+    if (parsed.data.role !== 'agent') {
+        return { isTaskStarted: false, isTaskComplete: false };
+    }
+
+    const content = parsed.data.content;
+
+    if (content.type === 'acp') {
+        return {
+            isTaskStarted: content.data.type === 'task_started',
+            isTaskComplete: content.data.type === 'task_complete' || content.data.type === 'turn_aborted',
+        };
+    }
+
+    return { isTaskStarted: false, isTaskComplete: false };
+}
+
+function getLegacyProviderLifecycleState(raw: unknown): { isTaskStarted: boolean; isTaskComplete: boolean } {
+    const content = (raw as { content?: { type?: unknown; data?: { type?: unknown } } } | null)?.content;
+    if (content?.type !== 'acp' && content?.type !== 'codex') {
+        return { isTaskStarted: false, isTaskComplete: false };
+    }
+
+    return {
+        isTaskStarted: content.data?.type === 'task_started',
+        isTaskComplete: content.data?.type === 'task_complete' || content.data?.type === 'turn_aborted',
+    };
+}
+
 
 //
 // Normalized types
