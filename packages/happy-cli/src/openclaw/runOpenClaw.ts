@@ -276,7 +276,7 @@ export async function runOpenClaw(opts: RunOpenClawOptions): Promise<void> {
 
   session.onUserMessage((message) => {
     if (!message.content.text) return;
-    if (message.meta?.hasOwnProperty('thinkingLevel')) {
+    if (message.meta && Object.prototype.hasOwnProperty.call(message.meta, 'thinkingLevel')) {
       currentThinkingLevel = message.meta.thinkingLevel || undefined;
       logger.debug(`[openclaw] Thinking level updated from user message: ${currentThinkingLevel || 'default'}`);
     }

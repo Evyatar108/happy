@@ -48,6 +48,19 @@ export async function publishPermissionModeIfChanged(
     }
 }
 
+/**
+ * Publishes runner-side agent configuration (`model`, `thinkingLevel`) into
+ * session metadata.
+ *
+ * The optimistic in-place mutation of `metadata` BEFORE awaiting
+ * `client.updateMetadata(...)` is intentional and follows the same
+ * offline-reconnect mutation contract documented in
+ * `packages/happy-cli/CLAUDE.md` for `publishPermissionModeIfChanged`:
+ * reconnect paths reuse the same metadata object by reference as the session
+ * seed, so the runner-local copy must reflect the pending update while the
+ * server round-trip is in flight. Do not reorder the mutation behind the
+ * await without first revisiting that invariant.
+ */
 export async function publishAgentConfigurationMetadataIfChanged(
     client: MetadataPublisher,
     metadata: Metadata,

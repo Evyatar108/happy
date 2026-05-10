@@ -416,7 +416,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         }
 
         let messageThinkingLevel = currentThinkingLevel;
-        if (message.meta?.hasOwnProperty('thinkingLevel')) {
+        if (message.meta && Object.prototype.hasOwnProperty.call(message.meta, 'thinkingLevel')) {
             messageThinkingLevel = message.meta.thinkingLevel || undefined;
             currentThinkingLevel = messageThinkingLevel;
             logger.debug(`[loop] Thinking level updated from user message: ${messageThinkingLevel || 'reset to default'}`);

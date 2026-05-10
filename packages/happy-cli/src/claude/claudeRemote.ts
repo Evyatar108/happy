@@ -16,6 +16,19 @@ import type { SessionContextBoundaryEvent } from '@slopus/happy-wire';
 
 export type ClaudeRemoteContextBoundary = Omit<SessionContextBoundaryEvent, 't'>;
 
+const VALID_CLAUDE_EFFORT_LEVELS: ReadonlyArray<NonNullable<QueryOptions['effort']>> = ['low', 'medium', 'high', 'max'];
+
+function validateClaudeEffort(value: unknown): QueryOptions['effort'] {
+    if (typeof value !== 'string') {
+        return undefined;
+    }
+    if ((VALID_CLAUDE_EFFORT_LEVELS as ReadonlyArray<string>).includes(value)) {
+        return value as QueryOptions['effort'];
+    }
+    logger.debug(`[claudeRemote] Ignoring invalid thinking effort: ${value}`);
+    return undefined;
+}
+
 export async function claudeRemote(opts: {
 
     // Fixed parameters
@@ -131,7 +144,7 @@ export async function claudeRemote(opts: {
         permissionMode: mapToClaudeMode(initial.mode.permissionMode),
         model: initial.mode.model,
         fallbackModel: initial.mode.fallbackModel,
-        effort: initial.mode.thinkingLevel as QueryOptions['effort'] ?? undefined,
+        effort: validateClaudeEffort(initial.mode.thinkingLevel),
         customSystemPrompt: initial.mode.customSystemPrompt ? initial.mode.customSystemPrompt + '\n\n' + systemPrompt : undefined,
         appendSystemPrompt: initial.mode.appendSystemPrompt ? initial.mode.appendSystemPrompt + '\n\n' + systemPrompt : systemPrompt,
         allowedTools: initial.mode.allowedTools ? initial.mode.allowedTools.concat(opts.allowedTools) : opts.allowedTools,
@@ -241,7 +254,7 @@ export async function claudeRemote(opts: {
                         messages.end();
                     } else {
                         mode = next.mode;
-                        sdkOptions.effort = next.mode.thinkingLevel as QueryOptions['effort'] ?? undefined;
+                        sdkOptions.effort = validateClaudeEffort(next.mode.thinkingLevel);
                         messages.push({ type: 'user', parent_tool_use_id: null, message: { role: 'user', content: next.message } });
                     }
                 }).catch(() => {

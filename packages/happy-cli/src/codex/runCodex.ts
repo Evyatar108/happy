@@ -291,7 +291,7 @@ export async function runCodex(opts: {
         }
 
         let messageThinkingLevel = currentThinkingLevel;
-        if (message.meta?.hasOwnProperty('thinkingLevel')) {
+        if (message.meta && Object.prototype.hasOwnProperty.call(message.meta, 'thinkingLevel')) {
             messageThinkingLevel = message.meta.thinkingLevel as ReasoningEffort | undefined;
             currentThinkingLevel = messageThinkingLevel;
             logger.debug(`[Codex] Thinking level updated from user message: ${messageThinkingLevel || 'reset to default'}`);

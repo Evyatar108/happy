@@ -91,17 +91,23 @@ export type AgentConfiguration = {
     thinkingLevel?: string;
 };
 
+const MAX_AGENT_CONFIG_FIELD_LENGTH = 64;
+
 type AgentConfigurationSnapshot = {
     permissionMode: string | undefined;
     model: string | undefined;
     thinkingLevel: string | undefined;
 };
 
+function coerceMetadataString(value: unknown): string | undefined {
+    return typeof value === 'string' ? value : undefined;
+}
+
 function agentConfigurationSnapshot(metadata: Metadata | null): AgentConfigurationSnapshot {
     return {
-        permissionMode: metadata?.currentPermissionModeCode,
-        model: metadata?.currentModelCode,
-        thinkingLevel: metadata?.currentThoughtLevelCode,
+        permissionMode: coerceMetadataString(metadata?.currentPermissionModeCode),
+        model: coerceMetadataString(metadata?.currentModelCode),
+        thinkingLevel: coerceMetadataString(metadata?.currentThoughtLevelCode),
     };
 }
 
@@ -364,6 +370,21 @@ export class ApiSessionClient extends EventEmitter {
         this.lastAppliedAgentConfiguration = nextSnapshot;
 
         if (!diff) {
+            return;
+        }
+
+        for (const field of ['permissionMode', 'model', 'thinkingLevel'] as const) {
+            if (Object.prototype.hasOwnProperty.call(diff, field)) {
+                const value = diff[field];
+                if (typeof value === 'string' && value.length > MAX_AGENT_CONFIG_FIELD_LENGTH) {
+                    logger.debug(`[apiSession] Dropping oversized agent configuration field ${field} (length ${value.length} > ${MAX_AGENT_CONFIG_FIELD_LENGTH})`);
+                    delete diff[field];
+                }
+            }
+        }
+
+        const remainingKeys = Object.keys(diff);
+        if (remainingKeys.length === 0) {
             return;
         }
 

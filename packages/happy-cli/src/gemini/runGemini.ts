@@ -270,7 +270,7 @@ export async function runGemini(opts: {
     }
 
     let messageThinkingLevel = currentThinkingLevel;
-    if (message.meta?.hasOwnProperty('thinkingLevel')) {
+    if (message.meta && Object.prototype.hasOwnProperty.call(message.meta, 'thinkingLevel')) {
       messageThinkingLevel = message.meta.thinkingLevel || undefined;
       currentThinkingLevel = messageThinkingLevel;
       metadata.currentThoughtLevelCode = messageThinkingLevel;
