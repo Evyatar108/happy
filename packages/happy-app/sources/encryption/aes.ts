@@ -40,13 +40,32 @@ async function encryptAESGCMStringWeb(data: string, key64: string): Promise<stri
     }
 }
 
-async function decryptAESGCMStringWeb(data: string, key64: string): Promise<string | null> {
-    const key = await importAESKey(key64);
-    if (!key || !globalThis.crypto?.subtle) {
-        return null;
+type WebDecryptResult =
+    | { kind: 'ok'; value: string }
+    | { kind: 'unsupported' }
+    | { kind: 'auth-failed' };
+
+async function decryptAESGCMStringWeb(data: string, key64: string): Promise<WebDecryptResult> {
+    if (!globalThis.crypto?.subtle) {
+        return { kind: 'unsupported' };
+    }
+    let combined: Uint8Array;
+    try {
+        combined = decodeBase64(data);
+    } catch {
+        return { kind: 'unsupported' };
+    }
+    const hasV2WebShape = combined.length > 12;
+    let key: CryptoKey | null;
+    try {
+        key = await importAESKey(key64);
+    } catch {
+        return { kind: 'unsupported' };
+    }
+    if (!key) {
+        return { kind: 'unsupported' };
     }
     try {
-        const combined = decodeBase64(data);
         const iv = combined.slice(0, 12);
         const ciphertext = combined.slice(12);
         const decrypted = await globalThis.crypto.subtle.decrypt(
@@ -54,9 +73,13 @@ async function decryptAESGCMStringWeb(data: string, key64: string): Promise<stri
             key,
             toArrayBuffer(ciphertext),
         );
-        return decodeUTF8(new Uint8Array(decrypted));
+        return { kind: 'ok', value: decodeUTF8(new Uint8Array(decrypted)) };
     } catch {
-        return null;
+        if (hasV2WebShape) {
+            console.warn('[aes] AES-GCM authentication failed on v2-web shaped input');
+            return { kind: 'auth-failed' };
+        }
+        return { kind: 'unsupported' };
     }
 }
 
@@ -66,8 +89,11 @@ export async function encryptAESGCMString(data: string, key64: string): Promise<
 
 export async function decryptAESGCMString(data: string, key64: string): Promise<string | null> {
     const webResult = await decryptAESGCMStringWeb(data, key64);
-    if (webResult !== null) {
-        return webResult;
+    if (webResult.kind === 'ok') {
+        return webResult.value;
+    }
+    if (webResult.kind === 'auth-failed') {
+        return null;
     }
     return (await nativeCrypto.decryptAsyncAES(data, key64)).trim();
 }
@@ -77,6 +103,9 @@ export async function encryptAESGCM(data: Uint8Array, key64: string): Promise<Ui
     return decodeBase64(encrypted);
 }
 export async function decryptAESGCM(data: Uint8Array, key64: string): Promise<Uint8Array | null> {
-    let raw = await decryptAESGCMString(encodeBase64(data), key64);
-    return raw ? encodeUTF8(raw) : null;
+    const raw = await decryptAESGCMString(encodeBase64(data), key64);
+    if (raw === null) {
+        return null;
+    }
+    return encodeUTF8(raw);
 }
