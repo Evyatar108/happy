@@ -8,7 +8,6 @@ interface AvatarTopicBrutalistProps {
     id: string;
     summaryText?: string;
     metadataName?: string;
-    summaryUpdatedAt?: number;
     flavor?: string | null;
     pinnedAvatarImageIndex?: number;
     pinnedAvatarColorIndex?: number;
@@ -22,7 +21,6 @@ export const AvatarTopicBrutalist = React.memo((props: AvatarTopicBrutalistProps
         id,
         summaryText,
         metadataName,
-        summaryUpdatedAt,
         flavor,
         pinnedAvatarImageIndex,
         pinnedAvatarColorIndex,
@@ -43,7 +41,6 @@ export const AvatarTopicBrutalist = React.memo((props: AvatarTopicBrutalistProps
         id,
         summaryText,
         metadataName,
-        summaryUpdatedAt,
         flavor,
         pinnedAvatarImageIndex,
         pinnedAvatarColorIndex,

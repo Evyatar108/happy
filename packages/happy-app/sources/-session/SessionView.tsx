@@ -160,7 +160,6 @@ export const SessionView = React.memo((props: { id: string }) => {
             flavor: session.metadata?.flavor || null,
             summaryText: session.metadata?.summary?.text,
             metadataName: session.metadata?.name,
-            summaryUpdatedAt: session.metadata?.summary?.updatedAt,
             pinnedAvatarImageIndex: session.pinnedAvatarImageIndex,
             pinnedAvatarColorIndex: session.pinnedAvatarColorIndex,
             tintColor: isConnected ? '#000' : '#8E8E93'

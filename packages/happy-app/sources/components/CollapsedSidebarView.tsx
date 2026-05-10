@@ -70,7 +70,6 @@ export const CollapsedSidebarView = React.memo(({
                     flavor={item.flavor}
                     summaryText={item.summaryText}
                     metadataName={item.metadataName}
-                    summaryUpdatedAt={item.summaryUpdatedAt}
                     pinnedAvatarImageIndex={item.pinnedAvatarImageIndex}
                     pinnedAvatarColorIndex={item.pinnedAvatarColorIndex}
                 />

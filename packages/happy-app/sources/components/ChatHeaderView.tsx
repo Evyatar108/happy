@@ -26,7 +26,6 @@ interface ChatHeaderViewProps {
     flavor?: string | null;
     summaryText?: string;
     metadataName?: string;
-    summaryUpdatedAt?: number;
     pinnedAvatarImageIndex?: number;
     pinnedAvatarColorIndex?: number;
     onAvatarMenuRequest?: (anchor: SessionActionsAnchor) => void;
@@ -48,7 +47,6 @@ export const ChatHeaderView: React.FC<ChatHeaderViewProps> = ({
     flavor,
     summaryText,
     metadataName,
-    summaryUpdatedAt,
     pinnedAvatarImageIndex,
     pinnedAvatarColorIndex,
     onAvatarMenuRequest,
@@ -218,7 +216,6 @@ export const ChatHeaderView: React.FC<ChatHeaderViewProps> = ({
                                             flavor={flavor}
                                             summaryText={summaryText}
                                             metadataName={metadataName}
-                                            summaryUpdatedAt={summaryUpdatedAt}
                                             pinnedAvatarImageIndex={pinnedAvatarImageIndex}
                                             pinnedAvatarColorIndex={pinnedAvatarColorIndex}
                                         />
@@ -238,7 +235,6 @@ export const ChatHeaderView: React.FC<ChatHeaderViewProps> = ({
                                         flavor={flavor}
                                         summaryText={summaryText}
                                         metadataName={metadataName}
-                                        summaryUpdatedAt={summaryUpdatedAt}
                                         pinnedAvatarImageIndex={pinnedAvatarImageIndex}
                                         pinnedAvatarColorIndex={pinnedAvatarColorIndex}
                                     />

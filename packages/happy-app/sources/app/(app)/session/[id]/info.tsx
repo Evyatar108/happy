@@ -214,7 +214,6 @@ function SessionInfoContent({ session }: { session: Session }) {
                             flavor={session.metadata?.flavor}
                             summaryText={session.metadata?.summary?.text}
                             metadataName={session.metadata?.name}
-                            summaryUpdatedAt={session.metadata?.summary?.updatedAt}
                             pinnedAvatarImageIndex={session.pinnedAvatarImageIndex}
                             pinnedAvatarColorIndex={session.pinnedAvatarColorIndex}
                         />

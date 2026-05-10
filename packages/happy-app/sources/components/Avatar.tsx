@@ -18,7 +18,6 @@ interface AvatarProps {
     flavor?: string | null;
     summaryText?: string;
     metadataName?: string;
-    summaryUpdatedAt?: number;
     pinnedAvatarImageIndex?: number;
     pinnedAvatarColorIndex?: number;
     imageUrl?: string | null;

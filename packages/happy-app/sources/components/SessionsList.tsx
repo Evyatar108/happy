@@ -410,7 +410,6 @@ const SessionItem = React.memo(({ session, selected, isFirst, isLast, isSingle }
                     flavor={session.flavor}
                     summaryText={session.summaryText}
                     metadataName={session.metadataName}
-                    summaryUpdatedAt={session.summaryUpdatedAt}
                     pinnedAvatarImageIndex={session.pinnedAvatarImageIndex}
                     pinnedAvatarColorIndex={session.pinnedAvatarColorIndex}
                 />

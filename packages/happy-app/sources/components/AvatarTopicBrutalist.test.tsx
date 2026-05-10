@@ -111,7 +111,6 @@ describe('AvatarTopicBrutalist', () => {
                     id="topic-session"
                     summaryText="Debug Metro reload on BOOX tablet"
                     metadataName="Tablet reload"
-                    summaryUpdatedAt={100}
                     flavor="codex"
                     size={40}
                 />
@@ -126,7 +125,6 @@ describe('AvatarTopicBrutalist', () => {
                     id="topic-session"
                     summaryText="Debug Metro reload on BOOX tablet"
                     metadataName="Tablet reload"
-                    summaryUpdatedAt={100}
                     flavor="codex"
                     size={40}
                 />

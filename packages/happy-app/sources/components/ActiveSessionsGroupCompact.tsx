@@ -105,7 +105,6 @@ const SectionHeader = React.memo(({ session, displayPath }: { session: SessionRo
                     flavor={session.flavor}
                     summaryText={session.summaryText}
                     metadataName={session.metadataName}
-                    summaryUpdatedAt={session.summaryUpdatedAt}
                     pinnedAvatarImageIndex={session.pinnedAvatarImageIndex}
                     pinnedAvatarColorIndex={session.pinnedAvatarColorIndex}
                 />
