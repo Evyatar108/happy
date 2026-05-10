@@ -323,11 +323,15 @@ boundary.
   content: {
     type: 'text';
     text: string;
+    attachments?: Array<{ type: 'image'; ref: string; mimeType?: string }>;
   };
   localKey?: string;
   meta?: MessageMeta;
 }
 ```
+
+`attachments` is the inline-base64 image transport added by the unified composer
+(Claude-only in v1).
 
 ### `AgentMessageSchema` (legacy decrypted payload)
 
