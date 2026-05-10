@@ -89,6 +89,9 @@ export type ForkSessionOptions = {
     effortLevel?: string;
 };
 
+const PARENT_SESSION_ID_MAX_LENGTH = 128;
+const PARENT_SESSION_ID_SHAPE = /^[A-Za-z0-9_-]+$/;
+
 export class ApiMachineClient {
     private socket!: Socket<ServerToDaemonEvents, DaemonToServerEvents>;
     private keepAliveInterval: NodeJS.Timeout | null = null;
@@ -164,6 +167,9 @@ export class ApiMachineClient {
 
             if (!parentSessionId || typeof parentSessionId !== 'string') {
                 return { type: 'error', errorMessage: 'Parent session ID is required' };
+            }
+            if (parentSessionId.length > PARENT_SESSION_ID_MAX_LENGTH || !PARENT_SESSION_ID_SHAPE.test(parentSessionId)) {
+                return { type: 'error', errorMessage: 'parentSessionId must be 1-128 characters of [A-Za-z0-9_-]' };
             }
             if (!worktreePath || typeof worktreePath !== 'string') {
                 return { type: 'error', errorMessage: 'Worktree path is required' };

@@ -68,6 +68,37 @@ describe('fork-into-worktree machine RPC', () => {
         });
     });
 
+    it('rejects malformed parentSessionId at the RPC boundary without invoking forkSession', async () => {
+        const forkSession = vi.fn();
+        const client = new ApiMachineClient('token', createMachine());
+
+        client.setRPCHandlers({
+            spawnSession: vi.fn(),
+            resumeSession: vi.fn(),
+            forkSession,
+            stopSession: vi.fn(),
+            requestShutdown: vi.fn(),
+        });
+
+        const handler = getForkRpcHandler(client);
+        const tooLong = 'a'.repeat(129);
+        const malformedCases = [
+            '',
+            tooLong,
+            'parent id with spaces',
+            'parent;rm -rf /',
+            'parent\nid',
+            'machine-1:parent-local-id',
+        ];
+
+        for (const parentSessionId of malformedCases) {
+            await expect(handler({ parentSessionId, worktreePath: 'C:/repo/fork' }))
+                .resolves.toMatchObject({ type: 'error', errorMessage: expect.any(String) });
+        }
+
+        expect(forkSession).not.toHaveBeenCalled();
+    });
+
     it('preserves daemon error envelopes for parent missing, worktree missing, and unsupported flavor', async () => {
         const forkSession = vi
             .fn()
