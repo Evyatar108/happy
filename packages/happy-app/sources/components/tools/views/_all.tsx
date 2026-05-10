@@ -9,6 +9,7 @@ import { ExitPlanToolView } from './ExitPlanToolView';
 import { MultiEditView } from './MultiEditView';
 import { TaskView } from './TaskView';
 import { TaskOutputView } from './TaskOutputView';
+import { TaskStopView } from './TaskStopView';
 import { BashViewFull } from './BashViewFull';
 import { EditViewFull } from './EditViewFull';
 import { MultiEditViewFull } from './MultiEditViewFull';
@@ -43,6 +44,7 @@ export const toolViewRegistry: Record<string, ToolViewComponent> = {
     MultiEdit: MultiEditView,
     Task: TaskView,
     TaskOutput: TaskOutputView,
+    TaskStop: TaskStopView,
     Agent: TaskView,
     AskUserQuestion: AskUserQuestionView,
     // Gemini tools (lowercase)
@@ -82,6 +84,7 @@ export { ExitPlanToolView } from './ExitPlanToolView';
 export { MultiEditView } from './MultiEditView';
 export { TaskView } from './TaskView';
 export { TaskOutputView } from './TaskOutputView';
+export { TaskStopView } from './TaskStopView';
 export { AskUserQuestionView } from './AskUserQuestionView';
 export { GeminiEditView } from './GeminiEditView';
 export { GeminiExecuteView } from './GeminiExecuteView';

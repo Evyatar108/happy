@@ -628,6 +628,14 @@ export const zhHans: TranslationStructure = {
             running: 'Waiting for task output...',
             truncated: 'Output truncated',
         },
+        taskStop: {
+            taskId: ({ taskId }: { taskId: string }) => `Task ${taskId}`,
+            parseError: 'Task stop result could not be parsed',
+            running: 'Stopping task...',
+            stopped: 'Stopped',
+            notFound: 'Not found',
+            alreadyStopped: 'Already stopped',
+        },
         multiEdit: {
             editNumber: ({ index, total }: { index: number; total: number }) => `编辑 ${index}/${total}`,
             replaceAll: '全部替换',
@@ -642,6 +650,7 @@ export const zhHans: TranslationStructure = {
             taskOutput: '任务输出',
             taskOutputWithId: ({ taskId }: { taskId: string }) => `Task Output · ${taskId}`,
             taskStop: '停止任务',
+            taskStopWithId: ({ taskId }: { taskId: string }) => `Stop Task · ${taskId}`,
             taskList: '任务列表',
             taskGet: '获取任务',
             taskUpdate: '更新任务',

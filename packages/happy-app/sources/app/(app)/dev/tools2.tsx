@@ -201,6 +201,76 @@ const styles = StyleSheet.create({
             result: null,
             children: []
         },
+        taskStopRunning: {
+            name: 'TaskStop',
+            state: 'running' as const,
+            input: {
+                task_id: 'stop-running-1',
+            },
+            createdAt: Date.now() - 6000,
+            startedAt: Date.now() - 5900,
+            completedAt: null,
+            description: null,
+            children: []
+        },
+        taskStopSchemaMatch: {
+            name: 'TaskStop',
+            state: 'completed' as const,
+            input: {
+                task_id: 'stop-schema-1',
+            },
+            createdAt: Date.now() - 6200,
+            startedAt: Date.now() - 6100,
+            completedAt: Date.now() - 5200,
+            description: null,
+            result: {
+                stopped: true,
+                status: 'completed',
+            },
+            children: []
+        },
+        taskStopString: {
+            name: 'TaskStop',
+            state: 'error' as const,
+            input: {
+                task_id: 'stop-string-1',
+            },
+            createdAt: Date.now() - 6400,
+            startedAt: Date.now() - 6300,
+            completedAt: Date.now() - 5400,
+            description: null,
+            result: 'Error: Task stop-string-1 is not running (status: completed)',
+            children: []
+        },
+        taskStopObjectMismatch: {
+            name: 'TaskStop',
+            state: 'completed' as const,
+            input: {
+                task_id: 'stop-unknown-1',
+            },
+            createdAt: Date.now() - 6600,
+            startedAt: Date.now() - 6500,
+            completedAt: Date.now() - 5600,
+            description: null,
+            result: {
+                unexpected: true,
+                payload: 'This shape intentionally has no canonical TaskStop fields.',
+            },
+            children: []
+        },
+        taskStopNull: {
+            name: 'TaskStop',
+            state: 'completed' as const,
+            input: {
+                task_id: 'stop-null-1',
+            },
+            createdAt: Date.now() - 6800,
+            startedAt: Date.now() - 6700,
+            completedAt: Date.now() - 5800,
+            description: null,
+            result: null,
+            children: []
+        },
         bash: {
             name: 'Bash',
             state: 'completed' as const,
@@ -580,6 +650,11 @@ export function formatTime(date: Date): string {
                                 {renderExample('taskOutputString', examples.taskOutputString, null, 'p1BugFixes')}
                                 {renderExample('taskOutputObjectMismatch', examples.taskOutputObjectMismatch, null, 'p1BugFixes')}
                                 {renderExample('taskOutputNull', examples.taskOutputNull, null, 'p1BugFixes')}
+                                {renderExample('taskStopRunning', examples.taskStopRunning, null, 'p1BugFixes')}
+                                {renderExample('taskStopSchemaMatch', examples.taskStopSchemaMatch, null, 'p1BugFixes')}
+                                {renderExample('taskStopString', examples.taskStopString, null, 'p1BugFixes')}
+                                {renderExample('taskStopObjectMismatch', examples.taskStopObjectMismatch, null, 'p1BugFixes')}
+                                {renderExample('taskStopNull', examples.taskStopNull, null, 'p1BugFixes')}
                                 {renderExample('editFix', examples.editFix, pathFixtureMetadata, 'p1BugFixes')}
                                 {renderExample('multiEditFix', examples.multiEditFix, pathFixtureMetadata, 'p1BugFixes')}
                             </>

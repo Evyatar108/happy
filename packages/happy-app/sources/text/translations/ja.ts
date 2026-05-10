@@ -635,6 +635,14 @@ export const ja: TranslationStructure = {
             running: 'Waiting for task output...',
             truncated: 'Output truncated',
         },
+        taskStop: {
+            taskId: ({ taskId }: { taskId: string }) => `Task ${taskId}`,
+            parseError: 'Task stop result could not be parsed',
+            running: 'Stopping task...',
+            stopped: 'Stopped',
+            notFound: 'Not found',
+            alreadyStopped: 'Already stopped',
+        },
         multiEdit: {
             editNumber: ({ index, total }: { index: number; total: number }) => `編集 ${index}/${total}`,
             replaceAll: 'すべて置換',
@@ -649,6 +657,7 @@ export const ja: TranslationStructure = {
             taskOutput: 'タスク出力',
             taskOutputWithId: ({ taskId }: { taskId: string }) => `Task Output · ${taskId}`,
             taskStop: 'タスク停止',
+            taskStopWithId: ({ taskId }: { taskId: string }) => `Stop Task · ${taskId}`,
             taskList: 'タスク一覧',
             taskGet: 'タスク取得',
             taskUpdate: 'タスク更新',

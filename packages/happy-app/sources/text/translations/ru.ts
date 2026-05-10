@@ -643,6 +643,14 @@ export const ru: TranslationStructure = {
             running: 'Waiting for task output...',
             truncated: 'Output truncated',
         },
+        taskStop: {
+            taskId: ({ taskId }: { taskId: string }) => `Task ${taskId}`,
+            parseError: 'Task stop result could not be parsed',
+            running: 'Stopping task...',
+            stopped: 'Stopped',
+            notFound: 'Not found',
+            alreadyStopped: 'Already stopped',
+        },
         multiEdit: {
             editNumber: ({ index, total }: { index: number; total: number }) => `Правка ${index} из ${total}`,
             replaceAll: 'Заменить все',
@@ -657,6 +665,7 @@ export const ru: TranslationStructure = {
             taskOutput: 'Вывод задачи',
             taskOutputWithId: ({ taskId }: { taskId: string }) => `Task Output · ${taskId}`,
             taskStop: 'Остановить задачу',
+            taskStopWithId: ({ taskId }: { taskId: string }) => `Stop Task · ${taskId}`,
             taskList: 'Список задач',
             taskGet: 'Получить задачу',
             taskUpdate: 'Обновить задачу',

@@ -627,6 +627,14 @@ export const ca: TranslationStructure = {
             running: 'Waiting for task output...',
             truncated: 'Output truncated',
         },
+        taskStop: {
+            taskId: ({ taskId }: { taskId: string }) => `Task ${taskId}`,
+            parseError: 'Task stop result could not be parsed',
+            running: 'Stopping task...',
+            stopped: 'Stopped',
+            notFound: 'Not found',
+            alreadyStopped: 'Already stopped',
+        },
         multiEdit: {
             editNumber: ({ index, total }: { index: number; total: number }) => `Edició ${index} de ${total}`,
             replaceAll: 'Reemplaça tot',
@@ -641,6 +649,7 @@ export const ca: TranslationStructure = {
             taskOutput: 'Sortida de tasca',
             taskOutputWithId: ({ taskId }: { taskId: string }) => `Task Output · ${taskId}`,
             taskStop: 'Atura tasca',
+            taskStopWithId: ({ taskId }: { taskId: string }) => `Stop Task · ${taskId}`,
             taskList: 'Llista de tasques',
             taskGet: 'Obtén tasca',
             taskUpdate: 'Actualitza tasca',

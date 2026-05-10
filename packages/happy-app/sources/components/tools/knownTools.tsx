@@ -96,12 +96,25 @@ const taskOutputTool = {
 };
 
 const taskStopTool = {
-    title: () => t('tools.names.taskStop'),
+    title: (opts: { metadata: Metadata | null, tool: ToolCall }) => {
+        const taskId = typeof opts.tool.input?.task_id === 'string' && opts.tool.input.task_id.trim() ? opts.tool.input.task_id : null;
+        return taskId ? t('tools.names.taskStopWithId', { taskId }) : t('tools.names.taskStop');
+    },
     icon: ICON_TASK,
-    minimal: true,
+    minimal: false,
+    hideDefaultError: true,
     input: z.object({
         task_id: z.string().optional(),
     }).partial().passthrough(),
+    result: z.object({
+        stopped: z.boolean().optional(),
+        error: z.string().optional(),
+        status: z.string().optional(),
+    }).partial().passthrough(),
+    extractStatus: (opts: { metadata: Metadata | null, tool: ToolCall }) => {
+        const taskId = typeof opts.tool.input?.task_id === 'string' && opts.tool.input.task_id.trim() ? opts.tool.input.task_id : null;
+        return taskId ? t('tools.taskStop.taskId', { taskId }) : null;
+    },
 };
 
 const taskListTool = {
