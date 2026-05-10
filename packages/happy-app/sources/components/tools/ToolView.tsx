@@ -39,6 +39,7 @@ export const ToolView = React.memo<ToolViewProps>((props) => {
     const router = useRouter();
     const { theme } = useUnistyles();
     const scaledTextStyles = useChatScaledStyles({ status: styles.status });
+    const isCompleted = tool.state === 'completed';
 
     // For file-editing tools, navigate to file route instead of message detail
     const fileEditTools = ['Edit', 'MultiEdit', 'Write', 'file-edit'];
@@ -178,9 +179,9 @@ export const ToolView = React.memo<ToolViewProps>((props) => {
     }
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, isCompleted && styles.containerCompleted]}>
             {isPressable ? (
-                <TouchableOpacity style={styles.header} onPress={handlePress} activeOpacity={0.8}>
+                <TouchableOpacity style={[styles.header, isCompleted && styles.headerCompleted]} onPress={handlePress} activeOpacity={0.8}>
                     <View style={styles.headerLeft}>
                         <View style={styles.iconContainer}>
                             {icon}
@@ -202,7 +203,7 @@ export const ToolView = React.memo<ToolViewProps>((props) => {
                     </View>
                 </TouchableOpacity>
             ) : (
-                <View style={styles.header}>
+                <View style={[styles.header, isCompleted && styles.headerCompleted]}>
                     <View style={styles.headerLeft}>
                         <View style={styles.iconContainer}>
                             {icon}
@@ -283,7 +284,7 @@ export const ToolView = React.memo<ToolViewProps>((props) => {
             {/* Permission footer - always renders when permission exists to maintain consistent height */}
             {/* AskUserQuestion has its own Submit button UI - no permission footer needed */}
             {tool.permission && sessionId && tool.name !== 'AskUserQuestion' && (
-                <PermissionFooter permission={tool.permission} sessionId={sessionId} toolName={tool.name} toolInput={tool.input} metadata={props.metadata} />
+                <PermissionFooter permission={tool.permission} sessionId={sessionId} toolName={tool.name} toolInput={tool.input} metadata={props.metadata} toolState={tool.state} />
             )}
         </View>
     );
@@ -303,12 +304,20 @@ const styles = StyleSheet.create((theme) => ({
         marginVertical: 4,
         overflow: 'hidden'
     },
+    containerCompleted: {
+        backgroundColor: 'transparent',
+    },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: 12,
         backgroundColor: theme.colors.surfaceHighest,
+    },
+    headerCompleted: {
+        backgroundColor: 'transparent',
+        borderBottomWidth: 2,
+        borderBottomColor: theme.colors.textSecondary,
     },
     headerLeft: {
         flexDirection: 'row',

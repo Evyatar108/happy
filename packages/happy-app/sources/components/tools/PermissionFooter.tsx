@@ -6,6 +6,7 @@ import { storage } from '@/sync/storage';
 import { t } from '@/text';
 import { AnimatedText } from '@/components/StyledText';
 import { useChatScaleAnimatedTextStyle } from '@/hooks/useChatFontScale';
+import type { ToolCall } from '@/sync/typesMessage';
 
 interface PermissionFooterProps {
     permission: {
@@ -20,11 +21,13 @@ interface PermissionFooterProps {
     toolName: string;
     toolInput?: any;
     metadata?: any;
+    toolState: ToolCall['state'];
 }
 
-export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, sessionId, toolName, toolInput, metadata }) => {
+export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, sessionId, toolName, toolInput, metadata, toolState }) => {
     const { theme } = useUnistyles();
     const animatedButtonTextStyle = useChatScaleAnimatedTextStyle(14);
+    const isRunningTool = toolState === 'running';
     const [loadingButton, setLoadingButton] = useState<'allow' | 'deny' | 'abort' | null>(null);
     const [loadingAllEdits, setLoadingAllEdits] = useState(false);
     const [loadingBypass, setLoadingBypass] = useState(false);
@@ -186,8 +189,9 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, 
             justifyContent: 'center',
         },
         buttonContainer: {
-            flexDirection: 'column',
-            gap: 4,
+            flexDirection: isRunningTool ? 'column' : 'row',
+            gap: isRunningTool ? 4 : 8,
+            flexWrap: isRunningTool ? 'nowrap' : 'wrap',
             alignItems: 'flex-start',
         },
         button: {
@@ -200,7 +204,7 @@ export const PermissionFooter: React.FC<PermissionFooterProps> = ({ permission, 
             minHeight: 32,
             borderLeftWidth: 3,
             borderLeftColor: 'transparent',
-            alignSelf: 'stretch',
+            alignSelf: isRunningTool ? 'stretch' : 'flex-start',
         },
         buttonAllow: {
             backgroundColor: 'transparent',
