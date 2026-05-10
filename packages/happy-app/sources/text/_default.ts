@@ -59,6 +59,7 @@ export const en = {
         loading: 'Loading...',
         retry: 'Retry',
         delete: 'Delete',
+        archive: 'Archive',
         optional: 'optional',
     },
 
@@ -400,7 +401,7 @@ export const en = {
         killSession: 'Kill Session',
         killSessionConfirm: 'Are you sure you want to terminate this session?',
         archiveSession: 'Archive Session',
-        archiveSessionConfirm: 'Are you sure you want to archive this session?',
+        archiveSessionConfirm: 'Archive this session? Archived sessions can be resumed at any time.',
         happySessionIdCopied: 'Happy Session ID copied to clipboard',
         failedToCopySessionId: 'Failed to copy Happy Session ID',
         happySessionId: 'Happy Session ID',

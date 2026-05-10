@@ -131,8 +131,20 @@ export function useSessionQuickActions(
         onAfterArchive?.();
     });
 
-    const archiveSession = React.useCallback(() => {
-        performArchive();
+    const archiveSession = React.useCallback(async () => {
+        const confirmed = await Modal.confirm(
+            t('sessionInfo.archiveSession'),
+            t('sessionInfo.archiveSessionConfirm'),
+            {
+                cancelText: t('common.cancel'),
+                confirmText: t('common.archive'),
+                destructive: true,
+            },
+        );
+
+        if (confirmed) {
+            performArchive();
+        }
     }, [performArchive]);
 
     const resumeSession = React.useCallback(() => {
@@ -155,7 +167,7 @@ export function useSessionQuickActions(
             items.push({ id: 'copy-metadata-and-logs', icon: 'document-text-outline', label: t('sessionInfo.copyMetadata') + ' & Client Logs', onPress: copySessionMetadataAndLogs });
         }
 
-        items.push({ id: 'archive', icon: 'archive-outline', label: 'Archive', onPress: archiveSession, destructive: true });
+        items.push({ id: 'archive', icon: 'archive-outline', label: t('sessionInfo.archiveSession'), onPress: archiveSession, destructive: true });
 
         return items;
     }, [

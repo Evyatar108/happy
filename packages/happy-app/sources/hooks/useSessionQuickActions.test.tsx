@@ -14,8 +14,13 @@ const shared = vi.hoisted(() => ({
     updateSessionPermissionModeMock: vi.fn(),
     updateSessionModelModeMock: vi.fn(),
     navigateToSessionMock: vi.fn(),
+    confirmMock: vi.fn(),
+    sessionArchiveMock: vi.fn(),
+    sessionKillMock: vi.fn(),
     latestResumeSession: null as null | (() => void),
     latestResumeSessionInline: null as null | (() => Promise<unknown>),
+    latestArchiveSession: null as null | (() => Promise<void>),
+    latestActionItems: [] as Array<{ id: string; label: string }>,
     latestActionPromise: null as Promise<void> | null,
     storageState: {
         sessions: {} as Record<string, unknown>,
@@ -45,13 +50,13 @@ vi.mock('@/hooks/useWorktreeCleanup', () => ({
 }));
 
 vi.mock('@/modal', () => ({
-    Modal: { alert: vi.fn() },
+    Modal: { alert: vi.fn(), confirm: shared.confirmMock },
 }));
 
 vi.mock('@/sync/ops', () => ({
     machineResumeSession: shared.machineResumeSessionMock,
-    sessionArchive: vi.fn(),
-    sessionKill: vi.fn(),
+    sessionArchive: shared.sessionArchiveMock,
+    sessionKill: shared.sessionKillMock,
 }));
 
 vi.mock('@/sync/sync', () => ({
@@ -120,6 +125,8 @@ function Harness({ session }: { session: Session }) {
     const actions = useSessionQuickActions(session);
     shared.latestResumeSession = actions.resumeSession;
     shared.latestResumeSessionInline = actions.resumeSessionInline;
+    shared.latestArchiveSession = actions.archiveSession;
+    shared.latestActionItems = actions.actionItems;
     return null;
 }
 
@@ -143,8 +150,13 @@ describe('useSessionQuickActions resume permission mode copy', () => {
         shared.updateSessionPermissionModeMock.mockReset();
         shared.updateSessionModelModeMock.mockReset();
         shared.navigateToSessionMock.mockReset();
+        shared.confirmMock.mockReset();
+        shared.sessionArchiveMock.mockReset();
+        shared.sessionKillMock.mockReset();
         shared.latestResumeSession = null;
         shared.latestResumeSessionInline = null;
+        shared.latestArchiveSession = null;
+        shared.latestActionItems = [];
         shared.latestActionPromise = null;
         shared.storageState = {
             sessions: { 'resumed-session': { id: 'resumed-session' } },
@@ -153,6 +165,9 @@ describe('useSessionQuickActions resume permission mode copy', () => {
         };
         shared.machineResumeSessionMock.mockResolvedValue({ type: 'success', sessionId: 'resumed-session' });
         shared.refreshSessionsMock.mockResolvedValue(undefined);
+        shared.confirmMock.mockResolvedValue(false);
+        shared.sessionKillMock.mockResolvedValue({ success: true });
+        shared.sessionArchiveMock.mockResolvedValue({ success: true });
     });
 
     it('preserves userChosen=false when copying permission mode after resume', async () => {
@@ -198,5 +213,66 @@ describe('useSessionQuickActions resume permission mode copy', () => {
         expect(result).toEqual({ type: 'error', errorMessage: 'resume failed' });
         expect(shared.latestActionPromise).toBeNull();
         expect(shared.navigateToSessionMock).not.toHaveBeenCalled();
+    });
+});
+
+describe('useSessionQuickActions archive confirmation', () => {
+    beforeEach(() => {
+        reactActEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
+        shared.confirmMock.mockReset();
+        shared.sessionArchiveMock.mockReset();
+        shared.sessionKillMock.mockReset();
+        shared.latestArchiveSession = null;
+        shared.latestActionItems = [];
+        shared.latestActionPromise = null;
+        shared.confirmMock.mockResolvedValue(false);
+        shared.sessionKillMock.mockResolvedValue({ success: true });
+        shared.sessionArchiveMock.mockResolvedValue({ success: true });
+    });
+
+    it('does not archive when the confirmation is cancelled', async () => {
+        await act(async () => {
+            TestRenderer.create(<Harness session={createSession(true)} />);
+        });
+
+        await act(async () => {
+            await shared.latestArchiveSession?.();
+        });
+
+        expect(shared.confirmMock).toHaveBeenCalledWith(
+            'translated:sessionInfo.archiveSession',
+            'translated:sessionInfo.archiveSessionConfirm',
+            {
+                cancelText: 'translated:common.cancel',
+                confirmText: 'translated:common.archive',
+                destructive: true,
+            },
+        );
+        expect(shared.latestActionPromise).toBeNull();
+        expect(shared.sessionKillMock).not.toHaveBeenCalled();
+        expect(shared.sessionArchiveMock).not.toHaveBeenCalled();
+    });
+
+    it('archives when the confirmation is accepted', async () => {
+        shared.confirmMock.mockResolvedValue(true);
+        await act(async () => {
+            TestRenderer.create(<Harness session={createSession(true)} />);
+        });
+
+        await act(async () => {
+            await shared.latestArchiveSession?.();
+        });
+        await shared.latestActionPromise;
+
+        expect(shared.sessionKillMock).toHaveBeenCalledWith('source-session');
+        expect(shared.sessionArchiveMock).not.toHaveBeenCalled();
+    });
+
+    it('uses the translated archive label for the action item', async () => {
+        await act(async () => {
+            TestRenderer.create(<Harness session={createSession(true)} />);
+        });
+
+        expect(shared.latestActionItems.find(item => item.id === 'archive')?.label).toBe('translated:sessionInfo.archiveSession');
     });
 });
