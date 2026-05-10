@@ -92,6 +92,9 @@ vi.mock('@/sync/storage', () => ({
     useSession: () => storageState.sessionRoot ? ({ metadata: { path: storageState.sessionRoot } }) : null,
 }));
 
+vi.mock('@/utils/sessionFileLinks', async () => await vi.importActual('@/utils/sessionFileLinks'));
+vi.mock('@/utils/base64url', async () => await vi.importActual('@/utils/base64url'));
+
 vi.mock('@/sync/persistence', () => ({
     storeTempText: (content: string) => storeTempText(content),
 }));
@@ -118,7 +121,6 @@ vi.mock('@/text', () => ({
 
 vi.mock('./linkUtils', () => ({
     isHttpMarkdownLink: (url: string) => /^https?:\/\//i.test(url.trim()),
-    isFileMarkdownLink: (url: string) => /^file:/i.test(url.trim()),
 }));
 
 vi.mock('@/hooks/useChatFontScale', () => ({
@@ -282,6 +284,24 @@ describe('MarkdownView', () => {
 
         const links = renderer!.root.findAll((node: any) => node.type === 'AnimatedText' && node.props.accessibilityRole === 'link');
         expect(links).toHaveLength(0);
+    });
+
+    it('does not route agent-authored file: links through onLinkPress', () => {
+        // An agent can author markdown like [label](file:<base64url>) — this must NOT route
+        // through the file viewer because it did not go through splitSessionFileText validation.
+        const agentFileUrl = 'file:L1VzZXJzL2V2aWwvc2VjcmV0LnR4dA';
+        parseMarkdown.mockReturnValue([
+            { type: 'text', content: [{ styles: [], text: 'label', url: agentFileUrl }] },
+        ]);
+
+        let renderer: any;
+        act(() => {
+            renderer = TestRenderer.create(<MarkdownView markdown="raw" sessionId="session-1" />);
+        });
+
+        const links = renderer!.root.findAll((node: any) => node.type === 'AnimatedText' && node.props.accessibilityRole === 'link');
+        expect(links).toHaveLength(0);
+        expect(push).not.toHaveBeenCalled();
     });
 
     it('routes internal file link presses to the full-screen viewer URL', () => {
