@@ -11,6 +11,7 @@ import { Metadata } from '@/api/types';
 import { decodeBase64 } from '@/api/encryption';
 import { TrackedSession, SessionEncryptionData } from './types';
 import { SpawnSessionOptions, SpawnSessionResult } from '@/modules/common/registerCommonHandlers';
+import { STOP_SESSION_ID_MAX_LENGTH, STOP_SESSION_PID_SUFFIX_SHAPE } from './stopTrackedSession';
 
 export function startDaemonControlServer({
   getChildren,
@@ -108,6 +109,12 @@ export function startDaemonControlServer({
       schema: {
         body: z.object({
           sessionId: z.string()
+            .min(1)
+            .max(STOP_SESSION_ID_MAX_LENGTH)
+            .refine(
+              (value) => !value.startsWith('PID-') || STOP_SESSION_PID_SUFFIX_SHAPE.test(value.slice('PID-'.length)),
+              { message: 'sessionId with PID- prefix must have a 1-10 digit numeric suffix' }
+            )
         }),
         response: {
           200: z.object({

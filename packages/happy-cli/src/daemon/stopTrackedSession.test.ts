@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { TrackedSession } from './types';
 import type { StopTrackedSessionResult } from './stopTrackedSession';
-import { stopTrackedSession } from './stopTrackedSession';
+import { stopTrackedSession, validateStopSessionId, STOP_SESSION_ID_MAX_LENGTH } from './stopTrackedSession';
 
 function createChildProcess() {
   const child = new EventEmitter() as any;
@@ -20,6 +20,53 @@ function createChildProcess() {
   });
   return child;
 }
+
+describe('validateStopSessionId', () => {
+  it('accepts a normal happySessionId string', () => {
+    expect(validateStopSessionId('happy-session-123')).toEqual({ ok: true, sessionId: 'happy-session-123' });
+  });
+
+  it('accepts a well-formed PID- prefixed sessionId', () => {
+    expect(validateStopSessionId('PID-1234')).toEqual({ ok: true, sessionId: 'PID-1234' });
+    expect(validateStopSessionId('PID-9999999999')).toEqual({ ok: true, sessionId: 'PID-9999999999' });
+    expect(validateStopSessionId('PID-0')).toEqual({ ok: true, sessionId: 'PID-0' });
+  });
+
+  it('rejects non-string and empty sessionIds', () => {
+    expect(validateStopSessionId(undefined).ok).toBe(false);
+    expect(validateStopSessionId(null).ok).toBe(false);
+    expect(validateStopSessionId(123).ok).toBe(false);
+    expect(validateStopSessionId('').ok).toBe(false);
+  });
+
+  it('rejects sessionId longer than 256 characters', () => {
+    const tooLong = 'a'.repeat(STOP_SESSION_ID_MAX_LENGTH + 1);
+    const result = validateStopSessionId(tooLong);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toMatch(/256/);
+    }
+  });
+
+  it('accepts sessionId at exactly 256 characters', () => {
+    const atLimit = 'a'.repeat(STOP_SESSION_ID_MAX_LENGTH);
+    expect(validateStopSessionId(atLimit)).toEqual({ ok: true, sessionId: atLimit });
+  });
+
+  it('rejects PID- prefix with non-numeric suffix', () => {
+    expect(validateStopSessionId('PID-NaN').ok).toBe(false);
+    expect(validateStopSessionId('PID-abc').ok).toBe(false);
+    expect(validateStopSessionId('PID-1e9').ok).toBe(false);
+    expect(validateStopSessionId('PID--1').ok).toBe(false);
+    expect(validateStopSessionId('PID-').ok).toBe(false);
+    expect(validateStopSessionId('PID- 123').ok).toBe(false);
+  });
+
+  it('rejects PID- prefix with overflow-length numeric suffix', () => {
+    expect(validateStopSessionId('PID-12345678901').ok).toBe(false);
+    expect(validateStopSessionId('PID-99999999999999').ok).toBe(false);
+  });
+});
 
 describe('stopTrackedSession', () => {
   it('waits for SIGTERM and escalates to SIGKILL when a daemon child ignores it', async () => {

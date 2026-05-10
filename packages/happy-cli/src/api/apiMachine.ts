@@ -15,6 +15,7 @@ import { detectCLIAvailability, CLIAvailability } from '@/utils/detectCLI';
 import { detectResumeSupport, type ResumeSupport } from '@/resume/localHappyAgentAuth';
 import { shouldReconnect } from '@/utils/lidState';
 import { isValidCodexEffortLevel, isValidCodexRemotePermissionMode } from '@/codex/cliArgs';
+import { validateStopSessionId } from '@/daemon/stopTrackedSession';
 
 interface ServerToDaemonEvents {
     update: (data: Update) => void;
@@ -202,16 +203,17 @@ export class ApiMachineClient {
         this.rpcHandlerManager.registerHandler('stop-session', async (params: any) => {
             const { sessionId } = params || {};
 
-            if (!sessionId) {
-                throw new Error('Session ID is required');
+            const validation = validateStopSessionId(sessionId);
+            if (!validation.ok) {
+                throw new Error(validation.error);
             }
 
-            const success = await stopSession(sessionId);
+            const success = await stopSession(validation.sessionId);
             if (!success) {
                 throw new Error('Session not found or failed to stop');
             }
 
-            logger.debug(`[API MACHINE] Stopped session ${sessionId}`);
+            logger.debug(`[API MACHINE] Stopped session ${validation.sessionId}`);
             return { message: 'Session stopped' };
         });
 

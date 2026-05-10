@@ -2,6 +2,25 @@ import type { TrackedSession } from './types';
 
 type Signal = 'SIGTERM' | 'SIGKILL';
 
+export const STOP_SESSION_ID_MAX_LENGTH = 256;
+export const STOP_SESSION_PID_SUFFIX_SHAPE = /^[0-9]{1,10}$/;
+
+export function validateStopSessionId(sessionId: unknown): { ok: true; sessionId: string } | { ok: false; error: string } {
+  if (typeof sessionId !== 'string' || sessionId.length === 0) {
+    return { ok: false, error: 'sessionId must be a non-empty string' };
+  }
+  if (sessionId.length > STOP_SESSION_ID_MAX_LENGTH) {
+    return { ok: false, error: `sessionId must be at most ${STOP_SESSION_ID_MAX_LENGTH} characters` };
+  }
+  if (sessionId.startsWith('PID-')) {
+    const suffix = sessionId.slice('PID-'.length);
+    if (!STOP_SESSION_PID_SUFFIX_SHAPE.test(suffix)) {
+      return { ok: false, error: 'sessionId with PID- prefix must have a 1-10 digit numeric suffix' };
+    }
+  }
+  return { ok: true, sessionId };
+}
+
 export interface StopTrackedSessionOptions {
   sessionId: string;
   sessions: Map<number, TrackedSession>;
