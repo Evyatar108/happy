@@ -256,6 +256,7 @@ export const en = {
             pixelated: 'Pixelated',
             gradient: 'Gradient',
             brutalist: 'Brutalist',
+            brutalistTopic: 'Topic-aware Brutalist',
         },
         showFlavorIcons: 'Show AI Provider Icons',
         showFlavorIconsDescription: 'Display AI provider icons on session avatars',
@@ -376,6 +377,9 @@ export const en = {
             action: 'Fork',
             comingSoon: 'Coming soon',
         },
+        pinIcon: 'Pin icon',
+        pinIconDescription: 'Keep this session icon even if the topic changes',
+        unpinIcon: 'Unpin icon',
         applyFailed: 'Failed to apply — please try again',
     },
 

@@ -403,7 +403,16 @@ const SessionItem = React.memo(({ session, selected, isFirst, isLast, isSingle }
             {...menuProps}
         >
             <View style={styles.avatarContainer}>
-                <Avatar id={session.avatarId} size={48} monochrome={!status.isConnected} flavor={session.flavor} />
+                <Avatar
+                    id={session.avatarId}
+                    size={48}
+                    monochrome={!status.isConnected}
+                    flavor={session.flavor}
+                    summaryText={session.summaryText}
+                    metadataName={session.metadataName}
+                    pinnedAvatarImageIndex={session.pinnedAvatarImageIndex}
+                    pinnedAvatarColorIndex={session.pinnedAvatarColorIndex}
+                />
                 {session.hasDraft && (
                     <View style={styles.draftIconContainer}>
                         <Ionicons

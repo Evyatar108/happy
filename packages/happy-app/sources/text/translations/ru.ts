@@ -246,6 +246,7 @@ export const ru: TranslationStructure = {
             pixelated: 'Пиксельная',
             gradient: 'Градиентная',
             brutalist: 'Бруталистская',
+            brutalistTopic: 'Тематическая бруталистская',
         },
         showFlavorIcons: 'Показывать иконки провайдеров ИИ',
         showFlavorIconsDescription: 'Отображать иконки провайдеров ИИ на аватарах сессий',
@@ -497,6 +498,9 @@ export const ru: TranslationStructure = {
             action: 'Форк',
             comingSoon: 'Скоро',
         },
+        pinIcon: 'Закрепить значок',
+        pinIconDescription: 'Сохранить значок этой сессии, даже если тема изменится',
+        unpinIcon: 'Открепить значок',
         applyFailed: 'Не удалось применить — попробуйте ещё раз',
     },
 

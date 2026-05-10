@@ -258,6 +258,7 @@ export const ca: TranslationStructure = {
             pixelated: 'Pixelat',
             gradient: 'Gradient',
             brutalist: 'Brutalista',
+            brutalistTopic: 'Brutalista per tema',
         },
         showFlavorIcons: "Mostrar icones de proveïdors d'IA",
         showFlavorIconsDescription: "Mostrar icones del proveïdor d'IA als avatars de sessió",
@@ -378,6 +379,9 @@ export const ca: TranslationStructure = {
             action: 'Bifurca',
             comingSoon: 'Properament',
         },
+        pinIcon: 'Fixa la icona',
+        pinIconDescription: 'Mantén aquesta icona de sessió encara que canviï el tema',
+        unpinIcon: 'Desfixa la icona',
         applyFailed: 'No s\'ha pogut aplicar — torna-ho a provar',
     },
 

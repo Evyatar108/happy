@@ -1,6 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Session } from './storageTypes';
 
+vi.mock('@/components/avatarBrutalistAssets', () => {
+    function hashCode(str: string): number {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        return Math.abs(hash);
+    }
+
+    return {
+        allImages: Array.from({ length: 420 }, (_, index) => index),
+        colorPairs: Array.from({ length: 6 }, (_, index) => ({ tint: `${index}`, background: `${index}` })),
+        hashCode,
+    };
+});
+
 vi.mock('@/realtime/RealtimeSession', () => ({
     getCurrentRealtimeSessionId: () => null,
     getVoiceSession: () => null,

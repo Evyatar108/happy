@@ -19,12 +19,8 @@ const CHAT_TEXT_SCALE_STEP = 0.05;
 const CHAT_TEXT_PREVIEW_FONT_SIZE = 18;
 const CHAT_TEXT_PREVIEW_LINE_HEIGHT = 28;
 
-// Define known avatar styles for this version of the app
-type KnownAvatarStyle = 'pixelated' | 'gradient' | 'brutalist';
-
-const isKnownAvatarStyle = (style: string): style is KnownAvatarStyle => {
-    return style === 'pixelated' || style === 'gradient' || style === 'brutalist';
-};
+import { KnownAvatarStyle, AVATAR_STYLE_OPTIONS, isKnownAvatarStyle, cycleAvatarStyle } from './avatarStyleCycle';
+export { cycleAvatarStyle };
 
 const clampChatFontScale = (value: number) => {
     return Math.min(CHAT_FONT_SCALE_MAX, Math.max(CHAT_FONT_SCALE_MIN, value));
@@ -290,12 +286,9 @@ export default function AppearanceSettingsScreen() {
                     title={t('settingsAppearance.avatarStyle')}
                     subtitle={t('settingsAppearance.avatarStyleDescription')}
                     icon={<Ionicons name="person-circle-outline" size={29} color="#5856D6" />}
-                    detail={displayStyle === 'pixelated' ? t('settingsAppearance.avatarOptions.pixelated') : displayStyle === 'brutalist' ? t('settingsAppearance.avatarOptions.brutalist') : t('settingsAppearance.avatarOptions.gradient')}
+                    detail={displayStyle === 'pixelated' ? t('settingsAppearance.avatarOptions.pixelated') : displayStyle === 'gradient' ? t('settingsAppearance.avatarOptions.gradient') : displayStyle === 'brutalist' ? t('settingsAppearance.avatarOptions.brutalist') : t('settingsAppearance.avatarOptions.brutalistTopic')}
                     onPress={() => {
-                        const currentIndex = displayStyle === 'pixelated' ? 0 : displayStyle === 'gradient' ? 1 : 2;
-                        const nextIndex = (currentIndex + 1) % 3;
-                        const nextStyle = nextIndex === 0 ? 'pixelated' : nextIndex === 1 ? 'gradient' : 'brutalist';
-                        setAvatarStyle(nextStyle);
+                        setAvatarStyle(cycleAvatarStyle(displayStyle));
                     }}
                 />
                 <Item

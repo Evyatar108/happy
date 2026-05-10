@@ -256,6 +256,7 @@ export const it: TranslationStructure = {
             pixelated: 'Pixelato',
             gradient: 'Gradiente',
             brutalist: 'Brutalista',
+            brutalistTopic: 'Brutalista per argomento',
         },
         showFlavorIcons: 'Mostra icone provider IA',
         showFlavorIconsDescription: 'Mostra le icone del provider IA sugli avatar di sessione',
@@ -376,6 +377,9 @@ export const it: TranslationStructure = {
             action: 'Biforca',
             comingSoon: 'Prossimamente',
         },
+        pinIcon: 'Fissa icona',
+        pinIconDescription: 'Mantieni questa icona di sessione anche se cambia l\'argomento',
+        unpinIcon: 'Sblocca icona',
         applyFailed: 'Impossibile applicare — riprova',
     },
 

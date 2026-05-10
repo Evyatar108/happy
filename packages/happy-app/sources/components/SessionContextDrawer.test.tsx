@@ -16,7 +16,9 @@ const shared = vi.hoisted(() => ({
     sessionEmitAgentConfigurationMock: vi.fn(),
     resumeSessionInlineMock: vi.fn(),
     onForkPressMock: vi.fn(),
+    onIconPinnedToggleMock: vi.fn(),
     latestPatchModel: null as null | ((model: { key: string; name: string; description?: string | null }) => void),
+    avatarStyle: 'gradient' as string,
 }));
 
 const theme = {
@@ -80,6 +82,10 @@ vi.mock('expo-clipboard', () => ({
 
 vi.mock('@/text', () => ({
     t: (key: string) => `translated:${key}`,
+}));
+
+vi.mock('@/sync/storage', () => ({
+    useSetting: (key: string) => key === 'avatarStyle' ? shared.avatarStyle : undefined,
 }));
 
 vi.mock('./pickers', () => ({
@@ -170,9 +176,12 @@ function baseProps() {
             message: '',
         },
         resumeCommandBlock: null,
+        sessionId: 'source-session',
         session: createSession(),
         machine: createMachine(),
+        iconPinned: false,
         onForkPress: shared.onForkPressMock,
+        onIconPinnedToggle: shared.onIconPinnedToggleMock,
         updatePermissionMode: vi.fn(),
         updateModelMode: vi.fn(),
         updateEffortLevel: vi.fn(),
@@ -212,7 +221,9 @@ describe('SessionContextDrawer', () => {
         shared.sessionEmitAgentConfigurationMock.mockResolvedValue(undefined);
         shared.resumeSessionInlineMock.mockReset();
         shared.onForkPressMock.mockReset();
+        shared.onIconPinnedToggleMock.mockReset();
         shared.latestPatchModel = null;
+        shared.avatarStyle = 'gradient';
     });
 
     it('renders the collapsed bar with machine, path basename, model, and permission chips from session metadata props', () => {
@@ -364,5 +375,65 @@ describe('SessionContextDrawer', () => {
         });
 
         expect(shared.onForkPressMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('hides the icon pin row when avatar style is not topic brutalist', () => {
+        shared.avatarStyle = 'brutalist';
+        let renderer: TestRendererInstance;
+        act(() => {
+            renderer = TestRenderer.create(<SessionContextDrawer {...baseProps()} />);
+        });
+        expand(renderer!.root);
+
+        expect(textValues(renderer!.root)).not.toContain('translated:drawer.pinIcon');
+        expect(textValues(renderer!.root)).not.toContain('translated:drawer.unpinIcon');
+    });
+
+    it('hides the icon pin row when no session id is provided', () => {
+        shared.avatarStyle = 'brutalist-topic';
+        let renderer: TestRendererInstance;
+        act(() => {
+            renderer = TestRenderer.create(<SessionContextDrawer {...baseProps()} sessionId={null} />);
+        });
+        expand(renderer!.root);
+
+        expect(textValues(renderer!.root)).not.toContain('translated:drawer.pinIcon');
+    });
+
+    it('shows the icon pin row for topic brutalist sessions and fires the toggle once per tap', () => {
+        shared.avatarStyle = 'brutalist-topic';
+        let renderer: TestRendererInstance;
+        act(() => {
+            renderer = TestRenderer.create(<SessionContextDrawer {...baseProps()} />);
+        });
+        expand(renderer!.root);
+
+        const pinButton = renderer!.root.findAllByType('Pressable').find((node: RenderNode) =>
+            textValues(node).includes('translated:drawer.pinIcon'),
+        );
+
+        expect(pinButton?.props.accessibilityState).toMatchObject({ selected: false });
+        expect(textValues(renderer!.root)).toContain('translated:drawer.pinIconDescription');
+
+        act(() => {
+            pinButton!.props.onPress();
+        });
+        act(() => {
+            pinButton!.props.onPress();
+        });
+
+        expect(shared.onIconPinnedToggleMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('switches the icon pin row label and icon when already pinned', () => {
+        shared.avatarStyle = 'brutalist-topic';
+        let renderer: TestRendererInstance;
+        act(() => {
+            renderer = TestRenderer.create(<SessionContextDrawer {...baseProps()} iconPinned={true} />);
+        });
+        expand(renderer!.root);
+
+        expect(textValues(renderer!.root)).toContain('translated:drawer.unpinIcon');
+        expect(renderer!.root.findAllByType('Ionicon').some((node: RenderNode) => node.props.name === 'pin')).toBe(true);
     });
 });

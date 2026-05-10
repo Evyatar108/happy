@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "version": 30,
+      "date": "2026-05-10",
+      "summary": "Session avatars can now use a topic-aware brutalist style. Sessions about the same topic pick the same kind of brutalist icon, and a new pin toggle in the chat drawer lets you freeze that icon so the session stays visually fixed even if its topic changes. The pin control appears in the drawer when the topic-aware brutalist style is active.",
+      "changes": [
+        "Added topic-aware brutalist avatars as a new opt-in avatar style in Settings -> Appearance.",
+        "Added localized labels for pinning and unpinning a session icon from the chat drawer."
+      ],
+      "rawMarkdown": "## Version 30 - 2026-05-10\n\n\nSession avatars can now use a topic-aware brutalist style. Sessions about the same topic pick the same kind of brutalist icon, and a new pin toggle in the chat drawer lets you freeze that icon so the session stays visually fixed even if its topic changes. The pin control appears in the drawer when the topic-aware brutalist style is active.\n\n- Added topic-aware brutalist avatars as a new opt-in avatar style in Settings -> Appearance.\n- Added localized labels for pinning and unpinning a session icon from the chat drawer."
+    },
+    {
       "version": 29,
       "date": "2026-05-10",
       "summary": "Project and worktree groups in the sidebar can now be arranged on web. Drag a group's handle to save a custom order for your account, while mobile and tablet layouts keep their existing alphabetical behavior.",
@@ -335,5 +345,5 @@
       "rawMarkdown": "## Version 1 - 2025-05-12\n\n\nWelcome to Happy - your secure, encrypted mobile companion for Claude Code. This inaugural release establishes the foundation for private, powerful AI interactions on the go.\n\n- Implemented end-to-end encrypted session management ensuring complete privacy\n- Integrated intelligent voice assistant with natural conversation capabilities\n- Added experimental file manager with syntax highlighting and tree navigation\n- Built seamless real-time synchronization across all your devices\n- Established native support for iOS, Android, and responsive web interfaces"
     }
   ],
-  "latestVersion": 29
+  "latestVersion": 30
 }

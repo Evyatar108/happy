@@ -1,5 +1,12 @@
 # Changelog
 
+## Version 30 - 2026-05-10
+
+Session avatars can now use a topic-aware brutalist style. Sessions about the same topic pick the same kind of brutalist icon, and a new pin toggle in the chat drawer lets you freeze that icon so the session stays visually fixed even if its topic changes. The pin control appears in the drawer when the topic-aware brutalist style is active.
+
+- Added topic-aware brutalist avatars as a new opt-in avatar style in Settings -> Appearance.
+- Added localized labels for pinning and unpinning a session icon from the chat drawer.
+
 ## Version 29 - 2026-05-10
 
 Project and worktree groups in the sidebar can now be arranged on web. Drag a group's handle to save a custom order for your account, while mobile and tablet layouts keep their existing alphabetical behavior.

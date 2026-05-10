@@ -258,6 +258,7 @@ export const zhHant: TranslationStructure = {
             pixelated: '像素化',
             gradient: '漸層',
             brutalist: '粗獷風格',
+            brutalistTopic: '主題粗獷風格',
         },
         showFlavorIcons: '顯示 AI 提供者圖示',
         showFlavorIconsDescription: '在工作階段頭像上顯示 AI 提供者圖示',
@@ -378,6 +379,9 @@ export const zhHant: TranslationStructure = {
             action: '派生',
             comingSoon: '即將推出',
         },
+        pinIcon: '固定圖示',
+        pinIconDescription: '即使主題變更也保留此工作階段圖示',
+        unpinIcon: '取消固定圖示',
         applyFailed: '套用失敗 — 請再試一次',
     },
 

@@ -259,6 +259,7 @@ export const ja: TranslationStructure = {
             pixelated: 'ピクセル',
             gradient: 'グラデーション',
             brutalist: 'ブルータリスト',
+            brutalistTopic: 'トピック別ブルータリスト',
         },
         showFlavorIcons: 'AIプロバイダーアイコンを表示',
         showFlavorIconsDescription: 'セッションアバターにAIプロバイダーアイコンを表示',
@@ -379,6 +380,9 @@ export const ja: TranslationStructure = {
             action: 'フォーク',
             comingSoon: '近日公開',
         },
+        pinIcon: 'アイコンを固定',
+        pinIconDescription: 'トピックが変わってもこのセッションのアイコンを維持します',
+        unpinIcon: 'アイコンの固定を解除',
         applyFailed: '適用に失敗しました — もう一度お試しください',
     },
 

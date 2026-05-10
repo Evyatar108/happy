@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import { AvatarSkia } from "./AvatarSkia";
 import { AvatarGradient } from "./AvatarGradient";
 import { AvatarBrutalist } from "./AvatarBrutalist";
+import { AvatarTopicBrutalist } from "./AvatarTopicBrutalist";
 import { useSetting } from '@/sync/storage';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 
@@ -13,7 +14,12 @@ interface AvatarProps {
     square?: boolean;
     size?: number;
     monochrome?: boolean;
+    /** AvatarTopicBrutalist consumes only this top-level flavor; topic fields stay flat. */
     flavor?: string | null;
+    summaryText?: string;
+    metadataName?: string;
+    pinnedAvatarImageIndex?: number;
+    pinnedAvatarColorIndex?: number;
     imageUrl?: string | null;
     thumbhash?: string | null;
 }
@@ -106,6 +112,8 @@ export const Avatar = React.memo((props: AvatarProps) => {
         AvatarComponent = AvatarSkia;
     } else if (avatarStyle === 'brutalist') {
         AvatarComponent = AvatarBrutalist;
+    } else if (avatarStyle === 'brutalist-topic') {
+        AvatarComponent = AvatarTopicBrutalist;
     } else {
         AvatarComponent = AvatarGradient;
     }
@@ -126,7 +134,7 @@ export const Avatar = React.memo((props: AvatarProps) => {
     if (showFlavorIcons && flavor !== null) {
         return (
             <View style={[styles.container, { width: size, height: size }]}>
-                <AvatarComponent {...avatarProps} size={size} />
+                <AvatarComponent {...avatarProps} size={size} flavor={flavor} />
                 <View style={[styles.flavorIcon, {
                     width: circleSize,
                     height: circleSize,
@@ -145,5 +153,5 @@ export const Avatar = React.memo((props: AvatarProps) => {
     }
 
     // Return avatar without wrapper when not showing flavor icons
-    return <AvatarComponent {...avatarProps} size={size} />;
+    return <AvatarComponent {...avatarProps} size={size} flavor={flavor} />;
 });

@@ -4,6 +4,7 @@ import { LocalSettings, localSettingsDefaults, localSettingsParse } from './loca
 import { Purchases, purchasesDefaults, purchasesParse } from './purchases';
 import { Profile, profileDefaults, profileParse } from './profile';
 import type { PermissionModeKey } from '@/components/PermissionModeSelector';
+import { allImages, colorPairs } from '@/components/avatarBrutalistAssets';
 
 const mmkv = new MMKV();
 const NEW_SESSION_DRAFT_KEY = 'new-session-draft-v1';
@@ -259,6 +260,47 @@ export function loadSessionEffortLevels(): Record<string, string> {
 
 export function saveSessionEffortLevels(levels: Record<string, string>) {
     mmkv.set('session-effort-levels', JSON.stringify(levels));
+}
+
+export interface PinnedAvatarTuple {
+    imageIndex: number;
+    colorIndex: number;
+}
+
+function isPinnedAvatarTuple(value: unknown): value is PinnedAvatarTuple {
+    if (!value || typeof value !== 'object') {
+        return false;
+    }
+    const { imageIndex, colorIndex } = value as PinnedAvatarTuple;
+    return Number.isInteger(imageIndex)
+        && imageIndex >= 0
+        && imageIndex < allImages.length
+        && Number.isInteger(colorIndex)
+        && colorIndex >= 0
+        && colorIndex < colorPairs.length;
+}
+
+export function loadSessionPinnedAvatars(): Record<string, PinnedAvatarTuple> {
+    const pins = mmkv.getString('session-pinned-avatars');
+    if (pins) {
+        try {
+            const parsed = JSON.parse(pins);
+            if (!parsed || typeof parsed !== 'object') {
+                return {};
+            }
+            return Object.fromEntries(
+                Object.entries(parsed).filter((entry): entry is [string, PinnedAvatarTuple] => isPinnedAvatarTuple(entry[1]))
+            );
+        } catch (e) {
+            console.error('Failed to parse session pinned avatars', e);
+            return {};
+        }
+    }
+    return {};
+}
+
+export function saveSessionPinnedAvatars(pins: Record<string, PinnedAvatarTuple>) {
+    mmkv.set('session-pinned-avatars', JSON.stringify(pins));
 }
 
 export function loadProfile(): Profile {

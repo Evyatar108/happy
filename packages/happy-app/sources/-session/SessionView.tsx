@@ -35,6 +35,7 @@ import { sync } from '@/sync/sync';
 import { t } from '@/text';
 import { tracking } from '@/track';
 import { getVoiceMessageCount, getVoiceOnboardingPromptLoadCount } from '@/sync/persistence';
+import { resolveTopicBrutalistAvatar } from '@/utils/avatarTopic';
 import { isRunningOnMac } from '@/utils/platform';
 import { useDeviceType, useHeaderHeight, useIsLandscape, useIsTablet } from '@/utils/responsive';
 import { FilesSidebar } from '@/components/FilesSidebar';
@@ -134,7 +135,7 @@ export const SessionView = React.memo((props: { id: string }) => {
                 avatarId: undefined,
                 onAvatarPress: undefined,
                 isConnected: false,
-                flavor: null
+                flavor: null,
             };
         }
 
@@ -145,7 +146,7 @@ export const SessionView = React.memo((props: { id: string }) => {
                 avatarId: undefined,
                 onAvatarPress: undefined,
                 isConnected: false,
-                flavor: null
+                flavor: null,
             };
         }
 
@@ -157,6 +158,10 @@ export const SessionView = React.memo((props: { id: string }) => {
             onAvatarPress: () => router.push(`/session/${sessionId}/info`),
             isConnected: isConnected,
             flavor: session.metadata?.flavor || null,
+            summaryText: session.metadata?.summary?.text,
+            metadataName: session.metadata?.name,
+            pinnedAvatarImageIndex: session.pinnedAvatarImageIndex,
+            pinnedAvatarColorIndex: session.pinnedAvatarColorIndex,
             tintColor: isConnected ? '#000' : '#8E8E93'
         };
     }, [session, isDataReady, sessionId, router]);
@@ -510,6 +515,21 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
     const handleForkPress = React.useCallback(() => {
         router.push(`/session/${sessionId}/fork-composer`);
     }, [router, sessionId]);
+    const iconPinned = session.pinnedAvatarImageIndex !== undefined && session.pinnedAvatarColorIndex !== undefined;
+    const handleIconPinnedToggle = React.useCallback(() => {
+        if (session.pinnedAvatarImageIndex !== undefined && session.pinnedAvatarColorIndex !== undefined) {
+            storage.getState().sessionClearPinnedAvatar(sessionId);
+            return;
+        }
+
+        const tuple = resolveTopicBrutalistAvatar({
+            id: getSessionAvatarId(session),
+            summaryText: session.metadata?.summary?.text,
+            name: session.metadata?.name,
+            flavor: session.metadata?.flavor,
+        });
+        storage.getState().sessionSetPinnedAvatar(sessionId, tuple);
+    }, [session, sessionId]);
 
     const sessionMachineId = session.metadata?.machineId ?? '';
     const sessionMachine = useMachine(sessionMachineId);
@@ -739,9 +759,12 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                 canResume={canResume}
                 resumeAvailability={resumeAvailability}
                 resumeCommandBlock={resumeCommandBlock}
+                sessionId={sessionId}
                 session={session}
                 machine={sessionMachine}
+                iconPinned={iconPinned}
                 onForkPress={handleForkPress}
+                onIconPinnedToggle={handleIconPinnedToggle}
                 updatePermissionMode={updatePermissionMode}
                 updateModelMode={updateModelMode}
                 updateEffortLevel={updateEffortLevel}

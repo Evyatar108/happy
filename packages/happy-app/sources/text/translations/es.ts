@@ -258,6 +258,7 @@ export const es: TranslationStructure = {
             pixelated: 'Pixelado',
             gradient: 'Gradiente',
             brutalist: 'Brutalista',
+            brutalistTopic: 'Brutalista por tema',
         },
         showFlavorIcons: 'Mostrar íconos de proveedor de IA',
         showFlavorIconsDescription: 'Mostrar íconos del proveedor de IA en los avatares de sesión',
@@ -378,6 +379,9 @@ export const es: TranslationStructure = {
             action: 'Bifurcar',
             comingSoon: 'Próximamente',
         },
+        pinIcon: 'Fijar icono',
+        pinIconDescription: 'Mantén este icono de sesión aunque cambie el tema',
+        unpinIcon: 'Desfijar icono',
         applyFailed: 'No se pudo aplicar — inténtalo de nuevo',
     },
 
