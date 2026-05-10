@@ -4,6 +4,7 @@ import { LocalSettings, localSettingsDefaults, localSettingsParse } from './loca
 import { Purchases, purchasesDefaults, purchasesParse } from './purchases';
 import { Profile, profileDefaults, profileParse } from './profile';
 import type { PermissionModeKey } from '@/components/PermissionModeSelector';
+import { allImages, colorPairs } from '@/components/avatarBrutalistAssets';
 
 const mmkv = new MMKV();
 const NEW_SESSION_DRAFT_KEY = 'new-session-draft-v1';
@@ -267,10 +268,16 @@ export interface PinnedAvatarTuple {
 }
 
 function isPinnedAvatarTuple(value: unknown): value is PinnedAvatarTuple {
-    return !!value
-        && typeof value === 'object'
-        && typeof (value as PinnedAvatarTuple).imageIndex === 'number'
-        && typeof (value as PinnedAvatarTuple).colorIndex === 'number';
+    if (!value || typeof value !== 'object') {
+        return false;
+    }
+    const { imageIndex, colorIndex } = value as PinnedAvatarTuple;
+    return Number.isInteger(imageIndex)
+        && imageIndex >= 0
+        && imageIndex < allImages.length
+        && Number.isInteger(colorIndex)
+        && colorIndex >= 0
+        && colorIndex < colorPairs.length;
 }
 
 export function loadSessionPinnedAvatars(): Record<string, PinnedAvatarTuple> {
