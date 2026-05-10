@@ -103,6 +103,7 @@ interface AgentInputRenderConfig {
     showNewSessionSlots: boolean;
     showAttachmentButton: boolean;
     showProjectPathHeader: boolean;
+    allowEmptySend: boolean;
 }
 
 export function selectAgentInputRenderConfig(mode: AgentInputMode): AgentInputRenderConfig {
@@ -116,6 +117,7 @@ export function selectAgentInputRenderConfig(mode: AgentInputMode): AgentInputRe
                 showNewSessionSlots: true,
                 showAttachmentButton: true,
                 showProjectPathHeader: false,
+                allowEmptySend: true,
             };
         case 'active':
             return {
@@ -126,6 +128,7 @@ export function selectAgentInputRenderConfig(mode: AgentInputMode): AgentInputRe
                 showNewSessionSlots: false,
                 showAttachmentButton: false,
                 showProjectPathHeader: true,
+                allowEmptySend: false,
             };
     }
 }
@@ -418,7 +421,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
     const canUseMic = renderConfig.showActiveToolbarControls && !!props.onMicPress;
     const canPressSendButton = !props.isSending
         && !props.isSendDisabled
-        && (isSendBlocked ? hasText : (hasText || canUseMic));
+        && (isSendBlocked ? hasText : (hasText || renderConfig.allowEmptySend || canUseMic));
 
     // Check if this is a Codex, Gemini, or OpenClaw session
     // Use metadata.flavor for existing sessions, agentType prop for new sessions
@@ -631,12 +634,12 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
         if (props.isSendDisabled || props.isSending) return;
 
         hapticsLight();
-        if (hasText) {
+        if (hasText || renderConfig.allowEmptySend) {
             props.onSend('now');
         } else if (canUseMic) {
             props.onMicPress?.();
         }
-    }, [canUseMic, handleBlockedSendAttempt, hasText, isSendBlocked, props]);
+    }, [canUseMic, handleBlockedSendAttempt, hasText, isSendBlocked, props, renderConfig.allowEmptySend]);
 
     const handleSendWhenIdlePress = React.useCallback(() => {
         if (isSendBlocked) {

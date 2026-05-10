@@ -61,6 +61,8 @@ type NewSessionContextRowRenderState = {
     currentEffort: EffortLevel | undefined;
     currentModel: ModelMode | undefined;
     currentPermission: PermissionMode;
+    effortLevels: EffortLevel[];
+    modelModes: ModelMode[];
     cycleAgent: () => void;
     cycleEffort: () => void;
     cycleModel: () => void;
@@ -73,6 +75,9 @@ type NewSessionContextRowRenderState = {
     permissionModes: PermissionMode[];
     permissionStyle: PermissionStyle | null;
     renderPickerContent: (autoFocusSearch?: boolean) => React.ReactNode;
+    selectEffort: (level: EffortLevel) => void;
+    selectModel: (mode: ModelMode) => void;
+    selectPermission: (mode: PermissionMode) => void;
     showEffort: boolean;
     showFlash: (text: string) => void;
     showModel: boolean;
@@ -425,6 +430,23 @@ export function useNewSessionContextRowController({
         setSelectedAgent(next);
     }, [availableAgents, selectedAgent, setSelectedAgent]);
 
+    const selectPermission = React.useCallback((mode: PermissionMode) => {
+        const nextIndex = permissionModes.findIndex(candidate => candidate.key === mode.key);
+        setPermissionIndex(nextIndex >= 0 ? nextIndex : 0);
+        draft.setPermissionMode(mode.key ?? 'default');
+    }, [draft, permissionModes]);
+
+    const selectModel = React.useCallback((mode: ModelMode) => {
+        const nextIndex = modelModes.findIndex(candidate => candidate.key === mode.key);
+        setModelIndex(nextIndex >= 0 ? nextIndex : 0);
+        draft.setModelMode(mode.key ?? 'default');
+    }, [draft, modelModes]);
+
+    const selectEffort = React.useCallback((level: EffortLevel) => {
+        const nextIndex = effortLevels.findIndex(candidate => candidate.key === level.key);
+        setEffortIndex(nextIndex >= 0 ? nextIndex : 0);
+    }, [effortLevels]);
+
     const isOffline = selectedMachine ? !isMachineOnline(selectedMachine) : false;
     const agent = availableAgents.find(a => a.key === selectedAgent) ?? ALL_AGENTS[0];
     const currentPermission = permissionModes[permissionIndex] ?? permissionModes[0];
@@ -560,6 +582,8 @@ export function useNewSessionContextRowController({
             currentEffort,
             currentModel,
             currentPermission,
+            effortLevels,
+            modelModes,
             cycleAgent,
             cycleEffort,
             cycleModel,
@@ -572,6 +596,9 @@ export function useNewSessionContextRowController({
             permissionModes,
             permissionStyle,
             renderPickerContent,
+            selectEffort,
+            selectModel,
+            selectPermission,
             showEffort,
             showFlash,
             showModel,
@@ -582,7 +609,7 @@ export function useNewSessionContextRowController({
             toggleConfig,
             togglePicker,
         },
-    }), [activePicker, agent, availableAgents, closePicker, currentEffort, currentModel, currentModelKey, currentPermission, cycleAgent, cycleEffort, cycleModel, cyclePermission, flashOpacity, flashText, isConfigExpanded, isOffline, permissionIndex, permissionModes, permissionStyle, renderPickerContent, selectedAgent, selectedMachine, selectedMachineId, selectedPath, showEffort, showFlash, showModel, showPermission, slots, supportsWorktree, theme, toggleConfig, togglePicker, worktreeKey]);
+    }), [activePicker, agent, availableAgents, closePicker, currentEffort, currentModel, currentModelKey, currentPermission, cycleAgent, cycleEffort, cycleModel, cyclePermission, effortLevels, flashOpacity, flashText, isConfigExpanded, isOffline, modelModes, permissionIndex, permissionModes, permissionStyle, renderPickerContent, selectEffort, selectModel, selectPermission, selectedAgent, selectedMachine, selectedMachineId, selectedPath, showEffort, showFlash, showModel, showPermission, slots, supportsWorktree, theme, toggleConfig, togglePicker, worktreeKey]);
 }
 
 export function NewSessionContextRow({ controller }: { controller: NewSessionContextRowController }) {

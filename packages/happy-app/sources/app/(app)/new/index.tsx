@@ -22,7 +22,7 @@ import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import Constants from 'expo-constants';
 import { useHeaderHeight } from '@/utils/responsive';
 import { t } from '@/text';
-import { useSetting, storage } from '@/sync/storage';
+import { useLocalSetting, useSetting, storage } from '@/sync/storage';
 import { sync } from '@/sync/sync';
 import { isMachineOnline } from '@/utils/machineUtils';
 import { machineSpawnNewSession } from '@/sync/ops';
@@ -32,7 +32,9 @@ import { useNavigateToSession } from '@/hooks/useNavigateToSession';
 import { useNewSessionDraft } from '@/hooks/useNewSessionDraft';
 import { usePreSendCommand } from '@/hooks/usePreSendCommand';
 import { Modal } from '@/modal';
+import { AgentInput } from '@/components/AgentInput';
 import { NewSessionContextRow, useNewSessionContextRowController } from '@/components/NewSessionContextRow';
+import type { SendMessageOptions } from '@/sync/sync';
 
 const COMPOSER_INPUT_VERTICAL_PADDING = Platform.OS === 'web' ? 10 : 8;
 const COMPOSER_SEND_BUTTON_SIZE = 32;
@@ -135,6 +137,7 @@ function NewSessionScreen() {
     const preSendCommand = usePreSendCommand(undefined);
 
     const agentInputEnterToSend = useSetting('agentInputEnterToSend');
+    const unifiedNewSessionComposer = useLocalSetting('unifiedNewSessionComposer');
     const contextRow = useNewSessionContextRowController();
 
     // Persisted draft state (survives navigation)
@@ -153,6 +156,7 @@ function NewSessionScreen() {
 
     // Local-only UI state (not persisted)
     const [isSpawning, setIsSpawning] = React.useState(false);
+    const attachments = React.useMemo<NonNullable<SendMessageOptions['attachments']>>(() => [], []);
     // Spawn session handler
     const handleSend = React.useCallback(async (approvedNewDirectoryCreation: boolean = false) => {
         const trimmedPrompt = prompt.trim();
@@ -220,7 +224,7 @@ function NewSessionScreen() {
 
                     // Send initial message if provided
                     if (trimmedPrompt) {
-                        await sync.sendMessage(result.sessionId, trimmedPrompt, { source: 'new_session' });
+                        await sync.sendMessage(result.sessionId, trimmedPrompt, { source: 'new_session', attachments });
                     }
 
                     router.back();
@@ -249,7 +253,7 @@ function NewSessionScreen() {
         } finally {
             setIsSpawning(false);
         }
-    }, [selectedMachineId, selectedMachine, selectedPath, selectedAgent, prompt, preSendCommand, router, navigateToSession, currentPermission.key, currentModelKey, worktreeKey, setPrompt]);
+    }, [attachments, selectedMachineId, selectedMachine, selectedPath, selectedAgent, prompt, preSendCommand, router, navigateToSession, currentPermission.key, currentModelKey, worktreeKey, setPrompt]);
 
     const canSend = selectedMachineId && selectedMachine && isMachineOnline(selectedMachine) && !isSpawning;
 
@@ -273,6 +277,33 @@ function NewSessionScreen() {
         return () => clearTimeout(timeout);
     }, []);
 
+    const unifiedComposer = (
+        <AgentInput
+            ref={composerInputRef}
+            mode="new"
+            value={prompt}
+            onChangeText={setPrompt}
+            placeholder="What would you like to work on?"
+            onSend={() => handleSend()}
+            isSendDisabled={!canSend}
+            isSending={isSpawning}
+            permissionMode={contextRow.currentPermission}
+            availableModes={contextRow.renderState.permissionModes}
+            onPermissionModeChange={contextRow.renderState.selectPermission}
+            modelMode={contextRow.currentModel ?? null}
+            availableModels={contextRow.renderState.modelModes}
+            onModelModeChange={contextRow.renderState.selectModel}
+            effortLevel={contextRow.currentEffort ?? null}
+            availableEffortLevels={contextRow.renderState.effortLevels}
+            onEffortLevelChange={contextRow.renderState.selectEffort}
+            agentType={selectedAgent}
+            autocompletePrefixes={[]}
+            autocompleteSuggestions={async () => []}
+            newSessionSlots={contextRow.slots}
+            onAttachmentPress={() => {}}
+        />
+    );
+
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -280,10 +311,12 @@ function NewSessionScreen() {
             style={styles.container}
         >
             <View style={styles.inner}>
-                <View style={{ maxWidth: layout.maxWidth, width: '100%', alignSelf: 'center', paddingHorizontal: 12, gap: 8, paddingTop: 12 }}>
+                {!unifiedNewSessionComposer && (
+                    <View style={{ maxWidth: layout.maxWidth, width: '100%', alignSelf: 'center', paddingHorizontal: 12, gap: 8, paddingTop: 12 }}>
 
-                    <NewSessionContextRow controller={contextRow} />
-                </View>
+                        <NewSessionContextRow controller={contextRow} />
+                    </View>
+                )}
 
                 {/* Web: click-away backdrop */}
                 {Platform.OS === 'web' && contextRow.activePicker && (
@@ -296,56 +329,67 @@ function NewSessionScreen() {
                 {/* Spacer */}
                 <View style={{ flex: 1 }} />
 
-                <View style={{ maxWidth: layout.maxWidth, width: '100%', alignSelf: 'center', paddingHorizontal: 12, gap: 8 }}>
-                    {/* Input box */}
-                    <View style={styles.inputBox}>
-                        <View style={styles.inputField}>
-                            <View style={{ flex: 1 }}>
-                                <MultiTextInput
-                                    ref={composerInputRef}
-                                    value={prompt}
-                                    onChangeText={setPrompt}
-                                    placeholder="What would you like to work on?"
-                                    lineHeight={MULTI_TEXT_INPUT_LINE_HEIGHT}
-                                    paddingTop={COMPOSER_INPUT_VERTICAL_PADDING}
-                                    paddingBottom={COMPOSER_INPUT_VERTICAL_PADDING}
-                                    maxHeight={240}
-                                    onKeyPress={handleKeyPress}
-                                />
+                {unifiedNewSessionComposer ? (
+                    <>
+                        {Platform.OS === 'web' && contextRow.activePicker && (
+                            <View style={[styles.unifiedPickerPopover, { backgroundColor: theme.colors.header.background }]}>
+                                {contextRow.renderPickerContent(true)}
                             </View>
-                            <View style={[
-                                styles.sendButton,
-                                canSend ? styles.sendButtonActive : styles.sendButtonInactive,
-                            ]}>
-                                <Pressable
-                                    style={(p) => ({
-                                        width: '100%',
-                                        height: '100%',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        opacity: p.pressed ? 0.7 : 1,
-                                    })}
-                                    disabled={!canSend}
-                                    onPress={() => handleSend()}
-                                >
-                                    {isSpawning ? (
-                                        <ActivityIndicator
-                                            size="small"
-                                            color={theme.colors.button.primary.tint}
-                                        />
-                                    ) : (
-                                        <Octicons
-                                            name="arrow-up"
-                                            size={16}
-                                            color={theme.colors.button.primary.tint}
-                                            style={{ marginTop: Platform.OS === 'web' ? 2 : 0 }}
-                                        />
-                                    )}
-                                </Pressable>
+                        )}
+                        {unifiedComposer}
+                    </>
+                ) : (
+                    <View style={{ maxWidth: layout.maxWidth, width: '100%', alignSelf: 'center', paddingHorizontal: 12, gap: 8 }}>
+                        {/* Input box */}
+                        <View style={styles.inputBox}>
+                            <View style={styles.inputField}>
+                                <View style={{ flex: 1 }}>
+                                    <MultiTextInput
+                                        ref={composerInputRef}
+                                        value={prompt}
+                                        onChangeText={setPrompt}
+                                        placeholder="What would you like to work on?"
+                                        lineHeight={MULTI_TEXT_INPUT_LINE_HEIGHT}
+                                        paddingTop={COMPOSER_INPUT_VERTICAL_PADDING}
+                                        paddingBottom={COMPOSER_INPUT_VERTICAL_PADDING}
+                                        maxHeight={240}
+                                        onKeyPress={handleKeyPress}
+                                    />
+                                </View>
+                                <View style={[
+                                    styles.sendButton,
+                                    canSend ? styles.sendButtonActive : styles.sendButtonInactive,
+                                ]}>
+                                    <Pressable
+                                        style={(p) => ({
+                                            width: '100%',
+                                            height: '100%',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            opacity: p.pressed ? 0.7 : 1,
+                                        })}
+                                        disabled={!canSend}
+                                        onPress={() => handleSend()}
+                                    >
+                                        {isSpawning ? (
+                                            <ActivityIndicator
+                                                size="small"
+                                                color={theme.colors.button.primary.tint}
+                                            />
+                                        ) : (
+                                            <Octicons
+                                                name="arrow-up"
+                                                size={16}
+                                                color={theme.colors.button.primary.tint}
+                                                style={{ marginTop: Platform.OS === 'web' ? 2 : 0 }}
+                                            />
+                                        )}
+                                    </Pressable>
+                                </View>
                             </View>
                         </View>
                     </View>
-                </View>
+                )}
 
                 <View style={{ height: Math.max(16, safeArea.bottom) }} />
             </View>
@@ -401,6 +445,22 @@ const styles = StyleSheet.create((theme) => ({
     },
     sendButtonInactive: {
         backgroundColor: theme.colors.button.primary.disabled,
+    },
+    unifiedPickerPopover: {
+        width: '100%',
+        maxWidth: layout.maxWidth,
+        alignSelf: 'center',
+        marginBottom: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: theme.colors.divider,
+        ...Platform.select({
+            web: {
+                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.12)',
+            },
+            default: {},
+        }),
     },
 }));
 
