@@ -221,18 +221,16 @@ export async function runCodex(opts: {
     let currentModel: string | undefined = undefined;
     let currentThinkingLevel: ReasoningEffort | undefined = undefined;
 
-    // Valid Codex permission modes from remote messages. Includes the
-    // historical bypassPermissions path plus the native Codex modes exposed by
-    // the mobile UI (see modelModeOptions.ts: getCodexPermissionModes).
-    // Anything outside this set is silently ignored — the
-    // previous code blindly cast `message.meta.permissionMode as PermissionMode`
+    // Valid Codex permission modes from remote messages. Restricted to the
+    // native Codex modes exposed by the mobile UI (see modelModeOptions.ts:
+    // getCodexPermissionModes). Anything outside this set is silently ignored —
+    // the previous code blindly cast `message.meta.permissionMode as PermissionMode`
     // at runtime, meaning a crafted value like `'totally_unsafe'` would be
     // accepted and then fall through to the `default` branch in
     // resolveCodexExecutionPolicy() — or worse, an attacker-chosen valid value
     // could escalate sandbox scope (issue #1092).
     const VALID_REMOTE_PERMISSION_MODES: readonly PermissionMode[] = [
         'default',
-        'bypassPermissions',
         'read-only',
         'safe-yolo',
         'yolo',
