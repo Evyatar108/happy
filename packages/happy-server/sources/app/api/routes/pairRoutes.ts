@@ -190,6 +190,35 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig, paths:
                 device_code: z.string(),
                 mobileEcdhPublicKey: z.string().optional(),
             }),
+            response: {
+                200: z.union([
+                    z.object({ status: z.literal("pending") }),
+                    z.object({
+                        status: z.literal("authorized"),
+                        githubLogin: z.string(),
+                        machines: z.array(z.object({
+                            machineId: z.string(),
+                            tunnelUrl: z.string(),
+                            ed25519PublicKey: z.string(),
+                            x25519PublicKey: z.string(),
+                            ed25519Fingerprint: z.string().optional(),
+                            tunnelClaim: z.string(),
+                            mobileSharedSecret: z.string().optional(),
+                        })),
+                        discoveredMachines: z.array(z.object({
+                            tunnelId: z.string(),
+                            tunnelUrl: z.string(),
+                            displayName: z.string(),
+                            isOnline: z.boolean(),
+                        })),
+                    }),
+                ]),
+                401: z.object({ error: z.string() }),
+                403: z.object({ error: z.string() }),
+                429: z.object({ error: z.string() }),
+                502: z.object({ error: z.string() }),
+                503: z.object({ error: z.string() }),
+            },
         },
     }, async (request, reply) => {
         if (isPairRateLimited(request.ip, Date.now())) {
@@ -269,7 +298,6 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig, paths:
         return {
             status: "authorized" as const,
             githubLogin: githubUser.login,
-            githubToken: tokenData.access_token,
             machines: [{
                 machineId: tofuConfig.localUserId,
                 tunnelUrl,
