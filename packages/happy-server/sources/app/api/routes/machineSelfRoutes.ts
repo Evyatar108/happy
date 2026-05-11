@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { type Fastify } from "../types";
+import { requireAccountIdForTunnel } from "../utils/requireAccountIdForTunnel";
 
 const MachineSelfSchema = z.object({
     machineId: z.string(),
@@ -16,14 +17,6 @@ export type MachineSelfState = z.infer<typeof MachineSelfSchema>;
 export interface MachineSelfRoutesOptions {
     auth: "tunnel" | "loopback";
     machineState?: () => MachineSelfState | Promise<MachineSelfState>;
-}
-
-function requireAccountIdForTunnel(auth: MachineSelfRoutesOptions["auth"]) {
-    return async function requireAccountIdForTunnelRoute(request: any, reply: any) {
-        if (auth === "tunnel" && typeof request.accountId !== "number") {
-            return reply.code(401).send({ error: "account_id_required" });
-        }
-    };
 }
 
 export function machineSelfRoutes(app: Fastify, options: MachineSelfRoutesOptions) {

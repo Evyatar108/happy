@@ -5,6 +5,7 @@ import * as path from "path";
 import { type Fastify } from "../types";
 import { type ApiPaths } from "../api";
 import { writeJsonAtomically } from "../utils/writeJsonAtomically";
+import { requireAccountIdForTunnel } from "../utils/requireAccountIdForTunnel";
 
 const ProfileSchema = z.object({
     githubUserId: z.number(),
@@ -38,14 +39,6 @@ async function readJsonFile<T>(filePath: string, schema: z.ZodType<T>): Promise<
         }
         throw error;
     }
-}
-
-function requireAccountIdForTunnel(auth: AccountRoutesOptions["auth"]) {
-    return async function requireAccountIdForTunnelRoute(request: any, reply: any) {
-        if (auth === "tunnel" && typeof request.accountId !== "number") {
-            return reply.code(401).send({ error: "account_id_required" });
-        }
-    };
 }
 
 export function accountRoutes(app: Fastify, options: AccountRoutesOptions) {
