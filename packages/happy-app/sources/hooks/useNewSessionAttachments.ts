@@ -65,6 +65,13 @@ export async function prepareNewSessionImageAttachment(asset: NewSessionAttachme
         throw new Error('unsupported-type');
     }
 
+    if (asset.uri.startsWith('data:')) {
+        const dataUrlMatch = /^data:([^;,]+);base64,/i.exec(asset.uri);
+        if (!dataUrlMatch || dataUrlMatch[1].trim().toLowerCase() !== selectedMimeType) {
+            throw new Error('unsupported-type');
+        }
+    }
+
     const originalBase64 = asset.base64 ?? (asset.uri.startsWith('data:') ? getBase64Payload(asset.uri) : null);
     if (originalBase64 && originalBase64.length <= MAX_ENCODED_ATTACHMENT_BYTES) {
         return buildAttachment(originalBase64, selectedMimeType, asset.fileName);

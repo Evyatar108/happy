@@ -33,21 +33,33 @@ function validateClaudeEffort(value: unknown): QueryOptions['effort'] {
     return undefined;
 }
 
-function toClaudeImageMediaType(mimeType?: string): ClaudeImageMediaType {
-    switch (mimeType) {
-        case 'image/png':
-        case 'image/jpeg':
-        case 'image/gif':
-        case 'image/webp':
-            return mimeType;
-        default:
-            return 'image/png';
-    }
+const CLAUDE_IMAGE_MEDIA_TYPES: ReadonlyArray<ClaudeImageMediaType> = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+
+function isClaudeImageMediaType(value: string): value is ClaudeImageMediaType {
+    return (CLAUDE_IMAGE_MEDIA_TYPES as ReadonlyArray<string>).includes(value);
 }
 
-function getBase64Payload(ref: string): string {
-    const dataUrlPrefix = ref.indexOf(';base64,');
-    return dataUrlPrefix !== -1 ? ref.slice(dataUrlPrefix + 8) : ref;
+const DATA_URL_IMAGE_PATTERN = /^data:([^;,]+);base64,(.*)$/;
+
+function resolveClaudeImageAttachment(attachment: MessageQueueAttachment): { mediaType: ClaudeImageMediaType, data: string } | null {
+    const match = DATA_URL_IMAGE_PATTERN.exec(attachment.ref);
+    if (match) {
+        const embeddedMime = match[1].trim().toLowerCase();
+        if (!isClaudeImageMediaType(embeddedMime)) {
+            logger.debug(`[claudeRemote] Rejecting attachment with unsupported data-URL media type: ${embeddedMime}`);
+            return null;
+        }
+        if (attachment.mimeType && attachment.mimeType.toLowerCase() !== embeddedMime) {
+            logger.debug(`[claudeRemote] Rejecting attachment: mimeType ${attachment.mimeType} does not match data-URL media type ${embeddedMime}`);
+            return null;
+        }
+        return { mediaType: embeddedMime, data: match[2] };
+    }
+    if (!attachment.mimeType || !isClaudeImageMediaType(attachment.mimeType.toLowerCase())) {
+        logger.debug(`[claudeRemote] Rejecting attachment without data-URL prefix and with unsupported mimeType: ${attachment.mimeType}`);
+        return null;
+    }
+    return { mediaType: attachment.mimeType.toLowerCase() as ClaudeImageMediaType, data: attachment.ref };
 }
 
 function toClaudeUserContent(message: string, attachments?: MessageQueueAttachment[]): string | ContentBlockParam[] {
@@ -55,17 +67,26 @@ function toClaudeUserContent(message: string, attachments?: MessageQueueAttachme
         return message;
     }
 
-    return [
-        { type: 'text', text: message },
-        ...attachments.map((attachment): ContentBlockParam => ({
+    const blocks: ContentBlockParam[] = [{ type: 'text', text: message }];
+    for (const attachment of attachments) {
+        const resolved = resolveClaudeImageAttachment(attachment);
+        if (!resolved) {
+            continue;
+        }
+        blocks.push({
             type: 'image',
             source: {
                 type: 'base64',
-                media_type: toClaudeImageMediaType(attachment.mimeType),
-                data: getBase64Payload(attachment.ref),
+                media_type: resolved.mediaType,
+                data: resolved.data,
             },
-        })),
-    ];
+        });
+    }
+
+    if (blocks.length === 1) {
+        return message;
+    }
+    return blocks;
 }
 
 export async function claudeRemote(opts: {
