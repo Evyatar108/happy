@@ -1,5 +1,8 @@
 import { z } from "zod";
 import nacl from "tweetnacl";
+import * as fs from "fs/promises";
+import * as os from "os";
+import * as path from "path";
 import { type Fastify } from "../types";
 import { type TofuHandshakeConfig } from "../api";
 import { encodeTunnelClaim } from "../auth/tunnelClaim";
@@ -32,6 +35,30 @@ type DevTunnelItem = {
     tunnelId: string;
     status?: { value: string };
 };
+
+export interface PairRoutePaths {
+    profile?: string;
+}
+
+function defaultProfilePath(): string {
+    return path.join(os.homedir(), ".happy", "profile.json");
+}
+
+async function writeProfileAtomically(profilePath: string, profile: unknown) {
+    const dir = path.dirname(profilePath);
+    await fs.mkdir(dir, { recursive: true });
+    const tempPath = path.join(dir, `.${path.basename(profilePath)}.${process.pid}.${Date.now()}.tmp`);
+    try {
+        await fs.writeFile(tempPath, `${JSON.stringify(profile, null, 2)}\n`, { mode: 0o600 });
+        await fs.rename(tempPath, profilePath);
+        if (process.platform !== "win32") {
+            await fs.chmod(profilePath, 0o600);
+        }
+    } catch (error) {
+        await fs.unlink(tempPath).catch(() => undefined);
+        throw error;
+    }
+}
 
 async function fetchHappyTunnels(githubToken: string, excludeTunnelId: string | null): Promise<DevTunnelItem[]> {
     try {
@@ -121,7 +148,7 @@ async function fetchGitHubUser(accessToken: string): Promise<GitHubUser> {
     return GitHubUserSchema.parse(await response.json());
 }
 
-export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
+export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig, paths: PairRoutePaths = {}) {
     app.get('/pair/start', {
         schema: {
             response: {
@@ -195,6 +222,9 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
         }
 
         const githubUser = await fetchGitHubUser(tokenData.access_token);
+        if (typeof githubUser.id !== "number") {
+            return reply.code(502).send({ error: "github_identity_missing_id" });
+        }
         const expectedOwner = process.env.HAPPY_TUNNEL_GITHUB_OWNER;
         if (expectedOwner && expectedOwner.toLowerCase() !== githubUser.login.toLowerCase()) {
             return reply.code(403).send({ error: "github_identity_does_not_own_tunnel" });
@@ -215,10 +245,18 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
         }
 
         const tunnelUrl = tofuConfig.publicUrl || process.env.PUBLIC_URL || `http://127.0.0.1:${process.env.PORT ?? "3005"}`;
+        const issuedAt = Math.floor(Date.now() / 1000);
         const tunnelClaim = await encodeTunnelClaim(
-            { sub: tofuConfig.localUserId, gh: githubUser.login, iat: Math.floor(Date.now() / 1000) },
+            { sub: tofuConfig.localUserId, gh: githubUser.login, iat: issuedAt, accountId: githubUser.id },
             tofuConfig.ed25519SecretKey,
         );
+        await writeProfileAtomically(paths.profile ?? defaultProfilePath(), {
+            githubUserId: githubUser.id,
+            githubLogin: githubUser.login,
+            name: githubUser.name ?? null,
+            avatarUrl: githubUser.avatar_url ?? null,
+            updatedAt: new Date(issuedAt * 1000).toISOString(),
+        });
 
         const currentTunnelId = parseTunnelIdFromUrl(tunnelUrl);
         const otherTunnels = await fetchHappyTunnels(tokenData.access_token, currentTunnelId);

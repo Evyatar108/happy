@@ -26,6 +26,10 @@ import { verifyTunnelClaim, type TunnelClaimResult } from "./auth/tunnelClaim";
 import * as path from "path";
 import * as fs from "fs";
 
+export interface ApiPaths extends LoopbackCapabilityPaths {
+    profile?: string;
+}
+
 export interface TofuHandshakeConfig {
     localUserId: string;
     tofuPublicKeys?: {
@@ -57,7 +61,7 @@ function parseCorsOrigins(): string[] {
 
 export interface ConfigureApiOptions {
     auth?: "tunnel" | "loopback";
-    paths?: LoopbackCapabilityPaths;
+    paths?: ApiPaths;
     onEventRouter?: (eventRouter: EventRouter) => void;
 }
 
@@ -118,7 +122,7 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
     options.onEventRouter?.(eventRouter);
 
     // Routes
-    pairRoutes(typed, tofuConfig);
+    pairRoutes(typed, tofuConfig, options.paths);
     pushRoutes(typed, tofuConfig);
     sessionRoutes(typed, eventRouter);
     machinesRoutes(typed, eventRouter);
