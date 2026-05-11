@@ -8,6 +8,8 @@ ed.hashes.sha512 = (message: Uint8Array) => sha512(message);
 export const TunnelClaimSchema = z.object({
     sub: z.string(),
     iat: z.number(),
+    exp: z.number().optional(),
+    jti: z.string().optional(),
     accountId: z.number().optional(),
 }).passthrough();
 
@@ -15,7 +17,21 @@ export type TunnelClaim = z.infer<typeof TunnelClaimSchema>;
 
 export type TunnelClaimResult =
     | { ok: true; payload: TunnelClaim }
-    | { ok: false; reason: "missing_tunnel_authorization" | "invalid_tunnel_claim" | "tunnel_claim_expired" | "tunnel_verification_unavailable" };
+    | { ok: false; reason: "missing_tunnel_authorization" | "invalid_tunnel_claim" | "tunnel_claim_expired" | "tunnel_claim_replayed" | "tunnel_verification_unavailable" };
+
+const seenJti = new Map<string, number>();
+
+function pruneSeenJti(nowSeconds: number): void {
+    for (const [jti, expiry] of seenJti) {
+        if (expiry <= nowSeconds) {
+            seenJti.delete(jti);
+        }
+    }
+}
+
+export function __resetTunnelClaimReplayCacheForTests(): void {
+    seenJti.clear();
+}
 
 export async function encodeTunnelClaim(payload: unknown, ed25519SecretKey: Uint8Array): Promise<string> {
     const payloadEncoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
@@ -67,8 +83,23 @@ async function verifyHappyEnvelope(encoded: string, tofuConfig: TofuHandshakeCon
     if (claim.sub !== tofuConfig.localUserId) {
         return { ok: false, reason: "invalid_tunnel_claim" };
     }
-    if (Math.floor(Date.now() / 1000) - claim.iat > 86400) {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    if (typeof claim.exp === "number") {
+        if (nowSeconds > claim.exp) {
+            return { ok: false, reason: "tunnel_claim_expired" };
+        }
+    } else if (nowSeconds - claim.iat > 86400) {
         return { ok: false, reason: "tunnel_claim_expired" };
+    }
+    if (typeof claim.jti === "string" && claim.jti.length > 0) {
+        pruneSeenJti(nowSeconds);
+        const existing = seenJti.get(claim.jti);
+        if (existing !== undefined && existing > nowSeconds) {
+            return { ok: false, reason: "tunnel_claim_replayed" };
+        }
+        const ttlBase = typeof claim.exp === "number" ? claim.exp : claim.iat + 86400;
+        const expiry = ttlBase > nowSeconds ? ttlBase : nowSeconds + 1;
+        seenJti.set(claim.jti, expiry);
     }
     return { ok: true, payload: claim };
 }

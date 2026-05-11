@@ -3,6 +3,7 @@ import nacl from "tweetnacl";
 import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
+import { randomUUID } from "crypto";
 import { type Fastify } from "../types";
 import { type TofuHandshakeConfig } from "../api";
 import { encodeTunnelClaim } from "../auth/tunnelClaim";
@@ -376,7 +377,7 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig, paths:
         const tunnelUrl = tofuConfig.publicUrl || process.env.PUBLIC_URL || `http://127.0.0.1:${process.env.PORT ?? "3005"}`;
         const issuedAt = Math.floor(Date.now() / 1000);
         const tunnelClaim = await encodeTunnelClaim(
-            { sub: tofuConfig.localUserId, iat: issuedAt, accountId: githubUser.id },
+            { sub: tofuConfig.localUserId, iat: issuedAt, exp: issuedAt + 3600, jti: randomUUID(), accountId: githubUser.id },
             tofuConfig.ed25519SecretKey,
         );
         await writeProfileAtomically(paths.profile ?? defaultProfilePath(), {
@@ -433,8 +434,9 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig, paths:
         }
 
         const tunnelUrl = tofuConfig.publicUrl || process.env.PUBLIC_URL || `http://127.0.0.1:${process.env.PORT ?? "3005"}`;
+        const connectIssuedAt = Math.floor(Date.now() / 1000);
         const tunnelClaim = await encodeTunnelClaim(
-            { sub: tofuConfig.localUserId, iat: Math.floor(Date.now() / 1000) },
+            { sub: tofuConfig.localUserId, iat: connectIssuedAt, exp: connectIssuedAt + 3600, jti: randomUUID() },
             tofuConfig.ed25519SecretKey,
         );
         return {

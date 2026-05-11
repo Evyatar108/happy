@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import os from 'os';
 import { execFile } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import * as tmp from 'tmp';
 import axios from 'axios';
 import * as ed from '@noble/ed25519';
@@ -711,7 +712,8 @@ export async function startDaemon(): Promise<void> {
 
     const fetchServerSessionMetadata = async (sessionId: string, encryptionKey: Uint8Array, encryptionVariant: 'legacy' | 'dataKey'): Promise<Metadata | null> => {
       try {
-        const payload = { sub: machineId, iat: Math.floor(Date.now() / 1000) };
+        const issuedAt = Math.floor(Date.now() / 1000);
+        const payload = { sub: machineId, iat: issuedAt, exp: issuedAt + 3600, jti: randomUUID() };
         const payloadEncoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
         const signature = await ed.signAsync(Buffer.from(payloadEncoded), tofuKeypairs.ed25519PrivateKey);
         const envelope = { p: payloadEncoded, s: Buffer.from(signature).toString('hex') };
