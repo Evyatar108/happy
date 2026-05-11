@@ -54,7 +54,6 @@ declare module 'fastify' {
     interface FastifyRequest {
         userId: string;
         accountId?: number;
-        devTunnelsIdentity?: { login: string; id: number };
         startTime?: number;
     }
     interface FastifyInstance {

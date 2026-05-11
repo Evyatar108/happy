@@ -101,7 +101,6 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
         }
         request.userId = result.payload.sub;
         request.accountId = result.payload.accountId;
-        request.devTunnelsIdentity = result.devTunnelsIdentity;
     });
     typed.decorate('authenticate', options.auth === "loopback" ? typed.verifyLoopbackCapability : typed.authenticateTunnelClaim);
 

@@ -1,7 +1,6 @@
 import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha2.js";
 import { z } from "zod";
-import { verifyDevTunnelsConnect, type DevTunnelsIdentity } from "./devTunnelsClaim";
 import type { TofuHandshakeConfig } from "../api";
 
 ed.hashes.sha512 = (message: Uint8Array) => sha512(message);
@@ -15,7 +14,7 @@ export const TunnelClaimSchema = z.object({
 export type TunnelClaim = z.infer<typeof TunnelClaimSchema>;
 
 export type TunnelClaimResult =
-    | { ok: true; payload: TunnelClaim; devTunnelsIdentity?: DevTunnelsIdentity }
+    | { ok: true; payload: TunnelClaim }
     | { ok: false; reason: "missing_tunnel_authorization" | "invalid_tunnel_claim" | "tunnel_claim_expired" | "tunnel_verification_unavailable" };
 
 export async function encodeTunnelClaim(payload: unknown, ed25519SecretKey: Uint8Array): Promise<string> {
@@ -83,31 +82,11 @@ export async function verifyTunnelClaim(
     }
 
     const encoded = authHeader.slice("tunnel ".length);
-    const happyClaim = await verifyHappyEnvelope(encoded, tofuConfig);
-    if (happyClaim.ok || happyClaim.reason === "tunnel_verification_unavailable" || happyClaim.reason === "tunnel_claim_expired") {
-        return happyClaim;
-    }
-
-    // NOTE: verifyDevTunnelsConnect parses the JWT and checks exp/nbf only.
-    // It does NOT verify the JWT signature — any party that can present a
-    // syntactically valid Dev Tunnels JWT passes this check. It is therefore
-    // not an identity proof; the identity field must be present to mint a claim.
-    const devTunnelsClaim = await verifyDevTunnelsConnect(authHeader);
-    if (!devTunnelsClaim.ok) {
-        return { ok: false, reason: "invalid_tunnel_claim" };
-    }
-
-    if (!devTunnelsClaim.identity) {
-        return { ok: false, reason: "invalid_tunnel_claim" };
-    }
-
-    return {
-        ok: true,
-        payload: {
-            sub: tofuConfig.localUserId,
-            iat: devTunnelsClaim.payload.iat ?? Math.floor(Date.now() / 1000),
-            accountId: devTunnelsClaim.identity.id,
-        },
-        devTunnelsIdentity: devTunnelsClaim.identity,
-    };
+    // Only the signed Happy envelope is accepted. The Dev Tunnels connect-JWT
+    // fallback was disabled in Sprint A: real Dev Tunnels connect JWTs do not
+    // carry GitHub identity (per the US-001 spike), and decoding the payload
+    // without verifying the ES256 signature against the Dev Tunnels JWKS would
+    // accept forged tokens with caller-controlled identity. A JWKS-backed
+    // verification path is deferred until after the B+C+D cutover.
+    return verifyHappyEnvelope(encoded, tofuConfig);
 }

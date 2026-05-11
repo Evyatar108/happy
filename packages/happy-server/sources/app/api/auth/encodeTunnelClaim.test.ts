@@ -42,7 +42,7 @@ describe("encodeTunnelClaim", () => {
         });
     });
 
-    it("falls back to Dev Tunnels JWT introspection when Happy envelope parsing fails", async () => {
+    it("rejects a Dev Tunnels JWT regardless of any identity fields it carries", async () => {
         vi.useFakeTimers();
         vi.setSystemTime(new Date("2026-05-11T12:00:00Z"));
         const config = await createConfig();
@@ -52,24 +52,6 @@ describe("encodeTunnelClaim", () => {
             exp: 1778500810,
             login: "octocat",
             id: 42,
-        }), config)).resolves.toEqual({
-            ok: true,
-            payload: { sub: "local-user", iat: 1778500790, accountId: 42 },
-            devTunnelsIdentity: { login: "octocat", id: 42 },
-        });
-        vi.useRealTimers();
-    });
-
-    it("rejects a Dev Tunnels JWT that carries no GitHub identity fields", async () => {
-        vi.useFakeTimers();
-        vi.setSystemTime(new Date("2026-05-11T12:00:00Z"));
-        const config = await createConfig();
-
-        await expect(verifyTunnelClaim(devTunnelsJwt({
-            iat: 1778500790,
-            exp: 1778500810,
-            tunnelId: "abc123",
-            clusterId: "usw2",
         }), config)).resolves.toEqual({
             ok: false,
             reason: "invalid_tunnel_claim",
