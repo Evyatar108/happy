@@ -24,6 +24,39 @@ function parseCorsOrigins(): string[] {
     return raw.split(',').map(o => o.trim()).filter(o => o.length > 0);
 }
 
+export function configureRedisStreamsAdapter(io: Server): Redis | undefined {
+    const redisUrl = process.env.REDIS_URL;
+    if (!redisUrl) {
+        return undefined;
+    }
+
+    const streamClient = new Redis(redisUrl);
+    io.adapter(createAdapter(streamClient, { maxLen: 200000, readCount: 2000 }));
+    log({ module: 'websocket' }, 'Redis streams adapter enabled for multi-process support');
+
+    // Track stream reader lag: wrap onRawMessage to capture last-read offset,
+    // then periodically compare against stream HEAD.
+    let lastReadOffset = "0-0";
+    const adapter = io.of("/").adapter as any;
+    const origOnRawMessage = adapter.onRawMessage.bind(adapter);
+    adapter.onRawMessage = (msg: any, offset: string) => {
+        lastReadOffset = offset;
+        return origOnRawMessage(msg, offset);
+    };
+    const interval = setInterval(async () => {
+        try {
+            const info = await streamClient.xinfo("STREAM", "socket.io") as any[];
+            const headId = String(info[info.indexOf("last-generated-id") + 1]);
+            const headMs = parseInt(headId.split("-")[0]);
+            const readMs = parseInt(lastReadOffset.split("-")[0]);
+            redisStreamLagMsGauge.set(headMs - readMs);
+        } catch { /* stream may not exist yet */ }
+    }, 5000) as unknown as { unref?: () => void };
+    interval.unref?.();
+
+    return streamClient;
+}
+
 export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { localUserId: "local-user" }) {
     const allowedOrigins = parseCorsOrigins();
     const io = new Server(app.server, {
@@ -56,31 +89,7 @@ export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { lo
         // },
     });
 
-    // Multi-process support: attach Redis streams adapter when REDIS_URL is set
-    if (process.env.REDIS_URL) {
-        const streamClient = new Redis(process.env.REDIS_URL);
-        io.adapter(createAdapter(streamClient, { maxLen: 200000, readCount: 2000 }));
-        log({ module: 'websocket' }, 'Redis streams adapter enabled for multi-process support');
-
-        // Track stream reader lag: wrap onRawMessage to capture last-read offset,
-        // then periodically compare against stream HEAD.
-        let lastReadOffset = "0-0";
-        const adapter = io.of("/").adapter as any;
-        const origOnRawMessage = adapter.onRawMessage.bind(adapter);
-        adapter.onRawMessage = (msg: any, offset: string) => {
-            lastReadOffset = offset;
-            return origOnRawMessage(msg, offset);
-        };
-        setInterval(async () => {
-            try {
-                const info = await streamClient.xinfo("STREAM", "socket.io") as any[];
-                const headId = String(info[info.indexOf("last-generated-id") + 1]);
-                const headMs = parseInt(headId.split("-")[0]);
-                const readMs = parseInt(lastReadOffset.split("-")[0]);
-                redisStreamLagMsGauge.set(headMs - readMs);
-            } catch { /* stream may not exist yet */ }
-        }, 5000);
-    }
+    configureRedisStreamsAdapter(io);
 
     const eventRouter = createEventRouter(io);
 
