@@ -40,7 +40,7 @@ export class DevTunnelsDaemonProvider implements DaemonTunnelProvider {
   private readonly runner?: CommandRunner;
 
   constructor(options: DevTunnelsDaemonProviderOptions = {}) {
-    this.runner = options.runner ?? (options.manager ? undefined : defaultRunner);
+    this.runner = options.runner ?? defaultRunner;
     this.manager = options.manager ?? new TunnelManager({ runner: this.runner });
   }
 
