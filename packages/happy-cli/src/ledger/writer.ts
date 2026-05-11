@@ -1,3 +1,4 @@
+// This file is intentionally duplicated with the sibling in packages/happy-agent/src/ledger/writer.ts; keep them in sync.
 import { appendFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
