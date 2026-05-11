@@ -77,7 +77,44 @@ happy-agent spawn --machine <machine-id> --path ~/project --agent codex
 
 # Output as JSON
 happy-agent spawn --machine <machine-id> --path ~/project --json
+
+# Create a fresh git worktree through the daemon and spawn into it
+happy-agent spawn --machine <machine-id> --new-worktree --repo ~/project --agent codex
+
+# Same, but pin the worktree path and group the spawn under a fan-out run ID
+happy-agent spawn --machine <machine-id> --new-worktree --repo ~/project \
+    --worktree ~/project/.worktrees/feature --run-id run-123 --agent codex
 ```
+
+The `--new-worktree` flow creates the worktree atomically on the daemon side and is the recommended path for fan-out runs. When you pass `--new-worktree`:
+
+- `--repo <path>` is required and points at the repository root on the target machine.
+- `--worktree <path>` is optional; omit it to let the daemon pick a UUID-named worktree path.
+- `--agent <agent>` is required and must be one of the supported agents.
+- `--run-id <id>` is optional and groups concurrent spawns under one fan-out run for monitoring and rendering.
+- `--path` and `--create-dir` are the legacy spawn flags and cannot be combined with `--new-worktree`.
+
+### Monitor a fan-out run
+
+```bash
+# Snapshot every active session belonging to a run
+happy-agent monitor --runId <run-id>
+
+# Keep polling and subscribe to state-change events; Ctrl+C to stop
+happy-agent monitor --runId <run-id> --watch
+
+# Output as JSON
+happy-agent monitor --runId <run-id> --json
+```
+
+For each session in the run, the monitor returns a snapshot containing:
+
+- `sessionId` — the session whose state is being reported.
+- `state.active`, `state.pendingPermission`, `state.hasValidationEvidence` — the three classification signals derived from session metadata, agent state, and the per-session ledger.
+- `requestIds` — IDs of pending permission requests on the agent.
+- `lastOutputSummary` — a short summary of the most recent assistant output (selected by the locked output heuristic).
+
+`--watch` polls active sessions every two seconds and additionally subscribes to per-session `state-change` events through a `SessionClient` for each session in the run, writing fresh snapshots whenever the agent state changes. The command runs until interrupted; `SIGINT` and `SIGTERM` tear down the polling timer and close all subscribed session clients before exiting.
 
 ### Session status
 
