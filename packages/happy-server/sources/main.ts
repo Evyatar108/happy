@@ -80,7 +80,7 @@ async function main() {
     await server.start();
     await startMetricsServer();
     startDatabaseMetricsUpdater();
-    startTimeout();
+    startTimeout(server.eventRouter);
 
     log('Ready');
     await awaitShutdown();

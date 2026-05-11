@@ -1,6 +1,6 @@
 import { Context } from "@/context";
 import { inTx, afterTx } from "@/storage/inTx";
-import { eventRouter, buildDeleteSessionUpdate } from "@/app/events/eventRouter";
+import { buildDeleteSessionUpdate, type EventRouter } from "@/app/events/eventRouter";
 import { allocateUserSeq } from "@/storage/seq";
 import { randomKeyNaked } from "@/utils/randomKeyNaked";
 import { log } from "@/utils/log";
@@ -18,7 +18,7 @@ import { log } from "@/utils/log";
  * @param sessionId - ID of the session to delete
  * @returns true if deletion was successful, false if the session was not found
  */
-export async function sessionDelete(ctx: Context, sessionId: string): Promise<boolean> {
+export async function sessionDelete(ctx: Context, sessionId: string, eventRouter: EventRouter): Promise<boolean> {
     return await inTx(async (tx) => {
         // Verify session exists and belongs to the user
         const session = await tx.session.findFirst({

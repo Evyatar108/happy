@@ -1,6 +1,6 @@
 import { getMetricsLabelsFromSocket, sessionAliveEventsCounter, websocketEventsCounter } from "@/app/monitoring/metrics2";
 import { activityCache } from "@/app/presence/sessionCache";
-import { buildNewMessageUpdate, buildSessionActivityEphemeral, buildUpdateSessionUpdate, ClientConnection, eventRouter } from "@/app/events/eventRouter";
+import { buildNewMessageUpdate, buildSessionActivityEphemeral, buildUpdateSessionUpdate, ClientConnection, type EventRouter } from "@/app/events/eventRouter";
 import { db } from "@/storage/db";
 import { allocateSessionSeq, allocateUserSeq } from "@/storage/seq";
 import { AsyncLock } from "@/utils/lock";
@@ -9,7 +9,7 @@ import { randomKeyNaked } from "@/utils/randomKeyNaked";
 import { sendSessionPushEvent } from "@/app/push/pushNotifications";
 import { Socket } from "socket.io";
 
-export function sessionUpdateHandler(userId: string, socket: Socket, connection: ClientConnection) {
+export function sessionUpdateHandler(userId: string, socket: Socket, connection: ClientConnection, eventRouter: EventRouter) {
     const labels = getMetricsLabelsFromSocket(socket);
     const machineId = userId;
 

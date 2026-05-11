@@ -209,9 +209,6 @@ vi.mock("@/utils/randomKeyNaked", () => ({
 }));
 
 vi.mock("@/app/events/eventRouter", () => ({
-    eventRouter: {
-        emitUpdate: emitUpdateMock
-    },
     buildNewMessageUpdate: vi.fn((message: unknown, sessionId: string, updateSeq: number, updateId: string) => ({
         id: updateId,
         seq: updateSeq,
@@ -240,7 +237,13 @@ async function createApp() {
         request.userId = userId;
     });
 
-    v3SessionRoutes(typed);
+    v3SessionRoutes(typed, {
+        addConnection: vi.fn(),
+        removeConnection: vi.fn(),
+        emitUpdate: emitUpdateMock,
+        emitEphemeral: vi.fn(),
+        close: vi.fn()
+    });
     await typed.ready();
     return typed;
 }

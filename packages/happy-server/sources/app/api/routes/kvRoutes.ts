@@ -5,8 +5,9 @@ import { kvList } from "@/app/kv/kvList";
 import { kvBulkGet } from "@/app/kv/kvBulkGet";
 import { kvMutate } from "@/app/kv/kvMutate";
 import { log } from "@/utils/log";
+import type { EventRouter } from "@/app/events/eventRouter";
 
-export function kvRoutes(app: Fastify) {
+export function kvRoutes(app: Fastify, eventRouter: EventRouter) {
     // GET /v1/kv/:key - Get single value
     app.get('/v1/kv/:key', {
         preHandler: app.authenticate,
@@ -151,7 +152,7 @@ export function kvRoutes(app: Fastify) {
         const { mutations } = request.body;
 
         try {
-            const result = await kvMutate({ uid: userId }, mutations);
+            const result = await kvMutate({ uid: userId }, mutations, eventRouter);
 
             if (!result.success) {
                 return reply.code(409).send({

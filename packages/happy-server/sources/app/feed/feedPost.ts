@@ -2,7 +2,7 @@ import { Context } from "@/context";
 import { FeedBody, UserFeedItem } from "./types";
 import { afterTx, Tx } from "@/storage/inTx";
 import { allocateUserSeq } from "@/storage/seq";
-import { eventRouter, buildNewFeedPostUpdate } from "@/app/events/eventRouter";
+import { buildNewFeedPostUpdate, type EventRouter } from "@/app/events/eventRouter";
 import { randomKeyNaked } from "@/utils/randomKeyNaked";
 
 /**
@@ -14,6 +14,7 @@ export async function feedPost(
     tx: Tx,
     ctx: Context,
     body: FeedBody,
+    eventRouter: EventRouter,
     repeatKey?: string | null
 ): Promise<UserFeedItem> {
 

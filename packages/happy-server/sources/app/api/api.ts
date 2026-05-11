@@ -22,6 +22,7 @@ import { feedRoutes } from "./routes/feedRoutes";
 import { kvRoutes } from "./routes/kvRoutes";
 import { v3SessionRoutes } from "./routes/v3SessionRoutes";
 import { isLocalStorage, getLocalFilesDir } from "@/storage/files";
+import type { EventRouter } from "@/app/events/eventRouter";
 import * as path from "path";
 import * as fs from "fs";
 
@@ -115,7 +116,11 @@ function parseCorsOrigins(): string[] {
     return raw.split(',').map(o => o.trim()).filter(o => o.length > 0);
 }
 
-export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { localUserId: "local-user" }) {
+export interface ConfigureApiOptions {
+    onEventRouter?: (eventRouter: EventRouter) => void;
+}
+
+export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { localUserId: "local-user" }, options: ConfigureApiOptions = {}) {
     const fastifyApp = app as ReturnType<typeof createApi>;
     const allowedOrigins = parseCorsOrigins();
     fastifyApp.register(import('@fastify/cors'), {
@@ -164,23 +169,23 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
         });
     }
 
+    const eventRouter = startSocket(typed, tofuConfig);
+    options.onEventRouter?.(eventRouter);
+
     // Routes
     pairRoutes(typed, tofuConfig);
     pushRoutes(typed, tofuConfig);
-    sessionRoutes(typed);
-    machinesRoutes(typed);
-    artifactsRoutes(typed);
+    sessionRoutes(typed, eventRouter);
+    machinesRoutes(typed, eventRouter);
+    artifactsRoutes(typed, eventRouter);
     accessKeysRoutes(typed);
     devRoutes(typed);
     versionRoutes(typed);
     voiceRoutes(typed);
     userRoutes(typed);
     feedRoutes(typed);
-    kvRoutes(typed);
-    v3SessionRoutes(typed);
-
-    // Start Socket
-    startSocket(typed, tofuConfig);
+    kvRoutes(typed, eventRouter);
+    v3SessionRoutes(typed, eventRouter);
 
     return typed;
 }

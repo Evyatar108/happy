@@ -2,7 +2,7 @@ import { db } from "@/storage/db";
 import { inTx, afterTx } from "@/storage/inTx";
 import { allocateUserSeq } from "@/storage/seq";
 import { randomKeyNaked } from "@/utils/randomKeyNaked";
-import { eventRouter, buildKVBatchUpdateUpdate } from "@/app/events/eventRouter";
+import { buildKVBatchUpdateUpdate, type EventRouter } from "@/app/events/eventRouter";
 import * as privacyKit from "privacy-kit";
 
 export interface KVMutation {
@@ -34,7 +34,8 @@ export interface KVMutateResult {
  */
 export async function kvMutate(
     ctx: { uid: string },
-    mutations: KVMutation[]
+    mutations: KVMutation[],
+    eventRouter: EventRouter
 ): Promise<KVMutateResult> {
     return await inTx(async (tx) => {
         const errors: KVMutateResult['errors'] = [];

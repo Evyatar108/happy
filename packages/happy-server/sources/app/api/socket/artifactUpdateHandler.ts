@@ -1,5 +1,5 @@
 import { getMetricsLabelsFromSocket, websocketEventsCounter } from "@/app/monitoring/metrics2";
-import { buildNewArtifactUpdate, buildUpdateArtifactUpdate, buildDeleteArtifactUpdate, eventRouter } from "@/app/events/eventRouter";
+import { buildNewArtifactUpdate, buildUpdateArtifactUpdate, buildDeleteArtifactUpdate, type EventRouter } from "@/app/events/eventRouter";
 import { db } from "@/storage/db";
 import { allocateUserSeq } from "@/storage/seq";
 import { log } from "@/utils/log";
@@ -7,7 +7,7 @@ import { randomKeyNaked } from "@/utils/randomKeyNaked";
 import { Socket } from "socket.io";
 import * as privacyKit from "privacy-kit";
 
-export function artifactUpdateHandler(userId: string, socket: Socket) {
+export function artifactUpdateHandler(userId: string, socket: Socket, eventRouter: EventRouter) {
     const labels = getMetricsLabelsFromSocket(socket);
     // Read artifact with full body
     socket.on('artifact-read', async (data: {

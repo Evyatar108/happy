@@ -1,3 +1,4 @@
+import { EventEmitter } from "events";
 import { Server, Socket } from "socket.io";
 import { log } from "@/utils/log";
 import { GitHubProfile } from "@/app/api/types";
@@ -202,15 +203,49 @@ export interface EphemeralPayload {
     [key: string]: any;
 }
 
-// === EVENT ROUTER CLASS ===
+// === EVENT ROUTER SINK ===
 
-class EventRouter {
-    private io!: Server;
+type RoutedSocketEvent = {
+    sourceId: string;
+    userId: string;
+    eventName: 'update' | 'ephemeral';
+    payload: any;
+    recipientFilter: RecipientFilter;
+    skipSenderConnection?: ClientConnection;
+};
 
-    // === INITIALIZATION ===
+export type EventRouterBus = EventEmitter;
 
-    init(io: Server): void {
-        this.io = io;
+export interface EventRouter {
+    addConnection(userId: string, connection: ClientConnection): void;
+    removeConnection(userId: string, connection: ClientConnection): void;
+    emitUpdate(params: {
+        userId: string;
+        payload: UpdatePayload;
+        recipientFilter?: RecipientFilter;
+        skipSenderConnection?: ClientConnection;
+    }): void;
+    emitEphemeral(params: {
+        userId: string;
+        payload: EphemeralPayload;
+        recipientFilter?: RecipientFilter;
+        skipSenderConnection?: ClientConnection;
+    }): void;
+    close(): void;
+}
+
+export const sharedEventRouterBus: EventRouterBus = new EventEmitter();
+sharedEventRouterBus.setMaxListeners(0);
+
+let nextRouterId = 1;
+
+class EventRouterSink implements EventRouter {
+    private readonly id = `event-router-${nextRouterId++}`;
+    private readonly onRoutedEvent: (event: RoutedSocketEvent) => void;
+
+    constructor(private readonly io: Server, private readonly bus: EventRouterBus) {
+        this.onRoutedEvent = (event) => this.emitToLocalSink(event);
+        this.bus.on('socket-event', this.onRoutedEvent);
     }
 
     // === CONNECTION MANAGEMENT (via Socket.IO rooms) ===
@@ -236,6 +271,10 @@ class EventRouter {
         // Socket.IO automatically removes sockets from all rooms on disconnect
     }
 
+    close(): void {
+        this.bus.off('socket-event', this.onRoutedEvent);
+    }
+
     // === EVENT EMISSION METHODS ===
 
     emitUpdate(params: {
@@ -244,7 +283,7 @@ class EventRouter {
         recipientFilter?: RecipientFilter;
         skipSenderConnection?: ClientConnection;
     }): void {
-        this.emit({
+        this.publish({
             userId: params.userId,
             eventName: 'update',
             payload: params.payload,
@@ -259,7 +298,7 @@ class EventRouter {
         recipientFilter?: RecipientFilter;
         skipSenderConnection?: ClientConnection;
     }): void {
-        this.emit({
+        this.publish({
             userId: params.userId,
             eventName: 'ephemeral',
             payload: params.payload,
@@ -285,16 +324,23 @@ class EventRouter {
         }
     }
 
-    private emit(params: {
+    private publish(params: {
         userId: string;
         eventName: 'update' | 'ephemeral';
         payload: any;
         recipientFilter: RecipientFilter;
         skipSenderConnection?: ClientConnection;
     }): void {
+        this.bus.emit('socket-event', {
+            sourceId: this.id,
+            ...params
+        } satisfies RoutedSocketEvent);
+    }
+
+    private emitToLocalSink(params: RoutedSocketEvent): void {
         const rooms = this.getRoomsForFilter(params.userId, params.recipientFilter);
 
-        if (params.skipSenderConnection) {
+        if (params.sourceId === this.id && params.skipSenderConnection) {
             params.skipSenderConnection.socket.broadcast.to(rooms).emit(params.eventName, params.payload);
         } else {
             this.io.to(rooms).emit(params.eventName, params.payload);
@@ -302,7 +348,9 @@ class EventRouter {
     }
 }
 
-export const eventRouter = new EventRouter();
+export function createEventRouter(io: Server, bus: EventRouterBus = sharedEventRouterBus): EventRouter {
+    return new EventRouterSink(io, bus);
+}
 
 // === EVENT BUILDER FUNCTIONS ===
 

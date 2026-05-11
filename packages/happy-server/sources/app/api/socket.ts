@@ -1,6 +1,6 @@
 import { onShutdown } from "@/utils/shutdown";
 import { Fastify } from "./types";
-import { buildMachineActivityEphemeral, ClientConnection, eventRouter } from "@/app/events/eventRouter";
+import { buildMachineActivityEphemeral, ClientConnection, createEventRouter } from "@/app/events/eventRouter";
 import { Server } from "socket.io";
 import { createAdapter } from "@socket.io/redis-streams-adapter";
 import { Redis } from "ioredis";
@@ -82,8 +82,7 @@ export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { lo
         }, 5000);
     }
 
-    // Initialize event router with Socket.IO server instance
-    eventRouter.init(io);
+    const eventRouter = createEventRouter(io);
 
     // Handshake metadata is captured in middleware so it is available before
     // client events can reach the connection handlers.
@@ -199,12 +198,12 @@ export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { lo
 
         // Handlers
         rpcHandler(userId, socket, io);
-        usageHandler(userId, socket);
-        sessionUpdateHandler(userId, socket, connection);
+        usageHandler(userId, socket, eventRouter);
+        sessionUpdateHandler(userId, socket, connection, eventRouter);
         pingHandler(socket);
-        machineUpdateHandler(userId, socket);
-        artifactUpdateHandler(userId, socket);
-        accessKeyHandler(userId, socket);
+        machineUpdateHandler(userId, socket, eventRouter);
+        artifactUpdateHandler(userId, socket, eventRouter);
+        accessKeyHandler(userId, socket, eventRouter);
         sessionMessageRangeHandler(userId, socket);
 
         // Ready
@@ -212,6 +211,9 @@ export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { lo
     });
 
     onShutdown('api', async () => {
+        eventRouter.close();
         await io.close();
     });
+
+    return eventRouter;
 }

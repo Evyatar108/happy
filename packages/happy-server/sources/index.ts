@@ -1,6 +1,7 @@
 import fastify, { type FastifyInstance } from "fastify";
 import { mkdir } from "fs/promises";
 import path from "path";
+import type { EventRouter } from "./app/events/eventRouter";
 
 export interface TofuPublicKeys {
     ed25519PublicKey: string | Uint8Array;
@@ -23,6 +24,7 @@ export interface HappyServerConfig {
 
 export interface HappyServerHandle {
     app: FastifyInstance;
+    eventRouter: EventRouter;
     start: () => Promise<void>;
     stop: () => Promise<void>;
 }
@@ -45,6 +47,7 @@ export function createHappyServer(config: HappyServerConfig): HappyServerHandle 
     const app = fastify({ logger: false });
     let isConfigured = false;
     let isStarted = false;
+    let eventRouter: EventRouter | null = null;
 
     async function configure() {
         if (isConfigured) {
@@ -93,12 +96,22 @@ export function createHappyServer(config: HappyServerConfig): HappyServerHandle 
             } : undefined,
             ed25519SecretKey: config.tofuPublicKeys?.ed25519SecretKey,
             x25519SecretKey: config.tofuPublicKeys?.x25519SecretKey,
+        }, {
+            onEventRouter: (router) => {
+                eventRouter = router;
+            },
         });
         isConfigured = true;
     }
 
     return {
         app,
+        get eventRouter() {
+            if (!eventRouter) {
+                throw new Error("Happy server event router is not configured yet");
+            }
+            return eventRouter;
+        },
         async start() {
             if (isStarted) {
                 return;

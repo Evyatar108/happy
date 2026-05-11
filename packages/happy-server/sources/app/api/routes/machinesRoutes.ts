@@ -1,4 +1,3 @@
-import { eventRouter } from "@/app/events/eventRouter";
 import { Fastify } from "../types";
 import { z } from "zod";
 import { db } from "@/storage/db";
@@ -6,9 +5,9 @@ import { inTx, afterTx } from "@/storage/inTx";
 import { log } from "@/utils/log";
 import { randomKeyNaked } from "@/utils/randomKeyNaked";
 import { allocateUserSeq } from "@/storage/seq";
-import { buildNewMachineUpdate, buildUpdateMachineUpdate, buildDeleteMachineUpdate } from "@/app/events/eventRouter";
+import { buildNewMachineUpdate, buildUpdateMachineUpdate, buildDeleteMachineUpdate, type EventRouter } from "@/app/events/eventRouter";
 
-export function machinesRoutes(app: Fastify) {
+export function machinesRoutes(app: Fastify, eventRouter: EventRouter) {
     app.post('/v1/machines', {
         preHandler: app.authenticate,
         schema: {

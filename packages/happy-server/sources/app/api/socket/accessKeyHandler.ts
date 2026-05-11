@@ -1,9 +1,9 @@
 import { Socket } from "socket.io";
 import { db } from "@/storage/db";
 import { log } from "@/utils/log";
-import { eventRouter } from "@/app/events/eventRouter";
+import type { EventRouter } from "@/app/events/eventRouter";
 
-export function accessKeyHandler(userId: string, socket: Socket) {
+export function accessKeyHandler(userId: string, socket: Socket, _eventRouter: EventRouter) {
     // Get access key via socket
     socket.on('access-key-get', async (data: { sessionId: string; machineId: string }, callback: (response: any) => void) => {
         try {

@@ -1,4 +1,4 @@
-import { buildNewMessageUpdate, eventRouter } from "@/app/events/eventRouter";
+import { buildNewMessageUpdate, type EventRouter } from "@/app/events/eventRouter";
 import { db } from "@/storage/db";
 import { allocateSessionSeqBatch, allocateUserSeq } from "@/storage/seq";
 import { randomKeyNaked } from "@/utils/randomKeyNaked";
@@ -47,7 +47,7 @@ function toSendResponseMessage(message: Omit<SelectedMessage, "content">) {
     };
 }
 
-export function v3SessionRoutes(app: Fastify) {
+export function v3SessionRoutes(app: Fastify, eventRouter: EventRouter) {
     app.get('/v3/sessions/:sessionId/messages', {
         preHandler: app.authenticate,
         schema: {
