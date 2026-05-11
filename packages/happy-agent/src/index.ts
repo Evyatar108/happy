@@ -190,8 +190,10 @@ program
         const creds = requireCredentials(config);
 
         if (opts.watch) {
-            await runMonitorWatch(config, creds, opts.runId);
+            const teardown = await runMonitorWatch(config, creds, opts.runId);
             console.log(`Monitoring run ${opts.runId}. Press Ctrl+C to stop.`);
+            process.once('SIGINT', () => { teardown(); process.exit(0); });
+            process.once('SIGTERM', () => { teardown(); process.exit(0); });
             return;
         }
 
