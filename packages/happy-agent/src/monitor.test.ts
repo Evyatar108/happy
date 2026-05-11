@@ -133,7 +133,7 @@ describe('monitor', () => {
     it('locks the fixture-selected last-output heuristic to assistant text', async () => {
         const evaluation = await evaluateMonitorFixture(fixtureDir);
 
-        expect(evaluation.samples).toBe(40);
+        expect(evaluation.samples).toBe(41);
         expect(evaluation.misclassificationRate).toBeLessThanOrEqual(0.05);
         expect(evaluation.selectedHeuristic).toBe('assistant-text');
         expect(LOCKED_OUTPUT_HEURISTIC).toBe(evaluation.selectedHeuristic);

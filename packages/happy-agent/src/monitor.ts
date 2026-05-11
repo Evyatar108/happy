@@ -305,7 +305,7 @@ export async function runMonitorWatch(
 
 export type FixtureSample = {
     timestamp: string;
-    label: MonitorClass;
+    expectedSignals: MonitorSignals;
     metadata: unknown;
     agentState: unknown;
     ledgerRecords?: LedgerRecord[];
@@ -334,14 +334,6 @@ export async function loadMonitorFixture(fixtureDir: string): Promise<FixtureRec
     return Promise.all(entries.map(async (entry) => JSON.parse(await readFile(join(fixtureDir, entry), 'utf8')) as FixtureRecording));
 }
 
-function labelToExpectedSignals(label: MonitorClass): MonitorSignals {
-    return {
-        active: label === 'active',
-        pendingPermission: label === 'pending-permission',
-        hasValidationEvidence: label === 'has-validation-evidence',
-    };
-}
-
 export async function evaluateMonitorFixture(fixtureDir: string): Promise<MonitorFixtureEvaluation> {
     const recordings = await loadMonitorFixture(fixtureDir);
     const heuristicScores: MonitorFixtureEvaluation['heuristicScores'] = {
@@ -361,7 +353,7 @@ export async function evaluateMonitorFixture(fixtureDir: string): Promise<Monito
         for (const sample of recording.samples) {
             samples += 1;
             const actual = classifySession(sample.metadata, sample.agentState, sample.ledgerRecords ?? []);
-            const expected = labelToExpectedSignals(sample.label);
+            const expected = sample.expectedSignals;
             let sampleHasError = false;
             for (const signal of Object.keys(signalScores) as Array<keyof MonitorSignals>) {
                 const score = signalScores[signal];
