@@ -64,7 +64,7 @@ export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { lo
             origin: allowedOrigins.length === 0 ? false : allowedOrigins,
             methods: ["GET", "POST", "OPTIONS"],
             credentials: true,
-            allowedHeaders: ["X-Tunnel-Authorization", "X-Happy-Client", "Content-Type"]
+            allowedHeaders: ["X-Tunnel-Authorization", "X-Loopback-Capability", "X-Happy-Client", "Content-Type"]
         },
         transports: ['websocket', 'polling'],
         pingTimeout: 45000,

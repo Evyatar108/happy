@@ -1,6 +1,4 @@
 import fastify from "fastify";
-import * as ed from "@noble/ed25519";
-import { sha512 } from "@noble/hashes/sha2.js";
 import { log, logger } from "@/utils/log";
 import { serializerCompiler, validatorCompiler, ZodTypeProvider } from "fastify-type-provider-zod";
 import { onShutdown } from "@/utils/shutdown";
@@ -23,10 +21,10 @@ import { kvRoutes } from "./routes/kvRoutes";
 import { v3SessionRoutes } from "./routes/v3SessionRoutes";
 import { isLocalStorage, getLocalFilesDir } from "@/storage/files";
 import type { EventRouter } from "@/app/events/eventRouter";
+import { verifyLoopbackCapability, type LoopbackCapabilityPaths } from "./auth/loopbackCapability";
+import { verifyTunnelClaim, type TunnelClaimResult } from "./auth/tunnelClaim";
 import * as path from "path";
 import * as fs from "fs";
-
-ed.hashes.sha512 = (message: Uint8Array) => sha512(message);
 
 export interface TofuHandshakeConfig {
     localUserId: string;
@@ -40,66 +38,7 @@ export interface TofuHandshakeConfig {
     publicUrl?: string;
 }
 
-export type TunnelClaimResult =
-    | { ok: true; payload: { sub: string; iat: number } }
-    | { ok: false; reason: 'missing_tunnel_authorization' | 'invalid_tunnel_claim' | 'tunnel_claim_expired' | 'tunnel_verification_unavailable' };
-
-export async function verifyTunnelClaim(
-    authHeader: string | undefined,
-    tofuConfig: TofuHandshakeConfig
-): Promise<TunnelClaimResult> {
-    if (!authHeader || !authHeader.startsWith('tunnel ')) {
-        return { ok: false, reason: 'missing_tunnel_authorization' };
-    }
-    const encoded = authHeader.slice('tunnel '.length);
-    let envelope: unknown;
-    try {
-        envelope = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf-8'));
-    } catch {
-        return { ok: false, reason: 'invalid_tunnel_claim' };
-    }
-    if (!envelope || typeof envelope !== 'object') {
-        return { ok: false, reason: 'invalid_tunnel_claim' };
-    }
-    const { p: payloadEncoded, s: signatureHex } = envelope as Record<string, unknown>;
-    if (typeof payloadEncoded !== 'string' || typeof signatureHex !== 'string') {
-        return { ok: false, reason: 'invalid_tunnel_claim' };
-    }
-    const ed25519PublicKeyBase64 = tofuConfig.tofuPublicKeys?.ed25519PublicKey;
-    if (!ed25519PublicKeyBase64) {
-        return { ok: false, reason: 'tunnel_verification_unavailable' };
-    }
-    let signatureValid = false;
-    try {
-        const payloadBytes = Buffer.from(payloadEncoded, 'base64url');
-        const signatureBytes = Buffer.from(signatureHex, 'hex');
-        const publicKeyBytes = Buffer.from(ed25519PublicKeyBase64, 'base64');
-        signatureValid = await ed.verifyAsync(signatureBytes, payloadBytes, publicKeyBytes);
-    } catch {
-        return { ok: false, reason: 'invalid_tunnel_claim' };
-    }
-    if (!signatureValid) {
-        return { ok: false, reason: 'invalid_tunnel_claim' };
-    }
-    let payload: unknown;
-    try {
-        payload = JSON.parse(Buffer.from(payloadEncoded, 'base64url').toString('utf-8'));
-    } catch {
-        return { ok: false, reason: 'invalid_tunnel_claim' };
-    }
-    if (
-        !payload ||
-        typeof payload !== 'object' ||
-        (payload as Record<string, unknown>).sub !== tofuConfig.localUserId
-    ) {
-        return { ok: false, reason: 'invalid_tunnel_claim' };
-    }
-    const iat = (payload as Record<string, unknown>).iat;
-    if (typeof iat !== 'number' || Math.floor(Date.now() / 1000) - iat > 86400) {
-        return { ok: false, reason: 'tunnel_claim_expired' };
-    }
-    return { ok: true, payload: { sub: tofuConfig.localUserId, iat } };
-}
+export { verifyTunnelClaim, type TunnelClaimResult };
 
 export function createApi() {
     return fastify({
@@ -117,6 +56,8 @@ function parseCorsOrigins(): string[] {
 }
 
 export interface ConfigureApiOptions {
+    auth?: "tunnel" | "loopback";
+    paths?: LoopbackCapabilityPaths;
     onEventRouter?: (eventRouter: EventRouter) => void;
 }
 
@@ -125,8 +66,8 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
     const allowedOrigins = parseCorsOrigins();
     fastifyApp.register(import('@fastify/cors'), {
         origin: allowedOrigins.length === 0 ? false : allowedOrigins,
-        allowedHeaders: ['X-Tunnel-Authorization', 'X-Happy-Client', 'Content-Type'],
-        methods: ['GET', 'POST', 'DELETE']
+        allowedHeaders: ['X-Tunnel-Authorization', 'X-Loopback-Capability', 'X-Happy-Client', 'Content-Type'],
+        methods: ['GET', 'POST', 'PUT', 'DELETE']
     });
     fastifyApp.get('/', function (request, reply) {
         reply.send('Welcome to Happy Server!');
@@ -140,7 +81,8 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
     // Enable features
     enableMonitoring(typed);
     enableErrorHandlers(typed);
-    typed.decorate('authenticate', async function (request: any, reply: any) {
+    typed.decorate('verifyLoopbackCapability', verifyLoopbackCapability(options.paths));
+    typed.decorate('authenticateTunnelClaim', async function (request: any, reply: any) {
         const authHeader = request.headers['x-tunnel-authorization'] as string | undefined;
         const result = await verifyTunnelClaim(authHeader, tofuConfig);
         if (!result.ok) {
@@ -148,7 +90,10 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
             return reply.code(status).send({ error: result.reason });
         }
         request.userId = result.payload.sub;
+        request.accountId = result.payload.accountId;
+        request.devTunnelsIdentity = result.devTunnelsIdentity;
     });
+    typed.decorate('authenticate', options.auth === "loopback" ? typed.verifyLoopbackCapability : typed.authenticateTunnelClaim);
 
     // Serve local files when using local storage
     if (isLocalStorage()) {

@@ -1,11 +1,8 @@
 import { z } from "zod";
 import nacl from "tweetnacl";
-import * as ed from "@noble/ed25519";
-import { sha512 } from "@noble/hashes/sha2.js";
 import { type Fastify } from "../types";
 import { type TofuHandshakeConfig } from "../api";
-
-ed.hashes.sha512 = (message: Uint8Array) => sha512(message);
+import { encodeTunnelClaim } from "../auth/tunnelClaim";
 
 type DeviceCodeResponse = {
     device_code: string;
@@ -21,9 +18,14 @@ type AccessTokenResponse = {
     error?: string;
 };
 
-type GitHubUser = {
-    login: string;
-};
+const GitHubUserSchema = z.object({
+    login: z.string(),
+    id: z.number().optional(),
+    name: z.string().nullable().optional(),
+    avatar_url: z.string().nullable().optional(),
+}).passthrough();
+
+type GitHubUser = z.infer<typeof GitHubUserSchema>;
 
 type DevTunnelItem = {
     clusterId: string;
@@ -105,15 +107,6 @@ function isPairRateLimited(ip: string, now: number): boolean {
     return false;
 }
 
-// Produces a signed claim envelope: base64url(JSON({ p: base64url(payload), s: hex(signature) })).
-// The Ed25519 signature binds the claim to the embedded server's TOFU keypair.
-async function encodeTunnelClaim(payload: unknown, ed25519SecretKey: Uint8Array): Promise<string> {
-    const payloadEncoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
-    const signature = await ed.signAsync(Buffer.from(payloadEncoded), ed25519SecretKey);
-    const envelope = { p: payloadEncoded, s: Buffer.from(signature).toString("hex") };
-    return Buffer.from(JSON.stringify(envelope)).toString("base64url");
-}
-
 async function fetchGitHubUser(accessToken: string): Promise<GitHubUser> {
     const response = await fetch("https://api.github.com/user", {
         headers: {
@@ -125,7 +118,7 @@ async function fetchGitHubUser(accessToken: string): Promise<GitHubUser> {
     if (!response.ok) {
         throw new Error(`GitHub user fetch failed: ${response.status}`);
     }
-    return await response.json() as GitHubUser;
+    return GitHubUserSchema.parse(await response.json());
 }
 
 export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
