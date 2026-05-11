@@ -12,6 +12,7 @@ import { listSessions, listActiveSessions, createSession, getSessionMessages, li
 import type { DecryptedMachine, DecryptedSession } from './api';
 import { resumeSessionOnMachine, spawnInWorktreeOnMachine, spawnSessionOnMachine, type SupportedAgent } from './machineRpc';
 import { SessionClient } from './session';
+import { runMonitorOnce, runMonitorWatch } from './monitor';
 import { formatMachineTable, formatSessionTable, formatSessionStatus, formatMessageHistory, formatJson } from './output';
 
 // --- Helpers ---
@@ -176,6 +177,42 @@ program
         } else {
             console.log(formatSessionTable(sessions));
         }
+    });
+
+program
+    .command('monitor')
+    .description('Monitor active sessions for a fan-out run')
+    .requiredOption('--runId <id>', 'Fan-out run ID')
+    .option('--watch', 'Keep polling and subscribing to active sessions')
+    .option('--json', 'Output as JSON')
+    .action(async (opts: { runId: string; watch?: boolean; json?: boolean }) => {
+        const config = loadConfig();
+        const creds = requireCredentials(config);
+
+        if (opts.watch) {
+            await runMonitorWatch(config, creds, opts.runId);
+            console.log(`Monitoring run ${opts.runId}. Press Ctrl+C to stop.`);
+            return;
+        }
+
+        const snapshots = await runMonitorOnce(config, creds, opts.runId);
+        if (opts.json) {
+            console.log(formatJson({ runId: opts.runId, sessions: snapshots }));
+            return;
+        }
+        console.log([
+            '## Monitor Snapshot',
+            '',
+            `- Run ID: ${opts.runId}`,
+            `- Sessions: ${snapshots.length}`,
+            '',
+            ...snapshots.map(snapshot => [
+                `### ${snapshot.sessionId}`,
+                `- State: ${snapshot.state}`,
+                `- Pending Requests: ${snapshot.requestIds.length}`,
+                `- Last Output: ${snapshot.lastOutputSummary ?? '-'}`,
+            ].join('\n')),
+        ].join('\n'));
     });
 
 program

@@ -43,6 +43,7 @@ describe('happy-agent CLI', () => {
         expect(stdout).toContain('machines');
         expect(stdout).toContain('list');
         expect(stdout).toContain('status');
+        expect(stdout).toContain('monitor');
         expect(stdout).toContain('spawn');
         expect(stdout).toContain('resume');
         expect(stdout).toContain('create');
@@ -91,6 +92,22 @@ describe('happy-agent CLI', () => {
 
         it('should fail with auth error when not authenticated', () => {
             const { stderr, exitCode } = runCli('status', 'fake-session-id');
+            expect(exitCode).not.toBe(0);
+            expect(stderr).toContain('happy-agent auth login');
+        });
+    });
+
+    describe('monitor command', () => {
+        it('should show monitor help with runId, watch, and json options', () => {
+            const { stdout } = runCli('monitor', '--help');
+            expect(stdout).toContain('Monitor active sessions for a fan-out run');
+            expect(stdout).toContain('--runId');
+            expect(stdout).toContain('--watch');
+            expect(stdout).toContain('--json');
+        });
+
+        it('should fail with auth error when not authenticated', () => {
+            const { stderr, exitCode } = runCli('monitor', '--runId', 'run-1');
             expect(exitCode).not.toBe(0);
             expect(stderr).toContain('happy-agent auth login');
         });
