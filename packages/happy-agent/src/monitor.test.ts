@@ -46,7 +46,7 @@ const creds: Credentials = {
     },
 };
 
-function makeSession(overrides: Partial<DecryptedSession> = {}): DecryptedSession {
+function makeSession(overrides: Partial<DecryptedSession> = {}, projectPath?: string): DecryptedSession {
     return {
         id: overrides.id ?? 'session-1',
         seq: 1,
@@ -54,7 +54,7 @@ function makeSession(overrides: Partial<DecryptedSession> = {}): DecryptedSessio
         updatedAt: 1,
         active: true,
         activeAt: 1,
-        metadata: overrides.metadata ?? { runId: 'run-1', turnActive: false },
+        metadata: overrides.metadata ?? { runId: 'run-1', turnActive: false, projectPath: projectPath ?? '/tmp/happy-agent-monitor-test' },
         agentState: overrides.agentState ?? { controlledByUser: false, requests: {} },
         dataEncryptionKey: null,
         encryption: { key: new Uint8Array(32), variant: 'legacy' },
@@ -180,26 +180,42 @@ describe('monitor', () => {
     });
 
     it('uses validation ledger records only for has-validation-evidence', async () => {
-        await withTempCwd(async () => {
-            await mkdir(join(process.cwd(), '.ralph', 'state', 'run-1'), { recursive: true });
-            await writeFile(join(process.cwd(), '.ralph', 'state', 'run-1', 'session-1.jsonl'), `${JSON.stringify({
-                runId: 'run-1',
-                sessionId: 'session-1',
-                timestamp: '2026-05-10T20:00:00.000Z',
-                eventType: 'validation-attached',
-                testReference: 'pnpm test',
-                verificationUrl: 'https://example.com/verify',
-            })}\n`, 'utf8');
-            const snapshots = await runMonitorOnce(config, creds, 'run-1', makeDeps());
-            expect(snapshots[0].state.hasValidationEvidence).toBe(true);
-        });
+        const root = await mkdtemp(join(tmpdir(), 'happy-agent-monitor-'));
+        tempRoots.push(root);
+        const session = makeSession({}, root);
+        await mkdir(join(root, '.ralph', 'state', 'run-1'), { recursive: true });
+        await writeFile(join(root, '.ralph', 'state', 'run-1', 'session-1.jsonl'), `${JSON.stringify({
+            runId: 'run-1',
+            sessionId: 'session-1',
+            timestamp: '2026-05-10T20:00:00.000Z',
+            eventType: 'validation-attached',
+            testReference: 'pnpm test',
+            verificationUrl: 'https://example.com/verify',
+        })}\n`, 'utf8');
+        const deps = makeDeps({ listActiveSessions: vi.fn(async () => [session]) });
+        const snapshots = await runMonitorOnce(config, creds, 'run-1', deps);
+        expect(snapshots[0].state.hasValidationEvidence).toBe(true);
+    });
+
+    it('throws when neither session metadata.projectPath nor HAPPY_PROJECT_PATH env var is set', async () => {
+        const originalEnv = process.env.HAPPY_PROJECT_PATH;
+        delete process.env.HAPPY_PROJECT_PATH;
+        try {
+            const session = makeSession({ metadata: { runId: 'run-1', turnActive: false } });
+            const deps = makeDeps({ listActiveSessions: vi.fn(async () => [session]) });
+            await expect(runMonitorOnce(config, creds, 'run-1', deps)).rejects.toThrow(
+                'Cannot resolve project path',
+            );
+        } finally {
+            if (originalEnv !== undefined) process.env.HAPPY_PROJECT_PATH = originalEnv;
+        }
     });
 
     it('scopes runMonitorOnce to sessions whose metadata.runId matches the requested runId', async () => {
         await withTempCwd(async () => {
-            const sessionA1 = makeSession({ id: 'session-a1', metadata: { runId: 'run-A', turnActive: false } });
-            const sessionA2 = makeSession({ id: 'session-a2', metadata: { runId: 'run-A', turnActive: true } });
-            const sessionB1 = makeSession({ id: 'session-b1', metadata: { runId: 'run-B', turnActive: false } });
+            const sessionA1 = makeSession({ id: 'session-a1', metadata: { runId: 'run-A', turnActive: false, projectPath: '/tmp/happy-agent-monitor-test' } });
+            const sessionA2 = makeSession({ id: 'session-a2', metadata: { runId: 'run-A', turnActive: true, projectPath: '/tmp/happy-agent-monitor-test' } });
+            const sessionB1 = makeSession({ id: 'session-b1', metadata: { runId: 'run-B', turnActive: false, projectPath: '/tmp/happy-agent-monitor-test' } });
             const deps = makeDeps({
                 listActiveSessions: vi.fn(async () => [sessionA1, sessionA2, sessionB1]),
             });

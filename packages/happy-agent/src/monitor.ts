@@ -174,9 +174,26 @@ export function summarizeLastOutput(
     return null;
 }
 
-async function readSessionLedger(runId: string, sessionId: string): Promise<LedgerRecord[]> {
+function resolveProjectPath(session: DecryptedSession): string {
+    const meta = session.metadata as { projectPath?: unknown } | null;
+    const fromMeta = typeof meta?.projectPath === 'string' && meta.projectPath.length > 0 ? meta.projectPath : null;
+    const fromEnv = typeof process.env.HAPPY_PROJECT_PATH === 'string' && process.env.HAPPY_PROJECT_PATH.length > 0
+        ? process.env.HAPPY_PROJECT_PATH
+        : null;
+    const resolved = fromMeta ?? fromEnv;
+    if (resolved == null) {
+        throw new Error(
+            `[monitor] Cannot resolve project path for session ${session.id}: ` +
+            'session metadata.projectPath is unset and HAPPY_PROJECT_PATH env var is not defined. ' +
+            'Pass --project-path or run from the project root with HAPPY_PROJECT_PATH set.',
+        );
+    }
+    return resolved;
+}
+
+async function readSessionLedger(projectPath: string, runId: string, sessionId: string): Promise<LedgerRecord[]> {
     try {
-        const text = await readFile(join(process.env.HAPPY_PROJECT_PATH ?? process.cwd(), '.ralph', 'state', runId, `${sessionId}.jsonl`), 'utf8');
+        const text = await readFile(join(projectPath, '.ralph', 'state', runId, `${sessionId}.jsonl`), 'utf8');
         const records: LedgerRecord[] = [];
         for (const line of text.split(/\r?\n/).filter(l => l.trim().length > 0)) {
             const result = LedgerRecordSchema.safeParse(JSON.parse(line));
@@ -228,7 +245,8 @@ export async function snapshotSession(
     session: DecryptedSession,
     deps: MonitorDependencies = defaultDependencies,
 ): Promise<MonitorSnapshot> {
-    const ledgerRecords = await readSessionLedger(runId, session.id);
+    const projectPath = resolveProjectPath(session);
+    const ledgerRecords = await readSessionLedger(projectPath, runId, session.id);
     const messages = await deps.getSessionMessages(config, creds, session.id, session.encryption);
     const requestIds = getRequestIds(session.agentState);
     const snapshot = {
