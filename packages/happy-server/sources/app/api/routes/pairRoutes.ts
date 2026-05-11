@@ -247,7 +247,7 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig, paths:
         const tunnelUrl = tofuConfig.publicUrl || process.env.PUBLIC_URL || `http://127.0.0.1:${process.env.PORT ?? "3005"}`;
         const issuedAt = Math.floor(Date.now() / 1000);
         const tunnelClaim = await encodeTunnelClaim(
-            { sub: tofuConfig.localUserId, gh: githubUser.login, iat: issuedAt, accountId: githubUser.id },
+            { sub: tofuConfig.localUserId, iat: issuedAt, accountId: githubUser.id },
             tofuConfig.ed25519SecretKey,
         );
         await writeProfileAtomically(paths.profile ?? defaultProfilePath(), {
