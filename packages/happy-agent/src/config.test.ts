@@ -48,7 +48,7 @@ describe('config', () => {
         it('derives credential path from overridden home directory', () => {
             process.env.HAPPY_HOME_DIR = '/tmp/custom-happy';
             const config = loadConfig();
-            expect(config.credentialPath).toBe('/tmp/custom-happy/agent.key');
+            expect(config.credentialPath).toBe(join('/tmp/custom-happy', 'agent.key'));
         });
 
         it('allows both overrides simultaneously', () => {
@@ -57,7 +57,7 @@ describe('config', () => {
             const config = loadConfig();
             expect(config.serverUrl).toBe('https://other.example.com');
             expect(config.homeDir).toBe('/opt/happy');
-            expect(config.credentialPath).toBe('/opt/happy/agent.key');
+            expect(config.credentialPath).toBe(join('/opt/happy', 'agent.key'));
         });
     });
 });

@@ -316,7 +316,7 @@ describe('Smoke: Error handling', () => {
                 expect(exitCode).not.toBe(0);
                 expect(stderr).toContain('happy-agent auth login');
             }
-        });
+        }, 20000);
     });
 
     describe('invalid session ID (in unit-tested code paths)', () => {

@@ -261,7 +261,7 @@ describe('api', () => {
 
             expect(mockedAxios.get).toHaveBeenCalledWith(
                 'https://test-server.example.com/v1/sessions',
-                { headers: { Authorization: 'Bearer test-jwt-token' } },
+                { headers: { Authorization: 'Bearer test-jwt-token', 'X-Happy-Client': 'cli-control-plane/0.1.0' } },
             );
         });
 
@@ -307,7 +307,7 @@ describe('api', () => {
 
             expect(mockedAxios.get).toHaveBeenCalledWith(
                 'https://test-server.example.com/v2/sessions/active',
-                { headers: { Authorization: 'Bearer test-jwt-token' } },
+                { headers: { Authorization: 'Bearer test-jwt-token', 'X-Happy-Client': 'cli-control-plane/0.1.0' } },
             );
         });
 
@@ -382,7 +382,7 @@ describe('api', () => {
                     metadata: expect.any(String),
                     dataEncryptionKey: expect.any(String),
                 }),
-                { headers: { Authorization: 'Bearer test-jwt-token' } },
+                { headers: { Authorization: 'Bearer test-jwt-token', 'X-Happy-Client': 'cli-control-plane/0.1.0' } },
             );
         });
 
@@ -521,7 +521,7 @@ describe('api', () => {
 
             expect(mockedAxios.delete).toHaveBeenCalledWith(
                 'https://test-server.example.com/v1/sessions/session-to-delete',
-                { headers: { Authorization: 'Bearer test-jwt-token' } },
+                { headers: { Authorization: 'Bearer test-jwt-token', 'X-Happy-Client': 'cli-control-plane/0.1.0' } },
             );
         });
 
