@@ -378,6 +378,23 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         });
     }
 
+    const redactUserMessageForLog = (msg: any): any => {
+        const attachments = msg?.content?.attachments;
+        if (!attachments) {
+            return msg;
+        }
+        return {
+            ...msg,
+            content: {
+                ...msg.content,
+                attachments: attachments.map((a: { type: string; ref: string; mimeType?: string }) => ({
+                    ...a,
+                    ref: `<image:${a.mimeType ?? 'unknown'}:${a.ref?.length ?? 0} bytes>`,
+                })),
+            },
+        };
+    };
+
     session.onUserMessage((message) => {
         const taggedDeferredSwitch = message.meta?.capabilities?.deferredSwitch === true;
 
@@ -490,7 +507,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
                 disallowedTools: messageDisallowedTools
             };
             messageQueue.pushIsolateAndClear(specialCommand.originalMessage || message.content.text, enhancedMode);
-            logger.debugLargeJson('[start] /compact command pushed to queue:', message);
+            logger.debugLargeJson('[start] /compact command pushed to queue:', redactUserMessageForLog(message));
             return;
         }
 
@@ -507,7 +524,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
                 disallowedTools: messageDisallowedTools
             };
             messageQueue.pushIsolateAndClear(specialCommand.originalMessage || message.content.text, enhancedMode);
-            logger.debugLargeJson('[start] /compact command pushed to queue:', message);
+            logger.debugLargeJson('[start] /compact command pushed to queue:', redactUserMessageForLog(message));
             return;
         }
 
@@ -565,7 +582,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
             disallowedTools: messageDisallowedTools
         };
         messageQueue.pushWithAttachments(message.content.text, enhancedMode, message.content.attachments);
-        logger.debugLargeJson('User message pushed to queue:', message)
+        logger.debugLargeJson('User message pushed to queue:', redactUserMessageForLog(message))
     });
 
     // Setup signal handlers for graceful shutdown
