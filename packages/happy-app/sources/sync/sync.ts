@@ -86,10 +86,14 @@ type UserMessageAttachment = {
 };
 
 const MAX_ENCODED_ATTACHMENT_BYTES = 4 * 1024 * 1024;
+const DATA_URL_BASE64_PREFIX = /^data:[a-zA-Z0-9!#$&^_+\-./]+;base64,/;
 
 function getEncodedAttachmentSize(ref: string): number {
-    const dataUrlSeparator = ref.indexOf(',');
-    return dataUrlSeparator === -1 ? ref.length : ref.length - dataUrlSeparator - 1;
+    const match = DATA_URL_BASE64_PREFIX.exec(ref);
+    if (match) {
+        return ref.length - match[0].length;
+    }
+    return ref.length;
 }
 
 function hasOversizeAttachment(attachments: UserMessageAttachment[] | undefined): boolean {

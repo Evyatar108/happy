@@ -5,6 +5,55 @@ import { DecryptedMessage, Metadata, MetadataSchema, AgentState, AgentStateSchem
 import { EncryptionCache } from './encryptionCache';
 import { Decryptor, Encryptor } from './encryptor';
 
+const MAX_ENCODED_ATTACHMENT_BYTES = 4 * 1024 * 1024;
+const DATA_URL_BASE64_PREFIX = /^data:[a-zA-Z0-9!#$&^_+\-./]+;base64,/;
+
+export class AttachmentTooLargeError extends Error {
+    constructor(message = 'Attachment exceeds maximum encoded size') {
+        super(message);
+        this.name = 'AttachmentTooLargeError';
+    }
+}
+
+export class AttachmentInvalidRefError extends Error {
+    constructor(message = 'Attachment ref is not a valid base64 data URL') {
+        super(message);
+        this.name = 'AttachmentInvalidRefError';
+    }
+}
+
+function getEncodedRefSize(ref: string): number {
+    const match = DATA_URL_BASE64_PREFIX.exec(ref);
+    if (match) {
+        return ref.length - match[0].length;
+    }
+    return ref.length;
+}
+
+function assertRecordAttachmentsWithinLimits(record: RawRecord): void {
+    if (record.role !== 'user') {
+        return;
+    }
+    const attachments = record.content.attachments;
+    if (!attachments) {
+        return;
+    }
+    for (const attachment of attachments) {
+        if (attachment.type !== 'image') {
+            continue;
+        }
+        if (typeof attachment.ref !== 'string') {
+            throw new AttachmentInvalidRefError();
+        }
+        if (attachment.ref.startsWith('data:') && !DATA_URL_BASE64_PREFIX.test(attachment.ref)) {
+            throw new AttachmentInvalidRefError();
+        }
+        if (getEncodedRefSize(attachment.ref) > MAX_ENCODED_ATTACHMENT_BYTES) {
+            throw new AttachmentTooLargeError();
+        }
+    }
+}
+
 export class SessionEncryption {
     private sessionId: string;
     private encryptor: Encryptor & Decryptor;
@@ -108,6 +157,7 @@ export class SessionEncryption {
      * Encrypt a raw record
      */
     async encryptRawRecord(record: RawRecord): Promise<string> {
+        assertRecordAttachmentsWithinLimits(record);
         const encrypted = await this.encryptor.encrypt([record]);
         return encodeBase64(encrypted[0], 'base64');
     }
