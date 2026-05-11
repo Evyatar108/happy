@@ -490,6 +490,15 @@ const LedgerRecordSchema = z__namespace.discriminatedUnion("eventType", [
   ErrorLedgerRecordSchema
 ]);
 
+const MachineTunnelSchema = z__namespace.object({
+  machineId: z__namespace.string(),
+  tunnelId: z__namespace.string(),
+  url: z__namespace.string(),
+  tags: z__namespace.array(z__namespace.string()),
+  lastSeenAt: z__namespace.union([z__namespace.number(), z__namespace.string().datetime()]),
+  owner: z__namespace.string()
+});
+
 exports.AgentMessageSchema = AgentMessageSchema;
 exports.ApiMessageSchema = ApiMessageSchema;
 exports.ApiUpdateMachineStateSchema = ApiUpdateMachineStateSchema;
@@ -504,6 +513,7 @@ exports.LastOutputSummaryLedgerRecordSchema = LastOutputSummaryLedgerRecordSchem
 exports.LedgerErrorCodeSchema = LedgerErrorCodeSchema;
 exports.LedgerRecordSchema = LedgerRecordSchema;
 exports.LegacyMessageContentSchema = LegacyMessageContentSchema;
+exports.MachineTunnelSchema = MachineTunnelSchema;
 exports.MessageContentSchema = MessageContentSchema;
 exports.MessageMetaSchema = MessageMetaSchema;
 exports.MessageSentLedgerRecordSchema = MessageSentLedgerRecordSchema;
