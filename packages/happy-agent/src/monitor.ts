@@ -1,7 +1,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { LedgerRecord } from '@slopus/happy-wire';
+import { LedgerRecordSchema, type LedgerRecord } from '@slopus/happy-wire';
 
 import type { Config } from './config';
 import type { Credentials } from './credentials';
@@ -177,10 +177,16 @@ export function summarizeLastOutput(
 async function readSessionLedger(runId: string, sessionId: string): Promise<LedgerRecord[]> {
     try {
         const text = await readFile(join(process.env.HAPPY_PROJECT_PATH ?? process.cwd(), '.ralph', 'state', runId, `${sessionId}.jsonl`), 'utf8');
-        return text
-            .split(/\r?\n/)
-            .filter(line => line.trim().length > 0)
-            .map(line => JSON.parse(line) as LedgerRecord);
+        const records: LedgerRecord[] = [];
+        for (const line of text.split(/\r?\n/).filter(l => l.trim().length > 0)) {
+            const result = LedgerRecordSchema.safeParse(JSON.parse(line));
+            if (result.success) {
+                records.push(result.data);
+            } else {
+                console.debug('[monitor] skipping malformed ledger line', result.error.issues);
+            }
+        }
+        return records;
     } catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
         throw error;
