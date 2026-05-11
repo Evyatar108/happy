@@ -40,6 +40,53 @@ export interface PairRoutePaths {
     profile?: string;
 }
 
+// Hard-coded upstream endpoints; not user-controlled (no SSRF surface).
+const HAPPY_TUNNELS_LIST_URL = "https://global.rel.tunnels.api.visualstudio.com/tunnels?includePorts=true&global=true&labels=happy-machine&api-version=2023-09-27-preview";
+const GITHUB_USER_URL = "https://api.github.com/user";
+
+// Response-size bounds to prevent DoS via large upstream bodies.
+const HAPPY_TUNNELS_MAX_BYTES = 1_000_000; // 1MB; typical tunnel list is KBs.
+const GITHUB_USER_MAX_BYTES = 100_000;     // 100KB; GitHub user payload is small.
+
+async function readJsonWithLimit(response: Response, maxBytes: number): Promise<unknown> {
+    const contentLengthHeader = response.headers?.get?.("content-length");
+    if (contentLengthHeader) {
+        const declared = Number(contentLengthHeader);
+        if (Number.isFinite(declared) && declared > maxBytes) {
+            throw new Error(`response_body_too_large:declared=${declared}:limit=${maxBytes}`);
+        }
+    }
+    const body = (response as { body?: ReadableStream<Uint8Array> | null }).body;
+    if (!body || typeof body.getReader !== "function") {
+        return await response.json();
+    }
+    const reader = body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    try {
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            if (!value) continue;
+            total += value.byteLength;
+            if (total > maxBytes) {
+                throw new Error(`response_body_too_large:received=${total}:limit=${maxBytes}`);
+            }
+            chunks.push(value);
+        }
+    } finally {
+        reader.releaseLock?.();
+    }
+    const buffer = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+        buffer.set(chunk, offset);
+        offset += chunk.byteLength;
+    }
+    const text = new TextDecoder("utf-8").decode(buffer);
+    return text.length === 0 ? undefined : JSON.parse(text);
+}
+
 function defaultProfilePath(): string {
     return path.join(os.homedir(), ".happy", "profile.json");
 }
@@ -88,7 +135,7 @@ async function writeProfileAtomically(profilePath: string, profile: unknown) {
 async function fetchHappyTunnels(githubToken: string, excludeTunnelId: string | null): Promise<DevTunnelItem[]> {
     try {
         const response = await fetch(
-            "https://global.rel.tunnels.api.visualstudio.com/tunnels?includePorts=true&global=true&labels=happy-machine&api-version=2023-09-27-preview",
+            HAPPY_TUNNELS_LIST_URL,
             {
                 headers: {
                     // GitHub OAuth token from device flow; not a Happy relay credential.
@@ -99,7 +146,7 @@ async function fetchHappyTunnels(githubToken: string, excludeTunnelId: string | 
             }
         );
         if (!response.ok) return [];
-        const tunnels = await response.json() as DevTunnelItem[];
+        const tunnels = await readJsonWithLimit(response, HAPPY_TUNNELS_MAX_BYTES) as DevTunnelItem[];
         if (!Array.isArray(tunnels)) return [];
         return tunnels.filter(
             t => typeof t.tunnelId === "string"
@@ -159,7 +206,7 @@ function isPairRateLimited(ip: string, now: number): boolean {
 }
 
 async function fetchGitHubUser(accessToken: string): Promise<GitHubUser> {
-    const response = await fetch("https://api.github.com/user", {
+    const response = await fetch(GITHUB_USER_URL, {
         headers: {
             // GitHub device-flow OAuth access token; not a Happy relay credential.
             Authorization: `Bearer ${accessToken}`,
@@ -169,7 +216,7 @@ async function fetchGitHubUser(accessToken: string): Promise<GitHubUser> {
     if (!response.ok) {
         throw new Error(`GitHub user fetch failed: ${response.status}`);
     }
-    return GitHubUserSchema.parse(await response.json());
+    return GitHubUserSchema.parse(await readJsonWithLimit(response, GITHUB_USER_MAX_BYTES));
 }
 
 export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig, paths: PairRoutePaths = {}) {
