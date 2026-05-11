@@ -183,4 +183,23 @@ describe('monitor', () => {
             expect(snapshots[0].state).toBe('has-validation-evidence');
         });
     });
+
+    it('scopes runMonitorOnce to sessions whose metadata.runId matches the requested runId', async () => {
+        await withTempCwd(async () => {
+            const sessionA1 = makeSession({ id: 'session-a1', metadata: { runId: 'run-A', turnActive: false } });
+            const sessionA2 = makeSession({ id: 'session-a2', metadata: { runId: 'run-A', turnActive: true } });
+            const sessionB1 = makeSession({ id: 'session-b1', metadata: { runId: 'run-B', turnActive: false } });
+            const deps = makeDeps({
+                listActiveSessions: vi.fn(async () => [sessionA1, sessionA2, sessionB1]),
+            });
+
+            const snapshots = await runMonitorOnce(config, creds, 'run-A', deps);
+
+            const snapshotIds = snapshots.map(s => s.sessionId);
+            expect(snapshotIds).toContain('session-a1');
+            expect(snapshotIds).toContain('session-a2');
+            expect(snapshotIds).not.toContain('session-b1');
+            expect(deps.appendLedgerRecord).not.toHaveBeenCalledWith('run-A', 'session-b1', expect.anything());
+        });
+    });
 });

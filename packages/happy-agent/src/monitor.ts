@@ -239,6 +239,11 @@ export async function snapshotSession(
     return snapshot;
 }
 
+function sessionBelongsToRun(session: DecryptedSession, runId: string): boolean {
+    const meta = session.metadata as { runId?: unknown } | null;
+    return meta?.runId === runId;
+}
+
 export async function runMonitorOnce(
     config: Config,
     creds: Credentials,
@@ -246,7 +251,8 @@ export async function runMonitorOnce(
     deps: MonitorDependencies = defaultDependencies,
 ): Promise<MonitorSnapshot[]> {
     const sessions = await deps.listActiveSessions(config, creds);
-    return Promise.all(sessions.map(session => snapshotSession(config, creds, runId, session, deps)));
+    const inBatch = sessions.filter(s => sessionBelongsToRun(s, runId));
+    return Promise.all(inBatch.map(session => snapshotSession(config, creds, runId, session, deps)));
 }
 
 export async function runMonitorWatch(
@@ -259,14 +265,15 @@ export async function runMonitorWatch(
 
     const poll = async () => {
         const sessions = await deps.listActiveSessions(config, creds);
-        const activeIds = new Set(sessions.map(session => session.id));
+        const inBatch = sessions.filter(s => sessionBelongsToRun(s, runId));
+        const activeIds = new Set(inBatch.map(session => session.id));
         for (const [sessionId, client] of clients) {
             if (!activeIds.has(sessionId)) {
                 client.close();
                 clients.delete(sessionId);
             }
         }
-        for (const session of sessions) {
+        for (const session of inBatch) {
             await snapshotSession(config, creds, runId, session, deps);
             if (clients.has(session.id)) continue;
             const client = deps.createSessionClient(session, creds, config);
