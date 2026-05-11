@@ -12,6 +12,7 @@ export type DevTunnelsDaemonProviderOptions = {
 };
 
 const DEFAULT_TAGS = ['happy-machine'];
+const LABEL_PART_PATTERN = /^[A-Za-z0-9-]+$/;
 
 const defaultRunner: CommandRunner = (command, args) => {
   const result = spawnSync(command, args, {
@@ -26,13 +27,32 @@ const defaultRunner: CommandRunner = (command, args) => {
   };
 };
 
+function assertSafeLabel(label: string): void {
+  if (label.length === 0) {
+    throw new Error('Dev Tunnel label value is empty');
+  }
+  const parts = label.split(':');
+  if (parts.length > 2) {
+    throw new Error(`Dev Tunnel label value contains invalid format: ${label}`);
+  }
+  for (const part of parts) {
+    if (!LABEL_PART_PATTERN.test(part)) {
+      throw new Error(`Dev Tunnel label value contains invalid characters: ${label}`);
+    }
+  }
+}
+
 function normalizeTags(machineId: string | null, extraTags: string[] | undefined): string[] {
   const tags = [
     ...DEFAULT_TAGS,
     ...(machineId ? [`machineId:${machineId}`] : []),
     ...(extraTags ?? []),
   ];
-  return [...new Set(tags.map(tag => tag.trim()).filter(tag => tag.length > 0))];
+  const normalized = [...new Set(tags.map(tag => tag.trim()).filter(tag => tag.length > 0))];
+  for (const tag of normalized) {
+    assertSafeLabel(tag);
+  }
+  return normalized;
 }
 
 export class DevTunnelsDaemonProvider implements DaemonTunnelProvider {

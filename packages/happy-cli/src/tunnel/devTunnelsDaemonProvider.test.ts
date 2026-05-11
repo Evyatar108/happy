@@ -88,6 +88,46 @@ describe('DevTunnelsDaemonProvider', () => {
     expect(labelCall?.[1]).toEqual(['update', 'happy-test-machine', '--labels', 'happy-machine,machineId:machine-456']);
   });
 
+  it('rejects machineId with invalid characters before invoking spawnSync', async () => {
+    const manager = {
+      init: vi.fn().mockResolvedValue(config),
+      loadForDaemon: vi.fn(),
+      startHost: vi.fn(),
+      stop: vi.fn(),
+    };
+    const runnerCalls: string[][] = [];
+    const runner: CommandRunner = (command, args) => {
+      runnerCalls.push([command, ...args]);
+      return { status: 0, stdout: '', stderr: '' };
+    };
+    const provider = new DevTunnelsDaemonProvider({ manager, runner });
+
+    await expect(
+      provider.createHostTunnel({ port: 62003, machineId: 'evil; rm -rf /' }),
+    ).rejects.toThrow(/invalid characters/);
+    expect(runnerCalls).toEqual([]);
+  });
+
+  it('rejects extra label values with invalid characters before invoking spawnSync', async () => {
+    const manager = {
+      init: vi.fn().mockResolvedValue(config),
+      loadForDaemon: vi.fn(),
+      startHost: vi.fn(),
+      stop: vi.fn(),
+    };
+    const runnerCalls: string[][] = [];
+    const runner: CommandRunner = (command, args) => {
+      runnerCalls.push([command, ...args]);
+      return { status: 0, stdout: '', stderr: '' };
+    };
+    const provider = new DevTunnelsDaemonProvider({ manager, runner });
+
+    await expect(
+      provider.createHostTunnel({ port: 62004, machineId: 'machine-789', extraTags: ['bad value!'] }),
+    ).rejects.toThrow(/invalid characters/);
+    expect(runnerCalls).toEqual([]);
+  });
+
   it('loads and starts an existing tunnel for daemon startup without changing TunnelManager port flags', async () => {
     const manager = {
       init: vi.fn(),
