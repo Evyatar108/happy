@@ -4,7 +4,7 @@ export interface LoopbackCapabilityPaths {
     loopbackCap?: string;
 }
 
-export function verifyLoopbackCapability(paths: LoopbackCapabilityPaths = {}) {
+export function verifyLoopbackCapability(paths: LoopbackCapabilityPaths = {}, localUserId: string = "") {
     let cachedToken: string | null = null;
 
     async function readCapability(): Promise<string | null> {
@@ -24,6 +24,7 @@ export function verifyLoopbackCapability(paths: LoopbackCapabilityPaths = {}) {
         if (!expectedToken || !actualToken || actualToken !== expectedToken) {
             return reply.code(401).send({ error: "invalid_loopback_capability" });
         }
+        request.userId = localUserId;
     };
 }
 

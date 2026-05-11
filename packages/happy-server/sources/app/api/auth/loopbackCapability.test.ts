@@ -14,8 +14,9 @@ describe("verifyLoopbackCapability", () => {
         capabilityPath = path.join(dir, "loopback-cap.txt");
         await writeFile(capabilityPath, "secret-token\n", { mode: 0o600 });
         app = fastify({ logger: false });
-        app.decorate("verifyLoopbackCapability", verifyLoopbackCapability({ loopbackCap: capabilityPath }));
+        app.decorate("verifyLoopbackCapability", verifyLoopbackCapability({ loopbackCap: capabilityPath }, "machine-1"));
         app.get("/loopback", { preHandler: app.verifyLoopbackCapability }, async () => ({ ok: true }));
+        app.get("/loopback-whoami", { preHandler: app.verifyLoopbackCapability }, async (request: any) => ({ userId: request.userId }));
     });
 
     afterEach(async () => {
@@ -45,6 +46,17 @@ describe("verifyLoopbackCapability", () => {
         expect(missing.json()).toEqual({ error: "invalid_loopback_capability" });
         expect(invalid.statusCode).toBe(401);
         expect(invalid.json()).toEqual({ error: "invalid_loopback_capability" });
+    });
+
+    it("populates request.userId with localUserId after capability matches", async () => {
+        const response = await app.inject({
+            method: "GET",
+            url: "/loopback-whoami",
+            headers: { "X-Loopback-Capability": "secret-token" },
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toEqual({ userId: "machine-1" });
     });
 });
 

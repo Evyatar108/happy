@@ -91,7 +91,7 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
     // Enable features
     enableMonitoring(typed);
     enableErrorHandlers(typed);
-    typed.decorate('verifyLoopbackCapability', verifyLoopbackCapability(options.paths));
+    typed.decorate('verifyLoopbackCapability', verifyLoopbackCapability(options.paths, tofuConfig.localUserId));
     typed.decorate('authenticateTunnelClaim', async function (request: any, reply: any) {
         const authHeader = request.headers['x-tunnel-authorization'] as string | undefined;
         const result = await verifyTunnelClaim(authHeader, tofuConfig);
