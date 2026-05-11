@@ -195,11 +195,11 @@ sequenceDiagram
 The backend does not store accounts or passwords. Pairing happens entirely through GitHub's device flow plus TOFU pubkey pinning:
 
 - `GET /pair/start` proxies to GitHub's `/login/device/code` and returns the user code + verification URI.
-- `POST /pair/status` polls GitHub for the access token, fetches the GitHub user, optionally enforces `HAPPY_TUNNEL_GITHUB_OWNER`, and returns the embedded server's TOFU public keys (Ed25519 + X25519) along with an unsigned `tunnelClaim` (base64url-encoded JSON of `{ sub, gh, iat }`). The mobile client trust-on-first-use pins the Ed25519 key and stores the claim.
+- `POST /pair/status` polls GitHub for the access token, fetches the GitHub user, optionally enforces `HAPPY_TUNNEL_GITHUB_OWNER`, and returns the embedded server's TOFU public keys (Ed25519 + X25519) along with a signed `tunnelClaim` — a base64url-encoded envelope `{ p: base64url(payload), s: hex(ed25519-signature) }` where payload is `{ sub, iat, accountId? }`. The mobile client trust-on-first-use pins the Ed25519 key and stores the claim.
 - If the mobile client supplied an X25519 ECDH public key, the server completes `nacl.box.before` against its own `x25519SecretKey` and returns the resulting shared secret in the response body as `machines[0].mobileSharedSecret` (base64). The mobile client stores it locally per-pairing; the server keeps no per-pairing state in the singleton `tofuConfig`.
 - All subsequent HTTP and WebSocket calls present `X-Tunnel-Authorization: tunnel <claim>`. The `authenticate` decorator and Socket.IO middleware base64url-decode the claim, require `payload.sub === tofuConfig.localUserId`, and reject claims older than 86400 seconds.
 
-The TOFU claim is deliberately unsigned. The transport security boundary is the Microsoft Dev Tunnel + the pinned TOFU public key on the mobile side; the claim is an identity assertion bound to a specific embedded server instance.
+The claim is Ed25519-signed by the embedded server. Tunnel-facing routes and Socket.IO middleware base64url-decode the envelope, verify the signature against the configured Ed25519 public key, then check `sub === localUserId` and `iat` within 86400 seconds. Optional `accountId` carries the GitHub numeric user id.
 
 The legacy `auth` module (`sources/app/auth/auth.ts`) still exists and is initialized at startup, but it is no longer used to authenticate HTTP requests. It is retained for internal helpers (e.g., the GitHub ephemeral token used by integrations) and for the standalone deployment shape.
 
