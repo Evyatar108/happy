@@ -78,6 +78,25 @@ Notes on the registry shape:
 
 For consumer-side details see `packages/happy-cli/CLAUDE.md` and `packages/happy-wire/README.md`.
 
+### 5. Ledger record schemas
+
+Shared from `@slopus/happy-wire` (re-exported from `ledger.ts`):
+- error code enum: `LedgerErrorCodeSchema` / `LedgerErrorCode` (`'spawn-failed' | 'wrong-account' | 'timeout' | 'crash' | 'ledger-write-failed' | 'monitor-failure'`)
+- per-event record schemas, each extending a common `{ runId, sessionId, timestamp, seqWithinSession? }` base:
+  - `SpawnLedgerRecordSchema` (`eventType: 'spawn'`)
+  - `MessageSentLedgerRecordSchema` (`eventType: 'message-sent'`)
+  - `IdleReachedLedgerRecordSchema` (`eventType: 'idle-reached'`)
+  - `PendingPermissionLedgerRecordSchema` (`eventType: 'pending-permission'`)
+  - `LastOutputSummaryLedgerRecordSchema` (`eventType: 'last-output-summary'`)
+  - `ValidationAttachedLedgerRecordSchema` (`eventType: 'validation-attached'`)
+  - `DoneLedgerRecordSchema` (`eventType: 'done'`)
+  - `ErrorLedgerRecordSchema` (`eventType: 'error'`)
+- discriminated union and inferred type: `LedgerRecordSchema` (discriminated on `eventType`) and `LedgerRecord`
+
+The schema lives at `packages/happy-wire/src/ledger.ts` and is consumed by the happy-cli ledger writer (`packages/happy-cli/src/ledger/writer.ts`) and the happy-agent ledger writer (`packages/happy-agent/src/ledger/writer.ts`), so both producers stay structurally consistent for the on-disk `.ralph/state/<runId>/<sessionId>.jsonl` files. `runId` and `sessionId` are validated against `^[A-Za-z0-9_-]+$` so they remain safe path components for that file location.
+
+For the deeper per-field schema reference see `packages/happy-wire/README.md` (`### ledger.ts exports`).
+
 ## Migration in this repository
 
 ### CLI (`packages/happy-cli`)
