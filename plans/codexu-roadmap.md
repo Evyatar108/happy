@@ -190,12 +190,32 @@ for ws reattach, force-restart non-hang behavior, and stdio discovery
 skip is green. Branch: `ralph/codex-discovery-reattach`; PR link:
 <https://github.com/Evyatar108/codexu/pull/new/ralph/codex-discovery-reattach>.
 
-**Next concrete deliverable:** tunnels Phase 0 spike + pre-
-implementation decisions before Phase 1b sub-task 3. Do not continue
-with discoverability, conflict-resolution UX, or walkthrough work until
-`docs/spikes/devtunnel-auth-result.md` exists and the tunnels companion's
-OAuth app vs GitHub app, token contract, access path, and local WS port
-policy decisions are settled.
+**Next concrete deliverable:** Dev Tunnels migration, decomposed into 5
+sprints (A serial → B+C+D parallel → E serial). Plans live under
+`.ralph/jobs/devtunnels-{A-foundation,B-cli,C-agent,D-app,E-cleanup}/plan.md`;
+master reference + 5-round review audit trail at
+`.ralph/jobs/devtunnels-migration/`. Orchestration sheet (per-sprint
+plan-with-ralph + implement-with-ralph commands, dependency chain,
+conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
+
+Sprint A is the blocking foundation — owns the Dev Tunnels API spike
+(supersedes the earlier `docs/spikes/devtunnel-auth-result.md` standalone
+deliverable; now scoped under US-A1 to also cover token-introspection /
+GitHub-identity extraction), the RPC payload contract redesign (replaces
+the current X25519-encrypted `rpc-call` payload), and the daemon's
+dual-listener binding + new auth decorators + accountRoutes. Sprints
+B/C/D fork off Sprint A's branch in parallel: B = happy-cli cutover off
+`config.serverUrl`, C = happy-agent full migration off QR+E2E, D =
+happy-app cleanup (delete libsodium/QR/encryption + obsolete feature
+surfaces). Sprint E does server route deletions + Prisma migration
+(HUMAN-only) + fan-out preservation tests + BOOX manual validation +
+final cutover.
+
+Do not continue with Phase 1b sub-tasks 3+ until Sprint A merges. OAuth
+app vs GitHub app, token contract (locked: keep tunnel-claim JWT in
+`X-Tunnel-Authorization`, signed by daemon TOFU), access path (resolved
+by US-A1 spike), and local WS port policy (locked: dual-listener on
+tunnel-port + loopback-port) decisions are documented in the master plan.
 
 **Shipped vs deferred:**
 - Shipped: `JsonRpcConnection`, extracted stdio transport, ws transport,
@@ -217,25 +237,35 @@ policy decisions are settled.
 
 **Read for full context** (in this order, ~25 min):
 1. This Status block (you're here).
-2. Roadmap §"Phase 1b kickoff context for fresh agents" (sub-task list,
-   classification, recommended ralph command, risk hotspots).
-3. `docs/plans/codex-seamless-multi-device.md` — sub-task 1 spec at
+2. `.ralph/jobs/devtunnels-commands.md` — orchestration sheet with the
+   5-sprint dependency chain, conflict-surface analysis, and per-sprint
+   plan-with-ralph + implement-with-ralph invocations.
+3. `.ralph/jobs/devtunnels-A-foundation/plan.md` — the blocking sprint.
+   Read this in full before starting any sprint.
+4. `.ralph/jobs/devtunnels-migration/plan.md` — master reference plan
+   (28 stories, 5 review rounds) + the audit trail under the same dir
+   (research brief, stories outline, review-findings v1, codex/copilot
+   review backups v1..v4 + current v5).
+5. `docs/plans/github-auth-via-vscode-tunnels.md` — original design doc.
+   v5 plan rebases this onto the survivors branch reality; the design
+   doc's `authRoutes`/`connectRoutes`/`accountRoutes` references are
+   stale (actual files: `pairRoutes.ts`, `userRoutes.ts`).
+6. `docs/plans/codex-seamless-multi-device.md` — sub-task 1 spec at
    "Phase 1 — Persistent multi-client app-server with reattach". The
-   tunnels-supersedes callout at the top of that file lists what NOT to
-   apply to sub-tasks 3+.
-4. `docs/plans/github-auth-via-vscode-tunnels.md` — only the "Why this
-   doc exists" section + "Phasing" section to understand WHY sub-tasks
-   3+ are paused.
-5. The actual files: `packages/happy-cli/src/codex/codexAppServerClient.ts`
-   and `packages/happy-cli/src/codex/runCodex.ts`.
+   tunnels-supersedes callout at the top lists what NOT to apply to
+   sub-tasks 3+ (those resume after Sprint E lands).
 
-**Recommended ralph workflow:**
+**Recommended ralph workflow (next sprint):**
 ```
 cd C:/harness-efforts/codexu
-/plan-with-ralph "Phase 1b sub-task 1 — codex app-server transport refactor stdio → loopback WebSocket per docs/plans/codex-seamless-multi-device.md sub-task 1, with --codex-transport=stdio|ws fallback flag (default ws), preserving processEpoch lifecycle + force-restart semantics from current packages/happy-cli/src/codex/codexAppServerClient.ts. Use packages/happy-cli/src/openclaw/OpenClawSocket.ts as in-fork ws-client precedent. Adapt packages/happy-cli/src/codex/codexAppServerClient.test.ts mocks accordingly. Read first: plans/codexu-roadmap.md §'Right now' + §'Phase 1b kickoff context for fresh agents'."
+/plan-with-ralph --improve C:/harness-efforts/codexu/.ralph/jobs/devtunnels-A-foundation/plan.md
 ```
 
-After plan approval: `/implement-with-ralph --from-plan plans/...`
+After plan approval: `/implement-with-ralph --from-plan C:/harness-efforts/codexu/.ralph/jobs/devtunnels-A-foundation/plan.md`
+
+Sprints B/C/D run in parallel sessions only after Sprint A merges into
+`ralph/fan-out-survivors`. See `.ralph/jobs/devtunnels-commands.md` for
+each sprint's invocation and base-branch chain.
 
 **Pause-point:** reached. Sub-task 2 has shipped, so stop here until
 the tunnels plan is ready. Sub-tasks 3, 4, 5 are blocked on the tunnels Phase 0 spike result
