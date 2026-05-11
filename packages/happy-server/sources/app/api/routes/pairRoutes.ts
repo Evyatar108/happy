@@ -1,12 +1,12 @@
 import { z } from "zod";
 import nacl from "tweetnacl";
-import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
 import { randomUUID } from "crypto";
 import { type Fastify } from "../types";
 import { type TofuHandshakeConfig } from "../api";
 import { encodeTunnelClaim } from "../auth/tunnelClaim";
+import { writeJsonAtomically } from "../utils/writeJsonAtomically";
 
 type DeviceCodeResponse = {
     device_code: string;
@@ -92,45 +92,17 @@ function defaultProfilePath(): string {
     return path.join(os.homedir(), ".happy", "profile.json");
 }
 
-async function assertNoSymlinkInAncestors(dir: string) {
-    const resolved = path.resolve(dir);
-    const parsed = path.parse(resolved);
-    const segments = resolved.slice(parsed.root.length).split(path.sep).filter(Boolean);
-    let current = parsed.root;
-    for (const segment of segments) {
-        current = path.join(current, segment);
-        try {
-            const stats = await fs.lstat(current);
-            if (stats.isSymbolicLink()) {
-                throw new Error(`atomic_write_aborted_symlink_at:${current}`);
-            }
-        } catch (error) {
-            const code = (error as NodeJS.ErrnoException).code;
-            if (code === "ENOENT") return;
-            throw error;
-        }
-    }
-}
-
-async function writeProfileAtomically(profilePath: string, profile: unknown) {
-    const dir = path.dirname(profilePath);
-    await assertNoSymlinkInAncestors(dir);
-    await fs.mkdir(dir, { recursive: true });
-    const realDir = await fs.realpath(dir);
-    if (path.resolve(realDir) !== path.resolve(dir)) {
-        throw new Error(`atomic_write_aborted_realpath_mismatch:${dir}`);
-    }
-    const tempPath = path.join(dir, `.${path.basename(profilePath)}.${process.pid}.${Date.now()}.tmp`);
-    try {
-        await fs.writeFile(tempPath, `${JSON.stringify(profile, null, 2)}\n`, { mode: 0o600 });
-        await fs.rename(tempPath, profilePath);
-        if (process.platform !== "win32") {
-            await fs.chmod(profilePath, 0o600);
-        }
-    } catch (error) {
-        await fs.unlink(tempPath).catch(() => undefined);
-        throw error;
-    }
+/** Build the payload for a signed tunnel claim. Providing `accountId` links the
+ *  claim to a GitHub account (present after a GitHub device-flow grant). */
+function buildTunnelClaimPayload(localUserId: string, accountId?: number): {
+    sub: string;
+    iat: number;
+    exp: number;
+    jti: string;
+    accountId?: number;
+} {
+    const iat = Math.floor(Date.now() / 1000);
+    return { sub: localUserId, iat, exp: iat + 3600, jti: randomUUID(), ...(accountId !== undefined ? { accountId } : {}) };
 }
 
 async function fetchHappyTunnels(githubToken: string, excludeTunnelId: string | null): Promise<DevTunnelItem[]> {
@@ -375,17 +347,14 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig, paths:
         }
 
         const tunnelUrl = tofuConfig.publicUrl || process.env.PUBLIC_URL || `http://127.0.0.1:${process.env.PORT ?? "3005"}`;
-        const issuedAt = Math.floor(Date.now() / 1000);
-        const tunnelClaim = await encodeTunnelClaim(
-            { sub: tofuConfig.localUserId, iat: issuedAt, exp: issuedAt + 3600, jti: randomUUID(), accountId: githubUser.id },
-            tofuConfig.ed25519SecretKey,
-        );
-        await writeProfileAtomically(paths.profile ?? defaultProfilePath(), {
+        const claimPayload = buildTunnelClaimPayload(tofuConfig.localUserId, githubUser.id);
+        const tunnelClaim = await encodeTunnelClaim(claimPayload, tofuConfig.ed25519SecretKey);
+        await writeJsonAtomically(paths.profile ?? defaultProfilePath(), {
             githubUserId: githubUser.id,
             githubLogin: githubUser.login,
             name: githubUser.name ?? null,
             avatarUrl: githubUser.avatar_url ?? null,
-            updatedAt: new Date(issuedAt * 1000).toISOString(),
+            updatedAt: new Date(claimPayload.iat * 1000).toISOString(),
         });
 
         const currentTunnelId = parseTunnelIdFromUrl(tunnelUrl);
@@ -434,9 +403,8 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig, paths:
         }
 
         const tunnelUrl = tofuConfig.publicUrl || process.env.PUBLIC_URL || `http://127.0.0.1:${process.env.PORT ?? "3005"}`;
-        const connectIssuedAt = Math.floor(Date.now() / 1000);
         const tunnelClaim = await encodeTunnelClaim(
-            { sub: tofuConfig.localUserId, iat: connectIssuedAt, exp: connectIssuedAt + 3600, jti: randomUUID() },
+            buildTunnelClaimPayload(tofuConfig.localUserId),
             tofuConfig.ed25519SecretKey,
         );
         return {
