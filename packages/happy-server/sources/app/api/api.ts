@@ -123,7 +123,7 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
         });
     }
 
-    const eventRouter = startSocket(typed, tofuConfig);
+    const eventRouter = startSocket(typed, tofuConfig, { auth: options.auth, paths: options.paths });
     options.onEventRouter?.(eventRouter);
 
     // Routes available on both tunnel and loopback listeners

@@ -4,11 +4,11 @@ export interface LoopbackCapabilityPaths {
     loopbackCap?: string;
 }
 
-export function verifyLoopbackCapability(paths: LoopbackCapabilityPaths = {}, localUserId: string = "") {
+export function makeLoopbackTokenReader(paths: LoopbackCapabilityPaths = {}) {
     let cachedToken: string | null = null;
     let cachedMtimeMs: number | null = null;
 
-    async function readCapability(): Promise<string | null> {
+    return async function readCapability(): Promise<string | null> {
         if (!paths.loopbackCap) {
             return null;
         }
@@ -19,7 +19,11 @@ export function verifyLoopbackCapability(paths: LoopbackCapabilityPaths = {}, lo
         cachedToken = (await readFile(paths.loopbackCap, "utf-8")).trim();
         cachedMtimeMs = fileStat.mtimeMs;
         return cachedToken;
-    }
+    };
+}
+
+export function verifyLoopbackCapability(paths: LoopbackCapabilityPaths = {}, localUserId: string = "") {
+    const readCapability = makeLoopbackTokenReader(paths);
 
     return async function verifyLoopbackCapabilityDecorator(request: any, reply: any) {
         const expectedToken = await readCapability();

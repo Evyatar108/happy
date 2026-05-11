@@ -15,6 +15,12 @@ import { artifactUpdateHandler } from "./socket/artifactUpdateHandler";
 import { accessKeyHandler } from "./socket/accessKeyHandler";
 import { sessionMessageRangeHandler } from "./socket/sessionMessageRangeHandler";
 import { verifyTunnelClaim, type TofuHandshakeConfig } from "./api";
+import { makeLoopbackTokenReader, type LoopbackCapabilityPaths } from "./auth/loopbackCapability";
+
+export interface StartSocketOptions {
+    auth?: "tunnel" | "loopback";
+    paths?: LoopbackCapabilityPaths;
+}
 
 function parseCorsOrigins(): string[] {
     const raw = process.env.HAPPY_CORS_ORIGINS;
@@ -57,7 +63,62 @@ export function configureRedisStreamsAdapter(io: Server): Redis | undefined {
     return streamClient;
 }
 
-export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { localUserId: "local-user" }) {
+export function createSocketAuthMiddleware(tofuConfig: TofuHandshakeConfig, socketOptions: StartSocketOptions = {}) {
+    const readLoopbackToken = socketOptions.auth === 'loopback'
+        ? makeLoopbackTokenReader(socketOptions.paths ?? {})
+        : null;
+
+    return async function socketAuthMiddleware(socket: any, next: (err?: Error) => void) {
+        if (socketOptions.auth === 'loopback') {
+            const capHeader = socket.handshake.headers['x-loopback-capability'] as string | undefined;
+            const expectedToken = await readLoopbackToken!();
+            if (!expectedToken || !capHeader || capHeader !== expectedToken) {
+                next(new Error('Unauthorized'));
+                return;
+            }
+            socket.data.userId = tofuConfig.localUserId;
+        } else {
+            const authHeader = (
+                socket.handshake.headers['x-tunnel-authorization'] as string | undefined
+            ) || (socket.handshake.auth.tunnelAuthorization as string | undefined);
+
+            const claim = await verifyTunnelClaim(authHeader, tofuConfig);
+            if (!claim.ok) {
+                next(new Error('Unauthorized'));
+                return;
+            }
+        }
+
+        const clientType = socket.handshake.auth.clientType as 'session-scoped' | 'user-scoped' | 'machine-scoped' | undefined;
+        const sessionId = socket.handshake.auth.sessionId as string | undefined;
+        const machineId = socket.handshake.auth.machineId as string | undefined;
+        const userId = socket.handshake.auth.userId as string | undefined;
+
+        if (clientType === 'session-scoped' && !sessionId) {
+            log({ module: 'websocket' }, `Session-scoped client missing sessionId`);
+            next(new Error('Session ID required for session-scoped clients'));
+            return;
+        }
+
+        if (clientType === 'machine-scoped' && !machineId) {
+            log({ module: 'websocket' }, `Machine-scoped client missing machineId`);
+            next(new Error('Machine ID required for machine-scoped clients'));
+            return;
+        }
+
+        socket.data.userId = socketOptions.auth === 'loopback' ? tofuConfig.localUserId : (userId || tofuConfig.localUserId);
+        socket.data.clientType = clientType;
+        socket.data.sessionId = sessionId;
+        socket.data.machineId = machineId;
+        socket.data.tofuPublicKeys = tofuConfig.tofuPublicKeys;
+        socket.data.happyClient = socket.handshake.auth.happyClient as string
+            || socket.handshake.headers['x-happy-client'] as string
+            || undefined;
+        next();
+    };
+}
+
+export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { localUserId: "local-user" }, socketOptions: StartSocketOptions = {}) {
     const allowedOrigins = parseCorsOrigins();
     const io = new Server(app.server, {
         cors: {
@@ -95,44 +156,7 @@ export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { lo
 
     // Handshake metadata is captured in middleware so it is available before
     // client events can reach the connection handlers.
-    io.use(async (socket, next) => {
-        const authHeader = (
-            socket.handshake.headers['x-tunnel-authorization'] as string | undefined
-        ) || (socket.handshake.auth.tunnelAuthorization as string | undefined);
-
-        const claim = await verifyTunnelClaim(authHeader, tofuConfig);
-        if (!claim.ok) {
-            next(new Error('Unauthorized'));
-            return;
-        }
-
-        const clientType = socket.handshake.auth.clientType as 'session-scoped' | 'user-scoped' | 'machine-scoped' | undefined;
-        const sessionId = socket.handshake.auth.sessionId as string | undefined;
-        const machineId = socket.handshake.auth.machineId as string | undefined;
-        const userId = socket.handshake.auth.userId as string | undefined;
-
-        if (clientType === 'session-scoped' && !sessionId) {
-            log({ module: 'websocket' }, `Session-scoped client missing sessionId`);
-            next(new Error('Session ID required for session-scoped clients'));
-            return;
-        }
-
-        if (clientType === 'machine-scoped' && !machineId) {
-            log({ module: 'websocket' }, `Machine-scoped client missing machineId`);
-            next(new Error('Machine ID required for machine-scoped clients'));
-            return;
-        }
-
-        socket.data.userId = userId || tofuConfig.localUserId;
-        socket.data.clientType = clientType;
-        socket.data.sessionId = sessionId;
-        socket.data.machineId = machineId;
-        socket.data.tofuPublicKeys = tofuConfig.tofuPublicKeys;
-        socket.data.happyClient = socket.handshake.auth.happyClient as string
-            || socket.handshake.headers['x-happy-client'] as string
-            || undefined;
-        next();
-    });
+    io.use(createSocketAuthMiddleware(tofuConfig, socketOptions));
 
     io.on("connection", (socket) => {
         const userId = socket.data.userId as string;
