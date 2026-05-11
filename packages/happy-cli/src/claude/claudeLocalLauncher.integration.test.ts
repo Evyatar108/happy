@@ -110,6 +110,8 @@ describe.skipIf(!claudeInstalled)('claudeLocalLauncher integration (Stop hook pl
             onThinkingChange: vi.fn(),
             addSessionFoundCallback: vi.fn(),
             removeSessionFoundCallback: vi.fn(),
+            addNotificationCallback: vi.fn(),
+            removeNotificationCallback: vi.fn(),
             consumeOneTimeFlags: vi.fn(),
             onTurnCompleted: async () => {
                 session.setTurnActive(false);

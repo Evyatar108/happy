@@ -155,11 +155,17 @@ const MessageMetaSchema = z.object({
   contextBoundaryFallback: z.boolean().optional()
 });
 
+const UserMessageAttachmentSchema = z.object({
+  type: z.literal("image"),
+  ref: z.string(),
+  mimeType: z.string().optional()
+});
 const UserMessageSchema = z.object({
   role: z.literal("user"),
   content: z.object({
     type: z.literal("text"),
-    text: z.string()
+    text: z.string(),
+    attachments: z.array(UserMessageAttachmentSchema).optional()
   }),
   localKey: z.string().optional(),
   meta: MessageMetaSchema.optional()

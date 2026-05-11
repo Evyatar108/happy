@@ -239,11 +239,18 @@ export const CreateSessionResponseSchema = z.object({
 
 export type CreateSessionResponse = z.infer<typeof CreateSessionResponseSchema>
 
+const UserMessageAttachmentSchema = z.object({
+  type: z.literal('image'),
+  ref: z.string(),
+  mimeType: z.string().optional()
+})
+
 export const UserMessageSchema = z.object({
   role: z.literal('user'),
   content: z.object({
     type: z.literal('text'),
-    text: z.string()
+    text: z.string(),
+    attachments: z.array(UserMessageAttachmentSchema).optional()
   }),
   localKey: z.string().optional(), // Mobile messages include this
   messageId: z.string().optional(),

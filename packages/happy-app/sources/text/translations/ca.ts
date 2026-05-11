@@ -281,6 +281,8 @@ export const ca: TranslationStructure = {
         commandPaletteDisabled: 'Accés ràpid a comandes desactivat',
         markdownCopyV2: 'Markdown Copy v2',
         markdownCopyV2Subtitle: 'Pulsació llarga obre modal de còpia',
+        unifiedNewSessionComposer: 'Compositor unificat de sessió nova',
+        unifiedNewSessionComposerSubtitle: 'Utilitza el compositor compartit a la pantalla de sessió nova',
         hideInactiveSessions: 'Amaga les sessions inactives',
         hideInactiveSessionsSubtitle: 'Mostra només els xats actius a la llista',
         privacy: 'Privadesa',
@@ -323,6 +325,9 @@ export const ca: TranslationStructure = {
         attachmentPerFileTooLarge: 'Cada adjunt ha de tenir 25 MB o menys',
         attachmentTotalTooLarge: 'Els adjunts han de sumar 100 MB o menys',
         attachmentUploadFailed: 'No s\'ha pogut adjuntar el fitxer. Torneu-ho a provar.',
+        attachmentTooLarge: 'Image attachments must be 4 MB or smaller',
+        attachmentUnsupportedType: 'Only JPEG and PNG images can be attached',
+        attachmentPickFailed: 'Failed to attach image',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -349,6 +354,7 @@ export const ca: TranslationStructure = {
         title: 'Iniciar nova sessió',
         selectMachineRequired: 'Selecciona una màquina',
         machineOffline: 'La màquina està fora de línia',
+        imageAttachment: 'Image attachment',
         switchMachinesHint: '• Canvia de màquina fent clic a la màquina de dalt',
     },
 

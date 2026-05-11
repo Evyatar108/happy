@@ -10,6 +10,7 @@ import {
 type IntegrationEnvironmentProfile = {
     template: EnvironmentTemplate;
     up: boolean;
+    web?: boolean;
 };
 
 declare global {

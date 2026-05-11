@@ -2,6 +2,10 @@ import * as React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+// Opt out of the global `vi.mock('@/hooks/useFileAttachment', ...)` from
+// `_test-stubs/setup.ts` — this spec exercises the real hook.
+vi.unmock('@/hooks/useFileAttachment');
+
 const reactActEnvironment = globalThis as typeof globalThis & {
     IS_REACT_ACT_ENVIRONMENT?: boolean;
 };

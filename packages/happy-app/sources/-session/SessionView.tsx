@@ -25,6 +25,8 @@ import { Modal } from '@/modal';
 import { voiceHooks } from '@/realtime/hooks/voiceHooks';
 import { getCurrentVoiceConversationId, getCurrentVoiceSessionDurationSeconds, startRealtimeSession, stopRealtimeSession } from '@/realtime/RealtimeSession';
 import { shouldShowBoundaryAdvisory, updateComposeStartAt } from './composeBoundaryAdvisory';
+import { getActiveSessionPathSurfaces } from './SessionViewPathSurfaces';
+import { emitActiveAgentConfigurationSelection } from './activeAgentConfiguration';
 import { gitStatusSync } from '@/sync/gitStatusSync';
 import { cancelPendingSwitch, requestSwitch, sessionAbort, sessionEmitAgentConfiguration, sessionWriteFile } from '@/sync/ops';
 import { storage, useIsDataReady, useLatestBoundary, useLocalSetting, useLocalSettingMutable, useMachine, useRealtimeStatus, useSessionMessages, useSessionUsage, useSetting } from '@/sync/storage';
@@ -41,7 +43,7 @@ import { useDeviceType, useHeaderHeight, useIsLandscape, useIsTablet } from '@/u
 import { FilesSidebar } from '@/components/FilesSidebar';
 import { prefetchPierreDiff } from '@/components/diff/PierreDiffView';
 import { GitFileStatus } from '@/sync/gitStatusFiles';
-import { formatPathRelativeToHome, getResumeCommandBlock, getSessionAvatarId, getSessionMode, getSessionName, useSessionStatus } from '@/utils/sessionUtils';
+import { getResumeCommandBlock, getSessionAvatarId, getSessionMode, getSessionName, useSessionStatus } from '@/utils/sessionUtils';
 import { useSessionQuickActions } from '@/hooks/useSessionQuickActions';
 import { isVersionSupported, MINIMUM_CLI_VERSION } from '@/utils/versionUtils';
 import { encodeBase64Url } from '@/utils/base64url';
@@ -82,6 +84,7 @@ export const SessionView = React.memo((props: { id: string }) => {
     const { isExpanded: sidebarExpanded } = useSidebar();
     const showVoiceInSession = !isTablet || !sidebarExpanded;
     const { width: windowWidth } = useWindowDimensions();
+    const unifiedNewSessionComposer = useLocalSetting('unifiedNewSessionComposer');
     const [sessionActionsAnchor, setSessionActionsAnchor] = React.useState<SessionActionsAnchor | null>(null);
     const fileDiffsSidebarEnabled = useSetting('fileDiffsSidebar');
 
@@ -123,6 +126,12 @@ export const SessionView = React.memo((props: { id: string }) => {
     }, []);
 
     // Compute header props based on session state
+    const pathSurfaces = useMemo(() => getActiveSessionPathSurfaces({
+        session,
+        unifiedNewSessionComposer,
+        projectPathHeaderMaxChars: windowWidth < 420 ? 28 : 48,
+    }), [session, unifiedNewSessionComposer, windowWidth]);
+
     const headerProps = useMemo(() => {
         if (!isDataReady) {
             return {
@@ -149,7 +158,7 @@ export const SessionView = React.memo((props: { id: string }) => {
         const isConnected = session.presence === 'online';
         return {
             title: getSessionName(session),
-            subtitle: session.metadata?.path ? formatPathRelativeToHome(session.metadata.path, session.metadata?.homeDir) : undefined,
+            subtitle: pathSurfaces.chatHeaderSubtitle,
             avatarId: getSessionAvatarId(session),
             onAvatarPress: () => router.push(`/session/${sessionId}/info`),
             isConnected: isConnected,
@@ -160,7 +169,7 @@ export const SessionView = React.memo((props: { id: string }) => {
             pinnedAvatarColorIndex: session.pinnedAvatarColorIndex,
             tintColor: isConnected ? '#000' : '#8E8E93'
         };
-    }, [session, isDataReady, sessionId, router]);
+    }, [session, isDataReady, sessionId, router, pathSurfaces.chatHeaderSubtitle]);
 
     const mainContent = (
         <>
@@ -233,7 +242,12 @@ export const SessionView = React.memo((props: { id: string }) => {
                         <Text style={{ color: theme.colors.textSecondary, fontSize: 15, marginTop: 8, textAlign: 'center', paddingHorizontal: 32 }}>{t('errors.sessionDeletedDescription')}</Text>
                     </View>
                 ) : (
-                    <SessionViewLoaded key={sessionId} sessionId={sessionId} session={session} />
+                    <SessionViewLoaded
+                        key={sessionId}
+                        sessionId={sessionId}
+                        session={session}
+                        projectPathHeader={pathSurfaces.agentInputProjectPathHeader}
+                    />
                 )}
             </View>
             {Platform.OS === 'web' && session && (
@@ -279,7 +293,7 @@ export const SessionView = React.memo((props: { id: string }) => {
 
 const SIDEBAR_MIN_WINDOW_WIDTH = 1100;
 
-function SessionViewLoaded({ sessionId, session }: { sessionId: string, session: Session }) {
+function SessionViewLoaded({ sessionId, session, projectPathHeader }: { sessionId: string, session: Session, projectPathHeader?: string }) {
     const { theme } = useUnistyles();
     const router = useRouter();
     const safeArea = useSafeAreaInsets();
@@ -355,17 +369,6 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
             getDefaultModelKey(flavor),
         ])
     ), [availableModels, session.metadata?.currentModelCode, flavor]);
-    const drawerModelKey = drawerModelMode?.key ?? 'default';
-    const drawerAvailableEffortLevels = React.useMemo<EffortLevel[]>(() => (
-        getEffortLevelsForModel(flavor, drawerModelKey)
-    ), [flavor, drawerModelKey]);
-    const drawerEffortLevel = React.useMemo<EffortLevel | null>(() => (
-        resolveCurrentOption(drawerAvailableEffortLevels, [
-            session.metadata?.currentThoughtLevelCode,
-            getDefaultEffortKeyForModel(flavor, drawerModelKey),
-        ])
-    ), [drawerAvailableEffortLevels, session.metadata?.currentThoughtLevelCode, flavor, drawerModelKey]);
-
     const sessionStatus = useSessionStatus(session);
     const sessionUsage = useSessionUsage(sessionId);
     const alwaysShowContextSize = useSetting('alwaysShowContextSize');
@@ -462,21 +465,21 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
     // Function to update permission mode
     const updatePermissionMode = React.useCallback((mode: PermissionMode) => {
         storage.getState().updateSessionPermissionMode(sessionId, mode.key, true);
+        void emitActiveAgentConfigurationSelection({ sessionId, emitAgentConfiguration: sessionEmitAgentConfiguration }, { kind: 'permissionMode', option: mode })
+            .catch(() => Modal.alert(t('common.error'), t('drawer.applyFailed')));
     }, [sessionId]);
 
     const updateModelMode = React.useCallback((mode: ModelMode) => {
         storage.getState().updateSessionModelMode(sessionId, mode.key);
+        void emitActiveAgentConfigurationSelection({ sessionId, emitAgentConfiguration: sessionEmitAgentConfiguration }, { kind: 'model', option: mode })
+            .catch(() => Modal.alert(t('common.error'), t('drawer.applyFailed')));
     }, [sessionId]);
 
     const updateEffortLevel = React.useCallback((level: EffortLevel) => {
         storage.getState().updateSessionEffortLevel(sessionId, level.key);
+        void emitActiveAgentConfigurationSelection({ sessionId, emitAgentConfiguration: sessionEmitAgentConfiguration }, { kind: 'effortLevel', option: level })
+            .catch(() => Modal.alert(t('common.error'), t('drawer.applyFailed')));
     }, [sessionId]);
-
-    const emitAgentConfiguration = React.useCallback((config: {
-        permissionMode?: string;
-        model?: string;
-        thinkingLevel?: string;
-    }) => sessionEmitAgentConfiguration({ sessionId, ...config }), [sessionId]);
     const handleForkPress = React.useCallback(() => {
         router.push(`/session/${sessionId}/fork-composer`);
     }, [router, sessionId]);
@@ -611,6 +614,8 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
 
     const composer = (
         <AgentInput
+            mode="active"
+            projectPathHeader={projectPathHeader}
             placeholder={t('session.inputPlaceholder')}
             value={message}
             onChangeText={handleChangeMessage}
@@ -757,25 +762,14 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                 machineName={machineName}
                 workdirPath={session.metadata?.path}
                 modelMode={drawerModelMode}
-                availableModels={availableModels}
                 permissionMode={drawerPermissionMode}
-                availableModes={availableModes}
-                effortLevel={drawerEffortLevel}
-                availableEffortLevels={drawerAvailableEffortLevels}
                 canResume={canResume}
                 resumeAvailability={resumeAvailability}
                 resumeCommandBlock={resumeCommandBlock}
-                sessionId={sessionId}
                 session={session}
                 machine={sessionMachine}
-                iconPinned={iconPinned}
                 onForkPress={handleForkPress}
-                onIconPinnedToggle={handleIconPinnedToggle}
-                updatePermissionMode={updatePermissionMode}
-                updateModelMode={updateModelMode}
-                updateEffortLevel={updateEffortLevel}
                 resumeSessionInline={resumeSessionInline}
-                sessionEmitAgentConfiguration={emitAgentConfiguration}
             />
         </CenteredInputWidth>
     );

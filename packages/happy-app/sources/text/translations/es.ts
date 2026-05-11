@@ -281,6 +281,8 @@ export const es: TranslationStructure = {
         commandPaletteDisabled: 'Acceso rápido a comandos deshabilitado',
         markdownCopyV2: 'Markdown Copy v2',
         markdownCopyV2Subtitle: 'Pulsación larga abre modal de copiado',
+        unifiedNewSessionComposer: 'Compositor unificado de sesión nueva',
+        unifiedNewSessionComposerSubtitle: 'Usa el compositor compartido en la pantalla de sesión nueva',
         hideInactiveSessions: 'Ocultar sesiones inactivas',
         hideInactiveSessionsSubtitle: 'Muestra solo los chats activos en tu lista',
         privacy: 'Privacidad',
@@ -323,6 +325,9 @@ export const es: TranslationStructure = {
         attachmentPerFileTooLarge: 'Cada adjunto debe tener 25 MB o menos',
         attachmentTotalTooLarge: 'Los adjuntos deben sumar 100 MB o menos',
         attachmentUploadFailed: 'No se pudo adjuntar el archivo. Intentalo de nuevo.',
+        attachmentTooLarge: 'Image attachments must be 4 MB or smaller',
+        attachmentUnsupportedType: 'Only JPEG and PNG images can be attached',
+        attachmentPickFailed: 'Failed to attach image',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -349,6 +354,7 @@ export const es: TranslationStructure = {
         title: 'Iniciar nueva sesión',
         selectMachineRequired: 'Selecciona una máquina',
         machineOffline: 'La máquina está desconectada',
+        imageAttachment: 'Image attachment',
         switchMachinesHint: '• Cambia de máquina haciendo clic en la máquina de arriba',
     },
 

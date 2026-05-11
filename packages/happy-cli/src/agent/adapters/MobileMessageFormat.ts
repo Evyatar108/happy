@@ -36,6 +36,11 @@ export interface MobileMessageMeta {
 export interface MobileUserContent {
   type: 'text';
   text: string;
+  attachments?: Array<{
+    type: 'image';
+    ref: string;
+    mimeType?: string;
+  }>;
 }
 
 /**

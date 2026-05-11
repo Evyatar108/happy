@@ -13,6 +13,7 @@ export default function FeaturesSettingsScreen() {
     const [agentInputEnterToSend, setAgentInputEnterToSend] = useSettingMutable('agentInputEnterToSend');
     const [commandPaletteEnabled, setCommandPaletteEnabled] = useLocalSettingMutable('commandPaletteEnabled');
     const [markdownCopyV2, setMarkdownCopyV2] = useLocalSettingMutable('markdownCopyV2');
+    const [unifiedNewSessionComposer, setUnifiedNewSessionComposer] = useLocalSettingMutable('unifiedNewSessionComposer');
     const [hideInactiveSessions, setHideInactiveSessions] = useSettingMutable('hideInactiveSessions');
     const [fileDiffsSidebar, setFileDiffsSidebar] = useSettingMutable('fileDiffsSidebar');
 
@@ -62,6 +63,18 @@ export default function FeaturesSettingsScreen() {
                         <Switch
                             value={markdownCopyV2}
                             onValueChange={setMarkdownCopyV2}
+                        />
+                    }
+                    showChevron={false}
+                />
+                <Item
+                    title={t('settingsFeatures.unifiedNewSessionComposer')}
+                    subtitle={t('settingsFeatures.unifiedNewSessionComposerSubtitle')}
+                    icon={<Ionicons name="create-outline" size={29} color="#5856D6" />}
+                    rightElement={
+                        <Switch
+                            value={unifiedNewSessionComposer}
+                            onValueChange={setUnifiedNewSessionComposer}
                         />
                     }
                     showChevron={false}

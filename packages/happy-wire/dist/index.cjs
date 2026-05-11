@@ -176,11 +176,17 @@ const MessageMetaSchema = z__namespace.object({
   contextBoundaryFallback: z__namespace.boolean().optional()
 });
 
+const UserMessageAttachmentSchema = z__namespace.object({
+  type: z__namespace.literal("image"),
+  ref: z__namespace.string(),
+  mimeType: z__namespace.string().optional()
+});
 const UserMessageSchema = z__namespace.object({
   role: z__namespace.literal("user"),
   content: z__namespace.object({
     type: z__namespace.literal("text"),
-    text: z__namespace.string()
+    text: z__namespace.string(),
+    attachments: z__namespace.array(UserMessageAttachmentSchema).optional()
   }),
   localKey: z__namespace.string().optional(),
   meta: MessageMetaSchema.optional()

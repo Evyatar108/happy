@@ -279,6 +279,8 @@ export const en = {
         commandPaletteDisabled: 'Quick command access disabled',
         markdownCopyV2: 'Markdown Copy v2',
         markdownCopyV2Subtitle: 'Long press opens copy modal',
+        unifiedNewSessionComposer: 'Unified New Session Composer',
+        unifiedNewSessionComposerSubtitle: 'Use the shared composer on the new-session screen',
         hideInactiveSessions: 'Hide inactive sessions',
         hideInactiveSessionsSubtitle: 'Show only active chats in your list',
         privacy: 'Privacy',
@@ -321,6 +323,9 @@ export const en = {
         attachmentPerFileTooLarge: 'Each attachment must be 25 MB or smaller',
         attachmentTotalTooLarge: 'Attachments must total 100 MB or less',
         attachmentUploadFailed: 'Could not attach file. Please try again.',
+        attachmentTooLarge: 'Image attachments must be 4 MB or smaller',
+        attachmentUnsupportedType: 'Only JPEG and PNG images can be attached',
+        attachmentPickFailed: 'Failed to attach image',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -348,6 +353,7 @@ export const en = {
         selectMachineRequired: 'Please select a machine',
         machineOffline: 'Machine is offline',
         switchMachinesHint: '• Switch machines by clicking on the machine above',
+        imageAttachment: 'Image attachment',
     },
 
     sessionHistory: {

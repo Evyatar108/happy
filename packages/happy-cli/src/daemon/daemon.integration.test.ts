@@ -52,7 +52,7 @@ async function stopAllTrackedSessions(): Promise<void> {
   );
 }
 
-describe('Daemon Integration Tests', { timeout: 180_000 }, () => {
+describe.skipIf(!integrationEnv.authenticated)('Daemon Integration Tests', { timeout: 180_000 }, () => {
   let daemonPid: number;
 
   beforeEach(async () => {

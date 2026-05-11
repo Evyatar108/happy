@@ -24,6 +24,18 @@ export function createPlanModeFixture(): { dir: string; cleanup: () => void } {
     execSync('git init && git add -A && git commit -m "init"', { cwd: dir, stdio: 'ignore' });
     return {
         dir,
-        cleanup: () => rmSync(dir, { force: true, recursive: true }),
+        cleanup: () => {
+            for (let attempt = 0; attempt < 10; attempt++) {
+                try {
+                    rmSync(dir, { force: true, recursive: true });
+                    return;
+                } catch (error) {
+                    if (attempt === 9 || !(error instanceof Error) || !['EBUSY', 'ENOTEMPTY', 'EPERM'].includes((error as NodeJS.ErrnoException).code ?? '')) {
+                        throw error;
+                    }
+                    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+                }
+            }
+        },
     };
 }

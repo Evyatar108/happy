@@ -386,7 +386,7 @@ describe.skipIf(!gatewayAvailable)('OpenClaw integration - full message pipeline
 
 // ── 4. Daemon lifecycle ─────────────────────────────────────────────────────
 
-describe.skipIf(!gatewayAvailable)('OpenClaw integration - daemon lifecycle', { timeout: 30000 }, () => {
+describe.skipIf(!gatewayAvailable || !integrationEnv.authenticated)('OpenClaw integration - daemon lifecycle', { timeout: 30000 }, () => {
   it('should spawn openclaw session via daemon and stop it cleanly', async () => {
     const daemonRunning = await isDaemonRunning();
     if (!daemonRunning) {

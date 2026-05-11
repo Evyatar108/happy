@@ -346,7 +346,7 @@ export async function createEnvironment(opts?: { noSwitch?: boolean }): Promise<
     return name;
 }
 
-export async function startEnvironmentServices(name: string): Promise<void> {
+export async function startEnvironmentServices(name: string, opts?: { web?: boolean }): Promise<void> {
     const envDir = getEnvironmentDir(name);
     const config = readEnvironmentConfig(name);
     const envVars = buildEnvVars(envDir, config.serverPort, config.expoPort);
@@ -371,6 +371,10 @@ export async function startEnvironmentServices(name: string): Promise<void> {
         throw new Error(`Server failed to start. Check logs: ${serverLogFile}`);
     }
     console.log(`  Server is healthy.`);
+
+    if (opts?.web === false) {
+        return;
+    }
 
     const webLogFile = path.join(envDir, "web", "stdout.log");
     fs.mkdirSync(path.join(envDir, "web"), { recursive: true });

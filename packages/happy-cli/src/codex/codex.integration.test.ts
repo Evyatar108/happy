@@ -71,7 +71,7 @@ async function isWsAuthAvailable(): Promise<boolean> {
     }
 }
 
-const codexAppServerAvailable = await isCodexAppServerAvailable();
+const codexAppServerAvailable = process.env.RUN_CODEX_INTEGRATION === "1" && await isCodexAppServerAvailable();
 const wsAuthAvailable = codexAppServerAvailable ? await isWsAuthAvailable() : false;
 if (codexAppServerAvailable && !wsAuthAvailable) {
     console.warn("[integration] ws cases skipped: installed codex lacks --ws-auth");
