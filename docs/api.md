@@ -12,10 +12,10 @@ We intentionally avoid the full REST verb palette because many operations span m
 ## Authentication
 Most endpoints require `X-Tunnel-Authorization: tunnel <claim>`, where `<claim>` is a base64url-encoded JSON object minted by the embedded happy-server during pairing.
 
-The claim is an unsigned identity envelope (intentionally not a signed JWT) with the shape `{ sub, gh, iat }`:
+The claim is a base64url-encoded Ed25519-signed envelope `{ p: base64url(payload), s: hex(signature) }` where payload is `{ sub, iat, accountId? }`:
 - `sub` — local machine/user id; must match the embedded server's `localUserId`.
-- `gh` — GitHub login captured at pairing time.
 - `iat` — issued-at, in seconds since epoch. Claims older than 24 hours are rejected.
+- `accountId` — optional GitHub numeric user id derived from the `/pair/status` GitHub user response.
 
 The authenticate hook (`packages/happy-server/sources/app/api/api.ts`) parses the header, validates `sub` against the local server identity, and rejects expired or malformed envelopes with `401`.
 
