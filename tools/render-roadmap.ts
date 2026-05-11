@@ -2,6 +2,9 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// Intentional src-path import: root-level tools/*.ts run outside pnpm workspace module
+// resolution so @slopus/happy-wire is not resolvable here without extra wiring. Importing
+// the TypeScript source directly is the approved pattern for this directory (see progress.txt).
 import { LedgerRecordSchema, type LedgerRecord } from '../packages/happy-wire/src/ledger';
 
 export const RALPH_RENDER_SECTION_START = '<!-- ralph-render-section:start -->';
