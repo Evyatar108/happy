@@ -104,9 +104,12 @@ describe('monitor', () => {
     });
 
     it('classifies active, idle, pending-permission, and validation states from session state plus ledger records', () => {
-        expect(classifySession({ turnActive: true }, { controlledByUser: false, requests: {} }, [])).toBe('active');
-        expect(classifySession({ turnActive: false }, { controlledByUser: false, requests: {} }, [])).toBe('idle');
-        expect(classifySession({ turnActive: false }, { controlledByUser: false, requests: { req1: {} } }, [])).toBe('pending-permission');
+        expect(classifySession({ turnActive: true }, { controlledByUser: false, requests: {} }, []))
+            .toEqual({ active: true, pendingPermission: false, hasValidationEvidence: false });
+        expect(classifySession({ turnActive: false }, { controlledByUser: false, requests: {} }, []))
+            .toEqual({ active: false, pendingPermission: false, hasValidationEvidence: false });
+        expect(classifySession({ turnActive: false }, { controlledByUser: false, requests: { req1: {} } }, []))
+            .toEqual({ active: false, pendingPermission: true, hasValidationEvidence: false });
         expect(classifySession({ turnActive: false }, { controlledByUser: false, requests: {} }, [{
             runId: 'run-1',
             sessionId: 'session-1',
@@ -116,7 +119,15 @@ describe('monitor', () => {
             testReference: 'test',
             verificationUrl: 'https://example.com/verify',
             caveats: [],
-        }])).toBe('has-validation-evidence');
+        }])).toEqual({ active: false, pendingPermission: false, hasValidationEvidence: true });
+        expect(classifySession({ turnActive: true }, { controlledByUser: false, requests: { req1: {} } }, [{
+            runId: 'run-1',
+            sessionId: 'session-1',
+            timestamp: '2026-05-10T20:00:00.000Z',
+            eventType: 'validation-attached',
+            testReference: 'test',
+            verificationUrl: 'https://example.com/verify',
+        }])).toEqual({ active: true, pendingPermission: true, hasValidationEvidence: true });
     });
 
     it('locks the fixture-selected last-output heuristic to assistant text', async () => {
@@ -180,7 +191,7 @@ describe('monitor', () => {
                 verificationUrl: 'https://example.com/verify',
             })}\n`, 'utf8');
             const snapshots = await runMonitorOnce(config, creds, 'run-1', makeDeps());
-            expect(snapshots[0].state).toBe('has-validation-evidence');
+            expect(snapshots[0].state.hasValidationEvidence).toBe(true);
         });
     });
 

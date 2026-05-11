@@ -208,7 +208,7 @@ program
             '',
             ...snapshots.map(snapshot => [
                 `### ${snapshot.sessionId}`,
-                `- State: ${snapshot.state}`,
+                `- Active: ${snapshot.state.active}, Pending Permission: ${snapshot.state.pendingPermission}, Validation Evidence: ${snapshot.state.hasValidationEvidence}`,
                 `- Pending Requests: ${snapshot.requestIds.length}`,
                 `- Last Output: ${snapshot.lastOutputSummary ?? '-'}`,
             ].join('\n')),

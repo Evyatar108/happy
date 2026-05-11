@@ -12,6 +12,12 @@ import { appendLedgerRecord } from './ledger/writer';
 export type MonitorClass = 'active' | 'idle' | 'pending-permission' | 'has-validation-evidence';
 export type OutputHeuristic = 'assistant-text' | 'tool-result' | 'server-summary';
 
+export type MonitorSignals = {
+    active: boolean;
+    pendingPermission: boolean;
+    hasValidationEvidence: boolean;
+};
+
 type AgentState = {
     controlledByUser?: unknown;
     requests?: unknown;
@@ -26,7 +32,7 @@ type SessionMetadata = {
 
 export type MonitorSnapshot = {
     sessionId: string;
-    state: MonitorClass;
+    state: MonitorSignals;
     lastOutputSummary: string | null;
     lastOutputHeuristic: OutputHeuristic | null;
     requestIds: string[];
@@ -90,23 +96,13 @@ export function hasValidationEvidence(records: readonly LedgerRecord[]): boolean
     return records.some(record => record.eventType === 'validation-attached' || record.eventType === 'done');
 }
 
-export function classifySession(metadata: unknown, agentState: unknown, ledgerRecords: readonly LedgerRecord[]): MonitorClass {
-    if (hasValidationEvidence(ledgerRecords)) {
-        return 'has-validation-evidence';
-    }
-
-    const requestIds = getRequestIds(agentState);
-    if (requestIds.length > 0) {
-        return 'pending-permission';
-    }
-
+export function classifySession(metadata: unknown, agentState: unknown, ledgerRecords: readonly LedgerRecord[]): MonitorSignals {
     const meta = metadata as SessionMetadata | null;
     const state = agentState as AgentState | null;
-    if (meta?.turnActive === true || state?.controlledByUser === true) {
-        return 'active';
-    }
-
-    return 'idle';
+    const active = meta?.turnActive === true || state?.controlledByUser === true;
+    const pendingPermission = getRequestIds(agentState).length > 0;
+    const validationEvidence = hasValidationEvidence(ledgerRecords);
+    return { active, pendingPermission, hasValidationEvidence: validationEvidence };
 }
 
 function asText(value: unknown): string | null {
@@ -198,10 +194,11 @@ async function appendMonitorRecords(
     timestamp: string,
 ): Promise<void> {
     const base = { runId, sessionId: snapshot.sessionId, timestamp };
-    if (snapshot.state === 'idle') {
+    const { active, pendingPermission, hasValidationEvidence } = snapshot.state;
+    if (!active && !pendingPermission && !hasValidationEvidence) {
         await deps.appendLedgerRecord(runId, snapshot.sessionId, { ...base, eventType: 'idle-reached', queueDepth: 0 });
     }
-    if (snapshot.state === 'pending-permission') {
+    if (pendingPermission) {
         await deps.appendLedgerRecord(runId, snapshot.sessionId, {
             ...base,
             eventType: 'pending-permission',
@@ -315,10 +312,13 @@ type FixtureRecording = {
     samples: FixtureSample[];
 };
 
+export type SignalScore = { samples: number; errors: number; errorRate: number };
+
 export type MonitorFixtureEvaluation = {
     samples: number;
     stateErrors: number;
     misclassificationRate: number;
+    signalScores: Record<keyof MonitorSignals, SignalScore>;
     heuristicScores: Record<OutputHeuristic, { samples: number; errors: number; errorRate: number }>;
     selectedHeuristic: OutputHeuristic;
 };
@@ -328,12 +328,25 @@ export async function loadMonitorFixture(fixtureDir: string): Promise<FixtureRec
     return Promise.all(entries.map(async (entry) => JSON.parse(await readFile(join(fixtureDir, entry), 'utf8')) as FixtureRecording));
 }
 
+function labelToExpectedSignals(label: MonitorClass): MonitorSignals {
+    return {
+        active: label === 'active',
+        pendingPermission: label === 'pending-permission',
+        hasValidationEvidence: label === 'has-validation-evidence',
+    };
+}
+
 export async function evaluateMonitorFixture(fixtureDir: string): Promise<MonitorFixtureEvaluation> {
     const recordings = await loadMonitorFixture(fixtureDir);
     const heuristicScores: MonitorFixtureEvaluation['heuristicScores'] = {
         'assistant-text': { samples: 0, errors: 0, errorRate: 0 },
         'tool-result': { samples: 0, errors: 0, errorRate: 0 },
         'server-summary': { samples: 0, errors: 0, errorRate: 0 },
+    };
+    const signalScores: MonitorFixtureEvaluation['signalScores'] = {
+        active: { samples: 0, errors: 0, errorRate: 0 },
+        pendingPermission: { samples: 0, errors: 0, errorRate: 0 },
+        hasValidationEvidence: { samples: 0, errors: 0, errorRate: 0 },
     };
     let samples = 0;
     let stateErrors = 0;
@@ -342,7 +355,17 @@ export async function evaluateMonitorFixture(fixtureDir: string): Promise<Monito
         for (const sample of recording.samples) {
             samples += 1;
             const actual = classifySession(sample.metadata, sample.agentState, sample.ledgerRecords ?? []);
-            if (actual !== sample.label) stateErrors += 1;
+            const expected = labelToExpectedSignals(sample.label);
+            let sampleHasError = false;
+            for (const signal of Object.keys(signalScores) as Array<keyof MonitorSignals>) {
+                const score = signalScores[signal];
+                score.samples += 1;
+                if (actual[signal] !== expected[signal]) {
+                    score.errors += 1;
+                    sampleHasError = true;
+                }
+            }
+            if (sampleHasError) stateErrors += 1;
 
             if (sample.expectedLastOutput) {
                 for (const heuristic of Object.keys(heuristicScores) as OutputHeuristic[]) {
@@ -359,6 +382,9 @@ export async function evaluateMonitorFixture(fixtureDir: string): Promise<Monito
     for (const score of Object.values(heuristicScores)) {
         score.errorRate = score.samples === 0 ? 0 : score.errors / score.samples;
     }
+    for (const score of Object.values(signalScores)) {
+        score.errorRate = score.samples === 0 ? 0 : score.errors / score.samples;
+    }
 
     const selectedHeuristic = (Object.keys(heuristicScores) as OutputHeuristic[])
         .sort((a, b) => heuristicScores[a].errorRate - heuristicScores[b].errorRate || a.localeCompare(b))[0];
@@ -367,6 +393,7 @@ export async function evaluateMonitorFixture(fixtureDir: string): Promise<Monito
         samples,
         stateErrors,
         misclassificationRate: samples === 0 ? 0 : stateErrors / samples,
+        signalScores,
         heuristicScores,
         selectedHeuristic,
     };
