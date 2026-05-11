@@ -1,5 +1,5 @@
 import fastify from "fastify";
-import { mkdtemp, writeFile } from "fs/promises";
+import { mkdtemp, utimes, writeFile } from "fs/promises";
 import os from "os";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -57,6 +57,33 @@ describe("verifyLoopbackCapability", () => {
 
         expect(response.statusCode).toBe(200);
         expect(response.json()).toEqual({ userId: "machine-1" });
+    });
+
+    it("detects token rotation mid-run: old token rejected, new token accepted", async () => {
+        const firstRequest = await app.inject({
+            method: "GET",
+            url: "/loopback",
+            headers: { "X-Loopback-Capability": "secret-token" },
+        });
+        expect(firstRequest.statusCode).toBe(200);
+
+        const newMtime = new Date(Date.now() + 2000);
+        await writeFile(capabilityPath, "rotated-token\n", { mode: 0o600 });
+        await utimes(capabilityPath, newMtime, newMtime);
+
+        const oldTokenRequest = await app.inject({
+            method: "GET",
+            url: "/loopback",
+            headers: { "X-Loopback-Capability": "secret-token" },
+        });
+        expect(oldTokenRequest.statusCode).toBe(401);
+
+        const newTokenRequest = await app.inject({
+            method: "GET",
+            url: "/loopback",
+            headers: { "X-Loopback-Capability": "rotated-token" },
+        });
+        expect(newTokenRequest.statusCode).toBe(200);
     });
 });
 

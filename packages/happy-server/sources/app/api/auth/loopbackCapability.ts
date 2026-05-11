@@ -1,4 +1,4 @@
-import { readFile } from "fs/promises";
+import { readFile, stat } from "fs/promises";
 
 export interface LoopbackCapabilityPaths {
     loopbackCap?: string;
@@ -6,15 +6,18 @@ export interface LoopbackCapabilityPaths {
 
 export function verifyLoopbackCapability(paths: LoopbackCapabilityPaths = {}, localUserId: string = "") {
     let cachedToken: string | null = null;
+    let cachedMtimeMs: number | null = null;
 
     async function readCapability(): Promise<string | null> {
-        if (cachedToken !== null) {
-            return cachedToken;
-        }
         if (!paths.loopbackCap) {
             return null;
         }
+        const fileStat = await stat(paths.loopbackCap);
+        if (cachedToken !== null && cachedMtimeMs === fileStat.mtimeMs) {
+            return cachedToken;
+        }
         cachedToken = (await readFile(paths.loopbackCap, "utf-8")).trim();
+        cachedMtimeMs = fileStat.mtimeMs;
         return cachedToken;
     }
 
