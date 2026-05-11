@@ -3,6 +3,7 @@ import { isAbsolute, join } from 'node:path';
 
 import type { SpawnInWorktreeOptions, SpawnSessionResult } from '@/modules/common/registerCommonHandlers';
 import { logger } from '@/ui/logger';
+import { appendLedgerRecord } from '@/ledger/writer';
 import { generateWorktreeName } from './worktreeNames';
 import {
   createWorktreeTransaction,
@@ -137,6 +138,31 @@ export async function spawnInWorktree(options: SpawnInWorktreeOptions, deps: Spa
       pid: spawnedPid,
       sessionId: result.sessionId,
     });
+
+    try {
+      const prevProjectPath = process.env.HAPPY_PROJECT_PATH;
+      process.env.HAPPY_PROJECT_PATH = tx.repoPath;
+      try {
+        await appendLedgerRecord(tx.runId, result.sessionId, {
+          runId: tx.runId,
+          sessionId: result.sessionId,
+          timestamp: new Date().toISOString(),
+          eventType: 'spawn',
+          agent: options.agent,
+          projectPath: tx.repoPath,
+          worktreePath: tx.worktreePath,
+          branchName: tx.branchName,
+        });
+      } finally {
+        if (prevProjectPath === undefined) {
+          delete process.env.HAPPY_PROJECT_PATH;
+        } else {
+          process.env.HAPPY_PROJECT_PATH = prevProjectPath;
+        }
+      }
+    } catch (ledgerError) {
+      logger.debug(`[DAEMON WORKTREE] Failed to write spawn ledger record for session ${result.sessionId}: ${ledgerError instanceof Error ? ledgerError.message : ledgerError}`);
+    }
 
     return {
       type: 'success',
