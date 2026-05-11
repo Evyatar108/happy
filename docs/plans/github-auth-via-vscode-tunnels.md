@@ -1,7 +1,7 @@
 # GitHub-auth via VS Code / dev tunnels: replace pairing + E2E with tunnel-direct WS
 
-> **Status:** plan, not yet implemented. Captured 2026-05-02.
-> **Worktree:** main worktree at `C:\\harness-efforts\\codexu` (branch `main`). All three packages live in `packages/` of this single worktree — no sibling worktrees needed.
+> **Status:** Sprint A foundation plan in implementation. Original migration sketch captured 2026-05-02; reconciled for Sprint A on 2026-05-11.
+> **Worktree:** Sprint A implementation worktree at `C:\\harness-efforts\\codexu\\.ralph\\jobs\\devtunnels-A-foundation\\worktree` on branch `ralph/devtunnels-A-foundation`, branched from `ralph/fan-out-survivors`. The normal repo root remains `C:\\harness-efforts\\codexu`.
 > **Scope:** breaking architecture change. Replaces secret-key device pairing + end-to-end-encrypted relay with: GitHub OAuth identity, Microsoft Dev Tunnels as transport, happy-server demoted to a tiny directory service.
 > **Backward compatibility:** none. Existing pairings, sessions, messages, artifacts on happy-server are intentionally dropped (data migration is out of scope — the user accepted this in planning).
 
@@ -26,6 +26,22 @@ The user has chosen to discard that model and replace it with:
 - **End-to-end encryption is dropped.** Trust boundary becomes "GitHub-authenticated TLS to my own machine via Microsoft tunnel relay" — a strictly weaker but much simpler model.
 
 This doc is the implementation plan. It cites specific files to delete, modify, and create.
+
+## Sprint A reconciliation
+
+Sprint A is foundation-only. It stacks on `ralph/fan-out-survivors` and must not make the breaking app, agent, or CLI cutover yet. The coordinated deletion of legacy relay/encryption code is deferred to Sprints B+C+D; Sprint A only creates the shared abstractions, server factory/auth surfaces, dual-listener prerequisites, and documentation needed for that cutover.
+
+The authoritative Sprint A branch is `ralph/devtunnels-A-foundation`, with work happening in `C:\\harness-efforts\\codexu\\.ralph\\jobs\\devtunnels-A-foundation\\worktree`. The job directory `C:\\harness-efforts\\codexu\\.ralph\\jobs\\devtunnels-A-foundation` retains the plan and review artifacts from the v2/v8 planning loop.
+
+The US-A1 spike is recorded in `docs/spikes/devtunnel-api-discovery-result.md` and changes the implementation assumptions:
+
+- Dev Tunnels REST discovery works with a user-scoped GitHub token when called directly with `Authorization: github <token>`.
+- Dev Tunnels filters are named `labels`, not tags; Happy should create/list with a stable label such as `happy-machine`.
+- Dev Tunnels connect JWTs do not carry GitHub numeric identity. The decoded token contained tunnel metadata only (`clusterId`, `tunnelId`, `scp`, `exp`, `iss`, `nbf`).
+- Sprint A auth stories should derive `accountId` from the `api.github.com/user` response already in scope during `/pair/status`, without a cross-request identity cache.
+- Crash recovery should prefer persisted `tunnelId` reuse before creating or deleting tunnels.
+
+Sprint A therefore keeps `/pair/connect` unchanged, extends the Happy tunnel claim with optional `accountId`, derives that `accountId` unconditionally from `/pair/status`'s GitHub identity result, and treats Dev Tunnels JWT verification as transport-access validation rather than account identity.
 
 ---
 
@@ -213,11 +229,17 @@ The flow we want:
 
 **Recommended approach:** start with (a) (purer end-to-end GitHub auth, no Microsoft service principal needed). Spike it in a 1-day prototype before committing to the full plan. If (a) doesn't work, fall back to (b).
 
-This is the single biggest unknown in the plan. Mark it Phase 0.
+This was the single biggest unknown in the original plan. Sprint A resolved the identity/discovery part in `docs/spikes/devtunnel-api-discovery-result.md`: direct REST tunnel discovery with a user-scoped GitHub token works, but connect JWTs do not carry GitHub numeric identity. The remaining live-tunnel WebSocket round-trip belongs to later end-to-end migration work, not to Sprint A's foundation acceptance criteria.
 
-### Phase 0 decision gate
+### Sprint A spike decision
 
-The Phase 0 spike has two possible outcomes, and Phase 1 differs materially between them. **No Phase 1 code may merge until the spike result is documented in `docs/spikes/devtunnel-auth-result.md` and the matching branch below is selected.**
+The Sprint A spike result is documented in `docs/spikes/devtunnel-api-discovery-result.md`. For Sprint A, proceed with the following branch:
+
+- Use direct Dev Tunnels REST calls for user-token discovery and label-filtered tunnel listing.
+- Do not rely on Dev Tunnels connect JWTs for GitHub account identity.
+- Use the in-scope `api.github.com/user` result from `/pair/status` as the source for numeric `accountId` in Happy claims.
+
+The older Phase 0 path (a)/(b) split below is retained as background for the eventual app-to-live-tunnel cutover. It is no longer a blocker for Sprint A foundation stories.
 
 - **If path (a) works** (end-user GitHub bearer is accepted by `https://global.rel.tunnels.api.visualstudio.com/api/v1/tunnels/<id>/accessToken`): proceed with Phase 1 as written. happy-server has no Microsoft credential. happy-app does the token exchange itself. The directory routes (`POST /v1/machines/announce`, `GET /v1/machines`, `DELETE /v1/machines/:id`) are the only new server endpoints.
 
@@ -241,24 +263,25 @@ These four items must be resolved before any Phase 1 code lands; they cross ever
 | --- | --- | --- | --- |
 | 1 | OAuth App vs. GitHub App | **OAuth App** (faster setup, no per-org install dance; revisit only if org admins block it) | GitHub registration steps; redirect URL configuration; device-flow opt-in toggle |
 | 2 | Token contract: raw GH token vs. server-issued bearer | **Raw GH token everywhere** (per "Token contract" under "GitHub OAuth surfaces"; server returns the GitHub `access_token` from the callback as-is, and `Authorization: Bearer` carries it across all hops) | `auth.ts`, `enableAuthentication.ts`, `githubLogin.ts`, all `apiX.ts` clients, local Socket.IO `auth` handshake |
-| 3 | Dev Tunnels access path (a) vs (b) | **Decided by Phase 0 spike** (path (a) preferred; fall back to (b) per the "Phase 0 decision gate" above) | happy-server scope (no Microsoft credential vs. service-principal config); `apiSocket.ts` token-acquisition step; `docs/security-model.md` content |
+| 3 | Dev Tunnels identity/discovery path | **Resolved for Sprint A:** direct REST discovery works; connect JWT lacks GitHub numeric ID; derive `accountId` from `/pair/status`'s `api.github.com/user` result | US-A6/A7 auth claim design; no cross-request identity cache |
 | 4 | Local WS port policy | **Stable random per machine** (chosen on first daemon boot, persisted in `~/.happy/machine.json`, re-used across daemon restarts; `devtunnel host -p $PORT` reads from there) | `localWsServer.ts` listen logic; `tunnel.ts` invocation; `machine.json` schema |
 
 ### Branching and rollout strategy
 
-Because Happy is a daily-use system on the operator's BOOX tablets, the broken intermediate state between Phases 1 and 3 must not land on `main`. All work happens on a single feature branch with the new path layered **additively** before legacy code is removed:
+Because Happy is a daily-use system on the operator's BOOX tablets, the broken intermediate state between migration phases must not land on `main`. Sprint A happens on the dedicated foundation branch and layers changes additively before legacy code is removed:
 
-- **Branch**: `github-auth-tunnel`. All phase commits land here; `main` stays releasable throughout.
+- **Sprint A branch**: `ralph/devtunnels-A-foundation`, branched from `ralph/fan-out-survivors`.
+- **Historical full-migration branch name**: `github-auth-tunnel`; keep this as background only. Do not use it for the Sprint A Ralph job.
 - **Phase 1 lands additively**: new `/v1/machines/announce`, `/v1/machines`, `/v1/auth/github/*` routes ship alongside the existing relay/session routes. The legacy routes are *not* deleted in Phase 1's first commit; they remain registered so the operator's currently-running CLI and tablet keep working.
 - **Phases 2–3 opt-in via env flag**: the CLI and app each read `HAPPY_USE_TUNNEL=1` (CLI process env / app `expo-constants` config). When set, the new tunnel/Socket.IO path runs; when unset, the legacy relay path runs. Operator runs both side-by-side on the BOOX tablets to validate the new path before flipping the default.
 - **Final cutover commit**: after Phase 3's mechanical acceptance criteria pass *and* the Manual validation block succeeds on Air5C and TabXC, a single cleanup commit on the same branch (a) flips `HAPPY_USE_TUNNEL` default to `1`, (b) deletes the legacy relay/session/artifact/KV/feed/voice routes and Socket.IO server per the file-map "Delete entirely" lists, (c) removes the env-flag plumbing, (d) merges `github-auth-tunnel` to `main`. The acceptance criteria for Phase 1 (route 404s for deleted endpoints, no `Cannot find module` on bootstrap) become CI gates on this final commit, **not** on the Phase 1 first commit. Update each Phase 1 acceptance criterion accordingly: the `curl ... 404` checks (criterion #8) and the missing-module bootstrap check (criterion #2) only apply post-cutover.
 
-**Phase 0 — devtunnel auth spike (1 day, no production code):**
+**Historical Phase 0 — live-tunnel auth spike (deferred beyond Sprint A foundation):**
 - Stand up a throwaway Node WS server locally.
 - `devtunnel host` it with the user's GitHub identity.
 - From a second machine / RN sandbox, attempt to connect a WebSocket to the tunnel URL using only the user's GitHub bearer token. Validate path (a) above.
-- Write the result (path (a) worked / failed, evidence, chosen branch) to `docs/spikes/devtunnel-auth-result.md` per the **Phase 0 decision gate** above. Phase 1 cannot start until this file exists and selects (a) or (b).
-- **Exit criterion:** documented working WS round-trip from RN → tunnel → local Node gated by GitHub auth (path (a)), OR a documented failure of (a) plus a service-principal credential provisioned for path (b). No secret-key fallback either way.
+- Sprint A does not require this live WebSocket proof. Its completed spike is `docs/spikes/devtunnel-api-discovery-result.md`, which proved user-token REST discovery and ruled out connect-JWT account identity.
+- **Future exit criterion:** documented working WS round-trip from RN → tunnel → local Node gated by GitHub auth (path (a)), OR a documented failure of (a) plus a service-principal credential provisioned for path (b). No secret-key fallback either way.
 
 **Phase 1 — happy-server demolition (server-only, 2-3 days):**
 
@@ -473,6 +496,7 @@ The four blocker items have been pulled into the **Pre-implementation decisions*
 - [ ] Bundle `devtunnel` install instructions in the CLI's first-run output, or only print on missing-binary error?
 - [ ] Reintroduce push (`apiPush.ts` / `pushRoutes.ts`) for directory-heartbeat alerts in a follow-up — yes/no/when?
 - [ ] Drop `UploadedFile` in Phase 4 cleanup if no remaining uploader/reader exists in the app.
-- [ ] Phase 0 outcome (path a/b) recorded in `docs/spikes/devtunnel-auth-result.md`.
+- [x] Sprint A spike outcome recorded in `docs/spikes/devtunnel-api-discovery-result.md`: direct REST discovery works with user GitHub token; connect JWT lacks GitHub numeric identity; `/pair/status` GitHub user result is the accountId source.
+- [ ] Future live-tunnel WS path a/b outcome recorded when Sprints B+C+D exercise app-to-tunnel traffic.
 
 Update this section as decisions are made; don't leave it as "TBD" by the end of Phase 4.
