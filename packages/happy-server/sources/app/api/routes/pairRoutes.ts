@@ -181,28 +181,51 @@ function getGitHubClientId(): string {
     return clientId;
 }
 
-const PAIR_RATE_LIMIT_MAX = 5;
+const PAIR_START_RATE_LIMIT_MAX = 2;
+const PAIR_STATUS_RATE_LIMIT_MAX = 5;
 const PAIR_RATE_LIMIT_WINDOW_MS = 60_000;
-const pairRateBuckets = new Map<string, { count: number; windowStart: number }>();
+const pairStartRateBuckets = new Map<string, { count: number; windowStart: number }>();
+const pairStatusRateBuckets = new Map<string, { count: number; windowStart: number }>();
 
-function isPairRateLimited(ip: string, now: number): boolean {
-    const bucket = pairRateBuckets.get(ip);
+function isRateLimited(
+    buckets: Map<string, { count: number; windowStart: number }>,
+    key: string,
+    max: number,
+    now: number,
+): boolean {
+    const bucket = buckets.get(key);
     if (!bucket || now - bucket.windowStart >= PAIR_RATE_LIMIT_WINDOW_MS) {
-        pairRateBuckets.set(ip, { count: 1, windowStart: now });
-        if (pairRateBuckets.size > 1024) {
-            for (const [key, value] of pairRateBuckets) {
+        buckets.set(key, { count: 1, windowStart: now });
+        if (buckets.size > 1024) {
+            for (const [k, value] of buckets) {
                 if (now - value.windowStart >= PAIR_RATE_LIMIT_WINDOW_MS) {
-                    pairRateBuckets.delete(key);
+                    buckets.delete(k);
                 }
             }
         }
         return false;
     }
-    if (bucket.count >= PAIR_RATE_LIMIT_MAX) {
+    if (bucket.count >= max) {
         return true;
     }
     bucket.count += 1;
     return false;
+}
+
+function isPairStartRateLimited(ip: string, now: number): boolean {
+    return isRateLimited(pairStartRateBuckets, ip, PAIR_START_RATE_LIMIT_MAX, now);
+}
+
+function isPairStatusRateLimited(deviceCode: string, now: number): boolean {
+    return isRateLimited(pairStatusRateBuckets, deviceCode, PAIR_STATUS_RATE_LIMIT_MAX, now);
+}
+
+function isOwnerRequired(): boolean {
+    const explicit = process.env.HAPPY_REQUIRE_OWNER;
+    if (typeof explicit === "string" && explicit.length > 0) {
+        return explicit === "1" || explicit.toLowerCase() === "true";
+    }
+    return process.env.NODE_ENV === "production";
 }
 
 async function fetchGitHubUser(accessToken: string): Promise<GitHubUser> {
@@ -235,7 +258,7 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig, paths:
             },
         },
     }, async (request, reply) => {
-        if (isPairRateLimited(request.ip, Date.now())) {
+        if (isPairStartRateLimited(request.ip, Date.now())) {
             return reply.code(429).send({ error: "rate_limited" });
         }
         const body = new URLSearchParams({
@@ -293,8 +316,15 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig, paths:
             },
         },
     }, async (request, reply) => {
-        if (isPairRateLimited(request.ip, Date.now())) {
+        if (isPairStatusRateLimited(request.body.device_code, Date.now())) {
             return reply.code(429).send({ error: "rate_limited" });
+        }
+        const expectedOwnerEnv = process.env.HAPPY_TUNNEL_GITHUB_OWNER;
+        if (!expectedOwnerEnv || expectedOwnerEnv.length === 0) {
+            if (isOwnerRequired()) {
+                return reply.code(503).send({ error: "happy_tunnel_github_owner_unset" });
+            }
+            request.log.warn("HAPPY_TUNNEL_GITHUB_OWNER is unset; allowing any GitHub identity (non-production mode)");
         }
         const githubBody = new URLSearchParams({
             client_id: getGitHubClientId(),
@@ -325,8 +355,7 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig, paths:
         if (typeof githubUser.id !== "number") {
             return reply.code(502).send({ error: "github_identity_missing_id" });
         }
-        const expectedOwner = process.env.HAPPY_TUNNEL_GITHUB_OWNER;
-        if (expectedOwner && expectedOwner.toLowerCase() !== githubUser.login.toLowerCase()) {
+        if (expectedOwnerEnv && expectedOwnerEnv.toLowerCase() !== githubUser.login.toLowerCase()) {
             return reply.code(403).send({ error: "github_identity_does_not_own_tunnel" });
         }
 
