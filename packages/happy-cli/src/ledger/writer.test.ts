@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { readFileSync } from 'node:fs';
 
 import { LedgerRecordSchema } from '@slopus/happy-wire';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -106,6 +107,17 @@ describe('happy-cli ledger writer', () => {
 
     const jsonl = await readFile(join(repoRoot, '.ralph', 'state', runId, `${sessionId}.jsonl`), 'utf8');
     expect(LedgerRecordSchema.parse(JSON.parse(jsonl.trim()))).toMatchObject({ eventType: 'idle-reached' });
+  });
+
+  it('is byte-for-byte identical to the happy-agent copy (modulo the sibling-package name in the sync comment)', () => {
+    const normalize = (src: string) =>
+      src.replace(
+        /\/\/ This file is intentionally duplicated with the sibling in packages\/[^/]+\/src\/ledger\/writer\.ts/,
+        '// This file is intentionally duplicated with the sibling in packages/<other>/src/ledger/writer.ts',
+      );
+    const cliWriter = readFileSync(resolve(testDir, 'writer.ts'), 'utf8');
+    const agentWriter = readFileSync(resolve(testDir, '..', '..', '..', 'happy-agent', 'src', 'ledger', 'writer.ts'), 'utf8');
+    expect(normalize(cliWriter)).toBe(normalize(agentWriter));
   });
 
   it('keeps 10 concurrent process writers parseable with all 1000 records present', async () => {
