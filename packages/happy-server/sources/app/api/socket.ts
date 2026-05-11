@@ -16,18 +16,11 @@ import { accessKeyHandler } from "./socket/accessKeyHandler";
 import { sessionMessageRangeHandler } from "./socket/sessionMessageRangeHandler";
 import { verifyTunnelClaim, type TofuHandshakeConfig } from "./api";
 import { makeLoopbackTokenReader, type LoopbackCapabilityPaths } from "./auth/loopbackCapability";
+import { parseCorsOrigins } from "./utils/parseCorsOrigins";
 
 export interface StartSocketOptions {
     auth?: "tunnel" | "loopback";
     paths?: LoopbackCapabilityPaths;
-}
-
-function parseCorsOrigins(): string[] {
-    const raw = process.env.HAPPY_CORS_ORIGINS;
-    if (!raw) {
-        return [];
-    }
-    return raw.split(',').map(o => o.trim()).filter(o => o.length > 0);
 }
 
 export function configureRedisStreamsAdapter(io: Server): Redis | undefined {

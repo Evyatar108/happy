@@ -15,6 +15,7 @@ import { artifactsRoutes } from "./routes/artifactsRoutes";
 import { accessKeysRoutes } from "./routes/accessKeysRoutes";
 import { enableMonitoring } from "./utils/enableMonitoring";
 import { enableErrorHandlers } from "./utils/enableErrorHandlers";
+import { parseCorsOrigins } from "./utils/parseCorsOrigins";
 import { userRoutes } from "./routes/userRoutes";
 import { feedRoutes } from "./routes/feedRoutes";
 import { kvRoutes } from "./routes/kvRoutes";
@@ -54,14 +55,6 @@ export function createApi() {
         loggerInstance: logger,
         bodyLimit: 1024 * 1024 * 100, // 100MB
     });
-}
-
-function parseCorsOrigins(): string[] {
-    const raw = process.env.HAPPY_CORS_ORIGINS;
-    if (!raw) {
-        return [];
-    }
-    return raw.split(',').map(o => o.trim()).filter(o => o.length > 0);
 }
 
 export interface ConfigureApiOptions {
