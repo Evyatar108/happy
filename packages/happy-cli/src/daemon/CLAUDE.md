@@ -22,7 +22,7 @@ Control Flow:
    - State persistence: writes PID, version, HTTP port to daemon.state.json
    - HTTP server: starts on random port for local CLI control (list, stop, spawn)
    - WebSocket: establishes persistent connection to backend via `ApiMachineClient`
-   - RPC registration: exposes `spawn-happy-session`, `fork-into-worktree`, `stop-session`, `requestShutdown` handlers
+   - RPC registration: exposes `spawn-happy-session`, `spawn-in-worktree`, `fork-into-worktree`, `stop-session`, `requestShutdown` handlers
    - Heartbeat loop: every 60s (or HAPPY_DAEMON_HEARTBEAT_INTERVAL) checks for version updates and prunes dead sessions
 5. Awaits shutdown promise which resolves when:
    - OS signal received (SIGINT/SIGTERM)
@@ -147,6 +147,7 @@ Local HTTP server (127.0.0.1 only) provides:
 - Cleaned up on graceful shutdown
 
 ### Worktree Spawn Transactions
+- `spawn-in-worktree` is the atomic worktree-creating spawn RPC used for fan-out across all supported agents (claude, codex, gemini, openclaw); `fork-into-worktree` (Codex-only resume into an existing worktree) is a separate reference pattern. Crash recovery for `spawn-in-worktree` is the "Worktree Spawn Transactions" mechanism described below.
 - Atomic fan-out spawns persist one JSON file per transaction under `<happyHomeDir>/pending-worktrees/`.
 - The daemon records `worktreeCreated`, then `processSpawned` with PID via the `spawnTrackedHappyProcess` PID hook, then `sessionRegistered` after the local `/session-started` webhook.
 - Crash recovery should treat `sessionRegistered` records as hands-off and only clean earlier states.
@@ -156,7 +157,7 @@ Local HTTP server (127.0.0.1 only) provides:
 
 `ApiMachineClient` handles bidirectional communication:
 - Daemon to Server: machine-alive, machine-update-metadata, machine-update-state
-- Server to Daemon: rpc-request (spawn-happy-session, fork-into-worktree, stop-session, requestShutdown)
+- Server to Daemon: rpc-request (spawn-happy-session, spawn-in-worktree, fork-into-worktree, stop-session, requestShutdown)
 - All data encrypted with TweetNaCl
 
 ## 7. Integration Testing Challenges
