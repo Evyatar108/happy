@@ -3,6 +3,8 @@ import os from 'os';
 import { execFile } from 'node:child_process';
 import * as tmp from 'tmp';
 import axios from 'axios';
+import * as ed from '@noble/ed25519';
+import { sha512 } from '@noble/hashes/sha2.js';
 
 import { ApiClient } from '@/api/api';
 import type { ForkSessionOptions } from '@/api/apiMachine';
@@ -40,6 +42,8 @@ import { recoverPending } from './worktreeTransactions';
 import { stopTrackedSession } from './stopTrackedSession';
 import { dualListenerBinding } from './dualListenerBinding';
 import { writeLoopbackCapability } from './loopbackCapability';
+
+ed.hashes.sha512 = (message: Uint8Array) => sha512(message);
 
 // Prepare initial metadata
 // Suffix host with `-dev` for the HAPPY_VARIANT=dev variant so the dev daemon
@@ -705,13 +709,16 @@ export async function startDaemon(): Promise<void> {
       return sessionIdToFinishedSession.get(happySessionId);
     };
 
-    const getLocalTunnelClaim = () => `tunnel ${Buffer.from(JSON.stringify({ sub: machineId, iat: Math.floor(Date.now() / 1000) })).toString('base64url')}`;
-
     const fetchServerSessionMetadata = async (sessionId: string, encryptionKey: Uint8Array, encryptionVariant: 'legacy' | 'dataKey'): Promise<Metadata | null> => {
       try {
+        const payload = { sub: machineId, iat: Math.floor(Date.now() / 1000) };
+        const payloadEncoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
+        const signature = await ed.signAsync(Buffer.from(payloadEncoded), tofuKeypairs.ed25519PrivateKey);
+        const envelope = { p: payloadEncoded, s: Buffer.from(signature).toString('hex') };
+        const signedClaim = `tunnel ${Buffer.from(JSON.stringify(envelope)).toString('base64url')}`;
         const response = await axios.get(`http://127.0.0.1:${embeddedServerPort}/v1/sessions`, {
           timeout: 10_000,
-          headers: { 'X-Tunnel-Authorization': getLocalTunnelClaim() },
+          headers: { 'X-Tunnel-Authorization': signedClaim },
         });
         const sessions = (response.data as { sessions: { id: string; metadata: string }[] }).sessions;
         const matched = sessions.find(s => s.id === sessionId);
