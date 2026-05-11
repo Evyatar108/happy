@@ -22,7 +22,7 @@ The protocol is designed to stay minimal, explicit, and resilient under intermit
 If a new protocol field or event is proposed, it should answer: does this create a durable sync primitive, or can it be encoded inside existing encrypted payloads without expanding the API surface?
 
 ## Authentication
-The embedded `happy-server` runs per machine and is reached over a Microsoft Dev Tunnel. Mobile clients authenticate to the tunnel by presenting an unsigned tunnel claim — a base64url-encoded JSON payload containing the local machine's `sub` and `iat` — issued during pairing and stored in `AuthCredentials.tunnelClaim`.
+The embedded `happy-server` runs per machine and is reached over a Microsoft Dev Tunnel. Mobile clients authenticate to the tunnel by presenting a signed Happy tunnel claim — a base64url-encoded envelope `{ p, s }` where `p` is the base64url JSON payload `{ sub, iat, accountId? }` and `s` is the hex Ed25519 signature, issued during pairing and stored in `AuthCredentials.tunnelClaim`. As of Sprint A, the server also accepts a Dev Tunnels connect JWT in the same header (`Authorization: Bearer <jwt>` style), but only if the JWT carries GitHub identity claims; absent identity, the JWT is rejected with `invalid_tunnel_claim` (no synthetic claim is minted). Note: the Dev Tunnels JWT fallback parses + checks expiry only and does NOT verify the JWT signature — coordinated B+C+D cutover removes this transitional path.
 
 The claim is sent on every request as the HTTP header:
 
