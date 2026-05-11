@@ -124,6 +124,7 @@ The goal is to keep CLI/app/server/agent on the same wire contract and avoid sch
 - `src/sessionProtocol.ts`
 - `src/tofu.ts`
 - `src/nonRenderablePolicy.ts`
+- `src/ledger.ts`
 
 ### `messages.ts` exports
 
@@ -245,6 +246,36 @@ Helpers:
   call so the receiver's stateful `/gi` matchers stay correct.
 - `findSenderDropEntry(raw)` — returns the first entry whose `senderPredicate`
   matches the raw Claude JSONL message, or `null`.
+
+### `ledger.ts` exports
+
+Shared schema for the append-only JSONL per-session ledger files written at
+`.ralph/state/<runId>/<sessionId>.jsonl`. This is the canonical contract between
+the happy-cli writer (`packages/happy-cli/src/ledger/writer.ts`) and the
+happy-agent writer (`packages/happy-agent/src/ledger/writer.ts`); both sides
+import these schemas from `@slopus/happy-wire` so on-disk records stay
+structurally consistent across producers.
+
+Error code enum:
+- `LedgerErrorCodeSchema` — `'spawn-failed' | 'wrong-account' | 'timeout' | 'crash' | 'ledger-write-failed' | 'monitor-failure'`
+- `LedgerErrorCode`
+
+Per-event record schemas (each extends a common `{ runId, sessionId, timestamp, seqWithinSession? }` base):
+- `SpawnLedgerRecordSchema` — `eventType: 'spawn'` with `agent`, `projectPath`, `worktreePath`, optional `branchName`, optional `payload`.
+- `MessageSentLedgerRecordSchema` — `eventType: 'message-sent'` with `direction: 'user-to-agent' | 'agent-to-server'`, optional `messageId`, optional `messagePreview`, optional `payload`.
+- `IdleReachedLedgerRecordSchema` — `eventType: 'idle-reached'` with `queueDepth`, optional `payload`.
+- `PendingPermissionLedgerRecordSchema` — `eventType: 'pending-permission'` with `requestIds`, optional `payload`.
+- `LastOutputSummaryLedgerRecordSchema` — `eventType: 'last-output-summary'` with `summary`, `heuristic: 'assistant-text' | 'tool-result' | 'server-summary'`, optional `payload`.
+- `ValidationAttachedLedgerRecordSchema` — `eventType: 'validation-attached'` with `testReference`, `verificationUrl`, optional `payload`.
+- `DoneLedgerRecordSchema` — `eventType: 'done'` with `scopeSummary`, `testReference`, `verificationUrl`, `caveats`, optional `payload`.
+- `ErrorLedgerRecordSchema` — `eventType: 'error'` with `errorCode` (from `LedgerErrorCodeSchema`), `errorMessage`, optional `payload`.
+
+Discriminated union and inferred type:
+- `LedgerRecordSchema` — discriminated union on `eventType` covering the 8 variants above.
+- `LedgerRecord`
+
+`runId` and `sessionId` are validated against `^[A-Za-z0-9_-]+$` so they remain
+safe path components for the on-disk ledger file location.
 
 ## Wire Type Specifications
 
