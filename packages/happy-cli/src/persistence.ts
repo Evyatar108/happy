@@ -6,7 +6,7 @@
 
 import { FileHandle } from 'node:fs/promises'
 import { readFile, writeFile, mkdir, open, unlink, rename, stat } from 'node:fs/promises'
-import { existsSync, writeFileSync, readFileSync, unlinkSync, renameSync } from 'node:fs'
+import { chmodSync, existsSync, writeFileSync, readFileSync, unlinkSync, renameSync } from 'node:fs'
 import { constants } from 'node:fs'
 import { configuration } from '@/configuration'
 import * as z from 'zod';
@@ -78,8 +78,15 @@ export interface DaemonLocallyPersistedState {
 }
 
 export interface MachineLocallyPersistedState {
-  port: number;
-  tunnelUrl?: string;
+  machineId: string;
+  tunnelPort: number;
+  loopbackPort: number;
+  tunnelId: string;
+  lastTunnelUrl: string | null;
+}
+
+function isValidPort(port: unknown): port is number {
+  return typeof port === 'number' && Number.isInteger(port) && port > 0 && port <= 65535;
 }
 
 export async function readSettings(): Promise<Settings> {
@@ -295,19 +302,34 @@ export async function clearMachineId(): Promise<void> {
   }));
 }
 
-export async function readMachineState(): Promise<MachineLocallyPersistedState | null> {
+export async function readMachineState(machineIdFallback?: string): Promise<MachineLocallyPersistedState | null> {
   try {
     if (!existsSync(configuration.machineFile)) {
       return null;
     }
     const content = await readFile(configuration.machineFile, 'utf-8');
-    const parsed = JSON.parse(content) as Partial<MachineLocallyPersistedState>;
-    if (typeof parsed.port !== 'number' || !Number.isInteger(parsed.port) || parsed.port <= 0 || parsed.port > 65535) {
+    const parsed = JSON.parse(content) as Partial<MachineLocallyPersistedState> & { port?: unknown; tunnelUrl?: unknown };
+    const tunnelPort = isValidPort(parsed.tunnelPort) ? parsed.tunnelPort : parsed.port;
+    if (!isValidPort(tunnelPort)) {
+      return null;
+    }
+    const loopbackPort = isValidPort(parsed.loopbackPort) ? parsed.loopbackPort : tunnelPort;
+    const machineId = typeof parsed.machineId === 'string' && parsed.machineId.length > 0
+      ? parsed.machineId
+      : machineIdFallback;
+    if (!machineId) {
       return null;
     }
     return {
-      port: parsed.port,
-      tunnelUrl: typeof parsed.tunnelUrl === 'string' ? parsed.tunnelUrl : undefined,
+      machineId,
+      tunnelPort,
+      loopbackPort,
+      tunnelId: typeof parsed.tunnelId === 'string' ? parsed.tunnelId : '',
+      lastTunnelUrl: typeof parsed.lastTunnelUrl === 'string'
+        ? parsed.lastTunnelUrl
+        : typeof parsed.tunnelUrl === 'string'
+          ? parsed.tunnelUrl
+          : null,
     };
   } catch {
     return null;
@@ -315,7 +337,12 @@ export async function readMachineState(): Promise<MachineLocallyPersistedState |
 }
 
 export function writeMachineState(state: MachineLocallyPersistedState): void {
-  writeFileSync(configuration.machineFile, JSON.stringify(state, null, 2), 'utf-8');
+  const tmpFile = configuration.machineFile + '.tmp';
+  writeFileSync(tmpFile, JSON.stringify(state, null, 2), { encoding: 'utf-8', mode: 0o600 });
+  renameSync(tmpFile, configuration.machineFile);
+  if (process.platform !== 'win32') {
+    chmodSync(configuration.machineFile, 0o600);
+  }
 }
 
 /**

@@ -26,6 +26,23 @@ export interface HappyServerConfig {
     enablePrettyLogs?: boolean;
 }
 
+export interface HappyServerSharedContext {
+    dataDir: string;
+    machineKey: string | Uint8Array;
+    localUserId?: string;
+    tofuPublicKeys?: TofuPublicKeys;
+    publicUrl?: string;
+    enablePrettyLogs?: boolean;
+}
+
+export interface CreateAppConfig extends HappyServerSharedContext {
+    port: number;
+    host?: string;
+    auth?: "tunnel" | "loopback";
+    paths?: ApiPaths;
+    machineState?: MachineStateGetter;
+}
+
 export interface HappyServerHandle {
     app: FastifyInstance;
     eventRouter: EventRouter;
@@ -47,7 +64,7 @@ function publicKeyToBase64(publicKey: string | Uint8Array): string {
     return Buffer.from(publicKey).toString("base64");
 }
 
-export function createHappyServer(config: HappyServerConfig): HappyServerHandle {
+export function createApp(config: CreateAppConfig): HappyServerHandle {
     const app = fastify({ logger: false });
     let isConfigured = false;
     let isStarted = false;
@@ -145,4 +162,8 @@ export function createHappyServer(config: HappyServerConfig): HappyServerHandle 
             isStarted = false;
         },
     };
+}
+
+export function createHappyServer(config: HappyServerConfig): HappyServerHandle {
+    return createApp(config);
 }

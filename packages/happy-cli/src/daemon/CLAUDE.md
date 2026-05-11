@@ -140,6 +140,19 @@ Local HTTP server (127.0.0.1 only) provides:
 }
 ```
 
+### machine.json
+
+Daemon startup owns the current machine listener state in `machine.json`:
+`{ machineId, tunnelPort, loopbackPort, tunnelId, lastTunnelUrl }`. Older
+files with `{ port, tunnelUrl }` are migrated by reading `port` as
+`tunnelPort`; keep all readers and writers on the new shape when changing
+daemon binding or tunnel startup.
+
+Embedded server startup uses `dualListenerBinding()` to create one tunnel
+listener and one loopback listener from shared Happy server context. Keep
+`loopback-cap.txt` as a per-start regenerated local capability and pass its
+path into loopback auth via `paths.loopbackCap`.
+
 ### Lock File
 - Created with O_EXCL flag for atomic acquisition
 - Contains PID for debugging

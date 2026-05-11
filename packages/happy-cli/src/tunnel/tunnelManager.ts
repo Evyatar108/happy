@@ -293,7 +293,7 @@ export class TunnelManager {
   private async persistTunnelUrl(tunnelUrl: string): Promise<void> {
     const current = await readMachineState();
     if (!current) return;
-    writeMachineState({ ...current, tunnelUrl });
+    writeMachineState({ ...current, lastTunnelUrl: tunnelUrl });
   }
 }
 
@@ -303,14 +303,21 @@ export async function runInitCommand(): Promise<void> {
     throw new Error('No machine ID found. Run `happy` once to complete machine setup before `happy init`.');
   }
 
-  let machineState = await readMachineState();
+  let machineState = await readMachineState(settings.machineId);
   if (!machineState) {
-    machineState = { port: await pickFreeLoopbackPort() };
+    const tunnelPort = await pickFreeLoopbackPort();
+    const loopbackPort = await pickFreeLoopbackPort();
+    machineState = { machineId: settings.machineId, tunnelPort, loopbackPort, tunnelId: '', lastTunnelUrl: null };
     writeMachineState(machineState);
   }
 
   const manager = new TunnelManager();
-  const config = await manager.init(settings.machineId, machineState.port);
+  const config = await manager.init(settings.machineId, machineState.tunnelPort);
+  writeMachineState({
+    ...machineState,
+    tunnelId: config.tunnelId,
+    lastTunnelUrl: config.tunnelUrl,
+  });
   console.log(`Dev Tunnel ready: ${config.tunnelUrl}`);
   console.log(`Config written to ${getTunnelConfigPath()}`);
 }
