@@ -40,11 +40,8 @@ import { resumeExistingThread } from './resumeExistingThread';
 import { emitReadyIfIdle } from './emitReadyIfIdle';
 import type { ReasoningEffort } from './codexAppServerTypes';
 import { HAPPY_FORKED_FROM_SESSION_ID } from '@/utils/envNames';
-<<<<<<< HEAD
 import { createCodexPatchApprovalInput } from './codexApprovalSnapshot';
-=======
 import type { LedgerRecord } from '@slopus/happy-wire';
->>>>>>> 043bb907 (feat: US-008 - Ledger schema in happy-wire + per-package writers + done-gate)
 
 function getMessageDelivery(message: { messageId?: string; seq?: number }): MessageDelivery | undefined {
     return typeof message.messageId === 'string' && typeof message.seq === 'number'

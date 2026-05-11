@@ -38,7 +38,6 @@ const config: Config = {
 
 const creds: Credentials = {
     token: 'token',
-    userId: 'user-1',
     secret: new Uint8Array(32),
     contentKeyPair: {
         publicKey: new Uint8Array(32),
