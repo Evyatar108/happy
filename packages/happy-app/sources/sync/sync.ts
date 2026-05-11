@@ -858,7 +858,8 @@ class Sync {
         }
 
         const { permissionMode, model, thinkingLevel } = resolveMessageModeMeta(session);
-        const { displayText, source = 'chat', attachments } = options ?? {};
+        const { displayText, source = 'chat' } = options ?? {};
+        const attachments = session.metadata?.flavor === 'claude' ? options?.attachments : undefined;
         if (hasOversizeAttachment(attachments)) {
             Modal.alert(t('common.error'), t('errors.attachmentTooLarge'));
             return;

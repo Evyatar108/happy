@@ -206,6 +206,25 @@ describe('sync.sendMessage switch policy', () => {
         });
     });
 
+    it.each([
+        ['codex', makeSession({ metadata: { flavor: 'codex', path: '/repo', host: 'host' } })],
+        ['undefined flavor', makeSession({ metadata: { path: '/repo', host: 'host' } })],
+    ])('strips image attachments before encryption for non-Claude flavor: %s', async (_name, session) => {
+        const { encryptRawRecord } = installSyncHarness({ session });
+        const attachments = [
+            { type: 'image' as const, ref: 'data:image/png;base64,abc123', mimeType: 'image/png' }
+        ];
+
+        await sync.sendMessage('session-1', 'hello', { attachments });
+
+        expect(encryptRawRecord).toHaveBeenCalledOnce();
+        expect(encryptRawRecord.mock.calls[0][0].content).toEqual({
+            type: 'text',
+            text: 'hello',
+        });
+        expect(encryptRawRecord.mock.calls[0][0].content.attachments).toBeUndefined();
+    });
+
     it('rejects image attachments larger than 4 MB encoded before encrypting', async () => {
         const { encryptRawRecord } = installSyncHarness();
         const attachments = [
