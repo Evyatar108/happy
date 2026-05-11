@@ -352,7 +352,7 @@ Sessions can be started by:
 - The daemon (background).
 - Remote requests over RPC (from mobile/web, reaching the embedded `happy-server` via the Dev Tunnel).
 
-Daemon session spawning uses `registerCommonHandlers` to expose a controlled RPC surface (shell commands, file operations, search/diff helpers).
+Daemon session spawning uses `registerCommonHandlers` to expose a controlled RPC surface (shell commands, file operations, search/diff helpers, and the atomic `spawn-in-worktree` RPC that creates a UUID-named worktree, spawns a tracked Happy process, and records the txn through `worktreeCreated -> processSpawned -> sessionRegistered` with crash-recovery rollback). See `packages/happy-cli/src/daemon/CLAUDE.md` "Worktree Spawn Transactions" for the transaction record and rollback details.
 
 ### Machine state
 
