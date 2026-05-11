@@ -49,6 +49,16 @@ Pairing flow (mobile <-> embedded server, replaces the deprecated cloud Bearer f
 - `GET /v1/machines`
 - `GET /v1/machines/:id`
 
+### Self (`/v2/me/*`)
+Self routes are mounted on **both** the tunnel and loopback listeners (unlike `/v1/*` and `/pair/*`, which mount only on the tunnel listener). They expose the paired GitHub identity and the running machine's state to the embedded clients.
+
+- `GET /v2/me/profile` — returns the paired GitHub profile read from `paths.profile` (defaults to `~/.happy/profile.json`). Responds `404 { error: "profile_not_found" }` when the file is absent.
+- `GET /v2/me/settings` — returns the JSON object stored at `paths.accountSettings` (defaults to `~/.happy/account-settings.json`); returns `{}` when the file does not exist.
+- `PUT /v2/me/settings` — atomically writes the request body to `paths.accountSettings` (temp-file + rename, `0o600` permissions on non-Windows) and echoes the stored value back.
+- `GET /v2/me/machine` — returns the result of the `machineState` getter injected into `createApp()`. Responds `503 { error: "machine_state_unavailable" }` when the getter is not configured (e.g., standalone `createApp()` deployments without a machine state provider) rather than fabricating defaults.
+
+When `options.auth === "tunnel"`, every `/v2/me/*` route additionally requires a numeric `accountId` claim and rejects requests without one with `401 { error: "account_id_required" }`.
+
 ### Artifacts
 - `GET /v1/artifacts`
 - `GET /v1/artifacts/:id`
