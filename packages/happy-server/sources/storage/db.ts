@@ -43,11 +43,12 @@ function findPGliteWasm(): { wasmModule: WebAssembly.Module; fsBundle: Blob } | 
     return null;
 }
 
-export function configureDb(config: DatabaseConfig) {
+export function configureDb(config: DatabaseConfig): PrismaClient {
     if (dbInstance) {
-        throw new Error("Database has already been initialized");
+        return dbInstance;
     }
     dbConfig = { ...config };
+    return getDb();
 }
 
 function createClient(): PrismaClient {
