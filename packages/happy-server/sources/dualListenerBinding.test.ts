@@ -99,6 +99,9 @@ describe("dual-listener network binding", () => {
         });
         await expect(fetch(`http://127.0.0.1:${loopbackPort}/v2/me/profile`, { headers: tunnelHeaders }).then(response => response.status)).resolves.toBe(401);
         await expect(fetch(`http://127.0.0.1:${tunnelPort}/v2/me/profile`, { headers: loopbackHeaders }).then(response => response.status)).resolves.toBe(401);
+
+        // /v1/* legacy routes must not be mounted on the loopback listener
+        await expect(fetch(`http://127.0.0.1:${loopbackPort}/v1/machines`, { headers: loopbackHeaders }).then(response => response.status)).resolves.toBe(404);
     }, 30_000);
 
     it("errors when a second daemon attempts to bind the same machine ports", async () => {

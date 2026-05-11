@@ -126,22 +126,26 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
     const eventRouter = startSocket(typed, tofuConfig);
     options.onEventRouter?.(eventRouter);
 
-    // Routes
-    pairRoutes(typed, tofuConfig, options.paths);
+    // Routes available on both tunnel and loopback listeners
     accountRoutes(typed, { auth: options.auth ?? "tunnel", paths: options.paths });
     machineSelfRoutes(typed, { auth: options.auth ?? "tunnel", machineState: options.machineState });
-    pushRoutes(typed, tofuConfig);
-    sessionRoutes(typed, eventRouter);
-    machinesRoutes(typed, eventRouter);
-    artifactsRoutes(typed, eventRouter);
-    accessKeysRoutes(typed);
-    devRoutes(typed);
-    versionRoutes(typed);
-    voiceRoutes(typed);
-    userRoutes(typed);
-    feedRoutes(typed);
-    kvRoutes(typed, eventRouter);
-    v3SessionRoutes(typed, eventRouter);
+
+    // Routes only available on the tunnel listener (not loopback)
+    if (options.auth !== "loopback") {
+        pairRoutes(typed, tofuConfig, options.paths);
+        pushRoutes(typed, tofuConfig);
+        sessionRoutes(typed, eventRouter);
+        machinesRoutes(typed, eventRouter);
+        artifactsRoutes(typed, eventRouter);
+        accessKeysRoutes(typed);
+        devRoutes(typed);
+        versionRoutes(typed);
+        voiceRoutes(typed);
+        userRoutes(typed);
+        feedRoutes(typed);
+        kvRoutes(typed, eventRouter);
+        v3SessionRoutes(typed, eventRouter);
+    }
 
     return typed;
 }
