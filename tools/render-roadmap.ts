@@ -99,15 +99,16 @@ export async function readLedgerRecords(rootDir: string, runId: string): Promise
   for (const file of files) {
     const content = await readFile(join(dir, file), 'utf8');
     const lines = content.split(/\r?\n/).filter((line) => line.trim().length > 0);
+    const sessionId = file.slice(0, -'.jsonl'.length);
     lines.forEach((line, index) => {
       let rawJson: unknown;
       try {
         rawJson = JSON.parse(line);
       } catch {
         const errorRecord: LedgerRecord = {
-          runId: 'unknown',
-          sessionId: 'unknown',
-          timestamp: new Date().toISOString(),
+          runId,
+          sessionId,
+          timestamp: '1970-01-01T00:00:00.000Z',
           eventType: 'error',
           errorCode: 'ledger-write-failed',
           errorMessage: `malformed record at line ${index + 1}: invalid JSON`,
@@ -118,9 +119,9 @@ export async function readLedgerRecords(rootDir: string, runId: string): Promise
       const result = LedgerRecordSchema.safeParse(rawJson);
       if (!result.success) {
         const errorRecord: LedgerRecord = {
-          runId: 'unknown',
-          sessionId: 'unknown',
-          timestamp: new Date().toISOString(),
+          runId,
+          sessionId,
+          timestamp: '1970-01-01T00:00:00.000Z',
           eventType: 'error',
           errorCode: 'ledger-write-failed',
           errorMessage: `malformed record at line ${index + 1}: ${result.error.message}`,

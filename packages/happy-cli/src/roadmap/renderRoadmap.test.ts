@@ -57,6 +57,23 @@ describe('render-roadmap CLI', () => {
     tempRoots = [];
   });
 
+  it('renders byte-identically when the ledger contains a malformed line', async () => {
+    const root = await createTempRoot();
+    await mkdir(join(root, '.ralph', 'state', 'run-bad'), { recursive: true });
+    await writeFile(
+      join(root, '.ralph', 'state', 'run-bad', 'session-x.jsonl'),
+      'this is not json\n',
+      'utf8',
+    );
+
+    await render(root, 'run-bad');
+    const first = await readFile(join(root, 'plans', 'codexu-roadmap.md'), 'utf8');
+    await render(root, 'run-bad');
+    const second = await readFile(join(root, 'plans', 'codexu-roadmap.md'), 'utf8');
+
+    expect(second).toBe(first);
+  });
+
   it('renders the same ledger state byte-identically across repeated runs', async () => {
     const root = await createTempRoot();
     await writeLedger(root, 'run-1', 'session-b', [
