@@ -19,6 +19,10 @@ export type TunnelClaimResult =
     | { ok: true; payload: TunnelClaim }
     | { ok: false; reason: "missing_tunnel_authorization" | "invalid_tunnel_claim" | "tunnel_claim_expired" | "tunnel_claim_replayed" | "tunnel_verification_unavailable" };
 
+const MAX_CLAIM_LIFETIME_SECONDS = 3600;
+const MAX_SEEN_JTI_ENTRIES = 100_000;
+const PRUNE_THRESHOLD = MAX_SEEN_JTI_ENTRIES / 2;
+
 const seenJti = new Map<string, number>();
 
 function pruneSeenJti(nowSeconds: number): void {
@@ -29,9 +33,26 @@ function pruneSeenJti(nowSeconds: number): void {
     }
 }
 
+function evictOldestSeenJti(): void {
+    while (seenJti.size >= MAX_SEEN_JTI_ENTRIES) {
+        const oldest = seenJti.keys().next();
+        if (oldest.done) {
+            return;
+        }
+        seenJti.delete(oldest.value);
+    }
+}
+
 export function __resetTunnelClaimReplayCacheForTests(): void {
     seenJti.clear();
 }
+
+export const __TUNNEL_CLAIM_TESTING__ = {
+    MAX_CLAIM_LIFETIME_SECONDS,
+    MAX_SEEN_JTI_ENTRIES,
+    seenJti,
+    evictOldestSeenJti,
+};
 
 export async function encodeTunnelClaim(payload: unknown, ed25519SecretKey: Uint8Array): Promise<string> {
     const payloadEncoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
@@ -85,6 +106,9 @@ async function verifyHappyEnvelope(encoded: string, tofuConfig: TofuHandshakeCon
     }
     const nowSeconds = Math.floor(Date.now() / 1000);
     if (typeof claim.exp === "number") {
+        if (claim.exp - claim.iat > MAX_CLAIM_LIFETIME_SECONDS) {
+            return { ok: false, reason: "invalid_tunnel_claim" };
+        }
         if (nowSeconds > claim.exp) {
             return { ok: false, reason: "tunnel_claim_expired" };
         }
@@ -92,13 +116,21 @@ async function verifyHappyEnvelope(encoded: string, tofuConfig: TofuHandshakeCon
         return { ok: false, reason: "tunnel_claim_expired" };
     }
     if (typeof claim.jti === "string" && claim.jti.length > 0) {
-        pruneSeenJti(nowSeconds);
+        if (seenJti.size > PRUNE_THRESHOLD) {
+            pruneSeenJti(nowSeconds);
+        }
         const existing = seenJti.get(claim.jti);
         if (existing !== undefined && existing > nowSeconds) {
             return { ok: false, reason: "tunnel_claim_replayed" };
         }
-        const ttlBase = typeof claim.exp === "number" ? claim.exp : claim.iat + 86400;
+        if (existing !== undefined) {
+            seenJti.delete(claim.jti);
+        }
+        const ttlBase = typeof claim.exp === "number" ? claim.exp : claim.iat + MAX_CLAIM_LIFETIME_SECONDS;
         const expiry = ttlBase > nowSeconds ? ttlBase : nowSeconds + 1;
+        if (seenJti.size >= MAX_SEEN_JTI_ENTRIES) {
+            evictOldestSeenJti();
+        }
         seenJti.set(claim.jti, expiry);
     }
     return { ok: true, payload: claim };
