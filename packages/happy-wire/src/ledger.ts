@@ -10,12 +10,12 @@ const baseLedgerRecordSchema = z.object({
 });
 
 export const LedgerErrorCodeSchema = z.enum([
-  'spawn_failed',
-  'message_failed',
-  'permission_failed',
-  'validation_failed',
-  'monitor_failed',
-  'unknown',
+  'spawn-failed',
+  'wrong-account',
+  'timeout',
+  'crash',
+  'ledger-write-failed',
+  'monitor-failure',
 ]);
 export type LedgerErrorCode = z.infer<typeof LedgerErrorCodeSchema>;
 

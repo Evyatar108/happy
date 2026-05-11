@@ -17,7 +17,7 @@ describe('ledger schemas', () => {
     { eventType: 'last-output-summary', summary: 'tests passed', heuristic: 'assistant-text' },
     { eventType: 'validation-attached', testReference: 'pnpm test', verificationUrl: 'https://example.com/verify' },
     { eventType: 'done', scopeSummary: 'implemented ledger', testReference: 'pnpm test', verificationUrl: 'https://example.com/verify', caveats: [] },
-    { eventType: 'error', errorCode: 'unknown', errorMessage: 'failed' },
+    { eventType: 'error', errorCode: 'spawn-failed', errorMessage: 'failed' },
   ] as const)('accepts $eventType records', (record) => {
     expect(LedgerRecordSchema.parse({ ...baseRecord, ...record }).eventType).toBe(record.eventType);
   });
@@ -43,9 +43,9 @@ describe('ledger schemas', () => {
     expect(ErrorLedgerRecordSchema.parse({
       ...baseRecord,
       eventType: 'error',
-      errorCode: 'spawn_failed',
+      errorCode: 'spawn-failed',
       errorMessage: 'git worktree add failed',
-    })).toMatchObject({ errorCode: 'spawn_failed' });
+    })).toMatchObject({ errorCode: 'spawn-failed' });
 
     expect(() => ErrorLedgerRecordSchema.parse({
       ...baseRecord,

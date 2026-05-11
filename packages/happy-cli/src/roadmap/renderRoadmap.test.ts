@@ -108,7 +108,7 @@ describe('render-roadmap CLI', () => {
     await writeLedger(root, 'run-2', 'session-2', [{
       timestamp: '2026-05-10T23:31:00.000Z',
       eventType: 'error',
-      errorCode: 'unknown',
+      errorCode: 'crash',
       errorMessage: 'failed',
     }]);
 
