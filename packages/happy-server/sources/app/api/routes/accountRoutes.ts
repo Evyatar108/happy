@@ -99,6 +99,7 @@ export function accountRoutes(app: Fastify, options: AccountRoutesOptions) {
 
     app.put('/v2/me/settings', {
         preHandler: [app.authenticate, accountIdGate],
+        bodyLimit: 1024 * 1024,
         schema: {
             body: SettingsSchema,
             response: {

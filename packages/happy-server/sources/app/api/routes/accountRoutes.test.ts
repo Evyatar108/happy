@@ -88,6 +88,40 @@ describe("/v2/me routes", () => {
         await expect(loopbackApp.inject({ method: "GET", url: "/v2/me/machine", headers: loopbackHeaders }).then(r => r.json())).resolves.toEqual(machineState);
     });
 
+    it("rejects PUT /v2/me/settings bodies larger than the route-local limit with 413", async () => {
+        const dir = await mkdtemp(path.join(os.tmpdir(), "happy-me-routes-"));
+        const accountSettingsPath = path.join(dir, "account-settings.json");
+        const loopbackCap = path.join(dir, "loopback-cap.txt");
+        await writeFile(loopbackCap, "capability-token\n");
+
+        const tofuConfig = await createTofuConfig();
+        const options = {
+            paths: { accountSettings: accountSettingsPath, loopbackCap },
+            machineState: () => ({
+                machineId: "machine-1",
+                hostname: "devbox",
+                tunnelPort: 3005,
+                loopbackPort: 3305,
+                tunnelUrl: "https://machine-1.devtunnels.ms",
+                lastSeenAt: "2026-05-11T12:01:00.000Z",
+                owner: "octocat",
+            }),
+        };
+        const tunnelApp = createApi();
+        apps.push(tunnelApp);
+        configureApi(tunnelApp, tofuConfig, { ...options, auth: "tunnel" });
+
+        const tunnelClaim = await encodeTunnelClaim({ sub: "local-user", iat: Math.floor(Date.now() / 1000), accountId: 42 }, tofuConfig.ed25519SecretKey!);
+        const oversized = { blob: "x".repeat(5 * 1024 * 1024) };
+        const response = await tunnelApp.inject({
+            method: "PUT",
+            url: "/v2/me/settings",
+            headers: { "X-Tunnel-Authorization": `tunnel ${tunnelClaim}`, "Content-Type": "application/json" },
+            payload: JSON.stringify(oversized),
+        });
+        expect(response.statusCode).toBe(413);
+    });
+
     it("rejects legacy tunnel claims without accountId and cross-presented auth headers", async () => {
         const dir = await mkdtemp(path.join(os.tmpdir(), "happy-me-routes-"));
         const loopbackCap = path.join(dir, "loopback-cap.txt");
