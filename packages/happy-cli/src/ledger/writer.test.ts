@@ -73,6 +73,41 @@ describe('happy-cli ledger writer', () => {
     }
   });
 
+  it('writes ledger to HAPPY_PROJECT_PATH root regardless of process cwd', async () => {
+    const repoRoot = await createTempRoot();
+    const runId = 'run-fanout';
+    const sessionId = 'session-fanout';
+
+    const childCode = `
+      const { appendLedgerRecord } = await import(process.env.WRITER_URL);
+      await appendLedgerRecord(process.env.RUN_ID, process.env.SESSION_ID, {
+        runId: process.env.RUN_ID,
+        sessionId: process.env.SESSION_ID,
+        timestamp: '2026-05-10T23:30:00.000Z',
+        eventType: 'idle-reached',
+        queueDepth: 0,
+      });
+    `;
+
+    await execFileAsync(
+      process.execPath,
+      ['--import', 'tsx', '-e', childCode],
+      {
+        cwd: packageRoot,
+        env: {
+          ...process.env,
+          HAPPY_PROJECT_PATH: repoRoot,
+          WRITER_URL: writerUrl,
+          RUN_ID: runId,
+          SESSION_ID: sessionId,
+        },
+      },
+    );
+
+    const jsonl = await readFile(join(repoRoot, '.ralph', 'state', runId, `${sessionId}.jsonl`), 'utf8');
+    expect(LedgerRecordSchema.parse(JSON.parse(jsonl.trim()))).toMatchObject({ eventType: 'idle-reached' });
+  });
+
   it('keeps 10 concurrent process writers parseable with all 1000 records present', async () => {
     const root = await createTempRoot();
     const runId = 'run-concurrent';
