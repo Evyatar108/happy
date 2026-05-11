@@ -88,8 +88,16 @@ export async function verifyTunnelClaim(
         return happyClaim;
     }
 
+    // NOTE: verifyDevTunnelsConnect parses the JWT and checks exp/nbf only.
+    // It does NOT verify the JWT signature — any party that can present a
+    // syntactically valid Dev Tunnels JWT passes this check. It is therefore
+    // not an identity proof; the identity field must be present to mint a claim.
     const devTunnelsClaim = await verifyDevTunnelsConnect(authHeader);
     if (!devTunnelsClaim.ok) {
+        return { ok: false, reason: "invalid_tunnel_claim" };
+    }
+
+    if (!devTunnelsClaim.identity) {
         return { ok: false, reason: "invalid_tunnel_claim" };
     }
 
@@ -98,7 +106,7 @@ export async function verifyTunnelClaim(
         payload: {
             sub: tofuConfig.localUserId,
             iat: devTunnelsClaim.payload.iat ?? Math.floor(Date.now() / 1000),
-            accountId: devTunnelsClaim.identity?.id,
+            accountId: devTunnelsClaim.identity.id,
         },
         devTunnelsIdentity: devTunnelsClaim.identity,
     };

@@ -59,4 +59,21 @@ describe("encodeTunnelClaim", () => {
         });
         vi.useRealTimers();
     });
+
+    it("rejects a Dev Tunnels JWT that carries no GitHub identity fields", async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date("2026-05-11T12:00:00Z"));
+        const config = await createConfig();
+
+        await expect(verifyTunnelClaim(devTunnelsJwt({
+            iat: 1778500790,
+            exp: 1778500810,
+            tunnelId: "abc123",
+            clusterId: "usw2",
+        }), config)).resolves.toEqual({
+            ok: false,
+            reason: "invalid_tunnel_claim",
+        });
+        vi.useRealTimers();
+    });
 });
