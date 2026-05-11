@@ -2,6 +2,7 @@
  * Git worktree operations: create, list, remove
  */
 
+import { randomUUID } from 'expo-crypto';
 import { machineBash } from '@/sync/ops';
 
 /** Relative path prefix where worktrees are stored inside a repo */
@@ -13,7 +14,7 @@ export const WORKTREE_PATH_MARKER = `/${WORKTREE_DIR}/`;
 // --- Name generation ---
 
 export function generateWorktreeName(): string {
-    return `ralph-${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
+    return `ralph-${randomUUID().replace(/-/g, '').slice(0, 8)}`;
 }
 
 // --- Operations ---

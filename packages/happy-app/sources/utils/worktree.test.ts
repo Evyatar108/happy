@@ -3,26 +3,32 @@ import { createWorktree, generateWorktreeName } from './worktree';
 
 const mocks = vi.hoisted(() => ({
     machineBash: vi.fn(),
+    randomUUID: vi.fn(),
 }));
 
 vi.mock('@/sync/ops', () => ({
     machineBash: mocks.machineBash,
 }));
 
+vi.mock('expo-crypto', () => ({
+    randomUUID: mocks.randomUUID,
+}));
+
 function mockUuidSequence(values: string[]): void {
     let index = 0;
-    vi.spyOn(crypto, 'randomUUID').mockImplementation(() => {
+    mocks.randomUUID.mockImplementation(() => {
         const value = values[index++];
         if (!value) {
             throw new Error('randomUUID called more times than expected');
         }
-        return value as ReturnType<Crypto['randomUUID']>;
+        return value;
     });
 }
 
 describe('worktree utilities', () => {
     beforeEach(() => {
         mocks.machineBash.mockReset();
+        mocks.randomUUID.mockReset();
     });
 
     afterEach(() => {
