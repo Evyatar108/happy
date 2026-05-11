@@ -191,11 +191,18 @@ skip is green. Branch: `ralph/codex-discovery-reattach`; PR link:
 <https://github.com/Evyatar108/codexu/pull/new/ralph/codex-discovery-reattach>.
 
 **Next concrete deliverable:** tunnels Phase 0 spike + pre-
-implementation decisions before Phase 1b sub-task 3. Do not continue
-with discoverability, conflict-resolution UX, or walkthrough work until
-`docs/spikes/devtunnel-auth-result.md` exists and the tunnels companion's
-OAuth app vs GitHub app, token contract, access path, and local WS port
-policy decisions are settled.
+implementation decisions before Phase 1b sub-task 3. The discovery +
+identity portion of the spike has shipped in Sprint A foundation branch
+`ralph/devtunnels-A-foundation` as
+`docs/spikes/devtunnel-api-discovery-result.md` (direct REST tunnel
+discovery with a user-scoped GitHub token works; connect JWTs do not
+carry the GitHub numeric user ID). The remaining open question is the
+live RN-to-tunnel WebSocket round-trip, which belongs to the later end-
+to-end migration phases rather than Sprint A. Do not continue with
+discoverability, conflict-resolution UX, or walkthrough work until that
+live-tunnel round-trip is proved and the tunnels companion's OAuth app
+vs GitHub app, token contract, access path, and local WS port policy
+decisions are settled.
 
 **Shipped vs deferred:**
 - Shipped: `JsonRpcConnection`, extracted stdio transport, ws transport,
@@ -239,7 +246,9 @@ After plan approval: `/implement-with-ralph --from-plan plans/...`
 
 **Pause-point:** reached. Sub-task 2 has shipped, so stop here until
 the tunnels plan is ready. Sub-tasks 3, 4, 5 are blocked on the tunnels Phase 0 spike result
-(`docs/spikes/devtunnel-auth-result.md` — does not exist yet) AND on
+(`docs/spikes/devtunnel-api-discovery-result.md` — discovery + identity
+portion resolved in Sprint A foundation branch `ralph/devtunnels-A-foundation`;
+the live RN-to-tunnel WebSocket round-trip remains a follow-up) AND on
 tunnels' four pre-implementation decisions.
 
 ### Phase 2b — `.claude/skills` discovery via junctions (status 2026-05-03)
@@ -856,8 +865,10 @@ plus current state of the actual code:
 - Sub-tasks 1, 2 → **PORTS UNCHANGED.** Pure local plumbing, loopback-
   only, no relay/E2E/pairing dependence.
 - Sub-tasks 3, 4, 5 → **NEEDS TUNNELS-AWARE RE-DERIVATION.** Block on
-  the tunnels Phase 0 spike (`docs/spikes/devtunnel-auth-result.md` —
-  does not exist yet) AND on the tunnels companion's pre-implementation
+  the tunnels Phase 0 spike (`docs/spikes/devtunnel-api-discovery-result.md` —
+  discovery + identity portion resolved in Sprint A foundation branch
+  `ralph/devtunnels-A-foundation`; the live RN-to-tunnel WebSocket round-trip
+  remains a follow-up) AND on the tunnels companion's pre-implementation
   decisions (OAuth app vs GitHub app, token contract, access path
   (a)/(b), local WS port policy).
 
