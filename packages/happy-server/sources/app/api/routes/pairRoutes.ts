@@ -63,7 +63,7 @@ async function writeProfileAtomically(profilePath: string, profile: unknown) {
 async function fetchHappyTunnels(githubToken: string, excludeTunnelId: string | null): Promise<DevTunnelItem[]> {
     try {
         const response = await fetch(
-            "https://global.rel.tunnels.api.visualstudio.com/tunnels?includePorts=true&global=true&api-version=2023-09-27-preview",
+            "https://global.rel.tunnels.api.visualstudio.com/tunnels?includePorts=true&global=true&labels=happy-machine&api-version=2023-09-27-preview",
             {
                 headers: {
                     // GitHub OAuth token from device flow; not a Happy relay credential.
@@ -78,7 +78,6 @@ async function fetchHappyTunnels(githubToken: string, excludeTunnelId: string | 
         if (!Array.isArray(tunnels)) return [];
         return tunnels.filter(
             t => typeof t.tunnelId === "string"
-                && t.tunnelId.startsWith("happy-")
                 && t.tunnelId !== excludeTunnelId
         );
     } catch {
