@@ -44,9 +44,34 @@ function defaultProfilePath(): string {
     return path.join(os.homedir(), ".happy", "profile.json");
 }
 
+async function assertNoSymlinkInAncestors(dir: string) {
+    const resolved = path.resolve(dir);
+    const parsed = path.parse(resolved);
+    const segments = resolved.slice(parsed.root.length).split(path.sep).filter(Boolean);
+    let current = parsed.root;
+    for (const segment of segments) {
+        current = path.join(current, segment);
+        try {
+            const stats = await fs.lstat(current);
+            if (stats.isSymbolicLink()) {
+                throw new Error(`atomic_write_aborted_symlink_at:${current}`);
+            }
+        } catch (error) {
+            const code = (error as NodeJS.ErrnoException).code;
+            if (code === "ENOENT") return;
+            throw error;
+        }
+    }
+}
+
 async function writeProfileAtomically(profilePath: string, profile: unknown) {
     const dir = path.dirname(profilePath);
+    await assertNoSymlinkInAncestors(dir);
     await fs.mkdir(dir, { recursive: true });
+    const realDir = await fs.realpath(dir);
+    if (path.resolve(realDir) !== path.resolve(dir)) {
+        throw new Error(`atomic_write_aborted_realpath_mismatch:${dir}`);
+    }
     const tempPath = path.join(dir, `.${path.basename(profilePath)}.${process.pid}.${Date.now()}.tmp`);
     try {
         await fs.writeFile(tempPath, `${JSON.stringify(profile, null, 2)}\n`, { mode: 0o600 });
