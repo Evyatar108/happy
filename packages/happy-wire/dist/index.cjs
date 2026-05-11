@@ -413,19 +413,20 @@ function findSenderDropEntry(raw) {
 }
 
 const payloadSchema = z__namespace.record(z__namespace.unknown()).optional();
+const safePathComponent = z__namespace.string().regex(/^[A-Za-z0-9_-]+$/);
 const baseLedgerRecordSchema = z__namespace.object({
-  runId: z__namespace.string().min(1),
-  sessionId: z__namespace.string().min(1),
+  runId: safePathComponent,
+  sessionId: safePathComponent,
   timestamp: z__namespace.string().datetime(),
   seqWithinSession: z__namespace.number().int().nonnegative().optional()
 });
 const LedgerErrorCodeSchema = z__namespace.enum([
-  "spawn_failed",
-  "message_failed",
-  "permission_failed",
-  "validation_failed",
-  "monitor_failed",
-  "unknown"
+  "spawn-failed",
+  "wrong-account",
+  "timeout",
+  "crash",
+  "ledger-write-failed",
+  "monitor-failure"
 ]);
 const SpawnLedgerRecordSchema = baseLedgerRecordSchema.extend({
   eventType: z__namespace.literal("spawn"),
