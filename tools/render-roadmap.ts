@@ -86,8 +86,9 @@ function summarizeRecord(record: LedgerRecord): string {
 export async function readLedgerRecords(rootDir: string, runId: string): Promise<LedgerRecord[]> {
   const dir = ledgerRunDir(rootDir, runId);
   const entries = await readdir(dir, { withFileTypes: true });
+  const safeSessionId = /^[A-Za-z0-9_-]+$/;
   const files = entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.jsonl'))
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.jsonl') && safeSessionId.test(entry.name.slice(0, -'.jsonl'.length)))
     .map((entry) => entry.name)
     .sort();
   const records: SortableRecord[] = [];

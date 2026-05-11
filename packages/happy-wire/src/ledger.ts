@@ -2,9 +2,11 @@ import * as z from 'zod';
 
 const payloadSchema = z.record(z.unknown()).optional();
 
+const safePathComponent = z.string().regex(/^[A-Za-z0-9_-]+$/);
+
 const baseLedgerRecordSchema = z.object({
-  runId: z.string().min(1),
-  sessionId: z.string().min(1),
+  runId: safePathComponent,
+  sessionId: safePathComponent,
   timestamp: z.string().datetime(),
   seqWithinSession: z.number().int().nonnegative().optional(),
 });
