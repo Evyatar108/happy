@@ -2,6 +2,7 @@ import fastify, { type FastifyInstance } from "fastify";
 import { mkdir } from "fs/promises";
 import path from "path";
 import type { EventRouter } from "./app/events/eventRouter";
+import type { ApiPaths, MachineStateGetter } from "./app/api/api";
 
 export interface TofuPublicKeys {
     ed25519PublicKey: string | Uint8Array;
@@ -19,6 +20,9 @@ export interface HappyServerConfig {
     tofuPublicKeys?: TofuPublicKeys;
     host?: string;
     publicUrl?: string;
+    auth?: "tunnel" | "loopback";
+    paths?: ApiPaths;
+    machineState?: MachineStateGetter;
     enablePrettyLogs?: boolean;
 }
 
@@ -97,6 +101,9 @@ export function createHappyServer(config: HappyServerConfig): HappyServerHandle 
             ed25519SecretKey: config.tofuPublicKeys?.ed25519SecretKey,
             x25519SecretKey: config.tofuPublicKeys?.x25519SecretKey,
         }, {
+            auth: config.auth,
+            paths: config.paths,
+            machineState: config.machineState,
             onEventRouter: (router) => {
                 eventRouter = router;
             },

@@ -19,6 +19,8 @@ import { userRoutes } from "./routes/userRoutes";
 import { feedRoutes } from "./routes/feedRoutes";
 import { kvRoutes } from "./routes/kvRoutes";
 import { v3SessionRoutes } from "./routes/v3SessionRoutes";
+import { accountRoutes } from "./routes/accountRoutes";
+import { machineSelfRoutes, type MachineSelfState } from "./routes/machineSelfRoutes";
 import { isLocalStorage, getLocalFilesDir } from "@/storage/files";
 import type { EventRouter } from "@/app/events/eventRouter";
 import { verifyLoopbackCapability, type LoopbackCapabilityPaths } from "./auth/loopbackCapability";
@@ -28,7 +30,10 @@ import * as fs from "fs";
 
 export interface ApiPaths extends LoopbackCapabilityPaths {
     profile?: string;
+    accountSettings?: string;
 }
+
+export type MachineStateGetter = () => MachineSelfState | Promise<MachineSelfState>;
 
 export interface TofuHandshakeConfig {
     localUserId: string;
@@ -62,6 +67,7 @@ function parseCorsOrigins(): string[] {
 export interface ConfigureApiOptions {
     auth?: "tunnel" | "loopback";
     paths?: ApiPaths;
+    machineState?: MachineStateGetter;
     onEventRouter?: (eventRouter: EventRouter) => void;
 }
 
@@ -123,6 +129,8 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
 
     // Routes
     pairRoutes(typed, tofuConfig, options.paths);
+    accountRoutes(typed, { auth: options.auth ?? "tunnel", paths: options.paths });
+    machineSelfRoutes(typed, { auth: options.auth ?? "tunnel", machineState: options.machineState });
     pushRoutes(typed, tofuConfig);
     sessionRoutes(typed, eventRouter);
     machinesRoutes(typed, eventRouter);
