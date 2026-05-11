@@ -226,7 +226,12 @@ export async function startDaemon(): Promise<void> {
       tunnelId: tunnelConfig.tunnelId,
       lastTunnelUrl: tunnelConfig.tunnelUrl,
     };
-    writeMachineState(machineState);
+    try {
+      writeMachineState(machineState);
+    } catch (writeError) {
+      await listenerBinding.stop();
+      throw writeError;
+    }
     const embeddedServerPort = machineState.tunnelPort;
     logger.debug(`[DAEMON RUN] Embedded happy-server tunnel listener started on 127.0.0.1:${machineState.tunnelPort}`);
     logger.debug(`[DAEMON RUN] Embedded happy-server loopback listener started on 127.0.0.1:${machineState.loopbackPort}`);

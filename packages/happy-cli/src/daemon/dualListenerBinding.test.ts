@@ -83,4 +83,37 @@ describe('dualListenerBinding', () => {
     expect(second.stop).toHaveBeenCalledTimes(1);
     expect(tunnelProvider.stop).toHaveBeenCalledTimes(1);
   });
+
+  it('stop() tears down both listeners and the tunnel provider — relied on by run.ts writeMachineState failure guard', async () => {
+    const tunnelProvider: DaemonTunnelProvider = {
+      loadHostTunnel: vi.fn().mockResolvedValue(tunnelConfig),
+      createHostTunnel: vi.fn(),
+      stop: vi.fn(),
+    };
+    const start = vi.fn().mockResolvedValue(undefined);
+    const stop = vi.fn().mockResolvedValue(undefined);
+    const createAppFactory = vi.fn(() => ({ app: {} as any, eventRouter: {}, start, stop }));
+
+    const handle = await dualListenerBinding({
+      sharedContext: { dataDir: '/tmp/happy', machineKey: 'machine-key', localUserId: 'machine-1', tofuPublicKeys: { ed25519PublicKey: 'ed25519-public', x25519PublicKey: 'x25519-public' } },
+      tunnelProvider,
+      paths: { profile: '/tmp/happy/profile.json', accountSettings: '/tmp/happy/account-settings.json', loopbackCap: '/tmp/happy/loopback-cap.txt' },
+      machineState: () => ({ machineId: 'machine-1', tunnelPort: 62000, loopbackPort: 62001, tunnelId: 'happy-machine-1', lastTunnelUrl: tunnelConfig.tunnelUrl }),
+      createAppFactory,
+    });
+
+    // Simulate run.ts try/catch: writeMachineState throws, so we call handle.stop() and rethrow
+    const writeError = new Error('ENOSPC: no space left on device');
+    let caughtError: Error | undefined;
+    try {
+      throw writeError;
+    } catch (err) {
+      await handle.stop();
+      caughtError = err as Error;
+    }
+
+    expect(caughtError).toBe(writeError);
+    expect(stop).toHaveBeenCalledTimes(2);
+    expect(tunnelProvider.stop).toHaveBeenCalledTimes(1);
+  });
 });
