@@ -282,6 +282,7 @@ program
         }
         return value as SupportedAgent;
     })
+    .option('--run-id <id>', 'Batch run ID to group concurrent spawns under a single rendered region')
     .option('--create-dir', 'Allow creating the directory if it does not exist')
     .option('--json', 'Output as JSON')
     .action(async (opts: {
@@ -290,6 +291,7 @@ program
         newWorktree?: boolean;
         repo?: string;
         worktree?: string;
+        runId?: string;
         agent?: SupportedAgent;
         createDir?: boolean;
         json?: boolean;
@@ -315,6 +317,7 @@ program
             const result = await spawnInWorktreeOnMachine(config, machine, creds.token, {
                 repoPath: opts.repo,
                 worktreePath: opts.worktree,
+                runId: opts.runId,
                 agent: opts.agent,
             });
 
