@@ -99,7 +99,7 @@ export function hasValidationEvidence(records: readonly LedgerRecord[]): boolean
 export function classifySession(metadata: unknown, agentState: unknown, ledgerRecords: readonly LedgerRecord[]): MonitorSignals {
     const meta = metadata as SessionMetadata | null;
     const state = agentState as AgentState | null;
-    const active = meta?.turnActive === true || state?.controlledByUser === true;
+    const active = meta?.turnActive === true || state?.controlledByUser === true || getRequestIds(agentState).length > 0;
     const pendingPermission = getRequestIds(agentState).length > 0;
     const validationEvidence = hasValidationEvidence(ledgerRecords);
     return { active, pendingPermission, hasValidationEvidence: validationEvidence };

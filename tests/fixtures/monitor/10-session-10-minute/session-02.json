@@ -1,9 +1,160 @@
 {
   "sessionId": "session-02",
   "samples": [
-    { "timestamp": "2026-05-10T20:00:00.000Z", "expectedSignals": { "active": true, "pendingPermission": false, "hasValidationEvidence": false }, "metadata": { "turnActive": true, "summary": "stale summary 02" }, "agentState": { "controlledByUser": false, "requests": {} }, "messages": [ { "content": { "role": "tool", "content": { "type": "tool-result", "result": "stale tool 02" } } }, { "content": { "role": "assistant", "content": { "type": "text", "text": "active output 02" } } } ], "expectedLastOutput": "active output 02" },
-    { "timestamp": "2026-05-10T20:03:00.000Z", "expectedSignals": { "active": false, "pendingPermission": false, "hasValidationEvidence": false }, "metadata": { "turnActive": false, "summary": "stale summary 02" }, "agentState": { "controlledByUser": false, "requests": {} }, "messages": [ { "content": { "role": "agent", "content": { "type": "event", "data": { "type": "ready" } } } }, { "content": { "role": "assistant", "content": { "type": "text", "text": "idle output 02" } } } ], "expectedLastOutput": "idle output 02" },
-    { "timestamp": "2026-05-10T20:06:00.000Z", "expectedSignals": { "active": false, "pendingPermission": true, "hasValidationEvidence": false }, "metadata": { "turnActive": false, "summary": "stale summary 02" }, "agentState": { "controlledByUser": false, "requests": { "approve-02": {} } }, "messages": [ { "content": { "role": "tool", "content": { "type": "tool-result", "result": "permission tool 02" } } }, { "content": { "role": "assistant", "content": { "type": "text", "text": "permission output 02" } } } ], "expectedLastOutput": "permission output 02" },
-    { "timestamp": "2026-05-10T20:09:00.000Z", "expectedSignals": { "active": false, "pendingPermission": false, "hasValidationEvidence": true }, "metadata": { "turnActive": false, "summary": "stale summary 02" }, "agentState": { "controlledByUser": false, "requests": {} }, "ledgerRecords": [ { "runId": "run-fixture", "sessionId": "session-02", "timestamp": "2026-05-10T20:09:00.000Z", "eventType": "done", "scopeSummary": "done", "testReference": "fixture", "verificationUrl": "https://example.com/session-02", "caveats": [] } ], "messages": [ { "content": { "role": "assistant", "content": { "type": "text", "text": "validated output 02" } } } ], "expectedLastOutput": "validated output 02" }
+    {
+      "timestamp": "2026-05-10T20:00:00.000Z",
+      "expectedSignals": {
+        "active": true,
+        "pendingPermission": false,
+        "hasValidationEvidence": false
+      },
+      "metadata": {
+        "turnActive": true,
+        "summary": "stale summary 02"
+      },
+      "agentState": {
+        "controlledByUser": false,
+        "requests": {}
+      },
+      "messages": [
+        {
+          "content": {
+            "role": "tool",
+            "content": {
+              "type": "tool-result",
+              "result": "stale tool 02"
+            }
+          }
+        },
+        {
+          "content": {
+            "role": "assistant",
+            "content": {
+              "type": "text",
+              "text": "active output 02"
+            }
+          }
+        }
+      ],
+      "expectedLastOutput": "active output 02"
+    },
+    {
+      "timestamp": "2026-05-10T20:03:00.000Z",
+      "expectedSignals": {
+        "active": false,
+        "pendingPermission": false,
+        "hasValidationEvidence": false
+      },
+      "metadata": {
+        "turnActive": false,
+        "summary": "stale summary 02"
+      },
+      "agentState": {
+        "controlledByUser": false,
+        "requests": {}
+      },
+      "messages": [
+        {
+          "content": {
+            "role": "agent",
+            "content": {
+              "type": "event",
+              "data": {
+                "type": "ready"
+              }
+            }
+          }
+        },
+        {
+          "content": {
+            "role": "assistant",
+            "content": {
+              "type": "text",
+              "text": "idle output 02"
+            }
+          }
+        }
+      ],
+      "expectedLastOutput": "idle output 02"
+    },
+    {
+      "timestamp": "2026-05-10T20:06:00.000Z",
+      "expectedSignals": {
+        "active": true,
+        "pendingPermission": true,
+        "hasValidationEvidence": false
+      },
+      "metadata": {
+        "turnActive": false,
+        "summary": "stale summary 02"
+      },
+      "agentState": {
+        "controlledByUser": false,
+        "requests": {
+          "approve-02": {}
+        }
+      },
+      "messages": [
+        {
+          "content": {
+            "role": "tool",
+            "content": {
+              "type": "tool-result",
+              "result": "permission tool 02"
+            }
+          }
+        },
+        {
+          "content": {
+            "role": "assistant",
+            "content": {
+              "type": "text",
+              "text": "permission output 02"
+            }
+          }
+        }
+      ],
+      "expectedLastOutput": "permission output 02"
+    },
+    {
+      "timestamp": "2026-05-10T20:09:00.000Z",
+      "expectedSignals": {
+        "active": false,
+        "pendingPermission": false,
+        "hasValidationEvidence": true
+      },
+      "metadata": {
+        "turnActive": false,
+        "summary": "stale summary 02"
+      },
+      "agentState": {
+        "controlledByUser": false,
+        "requests": {}
+      },
+      "ledgerRecords": [
+        {
+          "runId": "run-fixture",
+          "sessionId": "session-02",
+          "timestamp": "2026-05-10T20:09:00.000Z",
+          "eventType": "done",
+          "scopeSummary": "done",
+          "testReference": "fixture",
+          "verificationUrl": "https://example.com/session-02",
+          "caveats": []
+        }
+      ],
+      "messages": [
+        {
+          "content": {
+            "role": "assistant",
+            "content": {
+              "type": "text",
+              "text": "validated output 02"
+            }
+          }
+        }
+      ],
+      "expectedLastOutput": "validated output 02"
+    }
   ]
 }

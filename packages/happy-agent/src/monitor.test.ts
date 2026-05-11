@@ -109,7 +109,7 @@ describe('monitor', () => {
         expect(classifySession({ turnActive: false }, { controlledByUser: false, requests: {} }, []))
             .toEqual({ active: false, pendingPermission: false, hasValidationEvidence: false });
         expect(classifySession({ turnActive: false }, { controlledByUser: false, requests: { req1: {} } }, []))
-            .toEqual({ active: false, pendingPermission: true, hasValidationEvidence: false });
+            .toEqual({ active: true, pendingPermission: true, hasValidationEvidence: false });
         expect(classifySession({ turnActive: false }, { controlledByUser: false, requests: {} }, [{
             runId: 'run-1',
             sessionId: 'session-1',
