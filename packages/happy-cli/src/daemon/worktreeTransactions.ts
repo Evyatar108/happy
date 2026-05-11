@@ -163,7 +163,7 @@ export async function recoverPending(daemonHome = configuration.happyHomeDir, de
     }
 
     if (record.state === 'pending') {
-      await removeTransactionFile(daemonHome, record.txId);
+      await cleanupWorktreeRecord(daemonHome, record, runGit);
       continue;
     }
 

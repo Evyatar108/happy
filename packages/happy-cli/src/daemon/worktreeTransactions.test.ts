@@ -110,6 +110,44 @@ describe('worktreeTransactions', () => {
     }
   }, 30_000);
 
+  it('cleans up a pending record whose worktree was created before the state transition was persisted', async () => {
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    const daemonHome = mkdtempSync(join(tmpdir(), 'happy-worktree-pending-recovery-'));
+    const repoPath = await createGitRepo();
+    const worktreeRoot = join(repoPath, '.dev', 'worktree');
+    mkdirSync(worktreeRoot, { recursive: true });
+
+    try {
+      const branchName = 'ralph-pending00';
+      const worktreePath = join(worktreeRoot, branchName);
+      await git(repoPath, ['worktree', 'add', '-b', branchName, worktreePath]);
+
+      await createWorktreeTransaction(daemonHome, {
+        txId: 'tx-pending-race',
+        worktreePath,
+        branchName,
+        repoPath,
+        machineId: 'machine-1',
+        runId: 'run-1',
+      });
+
+      await recoverPending(daemonHome, { isPidAlive: async () => false });
+
+      const ralphDirs = existsSync(worktreeRoot)
+        ? readdirSync(worktreeRoot).filter(entry => entry.startsWith('ralph-'))
+        : [];
+      const worktreeList = await git(repoPath, ['worktree', 'list', '--porcelain']);
+      const branchList = await git(repoPath, ['branch', '--list', 'ralph-*']);
+
+      expect(ralphDirs).toEqual([]);
+      expect(worktreeList).not.toContain(branchName);
+      expect(branchList.trim()).toBe('');
+      expect(await readPendingWorktreeTransactions(daemonHome)).toEqual([]);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  }, 15_000);
+
   it('cleans dead processSpawned records and leaves live processSpawned records intact', async () => {
     const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
     const daemonHome = mkdtempSync(join(tmpdir(), 'happy-worktree-pid-recovery-'));
