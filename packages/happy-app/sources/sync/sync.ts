@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { apiSocket, getHappyClientId } from '@/sync/apiSocket';
 import { AuthCredentials, TokenStorage } from '@/auth/tokenStorage';
-import { tunnelFetch, DeviceCodeExpired, ClaimExpired } from '@/auth/machineAuth';
+import { tunnelFetch, registerDeviceCodeExpiredHandler } from '@/auth/machineAuth';
 import { storage } from './storage';
 import { ApiEphemeralUpdateSchema, ApiMessage, ApiUpdateContainerSchema } from './apiTypes';
 import type { ApiEphemeralActivityUpdate } from './apiTypes';
@@ -334,6 +334,15 @@ class Sync {
     }
 
     async #init() {
+
+        // Centralized DeviceCodeExpired / ClaimExpired handler for all tunnelFetch call sites.
+        // Registered once per init so every HTTP call through tunnelFetch (fetchSessions,
+        // fetchMachines, syncSettings, fetchProfile, apiSocket.requestForMachine, apiFriends,
+        // apiPush, etc.) triggers disconnect-and-notify without duplicating catch blocks.
+        registerDeviceCodeExpiredHandler((machineId) => {
+            storage.getState().markMachineDisconnected(machineId, Date.now());
+            this.notifyDeviceCodeExpired(machineId);
+        });
 
         // Subscribe to updates
         this.subscribeToUpdates();
@@ -1135,11 +1144,6 @@ class Sync {
                     }
                 });
             } catch (error) {
-                if (error instanceof DeviceCodeExpired || error instanceof ClaimExpired) {
-                    storage.getState().markMachineDisconnected(credentials.machineId, Date.now());
-                    this.notifyDeviceCodeExpired(credentials.machineId);
-                    return;
-                }
                 storage.getState().markMachineDisconnected(credentials.machineId, Date.now());
                 console.error(`Failed to fetch sessions for ${credentials.machineId}:`, error);
                 return;
@@ -1214,11 +1218,6 @@ class Sync {
                     }
                 });
             } catch (error) {
-                if (error instanceof DeviceCodeExpired || error instanceof ClaimExpired) {
-                    storage.getState().markMachineDisconnected(credentials.machineId, Date.now());
-                    this.notifyDeviceCodeExpired(credentials.machineId);
-                    return;
-                }
                 console.error(`Failed to fetch machines from ${credentials.machineId}:`, error);
                 return;
             }
