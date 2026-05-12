@@ -6,13 +6,10 @@ import { createAdapter } from "@socket.io/redis-streams-adapter";
 import { Redis } from "ioredis";
 import { log } from "@/utils/log";
 import { getMetricsLabelsFromSocket, redisStreamLagMsGauge, websocketConnectionsGauge, websocketEventsCounter } from "../monitoring/metrics2";
-import { usageHandler } from "./socket/usageHandler";
 import { rpcHandler } from "./socket/rpcHandler";
 import { pingHandler } from "./socket/pingHandler";
 import { sessionUpdateHandler } from "./socket/sessionUpdateHandler";
 import { machineUpdateHandler } from "./socket/machineUpdateHandler";
-import { artifactUpdateHandler } from "./socket/artifactUpdateHandler";
-import { accessKeyHandler } from "./socket/accessKeyHandler";
 import { sessionMessageRangeHandler } from "./socket/sessionMessageRangeHandler";
 import type { TofuHandshakeConfig } from "./api";
 import { verifyTunnelClaim } from "./auth/tunnelClaim";
@@ -229,12 +226,9 @@ export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { lo
 
         // Handlers
         rpcHandler(userId, socket, io);
-        usageHandler(userId, socket, eventRouter);
         sessionUpdateHandler(userId, socket, connection, eventRouter);
         pingHandler(socket);
         machineUpdateHandler(userId, socket, eventRouter);
-        artifactUpdateHandler(userId, socket, eventRouter);
-        accessKeyHandler(userId, socket, eventRouter);
         sessionMessageRangeHandler(userId, socket);
 
         // Ready

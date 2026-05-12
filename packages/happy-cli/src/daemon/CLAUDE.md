@@ -250,44 +250,11 @@ Checks if machine ID exists in settings:
 - Does NOT create machine on server - that's daemon's job
 - CLI doesn't manage machine details - all API & schema live in daemon subpackage
 
-## 2. Daemon Startup - Initial Registration
+## 2. Daemon Startup - Local State
 
-### REST Request: `POST /v1/machines`
-```json
-{
-  "id": "machine-uuid-123",
-  "metadata": "base64(encrypted({
-    'host': 'MacBook-Pro.local',
-    'platform': 'darwin',
-    'happyCliVersion': '1.0.0',
-    'homeDir': '/Users/john',
-    'happyHomeDir': '/Users/john/.happy'
-  }))",
-  "daemonState": "base64(encrypted({
-    'status': 'running',
-    'pid': 12345,
-    'httpPort': 8080,
-    'startedAt': 1703001234567
-  }))"
-}
-```
-
-### Server Response:
-```json
-{
-  "machine": {
-    "id": "machine-uuid-123",
-    "metadata": "base64(encrypted(...))",  // echoed back
-    "metadataVersion": 1,
-    "daemonState": "base64(encrypted(...))",  // echoed back
-    "daemonStateVersion": 1,
-    "active": true,
-    "lastActiveAt": 1703001234567,
-    "createdAt": 1703001234567,
-    "updatedAt": 1703001234567
-  }
-}
-```
+The daemon records its own machine state in `daemon.state.json`. The server no
+longer exposes a machine-registration REST route; server-side machine state is
+updated through the socket event stream.
 
 ## 3. WebSocket Connection & Real-time Updates
 
@@ -450,14 +417,8 @@ socket.emit('update', {
 })
 ```
 
-## 7. GET Machine Status (REST)
+## 7. Machine Status Shape
 
-### Request: `GET /v1/machines/machine-uuid-123`
-```http
-Authorization: Bearer <token>
-```
-
-### Response:
 ```json
 {
   "machine": {

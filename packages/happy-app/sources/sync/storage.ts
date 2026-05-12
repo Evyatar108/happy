@@ -27,7 +27,6 @@ import { applySettings, Settings } from "./settings";
 import { LocalSettings, applyLocalSettings } from "./localSettings";
 import { Purchases, customerInfoToPurchases } from "./purchases";
 import { Profile } from "./profile";
-import { UserProfile, RelationshipUpdatedEvent } from "./friendTypes";
 import { loadSettings, loadLocalSettings, saveLocalSettings, saveSettings, loadPurchases, savePurchases, loadProfile, saveProfile, loadSessionDrafts, saveSessionDrafts, loadSessionPermissionModes, saveSessionPermissionModes, loadSessionPermissionModeUserChosen, saveSessionPermissionModeUserChosen, loadSessionModelModes, saveSessionModelModes, loadSessionEffortLevels, saveSessionEffortLevels, loadSessionPinnedAvatars, saveSessionPinnedAvatars } from "./persistence";
 import type { PermissionModeKey } from '@/components/PermissionModeSelector';
 import type { CustomerInfo } from './revenueCat/types';
@@ -171,9 +170,6 @@ interface StorageState {
     sessionGitStatusFiles: Record<string, GitStatusFiles | null>;
     sessionFileCache: Record<string, Record<string, { content: string | null; diff: string | null; isBinary: boolean; cachedAt: number }>>;
     machines: Record<string, Machine>;
-    friends: Record<string, UserProfile>;  // All relationships (friends, pending, requested, etc.)
-    users: Record<string, UserProfile | null>;  // Global user cache, null = 404/failed fetch
-    friendsLoaded: boolean;  // True after initial friends fetch
     socketStatus: 'disconnected' | 'connecting' | 'connected' | 'error';
     socketLastConnectedAt: number | null;
     socketLastDisconnectedAt: number | null;
@@ -245,15 +241,6 @@ interface StorageState {
     getProjectGitStatus: (projectId: string) => import('./storageTypes').GitStatus | null;
     getSessionProjectGitStatus: (sessionId: string) => import('./storageTypes').GitStatus | null;
     updateSessionProjectGitStatus: (sessionId: string, status: import('./storageTypes').GitStatus | null) => void;
-    // Friend management methods
-    applyFriends: (friends: UserProfile[]) => void;
-    applyRelationshipUpdate: (event: RelationshipUpdatedEvent) => void;
-    getFriend: (userId: string) => UserProfile | undefined;
-    getAcceptedFriends: () => UserProfile[];
-    // User cache methods
-    applyUsers: (users: Record<string, UserProfile | null>) => void;
-    getUser: (userId: string) => UserProfile | null | undefined;
-    assumeUsers: (userIds: string[]) => Promise<void>;
 }
 
 // Helper function to build unified list view data from sessions and machines
@@ -370,9 +357,6 @@ export const storage = create<StorageState>()((set, get) => {
         profile,
         sessions: {},
         machines: {},
-        friends: {},  // Initialize relationships cache
-        users: {},  // Initialize global user cache
-        friendsLoaded: false,  // Initialize as false
         sessionsData: null,  // Legacy - to be removed
         sessionListViewData: null,
         sessionMessages: {},
@@ -1390,63 +1374,6 @@ export const storage = create<StorageState>()((set, get) => {
                 sessionListViewData
             };
         }),
-        // Friend management methods
-        applyFriends: (friends: UserProfile[]) => set((state) => {
-            const mergedFriends = { ...state.friends };
-            friends.forEach(friend => {
-                mergedFriends[friend.id] = friend;
-            });
-            return {
-                ...state,
-                friends: mergedFriends,
-                friendsLoaded: true  // Mark as loaded after first fetch
-            };
-        }),
-        applyRelationshipUpdate: (event: RelationshipUpdatedEvent) => set((state) => {
-            const { fromUserId, toUserId, status, action, fromUser, toUser } = event;
-            const currentUserId = state.profile.id;
-            
-            // Update friends cache
-            const updatedFriends = { ...state.friends };
-            
-            // Determine which user profile to update based on perspective
-            const otherUserId = fromUserId === currentUserId ? toUserId : fromUserId;
-            const otherUser = fromUserId === currentUserId ? toUser : fromUser;
-            
-            if (action === 'deleted' || status === 'none') {
-                // Remove from friends if deleted or status is none
-                delete updatedFriends[otherUserId];
-            } else if (otherUser) {
-                // Update or add the user profile with current status
-                updatedFriends[otherUserId] = otherUser;
-            }
-            
-            return {
-                ...state,
-                friends: updatedFriends
-            };
-        }),
-        getFriend: (userId: string) => {
-            return get().friends[userId];
-        },
-        getAcceptedFriends: () => {
-            const friends = get().friends;
-            return Object.values(friends).filter(friend => friend.status === 'friend');
-        },
-        // User cache methods
-        applyUsers: (users: Record<string, UserProfile | null>) => set((state) => ({
-            ...state,
-            users: { ...state.users, ...users }
-        })),
-        getUser: (userId: string) => {
-            return get().users[userId];  // Returns UserProfile | null | undefined
-        },
-        assumeUsers: async (userIds: string[]) => {
-            // This will be implemented in sync.ts as it needs access to credentials
-            // Just a placeholder here for the interface
-            const { sync } = await import('./sync');
-            return sync.assumeUsers(userIds);
-        },
     }
 });
 
@@ -1599,40 +1526,4 @@ export function useIsDataReady(): boolean {
 
 export function useProfile() {
     return storage(useShallow((state) => state.profile));
-}
-
-export function useFriends() {
-    return storage(useShallow((state) => state.friends));
-}
-
-export function useFriendRequests() {
-    return storage(useShallow((state) => {
-        // Filter friends to get pending requests (where status is 'pending')
-        return Object.values(state.friends).filter(friend => friend.status === 'pending');
-    }));
-}
-
-export function useAcceptedFriends() {
-    return storage(useShallow((state) => {
-        return Object.values(state.friends).filter(friend => friend.status === 'friend');
-    }));
-}
-
-export function useFriendsLoaded() {
-    return storage((state) => state.friendsLoaded);
-}
-
-export function useFriend(userId: string | undefined) {
-    return storage(useShallow((state) => userId ? state.friends[userId] : undefined));
-}
-
-export function useUser(userId: string | undefined) {
-    return storage(useShallow((state) => userId ? state.users[userId] : undefined));
-}
-
-export function useRequestedFriends() {
-    return storage(useShallow((state) => {
-        // Filter friends to get sent requests (where status is 'requested')
-        return Object.values(state.friends).filter(friend => friend.status === 'requested');
-    }));
 }

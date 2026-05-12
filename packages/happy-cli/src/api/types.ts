@@ -105,18 +105,6 @@ export interface ClientToServerEvents {
     result?: unknown
     error?: string
   }) => void) => void
-  'usage-report': (data: {
-    key: string
-    sessionId: string
-    tokens: {
-      total: number
-      [key: string]: number
-    }
-    cost: {
-      total: number
-      [key: string]: number
-    }
-  }) => void
 }
 
 /**

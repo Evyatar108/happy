@@ -36,8 +36,6 @@ import { gitStatusSync } from './gitStatusSync';
 import { projectManager } from './projectManager';
 import { AsyncLock } from '@/utils/lock';
 import { systemPrompt } from './prompt/systemPrompt';
-import { getFriendsList, getUserProfile } from './apiFriends';
-import { UserProfile } from './friendTypes';
 import { resolveMessageModeMeta } from './messageMeta';
 import { computeInitialAfterSeq, computeOlderPageAfterSeq } from './paginationMath';
 import { PrefetchManager, type PrefetchManagerMessageAdapter, type PrefetchManagerTransport, type RunInSessionLock } from './prefetchManager';
@@ -186,8 +184,6 @@ class Sync {
     private machinesSync: InvalidateSync;
     private pushTokenSync: InvalidateSync;
     private nativeUpdateSync: InvalidateSync;
-    private friendsSync: InvalidateSync;
-    private friendRequestsSync: InvalidateSync;
     private activityAccumulator: ActivityUpdateAccumulator;
     private appState: AppStateStatus = AppState.currentState;
     private backgroundSendTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -220,8 +216,6 @@ class Sync {
         this.purchasesSync = new InvalidateSync(this.syncPurchases);
         this.machinesSync = new InvalidateSync(this.fetchMachines);
         this.nativeUpdateSync = new InvalidateSync(this.fetchNativeUpdate);
-        this.friendsSync = new InvalidateSync(this.fetchFriends);
-        this.friendRequestsSync = new InvalidateSync(this.fetchFriendRequests);
 
         const registerPushToken = async () => {
             if (__DEV__) {
@@ -279,8 +273,6 @@ class Sync {
                 this.pushTokenSync.invalidate();
                 this.sessionsSync.invalidate();
                 this.nativeUpdateSync.invalidate();
-                this.friendsSync.invalidate();
-                this.friendRequestsSync.invalidate();
             } else {
                 log.log(`📱 App state changed to: ${nextAppState}`);
                 this.maybeStartBackgroundSendWatchdog();
@@ -357,7 +349,7 @@ class Sync {
 
         // Centralized DeviceCodeExpired / ClaimExpired handler for all tunnelFetch call sites.
         // Registered once per init so every HTTP call through tunnelFetch (fetchSessions,
-        // fetchMachines, syncSettings, fetchProfile, apiSocket.requestForMachine, apiFriends,
+        // fetchMachines, syncSettings, fetchProfile, apiSocket.requestForMachine,
         // apiPush, etc.) triggers disconnect-and-notify without duplicating catch blocks.
         registerDeviceCodeExpiredHandler((machineId) => {
             storage.getState().markMachineDisconnected(machineId, Date.now());
@@ -386,8 +378,6 @@ class Sync {
         this.machinesSync.invalidate();
         this.pushTokenSync.invalidate();
         this.nativeUpdateSync.invalidate();
-        this.friendsSync.invalidate();
-        this.friendRequestsSync.invalidate();
         log.log('🔄 #init: Boot syncs invalidated');
 
         // Mark UI ready as soon as sessions load.
@@ -1108,40 +1098,6 @@ class Sync {
         }
     }
 
-    async assumeUsers(userIds: string[]): Promise<void> {
-        if (!this.credentials || userIds.length === 0) return;
-
-        const state = storage.getState();
-        // Filter out users we already have in cache (including null for 404s)
-        const missingIds = userIds.filter(id => !(id in state.users));
-
-        if (missingIds.length === 0) return;
-
-        log.log(`👤 Fetching ${missingIds.length} missing users...`);
-
-        // Fetch missing users in parallel
-        const results = await Promise.all(
-            missingIds.map(async (id) => {
-                try {
-                    const profile = await getUserProfile(this.credentials!, id);
-                    return { id, profile };  // profile is null if 404
-                } catch (error) {
-                    console.error(`Failed to fetch user ${id}:`, error);
-                    return { id, profile: null };  // Treat errors as 404
-                }
-            })
-        );
-
-        // Convert to Record<string, UserProfile | null>
-        const usersMap: Record<string, UserProfile | null> = {};
-        results.forEach(({ id, profile }) => {
-            usersMap[id] = profile;
-        });
-
-        storage.getState().applyUsers(usersMap);
-        log.log(`👤 Applied ${results.length} users to cache (${results.filter(r => r.profile).length} found, ${results.filter(r => !r.profile).length} not found)`);
-    }
-
     //
     // Private
     //
@@ -1274,26 +1230,6 @@ class Sync {
 
         storage.getState().applyMachines(decryptedMachines, true);
         log.log(`🖥️ fetchMachines completed - processed ${decryptedMachines.length} machines`);
-    }
-
-    private fetchFriends = async () => {
-        if (!this.credentials) return;
-
-        try {
-            log.log('👥 Fetching friends list...');
-            const friendsList = await getFriendsList(this.credentials);
-            storage.getState().applyFriends(friendsList);
-            log.log(`👥 fetchFriends completed - processed ${friendsList.length} friends`);
-        } catch (error) {
-            console.error('Failed to fetch friends:', error);
-            // Silently handle error - UI will show appropriate state
-        }
-    }
-
-    private fetchFriendRequests = async () => {
-        // Friend requests are now included in the friends list with status='pending'
-        // This method is kept for backward compatibility but does nothing
-        log.log('👥 fetchFriendRequests called - now handled by fetchFriends');
     }
 
     private syncSettings = async () => {
@@ -1688,8 +1624,6 @@ class Sync {
             log.log('🔌 Socket reconnected');
             this.sessionsSync.invalidate();
             this.machinesSync.invalidate();
-            this.friendsSync.invalidate();
-            this.friendRequestsSync.invalidate();
             // Messages are fetched lazily per-session via onSessionVisible. Session metadata
             // and agentState are already refreshed by sessionsSync.invalidate() above.
             for (const sync of this.sendSync.values()) {
@@ -1971,24 +1905,6 @@ class Sync {
             } else {
                 storage.getState().deleteMachine(machineId);
             }
-        } else if (updateData.body.t === 'relationship-updated') {
-            log.log('👥 Received relationship-updated update');
-            const relationshipUpdate = updateData.body;
-
-            // Apply the relationship update to storage
-            storage.getState().applyRelationshipUpdate({
-                fromUserId: relationshipUpdate.fromUserId,
-                toUserId: relationshipUpdate.toUserId,
-                status: relationshipUpdate.status,
-                action: relationshipUpdate.action,
-                fromUser: relationshipUpdate.fromUser,
-                toUser: relationshipUpdate.toUser,
-                timestamp: relationshipUpdate.timestamp
-            });
-
-            // Invalidate friends data to refresh with latest changes
-            this.friendsSync.invalidate();
-            this.friendRequestsSync.invalidate();
         }
     }
 

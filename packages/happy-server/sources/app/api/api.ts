@@ -7,18 +7,11 @@ import { pushRoutes } from "./routes/pushRoutes";
 import { sessionRoutes } from "./routes/sessionRoutes";
 import { pairRoutes } from "./routes/pairRoutes";
 import { startSocket } from "./socket";
-import { machinesRoutes } from "./routes/machinesRoutes";
 import { devRoutes } from "./routes/devRoutes";
 import { versionRoutes } from "./routes/versionRoutes";
-import { voiceRoutes } from "./routes/voiceRoutes";
-import { artifactsRoutes } from "./routes/artifactsRoutes";
-import { accessKeysRoutes } from "./routes/accessKeysRoutes";
 import { enableMonitoring } from "./utils/enableMonitoring";
 import { enableErrorHandlers } from "./utils/enableErrorHandlers";
 import { parseCorsOrigins } from "./utils/parseCorsOrigins";
-import { userRoutes } from "./routes/userRoutes";
-import { feedRoutes } from "./routes/feedRoutes";
-import { kvRoutes } from "./routes/kvRoutes";
 import { v3SessionRoutes } from "./routes/v3SessionRoutes";
 import { accountRoutes } from "./routes/accountRoutes";
 import { machineSelfRoutes, type MachineSelfState } from "./routes/machineSelfRoutes";
@@ -128,15 +121,8 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
         pairRoutes(typed, tofuConfig, options.paths);
         pushRoutes(typed, tofuConfig);
         sessionRoutes(typed, eventRouter);
-        machinesRoutes(typed, eventRouter);
-        artifactsRoutes(typed, eventRouter);
-        accessKeysRoutes(typed);
         devRoutes(typed);
         versionRoutes(typed);
-        voiceRoutes(typed);
-        userRoutes(typed);
-        feedRoutes(typed);
-        kvRoutes(typed, eventRouter);
         v3SessionRoutes(typed, eventRouter);
     }
 

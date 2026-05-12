@@ -26,7 +26,6 @@ vi.mock('./projectManager', () => ({
 
 vi.mock('./sync', () => ({
     sync: {
-        assumeUsers: vi.fn(async () => undefined),
         applySettings: vi.fn(),
     },
 }));

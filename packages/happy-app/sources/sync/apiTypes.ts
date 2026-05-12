@@ -7,7 +7,6 @@ import {
     type ApiMessage,
 } from '@slopus/happy-wire';
 import { GitHubProfileSchema, ImageRefSchema } from './profile';
-import { RelationshipStatusSchema, UserProfileSchema } from './friendTypes';
 
 export {
     ApiMessageSchema,
@@ -51,18 +50,6 @@ export const ApiUpdateAccountSchema = z.object({
     github: GitHubProfileSchema.nullish(),
 });
 
-// Relationship update schema
-export const ApiRelationshipUpdatedSchema = z.object({
-    t: z.literal('relationship-updated'),
-    fromUserId: z.string(),
-    toUserId: z.string(),
-    status: RelationshipStatusSchema,
-    action: z.enum(['created', 'updated', 'deleted']),
-    fromUser: UserProfileSchema.optional(),
-    toUser: UserProfileSchema.optional(),
-    timestamp: z.number()
-});
-
 // Use a plain union here to avoid runtime discriminator extraction issues
 // when some schemas come from shared package exports.
 export const ApiUpdateSchema = z.union([
@@ -73,11 +60,9 @@ export const ApiUpdateSchema = z.union([
     ApiUpdateAccountSchema,
     ApiUpdateMachineStateSchema,
     ApiDeleteMachineSchema,
-    ApiRelationshipUpdatedSchema,
 ]);
 
 export type ApiUpdateNewMessage = z.infer<typeof ApiUpdateNewMessageSchema>;
-export type ApiRelationshipUpdated = z.infer<typeof ApiRelationshipUpdatedSchema>;
 export type ApiUpdate = z.infer<typeof ApiUpdateSchema>;
 
 //

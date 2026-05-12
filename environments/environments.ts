@@ -479,12 +479,13 @@ export async function seedEnvironment(name: string): Promise<void> {
     daemon.unref();
 
     const machineRegistered = await waitFor(async () => {
-        const res = await fetch(`${serverUrl}/v1/machines`, {
-            headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) return false;
-        const machines = (await res.json()) as unknown[];
-        return machines.length > 0;
+        if (!fs.existsSync(daemonStatePath)) return false;
+        const daemonState = JSON.parse(fs.readFileSync(daemonStatePath, "utf-8")) as {
+            machineId?: unknown;
+            lastHeartbeat?: unknown;
+        };
+        return typeof daemonState.machineId === "string" && daemonState.machineId.length > 0
+            && daemonState.lastHeartbeat != null;
     }, 10_000, "machine registration").then(() => true, () => false);
 
     console.log(`  Seeded: credentials written, daemon ${machineRegistered ? "registered" : "starting"}`);

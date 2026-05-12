@@ -11,7 +11,6 @@ import { randomUUID } from 'node:crypto';
 import { AsyncLock } from '@/utils/lock';
 import { RpcHandlerManager } from './rpc/RpcHandlerManager';
 import { registerCommonHandlers } from '../modules/common/registerCommonHandlers';
-import { calculateCost } from '@/utils/pricing';
 import { shouldReconnect } from '@/utils/lidState';
 import {
     createEnvelope,
@@ -958,31 +957,8 @@ export class ApiSessionClient extends EventEmitter {
      * Send usage data to the server
      */
     sendUsageData(usage: Usage, model?: string) {
-        // Calculate total tokens
-        const totalTokens = usage.input_tokens + usage.output_tokens + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0);
-
-        const costs = calculateCost(usage, model);
-
-        // Transform Claude usage format to backend expected format
-        const usageReport = {
-            key: 'claude-session',
-            sessionId: this.sessionId,
-            tokens: {
-                total: totalTokens,
-                input: usage.input_tokens,
-                output: usage.output_tokens,
-                cache_creation: usage.cache_creation_input_tokens || 0,
-                cache_read: usage.cache_read_input_tokens || 0
-            },
-            cost: {
-                total: costs.total,
-                input: costs.input,
-                output: costs.output
-            }
-        }
-        logger.debugLargeJson('[SOCKET] Sending usage data:', usageReport)
-        if (!this.socket) return;
-        this.socket.emit('usage-report', usageReport);
+        void usage;
+        void model;
     }
 
     /**

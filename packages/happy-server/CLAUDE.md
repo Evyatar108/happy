@@ -286,8 +286,7 @@ tail -300 .logs/*.log | grep "auth-decorator.*sessions" | tail -10
 
 # Debug machine registration and online status
 tail -500 .logs/*.log | grep -E "(machine-alive|machine-register|update-machine)" | tail -20
-tail -500 .logs/*.log | grep "GET /v1/machines" | tail -10
-tail -500 .logs/*.log | grep "POST /v1/machines" | tail -10
+tail -500 .logs/*.log | grep "GET /v2/me/machine" | tail -10
 
 # Check what mobile app is seeing
 tail -500 .logs/*.log | grep "📊 Storage" | tail -20

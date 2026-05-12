@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { createEventRouter } from "./eventRouter";
 
 // Producer coverage for US-005b: route handler (v3SessionRoutes), socket
-// handler (usageHandler), and mutation code (kvMutate) receive EventRouter via
+// handler (machineUpdateHandler), and mutation code (kvMutate) receive EventRouter via
 // parameters; this file verifies the shared sink/bus semantics they depend on.
 
 type FakeSocket = {
@@ -145,14 +145,14 @@ describe("createEventRouter", () => {
     it("keeps representative route, socket, and mutation producers on injected routers", () => {
         const root = resolve(__dirname, "../..");
         const v3SessionRoutes = readFileSync(resolve(root, "app/api/routes/v3SessionRoutes.ts"), "utf8");
-        const usageHandler = readFileSync(resolve(root, "app/api/socket/usageHandler.ts"), "utf8");
+        const machineUpdateHandler = readFileSync(resolve(root, "app/api/socket/machineUpdateHandler.ts"), "utf8");
         const kvMutate = readFileSync(resolve(root, "app/kv/kvMutate.ts"), "utf8");
 
         expect(v3SessionRoutes).toContain("export function v3SessionRoutes(app: Fastify, eventRouter: EventRouter)");
-        expect(usageHandler).toContain("export function usageHandler(userId: string, socket: Socket, eventRouter: EventRouter)");
+        expect(machineUpdateHandler).toContain("export function machineUpdateHandler(userId: string, socket: Socket, eventRouter: EventRouter)");
         expect(kvMutate).toContain("eventRouter: EventRouter");
         expect(v3SessionRoutes).not.toContain("import { buildNewMessageUpdate, eventRouter }");
-        expect(usageHandler).not.toContain("import { buildUsageEphemeral, eventRouter }");
+        expect(machineUpdateHandler).not.toContain("import { eventRouter }");
         expect(kvMutate).not.toContain("import { eventRouter, buildKVBatchUpdateUpdate }");
     });
 });
