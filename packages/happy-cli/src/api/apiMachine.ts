@@ -369,33 +369,16 @@ export class ApiMachineClient {
         });
     }
 
-    private async refreshTunnelAuth(): Promise<void> {
-        const options = await daemonClient.tunnelSocketIOOptions();
-        (this.socket.io as any).uri = options.url;
-        const auth = {
-            ...this.socketAuthBase(),
-            ...options.auth,
-        };
-        this.socket.auth = auth;
-        (this.socket.io as any).opts = { ...(this.socket.io as any).opts, auth };
-    }
-
-    private async connectToTunnelListener(): Promise<void> {
-        const options = await daemonClient.tunnelSocketIOOptions();
-        logger.debug(`[API MACHINE] Connecting to ${options.url}`);
-
-        this.socket = io(options.url, {
+    private buildSocket(url: string, auth: object): Socket<ServerToDaemonEvents, DaemonToServerEvents> {
+        const socket = io(url, {
             transports: ['websocket'],
-            auth: {
-                ...this.socketAuthBase(),
-                ...options.auth,
-            },
+            auth,
             path: '/v1/updates',
             reconnection: false,
             autoConnect: false,
         });
 
-        this.socket.on('connect', () => {
+        socket.on('connect', () => {
             logger.debug('[API MACHINE] Connected to server');
 
             if (this.reconnectInterval) {
@@ -411,29 +394,25 @@ export class ApiMachineClient {
                 startedAt: Date.now()
             }));
 
-            this.rpcHandlerManager.onSocketConnect(this.socket);
+            this.rpcHandlerManager.onSocketConnect(socket);
             this.syncResumeSessionRpcRegistration();
             this.startKeepAlive();
         });
 
-        this.socket.on('disconnect', (reason) => {
+        socket.on('disconnect', (reason) => {
             logger.debug(`[API MACHINE] Disconnected from server — reason: ${reason}`);
             this.rpcHandlerManager.onSocketDisconnect();
             this.stopKeepAlive();
             this.startSmartReconnect();
         });
 
-        // Single consolidated RPC handler
-        this.socket.on('rpc-request', async (data: { method: string, params: unknown }, callback: (response: unknown) => void) => {
+        socket.on('rpc-request', async (data: { method: string, params: unknown }, callback: (response: unknown) => void) => {
             logger.debugLargeJson(`[API MACHINE] Received RPC request:`, data);
             callback(await this.rpcHandlerManager.handleRequest(data));
         });
 
-        // Handle update events from server
-        this.socket.on('update', (data: Update) => {
-            // Machine clients should only care about machine updates
+        socket.on('update', (data: Update) => {
             if (data.body.t === 'update-machine' && (data.body as UpdateMachineBody).machineId === this.machine.id) {
-                // Handle machine metadata or daemon state updates from other clients (e.g., mobile app)
                 const update = data.body as UpdateMachineBody;
 
                 if (update.metadata) {
@@ -452,13 +431,38 @@ export class ApiMachineClient {
             }
         });
 
-        this.socket.on('connect_error', (error) => {
+        socket.on('connect_error', (error) => {
             logger.debug(`[API MACHINE] Connection error: ${error.message}`);
             this.startSmartReconnect();
         });
 
-        this.socket.io.on('error', (error: any) => {
+        socket.io.on('error', (error: any) => {
             logger.debug('[API MACHINE] Socket error:', error);
+        });
+
+        return socket;
+    }
+
+    private async refreshTunnelAuth(): Promise<void> {
+        const options = await daemonClient.tunnelSocketIOOptions();
+        const auth = {
+            ...this.socketAuthBase(),
+            ...options.auth,
+        };
+        if (this.socket) {
+            this.socket.removeAllListeners();
+            this.socket.disconnect();
+        }
+        this.socket = this.buildSocket(options.url, auth);
+    }
+
+    private async connectToTunnelListener(): Promise<void> {
+        const options = await daemonClient.tunnelSocketIOOptions();
+        logger.debug(`[API MACHINE] Connecting to ${options.url}`);
+
+        this.socket = this.buildSocket(options.url, {
+            ...this.socketAuthBase(),
+            ...options.auth,
         });
 
         this.socket.connect();

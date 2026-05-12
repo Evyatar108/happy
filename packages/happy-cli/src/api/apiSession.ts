@@ -29,7 +29,6 @@ import {
 import { normalizeSessionLogMessage } from '@/claude/utils/normalizeSessionLogMessage';
 import { InvalidateSync } from '@/utils/sync';
 
-const SOCKET_PLACEHOLDER_URL = 'http://127.0.0.1:0';
 
 const CONSUMPTION_ACK_TIMEOUT_MS = (() => {
     const raw = process.env.HAPPY_CONSUMPTION_ACK_TIMEOUT_MS;
@@ -186,7 +185,7 @@ export class ApiSessionClient extends EventEmitter {
     private metadataVersion: number;
     private agentState: AgentState | null;
     private agentStateVersion: number;
-    private socket: Socket<ServerToClientEvents, ClientToServerEvents>;
+    private socket!: Socket<ServerToClientEvents, ClientToServerEvents>;
     private pendingMessages: UserMessage[] = [];
     private pendingMessageCallback: ((message: UserMessage) => void) | null = null;
     private pendingAgentConfigurations: AgentConfiguration[] = [];
@@ -250,11 +249,17 @@ export class ApiSessionClient extends EventEmitter {
         registerCommonHandlers(this.rpcHandlerManager, this.metadata.path);
 
         //
-        // Create socket
+        // Connect (deferred until tunnel URL is resolved)
         //
 
-        this.socket = io(SOCKET_PLACEHOLDER_URL, {
-            auth: this.socketAuthBase(),
+        void this.connectWithFreshTunnelAuth().catch((error) => {
+            logger.debug('[API] Failed to prepare initial tunnel socket auth:', error);
+        });
+    }
+
+    private buildSocket(url: string, auth: object): Socket<ServerToClientEvents, ClientToServerEvents> {
+        const socket = io(url, {
+            auth,
             path: '/v1/updates',
             reconnection: false,
             transports: ['websocket'],
@@ -262,39 +267,33 @@ export class ApiSessionClient extends EventEmitter {
             autoConnect: false
         });
 
-        //
-        // Handlers
-        //
-
-        this.socket.on('connect', () => {
+        socket.on('connect', () => {
             logger.debug('Socket connected successfully');
             if (this.reconnectInterval) {
                 clearInterval(this.reconnectInterval);
                 this.reconnectInterval = null;
             }
-            this.rpcHandlerManager.onSocketConnect(this.socket);
+            this.rpcHandlerManager.onSocketConnect(socket);
             this.receiveSync.invalidate();
-        })
+        });
 
-        // Set up global RPC request handler
-        this.socket.on('rpc-request', async (data: { method: string, params: unknown }, callback: (response: unknown) => void) => {
+        socket.on('rpc-request', async (data: { method: string, params: unknown }, callback: (response: unknown) => void) => {
             callback(await this.rpcHandlerManager.handleRequest(data));
-        })
+        });
 
-        this.socket.on('disconnect', (reason) => {
+        socket.on('disconnect', (reason) => {
             logger.debug(`[API] Socket disconnected: ${reason}`);
             this.rpcHandlerManager.onSocketDisconnect();
             this.startSmartReconnect();
-        })
+        });
 
-        this.socket.on('connect_error', (error) => {
+        socket.on('connect_error', (error) => {
             logger.debug('[API] Socket connection error:', error);
             this.rpcHandlerManager.onSocketDisconnect();
             this.startSmartReconnect();
-        })
+        });
 
-        // Server events
-        this.socket.on('update', (data: Update) => {
+        socket.on('update', (data: Update) => {
             try {
                 logger.debugLargeJson('[SOCKET] [UPDATE] Received update:', data);
 
@@ -326,7 +325,6 @@ export class ApiSessionClient extends EventEmitter {
                         this.metadata = nextMetadata;
                         this.metadataVersion = data.body.metadata.version;
                         this.routeAgentConfigurationIfChanged(nextMetadata);
-                        // Check if session was archived from web/mobile
                         const meta = this.metadata as any;
                         if (meta?.lifecycleState === 'archiveRequested' || meta?.lifecycleState === 'archived') {
                             if (this.ignoreArchiveSignal) {
@@ -344,10 +342,8 @@ export class ApiSessionClient extends EventEmitter {
                         this.agentStateVersion = data.body.agentState.version;
                     }
                 } else if (data.body.t === 'update-machine') {
-                    // Session clients shouldn't receive machine updates - log warning
                     logger.debug(`[SOCKET] WARNING: Session client received unexpected machine update - ignoring`);
                 } else {
-                    // If not a user message, it might be a permission response or other message type
                     this.emit('message', data.body);
                 }
             } catch (error) {
@@ -355,29 +351,24 @@ export class ApiSessionClient extends EventEmitter {
             }
         });
 
-        // DEATH
-        this.socket.on('error', (error) => {
+        socket.on('error', (error) => {
             logger.debug('[API] Socket error:', error);
         });
 
-        //
-        // Connect (after short delay to give a time to add handlers)
-        //
-
-        void this.connectWithFreshTunnelAuth().catch((error) => {
-            logger.debug('[API] Failed to prepare initial tunnel socket auth:', error);
-        });
+        return socket;
     }
 
     private async connectWithFreshTunnelAuth(): Promise<void> {
         const options = await daemonClient.tunnelSocketIOOptions();
-        (this.socket.io as any).uri = options.url;
         const auth = {
             ...this.socketAuthBase(),
             ...options.auth,
         };
-        this.socket.auth = auth;
-        (this.socket.io as any).opts = { ...(this.socket.io as any).opts, auth };
+        if (this.socket) {
+            this.socket.removeAllListeners();
+            this.socket.disconnect();
+        }
+        this.socket = this.buildSocket(options.url, auth);
         this.socket.connect();
     }
 
