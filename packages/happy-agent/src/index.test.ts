@@ -153,6 +153,7 @@ describe('happy-agent CLI', () => {
             expect(exitCode).not.toBe(0);
             expect(stderr).toContain('happy-agent auth login');
         });
+
     });
 
     describe('resume command', () => {
@@ -168,6 +169,7 @@ describe('happy-agent CLI', () => {
             expect(exitCode).not.toBe(0);
             expect(stderr).toContain('happy-agent auth login');
         });
+
     });
 
     describe('send command', () => {

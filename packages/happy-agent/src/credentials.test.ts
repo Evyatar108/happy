@@ -1,17 +1,37 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { readCredentials, writeCredentials, clearCredentials, requireCredentials } from './credentials';
+import { deleteCredentials, loadCredentials, saveCredentials, CredentialsNotFoundError, LegacyCredentialsRequired, type PersistedCredentials } from './credentials';
 import { getRandomBytes, deriveContentKeyPair, encodeBase64 } from './encryption';
 import type { Config } from './config';
 
 function makeTestConfig(): Config {
     const homeDir = mkdtempSync(join(tmpdir(), 'happy-agent-test-'));
     return {
-        serverUrl: 'https://api.cluster-fluster.com',
+        legacyServerUrl: 'https://api.cluster-fluster.com',
+        pairingBaseUrl: 'https://api.cluster-fluster.com',
         homeDir,
-        credentialPath: join(homeDir, 'agent.key'),
+        credentialPath: join(homeDir, 'credentials.json'),
+    };
+}
+
+function makePersisted(secret = getRandomBytes(32)): PersistedCredentials {
+    return {
+        githubLogin: 'octocat',
+        deviceCode: 'device-code',
+        deviceCodeExpiresAt: Math.floor(Date.now() / 1000) + 900,
+        pairingBaseUrl: 'https://api.cluster-fluster.com',
+        machines: [{
+            machineId: 'machine-1',
+            tunnelUrl: 'https://machine-1.devtunnels.ms',
+            tunnelClaim: 'claim',
+            accountId: 123,
+            ed25519PublicKey: 'ed',
+            x25519PublicKey: 'x',
+        }],
+        legacyToken: 'test-token',
+        legacySecret: encodeBase64(secret),
     };
 }
 
@@ -26,126 +46,77 @@ describe('credentials', () => {
         rmSync(config.homeDir, { recursive: true, force: true });
     });
 
-    describe('readCredentials / writeCredentials round-trip', () => {
-        it('writes and reads back credentials', () => {
-            const token = 'test-jwt-token';
-            const secret = getRandomBytes(32);
+    it('saves and loads persisted credentials', async () => {
+        const persisted = makePersisted();
 
-            writeCredentials(config, token, secret);
-            const creds = readCredentials(config);
+        await saveCredentials(config, persisted);
+        const creds = loadCredentials(config);
 
-            expect(creds).not.toBeNull();
-            expect(creds!.token).toBe(token);
-            expect(creds!.secret).toEqual(secret);
-        });
-
-        it('derives contentKeyPair correctly on read', () => {
-            const token = 'test-token';
-            const secret = getRandomBytes(32);
-            const expectedKeyPair = deriveContentKeyPair(secret);
-
-            writeCredentials(config, token, secret);
-            const creds = readCredentials(config);
-
-            expect(creds!.contentKeyPair.publicKey).toEqual(expectedKeyPair.publicKey);
-            expect(creds!.contentKeyPair.secretKey).toEqual(expectedKeyPair.secretKey);
-        });
-
-        it('stores secret as base64 in the file', () => {
-            const token = 'test-token';
-            const secret = getRandomBytes(32);
-
-            writeCredentials(config, token, secret);
-            const raw = JSON.parse(readFileSync(config.credentialPath, 'utf-8'));
-
-            expect(raw.token).toBe(token);
-            expect(raw.secret).toBe(encodeBase64(secret));
-        });
-
-        it('creates parent directory if missing', () => {
-            const deepConfig: Config = {
-                ...config,
-                credentialPath: join(config.homeDir, 'nested', 'dir', 'agent.key'),
-            };
-
-            writeCredentials(deepConfig, 'token', getRandomBytes(32));
-            expect(existsSync(deepConfig.credentialPath)).toBe(true);
-        });
+        expect(creds.githubLogin).toBe('octocat');
+        expect(creds.machines).toHaveLength(1);
+        expect(creds.token).toBe('test-token');
+        expect(creds.secret).toEqual(new Uint8Array(Buffer.from(persisted.legacySecret!, 'base64')));
     });
 
-    describe('readCredentials with missing file', () => {
-        it('returns null when credential file does not exist', () => {
-            const creds = readCredentials(config);
-            expect(creds).toBeNull();
-        });
+    it('derives contentKeyPair from legacySecret', async () => {
+        const secret = getRandomBytes(32);
+        await saveCredentials(config, makePersisted(secret));
+
+        const creds = loadCredentials(config);
+        const expectedKeyPair = deriveContentKeyPair(secret);
+
+        expect(creds.contentKeyPair.publicKey).toEqual(expectedKeyPair.publicKey);
+        expect(creds.contentKeyPair.secretKey).toEqual(expectedKeyPair.secretKey);
     });
 
-    describe('clearCredentials', () => {
-        it('removes the credential file', () => {
-            writeCredentials(config, 'token', getRandomBytes(32));
-            expect(existsSync(config.credentialPath)).toBe(true);
+    it('stores credentials as raw persisted JSON', async () => {
+        const persisted = makePersisted();
+        await saveCredentials(config, persisted);
 
-            clearCredentials(config);
-            expect(existsSync(config.credentialPath)).toBe(false);
-        });
-
-        it('does not throw when file does not exist', () => {
-            expect(() => clearCredentials(config)).not.toThrow();
-        });
+        const raw = JSON.parse(readFileSync(config.credentialPath, 'utf-8'));
+        expect(raw).toEqual(persisted);
     });
 
-    describe('requireCredentials', () => {
-        it('returns credentials when file exists', () => {
-            const token = 'test-token';
-            const secret = getRandomBytes(32);
-            writeCredentials(config, token, secret);
+    it('creates parent directory if missing', async () => {
+        const deepConfig: Config = {
+            ...config,
+            credentialPath: join(config.homeDir, 'nested', 'dir', 'credentials.json'),
+        };
 
-            const creds = requireCredentials(config);
-            expect(creds.token).toBe(token);
-            expect(creds.secret).toEqual(secret);
-        });
-
-        it('throws when credentials are missing', () => {
-            expect(() => requireCredentials(config)).toThrow(
-                'Not authenticated. Run `happy-agent auth login` first.'
-            );
-        });
+        await saveCredentials(deepConfig, makePersisted());
+        expect(existsSync(deepConfig.credentialPath)).toBe(true);
     });
 
-    describe('contentKeyPair derivation from secret', () => {
-        it('produces 32-byte public and secret keys', () => {
-            const secret = getRandomBytes(32);
-            writeCredentials(config, 'token', secret);
-            const creds = readCredentials(config);
+    it('uses 0600 mode on POSIX', async () => {
+        await saveCredentials(config, makePersisted());
+        if (process.platform !== 'win32') {
+            expect(statSync(config.credentialPath).mode & 0o777).toBe(0o600);
+        }
+    });
 
-            expect(creds!.contentKeyPair.publicKey.length).toBe(32);
-            expect(creds!.contentKeyPair.secretKey.length).toBe(32);
-        });
+    it('throws a typed error when the credential file is missing', () => {
+        expect(() => loadCredentials(config)).toThrow(CredentialsNotFoundError);
+    });
 
-        it('is deterministic — same secret produces same keypair', () => {
-            const secret = getRandomBytes(32);
+    it('deletes credentials idempotently', async () => {
+        await saveCredentials(config, makePersisted());
+        expect(existsSync(config.credentialPath)).toBe(true);
 
-            writeCredentials(config, 'token1', secret);
-            const creds1 = readCredentials(config);
+        await deleteCredentials(config);
+        await deleteCredentials(config);
 
-            writeCredentials(config, 'token2', secret);
-            const creds2 = readCredentials(config);
+        expect(existsSync(config.credentialPath)).toBe(false);
+    });
 
-            expect(creds1!.contentKeyPair.publicKey).toEqual(creds2!.contentKeyPair.publicKey);
-            expect(creds1!.contentKeyPair.secretKey).toEqual(creds2!.contentKeyPair.secretKey);
-        });
+    it('throws LegacyCredentialsRequired when legacy fields are absent', async () => {
+        const persisted = makePersisted();
+        delete persisted.legacyToken;
+        delete persisted.legacySecret;
+        await saveCredentials(config, persisted);
 
-        it('different secrets produce different keypairs', () => {
-            const secret1 = getRandomBytes(32);
-            const secret2 = getRandomBytes(32);
-
-            writeCredentials(config, 'token', secret1);
-            const creds1 = readCredentials(config);
-
-            writeCredentials(config, 'token', secret2);
-            const creds2 = readCredentials(config);
-
-            expect(creds1!.contentKeyPair.publicKey).not.toEqual(creds2!.contentKeyPair.publicKey);
-        });
+        const creds = loadCredentials(config);
+        expect(() => creds.token).toThrow(LegacyCredentialsRequired);
+        expect(() => creds.secret).toThrow(LegacyCredentialsRequired);
+        expect(() => creds.contentKeyPair).toThrow(LegacyCredentialsRequired);
     });
 });

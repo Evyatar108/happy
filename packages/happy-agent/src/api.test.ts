@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import tweetnacl from 'tweetnacl';
 import {
     encodeBase64,
     getRandomBytes,
@@ -40,6 +39,14 @@ import {
     deleteSession,
     getSessionMessages,
     resolveSessionEncryption,
+    listMachines,
+    discoverMachineTunnels,
+    refreshTunnelClaim,
+    InvalidTunnelUrlError,
+    MachineNotKnownError,
+    NetworkError,
+    RateLimitedError,
+    RefreshFailedError,
 } from './api';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -53,16 +60,41 @@ const mockedAxios = axios as any as {
 
 function makeConfig(): Config {
     return {
-        serverUrl: 'https://test-server.example.com',
+        legacyServerUrl: 'https://test-server.example.com',
+        pairingBaseUrl: 'https://test-server.example.com',
         homeDir: '/tmp/happy-test',
-        credentialPath: '/tmp/happy-test/agent.key',
+        credentialPath: '/tmp/happy-test/credentials.json',
     };
 }
 
 function makeCredentials(): Credentials {
     const secret = getRandomBytes(32);
     const contentKeyPair = deriveContentKeyPair(secret);
-    return { token: 'test-jwt-token', secret, contentKeyPair };
+    const now = Math.floor(Date.now() / 1000);
+    return {
+        githubLogin: 'octocat',
+        deviceCode: 'device-code',
+        deviceCodeExpiresAt: Math.floor(Date.now() / 1000) + 900,
+        pairingBaseUrl: 'https://test-server.example.com',
+        machines: [{
+            machineId: 'machine-1',
+            tunnelUrl: 'https://machine-1.devtunnels.ms',
+            tunnelClaim: encodeTunnelClaim({ accountId: 123, iat: now, exp: now + 600, jti: 'jti-1' }),
+            accountId: 123,
+            ed25519PublicKey: 'ed',
+            x25519PublicKey: 'x',
+        }],
+        legacyToken: 'test-jwt-token',
+        legacySecret: encodeBase64(secret),
+        token: 'test-jwt-token',
+        secret,
+        contentKeyPair,
+    };
+}
+
+function encodeTunnelClaim(payload: unknown): string {
+    const p = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    return Buffer.from(JSON.stringify({ p, s: 'signature' })).toString('base64url');
 }
 
 function makeRawSessionWithDataKey(
@@ -158,7 +190,7 @@ describe('api', () => {
 
         it('throws when dataEncryptionKey cannot be decrypted', () => {
             // Create a session with a key encrypted for a different keypair
-            const otherKeyPair = tweetnacl.box.keyPair();
+            const otherKeyPair = deriveContentKeyPair(getRandomBytes(32));
             const sessionKey = getRandomBytes(32);
             const encryptedKey = libsodiumEncryptForPublicKey(sessionKey, otherKeyPair.publicKey);
             const withVersion = new Uint8Array(1 + encryptedKey.length);
@@ -182,6 +214,186 @@ describe('api', () => {
             expect(() => resolveSessionEncryption(raw, creds)).toThrow(
                 'Failed to decrypt session key for session session-bad',
             );
+        });
+    });
+
+    describe('discoverMachineTunnels', () => {
+        it('returns a machineId/tunnelUrl snapshot from persisted credentials', () => {
+            expect(discoverMachineTunnels(creds)).toEqual([
+                { machineId: 'machine-1', tunnelUrl: 'https://machine-1.devtunnels.ms' },
+            ]);
+        });
+    });
+
+    describe('refreshTunnelClaim', () => {
+        it('refreshes a known machine claim with a 30s pair/status request', async () => {
+            const now = Math.floor(Date.now() / 1000);
+            const tunnelClaim = encodeTunnelClaim({ accountId: 456, iat: now, exp: now + 600, jti: 'fresh-jti' });
+            mockedAxios.post.mockResolvedValueOnce({
+                data: {
+                    status: 'authorized',
+                    machines: [{
+                        machineId: 'machine-1',
+                        tunnelUrl: 'https://machine-1.devtunnels.ms',
+                        tunnelClaim,
+                        accountId: 999,
+                    }],
+                },
+            });
+
+            const result = await refreshTunnelClaim(config, creds, 'machine-1');
+
+            expect(result).toEqual({
+                tunnelUrl: 'https://machine-1.devtunnels.ms',
+                tunnelClaim,
+                accountId: 456,
+            });
+            expect(mockedAxios.post).toHaveBeenCalledWith(
+                'https://machine-1.devtunnels.ms/pair/status',
+                { device_code: 'device-code' },
+                { headers: { 'X-Happy-Client': 'cli-control-plane/0.1.0' }, timeout: 30_000 },
+            );
+        });
+
+        it('checks device-code expiry before any network request', async () => {
+            creds = { ...creds, deviceCodeExpiresAt: Math.floor(Date.now() / 1000) };
+
+            await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow(RefreshFailedError);
+            await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow("Device code expired. Run 'happy-agent auth login'");
+            expect(mockedAxios.post).not.toHaveBeenCalled();
+        });
+
+        it('throws MachineNotKnownError before network for unknown machines', async () => {
+            await expect(refreshTunnelClaim(config, creds, 'missing-machine')).rejects.toThrow(MachineNotKnownError);
+            expect(mockedAxios.post).not.toHaveBeenCalled();
+        });
+
+        it('throws InvalidTunnelUrlError before network for scheme-less tunnel URLs', async () => {
+            creds = {
+                ...creds,
+                machines: [{ ...creds.machines[0], tunnelUrl: 'abc.devtunnels.ms' }],
+            };
+
+            await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow(InvalidTunnelUrlError);
+            expect(mockedAxios.post).not.toHaveBeenCalled();
+        });
+
+        it('maps 401, 429, and network failures to typed refresh errors', async () => {
+            const { AxiosError } = await import('axios');
+
+            mockedAxios.post.mockRejectedValueOnce(new (AxiosError as any)('Unauthorized', { response: { status: 401 } }));
+            await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow(RefreshFailedError);
+
+            mockedAxios.post.mockRejectedValueOnce(new (AxiosError as any)('Too Many Requests', { response: { status: 429 } }));
+            await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow(RateLimitedError);
+
+            mockedAxios.post.mockRejectedValueOnce(new (AxiosError as any)('getaddrinfo ENOTFOUND'));
+            await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow(NetworkError);
+        });
+
+        it('maps expired pair/status responses to RefreshFailedError', async () => {
+            mockedAxios.post.mockResolvedValueOnce({ data: { status: 'expired' } });
+
+            await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow(RefreshFailedError);
+        });
+
+        it('throws RefreshFailedError before claim decode when response machineId does not match requested machineId', async () => {
+            const now = Math.floor(Date.now() / 1000);
+            const mismatchedResponse = {
+                data: {
+                    status: 'authorized',
+                    machines: [{
+                        machineId: 'machine-9',
+                        tunnelUrl: 'https://machine-9.devtunnels.ms',
+                        tunnelClaim: encodeTunnelClaim({ accountId: 456, iat: now, exp: now + 600, jti: 'fresh-jti' }),
+                    }],
+                },
+            };
+            mockedAxios.post.mockResolvedValueOnce(mismatchedResponse);
+
+            await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow(
+                new RefreshFailedError('Pair status returned machine machine-9, expected machine-1'),
+            );
+        });
+
+        it('rejects tunnel claims without required signed-envelope payload fields', async () => {
+            mockedAxios.post.mockResolvedValueOnce({
+                data: {
+                    status: 'authorized',
+                    machines: [{
+                        machineId: 'machine-1',
+                        tunnelUrl: 'https://machine-1.devtunnels.ms',
+                        tunnelClaim: encodeTunnelClaim({ accountId: 'bad', iat: 1, exp: 2, jti: 'jti' }),
+                    }],
+                },
+            });
+
+            await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow('accountId missing');
+        });
+
+        it('rejects already-expired tunnel claims during the audit pass', async () => {
+            const now = Math.floor(Date.now() / 1000);
+            mockedAxios.post.mockResolvedValueOnce({
+                data: {
+                    status: 'authorized',
+                    machines: [{
+                        machineId: 'machine-1',
+                        tunnelUrl: 'https://machine-1.devtunnels.ms',
+                        tunnelClaim: encodeTunnelClaim({ accountId: 456, iat: now - 600, exp: now - 1, jti: 'jti-expired' }),
+                    }],
+                },
+            });
+
+            await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow('claim expired');
+        });
+
+        it('does not mutate the persisted credential object', async () => {
+            const before = JSON.stringify(creds.machines);
+            const now = Math.floor(Date.now() / 1000);
+            mockedAxios.post.mockResolvedValueOnce({
+                data: {
+                    status: 'authorized',
+                    machines: [{
+                        machineId: 'machine-1',
+                        tunnelUrl: 'https://machine-1.devtunnels.ms',
+                        tunnelClaim: encodeTunnelClaim({ accountId: 456, iat: now, exp: now + 600, jti: 'fresh-jti' }),
+                    }],
+                },
+            });
+
+            await refreshTunnelClaim(config, creds, 'machine-1');
+
+            expect(JSON.stringify(creds.machines)).toBe(before);
+        });
+    });
+
+    describe('listMachines', () => {
+        it('returns decrypted machines without changing the REST endpoint', async () => {
+            const metadata = { host: 'laptop', homeDir: '/home/octo' };
+            const daemonState = { status: 'ready' };
+            const raw = {
+                id: 'machine-1',
+                seq: 1,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                active: true,
+                activeAt: Date.now(),
+                metadata: encodeBase64(encryptLegacy(metadata, creds.secret)),
+                metadataVersion: 1,
+                daemonState: encodeBase64(encryptLegacy(daemonState, creds.secret)),
+                daemonStateVersion: 1,
+                dataEncryptionKey: null,
+            };
+            mockedAxios.get.mockResolvedValueOnce({ data: [raw] });
+
+            const machines = await listMachines(config, creds);
+
+            expect(mockedAxios.get).toHaveBeenCalledWith(
+                'https://test-server.example.com/v1/machines',
+                { headers: { Authorization: 'Bearer test-jwt-token', 'X-Happy-Client': 'cli-control-plane/0.1.0' } },
+            );
+            expect(machines[0].metadata).toEqual(metadata);
+            expect(machines[0].daemonState).toEqual(daemonState);
         });
     });
 

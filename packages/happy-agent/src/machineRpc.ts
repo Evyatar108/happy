@@ -1,7 +1,4 @@
 import { io, Socket } from 'socket.io-client';
-import type { Config } from './config';
-import type { DecryptedMachine } from './api';
-import { decodeBase64, encodeBase64, encrypt, decrypt } from './encryption';
 
 export type SupportedAgent = 'claude' | 'codex' | 'gemini' | 'openclaw';
 
@@ -12,8 +9,13 @@ export type SpawnMachineSessionResult =
 
 type RpcAck = {
     ok: boolean;
-    result?: string;
+    result?: unknown;
     error?: string;
+};
+
+type MachineRpcParams = {
+    machineId: string;
+    [key: string]: unknown;
 };
 
 function waitForConnect(socket: Socket, timeoutMs = 10_000): Promise<void> {
@@ -57,15 +59,14 @@ function normalizeRpcError(error: string | undefined, machineId: string): string
 }
 
 async function callMachineRpc(
-    config: Config,
-    machine: DecryptedMachine,
-    token: string,
+    tunnelUrl: string,
+    tunnelClaim: string,
     method: string,
-    paramsPayload: Record<string, unknown>,
+    params: MachineRpcParams,
 ): Promise<SpawnMachineSessionResult> {
-    const socket = io(config.serverUrl, {
+    const socket = io(tunnelUrl, {
         auth: {
-            token,
+            tunnelAuthorization: `tunnel ${tunnelClaim}`,
         },
         path: '/v1/updates',
         transports: ['websocket'],
@@ -78,78 +79,65 @@ async function callMachineRpc(
     try {
         await waitForConnect(socket);
 
-        const params = encodeBase64(
-            encrypt(machine.encryption.key, machine.encryption.variant, paramsPayload),
-        );
-
         const response = await socket.timeout(30_000).emitWithAck('rpc-call', {
-            method: `${machine.id}:${method}`,
+            method: `${params.machineId}:${method}`,
             params,
         }) as RpcAck;
 
         if (!response.ok) {
-            throw new Error(normalizeRpcError(response.error, machine.id));
+            throw new Error(normalizeRpcError(response.error, params.machineId));
         }
         if (!response.result) {
             throw new Error('RPC call returned no result');
         }
 
-        const decrypted = decrypt(
-            machine.encryption.key,
-            machine.encryption.variant,
-            decodeBase64(response.result),
-        );
-
-        if (decrypted == null || typeof decrypted !== 'object' || Array.isArray(decrypted)) {
+        if (response.result == null || typeof response.result !== 'object' || Array.isArray(response.result)) {
             throw new Error('RPC call returned invalid data');
         }
 
-        if ('error' in decrypted && typeof decrypted.error === 'string') {
-            throw new Error(String(decrypted.error));
-        }
-
         if (
-            !('type' in decrypted)
+            !('type' in response.result)
             || (
-                decrypted.type !== 'success'
-                && decrypted.type !== 'requestToApproveDirectoryCreation'
-                && decrypted.type !== 'error'
+                response.result.type !== 'success'
+                && response.result.type !== 'requestToApproveDirectoryCreation'
+                && response.result.type !== 'error'
             )
         ) {
             throw new Error('RPC call returned unexpected data');
         }
 
-        return decrypted as SpawnMachineSessionResult;
+        return response.result as SpawnMachineSessionResult;
     } finally {
         socket.close();
     }
 }
 
 export async function spawnSessionOnMachine(
-    config: Config,
-    machine: DecryptedMachine,
-    token: string,
-    options: {
+    tunnelUrl: string,
+    tunnelClaim: string,
+    params: {
+        machineId: string;
         directory: string;
         approvedNewDirectoryCreation?: boolean;
         agent?: SupportedAgent;
         providerToken?: string;
     },
 ): Promise<SpawnMachineSessionResult> {
-    return callMachineRpc(config, machine, token, 'spawn-happy-session', {
+    return callMachineRpc(tunnelUrl, tunnelClaim, 'spawn-happy-session', {
+        machineId: params.machineId,
         type: 'spawn-in-directory',
-        directory: options.directory,
-        approvedNewDirectoryCreation: options.approvedNewDirectoryCreation ?? false,
-        token: options.providerToken,
-        agent: options.agent,
+        directory: params.directory,
+        approvedNewDirectoryCreation: params.approvedNewDirectoryCreation ?? false,
+        token: params.providerToken,
+        agent: params.agent,
     });
 }
 
 export async function spawnInWorktreeOnMachine(
-    config: Config,
-    machine: DecryptedMachine,
-    token: string,
-    options: {
+    tunnelUrl: string,
+    tunnelClaim: string,
+    params: {
+        machineId: string;
         repoPath: string;
         worktreePath?: string;
         runId?: string;
@@ -157,81 +145,23 @@ export async function spawnInWorktreeOnMachine(
         providerToken?: string;
     },
 ): Promise<SpawnMachineSessionResult> {
-    return callMachineRpc(config, machine, token, 'spawn-in-worktree', {
-        repoPath: options.repoPath,
-        worktreePath: options.worktreePath,
-        runId: options.runId,
-        agent: options.agent,
-        token: options.providerToken,
+    return callMachineRpc(tunnelUrl, tunnelClaim, 'spawn-in-worktree', {
+        machineId: params.machineId,
+        repoPath: params.repoPath,
+        worktreePath: params.worktreePath,
+        runId: params.runId,
+        agent: params.agent,
+        token: params.providerToken,
     });
 }
 
 export async function resumeSessionOnMachine(
-    config: Config,
-    machine: DecryptedMachine,
-    token: string,
-    sessionId: string,
+    tunnelUrl: string,
+    tunnelClaim: string,
+    params: {
+        machineId: string;
+        sessionId: string;
+    },
 ): Promise<SpawnMachineSessionResult> {
-    const socket = io(config.serverUrl, {
-        auth: {
-            token,
-        },
-        path: '/v1/updates',
-        transports: ['websocket'],
-        autoConnect: false,
-        reconnection: false,
-    });
-
-    socket.connect();
-
-    try {
-        await waitForConnect(socket);
-
-        const params = encodeBase64(
-            encrypt(machine.encryption.key, machine.encryption.variant, {
-                sessionId,
-            }),
-        );
-
-        const response = await socket.timeout(30_000).emitWithAck('rpc-call', {
-            method: `${machine.id}:resume-happy-session`,
-            params,
-        }) as RpcAck;
-
-        if (!response.ok) {
-            throw new Error(normalizeRpcError(response.error, machine.id));
-        }
-        if (!response.result) {
-            throw new Error('RPC call returned no result');
-        }
-
-        const decrypted = decrypt(
-            machine.encryption.key,
-            machine.encryption.variant,
-            decodeBase64(response.result),
-        );
-
-        if (decrypted == null || typeof decrypted !== 'object' || Array.isArray(decrypted)) {
-            throw new Error('RPC call returned invalid data');
-        }
-
-        if ('error' in decrypted && typeof decrypted.error === 'string') {
-            throw new Error(String(decrypted.error));
-        }
-
-        if (
-            !('type' in decrypted)
-            || (
-                decrypted.type !== 'success'
-                && decrypted.type !== 'requestToApproveDirectoryCreation'
-                && decrypted.type !== 'error'
-            )
-        ) {
-            throw new Error('RPC call returned unexpected data');
-        }
-
-        return decrypted as SpawnMachineSessionResult;
-    } finally {
-        socket.close();
-    }
+    return callMachineRpc(tunnelUrl, tunnelClaim, 'resume-happy-session', params);
 }

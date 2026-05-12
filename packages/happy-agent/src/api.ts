@@ -80,6 +80,34 @@ export type DecryptedMachine = {
     encryption: RecordEncryption;
 };
 
+export type MachineTunnel = {
+    machineId: string;
+    tunnelUrl: string;
+};
+
+export type RefreshedTunnelClaim = {
+    tunnelUrl: string;
+    tunnelClaim: string;
+    accountId: number;
+};
+
+type PairStatusResponse = {
+    status: 'pending' | 'slow_down' | 'authorized' | 'expired';
+    machines?: Array<{
+        machineId: string;
+        tunnelUrl: string;
+        tunnelClaim: string;
+        accountId?: number;
+    }>;
+};
+
+type TunnelClaimPayload = {
+    accountId?: unknown;
+    iat?: unknown;
+    exp?: unknown;
+    jti?: unknown;
+};
+
 export type RawMessage = WireSessionMessage;
 
 export type DecryptedMessage = {
@@ -176,6 +204,41 @@ function decryptMachine(raw: RawMachine, creds: Credentials): DecryptedMachine {
 
 // --- Error handling ---
 
+export class MachineNotKnownError extends Error {
+    constructor(machineId: string) {
+        super(`Machine ${machineId} is not known. Run 'happy-agent auth login' to refresh machine credentials.`);
+        this.name = 'MachineNotKnownError';
+    }
+}
+
+export class InvalidTunnelUrlError extends Error {
+    constructor(tunnelUrl: string) {
+        super(`Invalid tunnel URL: ${tunnelUrl}`);
+        this.name = 'InvalidTunnelUrlError';
+    }
+}
+
+export class RefreshFailedError extends Error {
+    constructor(message = "Failed to refresh tunnel claim. Run 'happy-agent auth login'") {
+        super(message);
+        this.name = 'RefreshFailedError';
+    }
+}
+
+export class RateLimitedError extends Error {
+    constructor() {
+        super('Tunnel claim refresh was rate limited. Retry in 60s.');
+        this.name = 'RateLimitedError';
+    }
+}
+
+export class NetworkError extends Error {
+    constructor(message: string) {
+        super(`Network error refreshing tunnel claim: ${message}`);
+        this.name = 'NetworkError';
+    }
+}
+
 function handleApiError(err: unknown, context: string): never {
     if (err instanceof AxiosError) {
         const status = err.response?.status;
@@ -207,7 +270,93 @@ function authHeaders(creds: Credentials): Record<string, string> {
     };
 }
 
+function decodeTunnelClaimPayload(tunnelClaim: string): TunnelClaimPayload {
+    const envelope = JSON.parse(Buffer.from(tunnelClaim, 'base64url').toString('utf-8')) as { p?: unknown; s?: unknown };
+    if (typeof envelope.p !== 'string' || typeof envelope.s !== 'string') {
+        throw new Error('invalid envelope');
+    }
+    return JSON.parse(Buffer.from(envelope.p, 'base64url').toString('utf-8')) as TunnelClaimPayload;
+}
+
+function accountIdFromTunnelClaim(tunnelClaim: string): number {
+    const payload = decodeTunnelClaimPayload(tunnelClaim);
+    if (typeof payload.accountId !== 'number') throw new Error('accountId missing');
+    if (typeof payload.iat !== 'number' || typeof payload.exp !== 'number' || payload.exp - payload.iat > 3600) throw new Error('invalid lifetime');
+    if (payload.exp <= Math.floor(Date.now() / 1000)) throw new Error('claim expired');
+    if (typeof payload.jti !== 'string' || payload.jti.length === 0) throw new Error('jti missing');
+    return payload.accountId;
+}
+
 // --- API functions ---
+
+export function discoverMachineTunnels(creds: Credentials): MachineTunnel[] {
+    return creds.machines.map(machine => ({
+        machineId: machine.machineId,
+        tunnelUrl: machine.tunnelUrl,
+    }));
+}
+
+export async function refreshTunnelClaim(
+    config: Config,
+    creds: Credentials,
+    machineId: string,
+): Promise<RefreshedTunnelClaim> {
+    void config;
+    if (Math.floor(Date.now() / 1000) >= creds.deviceCodeExpiresAt) {
+        throw new RefreshFailedError("Device code expired. Run 'happy-agent auth login'");
+    }
+
+    const target = creds.machines.find(machine => machine.machineId === machineId);
+    if (!target) {
+        throw new MachineNotKnownError(machineId);
+    }
+
+    try {
+        new URL(target.tunnelUrl);
+    } catch {
+        throw new InvalidTunnelUrlError(target.tunnelUrl);
+    }
+
+    let response: PairStatusResponse;
+    try {
+        const resp = await axios.post(`${target.tunnelUrl}/pair/status`, {
+            device_code: creds.deviceCode,
+        }, {
+            headers: { 'X-Happy-Client': 'cli-control-plane/0.1.0' },
+            timeout: 30_000,
+        });
+        response = resp.data as PairStatusResponse;
+    } catch (error) {
+        if (error instanceof AxiosError) {
+            if (error.response?.status === 401) throw new RefreshFailedError();
+            if (error.response?.status === 429) throw new RateLimitedError();
+            throw new NetworkError(error.message);
+        }
+        throw new NetworkError(error instanceof Error ? error.message : String(error));
+    }
+
+    if (response.status === 'expired') {
+        throw new RefreshFailedError("Device code expired. Run 'happy-agent auth login'");
+    }
+    if (response.status !== 'authorized' || !response.machines?.[0]) {
+        throw new RefreshFailedError(`Unexpected tunnel refresh status: ${response.status}`);
+    }
+
+    const refreshed = response.machines[0];
+    if (refreshed.machineId !== machineId) {
+        throw new RefreshFailedError(`Pair status returned machine ${refreshed.machineId}, expected ${machineId}`);
+    }
+    try {
+        new URL(refreshed.tunnelUrl);
+    } catch {
+        throw new InvalidTunnelUrlError(refreshed.tunnelUrl);
+    }
+    return {
+        tunnelUrl: refreshed.tunnelUrl,
+        tunnelClaim: refreshed.tunnelClaim,
+        accountId: accountIdFromTunnelClaim(refreshed.tunnelClaim),
+    };
+}
 
 export async function listSessions(
     config: Config,
@@ -215,7 +364,7 @@ export async function listSessions(
 ): Promise<DecryptedSession[]> {
     let data: { sessions: RawSession[] };
     try {
-        const resp = await axios.get(`${config.serverUrl}/v1/sessions`, {
+        const resp = await axios.get(`${config.legacyServerUrl}/v1/sessions`, {
             headers: authHeaders(creds),
         });
         data = resp.data as { sessions: RawSession[] };
@@ -232,7 +381,7 @@ export async function listMachines(
 ): Promise<DecryptedMachine[]> {
     let data: RawMachine[];
     try {
-        const resp = await axios.get(`${config.serverUrl}/v1/machines`, {
+        const resp = await axios.get(`${config.legacyServerUrl}/v1/machines`, {
             headers: authHeaders(creds),
         });
         data = resp.data as RawMachine[];
@@ -249,7 +398,7 @@ export async function listActiveSessions(
 ): Promise<DecryptedSession[]> {
     let data: { sessions: RawSession[] };
     try {
-        const resp = await axios.get(`${config.serverUrl}/v2/sessions/active`, {
+        const resp = await axios.get(`${config.legacyServerUrl}/v2/sessions/active`, {
             headers: authHeaders(creds),
         });
         data = resp.data as { sessions: RawSession[] };
@@ -282,7 +431,7 @@ export async function createSession(
     let data: { session: RawSession };
     try {
         const resp = await axios.post(
-            `${config.serverUrl}/v1/sessions`,
+            `${config.legacyServerUrl}/v1/sessions`,
             {
                 tag: opts.tag,
                 metadata: metadataBase64,
@@ -305,7 +454,7 @@ export async function deleteSession(
     sessionId: string,
 ): Promise<void> {
     try {
-        await axios.delete(`${config.serverUrl}/v1/sessions/${encodeURIComponent(sessionId)}`, {
+        await axios.delete(`${config.legacyServerUrl}/v1/sessions/${encodeURIComponent(sessionId)}`, {
             headers: authHeaders(creds),
         });
     } catch (err) {
@@ -322,7 +471,7 @@ export async function getSessionMessages(
     let data: { messages: RawMessage[] };
     try {
         const resp = await axios.get(
-            `${config.serverUrl}/v1/sessions/${encodeURIComponent(sessionId)}/messages`,
+            `${config.legacyServerUrl}/v1/sessions/${encodeURIComponent(sessionId)}/messages`,
             { headers: authHeaders(creds) },
         );
         data = resp.data as { messages: RawMessage[] };

@@ -63,7 +63,7 @@ const defaultDependencies: MonitorDependencies = {
         encryptionKey: session.encryption.key,
         encryptionVariant: session.encryption.variant,
         token: creds.token,
-        serverUrl: config.serverUrl,
+        serverUrl: config.legacyServerUrl,
         initialAgentState: session.agentState ?? null,
     }),
     now: () => new Date().toISOString(),

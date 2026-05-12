@@ -6,10 +6,13 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { execFileSync } from 'child_process';
-import { resolve, dirname } from 'path';
+import { execFile, execFileSync } from 'child_process';
+import { createServer } from 'node:http';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { resolve, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import tweetnacl from 'tweetnacl';
+import { Server as SocketIoServer } from 'socket.io';
 import {
     encodeBase64,
     decodeBase64,
@@ -56,12 +59,48 @@ function runCli(...args: string[]): { stdout: string; stderr: string; exitCode: 
     }
 }
 
+function runCliAsync(env: NodeJS.ProcessEnv, ...args: string[]): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+    return new Promise(resolveResult => {
+        execFile(process.execPath, [
+            '--no-warnings',
+            '--no-deprecation',
+            binPath,
+            ...args,
+        ], {
+            encoding: 'utf-8',
+            env: { ...process.env, HAPPY_HOME_DIR: '/tmp/nonexistent-happy-acceptance', ...env },
+        }, (err, stdout, stderr) => {
+            resolveResult({
+                stdout: stdout ?? '',
+                stderr: stderr ?? '',
+                exitCode: err ? ((err as { code?: number }).code ?? 1) : 0,
+            });
+        });
+    });
+}
+
 // --- Test helpers ---
 
 function makeCredentials(): Credentials {
     const secret = getRandomBytes(32);
     const contentKeyPair = deriveContentKeyPair(secret);
-    return { token: 'test-jwt-token', secret, contentKeyPair };
+    return {
+        githubLogin: 'octocat',
+        deviceCode: 'device-code',
+        deviceCodeExpiresAt: 9999999999,
+        pairingBaseUrl: 'https://api.cluster-fluster.com',
+        machines: [],
+        legacyToken: 'test-jwt-token',
+        legacySecret: encodeBase64(secret),
+        token: 'test-jwt-token',
+        secret,
+        contentKeyPair,
+    };
+}
+
+function encodeTunnelClaim(payload: unknown): string {
+    const p = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    return Buffer.from(JSON.stringify({ p, s: 'signature' })).toString('base64url');
 }
 
 function makeRawSessionWithDataKey(
@@ -126,7 +165,7 @@ describe('Smoke: CLI command surface', () => {
     describe('1. auth commands', () => {
         it('auth login help shows expected description', () => {
             const { stdout } = runCli('auth', 'login', '--help');
-            expect(stdout).toContain('Authenticate via QR code');
+            expect(stdout).toContain('Authenticate via GitHub device flow');
         });
 
         it('auth logout help shows expected description', () => {
@@ -260,6 +299,190 @@ describe('Smoke: CLI command surface', () => {
     });
 });
 
+describe('Smoke: machines command tunnel join', () => {
+    it('joins persisted tunnel URLs into text and JSON output', async () => {
+        const creds = makeCredentials();
+        const metadata = { host: 'laptop', platform: 'linux', homeDir: '/home/octo' };
+        const rawMachine = {
+            id: 'machine-1',
+            seq: 1,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            active: true,
+            activeAt: Date.now(),
+            metadata: encodeBase64(encryptLegacy(metadata, creds.secret)),
+            metadataVersion: 1,
+            daemonState: encodeBase64(encryptLegacy({ status: 'ready' }, creds.secret)),
+            daemonStateVersion: 1,
+            dataEncryptionKey: null,
+        };
+        const server = createServer((req, res) => {
+            if (req.method === 'GET' && req.url === '/v1/machines') {
+                res.writeHead(200, { 'content-type': 'application/json' });
+                res.end(JSON.stringify([rawMachine]));
+                return;
+            }
+            res.writeHead(404);
+            res.end();
+        });
+        await new Promise<void>(resolveListen => server.listen(0, '127.0.0.1', resolveListen));
+        const address = server.address();
+        if (!address || typeof address === 'string') throw new Error('Failed to bind test server');
+
+        const homeDir = mkdtempSync(join(tmpdir(), 'happy-agent-cli-machines-'));
+        const tunnelUrl = `http://127.0.0.1:${address.port}`;
+        writeFileSync(join(homeDir, 'credentials.json'), JSON.stringify({
+            githubLogin: 'octocat',
+            deviceCode: 'device-code',
+            deviceCodeExpiresAt: Math.floor(Date.now() / 1000) + 900,
+            pairingBaseUrl: tunnelUrl,
+            machines: [{
+                machineId: 'machine-1',
+                tunnelUrl,
+                tunnelClaim: encodeTunnelClaim({ accountId: 123, iat: 1, exp: 2, jti: 'jti-1' }),
+                accountId: 123,
+                ed25519PublicKey: 'ed',
+                x25519PublicKey: 'x',
+            }],
+            legacyToken: 'test-jwt-token',
+            legacySecret: encodeBase64(creds.secret),
+        }));
+
+        try {
+            const text = await runCliAsync({ HAPPY_AGENT_HOME_DIR: homeDir, HAPPY_SERVER_URL: tunnelUrl }, 'machines');
+            expect(text.exitCode).toBe(0);
+            expect(text.stdout).toContain('- ID: `machine-1`');
+            expect(text.stdout).toContain(`- Tunnel URL: ${tunnelUrl}`);
+
+            const json = await runCliAsync({ HAPPY_AGENT_HOME_DIR: homeDir, HAPPY_SERVER_URL: tunnelUrl }, 'machines', '--json');
+            expect(json.exitCode).toBe(0);
+            expect(JSON.parse(json.stdout)[0]).toMatchObject({
+                id: 'machine-1',
+                tunnelUrl,
+            });
+        } finally {
+            server.close();
+            rmSync(homeDir, { recursive: true, force: true });
+        }
+    });
+});
+
+describe('Smoke: spawn and resume tunnel RPC wiring', () => {
+    it('refreshes tunnel claims and sends plaintext spawn/resume RPC params', async () => {
+        const creds = makeCredentials();
+        const metadata = {
+            host: 'laptop',
+            platform: 'linux',
+            homeDir: '/home/octo',
+            resumeSupport: { rpcAvailable: true, happyAgentAuthenticated: true },
+        };
+        const rawMachine = {
+            id: 'machine-1',
+            seq: 1,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            active: true,
+            activeAt: Date.now(),
+            metadata: encodeBase64(encryptLegacy(metadata, creds.secret)),
+            metadataVersion: 1,
+            daemonState: encodeBase64(encryptLegacy({ status: 'ready' }, creds.secret)),
+            daemonStateVersion: 1,
+            dataEncryptionKey: null,
+        };
+        const rawSession = makeRawSessionLegacy(creds, { machineId: 'machine-1', path: '/repo' }, null, { id: 'session-source' });
+        const rpcCalls: Array<{ method: string; params: unknown; auth: unknown }> = [];
+        let pairStatusCalls = 0;
+        let tunnelUrl = '';
+
+        const server = createServer((req, res) => {
+            if (req.method === 'GET' && req.url === '/v1/machines') {
+                res.writeHead(200, { 'content-type': 'application/json' });
+                res.end(JSON.stringify([rawMachine]));
+                return;
+            }
+            if (req.method === 'GET' && req.url === '/v1/sessions') {
+                res.writeHead(200, { 'content-type': 'application/json' });
+                res.end(JSON.stringify({ sessions: [rawSession] }));
+                return;
+            }
+            if (req.method === 'POST' && req.url === '/pair/status') {
+                pairStatusCalls += 1;
+                const now = Math.floor(Date.now() / 1000);
+                res.writeHead(200, { 'content-type': 'application/json' });
+                res.end(JSON.stringify({
+                    status: 'authorized',
+                    machines: [{
+                        machineId: 'machine-1',
+                        tunnelUrl,
+                        tunnelClaim: encodeTunnelClaim({ accountId: 123, iat: now, exp: now + 600, jti: `jti-${pairStatusCalls}` }),
+                    }],
+                }));
+                return;
+            }
+            res.writeHead(404);
+            res.end();
+        });
+        const ioServer = new SocketIoServer(server, { path: '/v1/updates', transports: ['websocket'] });
+        ioServer.on('connection', socket => {
+            socket.on('rpc-call', (payload: { method: string; params: unknown }, ack: (response: unknown) => void) => {
+                rpcCalls.push({ method: payload.method, params: payload.params, auth: socket.handshake.auth });
+                const sessionId = payload.method.endsWith(':resume-happy-session') ? 'session-resumed' : 'session-spawned';
+                ack({ ok: true, result: { type: 'success', sessionId, worktreePath: '/repo/.worktree', branchName: 'branch-1', runId: 'run-1' } });
+            });
+        });
+        await new Promise<void>(resolveListen => server.listen(0, '127.0.0.1', resolveListen));
+        const address = server.address();
+        if (!address || typeof address === 'string') throw new Error('Failed to bind test server');
+
+        const homeDir = mkdtempSync(join(tmpdir(), 'happy-agent-cli-rpc-'));
+        tunnelUrl = `http://127.0.0.1:${address.port}`;
+        writeFileSync(join(homeDir, 'credentials.json'), JSON.stringify({
+            githubLogin: 'octocat',
+            deviceCode: 'device-code',
+            deviceCodeExpiresAt: Math.floor(Date.now() / 1000) + 900,
+            pairingBaseUrl: tunnelUrl,
+            machines: [{
+                machineId: 'machine-1',
+                tunnelUrl,
+                tunnelClaim: encodeTunnelClaim({ accountId: 123, iat: 1, exp: 2, jti: 'initial-jti' }),
+                accountId: 123,
+                ed25519PublicKey: 'ed',
+                x25519PublicKey: 'x',
+            }],
+            legacyToken: 'test-jwt-token',
+            legacySecret: encodeBase64(creds.secret),
+        }));
+
+        try {
+            const env = { HAPPY_AGENT_HOME_DIR: homeDir, HAPPY_SERVER_URL: tunnelUrl };
+            const legacySpawn = await runCliAsync(env, 'spawn', '--machine', 'machine-1', '--path', '/repo', '--json');
+            expect(legacySpawn.exitCode).toBe(0);
+
+            const worktreeSpawn = await runCliAsync(env, 'spawn', '--machine', 'machine-1', '--new-worktree', '--repo', '/repo', '--agent', 'codex', '--json');
+            expect(worktreeSpawn.exitCode).toBe(0);
+
+            const resume = await runCliAsync(env, 'resume', 'session-source', '--json');
+            expect(resume.exitCode).toBe(0);
+
+            expect(pairStatusCalls).toBe(3);
+            expect(rpcCalls.map(call => call.method)).toEqual([
+                'machine-1:spawn-happy-session',
+                'machine-1:spawn-in-worktree',
+                'machine-1:resume-happy-session',
+            ]);
+            expect(rpcCalls.every(call => typeof call.params === 'object' && call.params !== null && !Array.isArray(call.params))).toBe(true);
+            expect(rpcCalls[0].params).toMatchObject({ machineId: 'machine-1', type: 'spawn-in-directory', directory: '/repo' });
+            expect(rpcCalls[1].params).toMatchObject({ machineId: 'machine-1', repoPath: '/repo', agent: 'codex' });
+            expect(rpcCalls[2].params).toEqual({ machineId: 'machine-1', sessionId: 'session-source' });
+            expect(rpcCalls.every(call => (call.auth as { tunnelAuthorization?: string }).tunnelAuthorization?.startsWith('tunnel '))).toBe(true);
+        } finally {
+            ioServer.close();
+            server.close();
+            rmSync(homeDir, { recursive: true, force: true });
+        }
+    }, 20000);
+});
+
 describe('Smoke: --json flag on applicable commands', () => {
     it('list --json is documented in help', () => {
         const { stdout } = runCli('list', '--help');
@@ -322,7 +545,7 @@ describe('Smoke: Error handling', () => {
     describe('invalid session ID (in unit-tested code paths)', () => {
         it('resolveSessionEncryption throws for undecryptable key', () => {
             const creds = makeCredentials();
-            const otherKeyPair = tweetnacl.box.keyPair();
+            const otherKeyPair = deriveContentKeyPair(getRandomBytes(32));
             const sessionKey = getRandomBytes(32);
             const encryptedKey = libsodiumEncryptForPublicKey(sessionKey, otherKeyPair.publicKey);
             const withVersion = new Uint8Array(1 + encryptedKey.length);
@@ -531,7 +754,7 @@ describe('Smoke: Full test suite runs', () => {
         expect(decryptLegacy(legacyEncrypted, legacyKey)).toEqual(legacyData);
 
         // Box encryption round-trip
-        const keyPair = tweetnacl.box.keyPair();
+        const keyPair = deriveContentKeyPair(getRandomBytes(32));
         const boxData = getRandomBytes(64);
         const boxEncrypted = libsodiumEncryptForPublicKey(boxData, keyPair.publicKey);
         const boxDecrypted = decryptBoxBundle(boxEncrypted, keyPair.secretKey);
@@ -553,9 +776,10 @@ describe('Smoke: Full test suite runs', () => {
 
         try {
             const config = loadConfig();
-            expect(config.serverUrl).toBe('https://api.cluster-fluster.com');
-            expect(config.homeDir).toContain('.happy');
-            expect(config.credentialPath).toContain('agent.key');
+            expect(config.legacyServerUrl).toBe('https://api.cluster-fluster.com');
+            expect(config.pairingBaseUrl).toBe('https://api.cluster-fluster.com');
+            expect(config.homeDir).toContain('.happy-agent');
+            expect(config.credentialPath).toContain('credentials.json');
         } finally {
             if (origUrl !== undefined) process.env.HAPPY_SERVER_URL = origUrl;
             if (origHome !== undefined) process.env.HAPPY_HOME_DIR = origHome;

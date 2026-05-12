@@ -264,7 +264,7 @@ describe('encrypt/decrypt dispatcher', () => {
 
 describe('libsodiumEncryptForPublicKey + decryptBoxBundle', () => {
     it('round-trip encryption/decryption', () => {
-        const recipientKeyPair = tweetnacl.box.keyPair();
+        const recipientKeyPair = deriveContentKeyPair(getRandomBytes(32));
         const data = new Uint8Array([1, 2, 3, 4, 5]);
         const encrypted = libsodiumEncryptForPublicKey(data, recipientKeyPair.publicKey);
         const decrypted = decryptBoxBundle(encrypted, recipientKeyPair.secretKey);
@@ -272,7 +272,7 @@ describe('libsodiumEncryptForPublicKey + decryptBoxBundle', () => {
     });
 
     it('bundle has correct structure (32 pubkey + 24 nonce + ciphertext)', () => {
-        const recipientKeyPair = tweetnacl.box.keyPair();
+        const recipientKeyPair = deriveContentKeyPair(getRandomBytes(32));
         const data = new Uint8Array([1, 2, 3]);
         const encrypted = libsodiumEncryptForPublicKey(data, recipientKeyPair.publicKey);
         // Minimum: 32 (pubkey) + 24 (nonce) + ciphertext (data + MAC overhead)
@@ -280,20 +280,20 @@ describe('libsodiumEncryptForPublicKey + decryptBoxBundle', () => {
     });
 
     it('decryption fails with wrong secret key', () => {
-        const recipientKeyPair = tweetnacl.box.keyPair();
-        const wrongKeyPair = tweetnacl.box.keyPair();
+        const recipientKeyPair = deriveContentKeyPair(getRandomBytes(32));
+        const wrongKeyPair = deriveContentKeyPair(getRandomBytes(32));
         const data = new Uint8Array([1, 2, 3]);
         const encrypted = libsodiumEncryptForPublicKey(data, recipientKeyPair.publicKey);
         expect(decryptBoxBundle(encrypted, wrongKeyPair.secretKey)).toBeNull();
     });
 
     it('decryption returns null for too-short bundle', () => {
-        const keyPair = tweetnacl.box.keyPair();
+        const keyPair = deriveContentKeyPair(getRandomBytes(32));
         expect(decryptBoxBundle(new Uint8Array(10), keyPair.secretKey)).toBeNull();
     });
 
     it('works with empty data', () => {
-        const recipientKeyPair = tweetnacl.box.keyPair();
+        const recipientKeyPair = deriveContentKeyPair(getRandomBytes(32));
         const data = new Uint8Array([]);
         const encrypted = libsodiumEncryptForPublicKey(data, recipientKeyPair.publicKey);
         const decrypted = decryptBoxBundle(encrypted, recipientKeyPair.secretKey);
