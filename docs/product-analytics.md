@@ -42,22 +42,6 @@
   - last_active_at
   - last_updated_at
 
-## Voice
-
-- voice_permission_response
-  - allowed
-- voice_session_started
-  - session_id
-  - elevenlabs_conversation_id
-- voice_session_error
-  - session_id
-  - elevenlabs_conversation_id
-  - error
-- voice_session_stopped
-  - session_id
-  - elevenlabs_conversation_id
-  - duration_seconds
-
 ## Paywall
 
 all include flow property which customizes the upsell screen shown by revenue cat.
@@ -147,7 +131,6 @@ all include flow property which customizes the upsell screen shown by revenue ca
 ## Notes
 
 - session_switched now includes stable identity (`session_id`, `session_created_at`) plus recency. Entry source is still merged until we add an explicit source property.
-- elevenlabs_conversation_id is the conversation id returned by the ElevenLabs voice session layer.
 - github_connected is a plain event with no GitHub profile data attached.
 
 ## Relevant Sources
@@ -155,7 +138,6 @@ all include flow property which customizes the upsell screen shown by revenue ca
 - packages/happy-app/sources/track/index.ts
 - packages/happy-app/sources/hooks/useNavigateToSession.ts
 - packages/happy-app/sources/-session/SessionView.tsx
-- packages/happy-app/sources/realtime/RealtimeSession.ts
 - packages/happy-app/sources/components/SettingsView.tsx
 - packages/happy-app/sources/sync/sync.ts
 - packages/happy-app/sources/track/useTrackScreens.ts
