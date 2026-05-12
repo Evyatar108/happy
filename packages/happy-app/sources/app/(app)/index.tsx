@@ -1,4 +1,3 @@
-import * as WebBrowser from 'expo-web-browser';
 import { RoundButton } from "@/components/RoundButton";
 import { useAuth } from "@/auth/AuthContext";
 import { Text, View, Image, Platform, FlatList } from "react-native";
@@ -12,12 +11,17 @@ import { HomeHeaderNotAuth } from "@/components/HomeHeader";
 import { MainView } from "@/components/MainView";
 import { t } from '@/text';
 import {
-    createX25519KeyPair, credentialsFromPairMachine, connectMachine,
-    startDeviceTunnelFlow, pollDeviceTunnelFlow, listHappyTunnels, fetchTunnelConnectToken, fetchGitHubUserProfile,
-    type DiscoveredMachine, type PairMachine,
+    credentialsFromPairMachine,
+    fetchGitHubUserProfile,
+    loginInteractive,
+    openGitHubDeviceFlow,
+    startPairFlow,
+    waitForPairStatus,
+    type PairMachine,
 } from '@/auth/pairing';
 import { Modal } from '@/modal';
 import { TokenStorage } from '@/auth/tokenStorage';
+import { DevTunnelsClientProvider, type ClientTunnelProvider, type MachineTunnel } from '@/sync/tunnelProvider';
 
 export default function Home() {
     const auth = useAuth();
@@ -34,103 +38,73 @@ function Authenticated() {
 }
 
 type PendingPairing = {
-    primaryMachine: PairMachine;
-    discoveredMachines: DiscoveredMachine[];
-    localKeyPair: ReturnType<typeof createX25519KeyPair>;
-    githubToken: string;
+    machines: MachineTunnel[];
     githubLogin: string;
     avatarUrl: string;
-    deviceCode: string;
-    deviceCodeExpiresAt: number;
 };
 
-type TunnelAuth = {
-    connectToken: string;
-    connectTokenExpiry: number;
-    githubToken: string;
-    tunnelId: string;
-    login: string;
-    avatarUrl: string;
-    deviceCode: string;
-    deviceCodeExpiresAt: number;
+type NotAuthenticatedProps = {
+    tunnelProvider?: ClientTunnelProvider;
 };
 
-function NotAuthenticated() {
+type MachinePickerProps = {
+    pendingPairing: PendingPairing;
+    connecting: boolean;
+    onSelectMachine(machine: MachineTunnel): void;
+    onCancel(): void;
+};
+
+function machineDisplayName(machine: MachineTunnel): string {
+    const displayTag = machine.tags.find(tag => tag.startsWith('displayName:'));
+    return displayTag?.slice('displayName:'.length) || machine.machineId;
+}
+
+function isMachineOnline(machine: MachineTunnel): boolean {
+    return machine.lastSeenAt !== null && machine.lastSeenAt !== undefined;
+}
+
+export function NotAuthenticated({ tunnelProvider }: NotAuthenticatedProps = {}) {
     const { theme } = useUnistyles();
     const auth = useAuth();
     const isLandscape = useIsLandscape();
     const insets = useSafeAreaInsets();
     const [pendingPairing, setPendingPairing] = React.useState<PendingPairing | null>(null);
     const [connecting, setConnecting] = React.useState(false);
+    const provider = React.useMemo(() => tunnelProvider ?? new DevTunnelsClientProvider({
+        credentials: TokenStorage,
+        loginInteractive,
+    }), [tunnelProvider]);
 
     const completePairing = async (
+        sourceMachine: MachineTunnel,
         machine: PairMachine,
-        localKeyPair: ReturnType<typeof createX25519KeyPair>,
-        tunnelAuth?: TunnelAuth,
+        metadata: { login: string; avatarUrl: string; deviceCode: string; deviceCodeExpiresAt: number },
     ) => {
-        const trustedMachines = await TokenStorage.getCredentialsList();
-        const existingMachine = trustedMachines.find(item => item.machineId === machine.machineId);
-        if (existingMachine && existingMachine.pinnedPubkey !== machine.ed25519PublicKey) {
-            const acceptedRotation = await Modal.confirm(
-                t('welcome.pubkeyRotationTitle'),
-                t('welcome.pubkeyRotationWarning'),
-                { confirmText: t('welcome.trust'), cancelText: t('common.cancel'), destructive: true }
-            );
-            if (!acceptedRotation) return;
-        }
-        const trusted = await Modal.confirm(
-            t('welcome.trustMachine'),
-            t('welcome.ed25519Fingerprint', { fingerprint: machine.ed25519Fingerprint ?? machine.ed25519PublicKey }),
-            { confirmText: t('welcome.trust'), cancelText: t('common.cancel') }
-        );
-        if (!trusted) return;
-        const credentials = {
-            ...credentialsFromPairMachine(machine, localKeyPair),
-            ...tunnelAuth,
-        };
+        const credentials = credentialsFromPairMachine(sourceMachine, machine, metadata);
         await auth.login(credentials);
         trackAccountCreated();
     };
 
     const pairMachine = async () => {
         try {
-            // Direct GitHub device flow using devtunnel's GitHub App (no server proxy needed)
-            const flow = await startDeviceTunnelFlow();
-            await WebBrowser.openBrowserAsync(flow.verification_uri_complete ?? flow.verification_uri);
-
-            const localKeyPair = createX25519KeyPair();
-            const deadline = Date.now() + flow.expires_in * 1000;
-            const deviceCodeExpiresAt = deadline;
-            let githubToken: string | null = null;
-            while (Date.now() < deadline) {
-                await new Promise(resolve => setTimeout(resolve, Math.max(flow.interval, 1) * 1000));
-                githubToken = await pollDeviceTunnelFlow(flow.device_code);
-                if (githubToken) break;
+            if (!(await provider.isLoggedIn())) {
+                await provider.loginInteractive();
             }
-            if (!githubToken) throw new Error(t('welcome.deviceAuthorizationExpired'));
-            await TokenStorage.setDevTunnelsToken(githubToken);
-            const githubProfile = await fetchGitHubUserProfile(githubToken);
-
-            // Enumerate happy-* tunnels via Dev Tunnels API
-            const discovered = await listHappyTunnels(githubToken);
+            const githubToken = await TokenStorage.getDevTunnelsToken();
+            const githubProfile = githubToken ? await fetchGitHubUserProfile(githubToken) : { login: '', avatarUrl: '' };
+            const discovered = await provider.listMachineTunnels();
             if (discovered.length === 0) throw new Error(t('welcome.noMachinesForIdentity'));
 
             if (discovered.length > 1) {
                 setPendingPairing({
-                    primaryMachine: null as never,  // no primary yet — user must pick
-                    discoveredMachines: discovered,
-                    localKeyPair,
-                    githubToken,
+                    machines: discovered,
                     githubLogin: githubProfile.login,
                     avatarUrl: githubProfile.avatarUrl,
-                    deviceCode: flow.device_code,
-                    deviceCodeExpiresAt,
                 });
                 return;
             }
 
-            // Single machine — auto-connect
-            await connectAndPair(discovered[0]!, githubToken, localKeyPair, githubProfile.login, githubProfile.avatarUrl, flow.device_code, deviceCodeExpiresAt);
+            await connectAndPair(discovered[0]!, githubProfile.login, githubProfile.avatarUrl);
         } catch (error) {
             console.error('Error pairing machine', error);
             Modal.alert(t('common.error'), error instanceof Error ? error.message : t('welcome.pairingFailed'));
@@ -138,44 +112,33 @@ function NotAuthenticated() {
     };
 
     const connectAndPair = async (
-        machine: DiscoveredMachine,
-        githubToken: string,
-        localKeyPair: ReturnType<typeof createX25519KeyPair>,
+        machine: MachineTunnel,
         login: string,
         avatarUrl: string,
-        deviceCode: string,
-        deviceCodeExpiresAt: number,
     ) => {
-        // Get real Dev Tunnels connect JWT — this is the tunnel-level auth credential
-        const { connectToken, connectTokenExpiry } = await fetchTunnelConnectToken(machine.tunnelId, githubToken);
+        const flow = await startPairFlow(machine);
+        const deviceCodeExpiresAt = Date.now() + (flow.expires_in ?? 15 * 60) * 1000;
+        await openGitHubDeviceFlow(flow);
+        const status = await waitForPairStatus(machine, flow);
+        const paired = status.machines?.[0];
+        if (!paired) throw new Error(t('welcome.pairingFailed'));
 
-        // Pair with the machine via /pair/connect (tunnel auth is the gate, no GitHub token needed)
-        const paired = await connectMachine(machine.tunnelUrl, connectToken, localKeyPair);
-
-        await completePairing(paired, localKeyPair, {
-            connectToken,
-            connectTokenExpiry,
-            githubToken,
-            tunnelId: machine.tunnelId,
+        await completePairing(machine, paired, {
             login,
             avatarUrl,
-            deviceCode,
+            deviceCode: flow.device_code,
             deviceCodeExpiresAt,
         });
     };
 
-    const handleSelectDiscovered = async (machine: DiscoveredMachine) => {
+    const handleSelectDiscovered = async (machine: MachineTunnel) => {
         if (!pendingPairing || connecting) return;
         setConnecting(true);
         try {
             await connectAndPair(
                 machine,
-                pendingPairing.githubToken,
-                pendingPairing.localKeyPair,
                 pendingPairing.githubLogin,
                 pendingPairing.avatarUrl,
-                pendingPairing.deviceCode,
-                pendingPairing.deviceCodeExpiresAt,
             );
             setPendingPairing(null);
         } catch (error) {
@@ -187,43 +150,12 @@ function NotAuthenticated() {
 
     if (pendingPairing) {
         return (
-            <>
-                <HomeHeaderNotAuth />
-                <View style={styles.pickerContainer}>
-                    <Text style={styles.pickerTitle}>{t('welcome.selectMachine')}</Text>
-                    <Text style={styles.pickerSubtitle}>
-                        {t('welcome.selectMachineSubtitle', { login: pendingPairing.githubLogin })}
-                    </Text>
-                    <View style={styles.machineListContainer}>
-                        {pendingPairing.discoveredMachines.map(machine => (
-                            <View key={machine.tunnelId} style={styles.machineItem}>
-                                <View style={styles.machineInfo}>
-                                    <Text style={styles.machineName}>{machine.displayName}</Text>
-                                    <Text style={[styles.machineStatus, machine.isOnline ? styles.online : styles.offline]}>
-                                        {machine.isOnline ? t('welcome.online') : t('welcome.offline')}
-                                    </Text>
-                                </View>
-                                <View style={styles.machineButton}>
-                                    <RoundButton
-                                        title={connecting ? '...' : t('welcome.connectTo')}
-                                        size="normal"
-                                        action={() => handleSelectDiscovered(machine)}
-                                        disabled={connecting}
-                                    />
-                                </View>
-                            </View>
-                        ))}
-                    </View>
-                    <View style={styles.cancelButton}>
-                        <RoundButton
-                            title={t('common.cancel')}
-                            size="normal"
-                            display="inverted"
-                            onPress={() => setPendingPairing(null)}
-                        />
-                    </View>
-                </View>
-            </>
+            <MachinePicker
+                pendingPairing={pendingPairing}
+                connecting={connecting}
+                onSelectMachine={handleSelectDiscovered}
+                onCancel={() => setPendingPairing(null)}
+            />
         );
     }
 
@@ -283,6 +215,49 @@ function NotAuthenticated() {
             {isLandscape ? landscapeLayout : portraitLayout}
         </>
     )
+}
+
+export function MachinePicker({ pendingPairing, connecting, onSelectMachine, onCancel }: MachinePickerProps) {
+    return (
+        <>
+            <HomeHeaderNotAuth />
+            <View style={styles.pickerContainer}>
+                <Text style={styles.pickerTitle}>{t('welcome.selectMachine')}</Text>
+                <Text style={styles.pickerSubtitle}>
+                    {t('welcome.selectMachineSubtitle', { login: pendingPairing.githubLogin })}
+                </Text>
+                <View style={styles.machineListContainer}>
+                    {pendingPairing.machines.map(machine => (
+                        <View key={machine.tunnelId} style={styles.machineItem}>
+                            <View style={styles.machineInfo}>
+                                <Text style={styles.machineName}>{machineDisplayName(machine)}</Text>
+                                <Text style={styles.machineTag}>{String(machine.lastSeenAt)}</Text>
+                                <Text style={[styles.machineStatus, isMachineOnline(machine) ? styles.online : styles.offline]}>
+                                    {isMachineOnline(machine) ? t('welcome.online') : t('welcome.offline')}
+                                </Text>
+                            </View>
+                            <View style={styles.machineButton}>
+                                <RoundButton
+                                    title={connecting ? '...' : t('welcome.connectTo')}
+                                    size="normal"
+                                    action={async () => onSelectMachine(machine)}
+                                    disabled={connecting}
+                                />
+                            </View>
+                        </View>
+                    ))}
+                </View>
+                <View style={styles.cancelButton}>
+                    <RoundButton
+                        title={t('common.cancel')}
+                        size="normal"
+                        display="inverted"
+                        onPress={async () => onCancel()}
+                    />
+                </View>
+            </View>
+        </>
+    );
 }
 
 const styles = StyleSheet.create((theme) => ({

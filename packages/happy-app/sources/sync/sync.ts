@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { apiSocket, getHappyClientId } from '@/sync/apiSocket';
 import { AuthCredentials, TokenStorage } from '@/auth/tokenStorage';
-import { getMachineAuthHeaders, refreshConnectTokenIfNeeded } from '@/auth/machineAuth';
+import { getMachineAuthHeaders } from '@/auth/machineAuth';
 import { Encryption } from '@/sync/encryption/encryption';
 import { decodeBase64, encodeBase64 } from '@/encryption/base64';
 import { storage } from './storage';
@@ -237,13 +237,6 @@ class Sync {
                     this.failPendingOutboxMessages('Message failed to send in background after 30s. Please retry.');
                 }
                 log.log('📱 App became active');
-                // Refresh connect tokens in storage before reconnecting sockets
-                void Promise.all(this.credentialsList.map(async (c) => {
-                    const refreshed = await refreshConnectTokenIfNeeded(c);
-                    if (refreshed.connectToken !== c.connectToken) {
-                        await TokenStorage.setCredentials(refreshed);
-                    }
-                }));
                 apiSocket.connect();
                 this.purchasesSync.invalidate();
                 this.profileSync.invalidate();
@@ -2844,14 +2837,7 @@ async function syncInit(credentials: AuthCredentials, restore: boolean) {
     const storedCredentials = await TokenStorage.getCredentialsList();
     const rawList = storedCredentials.length > 0 ? storedCredentials : [credentials];
 
-    // Refresh any near-expiry Dev Tunnels connect tokens before initialising sockets
-    const credentialsList = await Promise.all(rawList.map(async (c) => {
-        const refreshed = await refreshConnectTokenIfNeeded(c);
-        if (refreshed.connectToken !== c.connectToken) {
-            await TokenStorage.setCredentials(refreshed);
-        }
-        return refreshed;
-    }));
+    const credentialsList = rawList;
     const encryptionsByMachineId = new Map<string, Encryption>();
     const socketConfigs: Array<{ config: { endpoint: string; credentials: AuthCredentials }; encryption: Encryption }> = [];
 
