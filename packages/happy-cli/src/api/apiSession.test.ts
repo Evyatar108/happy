@@ -9,6 +9,7 @@ const {
     mockAxiosPost,
     mockBackoff,
     mockDelay,
+    mockTunnelSocketIOOptions,
     mockLoggerDebug,
     mockLoggerDebugLargeJson,
     mockMapClaudeLogMessageToSessionEnvelopes
@@ -28,6 +29,10 @@ const {
         throw lastError;
     }),
     mockDelay: vi.fn(async () => undefined),
+    mockTunnelSocketIOOptions: vi.fn(async () => ({
+        url: 'http://127.0.0.1:7010',
+        auth: { tunnelAuthorization: 'tunnel test.claim' }
+    })),
     mockLoggerDebug: vi.fn(),
     mockLoggerDebugLargeJson: vi.fn(),
     mockMapClaudeLogMessageToSessionEnvelopes: vi.fn()
@@ -46,8 +51,13 @@ vi.mock('axios', () => ({
 
 vi.mock('@/configuration', () => ({
     configuration: {
-        serverUrl: 'https://server.test'
+        serverUrl: 'https://server.test',
+        currentCliVersion: '1.2.3'
     }
+}));
+
+vi.mock('@/daemon/daemonClient', () => ({
+    tunnelSocketIOOptions: mockTunnelSocketIOOptions
 }));
 
 vi.mock('@/ui/logger', () => ({
@@ -192,6 +202,8 @@ describe('ApiSessionClient v3 messages API migration', () => {
         session = makeSession();
         mockSocket = {
             connected: true,
+            auth: {},
+            io: { uri: '', opts: {} },
             connect: vi.fn(),
             on: vi.fn((event: string, handler: SocketHandler) => {
                 if (!socketHandlers[event]) {
@@ -215,13 +227,15 @@ describe('ApiSessionClient v3 messages API migration', () => {
         vi.restoreAllMocks();
     });
 
-    it('registers core socket handlers and connects', () => {
+    it('registers core socket handlers and connects', async () => {
         new ApiSessionClient('fake-token', session);
 
         expect(mockSocket.on).toHaveBeenCalledWith('connect', expect.any(Function));
         expect(mockSocket.on).toHaveBeenCalledWith('disconnect', expect.any(Function));
         expect(mockSocket.on).toHaveBeenCalledWith('update', expect.any(Function));
-        expect(mockSocket.connect).toHaveBeenCalledTimes(1);
+        await waitForCheck(() => {
+            expect(mockSocket.connect).toHaveBeenCalledTimes(1);
+        });
     });
 
     it('queues agent configuration metadata diffs until a runner subscribes', () => {

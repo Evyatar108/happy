@@ -6,6 +6,7 @@
 import { io, Socket } from 'socket.io-client';
 import { logger } from '@/ui/logger';
 import { configuration } from '@/configuration';
+import * as daemonClient from '@/daemon/daemonClient';
 import { MachineMetadata, DaemonState, Machine, Update, UpdateMachineBody } from './types';
 import { isSupportedAgent, registerCommonHandlers, SpawnInWorktreeOptions, SpawnSessionOptions, SpawnSessionResult } from '../modules/common/registerCommonHandlers';
 import { encodeBase64, decodeBase64, encrypt, decrypt } from './encryption';
@@ -103,6 +104,15 @@ export class ApiMachineClient {
     private resumeSessionHandler: ((sessionId: string, options?: { model?: string; permissionMode?: string }) => Promise<SpawnSessionResult>) | null = null;
     private forkSessionHandler: ((options: ForkSessionOptions) => Promise<SpawnSessionResult>) | null = null;
     private reconnectInterval: NodeJS.Timeout | null = null;
+
+    private socketAuthBase() {
+        return {
+            token: this.token,
+            clientType: 'machine-scoped' as const,
+            machineId: this.machine.id,
+            happyClient: `cli-daemon/${configuration.currentCliVersion}`
+        };
+    }
 
     constructor(
         private token: string,
@@ -356,19 +366,35 @@ export class ApiMachineClient {
     }
 
     connect() {
-        const serverUrl = configuration.serverUrl.replace(/^http/, 'ws');
-        logger.debug(`[API MACHINE] Connecting to ${serverUrl}`);
+        void this.connectToTunnelListener().catch((error) => {
+            logger.debug('[API MACHINE] Failed to connect to tunnel listener:', error);
+        });
+    }
 
-        this.socket = io(serverUrl, {
+    private async refreshTunnelAuth(): Promise<void> {
+        const options = await daemonClient.tunnelSocketIOOptions();
+        (this.socket.io as any).uri = options.url;
+        const auth = {
+            ...this.socketAuthBase(),
+            ...options.auth,
+        };
+        this.socket.auth = auth;
+        (this.socket.io as any).opts = { ...(this.socket.io as any).opts, auth };
+    }
+
+    private async connectToTunnelListener(): Promise<void> {
+        const options = await daemonClient.tunnelSocketIOOptions();
+        logger.debug(`[API MACHINE] Connecting to ${options.url}`);
+
+        this.socket = io(options.url, {
             transports: ['websocket'],
             auth: {
-                token: this.token,
-                clientType: 'machine-scoped' as const,
-                machineId: this.machine.id,
-                happyClient: `cli-daemon/${configuration.currentCliVersion}`
+                ...this.socketAuthBase(),
+                ...options.auth,
             },
             path: '/v1/updates',
             reconnection: false,
+            autoConnect: false,
         });
 
         this.socket.on('connect', () => {
@@ -430,11 +456,14 @@ export class ApiMachineClient {
 
         this.socket.on('connect_error', (error) => {
             logger.debug(`[API MACHINE] Connection error: ${error.message}`);
+            this.startSmartReconnect();
         });
 
         this.socket.io.on('error', (error: any) => {
             logger.debug('[API MACHINE] Socket error:', error);
         });
+
+        this.socket.connect();
     }
 
     private startKeepAlive() {
@@ -489,12 +518,20 @@ export class ApiMachineClient {
                 return;
             }
             logger.debug('[API MACHINE] Attempting reconnect');
-            this.socket.connect();
+            void this.refreshTunnelAuth().then(() => this.socket.connect()).catch((error) => {
+                logger.debug('[API MACHINE] Failed to refresh tunnel auth before reconnect:', error);
+            });
         }, 3000);
 
         if (shouldReconnect()) {
             logger.debug('[API MACHINE] Network up + lid open — reconnecting in 1s');
-            setTimeout(() => { if (!this.socket.connected) this.socket.connect() }, 1000);
+            setTimeout(() => {
+                if (!this.socket.connected) {
+                    void this.refreshTunnelAuth().then(() => this.socket.connect()).catch((error) => {
+                        logger.debug('[API MACHINE] Failed to refresh tunnel auth before reconnect:', error);
+                    });
+                }
+            }, 1000);
         }
     }
 

@@ -5,6 +5,7 @@ import { AgentState, ClientToServerEvents, MessageMeta, Metadata, ServerToClient
 import { decodeBase64, decrypt, encodeBase64, encrypt } from './encryption';
 import { backoff, delay } from '@/utils/time';
 import { configuration } from '@/configuration';
+import * as daemonClient from '@/daemon/daemonClient';
 import { RawJSONLines } from '@/claude/types';
 import { randomUUID } from 'node:crypto';
 import { AsyncLock } from '@/utils/lock';
@@ -217,6 +218,15 @@ export class ApiSessionClient extends EventEmitter {
     private readonly sendSync: InvalidateSync;
     private readonly receiveSync: InvalidateSync;
 
+    private socketAuthBase() {
+        return {
+            token: this.token,
+            clientType: 'session-scoped' as const,
+            sessionId: this.sessionId,
+            happyClient: `cli-coding-session/${configuration.currentCliVersion}`
+        };
+    }
+
     constructor(token: string, session: Session) {
         super()
         this.token = token;
@@ -245,12 +255,7 @@ export class ApiSessionClient extends EventEmitter {
         //
 
         this.socket = io(configuration.serverUrl, {
-            auth: {
-                token: this.token,
-                clientType: 'session-scoped' as const,
-                sessionId: this.sessionId,
-                happyClient: `cli-coding-session/${configuration.currentCliVersion}`
-            },
+            auth: this.socketAuthBase(),
             path: '/v1/updates',
             reconnection: false,
             transports: ['websocket'],
@@ -286,6 +291,7 @@ export class ApiSessionClient extends EventEmitter {
         this.socket.on('connect_error', (error) => {
             logger.debug('[API] Socket connection error:', error);
             this.rpcHandlerManager.onSocketDisconnect();
+            this.startSmartReconnect();
         })
 
         // Server events
@@ -359,6 +365,20 @@ export class ApiSessionClient extends EventEmitter {
         // Connect (after short delay to give a time to add handlers)
         //
 
+        void this.connectWithFreshTunnelAuth().catch((error) => {
+            logger.debug('[API] Failed to prepare initial tunnel socket auth:', error);
+        });
+    }
+
+    private async connectWithFreshTunnelAuth(): Promise<void> {
+        const options = await daemonClient.tunnelSocketIOOptions();
+        (this.socket.io as any).uri = options.url;
+        const auth = {
+            ...this.socketAuthBase(),
+            ...options.auth,
+        };
+        this.socket.auth = auth;
+        (this.socket.io as any).opts = { ...(this.socket.io as any).opts, auth };
         this.socket.connect();
     }
 
@@ -1090,12 +1110,20 @@ export class ApiSessionClient extends EventEmitter {
                 return;
             }
             logger.debug('[API] Attempting reconnect');
-            this.socket.connect();
+            void this.connectWithFreshTunnelAuth().catch((error) => {
+                logger.debug('[API] Failed to refresh tunnel auth before reconnect:', error);
+            });
         }, 3000);
 
         if (shouldReconnect()) {
             logger.debug('[API] Network up + lid open — reconnecting in 1s');
-            setTimeout(() => { if (!this.socket.connected) this.socket.connect() }, 1000);
+            setTimeout(() => {
+                if (!this.socket.connected) {
+                    void this.connectWithFreshTunnelAuth().catch((error) => {
+                        logger.debug('[API] Failed to refresh tunnel auth before reconnect:', error);
+                    });
+                }
+            }, 1000);
         }
     }
 }
