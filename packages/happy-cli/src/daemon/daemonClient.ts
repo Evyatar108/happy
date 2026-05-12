@@ -7,10 +7,12 @@ import { loadOrCreateTofuKeypairs } from '@/tofu/keypairManager';
 
 import { getLocalTunnelClaim } from './getLocalTunnelClaim';
 import { loopbackCapabilityPath } from './loopbackCapability';
+import { ensureDaemonRunning } from './ensureDaemonRunning';
 
 const DEFAULT_READY_TIMEOUT_MS = 10_000;
 const READY_POLL_INTERVAL_MS = 100;
 const TCP_PROBE_TIMEOUT_MS = 250;
+const FETCH_TIMEOUT_MS = 30_000;
 
 let cachedCapability: string | null = null;
 let cachedClaimMaterial: Promise<{ machineId: string; ed25519PrivateKey: Uint8Array }> | null = null;
@@ -63,6 +65,7 @@ async function readyNow(): Promise<boolean> {
 }
 
 export async function ensureDaemonReady(options: EnsureDaemonReadyOptions = {}): Promise<void> {
+  await ensureDaemonRunning();
   const timeoutMs = options.timeoutMs ?? DEFAULT_READY_TIMEOUT_MS;
   const pollIntervalMs = options.pollIntervalMs ?? READY_POLL_INTERVAL_MS;
   const deadline = Date.now() + timeoutMs;
@@ -135,6 +138,7 @@ export async function loopbackFetch(path: string, init: RequestInit = {}): Promi
   const baseUrl = await getLoopbackBaseUrl();
   const makeRequest = async () => await fetch(appendPath(baseUrl, path), {
     ...init,
+    signal: init.signal ?? AbortSignal.timeout(FETCH_TIMEOUT_MS),
     headers: mergeHeaders(init, { 'X-Loopback-Capability': await readCapability() }),
   });
 
@@ -154,6 +158,7 @@ export async function tunnelFetch(path: string, init: RequestInit = {}): Promise
   const baseUrl = await getTunnelLocalBaseUrl();
   const makeRequest = async () => await fetch(appendPath(baseUrl, path), {
     ...init,
+    signal: init.signal ?? AbortSignal.timeout(FETCH_TIMEOUT_MS),
     headers: mergeHeaders(init, { 'X-Tunnel-Authorization': await mintTunnelClaim() }),
   });
 

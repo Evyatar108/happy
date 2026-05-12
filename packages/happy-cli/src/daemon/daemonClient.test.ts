@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   readMachineState: vi.fn(),
   loadOrCreateTofuKeypairs: vi.fn(),
   createConnection: vi.fn(),
+  ensureDaemonRunning: vi.fn(),
   tcpReady: true,
 }));
 
@@ -30,6 +31,10 @@ vi.mock('@/tofu/keypairManager', () => ({
 
 vi.mock('node:net', () => ({
   createConnection: mocks.createConnection,
+}));
+
+vi.mock('./ensureDaemonRunning', () => ({
+  ensureDaemonRunning: mocks.ensureDaemonRunning,
 }));
 
 function response(status: number): Response {
@@ -71,6 +76,8 @@ describe('daemonClient', () => {
     mocks.readMachineState.mockReset();
     mocks.loadOrCreateTofuKeypairs.mockReset();
     mocks.createConnection.mockReset();
+    mocks.ensureDaemonRunning.mockReset();
+    mocks.ensureDaemonRunning.mockResolvedValue(undefined);
     mocks.tcpReady = true;
     mocks.createConnection.mockImplementation(() => {
       const socket = new EventEmitter() as EventEmitter & { setTimeout: () => void; destroy: () => void };
@@ -159,6 +166,14 @@ describe('daemonClient', () => {
 
     expect(seenJtis).toHaveLength(2);
     expect(seenJtis[0]).not.toBe(seenJtis[1]);
+  });
+
+  it('calls ensureDaemonRunning before polling so cold-start auto-spawns the daemon', async () => {
+    const client = await loadClient(await makeHome());
+
+    await client.ensureDaemonReady();
+
+    expect(mocks.ensureDaemonRunning).toHaveBeenCalledTimes(1);
   });
 
   it('times out clearly when the daemon ports are down', async () => {
