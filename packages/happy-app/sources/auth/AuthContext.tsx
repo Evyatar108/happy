@@ -12,6 +12,7 @@ interface AuthContextType {
     credentials: AuthCredentials | null;
     login: (credentials: AuthCredentials) => Promise<void>;
     logout: () => Promise<void>;
+    refreshCredentials: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,7 +23,7 @@ export function AuthProvider({ children, initialCredentials }: { children: React
 
     // Update global auth state when local state changes
     useEffect(() => {
-        setCurrentAuth(credentials ? { isAuthenticated, credentials, login, logout } : null);
+        setCurrentAuth(credentials ? { isAuthenticated, credentials, login, logout, refreshCredentials } : null);
     }, [isAuthenticated, credentials]);
 
     const login = async (newCredentials: AuthCredentials) => {
@@ -38,6 +39,12 @@ export function AuthProvider({ children, initialCredentials }: { children: React
         } else {
             throw new Error('Failed to save credentials');
         }
+    };
+
+    const refreshCredentials = async () => {
+        const updated = await TokenStorage.getCredentials();
+        setCredentials(updated);
+        setIsAuthenticated(!!updated);
     };
 
     const logout = async () => {
@@ -76,6 +83,7 @@ export function AuthProvider({ children, initialCredentials }: { children: React
                 credentials,
                 login,
                 logout,
+                refreshCredentials,
             }}
         >
             {children}

@@ -255,8 +255,20 @@ export async function machineForkSession(options: ForkSessionOptions): Promise<S
 export async function machineDelete(machineId: string): Promise<{ success: boolean; message?: string }> {
     try {
         const { TokenStorage } = await import('@/auth/tokenStorage');
+        const { getCurrentAuth } = await import('@/auth/AuthContext');
+        const auth = getCurrentAuth();
+        const wasActiveMachine = auth?.credentials?.machineId === machineId;
         await TokenStorage.removeMachineCredentials(machineId);
+        apiSocket.disconnect(machineId);
         storage.getState().deleteMachine(machineId);
+        if (wasActiveMachine) {
+            const remaining = await TokenStorage.getCredentials();
+            if (!remaining) {
+                await auth?.logout();
+            } else {
+                await auth?.refreshCredentials();
+            }
+        }
         return { success: true };
     } catch (error) {
         return {
