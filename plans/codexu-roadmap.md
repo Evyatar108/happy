@@ -190,32 +190,76 @@ for ws reattach, force-restart non-hang behavior, and stdio discovery
 skip is green. Branch: `ralph/codex-discovery-reattach`; PR link:
 <https://github.com/Evyatar108/codexu/pull/new/ralph/codex-discovery-reattach>.
 
-**Next concrete deliverable:** Dev Tunnels migration, decomposed into 5
-sprints (A serial → B+C+D parallel → E serial). Plans live under
+**Next concrete deliverable:** Dev Tunnels migration — Sprints A, B, C, D
+**LANDED** on branch `ralph/devtunnels-A-foundation` (111 commits ahead of
+`ralph/fan-out-survivors`, not yet pushed/merged). Sprint E (server route
+deletions + Prisma migration + BOOX validation) is the only remaining
+sprint. 5-sprint plans live under
 `.ralph/jobs/devtunnels-{A-foundation,B-cli,C-agent,D-app,E-cleanup}/plan.md`;
 master reference + 5-round review audit trail at
 `.ralph/jobs/devtunnels-migration/`. Orchestration sheet (per-sprint
 plan-with-ralph + implement-with-ralph commands, dependency chain,
 conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
 
-Sprint A is the blocking foundation — owns the Dev Tunnels API spike
-(supersedes the earlier `docs/spikes/devtunnel-auth-result.md` standalone
-deliverable; now scoped under US-A1 to also cover token-introspection /
-GitHub-identity extraction), the RPC payload contract redesign (replaces
-the current X25519-encrypted `rpc-call` payload), and the daemon's
-dual-listener binding + new auth decorators + accountRoutes. Sprints
-B/C/D fork off Sprint A's branch in parallel: B = happy-cli cutover off
-`config.serverUrl`, C = happy-agent full migration off QR+E2E, D =
-happy-app cleanup (delete libsodium/QR/encryption + obsolete feature
-surfaces). Sprint E does server route deletions + Prisma migration
-(HUMAN-only) + fan-out preservation tests + BOOX manual validation +
-final cutover.
+**Sprint status:**
+- **Sprint A — Foundation: COMPLETE.** 12 stories (US-A1..US-A10 + US-A5a/b/c)
+  + 5 review rounds. 42 commits including the Dev Tunnels API spike
+  (`docs/spikes/devtunnel-api-discovery-result.md`), Option A plaintext RPC
+  payload contract (`docs/security-model.md`), dual-listener binding off
+  shared context, /v2/me/* routes with paths injection, /pair/status
+  unconditional accountId derivation, MachineTunnelSchema in happy-wire,
+  DaemonTunnelProvider (cli) + ClientTunnelProvider (agent), and embedded
+  Redis gating. Audit trail at
+  `.ralph/jobs/devtunnels-A-foundation/FINAL-STATUS.md`.
+- **Sprint B — happy-cli cutover: COMPLETE.** 20 commits including
+  GitHub device flow, per-machine credentials, daemon dual-listener
+  integration, REST + Socket.IO retarget, RPC encryption deletion,
+  promoted `writeJsonAtomically` helper to `@slopus/happy-wire/node`,
+  and the daemon Socket.IO middleware `socket.data.accountId` wiring (US-B5).
+  Merged into A's branch.
+- **Sprint C — happy-agent migration: COMPLETE.** 15 commits including
+  credentials reshape, `discoverMachineTunnels` + `refreshTunnelClaim`,
+  `monitor.ts` adoption of the new pipeline, and RPC encryption deletion
+  on the caller side. Merged into A's branch.
+- **Sprint D — happy-app cleanup: COMPLETE.** 30 commits (6 stories + 19
+  review fixes + 5 doc updates) including `ClientTunnelProvider` HTTP impl,
+  picker refactor + unified pairing flow, `tokenStorage` additive reshape
+  + migration shim, per-request claim refresh + multi-machine pairing,
+  full QR / libsodium / X25519 / encryption surface deletion, voice /
+  realtime / microphone surface deletion. Merged into A's branch.
+  Cross-package totals after all four merges:
+  **151 test files / 1452 tests pass, 0 failures**; all 5 package
+  typechecks green (happy-server, happy-cli, happy-agent, happy-wire,
+  happy-app).
+- **Sprint E — cleanup + cutover: PENDING.** Owns server-side legacy route
+  deletions, Prisma migration (HUMAN-only), fan-out preservation tests,
+  BOOX manual validation, and `ralph/devtunnels-A-foundation` →
+  `ralph/fan-out-survivors` merge. Plan at
+  `.ralph/jobs/devtunnels-E-cleanup/plan.md` (needs `/plan-with-ralph
+  --improve` before implementation — Sprint A+B+C+D landed differently
+  than the original E plan assumed).
 
-Do not continue with Phase 1b sub-tasks 3+ until Sprint A merges. OAuth
-app vs GitHub app, token contract (locked: keep tunnel-claim JWT in
-`X-Tunnel-Authorization`, signed by daemon TOFU), access path (resolved
-by US-A1 spike), and local WS port policy (locked: dual-listener on
-tunnel-port + loopback-port) decisions are documented in the master plan.
+**R-D18 open issue (pre-production gate):** Dev Tunnels public-tunnel
+reachability for unauthenticated `GET /pair/start` is unresolved. Sprint A
+creates tunnels PRIVATE-by-default (no `--allow-anonymous` flag), and
+operator policy 2026-05-12 **REJECTS** the original "Sprint C patches
+`tunnelManager.ts` to add `--allow-anonymous`" path. Public anonymous
+tunnels are out of scope for this fork's single-user self-host threat
+model. The two acceptable resolution paths are (b) private-tunnel auth
+channel — extending the Dev Tunnels gateway-auth model through to
+happy-server without exposing the surface anonymously — or (c) per-tunnel
+operator stopgap (`devtunnel access create --tunnel-id <id> --anonymous`
+run manually per-tunnel by the operator, acceptable only when operator
+and end-user are the same entity). Full record at
+`packages/happy-app/scripts/sprint-a-gap.md` "R-D18".
+
+Phase 1b sub-tasks 3+ remain blocked until Sprint E lands and the merged
+branch reaches `ralph/fan-out-survivors`. OAuth app vs GitHub app, token
+contract (locked: signed Ed25519 envelope `{ p, s }` carrying `{ sub,
+iat, exp, jti, accountId? }` in `X-Tunnel-Authorization`), access path
+(resolved by US-A1 spike), and local WS port policy (locked:
+dual-listener on tunnel-port + loopback-port) decisions are documented
+in the master plan and the per-sprint FINAL-STATUS files.
 
 **Shipped vs deferred:**
 - Shipped: `JsonRpcConnection`, extracted stdio transport, ws transport,
@@ -237,40 +281,47 @@ tunnel-port + loopback-port) decisions are documented in the master plan.
 
 **Read for full context** (in this order, ~25 min):
 1. This Status block (you're here).
-2. `.ralph/jobs/devtunnels-commands.md` — orchestration sheet with the
-   5-sprint dependency chain, conflict-surface analysis, and per-sprint
-   plan-with-ralph + implement-with-ralph invocations.
-3. `.ralph/jobs/devtunnels-A-foundation/plan.md` — the blocking sprint.
-   Read this in full before starting any sprint.
-4. `.ralph/jobs/devtunnels-migration/plan.md` — master reference plan
-   (28 stories, 5 review rounds) + the audit trail under the same dir
-   (research brief, stories outline, review-findings v1, codex/copilot
-   review backups v1..v4 + current v5).
-5. `docs/plans/github-auth-via-vscode-tunnels.md` — original design doc.
-   v5 plan rebases this onto the survivors branch reality; the design
-   doc's `authRoutes`/`connectRoutes`/`accountRoutes` references are
-   stale (actual files: `pairRoutes.ts`, `userRoutes.ts`).
-6. `docs/plans/codex-seamless-multi-device.md` — sub-task 1 spec at
+2. `.ralph/jobs/devtunnels-A-foundation/FINAL-STATUS.md` — Sprint A
+   completion record + 5-round review audit trail. Required reading
+   before Sprint E.
+3. `.ralph/jobs/devtunnels-commands.md` — orchestration sheet with the
+   5-sprint dependency chain, conflict-surface analysis, and post-Sprint-A
+   constraints (removed code paths, shared helpers, claim shape) that
+   Sprint E must reconcile against.
+4. `packages/happy-app/scripts/sprint-a-gap.md` — R-D18 open issue and
+   accepted resolution paths (b) / (c). Required for the production
+   readiness checklist before merging
+   `ralph/devtunnels-A-foundation` → `ralph/fan-out-survivors`.
+5. `.ralph/jobs/devtunnels-E-cleanup/plan.md` — pending sprint. Needs
+   `/plan-with-ralph --improve` against the actual merged branch state
+   before implementation.
+6. `docs/security-model.md` — Option A RPC payload contract (Sprint A
+   US-A3) — applied end-to-end across cli/agent/app via Sprints B+C+D
+   encryption deletion.
+7. `docs/plans/codex-seamless-multi-device.md` — sub-task 1 spec at
    "Phase 1 — Persistent multi-client app-server with reattach". The
    tunnels-supersedes callout at the top lists what NOT to apply to
-   sub-tasks 3+ (those resume after Sprint E lands).
+   sub-tasks 3+ (those resume after Sprint E lands and the merged branch
+   reaches `ralph/fan-out-survivors`).
 
 **Recommended ralph workflow (next sprint):**
 ```
 cd C:/harness-efforts/codexu
-/plan-with-ralph --improve C:/harness-efforts/codexu/.ralph/jobs/devtunnels-A-foundation/plan.md
+/plan-with-ralph --improve C:/harness-efforts/codexu/.ralph/jobs/devtunnels-E-cleanup/plan.md
 ```
 
-After plan approval: `/implement-with-ralph --from-plan C:/harness-efforts/codexu/.ralph/jobs/devtunnels-A-foundation/plan.md`
+After plan approval: `/implement-with-ralph --from-plan C:/harness-efforts/codexu/.ralph/jobs/devtunnels-E-cleanup/plan.md`
 
-Sprints B/C/D run in parallel sessions only after Sprint A merges into
-`ralph/fan-out-survivors`. See `.ralph/jobs/devtunnels-commands.md` for
-each sprint's invocation and base-branch chain.
+Sprint E is the last serial sprint — owns server route deletions, Prisma
+migration (HUMAN-only), fan-out preservation tests, BOOX manual
+validation, and the final `ralph/devtunnels-A-foundation` →
+`ralph/fan-out-survivors` merge. See `.ralph/jobs/devtunnels-commands.md`
+for the invocation and base-branch chain.
 
-**Pause-point:** reached. Sub-task 2 has shipped, so stop here until
-the tunnels plan is ready. Sub-tasks 3, 4, 5 are blocked on the tunnels Phase 0 spike result
-(`docs/spikes/devtunnel-auth-result.md` — does not exist yet) AND on
-tunnels' four pre-implementation decisions.
+**Pause-point:** reached. Sprints A+B+C+D have all landed and merged onto
+`ralph/devtunnels-A-foundation`; stop here until Sprint E is planned and
+implemented. Sub-tasks 3, 4, 5 resume after Sprint E merges into
+`ralph/fan-out-survivors` (the migration's terminal step).
 
 ### Phase 2b — `.claude/skills` discovery via junctions (status 2026-05-03)
 
