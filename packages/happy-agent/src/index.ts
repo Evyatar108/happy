@@ -8,7 +8,7 @@ import type { Config } from './config';
 import { loadCredentials } from './credentials';
 import type { Credentials } from './credentials';
 import { authLogin, authLogout, authStatus } from './auth';
-import { listSessions, listActiveSessions, createSession, getSessionMessages, listMachines } from './api';
+import { listSessions, listActiveSessions, createSession, getSessionMessages, listMachines, discoverMachineTunnels } from './api';
 import type { DecryptedMachine, DecryptedSession } from './api';
 import { resumeSessionOnMachine, spawnInWorktreeOnMachine, spawnSessionOnMachine, type SupportedAgent } from './machineRpc';
 import { SessionClient } from './session';
@@ -153,11 +153,15 @@ program
         const config = loadConfig();
         const creds = loadCredentials(config);
         const machines = await listMachines(config, creds);
+        const tunnels = discoverMachineTunnels(creds);
         const filtered = opts.active ? machines.filter(machine => machine.active) : machines;
         if (opts.json) {
-            console.log(formatJson(filtered));
+            console.log(formatJson(filtered.map(machine => ({
+                ...machine,
+                tunnelUrl: tunnels.find(tunnel => tunnel.machineId === machine.id)?.tunnelUrl ?? null,
+            }))));
         } else {
-            console.log(formatMachineTable(filtered));
+            console.log(formatMachineTable(filtered, tunnels));
         }
     });
 

@@ -6,8 +6,11 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { execFileSync } from 'child_process';
-import { resolve, dirname } from 'path';
+import { execFile, execFileSync } from 'child_process';
+import { createServer } from 'node:http';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { resolve, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import {
     encodeBase64,
@@ -55,6 +58,26 @@ function runCli(...args: string[]): { stdout: string; stderr: string; exitCode: 
     }
 }
 
+function runCliAsync(env: NodeJS.ProcessEnv, ...args: string[]): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+    return new Promise(resolveResult => {
+        execFile(process.execPath, [
+            '--no-warnings',
+            '--no-deprecation',
+            binPath,
+            ...args,
+        ], {
+            encoding: 'utf-8',
+            env: { ...process.env, HAPPY_HOME_DIR: '/tmp/nonexistent-happy-acceptance', ...env },
+        }, (err, stdout, stderr) => {
+            resolveResult({
+                stdout: stdout ?? '',
+                stderr: stderr ?? '',
+                exitCode: err ? ((err as { code?: number }).code ?? 1) : 0,
+            });
+        });
+    });
+}
+
 // --- Test helpers ---
 
 function makeCredentials(): Credentials {
@@ -72,6 +95,11 @@ function makeCredentials(): Credentials {
         secret,
         contentKeyPair,
     };
+}
+
+function encodeTunnelClaim(payload: unknown): string {
+    const p = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    return Buffer.from(JSON.stringify({ p, s: 'signature' })).toString('base64url');
 }
 
 function makeRawSessionWithDataKey(
@@ -267,6 +295,74 @@ describe('Smoke: CLI command surface', () => {
             expect(exitCode).not.toBe(0);
             expect(stderr).toContain('happy-agent auth login');
         });
+    });
+});
+
+describe('Smoke: machines command tunnel join', () => {
+    it('joins persisted tunnel URLs into text and JSON output', async () => {
+        const creds = makeCredentials();
+        const metadata = { host: 'laptop', platform: 'linux', homeDir: '/home/octo' };
+        const rawMachine = {
+            id: 'machine-1',
+            seq: 1,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            active: true,
+            activeAt: Date.now(),
+            metadata: encodeBase64(encryptLegacy(metadata, creds.secret)),
+            metadataVersion: 1,
+            daemonState: encodeBase64(encryptLegacy({ status: 'ready' }, creds.secret)),
+            daemonStateVersion: 1,
+            dataEncryptionKey: null,
+        };
+        const server = createServer((req, res) => {
+            if (req.method === 'GET' && req.url === '/v1/machines') {
+                res.writeHead(200, { 'content-type': 'application/json' });
+                res.end(JSON.stringify([rawMachine]));
+                return;
+            }
+            res.writeHead(404);
+            res.end();
+        });
+        await new Promise<void>(resolveListen => server.listen(0, '127.0.0.1', resolveListen));
+        const address = server.address();
+        if (!address || typeof address === 'string') throw new Error('Failed to bind test server');
+
+        const homeDir = mkdtempSync(join(tmpdir(), 'happy-agent-cli-machines-'));
+        const tunnelUrl = `http://127.0.0.1:${address.port}`;
+        writeFileSync(join(homeDir, 'credentials.json'), JSON.stringify({
+            githubLogin: 'octocat',
+            deviceCode: 'device-code',
+            deviceCodeExpiresAt: Math.floor(Date.now() / 1000) + 900,
+            pairingBaseUrl: tunnelUrl,
+            machines: [{
+                machineId: 'machine-1',
+                tunnelUrl,
+                tunnelClaim: encodeTunnelClaim({ accountId: 123, iat: 1, exp: 2, jti: 'jti-1' }),
+                accountId: 123,
+                ed25519PublicKey: 'ed',
+                x25519PublicKey: 'x',
+            }],
+            legacyToken: 'test-jwt-token',
+            legacySecret: encodeBase64(creds.secret),
+        }));
+
+        try {
+            const text = await runCliAsync({ HAPPY_AGENT_HOME_DIR: homeDir, HAPPY_SERVER_URL: tunnelUrl }, 'machines');
+            expect(text.exitCode).toBe(0);
+            expect(text.stdout).toContain('- ID: `machine-1`');
+            expect(text.stdout).toContain(`- Tunnel URL: ${tunnelUrl}`);
+
+            const json = await runCliAsync({ HAPPY_AGENT_HOME_DIR: homeDir, HAPPY_SERVER_URL: tunnelUrl }, 'machines', '--json');
+            expect(json.exitCode).toBe(0);
+            expect(JSON.parse(json.stdout)[0]).toMatchObject({
+                id: 'machine-1',
+                tunnelUrl,
+            });
+        } finally {
+            server.close();
+            rmSync(homeDir, { recursive: true, force: true });
+        }
     });
 });
 

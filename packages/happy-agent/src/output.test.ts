@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { formatSessionTable, formatSessionStatus, formatMessageHistory, formatJson } from './output';
-import type { DecryptedSession, DecryptedMessage } from './api';
+import { formatSessionTable, formatMachineTable, formatSessionStatus, formatMessageHistory, formatJson } from './output';
+import type { DecryptedSession, DecryptedMachine, DecryptedMessage } from './api';
 
 function makeSession(overrides: Partial<DecryptedSession> = {}): DecryptedSession {
     return {
@@ -12,6 +12,24 @@ function makeSession(overrides: Partial<DecryptedSession> = {}): DecryptedSessio
         activeAt: Date.now() - 60_000,
         metadata: { tag: 'test-session', path: '/home/user/project', summary: 'Test session' },
         agentState: null,
+        dataEncryptionKey: null,
+        encryption: { key: new Uint8Array(32), variant: 'dataKey' as const },
+        ...overrides,
+    };
+}
+
+function makeMachine(overrides: Partial<DecryptedMachine> = {}): DecryptedMachine {
+    return {
+        id: 'machine-1',
+        seq: 1,
+        createdAt: Date.now() - 3600_000,
+        updatedAt: Date.now() - 1800_000,
+        active: true,
+        activeAt: Date.now() - 60_000,
+        metadata: { host: 'laptop', platform: 'linux', homeDir: '/home/octo' },
+        metadataVersion: 1,
+        daemonState: { status: 'ready' },
+        daemonStateVersion: 1,
         dataEncryptionKey: null,
         encryption: { key: new Uint8Array(32), variant: 'dataKey' as const },
         ...overrides,
@@ -204,6 +222,33 @@ describe('formatSessionStatus', () => {
         expect(output).not.toContain('Summary:');
         expect(output).not.toContain('Path:');
         expect(output).not.toContain('Host:');
+    });
+});
+
+describe('formatMachineTable', () => {
+    it('should return markdown summary when machines array is empty', () => {
+        const output = formatMachineTable([]);
+        expect(output).toContain('## Machines');
+        expect(output).toContain('- Total: 0');
+    });
+
+    it('should display id, active status, and joined tunnel URL', () => {
+        const machine = makeMachine();
+
+        const output = formatMachineTable([machine], [
+            { machineId: 'machine-1', tunnelUrl: 'https://machine-1.devtunnels.ms' },
+        ]);
+
+        expect(output).toContain('### Machine 1');
+        expect(output).toContain('- ID: `machine-1`');
+        expect(output).toContain('- Status: ready');
+        expect(output).toContain('- Tunnel URL: https://machine-1.devtunnels.ms');
+    });
+
+    it('should display dash when no tunnel is matched', () => {
+        const output = formatMachineTable([makeMachine()], []);
+
+        expect(output).toContain('- Tunnel URL: -');
     });
 });
 
