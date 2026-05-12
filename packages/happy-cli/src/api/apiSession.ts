@@ -28,7 +28,8 @@ import {
 } from '@/claude/utils/sessionProtocolMapper';
 import { normalizeSessionLogMessage } from '@/claude/utils/normalizeSessionLogMessage';
 import { InvalidateSync } from '@/utils/sync';
-import axios from 'axios';
+
+const SOCKET_PLACEHOLDER_URL = 'http://127.0.0.1:0';
 
 const CONSUMPTION_ACK_TIMEOUT_MS = (() => {
     const raw = process.env.HAPPY_CONSUMPTION_ACK_TIMEOUT_MS;
@@ -254,7 +255,7 @@ export class ApiSessionClient extends EventEmitter {
         // Create socket
         //
 
-        this.socket = io(configuration.serverUrl, {
+        this.socket = io(SOCKET_PLACEHOLDER_URL, {
             auth: this.socketAuthBase(),
             path: '/v1/updates',
             reconnection: false,
@@ -553,19 +554,20 @@ export class ApiSessionClient extends EventEmitter {
 
         let afterSeq = this.lastSeq;
         while (true) {
-            const response = await axios.get<V3GetSessionMessagesResponse>(
-                `${configuration.serverUrl}/v3/sessions/${encodeURIComponent(this.sessionId)}/messages`,
-                {
-                    params: {
-                        after_seq: afterSeq,
-                        limit: 100
-                    },
-                    headers: this.authHeaders(),
-                    timeout: 60000
-                }
+            const params = new URLSearchParams({
+                after_seq: String(afterSeq),
+                limit: '100',
+            });
+            const response = await daemonClient.tunnelFetch(
+                `/v3/sessions/${encodeURIComponent(this.sessionId)}/messages?${params.toString()}`,
+                { headers: this.authHeaders() }
             );
+            if (!response.ok) {
+                throw new Error(`Failed to fetch session messages: ${response.status}`);
+            }
+            const data = await response.json() as V3GetSessionMessagesResponse;
 
-            const messages = Array.isArray(response.data.messages) ? response.data.messages : [];
+            const messages = Array.isArray(data.messages) ? data.messages : [];
             let maxSeq = afterSeq;
 
             for (const message of messages) {
@@ -595,7 +597,7 @@ export class ApiSessionClient extends EventEmitter {
             }
 
             this.lastSeq = Math.max(this.lastSeq, maxSeq);
-            const hasMore = !!response.data.hasMore;
+            const hasMore = !!data.hasMore;
             if (hasMore && maxSeq === afterSeq) {
                 logger.debug('[API] fetchMessages pagination stalled, stopping to avoid infinite loop', {
                     sessionId: this.sessionId,
@@ -620,18 +622,22 @@ export class ApiSessionClient extends EventEmitter {
             const batchStart = this.pendingOutbox.length - batchSize;
             const batch = this.pendingOutbox.slice(batchStart);
 
-            const response = await axios.post<V3PostSessionMessagesResponse>(
-                `${configuration.serverUrl}/v3/sessions/${encodeURIComponent(this.sessionId)}/messages`,
+            const response = await daemonClient.tunnelFetch(
+                `/v3/sessions/${encodeURIComponent(this.sessionId)}/messages`,
                 {
-                    messages: batch
-                },
-                {
+                    method: 'POST',
                     headers: this.authHeaders(),
-                    timeout: 60000
+                    body: JSON.stringify({
+                        messages: batch
+                    }),
                 }
             );
+            if (!response.ok) {
+                throw new Error(`Failed to flush session outbox: ${response.status}`);
+            }
+            const data = await response.json() as V3PostSessionMessagesResponse;
 
-            const messages = Array.isArray(response.data.messages) ? response.data.messages : [];
+            const messages = Array.isArray(data.messages) ? data.messages : [];
             const maxSeq = messages.reduce((acc, message) => (
                 message.seq > acc ? message.seq : acc
             ), this.lastSeq);

@@ -32,7 +32,6 @@ export function getEnvironmentInfo(): Record<string, any> {
         workingDirectory: process.cwd(),
         processArgv: process.argv,
         happyDir: configuration?.happyHomeDir,
-        serverUrl: configuration?.serverUrl,
         logsDir: configuration?.logsDir,
         processPid: process.pid,
         nodeVersion: process.version,
@@ -244,7 +243,8 @@ export async function runDoctorCommand(): Promise<void> {
     // Configuration
     console.log(chalk.bold('\n⚙️  Configuration'));
     console.log(`Happy Home: ${chalk.blue(configuration.happyHomeDir)}`);
-    console.log(`Server URL: ${chalk.blue(configuration.serverUrl)}`);
+    const machineState = await readMachineState();
+    console.log(`Daemon Tunnel URL: ${chalk.blue(machineState?.lastTunnelUrl ?? '<unknown>')}`);
     console.log(`Logs Dir: ${chalk.blue(configuration.logsDir)}`);
 
     // Authentication

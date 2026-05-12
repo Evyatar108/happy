@@ -48,20 +48,15 @@
  * @module serverConnectionErrors
  */
 
-import axios from 'axios';
 import chalk from 'chalk';
 import { exponentialBackoffDelay } from '@/utils/time';
 import { logger } from '@/ui/logger';
-import { configuration } from '@/configuration';
 
 /**
  * Configuration for offline reconnection behavior.
  * Uses dependency injection for testability.
  */
 export interface OfflineReconnectionConfig<TSession> {
-    /** Server URL to health-check against (e.g., 'https://api.happy-servers.com') */
-    serverUrl: string;
-
     /**
      * Called when server becomes available - should create and return session.
      * If this throws, it's treated as a connection error and retried.
@@ -75,11 +70,10 @@ export interface OfflineReconnectionConfig<TSession> {
     onCleanup?: () => void;
 
     /**
-     * Optional: override the health check function.
-     * Injected for testing. Default uses axios.get to /v1/sessions.
-     * Should throw on failure, resolve on success.
+     * Checks whether the local daemon control surface is reachable.
+     * Returns false or throws on retryable failure.
      */
-    healthCheck?: () => Promise<void>;
+    healthCheck: () => Promise<boolean>;
 
     /**
      * Optional: initial delay in ms before first attempt.
@@ -105,6 +99,14 @@ export interface OfflineReconnectionHandle<TSession> {
     isReconnected: () => boolean;
 }
 
+function isAuthFailure(error: unknown): boolean {
+    return typeof error === 'object'
+        && error !== null
+        && 'response' in error
+        && typeof (error as { response?: { status?: unknown } }).response === 'object'
+        && (error as { response?: { status?: unknown } }).response?.status === 401;
+}
+
 /**
  * Starts background reconnection with exponential backoff.
  * Backend-agnostic: works for Claude, Codex, or any future backend.
@@ -123,7 +125,7 @@ export interface OfflineReconnectionHandle<TSession> {
  * ## Usage Example
  * ```typescript
  * const handle = startOfflineReconnection({
- *     serverUrl: 'https://api.example.com',
+ *     healthCheck: async () => true,
  *     onReconnected: async () => {
  *         const session = await createSession();
  *         return session;
@@ -148,22 +150,6 @@ export function startOfflineReconnection<TSession>(
     let failureCount = 0;
     let cancelled = false;     // Prevents action after cancel()
 
-    /**
-     * Default health check: HTTP GET to /v1/sessions endpoint.
-     * Uses validateStatus to treat 4xx as "server is up" (client error, not server down).
-     * Only 5xx or network errors trigger retry.
-     */
-    const defaultHealthCheck = async () => {
-        await axios.get(`${config.serverUrl}/v1/sessions`, {
-            timeout: 5000,
-            validateStatus: (status) => status < 500, // 4xx = server is up, 5xx = server error
-            headers: {
-                'X-Happy-Client': `cli-daemon/${configuration.currentCliVersion}`
-            }
-        });
-    };
-
-    const healthCheck = config.healthCheck ?? defaultHealthCheck;
     const initialDelayMs = config.initialDelayMs ?? 5000;
 
     /**
@@ -176,7 +162,10 @@ export function startOfflineReconnection<TSession>(
 
         try {
             // Step 1: Health check - verify server is reachable
-            await healthCheck();
+            const healthy = await config.healthCheck();
+            if (!healthy) {
+                throw new Error('Health check failed');
+            }
 
             // Re-check after async operation (handles cancel during health check)
             if (cancelled) return;
@@ -196,7 +185,7 @@ export function startOfflineReconnection<TSession>(
         } catch (e: unknown) {
             // Check for permanent errors that shouldn't be retried
             // 401 = auth token invalid, user needs to re-authenticate
-            if (axios.isAxiosError(e) && e.response?.status === 401) {
+            if (isAuthFailure(e)) {
                 logger.debug('[OfflineReconnection] Authentication error, stopping retries');
                 config.onNotify('❌ Authentication failed. Please re-authenticate with `happy auth`.');
                 return; // Don't schedule retry - this is a permanent failure

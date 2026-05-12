@@ -14,6 +14,7 @@ import { parseSpecialCommand } from '@/parsers/specialCommands';
 import { getEnvironmentInfo } from '@/ui/doctor';
 import { configuration } from '@/configuration';
 import { notifyDaemonSessionStarted } from '@/daemon/controlClient';
+import * as daemonClient from '@/daemon/daemonClient';
 import { initialMachineMetadata } from '@/daemon/run';
 import { getLocalMachine } from '@/daemon/getLocalMachine';
 import { startHappyServer } from '@/claude/utils/startHappyServer';
@@ -165,7 +166,14 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         let offlineSessionId: string | null = null;
 
         const reconnection = startOfflineReconnection({
-            serverUrl: configuration.serverUrl,
+            healthCheck: async () => {
+                try {
+                    const response = await daemonClient.loopbackFetch('/v2/me/settings', { method: 'HEAD' });
+                    return response.ok;
+                } catch {
+                    return false;
+                }
+            },
             onReconnected: async () => {
                 const resp = await api.getOrCreateSession({ tag: randomUUID(), metadata, state });
                 if (!resp) throw new Error('Server unavailable');

@@ -10,33 +10,54 @@ const {
     mockBackoff,
     mockDelay,
     mockTunnelSocketIOOptions,
+    mockTunnelFetch,
     mockLoggerDebug,
     mockLoggerDebugLargeJson,
     mockMapClaudeLogMessageToSessionEnvelopes
-} = vi.hoisted(() => ({
-    mockIo: vi.fn(),
-    mockAxiosGet: vi.fn(),
-    mockAxiosPost: vi.fn(),
-    mockBackoff: vi.fn(async <T>(callback: () => Promise<T>) => {
-        let lastError: unknown;
-        for (let i = 0; i < 20; i += 1) {
-            try {
-                return await callback();
-            } catch (error) {
-                lastError = error;
+} = vi.hoisted(() => {
+    const mockAxiosGet = vi.fn();
+    const mockAxiosPost = vi.fn();
+    return {
+        mockIo: vi.fn(),
+        mockAxiosGet,
+        mockAxiosPost,
+        mockBackoff: vi.fn(async <T>(callback: () => Promise<T>) => {
+            let lastError: unknown;
+            for (let i = 0; i < 20; i += 1) {
+                try {
+                    return await callback();
+                } catch (error) {
+                    lastError = error;
+                }
             }
-        }
-        throw lastError;
-    }),
-    mockDelay: vi.fn(async () => undefined),
-    mockTunnelSocketIOOptions: vi.fn(async () => ({
-        url: 'http://127.0.0.1:7010',
-        auth: { tunnelAuthorization: 'tunnel test.claim' }
-    })),
-    mockLoggerDebug: vi.fn(),
-    mockLoggerDebugLargeJson: vi.fn(),
-    mockMapClaudeLogMessageToSessionEnvelopes: vi.fn()
-}));
+            throw lastError;
+        }),
+        mockDelay: vi.fn(async () => undefined),
+        mockTunnelSocketIOOptions: vi.fn(async () => ({
+            url: 'http://127.0.0.1:7010',
+            auth: { tunnelAuthorization: 'tunnel test.claim' }
+        })),
+        mockTunnelFetch: vi.fn(async (path: string, init: RequestInit = {}) => {
+            const url = new URL(path, 'https://server.test');
+            const method = init.method ?? 'GET';
+            const axiosResponse = method === 'POST'
+                ? await mockAxiosPost(url.origin + url.pathname, init.body ? JSON.parse(String(init.body)) : undefined, { headers: init.headers })
+                : await mockAxiosGet(url.origin + url.pathname, {
+                    params: Object.fromEntries([...url.searchParams.entries()].map(([key, value]) => [key, Number(value)])),
+                    headers: init.headers,
+                });
+            const status = axiosResponse.status ?? 200;
+            return {
+                ok: status >= 200 && status < 300,
+                status,
+                json: async () => axiosResponse.data,
+            };
+        }),
+        mockLoggerDebug: vi.fn(),
+        mockLoggerDebugLargeJson: vi.fn(),
+        mockMapClaudeLogMessageToSessionEnvelopes: vi.fn()
+    };
+});
 
 vi.mock('socket.io-client', () => ({
     io: mockIo
@@ -57,7 +78,8 @@ vi.mock('@/configuration', () => ({
 }));
 
 vi.mock('@/daemon/daemonClient', () => ({
-    tunnelSocketIOOptions: mockTunnelSocketIOOptions
+    tunnelSocketIOOptions: mockTunnelSocketIOOptions,
+    tunnelFetch: mockTunnelFetch,
 }));
 
 vi.mock('@/ui/logger', () => ({
@@ -297,6 +319,7 @@ describe('ApiSessionClient v3 messages API migration', () => {
 
         await waitForCheck(() => {
             expect(mockAxiosPost).toHaveBeenCalledTimes(1);
+            expect((client as any).pendingOutbox).toHaveLength(0);
         });
 
         const payload = mockAxiosPost.mock.calls[0][1];
@@ -1327,10 +1350,10 @@ describe('ApiSessionClient v3 messages API migration', () => {
         client.sendCodexMessage({ type: 'no-messages-field' });
         await waitForCheck(() => {
             expect(mockAxiosPost).toHaveBeenCalledTimes(1);
+            expect((client as any).pendingOutbox).toHaveLength(0);
         });
 
         expect((client as any).lastSeq).toBe(7);
-        expect((client as any).pendingOutbox).toHaveLength(0);
     });
 
     it('triggers receive catch-up fetch on socket reconnect', async () => {
