@@ -182,7 +182,14 @@ cache only stable key material or rereadable capability state.
 `ApiMachineClient` handles bidirectional communication:
 - Daemon to Server: machine-alive, machine-update-metadata, machine-update-state
 - Server to Daemon: rpc-request (spawn-happy-session, spawn-in-worktree, fork-into-worktree, stop-session, requestShutdown)
-- All data encrypted with TweetNaCl
+- TweetNaCl encryption is scoped to message bodies, metadata, and state fields
+  (e.g. the `metadata` and `daemonState` fields on machine-update-metadata /
+  machine-update-state). rpc-request params and rpc-response ack bodies are
+  plaintext Socket.IO payloads — `RpcHandlerManager` passes `request.params`
+  straight to the handler and returns the handler's plain result (see
+  `packages/happy-cli/src/api/rpc/RpcHandlerManager.ts` and
+  `packages/happy-cli/CLAUDE.md`: "RPC request params and responses are
+  plaintext Socket.IO payloads...").
 
 ## 7. Integration Testing Challenges
 
@@ -361,19 +368,23 @@ socket.emit('machine-update-metadata', {
 // Mobile -> Server
 socket.emit('rpc-call', {
   "method": "machine-uuid-123:stop-daemon",
-  "params": "base64(encrypted({
-    'reason': 'user-requested',
-    'force': false
-  }))"
+  "params": {
+    "reason": "user-requested",
+    "force": false
+  }
 }, callback)
 
 // Server forwards to Daemon
 // Daemon -> Server (response)
-callback("base64(encrypted({
-  'message': 'Daemon shutdown initiated',
-  'shutdownAt': 1703001244567
-}))")
+callback({
+  "message": "Daemon shutdown initiated",
+  "shutdownAt": 1703001244567
+})
 ```
+
+Note: rpc-call/rpc-request params and the ack body are plaintext JSON over
+the machine-scoped Socket.IO channel. Encryption only applies to message
+bodies, metadata, and state fields (see Section 6).
 
 ### Flow when daemon receives stop request:
 1. Daemon receives RPC `stop-daemon`
