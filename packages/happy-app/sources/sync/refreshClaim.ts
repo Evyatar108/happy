@@ -16,6 +16,16 @@ export class DeviceCodeExpired extends Error {
     }
 }
 
+export class MachineNotInRefreshResponse extends Error {
+    readonly machineId: string;
+
+    constructor(machineId: string) {
+        super(`Pair status response did not include a tunnel claim for machine ${machineId}.`);
+        this.name = 'MachineNotInRefreshResponse';
+        this.machineId = machineId;
+    }
+}
+
 function delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -76,9 +86,13 @@ async function refreshTunnelClaimOnce(credentials: AuthCredentials, machineId: s
         throw new DeviceCodeExpired(machineId);
     }
 
-    const machine = body?.machines?.find(item => item.machineId === machineId) ?? body?.machines?.[0];
+    const machines = body?.machines ?? [];
+    if (machines.length !== 1) {
+        throw new Error(`Pair status response must contain exactly one machine, got ${machines.length}`);
+    }
+    const machine = machines.find(item => item.machineId === machineId);
     if (!machine?.tunnelClaim) {
-        throw new Error('Pair status response did not include a tunnel claim');
+        throw new MachineNotInRefreshResponse(machineId);
     }
     validateFreshClaim(machine.tunnelClaim);
     return machine.tunnelClaim;

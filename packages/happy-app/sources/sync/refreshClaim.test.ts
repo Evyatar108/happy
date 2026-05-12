@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { DeviceCodeExpired, refreshTunnelClaim } from './refreshClaim';
+import { DeviceCodeExpired, MachineNotInRefreshResponse, refreshTunnelClaim } from './refreshClaim';
 import type { AuthCredentials } from '@/auth/tokenStorage';
 
 function makeCredentials(): AuthCredentials {
@@ -46,5 +46,39 @@ describe('refreshTunnelClaim status-code-before-body', () => {
         const promise = refreshTunnelClaim(makeCredentials(), 'machine-5xx-nobody');
         await expect(promise).rejects.not.toBeInstanceOf(DeviceCodeExpired);
         await expect(promise).rejects.toThrow(/Failed to refresh tunnel claim: 502/);
+    });
+});
+
+describe('refreshTunnelClaim machine identity binding', () => {
+    it('throws MachineNotInRefreshResponse when requested machine is absent from a single-machine response', async () => {
+        global.fetch = vi.fn(async () => new Response(JSON.stringify({
+            status: 'authorized',
+            machines: [{ machineId: 'other-machine', tunnelClaim: 'claim-for-other' }],
+        }), { status: 200 })) as never;
+        const promise = refreshTunnelClaim(makeCredentials(), 'machine-missing');
+        await expect(promise).rejects.toBeInstanceOf(MachineNotInRefreshResponse);
+    });
+
+    it('throws when the pair status response contains zero machines', async () => {
+        global.fetch = vi.fn(async () => new Response(JSON.stringify({
+            status: 'authorized',
+            machines: [],
+        }), { status: 200 })) as never;
+        const promise = refreshTunnelClaim(makeCredentials(), 'machine-zero');
+        await expect(promise).rejects.not.toBeInstanceOf(MachineNotInRefreshResponse);
+        await expect(promise).rejects.toThrow(/exactly one machine, got 0/);
+    });
+
+    it('rejects multi-machine responses even when the requested machineId is present', async () => {
+        global.fetch = vi.fn(async () => new Response(JSON.stringify({
+            status: 'authorized',
+            machines: [
+                { machineId: 'machine-multi', tunnelClaim: 'claim-for-requested' },
+                { machineId: 'other-machine', tunnelClaim: 'claim-for-other' },
+            ],
+        }), { status: 200 })) as never;
+        const promise = refreshTunnelClaim(makeCredentials(), 'machine-multi');
+        await expect(promise).rejects.not.toBeInstanceOf(MachineNotInRefreshResponse);
+        await expect(promise).rejects.toThrow(/exactly one machine, got 2/);
     });
 });
