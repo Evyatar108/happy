@@ -302,24 +302,19 @@ describe('Smoke: CLI command surface', () => {
 describe('Smoke: machines command tunnel join', () => {
     it('joins persisted tunnel URLs into text and JSON output', async () => {
         const creds = makeCredentials();
-        const metadata = { host: 'laptop', platform: 'linux', homeDir: '/home/octo' };
-        const rawMachine = {
-            id: 'machine-1',
-            seq: 1,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-            active: true,
-            activeAt: Date.now(),
-            metadata: encodeBase64(encryptLegacy(metadata, creds.secret)),
-            metadataVersion: 1,
-            daemonState: encodeBase64(encryptLegacy({ status: 'ready' }, creds.secret)),
-            daemonStateVersion: 1,
-            dataEncryptionKey: null,
-        };
+        let tunnelUrl = '';
         const server = createServer((req, res) => {
-            if (req.method === 'GET' && req.url === '/v1/machines') {
+            if (req.method === 'GET' && req.url === '/v2/me/machine') {
                 res.writeHead(200, { 'content-type': 'application/json' });
-                res.end(JSON.stringify([rawMachine]));
+                res.end(JSON.stringify({
+                    machineId: 'machine-1',
+                    hostname: 'laptop',
+                    tunnelPort: 443,
+                    loopbackPort: 3005,
+                    tunnelUrl,
+                    lastSeenAt: 1700000000000,
+                    owner: 'octocat',
+                }));
                 return;
             }
             res.writeHead(404);
@@ -330,7 +325,7 @@ describe('Smoke: machines command tunnel join', () => {
         if (!address || typeof address === 'string') throw new Error('Failed to bind test server');
 
         const homeDir = mkdtempSync(join(tmpdir(), 'happy-agent-cli-machines-'));
-        const tunnelUrl = `http://127.0.0.1:${address.port}`;
+        tunnelUrl = `http://127.0.0.1:${address.port}`;
         writeFileSync(join(homeDir, 'credentials.json'), JSON.stringify({
             githubLogin: 'octocat',
             deviceCode: 'device-code',
@@ -353,12 +348,14 @@ describe('Smoke: machines command tunnel join', () => {
             expect(text.exitCode).toBe(0);
             expect(text.stdout).toContain('- ID: `machine-1`');
             expect(text.stdout).toContain(`- Tunnel URL: ${tunnelUrl}`);
+            expect(text.stdout).toContain('- Hostname: laptop');
 
             const json = await runCliAsync({ HAPPY_AGENT_HOME_DIR: homeDir, HAPPY_SERVER_URL: tunnelUrl }, 'machines', '--json');
             expect(json.exitCode).toBe(0);
             expect(JSON.parse(json.stdout)[0]).toMatchObject({
                 id: 'machine-1',
                 tunnelUrl,
+                hostname: 'laptop',
             });
         } finally {
             server.close();
@@ -370,34 +367,23 @@ describe('Smoke: machines command tunnel join', () => {
 describe('Smoke: spawn and resume tunnel RPC wiring', () => {
     it('refreshes tunnel claims and sends plaintext spawn/resume RPC params', async () => {
         const creds = makeCredentials();
-        const metadata = {
-            host: 'laptop',
-            platform: 'linux',
-            homeDir: '/home/octo',
-            resumeSupport: { rpcAvailable: true, happyAgentAuthenticated: true },
-        };
-        const rawMachine = {
-            id: 'machine-1',
-            seq: 1,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-            active: true,
-            activeAt: Date.now(),
-            metadata: encodeBase64(encryptLegacy(metadata, creds.secret)),
-            metadataVersion: 1,
-            daemonState: encodeBase64(encryptLegacy({ status: 'ready' }, creds.secret)),
-            daemonStateVersion: 1,
-            dataEncryptionKey: null,
-        };
         const rawSession = makeRawSessionLegacy(creds, { machineId: 'machine-1', path: '/repo' }, null, { id: 'session-source' });
         const rpcCalls: Array<{ method: string; params: unknown; auth: unknown }> = [];
         let pairStatusCalls = 0;
         let tunnelUrl = '';
 
         const server = createServer((req, res) => {
-            if (req.method === 'GET' && req.url === '/v1/machines') {
+            if (req.method === 'GET' && req.url === '/v2/me/machine') {
                 res.writeHead(200, { 'content-type': 'application/json' });
-                res.end(JSON.stringify([rawMachine]));
+                res.end(JSON.stringify({
+                    machineId: 'machine-1',
+                    hostname: 'laptop',
+                    tunnelPort: 443,
+                    loopbackPort: 3005,
+                    tunnelUrl,
+                    lastSeenAt: 1700000000000,
+                    owner: 'octocat',
+                }));
                 return;
             }
             if (req.method === 'GET' && req.url === '/v1/sessions') {
@@ -455,6 +441,10 @@ describe('Smoke: spawn and resume tunnel RPC wiring', () => {
 
         try {
             const env = { HAPPY_AGENT_HOME_DIR: homeDir, HAPPY_SERVER_URL: tunnelUrl };
+            const missingPath = await runCliAsync(env, 'spawn', '--machine', 'machine-1', '--json');
+            expect(missingPath.exitCode).not.toBe(0);
+            expect(missingPath.stderr).toContain('Pass --path explicitly');
+
             const legacySpawn = await runCliAsync(env, 'spawn', '--machine', 'machine-1', '--path', '/repo', '--json');
             expect(legacySpawn.exitCode).toBe(0);
 

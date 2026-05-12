@@ -39,7 +39,7 @@ import {
     deleteSession,
     getSessionMessages,
     resolveSessionEncryption,
-    listMachines,
+    listKnownMachines,
     discoverMachineTunnels,
     refreshTunnelClaim,
     InvalidTunnelUrlError,
@@ -367,33 +367,50 @@ describe('api', () => {
         });
     });
 
-    describe('listMachines', () => {
-        it('returns decrypted machines without changing the REST endpoint', async () => {
-            const metadata = { host: 'laptop', homeDir: '/home/octo' };
-            const daemonState = { status: 'ready' };
-            const raw = {
-                id: 'machine-1',
-                seq: 1,
-                createdAt: Date.now(),
-                updatedAt: Date.now(),
-                active: true,
-                activeAt: Date.now(),
-                metadata: encodeBase64(encryptLegacy(metadata, creds.secret)),
-                metadataVersion: 1,
-                daemonState: encodeBase64(encryptLegacy(daemonState, creds.secret)),
-                daemonStateVersion: 1,
-                dataEncryptionKey: null,
-            };
-            mockedAxios.get.mockResolvedValueOnce({ data: [raw] });
+    describe('listKnownMachines', () => {
+        it('hydrates persisted machines from each tunnel self-state endpoint', async () => {
+            mockedAxios.get.mockResolvedValueOnce({
+                data: {
+                    machineId: 'machine-1',
+                    hostname: 'laptop',
+                    tunnelPort: 443,
+                    loopbackPort: 3005,
+                    tunnelUrl: 'https://machine-1.devtunnels.ms',
+                    lastSeenAt: 1700000000000,
+                    owner: 'octocat',
+                },
+            });
 
-            const machines = await listMachines(config, creds);
+            const machines = await listKnownMachines(config, creds);
 
             expect(mockedAxios.get).toHaveBeenCalledWith(
-                'https://test-server.example.com/v1/machines',
-                { headers: { Authorization: 'Bearer test-jwt-token', 'X-Happy-Client': 'cli-control-plane/0.1.0' } },
+                'https://machine-1.devtunnels.ms/v2/me/machine',
+                {
+                    headers: {
+                        'X-Tunnel-Authorization': `tunnel ${creds.machines[0].tunnelClaim}`,
+                        'X-Happy-Client': 'cli-control-plane/0.1.0',
+                    },
+                    timeout: 10_000,
+                },
             );
-            expect(machines[0].metadata).toEqual(metadata);
-            expect(machines[0].daemonState).toEqual(daemonState);
+            expect(machines[0]).toMatchObject({
+                id: 'machine-1',
+                machineId: 'machine-1',
+                tunnelUrl: 'https://machine-1.devtunnels.ms',
+                hostname: 'laptop',
+                tunnelPort: 443,
+                owner: 'octocat',
+            });
+        });
+
+        it('falls back to persisted tunnel records when self-state is unavailable', async () => {
+            mockedAxios.get.mockRejectedValueOnce(new Error('offline'));
+
+            await expect(listKnownMachines(config, creds)).resolves.toEqual([{
+                id: 'machine-1',
+                machineId: 'machine-1',
+                tunnelUrl: 'https://machine-1.devtunnels.ms',
+            }]);
         });
     });
 

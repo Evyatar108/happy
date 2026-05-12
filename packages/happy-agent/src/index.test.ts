@@ -69,10 +69,10 @@ describe('happy-agent CLI', () => {
     });
 
     describe('machines command', () => {
-        it('should show machines help with --active and --json options', () => {
+        it('should show machines help with --json option', () => {
             const { stdout } = runCli('machines', '--help');
             expect(stdout).toContain('List all machines');
-            expect(stdout).toContain('--active');
+            expect(stdout).not.toContain('--active');
             expect(stdout).toContain('--json');
         });
 

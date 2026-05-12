@@ -2,14 +2,13 @@
 
 import { Command } from 'commander';
 import { hostname } from 'node:os';
-import { join } from 'node:path';
 import { loadConfig } from './config';
 import type { Config } from './config';
 import { loadCredentials } from './credentials';
 import type { Credentials } from './credentials';
 import { authLogin, authLogout, authStatus } from './auth';
-import { listSessions, listActiveSessions, createSession, getSessionMessages, listMachines, discoverMachineTunnels, refreshTunnelClaim, MachineNotKnownError } from './api';
-import type { DecryptedMachine, DecryptedSession } from './api';
+import { listSessions, listActiveSessions, createSession, getSessionMessages, listKnownMachines, discoverMachineTunnels, refreshTunnelClaim, MachineNotKnownError } from './api';
+import type { DecryptedSession, MachineSummary } from './api';
 import { resumeSessionOnMachine, spawnInWorktreeOnMachine, spawnSessionOnMachine, type SupportedAgent } from './machineRpc';
 import { SessionClient } from './session';
 import { runMonitorOnce, runMonitorWatch } from './monitor';
@@ -38,8 +37,8 @@ async function resolveSession(config: Config, creds: Credentials, sessionId: str
     return resolveByPrefix(sessions, sessionId, 'Session ID');
 }
 
-async function resolveMachine(config: Config, creds: Credentials, machineId: string): Promise<DecryptedMachine> {
-    const machines = await listMachines(config, creds);
+async function resolveMachine(config: Config, creds: Credentials, machineId: string): Promise<MachineSummary> {
+    const machines = await listKnownMachines(config, creds);
     return resolveByPrefix(machines, machineId, 'Machine ID');
 }
 
@@ -54,36 +53,11 @@ function createClient(session: DecryptedSession, creds: Credentials, config: Con
     });
 }
 
-function resolveRemotePath(rawPath: string | undefined, machine: DecryptedMachine): string {
-    const metadata = (machine.metadata ?? {}) as { homeDir?: unknown };
-    const homeDir = typeof metadata.homeDir === 'string' && metadata.homeDir.trim().length > 0
-        ? metadata.homeDir
-        : undefined;
-    const path = rawPath ?? homeDir;
-
-    if (!path) {
-        throw new Error('Machine metadata does not include a home directory. Pass --path explicitly.');
+function resolveRemotePath(rawPath: string | undefined): string {
+    if (!rawPath || rawPath.trim().length === 0) {
+        throw new Error('Pass --path explicitly - machine homeDir is no longer auto-discovered.');
     }
-
-    if (path === '~') {
-        if (!homeDir) {
-            throw new Error('Machine metadata does not include a home directory, so `~` cannot be resolved. Pass an absolute --path.');
-        }
-        return homeDir;
-    }
-    if (path.startsWith('~/')) {
-        if (!homeDir) {
-            throw new Error('Machine metadata does not include a home directory, so `~/...` cannot be resolved. Pass an absolute --path.');
-        }
-        const normalizedHome = homeDir.endsWith('/') || homeDir.endsWith('\\')
-            ? homeDir.slice(0, -1)
-            : homeDir;
-        const separator = normalizedHome.includes('\\') && !normalizedHome.includes('/')
-            ? '\\'
-            : '/';
-        return join(normalizedHome, path.slice(2)).replaceAll('/', separator);
-    }
-    return path;
+    return rawPath;
 }
 
 function resolveSessionMachineId(session: DecryptedSession): string {
@@ -92,25 +66,6 @@ function resolveSessionMachineId(session: DecryptedSession): string {
         throw new Error(`Session ${session.id} is missing machine metadata and cannot be resumed.`);
     }
     return metadata.machineId;
-}
-
-function ensureMachineCanResume(machine: DecryptedMachine): void {
-    const metadata = (machine.metadata ?? {}) as {
-        resumeSupport?: {
-            rpcAvailable?: unknown;
-            happyAgentAuthenticated?: unknown;
-        };
-    };
-
-    if (metadata.resumeSupport?.rpcAvailable === true) {
-        return;
-    }
-
-    if (metadata.resumeSupport?.happyAgentAuthenticated === false) {
-        throw new Error('Resume is unavailable on this machine. Run `happy-agent auth login` in that machine environment first.');
-    }
-
-    throw new Error('Resume RPC is unavailable on this machine right now.');
 }
 
 async function refreshKnownTunnelClaim(config: Config, creds: Credentials, machineId: string): Promise<{ tunnelUrl: string; tunnelClaim: string }> {
@@ -155,21 +110,15 @@ program
 program
     .command('machines')
     .description('List all machines')
-    .option('--active', 'Show only active machines')
     .option('--json', 'Output as JSON')
-    .action(async (opts: { active?: boolean; json?: boolean }) => {
+    .action(async (opts: { json?: boolean }) => {
         const config = loadConfig();
         const creds = loadCredentials(config);
-        const machines = await listMachines(config, creds);
-        const tunnels = discoverMachineTunnels(creds);
-        const filtered = opts.active ? machines.filter(machine => machine.active) : machines;
+        const machines = await listKnownMachines(config, creds);
         if (opts.json) {
-            console.log(formatJson(filtered.map(machine => ({
-                ...machine,
-                tunnelUrl: tunnels.find(tunnel => tunnel.machineId === machine.id)?.tunnelUrl ?? null,
-            }))));
+            console.log(formatJson(machines));
         } else {
-            console.log(formatMachineTable(filtered, tunnels));
+            console.log(formatMachineTable(machines));
         }
     });
 
@@ -379,7 +328,7 @@ program
             throw new Error('--repo and --worktree require --new-worktree');
         }
 
-        const directory = resolveRemotePath(opts.path, machine);
+        const directory = resolveRemotePath(opts.path);
 
         const { tunnelUrl, tunnelClaim } = await refreshKnownTunnelClaim(config, creds, machine.id);
         const result = await spawnSessionOnMachine(tunnelUrl, tunnelClaim, {
@@ -433,7 +382,6 @@ program
         const session = await resolveSession(config, creds, sessionId);
         const machineId = resolveSessionMachineId(session);
         const machine = await resolveMachine(config, creds, machineId);
-        ensureMachineCanResume(machine);
 
         const { tunnelUrl, tunnelClaim } = await refreshKnownTunnelClaim(config, creds, machine.id);
         const result = await resumeSessionOnMachine(tunnelUrl, tunnelClaim, { machineId: machine.id, sessionId: session.id });

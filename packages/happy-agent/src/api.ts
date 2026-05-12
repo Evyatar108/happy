@@ -85,6 +85,25 @@ export type MachineTunnel = {
     tunnelUrl: string;
 };
 
+export type MachineSummary = MachineTunnel & {
+    id: string;
+    hostname?: string;
+    tunnelPort?: number;
+    loopbackPort?: number;
+    lastSeenAt?: number | string;
+    owner?: string;
+};
+
+type MachineSelfState = {
+    machineId: string;
+    hostname: string;
+    tunnelPort: number;
+    loopbackPort: number;
+    tunnelUrl: string;
+    lastSeenAt: number | string;
+    owner: string;
+};
+
 export type RefreshedTunnelClaim = {
     tunnelUrl: string;
     tunnelClaim: string;
@@ -296,6 +315,44 @@ export function discoverMachineTunnels(creds: Credentials): MachineTunnel[] {
     }));
 }
 
+export async function listKnownMachines(
+    config: Config,
+    creds: Credentials,
+): Promise<MachineSummary[]> {
+    void config;
+    return Promise.all(creds.machines.map(async machine => {
+        const base: MachineSummary = {
+            id: machine.machineId,
+            machineId: machine.machineId,
+            tunnelUrl: machine.tunnelUrl,
+        };
+        try {
+            const resp = await axios.get(`${machine.tunnelUrl}/v2/me/machine`, {
+                headers: {
+                    'X-Tunnel-Authorization': `tunnel ${machine.tunnelClaim}`,
+                    'X-Happy-Client': 'cli-control-plane/0.1.0',
+                },
+                timeout: 10_000,
+            });
+            const state = resp.data as MachineSelfState;
+            if (state.machineId !== machine.machineId) {
+                return base;
+            }
+            return {
+                ...base,
+                tunnelUrl: state.tunnelUrl || machine.tunnelUrl,
+                hostname: state.hostname,
+                tunnelPort: state.tunnelPort,
+                loopbackPort: state.loopbackPort,
+                lastSeenAt: state.lastSeenAt,
+                owner: state.owner,
+            };
+        } catch {
+            return base;
+        }
+    }));
+}
+
 export async function refreshTunnelClaim(
     config: Config,
     creds: Credentials,
@@ -373,23 +430,6 @@ export async function listSessions(
     }
 
     return data.sessions.map(raw => decryptSession(raw, creds));
-}
-
-export async function listMachines(
-    config: Config,
-    creds: Credentials,
-): Promise<DecryptedMachine[]> {
-    let data: RawMachine[];
-    try {
-        const resp = await axios.get(`${config.legacyServerUrl}/v1/machines`, {
-            headers: authHeaders(creds),
-        });
-        data = resp.data as RawMachine[];
-    } catch (err) {
-        handleApiError(err, 'listing machines');
-    }
-
-    return data.map(raw => decryptMachine(raw, creds));
 }
 
 export async function listActiveSessions(
