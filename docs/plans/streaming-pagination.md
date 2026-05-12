@@ -1,5 +1,7 @@
 # Streaming Pagination (Two-Window over Socket)
 
+> Note: this plan was authored pre-Sprint-D, when client-side encryption was still in the tree. Read "decrypted messages" as "parsed plaintext messages" throughout — the wire schema still wraps payloads in `SessionMessageContentSchema` (`{ c, t: 'encrypted' }`) but the client no longer holds the keys to decrypt them.
+
 ## Overview
 
 Replace the previous "fetch a fresh older-page on demand" loop with a **socket-pushed prefetch** that lands the next chunk of decrypted messages in the store **before** the user scrolls past the edge. The client tracks an inner **render window** (the FlatList visible range plus overscan); approaching its edge triggers a range request over the existing socket.io connection, decrypted off the JS render path and committed to the store in a single state update — so the next render is served from already-decrypted state and the user does not block on a request.
@@ -138,7 +140,6 @@ The intended path:
 The following follow-ups are deferred and tracked here for the next maintainer:
 
 - **Bounded plaintext memory / eviction (deferred follow-up).** This plan does **not** bound the in-memory plaintext footprint. Plaintext currently lives in three places — `SessionMessages.messages` (array), `SessionMessages.messagesMap` (record at `storage.ts`), and `ReducerState.messages` / `ReducerState.sidechains` (Maps in `reducer/reducer.ts`) — all three plaintext-bearing. Capping any one of them in isolation silently breaks `useMessage()`, `storage.isMutableToolCall`, or the reducer's duplicate-id guards (`reducer/reducer.ts:376/754/943`, which would drop re-fed messages on a naive evict-then-re-feed approach). A real implementation requires a plaintext/render-state split in `storage.ts` plus a reducer rehydrate path that bypasses the duplicate-id guards (or keeps `messagesMap` populated for any id reachable by route navigation, e.g. the message-detail route at `packages/happy-app/sources/app/(app)/session/[id]/message/[messageId].tsx`). Scope and sequencing TBD after this plan ships. Until then, deep scrollback grows linearly — same as the existing `loadOlder()` path.
-- **`EncryptionCache` capping.** `packages/happy-app/sources/sync/encryption/encryptionCache.ts` currently keeps up to 1000 decrypted entries by id. Capping it without the bounded-memory follow-up above would not free memory in steady state and could only force redundant redecrypts. Revisit alongside the plaintext/render-state split.
 - **Server-side `connectionStateRecovery`.** Whether to re-enable it as a follow-up is open. The current plan does not depend on it; the abandon-and-re-issue contract above is sufficient.
 - **Chunked-streaming variant of the socket protocol.** Defer until single-frame measurement shows insufficiency. Cloudflare/tunnel coalescing under realistic chunk sizes is the empirical question; instrument first.
 - **Per-session feature-flag override.** App-wide `enableSocketRangeFetch` only; per-session granularity is a future addition if needed.
