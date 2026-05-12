@@ -60,10 +60,11 @@ Handles server communication and encryption.
 - **`types.ts`**: Zod schemas for type-safe API communication
 
 **Key Features:**
-- End-to-end encryption for all communications
+- End-to-end encryption for message bodies, metadata, and state fields
 - Socket.IO for real-time messaging
 - Optimistic concurrency control for state updates
 - RPC handler registration for remote procedure calls
+- RPC request params and responses are plaintext Socket.IO payloads; keep encryption on message bodies, metadata, and state fields only.
 
 ### 2. Claude Integration (`/src/claude/`)
 Core Claude Code integration layer.

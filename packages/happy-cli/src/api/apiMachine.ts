@@ -20,7 +20,7 @@ import { validateStopSessionId } from '@/daemon/stopTrackedSession';
 
 interface ServerToDaemonEvents {
     update: (data: Update) => void;
-    'rpc-request': (data: { method: string, params: string }, callback: (response: string) => void) => void;
+    'rpc-request': (data: { method: string, params: unknown }, callback: (response: unknown) => void) => void;
     'rpc-registered': (data: { method: string }) => void;
     'rpc-unregistered': (data: { method: string }) => void;
     'rpc-error': (data: { type: string, error: string }) => void;
@@ -121,8 +121,6 @@ export class ApiMachineClient {
         // Initialize RPC handler manager
         this.rpcHandlerManager = new RpcHandlerManager({
             scopePrefix: this.machine.id,
-            encryptionKey: this.machine.encryptionKey,
-            encryptionVariant: this.machine.encryptionVariant,
             logger: (msg, data) => logger.debug(msg, data)
         });
 
@@ -426,7 +424,7 @@ export class ApiMachineClient {
         });
 
         // Single consolidated RPC handler
-        this.socket.on('rpc-request', async (data: { method: string, params: string }, callback: (response: string) => void) => {
+        this.socket.on('rpc-request', async (data: { method: string, params: unknown }, callback: (response: unknown) => void) => {
             logger.debugLargeJson(`[API MACHINE] Received RPC request:`, data);
             callback(await this.rpcHandlerManager.handleRequest(data));
         });

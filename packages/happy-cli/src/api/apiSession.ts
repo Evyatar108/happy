@@ -245,8 +245,6 @@ export class ApiSessionClient extends EventEmitter {
         // Initialize RPC handler manager
         this.rpcHandlerManager = new RpcHandlerManager({
             scopePrefix: this.sessionId,
-            encryptionKey: this.encryptionKey,
-            encryptionVariant: this.encryptionVariant,
             logger: (msg, data) => logger.debug(msg, data)
         });
         registerCommonHandlers(this.rpcHandlerManager, this.metadata.path);
@@ -279,7 +277,7 @@ export class ApiSessionClient extends EventEmitter {
         })
 
         // Set up global RPC request handler
-        this.socket.on('rpc-request', async (data: { method: string, params: string }, callback: (response: string) => void) => {
+        this.socket.on('rpc-request', async (data: { method: string, params: unknown }, callback: (response: unknown) => void) => {
             callback(await this.rpcHandlerManager.handleRequest(data));
         })
 
