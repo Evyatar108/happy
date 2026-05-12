@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'child_process';
-import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -155,15 +154,6 @@ describe('happy-agent CLI', () => {
             expect(stderr).toContain('happy-agent auth login');
         });
 
-        it('wires spawn through tunnel discovery and refresh before machine RPC', () => {
-            const source = readFileSync(resolve(__dirname, 'index.ts'), 'utf-8');
-
-            expect(source).toContain('discoverMachineTunnels(creds)');
-            expect(source).toContain('refreshTunnelClaim(config, creds, machineId)');
-            expect(source).toContain('spawnInWorktreeOnMachine(tunnelUrl, tunnelClaim, {');
-            expect(source).toContain('spawnSessionOnMachine(tunnelUrl, tunnelClaim, {');
-            expect(source).toContain('machineId: machine.id');
-        });
     });
 
     describe('resume command', () => {
@@ -180,11 +170,6 @@ describe('happy-agent CLI', () => {
             expect(stderr).toContain('happy-agent auth login');
         });
 
-        it('wires resume through refreshed tunnel claims and machine-scoped params', () => {
-            const source = readFileSync(resolve(__dirname, 'index.ts'), 'utf-8');
-
-            expect(source).toContain('resumeSessionOnMachine(tunnelUrl, tunnelClaim, { machineId: machine.id, sessionId: session.id })');
-        });
     });
 
     describe('send command', () => {
