@@ -282,6 +282,7 @@ function accountIdFromTunnelClaim(tunnelClaim: string): number {
     const payload = decodeTunnelClaimPayload(tunnelClaim);
     if (typeof payload.accountId !== 'number') throw new Error('accountId missing');
     if (typeof payload.iat !== 'number' || typeof payload.exp !== 'number' || payload.exp - payload.iat > 3600) throw new Error('invalid lifetime');
+    if (payload.exp <= Math.floor(Date.now() / 1000)) throw new Error('claim expired');
     if (typeof payload.jti !== 'string' || payload.jti.length === 0) throw new Error('jti missing');
     return payload.accountId;
 }

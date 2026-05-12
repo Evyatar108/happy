@@ -331,6 +331,22 @@ describe('api', () => {
             await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow('accountId missing');
         });
 
+        it('rejects already-expired tunnel claims during the audit pass', async () => {
+            const now = Math.floor(Date.now() / 1000);
+            mockedAxios.post.mockResolvedValueOnce({
+                data: {
+                    status: 'authorized',
+                    machines: [{
+                        machineId: 'machine-1',
+                        tunnelUrl: 'https://machine-1.devtunnels.ms',
+                        tunnelClaim: encodeTunnelClaim({ accountId: 456, iat: now - 600, exp: now - 1, jti: 'jti-expired' }),
+                    }],
+                },
+            });
+
+            await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow('claim expired');
+        });
+
         it('does not mutate the persisted credential object', async () => {
             const before = JSON.stringify(creds.machines);
             const now = Math.floor(Date.now() / 1000);

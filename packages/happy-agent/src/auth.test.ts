@@ -288,6 +288,21 @@ describe('auth', () => {
             expect(loadCredentials(config).machines).toHaveLength(0);
             expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping machine machine-1 with invalid tunnel claim'));
         });
+
+        it('omits machines whose tunnel claim is already expired', async () => {
+            const now = Math.floor(Date.now() / 1000);
+            mockedAxios.get.mockResolvedValueOnce({ data: { device_code: 'device-code', user_code: 'CODE', verification_uri: 'https://github.com/login/device', expires_in: 900, interval: 1 } });
+            mockedAxios.post.mockResolvedValueOnce({
+                data: { status: 'authorized', githubLogin: 'octocat', machines: [machine({ tunnelClaim: encodeTunnelClaim({ accountId: 123, iat: now - 600, exp: now - 1, jti: 'jti-expired' }) })], discoveredMachines: [] },
+            });
+
+            const promise = authLogin(config);
+            await vi.advanceTimersByTimeAsync(1000);
+            await promise;
+
+            expect(loadCredentials(config).machines).toHaveLength(0);
+            expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('claim expired'));
+        });
     });
 
     describe('authLogout', () => {
