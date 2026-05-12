@@ -42,20 +42,23 @@ The mobile app can pair with multiple operator machines. It stores each machine 
 
 ## Mobile Credential Shape
 
-After pairing, mobile stores machine credentials in SecureStore:
+After pairing, mobile stores per-machine credentials in SecureStore:
 
 ```ts
 {
   machineId: string;
   tunnelUrl: string;
-  tunnelJwt: string;
-  pinnedPubkey: string;
-  sessionKey: string;
+  tunnelClaim: string;
+  tunnelId: string;
+  deviceCode: string;
+  deviceCodeExpiresAt: number;
+  login: string;
+  avatarUrl: string;
   firstSeenAt: number;
 }
 ```
 
-`pinnedPubkey` is the trusted Ed25519 machine public key. `sessionKey` is derived from X25519 ECDH and is scoped to that machine.
+`tunnelClaim` is a plaintext envelope produced by the machine and signed by Sprint A's Ed25519 server key. Its payload binds the GitHub user id into `accountId`, so identity is established end-to-end via GitHub device flow → tunnel-claim envelope rather than any client-side key derivation. The mobile app no longer derives an X25519 session key; tunnel HTTP and Socket.IO calls authenticate by presenting the current `tunnelClaim` directly.
 
 ## Operational Implications
 
