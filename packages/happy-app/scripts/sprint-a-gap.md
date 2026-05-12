@@ -79,14 +79,22 @@ shipped surface.
 **Sprint D depends on ONE of the plan's three R-D18 resolution paths before
 reaching production:**
 
-- **(a)** Sprint C patches `tunnelManager.ts` to add anonymous: connect access
-  (preferred per plan.md). Suggested patch site: add `--allow-anonymous` to the
-  `devtunnel create` args at line 200, and/or call `devtunnel access create
-  --tunnel-id <id> --anonymous` after `ensurePort` returns.
-- **(b)** Sprint D adds a private-tunnel auth channel (URL-hash connect JWT or
-  alternative non-colliding header).
-- **(c)** Operator stopgap — each user runs `devtunnel access create
-  --tunnel-id <id> --anonymous` manually after first `happy init`.
+- **(a) REJECTED (operator decision 2026-05-12):** Sprint C patches
+  `tunnelManager.ts` to add anonymous: connect access. This path is rejected
+  by operator policy — Sprint A's production tunnel-creation path MUST NOT
+  invoke `--allow-anonymous`, and Sprint C MUST NOT add it via patch. Public
+  tunnels exposing happy-server to unauthenticated callers are out of scope
+  for this fork's single-user self-host threat model. Do not re-open this path
+  without an explicit operator decision reversal logged here.
+- **(b) ACCEPTABLE:** Sprint D adds a private-tunnel auth channel (URL-hash
+  connect JWT or alternative non-colliding header). Pre-prod resolution path
+  for `/pair/start` reachability — extend the Dev Tunnels gateway-auth model
+  through to happy-server without exposing the surface anonymously.
+- **(c) ACCEPTABLE:** Operator stopgap — each user runs `devtunnel access
+  create --tunnel-id <id> --anonymous` manually after first `happy init` for
+  their OWN tunnel only. Acceptable for the single-user self-host posture
+  where the operator and the end-user are the same entity. NOT acceptable as
+  a default rollout path — must remain an explicit per-tunnel operator action.
 
 **Sprint D US-D2..D5 implementation MAY proceed in parallel with R-D18
 resolution.** The refresh-per-request auth model (R-D17) is independent of the
