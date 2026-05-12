@@ -132,6 +132,41 @@ describe('TokenStorage', () => {
         );
     });
 
+    it('updates one machine without changing primary machine or Dev Tunnels OAuth', async () => {
+        const second: AuthCredentials = { ...credentials, machineId: 'machine-2', tunnelUrl: 'https://machine-2.example.test' };
+        secureStore.getItemAsync.mockResolvedValue(JSON.stringify({
+            primaryMachineId: 'machine-1',
+            machines: [credentials, second],
+            devTunnelsAccess: 'oauth-token-6',
+        }));
+
+        await expect(TokenStorage.updateMachineCredentials('machine-2', {
+            connectToken: 'connect-2',
+            connectTokenExpiry: 999,
+        })).resolves.toBe(true);
+
+        expect(secureStore.setItemAsync).toHaveBeenCalledWith(
+            'machine_credentials',
+            JSON.stringify({
+                primaryMachineId: 'machine-1',
+                machines: [credentials, { ...second, connectToken: 'connect-2', connectTokenExpiry: 999 }],
+                devTunnelsAccess: 'oauth-token-6',
+            })
+        );
+    });
+
+    it('returns false without writing when updating an unknown machine', async () => {
+        secureStore.getItemAsync.mockResolvedValue(JSON.stringify({
+            primaryMachineId: 'machine-1',
+            machines: [credentials],
+            devTunnelsAccess: 'oauth-token-7',
+        }));
+
+        await expect(TokenStorage.updateMachineCredentials('missing-machine', { connectToken: 'connect' })).resolves.toBe(false);
+
+        expect(secureStore.setItemAsync).not.toHaveBeenCalled();
+    });
+
     it('detects old-shape records', () => {
         expect(isOldShape({ ...credentials, pinnedPubkey: 'ed-pubkey' })).toBe(true);
         expect(isOldShape({ ...credentials, sessionKey: 'shared-session-key' })).toBe(true);

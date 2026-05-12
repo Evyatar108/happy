@@ -1,4 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+const connect = vi.hoisted(() => ({
+    ensureFreshConnectToken: vi.fn(async () => ({ connectToken: 'connect-jwt', connectTokenExpiry: Date.now() + 60_000 })),
+}));
+
+vi.mock('@/auth/connectTokenRefresh', () => connect);
 
 import { DeviceCodeExpired, MachineNotInRefreshResponse, refreshTunnelClaim } from './refreshClaim';
 import type { AuthCredentials } from '@/auth/tokenStorage';
@@ -19,6 +27,30 @@ describe('refreshTunnelClaim status-code-before-body', () => {
         global.fetch = vi.fn(async () => new Response(JSON.stringify({ error: 'device_code_expired' }), { status: 400 })) as never;
         await expect(refreshTunnelClaim(makeCredentials(), 'machine-4xx-expired'))
             .rejects.toBeInstanceOf(DeviceCodeExpired);
+    });
+
+    it('attaches X-Tunnel-Connect from the refresh helper on pair/status', async () => {
+        const now = Math.floor(Date.now() / 1000);
+        const claim = Buffer.from(JSON.stringify({
+            p: Buffer.from(JSON.stringify({ accountId: 1, iat: now, exp: now + 600, jti: 'jti-1' })).toString('base64url'),
+            s: 'sig',
+        })).toString('base64url');
+        global.fetch = vi.fn(async () => new Response(JSON.stringify({
+            status: 'authorized',
+            machines: [{ machineId: 'machine-1', tunnelClaim: claim }],
+        }), { status: 200 })) as never;
+
+        await expect(refreshTunnelClaim(makeCredentials(), 'machine-1')).resolves.toBe(claim);
+        expect(connect.ensureFreshConnectToken).toHaveBeenCalledWith(expect.objectContaining({ machineId: 'machine-1' }), 'machine-1');
+        expect(global.fetch).toHaveBeenCalledWith('https://machine.example.test/pair/status', expect.objectContaining({
+            headers: { 'Content-Type': 'application/json', 'X-Tunnel-Connect': 'connect-jwt' },
+        }));
+    });
+
+    it('does not import machineAuth and recurse through tunnelFetch', () => {
+        const source = readFileSync(resolve(__dirname, 'refreshClaim.ts'), 'utf8');
+        expect(source).not.toContain('getMachineAuthHeaders');
+        expect(source).not.toContain('tunnelFetch');
     });
 
     it('throws DeviceCodeExpired on 401 with access_denied body', async () => {

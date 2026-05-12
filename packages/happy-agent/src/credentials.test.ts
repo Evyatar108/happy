@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { deleteCredentials, loadCredentials, saveCredentials, CredentialsNotFoundError, LegacyCredentialsRequired, type PersistedCredentials } from './credentials';
+import { deleteCredentials, loadCredentials, saveCredentials, updateMachineConnectToken, CredentialsNotFoundError, LegacyCredentialsRequired, type PersistedCredentials } from './credentials';
 import { getRandomBytes, deriveContentKeyPair, encodeBase64 } from './encryption';
 import type { Config } from './config';
 
@@ -24,8 +24,11 @@ function makePersisted(secret = getRandomBytes(32)): PersistedCredentials {
         pairingBaseUrl: 'https://api.cluster-fluster.com',
         machines: [{
             machineId: 'machine-1',
+            tunnelId: 'tunnel-1',
             tunnelUrl: 'https://machine-1.devtunnels.ms',
             tunnelClaim: 'claim',
+            connectToken: 'connect-jwt',
+            connectTokenExpiry: 123456,
             accountId: 123,
             ed25519PublicKey: 'ed',
             x25519PublicKey: 'x',
@@ -75,6 +78,47 @@ describe('credentials', () => {
 
         const raw = JSON.parse(readFileSync(config.credentialPath, 'utf-8'));
         expect(raw).toEqual(persisted);
+    });
+
+    it('loads legacy machine JSON without optional connect-token fields', async () => {
+        const persisted = makePersisted();
+        delete persisted.machines[0].tunnelId;
+        delete persisted.machines[0].connectToken;
+        delete persisted.machines[0].connectTokenExpiry;
+        await saveCredentials(config, persisted);
+
+        const creds = loadCredentials(config);
+
+        expect(creds.machines[0].tunnelId).toBeUndefined();
+        expect(creds.machines[0].connectToken).toBeUndefined();
+    });
+
+    it('updates one machine connect token through the atomic credential path', async () => {
+        const persisted = makePersisted();
+        persisted.machines.push({
+            ...persisted.machines[0],
+            machineId: 'machine-2',
+            tunnelId: 'tunnel-2',
+            tunnelUrl: 'https://machine-2.devtunnels.ms',
+            connectToken: 'old-2',
+            connectTokenExpiry: 1,
+        });
+        await saveCredentials(config, persisted);
+
+        await expect(updateMachineConnectToken(config, 'machine-2', { connectToken: 'new-2', connectTokenExpiry: 999 })).resolves.toBe(true);
+
+        const updated = loadCredentials(config);
+        expect(updated.machines[0]).toEqual(persisted.machines[0]);
+        expect(updated.machines[1]).toMatchObject({ connectToken: 'new-2', connectTokenExpiry: 999 });
+    });
+
+    it('returns false when updating a missing machine connect token', async () => {
+        const persisted = makePersisted();
+        await saveCredentials(config, persisted);
+
+        await expect(updateMachineConnectToken(config, 'missing', { connectToken: 'new', connectTokenExpiry: 999 })).resolves.toBe(false);
+
+        expect(loadCredentials(config).machines).toEqual(persisted.machines);
     });
 
     it('creates parent directory if missing', async () => {

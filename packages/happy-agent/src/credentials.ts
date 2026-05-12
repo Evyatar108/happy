@@ -20,8 +20,11 @@ export class CredentialsNotFoundError extends Error {
 
 export type PersistedMachineCredentials = {
     machineId: string;
+    tunnelId?: string;
     tunnelUrl: string;
     tunnelClaim: string;
+    connectToken?: string;
+    connectTokenExpiry?: number;
     accountId: number;
     ed25519PublicKey: string;
     x25519PublicKey: string;
@@ -37,6 +40,7 @@ export type PersistedDiscoveredMachine = {
 
 export type PersistedCredentials = {
     githubLogin: string;
+    devTunnelsAccess?: string;
     deviceCode: string;
     deviceCodeExpiresAt: number;
     pairingBaseUrl: string;
@@ -154,4 +158,21 @@ export async function deleteCredentials(config: Config): Promise<void> {
 
 export function legacyCredentialsToPersisted(token: string, secret: Uint8Array): Pick<PersistedCredentials, 'legacyToken' | 'legacySecret'> {
     return { legacyToken: token, legacySecret: encodeBase64(secret) };
+}
+
+export async function updateMachineConnectToken(config: Config, machineId: string, patch: { connectToken: string; connectTokenExpiry: number }): Promise<boolean> {
+    const credentials = loadCredentials(config);
+    let found = false;
+    const machines = credentials.machines.map(machine => {
+        if (machine.machineId !== machineId) {
+            return machine;
+        }
+        found = true;
+        return { ...machine, ...patch };
+    });
+    if (!found) {
+        return false;
+    }
+    await saveCredentials(config, { ...credentials, machines });
+    return true;
 }

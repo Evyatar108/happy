@@ -62,7 +62,7 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
     const allowedOrigins = parseCorsOrigins();
     fastifyApp.register(import('@fastify/cors'), {
         origin: allowedOrigins.length === 0 ? false : allowedOrigins,
-        allowedHeaders: ['X-Tunnel-Authorization', 'X-Loopback-Capability', 'X-Happy-Client', 'Content-Type'],
+        allowedHeaders: ['X-Tunnel-Authorization', 'X-Loopback-Capability', 'X-Happy-Client', 'Content-Type', 'X-Tunnel-Connect'],
         methods: ['GET', 'POST', 'PUT', 'DELETE']
     });
     fastifyApp.get('/', function (request, reply) {

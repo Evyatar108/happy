@@ -12,6 +12,7 @@ import { MainView } from "@/components/MainView";
 import { t } from '@/text';
 import {
     credentialsFromPairMachine,
+    acquireConnectTokenForPair,
     fetchGitHubUserProfile,
     loginInteractive,
     openGitHubDeviceFlow,
@@ -78,7 +79,7 @@ export function NotAuthenticated({ tunnelProvider }: NotAuthenticatedProps = {})
     const completePairing = async (
         sourceMachine: MachineTunnel,
         machine: PairMachine,
-        metadata: { login: string; avatarUrl: string; deviceCode: string; deviceCodeExpiresAt: number },
+        metadata: { login: string; avatarUrl: string; deviceCode: string; deviceCodeExpiresAt: number; connectToken: string; connectTokenExpiry: number },
     ) => {
         const credentials = credentialsFromPairMachine(sourceMachine, machine, metadata);
         await auth.login(credentials);
@@ -116,10 +117,11 @@ export function NotAuthenticated({ tunnelProvider }: NotAuthenticatedProps = {})
         login: string,
         avatarUrl: string,
     ) => {
-        const flow = await startPairFlow(machine);
+        const { connectToken, connectTokenExpiry } = await acquireConnectTokenForPair(machine);
+        const flow = await startPairFlow(machine, connectToken);
         const deviceCodeExpiresAt = Date.now() + (flow.expires_in ?? 15 * 60) * 1000;
         await openGitHubDeviceFlow(flow);
-        const status = await waitForPairStatus(machine, flow);
+        const status = await waitForPairStatus(machine, flow, connectToken);
         const paired = status.machines?.[0];
         if (!paired) throw new Error(t('welcome.pairingFailed'));
 
@@ -128,6 +130,8 @@ export function NotAuthenticated({ tunnelProvider }: NotAuthenticatedProps = {})
             avatarUrl,
             deviceCode: flow.device_code,
             deviceCodeExpiresAt,
+            connectToken,
+            connectTokenExpiry,
         });
     };
 

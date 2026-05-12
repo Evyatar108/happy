@@ -49,6 +49,14 @@ vi.mock('@/auth/tokenStorage', () => ({
 
 vi.mock('@/sync/refreshClaim', () => ({
     refreshTunnelClaim: mocks.refreshTunnelClaim,
+    DeviceCodeExpired: class DeviceCodeExpired extends Error {},
+}));
+
+vi.mock('@/auth/connectTokenRefresh', () => ({
+    ensureFreshConnectToken: vi.fn(async (_credentials: any, machineId: string) => ({
+        connectToken: `connect-${machineId}`,
+        connectTokenExpiry: Date.now() + 60_000,
+    })),
 }));
 
 vi.mock('./storage', () => ({

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
     login: vi.fn(),
     startPairFlow: vi.fn(),
     waitForPairStatus: vi.fn(),
+    acquireConnectTokenForPair: vi.fn(),
     credentialsFromPairMachine: vi.fn(),
     fetchGitHubUserProfile: vi.fn(),
     openGitHubDeviceFlow: vi.fn(),
@@ -47,6 +48,7 @@ vi.mock('@/auth/tokenStorage', () => ({
 }));
 vi.mock('@/auth/pairing', () => ({
     loginInteractive: vi.fn(),
+    acquireConnectTokenForPair: mocks.acquireConnectTokenForPair,
     startPairFlow: mocks.startPairFlow,
     waitForPairStatus: mocks.waitForPairStatus,
     openGitHubDeviceFlow: mocks.openGitHubDeviceFlow,

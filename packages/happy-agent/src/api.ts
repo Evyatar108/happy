@@ -1,7 +1,8 @@
 import axios, { AxiosError } from 'axios';
 import type { SessionMessage as WireSessionMessage } from '@slopus/happy-wire';
 import type { Config } from './config';
-import type { Credentials } from './credentials';
+import { updateMachineConnectToken, type Credentials, type PersistedMachineCredentials } from './credentials';
+import { DevTunnelsClientProvider } from './tunnel/clientProvider';
 import {
     decodeBase64,
     encodeBase64,
@@ -107,6 +108,7 @@ type MachineSelfState = {
 export type RefreshedTunnelClaim = {
     tunnelUrl: string;
     tunnelClaim: string;
+    connectToken: string;
     accountId: number;
 };
 
@@ -126,6 +128,10 @@ type TunnelClaimPayload = {
     exp?: unknown;
     jti?: unknown;
 };
+
+const CONNECT_TOKEN_REFRESH_SKEW_MS = 60_000;
+const CONNECT_TOKEN_TTL_MS = 55 * 60_000;
+const connectTokenRefreshes = new Map<string, Promise<{ connectToken: string; connectTokenExpiry: number }>>();
 
 export type RawMessage = WireSessionMessage;
 
@@ -315,6 +321,41 @@ export function discoverMachineTunnels(creds: Credentials): MachineTunnel[] {
     }));
 }
 
+function hasFreshConnectToken(machine: PersistedMachineCredentials): machine is PersistedMachineCredentials & Required<Pick<PersistedMachineCredentials, 'connectToken' | 'connectTokenExpiry'>> {
+    return Boolean(machine.connectToken) && typeof machine.connectTokenExpiry === 'number' && machine.connectTokenExpiry - Date.now() > CONNECT_TOKEN_REFRESH_SKEW_MS;
+}
+
+async function ensureMachineConnectToken(config: Config, creds: Credentials, machine: PersistedMachineCredentials): Promise<string> {
+    if (hasFreshConnectToken(machine)) {
+        return machine.connectToken;
+    }
+    const existing = connectTokenRefreshes.get(machine.machineId);
+    if (existing) {
+        return (await existing).connectToken;
+    }
+    const next = (async () => {
+        if (!machine.tunnelId) {
+            throw new Error(`Machine ${machine.machineId} is missing tunnelId. Run 'happy-agent auth login' to refresh credentials.`);
+        }
+        const provider = new DevTunnelsClientProvider({
+            credentials: {
+                getDevTunnelsToken: async () => creds.devTunnelsAccess ?? process.env.HAPPY_DEVTUNNELS_TOKEN ?? null,
+                setDevTunnelsToken: async () => undefined,
+            },
+        });
+        const connectToken = await provider.getConnectToken(machine.tunnelId);
+        const connectTokenExpiry = Date.now() + CONNECT_TOKEN_TTL_MS;
+        await updateMachineConnectToken(config, machine.machineId, { connectToken, connectTokenExpiry });
+        return { connectToken, connectTokenExpiry };
+    })().finally(() => {
+        if (connectTokenRefreshes.get(machine.machineId) === next) {
+            connectTokenRefreshes.delete(machine.machineId);
+        }
+    });
+    connectTokenRefreshes.set(machine.machineId, next);
+    return (await next).connectToken;
+}
+
 export async function listKnownMachines(
     config: Config,
     creds: Credentials,
@@ -374,12 +415,13 @@ export async function refreshTunnelClaim(
         throw new InvalidTunnelUrlError(target.tunnelUrl);
     }
 
+    const connectToken = await ensureMachineConnectToken(config, creds, target);
     let response: PairStatusResponse;
     try {
         const resp = await axios.post(`${target.tunnelUrl}/pair/status`, {
             device_code: creds.deviceCode,
         }, {
-            headers: { 'X-Happy-Client': 'cli-control-plane/0.1.0' },
+            headers: { 'X-Happy-Client': 'cli-control-plane/0.1.0', 'X-Tunnel-Connect': connectToken },
             timeout: 30_000,
         });
         response = resp.data as PairStatusResponse;
@@ -411,6 +453,7 @@ export async function refreshTunnelClaim(
     return {
         tunnelUrl: refreshed.tunnelUrl,
         tunnelClaim: refreshed.tunnelClaim,
+        connectToken,
         accountId: accountIdFromTunnelClaim(refreshed.tunnelClaim),
     };
 }

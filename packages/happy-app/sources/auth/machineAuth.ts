@@ -1,5 +1,6 @@
 import { AuthCredentials } from './tokenStorage';
 import { refreshTunnelClaim, DeviceCodeExpired } from '@/sync/refreshClaim';
+import { ensureFreshConnectToken } from './connectTokenRefresh';
 
 export { DeviceCodeExpired };
 
@@ -62,8 +63,10 @@ export async function tunnelFetch(
 }
 
 export async function getMachineAuthHeaders(credentials: AuthCredentials, machineId = credentials.machineId): Promise<Record<string, string>> {
-    const freshClaim = await refreshTunnelClaim(credentials, machineId);
+    const { connectToken, connectTokenExpiry } = await ensureFreshConnectToken(credentials, machineId);
+    const freshClaim = await refreshTunnelClaim({ ...credentials, connectToken, connectTokenExpiry }, machineId);
     return {
         'X-Tunnel-Authorization': `tunnel ${freshClaim}`,
+        'X-Tunnel-Connect': connectToken,
     };
 }

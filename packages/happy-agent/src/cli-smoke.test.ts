@@ -429,8 +429,11 @@ describe('Smoke: spawn and resume tunnel RPC wiring', () => {
             pairingBaseUrl: tunnelUrl,
             machines: [{
                 machineId: 'machine-1',
+                tunnelId: 'tunnel-1',
                 tunnelUrl,
                 tunnelClaim: encodeTunnelClaim({ accountId: 123, iat: 1, exp: 2, jti: 'initial-jti' }),
+                connectToken: 'connect-jwt',
+                connectTokenExpiry: Date.now() + 120_000,
                 accountId: 123,
                 ed25519PublicKey: 'ed',
                 x25519PublicKey: 'x',

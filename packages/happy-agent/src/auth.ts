@@ -4,11 +4,14 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { saveCredentials, deleteCredentials, legacyCredentialsToPersisted, type PersistedCredentials, type PersistedDiscoveredMachine, type PersistedMachineCredentials } from './credentials';
 import { encodeBase64 } from './encryption';
+import { DevTunnelsClientProvider } from './tunnel/clientProvider';
 import type { Config } from './config';
 
 const DEFAULT_POLL_INTERVAL_SECONDS = 5;
 const MAX_POLL_INTERVAL_SECONDS = 30;
 const TARGET_DISCOVERY_TIMEOUT_MS = 10_000;
+const DEVTUNNEL_GITHUB_CLIENT_ID = 'Iv1.e7b89e013f801f03';
+const CONNECT_TOKEN_TTL_MS = 55 * 60_000;
 
 type PairStartResponse = {
     device_code: string;
@@ -64,11 +67,13 @@ export async function authLogin(config: Config): Promise<void> {
             throw new Error("Device code expired. Run 'happy-agent auth login'");
         }
         if (status.status === 'authorized') {
-            const machines = await discoverAuthorizedMachines(status, start.device_code, intervalSeconds);
+            const devTunnelsAccess = await resolveDevTunnelsAccess(status, intervalSeconds);
+            const machines = await discoverAuthorizedMachines(status, start.device_code, intervalSeconds, devTunnelsAccess);
             const auditedMachines = auditMachines(machines);
             const legacy = readLegacyCredentials();
             const persisted: PersistedCredentials = {
                 githubLogin: requireString(status.githubLogin, 'githubLogin'),
+                devTunnelsAccess,
                 deviceCode: start.device_code,
                 deviceCodeExpiresAt: expiresAt,
                 pairingBaseUrl: config.pairingBaseUrl,
@@ -129,18 +134,27 @@ async function startPairing(config: Config): Promise<PairStartResponse> {
     }
 }
 
-async function postPairStatus(baseUrl: string, deviceCode: string, timeout?: number): Promise<PairStatusResponse> {
+async function postPairStatus(baseUrl: string, deviceCode: string, timeout?: number, connectToken?: string): Promise<PairStatusResponse> {
     const resp = await axios.post(`${baseUrl}/pair/status`, {
         device_code: deviceCode,
     }, {
-        headers: { 'X-Happy-Client': 'cli-control-plane/0.1.0' },
+        headers: {
+            'X-Happy-Client': 'cli-control-plane/0.1.0',
+            ...(connectToken ? { 'X-Tunnel-Connect': connectToken } : {}),
+        },
         ...(timeout ? { timeout } : {}),
     });
     return resp.data as PairStatusResponse;
 }
 
-async function discoverAuthorizedMachines(status: PairStatusResponse, deviceCode: string, intervalSeconds: number): Promise<PairStatusMachine[]> {
+async function discoverAuthorizedMachines(status: PairStatusResponse, deviceCode: string, intervalSeconds: number, devTunnelsAccess: string | undefined): Promise<PairStatusMachine[]> {
     const machines = [...(status.machines ?? [])];
+    const provider = new DevTunnelsClientProvider({
+        credentials: {
+            getDevTunnelsToken: async () => devTunnelsAccess ?? null,
+            setDevTunnelsToken: async () => undefined,
+        },
+    });
     for (const discovered of status.discoveredMachines ?? []) {
         if (discovered.isOnline === false) {
             console.warn(`Skipping offline tunnel: ${discovered.displayName ?? discovered.tunnelUrl}`);
@@ -157,9 +171,11 @@ async function discoverAuthorizedMachines(status: PairStatusResponse, deviceCode
         const retryAfterMs = Math.min(intervalSeconds * 2, MAX_POLL_INTERVAL_SECONDS) * 1000;
         for (let attempt = 1; attempt <= 2; attempt++) {
             try {
-                const target = await postPairStatus(discovered.tunnelUrl, deviceCode, TARGET_DISCOVERY_TIMEOUT_MS);
+                const connectToken = await provider.getConnectToken(discovered.tunnelId);
+                const connectTokenExpiry = deriveConnectTokenExpiry();
+                const target = await postPairStatus(discovered.tunnelUrl, deviceCode, TARGET_DISCOVERY_TIMEOUT_MS, connectToken);
                 if (target.status === 'authorized' && target.machines?.[0]) {
-                    machines.push(target.machines[0]);
+                    machines.push({ ...target.machines[0], tunnelId: discovered.tunnelId, connectToken, connectTokenExpiry });
                 }
                 break;
             } catch (error) {
@@ -182,6 +198,58 @@ async function discoverAuthorizedMachines(status: PairStatusResponse, deviceCode
         }
     }
     return machines;
+}
+
+async function resolveDevTunnelsAccess(status: PairStatusResponse, intervalSeconds: number): Promise<string | undefined> {
+    if ((status.discoveredMachines ?? []).every(machine => machine.isOnline === false)) {
+        return process.env.HAPPY_DEVTUNNELS_TOKEN;
+    }
+    if (process.env.HAPPY_DEVTUNNELS_TOKEN) {
+        return process.env.HAPPY_DEVTUNNELS_TOKEN;
+    }
+    if ((status.discoveredMachines ?? []).length === 0) {
+        return undefined;
+    }
+    const start = await startDevTunnelsDeviceFlow();
+    console.log('- Dev Tunnels OAuth: additional owner token required');
+    console.log(`- Dev Tunnels Code: ${start.user_code}`);
+    const deadline = Date.now() + start.expires_in * 1000;
+    let pollInterval = Math.max(start.interval ?? intervalSeconds, 1) * 1000;
+    while (Date.now() < deadline) {
+        await sleep(pollInterval);
+        const token = await pollDevTunnelsDeviceFlow(start.device_code);
+        if (token) {
+            return token;
+        }
+    }
+    throw new Error('Dev Tunnels GitHub device authorization expired');
+}
+
+async function startDevTunnelsDeviceFlow(): Promise<{ device_code: string; user_code: string; expires_in: number; interval?: number }> {
+    const body = new URLSearchParams({ client_id: DEVTUNNEL_GITHUB_CLIENT_ID, scope: 'read:user' });
+    const response = await axios.post('https://github.com/login/device/code', body.toString(), {
+        headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+    return response.data as { device_code: string; user_code: string; expires_in: number; interval?: number };
+}
+
+async function pollDevTunnelsDeviceFlow(deviceCode: string): Promise<string | null> {
+    const body = new URLSearchParams({
+        client_id: DEVTUNNEL_GITHUB_CLIENT_ID,
+        device_code: deviceCode,
+        grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+    });
+    const response = await axios.post('https://github.com/login/oauth/access_token', body.toString(), {
+        headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+    const data = response.data as { access_token?: string; error?: string };
+    if (data.error === 'authorization_pending' || data.error === 'slow_down') return null;
+    if (data.error) throw new Error(data.error);
+    return data.access_token ?? null;
+}
+
+function deriveConnectTokenExpiry(now = Date.now()): number {
+    return now + CONNECT_TOKEN_TTL_MS;
 }
 
 function auditMachines(machines: PairStatusMachine[]): PersistedMachineCredentials[] {

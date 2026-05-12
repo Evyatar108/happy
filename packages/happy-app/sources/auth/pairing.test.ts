@@ -16,7 +16,16 @@ vi.mock('react-native', () => ({
     Platform: { OS: 'ios' },
 }));
 
+const providerMocks = vi.hoisted(() => ({
+    getConnectToken: vi.fn(),
+}));
+
+vi.mock('@/sync/tunnelProvider', () => ({
+    DevTunnelsClientProvider: vi.fn(() => ({ getConnectToken: providerMocks.getConnectToken })),
+}));
+
 import {
+    acquireConnectTokenForPair,
     PairingClaimMissingAccountId,
     credentialsFromPairMachine,
     fetchGitHubUserProfile,
@@ -44,6 +53,13 @@ describe('pairing', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
         global.fetch = vi.fn();
+        providerMocks.getConnectToken.mockResolvedValue('connect-jwt');
+    });
+
+    it('acquires a connect token once for the selected tunnel', async () => {
+        await expect(acquireConnectTokenForPair(machine)).resolves.toMatchObject({ connectToken: 'connect-jwt' });
+        expect(providerMocks.getConnectToken).toHaveBeenCalledOnce();
+        expect(providerMocks.getConnectToken).toHaveBeenCalledWith('tunnel-1');
     });
 
     it('starts and polls the selected machine pair flow without connect-token transport auth', async () => {
@@ -74,13 +90,15 @@ describe('pairing', () => {
                 }),
             });
 
-        const start = await startPairFlow(machine);
-        const status = await pollPairStatus(machine, start.device_code, start.interval);
+        const start = await startPairFlow(machine, 'connect-jwt');
+        const status = await pollPairStatus(machine, start.device_code, start.interval, 'connect-jwt');
 
-        expect(global.fetch).toHaveBeenNthCalledWith(1, 'https://machine.example.test/pair/start');
+        expect(global.fetch).toHaveBeenNthCalledWith(1, 'https://machine.example.test/pair/start', {
+            headers: { 'X-Tunnel-Connect': 'connect-jwt' },
+        });
         expect(global.fetch).toHaveBeenNthCalledWith(2, 'https://machine.example.test/pair/status', expect.objectContaining({
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-Tunnel-Connect': 'connect-jwt' },
             body: expect.stringContaining('"device_code":"device-1"'),
         }));
         expect(JSON.stringify((global.fetch as any).mock.calls)).not.toContain('/pair/connect');
@@ -97,6 +115,8 @@ describe('pairing', () => {
             avatarUrl: 'https://avatars.example.test/octocat.png',
             deviceCode: 'device-1',
             deviceCodeExpiresAt: Date.now() + 900_000,
+            connectToken: 'connect-jwt',
+            connectTokenExpiry: Date.now() + 3_300_000,
         });
         expect(credentials).toMatchObject({
             machineId: 'machine-1',
@@ -106,6 +126,7 @@ describe('pairing', () => {
             login: 'octocat',
             avatarUrl: 'https://avatars.example.test/octocat.png',
             deviceCode: 'device-1',
+            connectToken: 'connect-jwt',
         });
         expect(credentials.deviceCodeExpiresAt).toBeGreaterThanOrEqual(Date.now() + 895_000);
         expect(credentials.deviceCodeExpiresAt).toBeLessThanOrEqual(Date.now() + 905_000);
@@ -128,7 +149,7 @@ describe('pairing', () => {
             }),
         });
 
-        await expect(pollPairStatus(machine, 'device-1', 5)).rejects.toBeInstanceOf(PairingClaimMissingAccountId);
+        await expect(pollPairStatus(machine, 'device-1', 5, 'connect-jwt')).rejects.toBeInstanceOf(PairingClaimMissingAccountId);
 
         (global.fetch as any).mockResolvedValueOnce({
             ok: false,
@@ -136,7 +157,7 @@ describe('pairing', () => {
             json: async () => ({ error: 'rate_limited' }),
         });
 
-        await expect(pollPairStatus(machine, 'device-1', 5)).resolves.toEqual({
+        await expect(pollPairStatus(machine, 'device-1', 5, 'connect-jwt')).resolves.toEqual({
             status: 'pending',
             retryAfterMs: 12_000,
         });
@@ -148,7 +169,7 @@ describe('pairing', () => {
             json: async () => ({ status: 'authorized', machines: [] }),
         });
 
-        await expect(pollPairStatus(machine, 'device-1', 5)).rejects.toThrow('exactly one machine');
+        await expect(pollPairStatus(machine, 'device-1', 5, 'connect-jwt')).rejects.toThrow('exactly one machine');
 
         (global.fetch as any).mockResolvedValueOnce({
             ok: true,
@@ -161,7 +182,7 @@ describe('pairing', () => {
             }),
         });
 
-        await expect(pollPairStatus(machine, 'device-1', 5)).rejects.toThrow('exactly one machine');
+        await expect(pollPairStatus(machine, 'device-1', 5, 'connect-jwt')).rejects.toThrow('exactly one machine');
     });
 
     it('best-effort fetches GitHub user profile metadata from the OAuth token', async () => {

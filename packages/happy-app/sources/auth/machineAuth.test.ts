@@ -14,7 +14,12 @@ const refresh = vi.hoisted(() => ({
     },
 }));
 
+const connect = vi.hoisted(() => ({
+    ensureFreshConnectToken: vi.fn(async () => ({ connectToken: 'connect-jwt', connectTokenExpiry: Date.now() + 60_000 })),
+}));
+
 vi.mock('@/sync/refreshClaim', () => refresh);
+vi.mock('@/auth/connectTokenRefresh', () => connect);
 
 import { ClaimExpired, getMachineAuthHeaders, registerDeviceCodeExpiredHandler, tunnelFetch } from './machineAuth';
 import type { AuthCredentials } from './tokenStorage';
@@ -36,8 +41,13 @@ describe('machine auth', () => {
     it('mints a fresh claim and returns prefixed tunnel auth', async () => {
         await expect(getMachineAuthHeaders(credentials)).resolves.toEqual({
             'X-Tunnel-Authorization': 'tunnel fresh-claim',
+            'X-Tunnel-Connect': 'connect-jwt',
         });
-        expect(refresh.refreshTunnelClaim).toHaveBeenCalledWith(credentials, 'machine-1');
+        expect(connect.ensureFreshConnectToken).toHaveBeenCalledWith(credentials, 'machine-1');
+        expect(refresh.refreshTunnelClaim).toHaveBeenCalledWith(expect.objectContaining({
+            ...credentials,
+            connectToken: 'connect-jwt',
+        }), 'machine-1');
     });
 
     it('throws ClaimExpired for tunnel_claim_expired responses', async () => {

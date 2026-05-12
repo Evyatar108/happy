@@ -140,6 +140,29 @@ export const TokenStorage = {
         return await this.writeStoredCredentials(next);
     },
 
+    async updateMachineCredentials(machineId: string, patch: Partial<AuthCredentials>): Promise<boolean> {
+        const existing = await this.getStoredCredentials();
+        if (!existing) {
+            return false;
+        }
+        let found = false;
+        const machines = existing.machines.map(machine => {
+            if (machine.machineId !== machineId) {
+                return machine;
+            }
+            found = true;
+            return { ...machine, ...patch };
+        });
+        if (!found) {
+            return false;
+        }
+        return await this.writeStoredCredentials({
+            primaryMachineId: existing.primaryMachineId,
+            machines,
+            devTunnelsAccess: existing.devTunnelsAccess,
+        });
+    },
+
     async removeMachineCredentials(machineId: string): Promise<boolean> {
         const existing = await this.getStoredCredentials();
         if (!existing) {

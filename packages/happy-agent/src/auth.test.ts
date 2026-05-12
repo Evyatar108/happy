@@ -72,6 +72,8 @@ describe('auth', () => {
         consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
         mockedAxios.get.mockReset();
         mockedAxios.post.mockReset();
+        mockedAxios.get.mockResolvedValue({ data: { accessTokens: { connect: 'connect-jwt' } } });
+        process.env.HAPPY_DEVTUNNELS_TOKEN = 'ghu-devtunnels';
         vi.useFakeTimers({ now: new Date('2026-05-11T12:00:00.000Z') });
     });
 
@@ -259,6 +261,10 @@ describe('auth', () => {
             await promise;
 
             expect(loadCredentials(config).machines.map(item => item.machineId)).toEqual(['machine-2']);
+            expect(loadCredentials(config).machines[0]).toMatchObject({
+                tunnelId: 't1',
+                connectToken: 'connect-jwt',
+            });
         });
 
         it('omits unreachable per-target tunnels with a warning', async () => {

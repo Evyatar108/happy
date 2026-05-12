@@ -2,7 +2,8 @@ import * as WebBrowser from 'expo-web-browser';
 
 import { AuthCredentials, TokenStorage } from './tokenStorage';
 import { decodeBase64Url } from '@/utils/base64url';
-import type { MachineTunnel } from '@/sync/tunnelProvider';
+import { DevTunnelsClientProvider, type MachineTunnel } from '@/sync/tunnelProvider';
+import { deriveConnectTokenExpiry } from './connectTokenRefresh';
 
 // devtunnel's public GitHub App — no client secret required (device flow public client)
 const DEVTUNNEL_GITHUB_CLIENT_ID = 'Iv1.e7b89e013f801f03';
@@ -129,8 +130,16 @@ export class PairingClaimMissingAccountId extends Error {
     }
 }
 
-export async function startPairFlow(machine: MachineTunnel): Promise<PairStartResponse> {
-    const response = await fetch(`${machine.url}/pair/start`);
+export async function acquireConnectTokenForPair(machine: MachineTunnel): Promise<{ connectToken: string; connectTokenExpiry: number }> {
+    const provider = new DevTunnelsClientProvider({ credentials: TokenStorage });
+    const connectToken = await provider.getConnectToken(machine.tunnelId);
+    return { connectToken, connectTokenExpiry: deriveConnectTokenExpiry() };
+}
+
+export async function startPairFlow(machine: MachineTunnel, connectToken: string): Promise<PairStartResponse> {
+    const response = await fetch(`${machine.url}/pair/start`, {
+        headers: { 'X-Tunnel-Connect': connectToken },
+    });
     if (!response.ok) {
         throw new Error(`Failed to start pairing: ${response.status}`);
     }
@@ -142,10 +151,10 @@ export async function startPairFlow(machine: MachineTunnel): Promise<PairStartRe
     };
 }
 
-export async function pollPairStatus(machine: MachineTunnel, deviceCode: string, intervalSeconds: number): Promise<PollPairStatusResult> {
+export async function pollPairStatus(machine: MachineTunnel, deviceCode: string, intervalSeconds: number, connectToken: string): Promise<PollPairStatusResult> {
     const response = await fetch(`${machine.url}/pair/status`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Tunnel-Connect': connectToken },
         body: JSON.stringify({ device_code: deviceCode }),
     });
     if (response.status === 429) {
@@ -176,6 +185,8 @@ export function credentialsFromPairMachine(machine: MachineTunnel, pairMachine: 
     avatarUrl?: string;
     deviceCode: string;
     deviceCodeExpiresAt: number;
+    connectToken: string;
+    connectTokenExpiry: number;
 }): AuthCredentials {
     return {
         machineId: pairMachine.machineId,
@@ -187,16 +198,18 @@ export function credentialsFromPairMachine(machine: MachineTunnel, pairMachine: 
         avatarUrl: metadata.avatarUrl ?? '',
         deviceCode: metadata.deviceCode,
         deviceCodeExpiresAt: metadata.deviceCodeExpiresAt,
+        connectToken: metadata.connectToken,
+        connectTokenExpiry: metadata.connectTokenExpiry,
     };
 }
 
-export async function waitForPairStatus(machine: MachineTunnel, flow: PairStartResponse): Promise<PairStatusResponse> {
+export async function waitForPairStatus(machine: MachineTunnel, flow: PairStartResponse, connectToken: string): Promise<PairStatusResponse> {
     const interval = Math.max(flow.interval, MIN_PAIR_POLL_INTERVAL_SECONDS);
     const deadline = Date.now() + (flow.expires_in ?? PAIRING_FALLBACK_EXPIRY_SECONDS) * 1000;
     let delayMs = interval * 1000;
     while (Date.now() < deadline) {
         await new Promise(resolve => setTimeout(resolve, delayMs));
-        const status = await pollPairStatus(machine, flow.device_code, interval);
+        const status = await pollPairStatus(machine, flow.device_code, interval, connectToken);
         if (status.status === 'authorized') return status;
         delayMs = status.retryAfterMs ?? interval * 1000;
     }

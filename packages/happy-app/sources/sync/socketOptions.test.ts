@@ -12,6 +12,10 @@ vi.mock('@/sync/refreshClaim', () => ({
     refreshTunnelClaim: vi.fn(async () => 'fresh-socket-claim'),
 }));
 
+vi.mock('@/auth/connectTokenRefresh', () => ({
+    ensureFreshConnectToken: vi.fn(async () => ({ connectToken: 'connect-jwt', connectTokenExpiry: Date.now() + 60_000 })),
+}));
+
 import { buildTunnelSocketOptions } from './socketOptions';
 import type { AuthCredentials } from '@/auth/tokenStorage';
 
@@ -30,9 +34,11 @@ describe('socketOptions', () => {
         const options = await buildTunnelSocketOptions(credentials);
         expect(options.extraHeaders).toMatchObject({
             'X-Tunnel-Authorization': 'tunnel fresh-socket-claim',
+            'X-Tunnel-Connect': 'connect-jwt',
             'X-Happy-Client': 'ios/1.2.3',
         });
-        expect(JSON.stringify(options)).not.toContain('connect-jwt');
+        expect((options.transportOptions as any).websocket.extraHeaders['X-Tunnel-Connect']).toBe('connect-jwt');
+        expect(JSON.stringify(options)).not.toContain('#dt=');
         expect(options.reconnection).toBe(false);
     });
 

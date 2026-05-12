@@ -1,4 +1,5 @@
 import { AuthCredentials } from '@/auth/tokenStorage';
+import { ensureFreshConnectToken } from '@/auth/connectTokenRefresh';
 import { decodeBase64Url } from '@/utils/base64url';
 
 const MIN_REFRESH_INTERVAL_MS = 12_000;
@@ -57,6 +58,8 @@ async function refreshTunnelClaimOnce(credentials: AuthCredentials, machineId: s
         throw new DeviceCodeExpired(machineId);
     }
 
+    const { connectToken } = await ensureFreshConnectToken(credentials, machineId);
+
     const previous = lastRefreshAt.get(machineId) ?? 0;
     const waitMs = previous + MIN_REFRESH_INTERVAL_MS - Date.now();
     if (waitMs > 0) {
@@ -65,7 +68,7 @@ async function refreshTunnelClaimOnce(credentials: AuthCredentials, machineId: s
 
     const response = await fetch(`${credentials.tunnelUrl}/pair/status`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Tunnel-Connect': connectToken },
         body: JSON.stringify({ device_code: credentials.deviceCode }),
     });
     lastRefreshAt.set(machineId, Date.now());

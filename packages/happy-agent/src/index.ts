@@ -68,7 +68,7 @@ function resolveSessionMachineId(session: DecryptedSession): string {
     return metadata.machineId;
 }
 
-async function refreshKnownTunnelClaim(config: Config, creds: Credentials, machineId: string): Promise<{ tunnelUrl: string; tunnelClaim: string }> {
+async function refreshKnownTunnelClaim(config: Config, creds: Credentials, machineId: string): Promise<{ tunnelUrl: string; tunnelClaim: string; connectToken: string }> {
     const tunnels = discoverMachineTunnels(creds);
     if (!tunnels.find(tunnel => tunnel.machineId === machineId)) {
         throw new MachineNotKnownError(machineId);
@@ -277,8 +277,8 @@ program
                 throw new Error('--create-dir is only supported by the legacy --path flow.');
             }
 
-            const { tunnelUrl, tunnelClaim } = await refreshKnownTunnelClaim(config, creds, machine.id);
-            const result = await spawnInWorktreeOnMachine(tunnelUrl, tunnelClaim, {
+            const { tunnelUrl, tunnelClaim, connectToken } = await refreshKnownTunnelClaim(config, creds, machine.id);
+            const result = await spawnInWorktreeOnMachine(tunnelUrl, tunnelClaim, connectToken, {
                 machineId: machine.id,
                 repoPath: opts.repo,
                 worktreePath: opts.worktree,
@@ -330,8 +330,8 @@ program
 
         const directory = resolveRemotePath(opts.path);
 
-        const { tunnelUrl, tunnelClaim } = await refreshKnownTunnelClaim(config, creds, machine.id);
-        const result = await spawnSessionOnMachine(tunnelUrl, tunnelClaim, {
+        const { tunnelUrl, tunnelClaim, connectToken } = await refreshKnownTunnelClaim(config, creds, machine.id);
+        const result = await spawnSessionOnMachine(tunnelUrl, tunnelClaim, connectToken, {
             machineId: machine.id,
             directory,
             approvedNewDirectoryCreation: opts.createDir,
@@ -383,8 +383,8 @@ program
         const machineId = resolveSessionMachineId(session);
         const machine = await resolveMachine(config, creds, machineId);
 
-        const { tunnelUrl, tunnelClaim } = await refreshKnownTunnelClaim(config, creds, machine.id);
-        const result = await resumeSessionOnMachine(tunnelUrl, tunnelClaim, { machineId: machine.id, sessionId: session.id });
+        const { tunnelUrl, tunnelClaim, connectToken } = await refreshKnownTunnelClaim(config, creds, machine.id);
+        const result = await resumeSessionOnMachine(tunnelUrl, tunnelClaim, connectToken, { machineId: machine.id, sessionId: session.id });
         const payload = {
             sourceSessionId: session.id,
             machineId: machine.id,

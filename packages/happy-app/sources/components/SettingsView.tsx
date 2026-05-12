@@ -8,6 +8,7 @@ import Constants from 'expo-constants';
 import { useAuth } from '@/auth/AuthContext';
 import {
     credentialsFromPairMachine,
+    acquireConnectTokenForPair,
     fetchGitHubUserProfile,
     loginInteractive,
     openGitHubDeviceFlow,
@@ -137,10 +138,11 @@ export const SettingsView = React.memo(function SettingsView() {
             }
         }
 
-        const flow = await startPairFlow(selectedMachine);
+        const { connectToken, connectTokenExpiry } = await acquireConnectTokenForPair(selectedMachine);
+        const flow = await startPairFlow(selectedMachine, connectToken);
         const deviceCodeExpiresAt = Date.now() + (flow.expires_in ?? 15 * 60) * 1000;
         await openGitHubDeviceFlow(flow);
-        const status = await waitForPairStatus(selectedMachine, flow);
+        const status = await waitForPairStatus(selectedMachine, flow, connectToken);
         const paired = status.machines?.[0];
         if (!paired) {
             throw new Error(t('welcome.pairingFailed'));
@@ -151,6 +153,8 @@ export const SettingsView = React.memo(function SettingsView() {
             avatarUrl: githubProfile.avatarUrl,
             deviceCode: flow.device_code,
             deviceCodeExpiresAt,
+            connectToken,
+            connectTokenExpiry,
         }));
     });
 

@@ -61,12 +61,19 @@ function normalizeRpcError(error: string | undefined, machineId: string): string
 async function callMachineRpc(
     tunnelUrl: string,
     tunnelClaim: string,
+    connectToken: string,
     method: string,
     params: MachineRpcParams,
 ): Promise<SpawnMachineSessionResult> {
+    const connectHeaders = { 'X-Tunnel-Connect': connectToken };
     const socket = io(tunnelUrl, {
         auth: {
             tunnelAuthorization: `tunnel ${tunnelClaim}`,
+        },
+        extraHeaders: connectHeaders,
+        transportOptions: {
+            websocket: { extraHeaders: connectHeaders },
+            polling: { extraHeaders: connectHeaders },
         },
         path: '/v1/updates',
         transports: ['websocket'],
@@ -115,6 +122,7 @@ async function callMachineRpc(
 export async function spawnSessionOnMachine(
     tunnelUrl: string,
     tunnelClaim: string,
+    connectToken: string,
     params: {
         machineId: string;
         directory: string;
@@ -123,7 +131,7 @@ export async function spawnSessionOnMachine(
         providerToken?: string;
     },
 ): Promise<SpawnMachineSessionResult> {
-    return callMachineRpc(tunnelUrl, tunnelClaim, 'spawn-happy-session', {
+    return callMachineRpc(tunnelUrl, tunnelClaim, connectToken, 'spawn-happy-session', {
         machineId: params.machineId,
         type: 'spawn-in-directory',
         directory: params.directory,
@@ -136,6 +144,7 @@ export async function spawnSessionOnMachine(
 export async function spawnInWorktreeOnMachine(
     tunnelUrl: string,
     tunnelClaim: string,
+    connectToken: string,
     params: {
         machineId: string;
         repoPath: string;
@@ -145,7 +154,7 @@ export async function spawnInWorktreeOnMachine(
         providerToken?: string;
     },
 ): Promise<SpawnMachineSessionResult> {
-    return callMachineRpc(tunnelUrl, tunnelClaim, 'spawn-in-worktree', {
+    return callMachineRpc(tunnelUrl, tunnelClaim, connectToken, 'spawn-in-worktree', {
         machineId: params.machineId,
         repoPath: params.repoPath,
         worktreePath: params.worktreePath,
@@ -158,10 +167,11 @@ export async function spawnInWorktreeOnMachine(
 export async function resumeSessionOnMachine(
     tunnelUrl: string,
     tunnelClaim: string,
+    connectToken: string,
     params: {
         machineId: string;
         sessionId: string;
     },
 ): Promise<SpawnMachineSessionResult> {
-    return callMachineRpc(tunnelUrl, tunnelClaim, 'resume-happy-session', params);
+    return callMachineRpc(tunnelUrl, tunnelClaim, connectToken, 'resume-happy-session', params);
 }

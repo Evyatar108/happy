@@ -78,8 +78,11 @@ function makeCredentials(): Credentials {
         pairingBaseUrl: 'https://test-server.example.com',
         machines: [{
             machineId: 'machine-1',
+            tunnelId: 'tunnel-1',
             tunnelUrl: 'https://machine-1.devtunnels.ms',
             tunnelClaim: encodeTunnelClaim({ accountId: 123, iat: now, exp: now + 600, jti: 'jti-1' }),
+            connectToken: 'connect-jwt',
+            connectTokenExpiry: Date.now() + 120_000,
             accountId: 123,
             ed25519PublicKey: 'ed',
             x25519PublicKey: 'x',
@@ -246,12 +249,13 @@ describe('api', () => {
             expect(result).toEqual({
                 tunnelUrl: 'https://machine-1.devtunnels.ms',
                 tunnelClaim,
+                connectToken: 'connect-jwt',
                 accountId: 456,
             });
             expect(mockedAxios.post).toHaveBeenCalledWith(
                 'https://machine-1.devtunnels.ms/pair/status',
                 { device_code: 'device-code' },
-                { headers: { 'X-Happy-Client': 'cli-control-plane/0.1.0' }, timeout: 30_000 },
+                { headers: { 'X-Happy-Client': 'cli-control-plane/0.1.0', 'X-Tunnel-Connect': 'connect-jwt' }, timeout: 30_000 },
             );
         });
 

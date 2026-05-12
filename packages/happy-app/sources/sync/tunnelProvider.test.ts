@@ -95,4 +95,13 @@ describe('DevTunnelsClientProvider', () => {
         });
         await expect(provider.listMachineTunnels()).rejects.toBeInstanceOf(DevTunnelsTokenExpired);
     });
+
+    it('surfaces expired tokens from getConnectToken', async () => {
+        const provider = new DevTunnelsClientProvider({
+            credentials: credentials(),
+            fetchImpl: vi.fn().mockResolvedValue(response(401)),
+        });
+
+        await expect(provider.getConnectToken('tunnel-1')).rejects.toBeInstanceOf(DevTunnelsTokenExpired);
+    });
 });
