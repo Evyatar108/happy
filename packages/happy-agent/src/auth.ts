@@ -147,6 +147,13 @@ async function discoverAuthorizedMachines(status: PairStatusResponse, deviceCode
             continue;
         }
 
+        try {
+            new URL(discovered.tunnelUrl);
+        } catch {
+            console.warn(`Skipping tunnel with invalid URL: ${discovered.displayName ?? discovered.tunnelUrl}`);
+            continue;
+        }
+
         const retryAfterMs = Math.min(intervalSeconds * 2, MAX_POLL_INTERVAL_SECONDS) * 1000;
         for (let attempt = 1; attempt <= 2; attempt++) {
             try {
