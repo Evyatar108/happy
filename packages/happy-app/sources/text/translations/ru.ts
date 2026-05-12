@@ -28,16 +28,8 @@ function plural({ count, one, few, many }: { count: number; one: string; few: st
 export const ru: TranslationStructure = {
     tabs: {
         // Tab navigation labels
-        inbox: 'Входящие',
         sessions: 'Терминалы',
         settings: 'Настройки',
-    },
-
-    inbox: {
-        // Inbox screen
-        emptyTitle: 'Входящие пусты',
-        emptyDescription: 'Подключитесь к друзьям, чтобы начать делиться сессиями',
-        updates: 'Обновления',
     },
 
     common: {
@@ -163,8 +155,6 @@ export const ru: TranslationStructure = {
         accountSubtitle: 'Управление учётной записью',
         appearance: 'Внешний вид',
         appearanceSubtitle: 'Настройка внешнего вида приложения',
-        voiceAssistant: 'Голосовой ассистент',
-        voiceAssistantSubtitle: 'Настройка предпочтений голосового взаимодействия',
         featuresTitle: 'Возможности',
         featuresSubtitle: 'Включить или отключить функции приложения',
         developer: 'Разработчик',
@@ -184,8 +174,6 @@ export const ru: TranslationStructure = {
         connectGithubAccount: 'Подключить аккаунт GitHub',
         claudeAuthSuccess: 'Успешно подключено к Claude',
         exchangingTokens: 'Обмен токенов...',
-        usage: 'Использование',
-        usageSubtitle: 'Просмотр использования API и затрат',
         // Dynamic settings messages
         accountConnected: ({ service }: { service: string }) => `Аккаунт ${service} подключен`,
         machineStatus: ({ name, status }: { name: string; status: 'online' | 'offline' }) =>
@@ -288,11 +276,6 @@ export const ru: TranslationStructure = {
         tryAgain: 'Пожалуйста, попробуйте снова',
         contactSupport: 'Если проблема сохранится, обратитесь в поддержку',
         sessionNotFound: 'Сессия не найдена',
-        voiceSessionFailed: 'Не удалось запустить голосовую сессию',
-        voiceServiceUnavailable: 'Голосовой сервис временно недоступен',
-        voiceLimitReachedTitle: 'Лимит голоса достигнут',
-        voiceHardLimitReached: ({ hours }: { hours: number }) => `Вы использовали ${hours}+ часов голосового общения в этом месяце. Это максимально допустимый лимит. Вы можете настроить собственного агента ElevenLabs в настройках голоса, чтобы использовать свою квоту.`,
-        voiceConversationLimitReached: 'Вы достигли максимального количества голосовых разговоров в этом месяце. Возможно, в будущем мы добавим голосовое использование по запросу — пожалуйста, создайте заявку на github.com/nicepkg/happy/issues, если вы столкнулись с этим ограничением.',
         oauthInitializationFailed: 'Не удалось инициализировать процесс OAuth',
         tokenStorageFailed: 'Не удалось сохранить токены аутентификации',
         oauthStateMismatch: 'Ошибка проверки безопасности. Попробуйте снова',
@@ -318,10 +301,6 @@ export const ru: TranslationStructure = {
             `Повторить через ${seconds} ${plural({ count: seconds, one: 'секунду', few: 'секунды', many: 'секунд' })}`,
         errorWithCode: ({ message, code }: { message: string; code: number | string }) =>
             `${message} (Ошибка ${code})`,
-        disconnectServiceFailed: ({ service }: { service: string }) => 
-            `Не удалось отключить ${service}`,
-        connectServiceFailed: ({ service }: { service: string }) =>
-            `Не удалось подключить ${service}. Пожалуйста, попробуйте снова.`,
         failedToLoadFriends: 'Не удалось загрузить список друзей',
         failedToAcceptRequest: 'Не удалось принять запрос в друзья',
         failedToRejectRequest: 'Не удалось отклонить запрос в друзья',
@@ -761,38 +740,6 @@ export const ru: TranslationStructure = {
         deleted: 'Удалён',
     },
 
-    settingsVoice: {
-        // Voice settings screen
-        languageTitle: 'Язык',
-        languageDescription: 'Выберите предпочтительный язык для взаимодействия с голосовым помощником. Эта настройка синхронизируется на всех ваших устройствах.',
-        preferredLanguage: 'Предпочтительный язык',
-        preferredLanguageSubtitle: 'Язык, используемый для ответов голосового помощника',
-        language: {
-            searchPlaceholder: 'Поиск языков...',
-            title: 'Языки',
-            footer: ({ count }: { count: number }) => `Доступно ${count} ${plural({ count, one: 'язык', few: 'языка', many: 'языков' })}`,
-            autoDetect: 'Автоопределение',
-        },
-        // Bring your own agent
-        byoTitle: 'Используйте своего агента',
-        byoDescription: 'Используйте собственного агента ElevenLabs вместо стандартного Happy. Подписка не требуется — подключайтесь напрямую через свой аккаунт ElevenLabs. Ваш агент должен определить два клиентских инструмента: messageClaudeCode (отправляет текст агенту кодирования) и processPermissionRequest (разрешает или запрещает использование инструментов). Контекст сессии передаётся через динамическую переменную {{initialConversationContext}}.',
-        customAgentId: 'ElevenLabs Agent ID',
-        customAgentIdNotSet: 'Не настроено',
-        customAgentIdDescription: 'Введите ваш ElevenLabs Agent ID. Оставьте пустым, чтобы использовать стандартный Happy.',
-        customAgentIdPlaceholder: 'e.g. abc123def456',
-        bypassToken: 'Прямое подключение',
-        bypassTokenSubtitle: 'Пропустить сервер Happy, подключиться напрямую к ElevenLabs',
-        promptGuideTitle: 'Руководство по промптам агента',
-        promptGuideDescription: 'Вашему агенту ElevenLabs необходимы:\n\n• Инструмент: messageClaudeCode — параметр: message (string). Отправляет сообщение в активную сессию кодирования.\n• Инструмент: processPermissionRequest — параметр: decision ("allow" или "deny"). Одобряет или отклоняет ожидающее разрешение на использование инструмента.\n• Динамическая переменная: {{initialConversationContext}} — получает историю и контекст сессии при запуске.\n\nАгент выступает голосовым мостом между пользователем и агентами кодирования. Он должен быть кратким, отвечать только при обращении и сообщать, когда агент кодирования завершает работу.',
-        usageTitle: 'Использование (последние 30 дней)',
-        usageFooter: 'Время голосового общения за последние 30 дней. Бесплатный тариф: 20 мин. С подпиской: 5 часов. Макс. 100 разговоров в месяц.',
-        usageLabel: 'Голосовое время',
-        conversationsLabel: 'Разговоры',
-        usageUsed: ({ used, limit }: { used: string; limit: string }) => `${used} использовано из ${limit}`,
-        supportTitle: 'Улучшить голос',
-        supportSubtitle: 'Больше голосового времени и поддержка разработки',
-    },
-
     settingsAccount: {
         // Account settings screen
         accountInformation: 'Информация об аккаунте',
@@ -852,10 +799,6 @@ export const ru: TranslationStructure = {
         developerModeDisabled: 'Режим разработчика отключен',
         disconnectGithub: 'Отключить GitHub',
         disconnectGithubConfirm: 'Вы уверены, что хотите отключить аккаунт GitHub?',
-        disconnectService: ({ service }: { service: string }) => 
-            `Отключить ${service}`,
-        disconnectServiceConfirm: ({ service }: { service: string }) => 
-            `Вы уверены, что хотите отключить ${service} от вашего аккаунта?`,
         disconnect: 'Отключить',
         failedToConnectTerminal: 'Не удалось подключить терминал',
         cameraPermissionsRequiredToConnectTerminal: 'Для подключения терминала требуется доступ к камере',
@@ -994,46 +937,6 @@ export const ru: TranslationStructure = {
         mermaidRenderFailed: 'Не удалось отобразить диаграмму mermaid',
     },
 
-    artifacts: {
-        // Artifacts feature
-        title: 'Артефакты',
-        countSingular: '1 артефакт',
-        countPlural: ({ count }: { count: number }) => {
-            const n = Math.abs(count);
-            const n10 = n % 10;
-            const n100 = n % 100;
-            
-            if (n10 === 1 && n100 !== 11) {
-                return `${count} артефакт`;
-            }
-            if (n10 >= 2 && n10 <= 4 && (n100 < 10 || n100 >= 20)) {
-                return `${count} артефакта`;
-            }
-            return `${count} артефактов`;
-        },
-        empty: 'Артефактов пока нет',
-        emptyDescription: 'Создайте первый артефакт, чтобы начать',
-        new: 'Новый артефакт',
-        edit: 'Редактировать артефакт',
-        delete: 'Удалить',
-        updateError: 'Не удалось обновить артефакт. Пожалуйста, попробуйте еще раз.',
-        notFound: 'Артефакт не найден',
-        discardChanges: 'Отменить изменения?',
-        discardChangesDescription: 'У вас есть несохраненные изменения. Вы уверены, что хотите их отменить?',
-        deleteConfirm: 'Удалить артефакт?',
-        deleteConfirmDescription: 'Это действие нельзя отменить',
-        titleLabel: 'ЗАГОЛОВОК',
-        titlePlaceholder: 'Введите заголовок для вашего артефакта',
-        bodyLabel: 'СОДЕРЖИМОЕ',
-        bodyPlaceholder: 'Напишите ваш контент здесь...',
-        emptyFieldsError: 'Пожалуйста, введите заголовок или содержимое',
-        createError: 'Не удалось создать артефакт. Пожалуйста, попробуйте снова.',
-        save: 'Сохранить',
-        saving: 'Сохранение...',
-        loading: 'Загрузка артефактов...',
-        error: 'Не удалось загрузить артефакт',
-    },
-
     friends: {
         // Friends feature
         title: 'Друзья',
@@ -1083,28 +986,6 @@ export const ru: TranslationStructure = {
         cancelRequestConfirm: ({ name }: { name: string }) => `Отменить ваш запрос в друзья к ${name}?`,
         denyRequest: 'Отклонить запрос',
         nowFriendsWith: ({ name }: { name: string }) => `Теперь вы друзья с ${name}`,
-    },
-
-    usage: {
-        // Usage panel strings
-        today: 'Сегодня',
-        last7Days: 'Последние 7 дней',
-        last30Days: 'Последние 30 дней',
-        totalTokens: 'Всего токенов',
-        totalCost: 'Общая стоимость',
-        tokens: 'Токены',
-        cost: 'Стоимость',
-        usageOverTime: 'Использование во времени',
-        byModel: 'По модели',
-        noData: 'Данные об использовании недоступны',
-    },
-
-    feed: {
-        // Feed notifications for friend requests and acceptances
-        friendRequestFrom: ({ name }: { name: string }) => `${name} отправил вам запрос в друзья`,
-        friendRequestGeneric: 'Новый запрос в друзья',
-        friendAccepted: ({ name }: { name: string }) => `Вы теперь друзья с ${name}`,
-        friendAcceptedGeneric: 'Запрос в друзья принят',
     },
 
 } as const;

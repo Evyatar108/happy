@@ -17,16 +17,8 @@ function plural({ count, singular, plural }: { count: number; singular: string; 
 export const pt: TranslationStructure = {
     tabs: {
         // Tab navigation labels
-        inbox: 'Caixa de entrada',
         sessions: 'Terminais',
         settings: 'Configurações',
-    },
-
-    inbox: {
-        // Inbox screen
-        emptyTitle: 'Caixa de entrada vazia',
-        emptyDescription: 'Conecte-se com amigos para começar a compartilhar sessões',
-        updates: 'Atualizações',
     },
 
     common: {
@@ -174,8 +166,6 @@ export const pt: TranslationStructure = {
         accountSubtitle: 'Gerencie os detalhes da sua conta',
         appearance: 'Aparência',
         appearanceSubtitle: 'Personalize a aparência do aplicativo',
-        voiceAssistant: 'Assistente de voz',
-        voiceAssistantSubtitle: 'Configure as preferências de interação por voz',
         featuresTitle: 'Recursos',
         featuresSubtitle: 'Ativar ou desativar recursos do aplicativo',
         developer: 'Desenvolvedor',
@@ -195,8 +185,6 @@ export const pt: TranslationStructure = {
         connectGithubAccount: 'Conecte sua conta GitHub',
         claudeAuthSuccess: 'Conectado ao Claude com sucesso',
         exchangingTokens: 'Trocando tokens...',
-        usage: 'Uso',
-        usageSubtitle: 'Visualizar uso da API e custos',
         // Dynamic settings messages
         accountConnected: ({ service }: { service: string }) => `Conta ${service} conectada`,
         machineStatus: ({ name, status }: { name: string; status: 'online' | 'offline' }) =>
@@ -299,11 +287,6 @@ export const pt: TranslationStructure = {
         tryAgain: 'Por favor, tente novamente',
         contactSupport: 'Entre em contato com o suporte se o problema persistir',
         sessionNotFound: 'Sessão não encontrada',
-        voiceSessionFailed: 'Falha ao iniciar sessão de voz',
-        voiceServiceUnavailable: 'Serviço de voz temporariamente indisponível',
-        voiceLimitReachedTitle: 'Limite de voz atingido',
-        voiceHardLimitReached: ({ hours }: { hours: number }) => `Você usou ${hours}+ horas de voz este mês. Este é o máximo permitido. Você pode configurar seu próprio agente ElevenLabs nas configurações de voz para usar sua própria cota.`,
-        voiceConversationLimitReached: 'Você atingiu o número máximo de conversas de voz este mês. Podemos adicionar uso de voz sob demanda no futuro — por favor, abra um issue em github.com/nicepkg/happy/issues se você atingir este limite.',
         oauthInitializationFailed: 'Falha ao inicializar o fluxo OAuth',
         tokenStorageFailed: 'Falha ao armazenar tokens de autenticação',
         oauthStateMismatch: 'Falha na validação de segurança. Por favor, tente novamente',
@@ -329,10 +312,6 @@ export const pt: TranslationStructure = {
             `Tentar novamente em ${seconds} ${seconds === 1 ? 'segundo' : 'segundos'}`,
         errorWithCode: ({ message, code }: { message: string; code: number | string }) =>
             `${message} (Erro ${code})`,
-        disconnectServiceFailed: ({ service }: { service: string }) => 
-            `Falha ao desconectar ${service}`,
-        connectServiceFailed: ({ service }: { service: string }) =>
-            `Falha ao conectar ${service}. Por favor, tente novamente.`,
         failedToLoadFriends: 'Falha ao carregar lista de amigos',
         failedToAcceptRequest: 'Falha ao aceitar solicitação de amizade',
         failedToRejectRequest: 'Falha ao rejeitar solicitação de amizade',
@@ -744,38 +723,6 @@ export const pt: TranslationStructure = {
         deleted: 'Excluído',
     },
 
-    settingsVoice: {
-        // Voice settings screen
-        languageTitle: 'Idioma',
-        languageDescription: 'Escolha seu idioma preferido para interações com o assistente de voz. Esta configuração sincroniza em todos os seus dispositivos.',
-        preferredLanguage: 'Idioma preferido',
-        preferredLanguageSubtitle: 'Idioma usado para respostas do assistente de voz',
-        language: {
-            searchPlaceholder: 'Buscar idiomas...',
-            title: 'Idiomas',
-            footer: ({ count }: { count: number }) => `${count} ${plural({ count, singular: 'idioma', plural: 'idiomas' })} disponíveis`,
-            autoDetect: 'Detectar automaticamente',
-        },
-        // Bring your own agent
-        byoTitle: 'Traga seu próprio agente',
-        byoDescription: 'Use seu próprio agente ElevenLabs em vez do padrão do Happy. Nenhuma assinatura necessária — conecte-se diretamente com sua própria conta ElevenLabs. Seu agente deve definir duas ferramentas de cliente: messageClaudeCode (envia texto ao agente de código) e processPermissionRequest (permite ou nega o uso de ferramentas). Recebe o contexto da sessão através da variável dinâmica {{initialConversationContext}}.',
-        customAgentId: 'ElevenLabs Agent ID',
-        customAgentIdNotSet: 'Não configurado',
-        customAgentIdDescription: 'Insira seu ElevenLabs Agent ID. Deixe vazio para usar o padrão do Happy.',
-        customAgentIdPlaceholder: 'e.g. abc123def456',
-        bypassToken: 'Conexão direta',
-        bypassTokenSubtitle: 'Pule o servidor do Happy, conecte-se diretamente ao ElevenLabs',
-        promptGuideTitle: 'Guia de prompt do agente',
-        promptGuideDescription: 'Seu agente ElevenLabs precisa de:\n\n• Ferramenta: messageClaudeCode — parâmetro: message (string). Envia uma mensagem para a sessão de código ativa.\n• Ferramenta: processPermissionRequest — parâmetro: decision ("allow" ou "deny"). Aprova ou nega uma permissão de ferramenta pendente.\n• Variável dinâmica: {{initialConversationContext}} — recebe o histórico e contexto da sessão ao iniciar.\n\nO agente atua como ponte de voz entre o usuário e os agentes de código. Deve ser conciso, responder apenas quando abordado e informar quando um agente de código terminar o trabalho.',
-        usageTitle: 'Uso (últimos 30 dias)',
-        usageFooter: 'Tempo de voz utilizado nos últimos 30 dias. Plano gratuito: 20 min. Assinante: 5 horas. Máx. 100 conversas por mês.',
-        usageLabel: 'Tempo de voz',
-        conversationsLabel: 'Conversas',
-        usageUsed: ({ used, limit }: { used: string; limit: string }) => `${used} usado de ${limit}`,
-        supportTitle: 'Melhorar voz',
-        supportSubtitle: 'Mais tempo de voz e apoie o desenvolvimento',
-    },
-
     settingsAccount: {
         // Account settings screen
         accountInformation: 'Informações da conta',
@@ -847,10 +794,6 @@ export const pt: TranslationStructure = {
         developerModeDisabled: 'Modo desenvolvedor desativado',
         disconnectGithub: 'Desconectar GitHub',
         disconnectGithubConfirm: 'Tem certeza de que deseja desconectar sua conta GitHub?',
-        disconnectService: ({ service }: { service: string }) => 
-            `Desconectar ${service}`,
-        disconnectServiceConfirm: ({ service }: { service: string }) => 
-            `Tem certeza de que deseja desconectar ${service} da sua conta?`,
         disconnect: 'Desconectar',
         failedToConnectTerminal: 'Falha ao conectar terminal',
         cameraPermissionsRequiredToConnectTerminal: 'Permissões de câmera são necessárias para conectar terminal',
@@ -977,33 +920,6 @@ export const pt: TranslationStructure = {
         mermaidRenderFailed: 'Falha ao renderizar diagrama mermaid',
     },
 
-    artifacts: {
-        title: 'Artefatos',
-        countSingular: '1 artefato',
-        countPlural: ({ count }: { count: number }) => `${count} artefatos`,
-        empty: 'Ainda não há artefatos',
-        emptyDescription: 'Crie seu primeiro artefato para salvar e organizar conteúdo',
-        new: 'Novo artefato',
-        edit: 'Editar artefato',
-        delete: 'Excluir',
-        updateError: 'Falha ao atualizar artefato. Por favor, tente novamente.',
-        notFound: 'Artefato não encontrado',
-        discardChanges: 'Descartar alterações?',
-        discardChangesDescription: 'Você tem alterações não salvas. Tem certeza de que deseja descartá-las?',
-        deleteConfirm: 'Excluir artefato?',
-        deleteConfirmDescription: 'Este artefato será excluído permanentemente.',
-        titlePlaceholder: 'Título do artefato',
-        bodyPlaceholder: 'Digite o conteúdo aqui...',
-        save: 'Salvar',
-        saving: 'Salvando...',
-        loading: 'Carregando...',
-        error: 'Falha ao carregar artefatos',
-        titleLabel: 'TÍTULO',
-        bodyLabel: 'CONTEÚDO',
-        emptyFieldsError: 'Por favor, insira um título ou conteúdo',
-        createError: 'Falha ao criar artefato. Por favor, tente novamente.',
-    },
-
     friends: {
         // Friends feature
         title: 'Amigos',
@@ -1054,28 +970,6 @@ export const pt: TranslationStructure = {
         denyRequest: 'Recusar solicitação',
         nowFriendsWith: ({ name }: { name: string }) => `Agora você é amigo de ${name}`,
     },
-
-    usage: {
-        // Usage panel strings
-        today: 'Hoje',
-        last7Days: 'Últimos 7 dias',
-        last30Days: 'Últimos 30 dias',
-        totalTokens: 'Tokens totais',
-        totalCost: 'Custo total',
-        tokens: 'Tokens',
-        cost: 'Custo',
-        usageOverTime: 'Uso ao longo do tempo',
-        byModel: 'Por modelo',
-        noData: 'Nenhum dado de uso disponível',
-    },
-
-    feed: {
-        // Feed notifications for friend requests and acceptances
-        friendRequestFrom: ({ name }: { name: string }) => `${name} enviou-lhe um pedido de amizade`,
-        friendRequestGeneric: 'Novo pedido de amizade',
-        friendAccepted: ({ name }: { name: string }) => `Agora você é amigo de ${name}`,
-        friendAcceptedGeneric: 'Pedido de amizade aceito',
-    }
 } as const;
 
 export type TranslationsPt = typeof pt;

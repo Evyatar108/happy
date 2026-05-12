@@ -1,4 +1,4 @@
-import { useSocketStatus, useFriendRequests, useSettings } from '@/sync/storage';
+import { useSocketStatus, useSettings } from '@/sync/storage';
 import * as React from 'react';
 import { Text, View, Pressable, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,7 +14,6 @@ import { useSidebar, SIDEBAR_WIDTH_MIN, SIDEBAR_WIDTH_MAX } from './SidebarConte
 import { Image } from 'expo-image';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { t } from '@/text';
-import { useInboxHasContent } from '@/hooks/useInboxHasContent';
 import { Ionicons } from '@expo/vector-icons';
 import { isTauri } from '@/utils/isTauri';
 
@@ -92,26 +91,6 @@ const stylesheet = StyleSheet.create((theme, runtime) => ({
     settingsButton: {
         color: theme.colors.header.tint,
     },
-    notificationButton: {
-        position: 'relative',
-    },
-    badge: {
-        position: 'absolute',
-        top: -4,
-        right: -4,
-        backgroundColor: theme.colors.status.error,
-        borderRadius: 8,
-        minWidth: 16,
-        height: 16,
-        paddingHorizontal: 4,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    badgeText: {
-        color: '#FFFFFF',
-        fontSize: 10,
-        ...Typography.default('semiBold'),
-    },
     // Status colors
     statusConnected: {
         color: theme.colors.status.connected,
@@ -128,15 +107,6 @@ const stylesheet = StyleSheet.create((theme, runtime) => ({
     statusDefault: {
         color: theme.colors.status.default,
     },
-    indicatorDot: {
-        position: 'absolute',
-        top: 0,
-        right: -2,
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: theme.colors.text,
-    },
 }));
 
 export const SidebarView = React.memo(() => {
@@ -146,8 +116,6 @@ export const SidebarView = React.memo(() => {
     const router = useRouter();
     const headerHeight = useHeaderHeight();
     const socketStatus = useSocketStatus();
-    const friendRequests = useFriendRequests();
-    const inboxHasContent = useInboxHasContent();
     const settings = useSettings();
 
     // Compute connection status once per render (theme-reactive, no stale memoization)
@@ -215,8 +183,6 @@ export const SidebarView = React.memo(() => {
                     color: connectionStatus.color,
                     isPulsing: connectionStatus.isPulsing,
                 }}
-                friendRequestsCount={friendRequests.length}
-                inboxHasContent={inboxHasContent}
             />
         );
     }
@@ -270,28 +236,6 @@ export const SidebarView = React.memo(() => {
                         style={styles.rightContainer}
                         {...(inTauri ? { dataSet: { tauriDragRegion: 'false' } } : {})}
                     >
-                        <Pressable
-                            onPress={() => router.push('/(app)/inbox')}
-                            hitSlop={15}
-                            style={styles.notificationButton}
-                        >
-                            <Image
-                                source={require('@/assets/images/brutalist/Brutalism-27.png')}
-                                contentFit="contain"
-                                style={[{ width: 32, height: 32 }]}
-                                tintColor={theme.colors.header.tint}
-                            />
-                            {friendRequests.length > 0 && (
-                                <View style={styles.badge}>
-                                    <Text style={styles.badgeText}>
-                                        {friendRequests.length > 99 ? '99+' : friendRequests.length}
-                                    </Text>
-                                </View>
-                            )}
-                            {inboxHasContent && friendRequests.length === 0 && (
-                                <View style={styles.indicatorDot} />
-                            )}
-                        </Pressable>
                         <Pressable
                             onPress={() => router.push('/settings')}
                             hitSlop={15}

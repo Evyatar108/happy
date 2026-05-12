@@ -28,16 +28,8 @@ function plural({ count, one, few, many }: { count: number; one: string; few: st
 export const pl: TranslationStructure = {
     tabs: {
         // Tab navigation labels
-        inbox: 'Skrzynka',
         sessions: 'Terminale',
         settings: 'Ustawienia',
-    },
-
-    inbox: {
-        // Inbox screen
-        emptyTitle: 'Pusta skrzynka',
-        emptyDescription: 'Połącz się z przyjaciółmi, aby zacząć udostępniać sesje',
-        updates: 'Aktualizacje',
     },
 
     common: {
@@ -191,8 +183,6 @@ export const pl: TranslationStructure = {
         accountSubtitle: 'Zarządzaj szczegółami konta',
         appearance: 'Wygląd',
         appearanceSubtitle: 'Dostosuj wygląd aplikacji',
-        voiceAssistant: 'Asystent głosowy',
-        voiceAssistantSubtitle: 'Konfiguruj preferencje interakcji głosowej',
         featuresTitle: 'Funkcje',
         featuresSubtitle: 'Włącz lub wyłącz funkcje aplikacji',
         developer: 'Deweloper',
@@ -212,8 +202,6 @@ export const pl: TranslationStructure = {
         connectGithubAccount: 'Połącz konto GitHub',
         claudeAuthSuccess: 'Pomyślnie połączono z Claude',
         exchangingTokens: 'Wymiana tokenów...',
-        usage: 'Użycie',
-        usageSubtitle: 'Zobacz użycie API i koszty',
 
         // Dynamic settings messages
         accountConnected: ({ service }: { service: string }) => `Konto ${service} połączone`,
@@ -317,11 +305,6 @@ export const pl: TranslationStructure = {
         tryAgain: 'Spróbuj ponownie',
         contactSupport: 'Skontaktuj się z pomocą techniczną, jeśli problem będzie się powtarzał',
         sessionNotFound: 'Sesja nie została znaleziona',
-        voiceSessionFailed: 'Nie udało się uruchomić sesji głosowej',
-        voiceServiceUnavailable: 'Usługa głosowa jest tymczasowo niedostępna',
-        voiceLimitReachedTitle: 'Osiągnięto limit głosu',
-        voiceHardLimitReached: ({ hours }: { hours: number }) => `Wykorzystałeś ${hours}+ godzin głosu w tym miesiącu. To jest maksymalny dozwolony limit. Możesz skonfigurować własnego agenta ElevenLabs w ustawieniach głosu, aby korzystać z własnego limitu.`,
-        voiceConversationLimitReached: 'Osiągnąłeś maksymalną liczbę rozmów głosowych w tym miesiącu. Możliwe, że w przyszłości dodamy głosowe korzystanie na żądanie — prosimy o zgłoszenie na github.com/nicepkg/happy/issues, jeśli napotkasz ten limit.',
         oauthInitializationFailed: 'Nie udało się zainicjować przepływu OAuth',
         tokenStorageFailed: 'Nie udało się zapisać tokenów uwierzytelniania',
         oauthStateMismatch: 'Weryfikacja bezpieczeństwa nie powiodła się. Spróbuj ponownie',
@@ -347,10 +330,6 @@ export const pl: TranslationStructure = {
             `Ponów próbę za ${seconds} ${plural({ count: seconds, one: 'sekundę', few: 'sekundy', many: 'sekund' })}`,
         errorWithCode: ({ message, code }: { message: string; code: number | string }) =>
             `${message} (Błąd ${code})`,
-        disconnectServiceFailed: ({ service }: { service: string }) => 
-            `Nie udało się rozłączyć ${service}`,
-        connectServiceFailed: ({ service }: { service: string }) =>
-            `Nie udało się połączyć z ${service}. Spróbuj ponownie.`,
         failedToLoadFriends: 'Nie udało się załadować listy przyjaciół',
         failedToAcceptRequest: 'Nie udało się zaakceptować zaproszenia do znajomych',
         failedToRejectRequest: 'Nie udało się odrzucić zaproszenia do znajomych',
@@ -761,38 +740,6 @@ export const pl: TranslationStructure = {
         deleted: 'Usunięty',
     },
 
-    settingsVoice: {
-        // Voice settings screen
-        languageTitle: 'Język',
-        languageDescription: 'Wybierz preferowany język dla interakcji z asystentem głosowym. To ustawienie synchronizuje się na wszystkich Twoich urządzeniach.',
-        preferredLanguage: 'Preferowany język',
-        preferredLanguageSubtitle: 'Język używany do odpowiedzi asystenta głosowego',
-        language: {
-            searchPlaceholder: 'Wyszukaj języki...',
-            title: 'Języki',
-            footer: ({ count }: { count: number }) => `Dostępnych ${count} ${plural({ count, one: 'język', few: 'języki', many: 'języków' })}`,
-            autoDetect: 'Automatyczne wykrywanie',
-        },
-        // Bring your own agent
-        byoTitle: 'Użyj własnego agenta',
-        byoDescription: 'Użyj własnego agenta ElevenLabs zamiast domyślnego Happy. Subskrypcja nie jest wymagana — połącz się bezpośrednio ze swoim kontem ElevenLabs. Twój agent musi definiować dwa narzędzia klienckie: messageClaudeCode (wysyła tekst do agenta kodującego) i processPermissionRequest (zezwala lub odmawia użycia narzędzi). Otrzymuje kontekst sesji przez zmienną dynamiczną {{initialConversationContext}}.',
-        customAgentId: 'ElevenLabs Agent ID',
-        customAgentIdNotSet: 'Nie skonfigurowano',
-        customAgentIdDescription: 'Wprowadź swój ElevenLabs Agent ID. Pozostaw puste, aby użyć domyślnego Happy.',
-        customAgentIdPlaceholder: 'e.g. abc123def456',
-        bypassToken: 'Połączenie bezpośrednie',
-        bypassTokenSubtitle: 'Pomiń serwer Happy, połącz się bezpośrednio z ElevenLabs',
-        promptGuideTitle: 'Przewodnik po promptach agenta',
-        promptGuideDescription: 'Twój agent ElevenLabs potrzebuje:\n\n• Narzędzie: messageClaudeCode — parametr: message (string). Wysyła wiadomość do aktywnej sesji kodowania.\n• Narzędzie: processPermissionRequest — parametr: decision ("allow" lub "deny"). Zatwierdza lub odrzuca oczekujące uprawnienie narzędzia.\n• Zmienna dynamiczna: {{initialConversationContext}} — otrzymuje historię sesji i kontekst przy uruchomieniu.\n\nAgent działa jako most głosowy między użytkownikiem a agentami kodującymi. Powinien być zwięzły, odpowiadać tylko gdy jest adresowany i raportować, gdy agent kodujący zakończy pracę.',
-        usageTitle: 'Użycie (ostatnie 30 dni)',
-        usageFooter: 'Czas głosowy wykorzystany w ostatnich 30 dniach. Darmowy plan: 20 min. Z subskrypcją: 5 godzin. Maks. 100 rozmów miesięcznie.',
-        usageLabel: 'Czas głosowy',
-        conversationsLabel: 'Rozmowy',
-        usageUsed: ({ used, limit }: { used: string; limit: string }) => `${used} wykorzystano z ${limit}`,
-        supportTitle: 'Ulepsz głos',
-        supportSubtitle: 'Więcej czasu głosowego i wsparcie rozwoju',
-    },
-
     settingsAccount: {
         // Account settings screen
         accountInformation: 'Informacje o koncie',
@@ -864,10 +811,6 @@ export const pl: TranslationStructure = {
         developerModeDisabled: 'Tryb deweloperski wyłączony',
         disconnectGithub: 'Rozłącz GitHub',
         disconnectGithubConfirm: 'Czy na pewno chcesz rozłączyć swoje konto GitHub?',
-        disconnectService: ({ service }: { service: string }) => 
-            `Rozłącz ${service}`,
-        disconnectServiceConfirm: ({ service }: { service: string }) => 
-            `Czy na pewno chcesz rozłączyć ${service} ze swojego konta?`,
         disconnect: 'Rozłącz',
         failedToConnectTerminal: 'Nie udało się połączyć terminala',
         cameraPermissionsRequiredToConnectTerminal: 'Uprawnienia do kamery są wymagane do połączenia terminala',
@@ -994,47 +937,6 @@ export const pl: TranslationStructure = {
         mermaidRenderFailed: 'Nie udało się wyświetlić diagramu mermaid',
     },
 
-    artifacts: {
-        // Artifacts feature
-        title: 'Artefakty',
-        countSingular: '1 artefakt',
-        countPlural: ({ count }: { count: number }) => {
-            const n = Math.abs(count);
-            const n10 = n % 10;
-            const n100 = n % 100;
-            
-            // Polish plural rules: 1 (singular), 2-4 (few), 5+ (many)
-            if (n === 1) {
-                return `${count} artefakt`;
-            }
-            if (n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14)) {
-                return `${count} artefakty`;
-            }
-            return `${count} artefaktów`;
-        },
-        empty: 'Brak artefaktów',
-        emptyDescription: 'Utwórz pierwszy artefakt, aby rozpocząć',
-        new: 'Nowy artefakt',
-        edit: 'Edytuj artefakt',
-        delete: 'Usuń',
-        updateError: 'Nie udało się zaktualizować artefaktu. Spróbuj ponownie.',
-        notFound: 'Artefakt nie został znaleziony',
-        discardChanges: 'Odrzucić zmiany?',
-        discardChangesDescription: 'Masz niezapisane zmiany. Czy na pewno chcesz je odrzucić?',
-        deleteConfirm: 'Usunąć artefakt?',
-        deleteConfirmDescription: 'Tej operacji nie można cofnąć',
-        titleLabel: 'TYTUŁ',
-        titlePlaceholder: 'Wprowadź tytuł dla swojego artefaktu',
-        bodyLabel: 'TREŚĆ',
-        bodyPlaceholder: 'Napisz swoją treść tutaj...',
-        emptyFieldsError: 'Proszę wprowadzić tytuł lub treść',
-        createError: 'Nie udało się utworzyć artefaktu. Spróbuj ponownie.',
-        save: 'Zapisz',
-        saving: 'Zapisywanie...',
-        loading: 'Ładowanie artefaktów...',
-        error: 'Nie udało się załadować artefaktu',
-    },
-
     friends: {
         // Friends feature
         title: 'Przyjaciele',
@@ -1084,28 +986,6 @@ export const pl: TranslationStructure = {
         cancelRequestConfirm: ({ name }: { name: string }) => `Anulować zaproszenie do znajomych wysłane do ${name}?`,
         denyRequest: 'Odrzuć zaproszenie',
         nowFriendsWith: ({ name }: { name: string }) => `Teraz jesteś w gronie znajomych z ${name}`,
-    },
-
-    usage: {
-        // Usage panel strings
-        today: 'Dzisiaj',
-        last7Days: 'Ostatnie 7 dni',
-        last30Days: 'Ostatnie 30 dni',
-        totalTokens: 'Łącznie tokenów',
-        totalCost: 'Całkowity koszt',
-        tokens: 'Tokeny',
-        cost: 'Koszt',
-        usageOverTime: 'Użycie w czasie',
-        byModel: 'Według modelu',
-        noData: 'Brak danych o użyciu',
-    },
-
-    feed: {
-        // Feed notifications for friend requests and acceptances
-        friendRequestFrom: ({ name }: { name: string }) => `${name} wysłał Ci zaproszenie do znajomych`,
-        friendRequestGeneric: 'Nowe zaproszenie do znajomych',
-        friendAccepted: ({ name }: { name: string }) => `Jesteś teraz znajomym z ${name}`,
-        friendAcceptedGeneric: 'Zaproszenie do znajomych zaakceptowane',
     },
 
 } as const;

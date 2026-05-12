@@ -176,9 +176,8 @@ function makeReportRenderWindow(storage: ReturnType<typeof createFakeStorage>, m
 // bump generation).
 function makeOnSessionVisible(storage: ReturnType<typeof createFakeStorage>) {
     return (_sessionId: string) => {
-        // Production sync.onSessionVisible invalidates messagesSync, gitStatusSync,
-        // and pokes voiceHooks — none of which touch renderWindow / activePrefetch
-        // / prefetchManager. The regression guard asserts exactly that.
+        // Production sync.onSessionVisible invalidates message and git-status sync,
+        // neither of which touches renderWindow / activePrefetch / prefetchManager.
     };
 }
 

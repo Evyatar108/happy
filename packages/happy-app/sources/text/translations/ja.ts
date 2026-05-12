@@ -20,16 +20,8 @@ function plural({ count, singular, plural }: { count: number; singular: string; 
 export const ja: TranslationStructure = {
     tabs: {
         // Tab navigation labels
-        inbox: '受信トレイ',
         sessions: 'ターミナル',
         settings: '設定',
-    },
-
-    inbox: {
-        // Inbox screen
-        emptyTitle: '受信トレイは空です',
-        emptyDescription: '友達と接続してセッションを共有しましょう',
-        updates: '更新',
     },
 
     common: {
@@ -176,8 +168,6 @@ export const ja: TranslationStructure = {
         accountSubtitle: 'アカウントの詳細を管理',
         appearance: '外観',
         appearanceSubtitle: 'アプリの見た目をカスタマイズ',
-        voiceAssistant: '音声アシスタント',
-        voiceAssistantSubtitle: '音声操作の設定',
         featuresTitle: '機能',
         featuresSubtitle: 'アプリ機能の有効/無効を切り替え',
         developer: '開発者',
@@ -197,8 +187,6 @@ export const ja: TranslationStructure = {
         connectGithubAccount: 'GitHubアカウントを接続',
         claudeAuthSuccess: 'Claudeへの接続に成功しました',
         exchangingTokens: 'トークンを交換中...',
-        usage: '使用状況',
-        usageSubtitle: 'API使用量とコストを確認',
         // Dynamic settings messages
         accountConnected: ({ service }: { service: string }) => `${service}アカウントが接続されました`,
         machineStatus: ({ name, status }: { name: string; status: 'online' | 'offline' }) =>
@@ -301,11 +289,6 @@ export const ja: TranslationStructure = {
         tryAgain: '再試行してください',
         contactSupport: '問題が続く場合はサポートにお問い合わせください',
         sessionNotFound: 'セッションが見つかりません',
-        voiceSessionFailed: '音声セッションの開始に失敗しました',
-        voiceServiceUnavailable: '音声サービスは一時的に利用できません',
-        voiceLimitReachedTitle: '音声の上限に達しました',
-        voiceHardLimitReached: ({ hours }: { hours: number }) => `今月${hours}時間以上の音声を使用しました。これは許可される最大量です。音声設定で独自の ElevenLabs エージェントを設定して、自分のクォータを使用できます。`,
-        voiceConversationLimitReached: '今月の音声会話の最大数に達しました。将来的にオンデマンドの音声利用を追加する可能性があります。この制限に達した場合は、github.com/nicepkg/happy/issues で issue を作成してください。',
         oauthInitializationFailed: 'OAuth フローの初期化に失敗しました',
         tokenStorageFailed: '認証トークンの保存に失敗しました',
         oauthStateMismatch: 'セキュリティ検証に失敗しました。再試行してください',
@@ -331,10 +314,6 @@ export const ja: TranslationStructure = {
             `${seconds}秒後に再試行`,
         errorWithCode: ({ message, code }: { message: string; code: number | string }) =>
             `${message} (エラー ${code})`,
-        disconnectServiceFailed: ({ service }: { service: string }) =>
-            `${service}の切断に失敗しました`,
-        connectServiceFailed: ({ service }: { service: string }) =>
-            `${service}の接続に失敗しました。再試行してください。`,
         failedToLoadFriends: '友達リストの読み込みに失敗しました',
         failedToAcceptRequest: '友達リクエストの承認に失敗しました',
         failedToRejectRequest: '友達リクエストの拒否に失敗しました',
@@ -746,38 +725,6 @@ export const ja: TranslationStructure = {
         deleted: '削除済み',
     },
 
-    settingsVoice: {
-        // Voice settings screen
-        languageTitle: '言語',
-        languageDescription: '音声アシスタントの操作に使用する言語を選択します。この設定はすべてのデバイスで同期されます。',
-        preferredLanguage: '優先言語',
-        preferredLanguageSubtitle: '音声アシスタントの応答に使用する言語',
-        language: {
-            searchPlaceholder: '言語を検索...',
-            title: '言語',
-            footer: ({ count }: { count: number }) => `${count}言語が利用可能`,
-            autoDetect: '自動検出',
-        },
-        // Bring your own agent
-        byoTitle: '自分のエージェントを使う',
-        byoDescription: 'Happy のデフォルトの代わりに、独自の ElevenLabs エージェントを使用します。サブスクリプション不要 — 自分の ElevenLabs アカウントで直接接続できます。エージェントには2つのクライアントツールを定義する必要があります: messageClaudeCode（コーディングエージェントにテキストを送信）と processPermissionRequest（ツール使用を許可または拒否）。セッションコンテキストは {{initialConversationContext}} 動的変数を通じて受信されます。',
-        customAgentId: 'ElevenLabs Agent ID',
-        customAgentIdNotSet: '未設定',
-        customAgentIdDescription: 'ElevenLabs Agent ID を入力してください。空のままにすると Happy のデフォルトが使用されます。',
-        customAgentIdPlaceholder: 'e.g. abc123def456',
-        bypassToken: '直接接続',
-        bypassTokenSubtitle: 'Happy サーバーをスキップし、ElevenLabs に直接接続',
-        promptGuideTitle: 'エージェントプロンプトガイド',
-        promptGuideDescription: 'ElevenLabs エージェントには以下が必要です:\n\n• ツール: messageClaudeCode — パラメータ: message (string)。アクティブなコーディングセッションにメッセージを送信します。\n• ツール: processPermissionRequest — パラメータ: decision ("allow" または "deny")。保留中のツール許可を承認または拒否します。\n• 動的変数: {{initialConversationContext}} — 開始時にセッション履歴とコンテキストを受信します。\n\nエージェントはユーザーとコーディングエージェント間の音声ブリッジとして機能します。簡潔に、話しかけられた時のみ応答し、コーディングエージェントが作業を完了したら報告する必要があります。',
-        usageTitle: '使用状況（過去30日間）',
-        usageFooter: '過去30日間に使用した音声時間。無料プラン: 20分。サブスクリプション: 5時間。月間最大100会話。',
-        usageLabel: '音声時間',
-        conversationsLabel: '会話',
-        usageUsed: ({ used, limit }: { used: string; limit: string }) => `${limit}中${used}使用済み`,
-        supportTitle: '音声をアップグレード',
-        supportSubtitle: '音声時間を増やして開発を支援',
-    },
-
     settingsAccount: {
         // Account settings screen
         accountInformation: 'アカウント情報',
@@ -849,10 +796,6 @@ export const ja: TranslationStructure = {
         developerModeDisabled: '開発者モードが無効になりました',
         disconnectGithub: 'GitHubを切断',
         disconnectGithubConfirm: 'GitHubアカウントを切断してもよろしいですか？',
-        disconnectService: ({ service }: { service: string }) =>
-            `${service}を切断`,
-        disconnectServiceConfirm: ({ service }: { service: string }) =>
-            `${service}をアカウントから切断してもよろしいですか？`,
         disconnect: '切断',
         failedToConnectTerminal: 'ターミナルの接続に失敗しました',
         cameraPermissionsRequiredToConnectTerminal: 'ターミナルの接続にはカメラの権限が必要です',
@@ -979,34 +922,6 @@ export const ja: TranslationStructure = {
         mermaidRenderFailed: 'Mermaidダイアグラムのレンダリングに失敗しました',
     },
 
-    artifacts: {
-        // Artifacts feature
-        title: 'アーティファクト',
-        countSingular: '1件のアーティファクト',
-        countPlural: ({ count }: { count: number }) => `${count}件のアーティファクト`,
-        empty: 'アーティファクトはまだありません',
-        emptyDescription: '最初のアーティファクトを作成して始めましょう',
-        new: '新規アーティファクト',
-        edit: 'アーティファクトを編集',
-        delete: '削除',
-        updateError: 'アーティファクトの更新に失敗しました。再試行してください。',
-        notFound: 'アーティファクトが見つかりません',
-        discardChanges: '変更を破棄しますか？',
-        discardChangesDescription: '保存されていない変更があります。破棄してもよろしいですか？',
-        deleteConfirm: 'アーティファクトを削除しますか？',
-        deleteConfirmDescription: 'この操作は取り消せません',
-        titleLabel: 'タイトル',
-        titlePlaceholder: 'アーティファクトのタイトルを入力',
-        bodyLabel: 'コンテンツ',
-        bodyPlaceholder: 'ここにコンテンツを書いてください...',
-        emptyFieldsError: 'タイトルまたはコンテンツを入力してください',
-        createError: 'アーティファクトの作成に失敗しました。再試行してください。',
-        save: '保存',
-        saving: '保存中...',
-        loading: 'アーティファクトを読み込み中...',
-        error: 'アーティファクトの読み込みに失敗しました',
-    },
-
     friends: {
         // Friends feature
         title: '友達',
@@ -1057,26 +972,4 @@ export const ja: TranslationStructure = {
         denyRequest: '友達リクエストを拒否',
         nowFriendsWith: ({ name }: { name: string }) => `${name}さんと友達になりました`,
     },
-
-    usage: {
-        // Usage panel strings
-        today: '今日',
-        last7Days: '過去7日間',
-        last30Days: '過去30日間',
-        totalTokens: '合計トークン',
-        totalCost: '合計コスト',
-        tokens: 'トークン',
-        cost: 'コスト',
-        usageOverTime: '使用量の推移',
-        byModel: 'モデル別',
-        noData: '使用データがありません',
-    },
-
-    feed: {
-        // Feed notifications for friend requests and acceptances
-        friendRequestFrom: ({ name }: { name: string }) => `${name}さんから友達リクエストが届きました`,
-        friendRequestGeneric: '新しい友達リクエスト',
-        friendAccepted: ({ name }: { name: string }) => `${name}さんと友達になりました`,
-        friendAcceptedGeneric: '友達リクエストが承認されました',
-    }
 } as const;

@@ -15,7 +15,7 @@ const topicFixtures = [
     { summaryText: 'Review encrypted sync session metadata storage', name: 'Storage review', flavor: 'claude' },
     { summaryText: 'Draft release notes for Android distribution', name: 'Release copy', flavor: 'gemini' },
     { summaryText: 'Trace markdown rendering for tool diff previews', name: 'Markdown diff', flavor: 'openclaw' },
-    { summaryText: 'Investigate voice session reconnect state', name: 'Voice reconnect', flavor: 'claude' },
+    { summaryText: 'Investigate tunnel session reconnect state', name: 'Tunnel reconnect', flavor: 'claude' },
 ];
 
 const legacyExpectations = [
@@ -27,7 +27,7 @@ const legacyExpectations = [
 ];
 
 const histogramFixtures = Array.from({ length: 50 }, (_, index) => ({
-    summaryText: `Project ${index} topic ${['sync', 'render', 'storage', 'security', 'release', 'tablet', 'voice', 'search', 'diff', 'agent'][index % 10]} ${['alpha', 'beta', 'gamma', 'delta', 'epsilon'][Math.floor(index / 10)]}`,
+    summaryText: `Project ${index} topic ${['sync', 'render', 'storage', 'security', 'release', 'tablet', 'tunnel', 'search', 'diff', 'agent'][index % 10]} ${['alpha', 'beta', 'gamma', 'delta', 'epsilon'][Math.floor(index / 10)]}`,
     name: `Session ${index}`,
     flavor: ['claude', 'codex', 'gemini', 'openclaw', 'local'][index % 5],
 }));
@@ -37,7 +37,7 @@ const distinctImageFixtures = [
     { summaryText: 'Design markdown table layout for tablet chat', name: 'Markdown tables', flavor: 'claude' },
     { summaryText: 'Audit Firebase App Distribution release flow', name: 'Firebase release', flavor: 'gemini' },
     { summaryText: 'Investigate websocket reconnect after tunnel restart', name: 'Tunnel reconnect', flavor: 'openclaw' },
-    { summaryText: 'Compare voice room mute state transitions', name: 'Voice mute', flavor: 'local' },
+    { summaryText: 'Compare tunnel room state transitions', name: 'Tunnel state', flavor: 'local' },
     { summaryText: 'Review encrypted draft persistence edge cases', name: 'Draft persistence', flavor: 'codex' },
     { summaryText: 'Tune e-ink sidebar render cost for active sessions', name: 'Sidebar performance', flavor: 'claude' },
     { summaryText: 'Trace slash command interception before send', name: 'Slash commands', flavor: 'gemini' },
@@ -82,8 +82,8 @@ describe('avatarTopic', () => {
               "imageIndex": 122,
             },
             {
-              "colorIndex": 2,
-              "imageIndex": 245,
+              "colorIndex": 5,
+              "imageIndex": 177,
             },
           ]
         `);

@@ -17,16 +17,8 @@ function plural({ count, singular, plural }: { count: number; singular: string; 
 export const it: TranslationStructure = {
     tabs: {
         // Tab navigation labels
-        inbox: 'Posta',
         sessions: 'Terminali',
         settings: 'Impostazioni',
-    },
-
-    inbox: {
-        // Inbox screen
-        emptyTitle: 'Posta vuota',
-        emptyDescription: 'Connettiti con amici per iniziare a condividere sessioni',
-        updates: 'Aggiornamenti',
     },
 
     common: {
@@ -173,8 +165,6 @@ export const it: TranslationStructure = {
         accountSubtitle: 'Gestisci i dettagli del tuo account',
         appearance: 'Aspetto',
         appearanceSubtitle: 'Personalizza l\'aspetto dell\'app',
-        voiceAssistant: 'Assistente vocale',
-        voiceAssistantSubtitle: 'Configura le preferenze vocali',
         featuresTitle: 'Funzionalità',
         featuresSubtitle: 'Abilita o disabilita le funzionalità dell\'app',
         developer: 'Sviluppatore',
@@ -194,8 +184,6 @@ export const it: TranslationStructure = {
         connectGithubAccount: 'Collega il tuo account GitHub',
         claudeAuthSuccess: 'Connesso a Claude con successo',
         exchangingTokens: 'Scambio dei token...',
-        usage: 'Utilizzo',
-        usageSubtitle: 'Vedi il tuo utilizzo API e i costi',
         // Dynamic settings messages
         accountConnected: ({ service }: { service: string }) => `Account ${service} collegato`,
         machineStatus: ({ name, status }: { name: string; status: 'online' | 'offline' }) =>
@@ -298,11 +286,6 @@ export const it: TranslationStructure = {
         tryAgain: 'Per favore riprova',
         contactSupport: 'Contatta l\'assistenza se il problema persiste',
         sessionNotFound: 'Sessione non trovata',
-        voiceSessionFailed: 'Avvio della sessione vocale non riuscito',
-        voiceServiceUnavailable: 'Il servizio vocale non è temporaneamente disponibile',
-        voiceLimitReachedTitle: 'Limite vocale raggiunto',
-        voiceHardLimitReached: ({ hours }: { hours: number }) => `Hai utilizzato ${hours}+ ore di voce questo mese. Questo è il massimo consentito. Puoi configurare il tuo agente ElevenLabs nelle impostazioni vocali per utilizzare la tua quota.`,
-        voiceConversationLimitReached: 'Hai raggiunto il numero massimo di conversazioni vocali questo mese. Potremmo aggiungere l\'uso vocale su richiesta in futuro — per favore apri un issue su github.com/nicepkg/happy/issues se raggiungi questo limite.',
         oauthInitializationFailed: 'Impossibile inizializzare il flusso OAuth',
         tokenStorageFailed: 'Impossibile salvare i token di autenticazione',
         oauthStateMismatch: 'Convalida di sicurezza non riuscita. Riprova',
@@ -328,10 +311,6 @@ export const it: TranslationStructure = {
             `Riprova tra ${seconds} ${seconds === 1 ? 'secondo' : 'secondi'}`,
         errorWithCode: ({ message, code }: { message: string; code: number | string }) =>
             `${message} (Errore ${code})`,
-        disconnectServiceFailed: ({ service }: { service: string }) => 
-            `Impossibile disconnettere ${service}`,
-        connectServiceFailed: ({ service }: { service: string }) =>
-            `Impossibile connettere ${service}. Riprova.`,
         failedToLoadFriends: 'Impossibile caricare la lista amici',
         failedToAcceptRequest: 'Impossibile accettare la richiesta di amicizia',
         failedToRejectRequest: 'Impossibile rifiutare la richiesta di amicizia',
@@ -743,38 +722,6 @@ export const it: TranslationStructure = {
         deleted: 'Eliminato',
     },
 
-    settingsVoice: {
-        // Voice settings screen
-        languageTitle: 'Lingua',
-        languageDescription: 'Scegli la tua lingua preferita per le interazioni dell\'assistente vocale. Questa impostazione si sincronizza su tutti i tuoi dispositivi.',
-        preferredLanguage: 'Lingua preferita',
-        preferredLanguageSubtitle: 'Lingua usata per le risposte dell\'assistente vocale',
-        language: {
-            searchPlaceholder: 'Cerca lingue...',
-            title: 'Lingue',
-            footer: ({ count }: { count: number }) => `${count} ${plural({ count, singular: 'lingua', plural: 'lingue' })} disponibili`,
-            autoDetect: 'Rilevamento automatico',
-        },
-        // Bring your own agent
-        byoTitle: 'Porta il tuo agente',
-        byoDescription: 'Usa il tuo agente ElevenLabs al posto di quello predefinito di Happy. Nessun abbonamento richiesto — connettiti direttamente con il tuo account ElevenLabs. Il tuo agente deve definire due strumenti client: messageClaudeCode (invia testo all\'agente di codice) e processPermissionRequest (consente o nega l\'uso degli strumenti). Riceve il contesto della sessione tramite la variabile dinamica {{initialConversationContext}}.',
-        customAgentId: 'ElevenLabs Agent ID',
-        customAgentIdNotSet: 'Non configurato',
-        customAgentIdDescription: 'Inserisci il tuo ElevenLabs Agent ID. Lascia vuoto per usare quello predefinito di Happy.',
-        customAgentIdPlaceholder: 'e.g. abc123def456',
-        bypassToken: 'Connessione diretta',
-        bypassTokenSubtitle: 'Salta il server di Happy, connettiti direttamente a ElevenLabs',
-        promptGuideTitle: 'Guida al prompt dell\'agente',
-        promptGuideDescription: 'Il tuo agente ElevenLabs necessita:\n\n• Strumento: messageClaudeCode — parametro: message (string). Invia un messaggio alla sessione di codice attiva.\n• Strumento: processPermissionRequest — parametro: decision ("allow" o "deny"). Approva o nega un permesso di strumento in sospeso.\n• Variabile dinamica: {{initialConversationContext}} — riceve la cronologia e il contesto della sessione all\'avvio.\n\nL\'agente funge da ponte vocale tra l\'utente e gli agenti di codice. Deve essere conciso, rispondere solo quando interpellato e segnalare quando un agente di codice termina il lavoro.',
-        usageTitle: 'Utilizzo (ultimi 30 giorni)',
-        usageFooter: 'Tempo vocale utilizzato negli ultimi 30 giorni. Piano gratuito: 20 min. Abbonato: 5 ore. Max 100 conversazioni al mese.',
-        usageLabel: 'Tempo vocale',
-        conversationsLabel: 'Conversazioni',
-        usageUsed: ({ used, limit }: { used: string; limit: string }) => `${used} utilizzato su ${limit}`,
-        supportTitle: 'Migliora voce',
-        supportSubtitle: 'Più tempo vocale e supporta lo sviluppo',
-    },
-
     settingsAccount: {
         // Account settings screen
         accountInformation: 'Informazioni account',
@@ -846,10 +793,6 @@ export const it: TranslationStructure = {
         developerModeDisabled: 'Modalità sviluppatore disattivata',
         disconnectGithub: 'Disconnetti GitHub',
         disconnectGithubConfirm: 'Sei sicuro di voler disconnettere il tuo account GitHub?',
-        disconnectService: ({ service }: { service: string }) => 
-            `Disconnetti ${service}`,
-        disconnectServiceConfirm: ({ service }: { service: string }) => 
-            `Sei sicuro di voler disconnettere ${service} dal tuo account?`,
         disconnect: 'Disconnetti',
         failedToConnectTerminal: 'Impossibile connettere il terminale',
         cameraPermissionsRequiredToConnectTerminal: 'Sono necessarie le autorizzazioni della fotocamera per connettere il terminale',
@@ -976,34 +919,6 @@ export const it: TranslationStructure = {
         mermaidRenderFailed: 'Impossibile renderizzare il diagramma mermaid',
     },
 
-    artifacts: {
-        // Artifacts feature
-        title: 'Artefatti',
-        countSingular: '1 artefatto',
-        countPlural: ({ count }: { count: number }) => `${count} artefatti`,
-        empty: 'Nessun artefatto',
-        emptyDescription: 'Crea il tuo primo artefatto per iniziare',
-        new: 'Nuovo artefatto',
-        edit: 'Modifica artefatto',
-        delete: 'Elimina',
-        updateError: 'Impossibile aggiornare l\'artefatto. Riprova.',
-        notFound: 'Artefatto non trovato',
-        discardChanges: 'Scartare le modifiche?',
-        discardChangesDescription: 'Hai modifiche non salvate. Sei sicuro di volerle scartare?',
-        deleteConfirm: 'Eliminare artefatto?',
-        deleteConfirmDescription: 'Questa azione non può essere annullata',
-        titleLabel: 'TITOLO',
-        titlePlaceholder: 'Inserisci un titolo per il tuo artefatto',
-        bodyLabel: 'CONTENUTO',
-        bodyPlaceholder: 'Scrivi il tuo contenuto qui...',
-        emptyFieldsError: 'Inserisci un titolo o un contenuto',
-        createError: 'Impossibile creare l\'artefatto. Riprova.',
-        save: 'Salva',
-        saving: 'Salvataggio...',
-        loading: 'Caricamento artefatti...',
-        error: 'Impossibile caricare l\'artefatto',
-    },
-
     friends: {
         // Friends feature
         title: 'Amici',
@@ -1054,28 +969,6 @@ export const it: TranslationStructure = {
         denyRequest: 'Rifiuta richiesta',
         nowFriendsWith: ({ name }: { name: string }) => `Ora sei amico di ${name}`,
     },
-
-    usage: {
-        // Usage panel strings
-        today: 'Oggi',
-        last7Days: 'Ultimi 7 giorni',
-        last30Days: 'Ultimi 30 giorni',
-        totalTokens: 'Token totali',
-        totalCost: 'Costo totale',
-        tokens: 'Token',
-        cost: 'Costo',
-        usageOverTime: 'Utilizzo nel tempo',
-        byModel: 'Per modello',
-        noData: 'Nessun dato di utilizzo disponibile',
-    },
-
-    feed: {
-        // Feed notifications for friend requests and acceptances
-        friendRequestFrom: ({ name }: { name: string }) => `${name} ti ha inviato una richiesta di amicizia`,
-        friendRequestGeneric: 'Nuova richiesta di amicizia',
-        friendAccepted: ({ name }: { name: string }) => `Ora sei amico di ${name}`,
-        friendAcceptedGeneric: 'Richiesta di amicizia accettata',
-    }
 } as const;
 
 export type TranslationsIt = typeof it;

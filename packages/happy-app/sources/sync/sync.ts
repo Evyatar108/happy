@@ -36,11 +36,7 @@ import { gitStatusSync } from './gitStatusSync';
 import { projectManager } from './projectManager';
 import { AsyncLock } from '@/utils/lock';
 import { systemPrompt } from './prompt/systemPrompt';
-import { fetchArtifact, fetchArtifacts, createArtifact, updateArtifact } from './apiArtifacts';
-import { DecryptedArtifact, Artifact, ArtifactCreateRequest, ArtifactUpdateRequest } from './artifactTypes';
 import { getFriendsList, getUserProfile } from './apiFriends';
-import { fetchFeed } from './apiFeed';
-import { FeedItem } from './feedTypes';
 import { UserProfile } from './friendTypes';
 import { resolveMessageModeMeta } from './messageMeta';
 import { computeInitialAfterSeq, computeOlderPageAfterSeq } from './paginationMath';
@@ -170,10 +166,8 @@ class Sync {
     private machinesSync: InvalidateSync;
     private pushTokenSync: InvalidateSync;
     private nativeUpdateSync: InvalidateSync;
-    private artifactsSync: InvalidateSync;
     private friendsSync: InvalidateSync;
     private friendRequestsSync: InvalidateSync;
-    private feedSync: InvalidateSync;
     private activityAccumulator: ActivityUpdateAccumulator;
     private appState: AppStateStatus = AppState.currentState;
     private backgroundSendTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -206,10 +200,8 @@ class Sync {
         this.purchasesSync = new InvalidateSync(this.syncPurchases);
         this.machinesSync = new InvalidateSync(this.fetchMachines);
         this.nativeUpdateSync = new InvalidateSync(this.fetchNativeUpdate);
-        this.artifactsSync = new InvalidateSync(this.fetchArtifactsList);
         this.friendsSync = new InvalidateSync(this.fetchFriends);
         this.friendRequestsSync = new InvalidateSync(this.fetchFriendRequests);
-        this.feedSync = new InvalidateSync(this.fetchFeed);
 
         const registerPushToken = async () => {
             if (__DEV__) {
@@ -267,11 +259,8 @@ class Sync {
                 this.pushTokenSync.invalidate();
                 this.sessionsSync.invalidate();
                 this.nativeUpdateSync.invalidate();
-                log.log('📱 App became active: Invalidating artifacts sync');
-                this.artifactsSync.invalidate();
                 this.friendsSync.invalidate();
                 this.friendRequestsSync.invalidate();
-                this.feedSync.invalidate();
             } else {
                 log.log(`📱 App state changed to: ${nextAppState}`);
                 this.maybeStartBackgroundSendWatchdog();
@@ -360,7 +349,7 @@ class Sync {
         }
 
         // Invalidate sync
-        log.log('🔄 #init: Invalidating all syncs');
+        log.log('🔄 #init: Invalidating boot syncs');
         this.sessionsSync.invalidate();
         this.settingsSync.invalidate();
         this.profileSync.invalidate();
@@ -370,9 +359,7 @@ class Sync {
         this.nativeUpdateSync.invalidate();
         this.friendsSync.invalidate();
         this.friendRequestsSync.invalidate();
-        this.artifactsSync.invalidate();
-        this.feedSync.invalidate();
-        log.log('🔄 #init: All syncs invalidated, including artifacts');
+        log.log('🔄 #init: Boot syncs invalidated');
 
         // Mark UI ready as soon as sessions load.
         this.sessionsSync.awaitQueue().then(() => {
@@ -400,7 +387,7 @@ class Sync {
      *       there is no previous session)
      * Routing the renderWindow reset through `onSessionVisible` would
      * reintroduce the F-046 regression (the latter fires on new-message
-     * pings, control-return, and realtimeStatus changes — none of which are
+     * pings and control-return — neither of which is an actual session switch.
      * actual session switches).
      */
     onActiveSessionChanged = (sessionId: string): void => {
@@ -1206,222 +1193,6 @@ class Sync {
         return this.credentials;
     }
 
-    // Artifact methods
-    public fetchArtifactsList = async (): Promise<void> => {
-        log.log('📦 fetchArtifactsList: Starting artifact sync');
-        if (!this.credentials) {
-            log.log('📦 fetchArtifactsList: No credentials, skipping');
-            return;
-        }
-
-        try {
-            log.log('📦 fetchArtifactsList: Fetching artifacts from server');
-            const artifacts = await fetchArtifacts(this.credentials);
-            log.log(`📦 fetchArtifactsList: Received ${artifacts.length} artifacts from server`);
-            const decryptedArtifacts: DecryptedArtifact[] = [];
-
-            for (const artifact of artifacts) {
-                try {
-                    const header = parsePlainJson<{ title: string | null; sessions?: string[]; draft?: boolean } | null>(artifact.header, null);
-
-                    decryptedArtifacts.push({
-                        id: artifact.id,
-                        title: header?.title || null,
-                        sessions: header?.sessions,  // Include sessions from header
-                        draft: header?.draft,        // Include draft flag from header
-                        body: undefined, // Body not loaded in list
-                        headerVersion: artifact.headerVersion,
-                        bodyVersion: artifact.bodyVersion,
-                        seq: artifact.seq,
-                        createdAt: artifact.createdAt,
-                        updatedAt: artifact.updatedAt,
-                        isDecrypted: !!header,
-                    });
-                } catch (err) {
-                    console.error(`Failed to parse artifact ${artifact.id}:`, err);
-                    decryptedArtifacts.push({
-                        id: artifact.id,
-                        title: null,
-                        body: undefined,
-                        headerVersion: artifact.headerVersion,
-                        seq: artifact.seq,
-                        createdAt: artifact.createdAt,
-                        updatedAt: artifact.updatedAt,
-                        isDecrypted: false,
-                    });
-                }
-            }
-
-            log.log(`📦 fetchArtifactsList: Successfully decrypted ${decryptedArtifacts.length} artifacts`);
-            storage.getState().applyArtifacts(decryptedArtifacts);
-            log.log('📦 fetchArtifactsList: Artifacts applied to storage');
-        } catch (error) {
-            log.log(`📦 fetchArtifactsList: Error fetching artifacts: ${error}`);
-            console.error('Failed to fetch artifacts:', error);
-            throw error;
-        }
-    }
-
-    public async fetchArtifactWithBody(artifactId: string): Promise<DecryptedArtifact | null> {
-        if (!this.credentials) return null;
-
-        try {
-            const artifact = await fetchArtifact(this.credentials, artifactId);
-
-            const header = parsePlainJson<{ title: string | null; sessions?: string[]; draft?: boolean } | null>(artifact.header, null);
-            const body = artifact.body ? parsePlainJson<{ body: string | null } | null>(artifact.body, null) : null;
-
-            return {
-                id: artifact.id,
-                title: header?.title || null,
-                sessions: header?.sessions,  // Include sessions from header
-                draft: header?.draft,        // Include draft flag from header
-                body: body?.body || null,
-                headerVersion: artifact.headerVersion,
-                bodyVersion: artifact.bodyVersion,
-                seq: artifact.seq,
-                createdAt: artifact.createdAt,
-                updatedAt: artifact.updatedAt,
-                isDecrypted: !!header,
-            };
-        } catch (error) {
-            console.error(`Failed to fetch artifact ${artifactId}:`, error);
-            return null;
-        }
-    }
-
-    public async createArtifact(
-        title: string | null,
-        body: string | null,
-        sessions?: string[],
-        draft?: boolean
-    ): Promise<string> {
-        if (!this.credentials) {
-            throw new Error('Not authenticated');
-        }
-
-        try {
-            const artifactId = randomUUID();
-            const header = JSON.stringify({ title, sessions, draft });
-            const artifactBody = JSON.stringify({ body });
-
-            // Create the request
-            const request: ArtifactCreateRequest = {
-                id: artifactId,
-                header,
-                body: artifactBody,
-            };
-
-            // Send to server
-            const artifact = await createArtifact(this.credentials, request);
-
-            // Add to local storage
-            const decryptedArtifact: DecryptedArtifact = {
-                id: artifact.id,
-                title,
-                sessions,
-                draft,
-                body,
-                headerVersion: artifact.headerVersion,
-                bodyVersion: artifact.bodyVersion,
-                seq: artifact.seq,
-                createdAt: artifact.createdAt,
-                updatedAt: artifact.updatedAt,
-                isDecrypted: true,
-            };
-
-            storage.getState().addArtifact(decryptedArtifact);
-
-            return artifactId;
-        } catch (error) {
-            console.error('Failed to create artifact:', error);
-            throw error;
-        }
-    }
-
-    public async updateArtifact(
-        artifactId: string,
-        title: string | null,
-        body: string | null,
-        sessions?: string[],
-        draft?: boolean
-    ): Promise<void> {
-        if (!this.credentials) {
-            throw new Error('Not authenticated');
-        }
-
-        try {
-            const currentArtifact = storage.getState().artifacts[artifactId];
-            if (!currentArtifact) {
-                throw new Error('Artifact not found');
-            }
-
-            let headerVersion = currentArtifact.headerVersion;
-            let bodyVersion = currentArtifact.bodyVersion;
-
-            if (headerVersion === undefined || bodyVersion === undefined) {
-                const fullArtifact = await fetchArtifact(this.credentials, artifactId);
-                headerVersion = fullArtifact.headerVersion;
-                bodyVersion = fullArtifact.bodyVersion;
-            }
-
-            // Prepare update request
-            const updateRequest: ArtifactUpdateRequest = {};
-
-            // Check if header needs updating (title, sessions, or draft changed)
-            if (title !== currentArtifact.title ||
-                JSON.stringify(sessions) !== JSON.stringify(currentArtifact.sessions) ||
-                draft !== currentArtifact.draft) {
-                const nextHeader = JSON.stringify({
-                    title,
-                    sessions,
-                    draft
-                });
-                updateRequest.header = nextHeader;
-                updateRequest.expectedHeaderVersion = headerVersion;
-            }
-
-            // Only update body if it changed
-            if (body !== currentArtifact.body) {
-                updateRequest.body = JSON.stringify({ body });
-                updateRequest.expectedBodyVersion = bodyVersion;
-            }
-
-            // Skip if no changes
-            if (Object.keys(updateRequest).length === 0) {
-                return;
-            }
-
-            // Send update to server
-            const response = await updateArtifact(this.credentials, artifactId, updateRequest);
-
-            if (!response.success) {
-                // Handle version mismatch
-                if (response.error === 'version-mismatch') {
-                    throw new Error('Artifact was modified by another client. Please refresh and try again.');
-                }
-                throw new Error('Failed to update artifact');
-            }
-
-            // Update local storage
-            const updatedArtifact: DecryptedArtifact = {
-                ...currentArtifact,
-                title,
-                sessions,
-                draft,
-                body,
-                headerVersion: response.headerVersion !== undefined ? response.headerVersion : headerVersion,
-                bodyVersion: response.bodyVersion !== undefined ? response.bodyVersion : bodyVersion,
-                updatedAt: Date.now(),
-            };
-
-            storage.getState().updateArtifact(updatedArtifact);
-        } catch (error) {
-            console.error('Failed to update artifact:', error);
-            throw error;
-        }
-    }
-
     private fetchMachines = async () => {
         if (this.credentialsList.length === 0) return;
 
@@ -1494,90 +1265,6 @@ class Sync {
         // Friend requests are now included in the friends list with status='pending'
         // This method is kept for backward compatibility but does nothing
         log.log('👥 fetchFriendRequests called - now handled by fetchFriends');
-    }
-
-    private fetchFeed = async () => {
-        if (!this.credentials) return;
-
-        try {
-            log.log('📰 Fetching feed...');
-            const state = storage.getState();
-            const existingItems = state.feedItems;
-            const head = state.feedHead;
-
-            // Load feed items - if we have a head, load newer items
-            let allItems: FeedItem[] = [];
-            let hasMore = true;
-            let cursor = head ? { after: head } : undefined;
-            let loadedCount = 0;
-            const maxItems = 500;
-
-            // Keep loading until we reach known items or hit max limit
-            while (hasMore && loadedCount < maxItems) {
-                const response = await fetchFeed(this.credentials, {
-                    limit: 100,
-                    ...cursor
-                });
-
-                // Check if we reached known items
-                const foundKnown = response.items.some(item =>
-                    existingItems.some(existing => existing.id === item.id)
-                );
-
-                allItems.push(...response.items);
-                loadedCount += response.items.length;
-                hasMore = response.hasMore && !foundKnown;
-
-                // Update cursor for next page
-                if (response.items.length > 0) {
-                    const lastItem = response.items[response.items.length - 1];
-                    cursor = { after: lastItem.cursor };
-                }
-            }
-
-            // If this is initial load (no head), also load older items
-            if (!head && allItems.length < 100) {
-                const response = await fetchFeed(this.credentials, {
-                    limit: 100
-                });
-                allItems.push(...response.items);
-            }
-
-            // Collect user IDs from friend-related feed items
-            const userIds = new Set<string>();
-            allItems.forEach(item => {
-                if (item.body && (item.body.kind === 'friend_request' || item.body.kind === 'friend_accepted')) {
-                    userIds.add(item.body.uid);
-                }
-            });
-
-            // Fetch missing users
-            if (userIds.size > 0) {
-                await this.assumeUsers(Array.from(userIds));
-            }
-
-            // Filter out items where user is not found (404)
-            const users = storage.getState().users;
-            const compatibleItems = allItems.filter(item => {
-                // Keep text items
-                if (item.body.kind === 'text') return true;
-
-                // For friend-related items, check if user exists and is not null (404)
-                if (item.body.kind === 'friend_request' || item.body.kind === 'friend_accepted') {
-                    const userProfile = users[item.body.uid];
-                    // Keep item only if user exists and is not null
-                    return userProfile !== null && userProfile !== undefined;
-                }
-
-                return true;
-            });
-
-            // Apply only compatible items to storage
-            storage.getState().applyFeedItems(compatibleItems);
-            log.log(`📰 fetchFeed completed - loaded ${compatibleItems.length} compatible items (${allItems.length - compatibleItems.length} filtered)`);
-        } catch (error) {
-            console.error('Failed to fetch feed:', error);
-        }
     }
 
     private syncSettings = async () => {
@@ -1952,14 +1639,10 @@ class Sync {
             log.log('🔌 Socket reconnected');
             this.sessionsSync.invalidate();
             this.machinesSync.invalidate();
-            log.log('🔌 Socket reconnected: Invalidating artifacts sync');
-            this.artifactsSync.invalidate();
             this.friendsSync.invalidate();
             this.friendRequestsSync.invalidate();
-            this.feedSync.invalidate();
-            // Messages are fetched lazily per-session via onSessionVisible (called by SessionView
-            // when realtimeStatus changes). Session metadata + agentState (including permission
-            // requests) are already refreshed by sessionsSync.invalidate() above.
+            // Messages are fetched lazily per-session via onSessionVisible. Session metadata
+            // and agentState are already refreshed by sessionsSync.invalidate() above.
             for (const sync of this.sendSync.values()) {
                 sync.invalidate();
             }
@@ -2257,117 +1940,6 @@ class Sync {
             // Invalidate friends data to refresh with latest changes
             this.friendsSync.invalidate();
             this.friendRequestsSync.invalidate();
-            this.feedSync.invalidate();
-        } else if (updateData.body.t === 'new-artifact') {
-            log.log('📦 Received new-artifact update');
-            const artifactUpdate = updateData.body;
-            const artifactId = artifactUpdate.artifactId;
-
-            try {
-                const header = parsePlainJson<{ title: string | null; sessions?: string[]; draft?: boolean } | null>(artifactUpdate.header, null);
-                let decryptedBody: string | null | undefined = undefined;
-                if (artifactUpdate.body && artifactUpdate.bodyVersion !== undefined) {
-                    const body = parsePlainJson<{ body: string | null } | null>(artifactUpdate.body, null);
-                    decryptedBody = body?.body || null;
-                }
-
-                // Add to storage
-                const decryptedArtifact: DecryptedArtifact = {
-                    id: artifactId,
-                    title: header?.title || null,
-                    body: decryptedBody,
-                    headerVersion: artifactUpdate.headerVersion,
-                    bodyVersion: artifactUpdate.bodyVersion,
-                    seq: artifactUpdate.seq,
-                    createdAt: artifactUpdate.createdAt,
-                    updatedAt: artifactUpdate.updatedAt,
-                    isDecrypted: !!header,
-                };
-
-                storage.getState().addArtifact(decryptedArtifact);
-                log.log(`📦 Added new artifact ${artifactId} to storage`);
-            } catch (error) {
-                console.error(`Failed to process new artifact ${artifactId}:`, error);
-            }
-        } else if (updateData.body.t === 'update-artifact') {
-            log.log('📦 Received update-artifact update');
-            const artifactUpdate = updateData.body;
-            const artifactId = artifactUpdate.artifactId;
-
-            // Get existing artifact
-            const existingArtifact = storage.getState().artifacts[artifactId];
-            if (!existingArtifact) {
-                console.error(`Artifact ${artifactId} not found in storage`);
-                // Fetch all artifacts to sync
-                this.artifactsSync.invalidate();
-                return;
-            }
-
-            try {
-                // Update artifact with new data
-                const updatedArtifact: DecryptedArtifact = {
-                    ...existingArtifact,
-                    seq: updateData.seq,
-                    updatedAt: updateData.createdAt,
-                };
-
-                if (artifactUpdate.header) {
-                    const header = parsePlainJson<{ title: string | null; sessions?: string[]; draft?: boolean } | null>(artifactUpdate.header.value, null);
-                    updatedArtifact.title = header?.title || null;
-                    updatedArtifact.sessions = header?.sessions;
-                    updatedArtifact.draft = header?.draft;
-                    updatedArtifact.headerVersion = artifactUpdate.header.version;
-                }
-
-                if (artifactUpdate.body) {
-                    const body = parsePlainJson<{ body: string | null } | null>(artifactUpdate.body.value, null);
-                    updatedArtifact.body = body?.body || null;
-                    updatedArtifact.bodyVersion = artifactUpdate.body.version;
-                }
-
-                storage.getState().updateArtifact(updatedArtifact);
-                log.log(`📦 Updated artifact ${artifactId} in storage`);
-            } catch (error) {
-                console.error(`Failed to process artifact update ${artifactId}:`, error);
-            }
-        } else if (updateData.body.t === 'delete-artifact') {
-            log.log('📦 Received delete-artifact update');
-            const artifactUpdate = updateData.body;
-            const artifactId = artifactUpdate.artifactId;
-
-            // Remove from storage
-            storage.getState().deleteArtifact(artifactId);
-
-        } else if (updateData.body.t === 'new-feed-post') {
-            log.log('📰 Received new-feed-post update');
-            const feedUpdate = updateData.body;
-
-            // Convert to FeedItem with counter from cursor
-            const feedItem: FeedItem = {
-                id: feedUpdate.id,
-                body: feedUpdate.body,
-                cursor: feedUpdate.cursor,
-                createdAt: feedUpdate.createdAt,
-                repeatKey: feedUpdate.repeatKey,
-                counter: parseInt(feedUpdate.cursor.substring(2), 10)
-            };
-
-            // Check if we need to fetch user for friend-related items
-            if (feedItem.body && (feedItem.body.kind === 'friend_request' || feedItem.body.kind === 'friend_accepted')) {
-                await this.assumeUsers([feedItem.body.uid]);
-
-                // Check if user fetch failed (404) - don't store item if user not found
-                const users = storage.getState().users;
-                const userProfile = users[feedItem.body.uid];
-                if (userProfile === null || userProfile === undefined) {
-                    // User was not found or 404, don't store this item
-                    log.log(`📰 Skipping feed item ${feedItem.id} - user ${feedItem.body.uid} not found`);
-                    return;
-                }
-            }
-
-            // Apply to storage (will handle repeatKey replacement)
-            storage.getState().applyFeedItems([feedItem]);
         }
     }
 

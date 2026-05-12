@@ -15,11 +15,6 @@ vi.mock('react-native-mmkv', () => ({
     })),
 }));
 
-vi.mock('@/realtime/RealtimeSession', () => ({
-    getCurrentRealtimeSessionId: () => null,
-    getVoiceSession: () => null,
-}));
-
 vi.mock('@/utils/sessionUtils', () => ({
     getSessionName: () => 'Test Session',
     getSessionSubtitle: () => 'Test Project',

@@ -20,11 +20,11 @@ export const SidebarNavigator = React.memo(() => {
     // Floating restore button only shows on routes that render no native
     // React-Navigation header — anywhere with `headerShown: true`, the 36×36
     // handle at top-left would land on the back chevron and intercept the
-    // back tap. The two no-header tablet destinations are `/` and `/inbox`.
+    // back tap. The only no-header tablet destination is `/`.
     // On `/session/:id` ChatHeaderView embeds its own restore glyph; on every
-    // other route the user navigates back to `/` or `/inbox` to restore.
+    // other route the user navigates back to `/` to restore.
     const pathname = usePathname();
-    const isNoHeaderRoute = pathname === '/' || pathname === '/inbox';
+    const isNoHeaderRoute = pathname === '/';
     const showExpandHandle = auth.isAuthenticated && isTablet && isHidden && isNoHeaderRoute;
 
     const { width: windowWidth } = useWindowDimensions();

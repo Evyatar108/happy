@@ -19,16 +19,8 @@ function plural({ count, singular, plural }: { count: number; singular: string; 
 export const zhHant: TranslationStructure = {
     tabs: {
         // Tab navigation labels
-        inbox: '收件匣',
         sessions: '終端',
         settings: '設定',
-    },
-
-    inbox: {
-        // Inbox screen
-        emptyTitle: '收件匣是空的',
-        emptyDescription: '與好友建立連結，開始共享工作階段',
-        updates: '更新',
     },
 
     common: {
@@ -175,8 +167,6 @@ export const zhHant: TranslationStructure = {
         accountSubtitle: '管理您的帳戶詳情',
         appearance: '外觀',
         appearanceSubtitle: '自訂應用程式外觀',
-        voiceAssistant: '語音助理',
-        voiceAssistantSubtitle: '設定語音互動偏好',
         featuresTitle: '功能',
         featuresSubtitle: '啟用或停用應用程式功能',
         developer: '開發者',
@@ -196,8 +186,6 @@ export const zhHant: TranslationStructure = {
         connectGithubAccount: '連結您的 GitHub 帳戶',
         claudeAuthSuccess: '成功連結到 Claude',
         exchangingTokens: '正在交換權杖...',
-        usage: '使用情況',
-        usageSubtitle: '查看 API 使用情況和費用',
         // Dynamic settings messages
         accountConnected: ({ service }: { service: string }) => `已連結 ${service} 帳戶`,
         machineStatus: ({ name, status }: { name: string; status: 'online' | 'offline' }) =>
@@ -300,11 +288,6 @@ export const zhHant: TranslationStructure = {
         tryAgain: '請重試',
         contactSupport: '如果問題持續存在，請聯絡支援',
         sessionNotFound: '工作階段未找到',
-        voiceSessionFailed: '啟動語音工作階段失敗',
-        voiceServiceUnavailable: '語音服務暫時無法使用',
-        voiceLimitReachedTitle: '已達語音上限',
-        voiceHardLimitReached: ({ hours }: { hours: number }) => `您本月已使用超過 ${hours} 小時的語音。這是允許的最大用量。您可以在語音設定中配置自己的 ElevenLabs 代理，以使用您自己的配額。`,
-        voiceConversationLimitReached: '您本月已達到語音對話的最大次數。我們未來可能會新增按需語音使用功能——如果您遇到此限制，請在 github.com/nicepkg/happy/issues 提交 issue。',
         oauthInitializationFailed: '初始化 OAuth 流程失敗',
         tokenStorageFailed: '儲存驗證權杖失敗',
         oauthStateMismatch: '安全驗證失敗。請重試',
@@ -330,10 +313,6 @@ export const zhHant: TranslationStructure = {
             `${seconds} 秒後重試`,
         errorWithCode: ({ message, code }: { message: string; code: number | string }) =>
             `${message} (錯誤 ${code})`,
-        disconnectServiceFailed: ({ service }: { service: string }) =>
-            `中斷連線 ${service} 失敗`,
-        connectServiceFailed: ({ service }: { service: string }) =>
-            `連結 ${service} 失敗。請重試。`,
         failedToLoadFriends: '載入好友清單失敗',
         failedToAcceptRequest: '接受好友請求失敗',
         failedToRejectRequest: '拒絕好友請求失敗',
@@ -745,38 +724,6 @@ export const zhHant: TranslationStructure = {
         deleted: '已刪除',
     },
 
-    settingsVoice: {
-        // Voice settings screen
-        languageTitle: '語言',
-        languageDescription: '選擇您希望語音助理互動使用的語言。此設定將在您的所有裝置間同步。',
-        preferredLanguage: '偏好語言',
-        preferredLanguageSubtitle: '語音助理回應使用的語言',
-        language: {
-            searchPlaceholder: '搜尋語言...',
-            title: '語言',
-            footer: ({ count }: { count: number }) => `${count} 種可用語言`,
-            autoDetect: '自動偵測',
-        },
-        // Bring your own agent
-        byoTitle: '使用自己的代理',
-        byoDescription: '使用您自己的 ElevenLabs 代理取代 Happy 預設代理。無需訂閱 — 直接使用您自己的 ElevenLabs 帳戶連線。您的代理必須定義兩個用戶端工具：messageClaudeCode（向編碼代理傳送文字）和 processPermissionRequest（允許或拒絕工具使用）。透過 {{initialConversationContext}} 動態變數接收工作階段上下文。',
-        customAgentId: 'ElevenLabs Agent ID',
-        customAgentIdNotSet: '未設定',
-        customAgentIdDescription: '輸入您的 ElevenLabs Agent ID。留空則使用 Happy 預設代理。',
-        customAgentIdPlaceholder: 'e.g. abc123def456',
-        bypassToken: '直接連線',
-        bypassTokenSubtitle: '跳過 Happy 伺服器，直接連線到 ElevenLabs',
-        promptGuideTitle: '代理提示詞指南',
-        promptGuideDescription: '您的 ElevenLabs 代理需要：\n\n• 工具：messageClaudeCode — 參數：message (string)。向活躍的編碼工作階段傳送訊息。\n• 工具：processPermissionRequest — 參數：decision ("allow" 或 "deny")。核准或拒絕待處理的工具權限。\n• 動態變數：{{initialConversationContext}} — 啟動時接收工作階段歷史和上下文。\n\n代理充當使用者和編碼代理之間的語音橋梁。它應該簡潔，僅在被呼叫時回應，並在編碼代理完成工作時進行報告。',
-        usageTitle: '使用量（過去 30 天）',
-        usageFooter: '過去 30 天使用的語音時間。免費方案: 20 分鐘。訂閱用戶: 5 小時。每月最多 100 次對話。',
-        usageLabel: '語音時間',
-        conversationsLabel: '對話',
-        usageUsed: ({ used, limit }: { used: string; limit: string }) => `已使用 ${used}，共 ${limit}`,
-        supportTitle: '升級語音',
-        supportSubtitle: '獲取更多語音時間並支持開發',
-    },
-
     settingsAccount: {
         // Account settings screen
         accountInformation: '帳戶資訊',
@@ -848,10 +795,6 @@ export const zhHant: TranslationStructure = {
         developerModeDisabled: '開發者模式已停用',
         disconnectGithub: '中斷 GitHub 連線',
         disconnectGithubConfirm: '您確定要中斷 GitHub 帳戶連線嗎？',
-        disconnectService: ({ service }: { service: string }) =>
-            `中斷 ${service} 連線`,
-        disconnectServiceConfirm: ({ service }: { service: string }) =>
-            `您確定要中斷 ${service} 與您帳戶的連線嗎？`,
         disconnect: '中斷連線',
         failedToConnectTerminal: '連線終端失敗',
         cameraPermissionsRequiredToConnectTerminal: '連線終端需要相機權限',
@@ -978,33 +921,6 @@ export const zhHant: TranslationStructure = {
         mermaidRenderFailed: '渲染 mermaid 圖表失敗',
     },
 
-    artifacts: {
-        title: '工件',
-        countSingular: '1 個工件',
-        countPlural: ({ count }: { count: number }) => `${count} 個工件`,
-        empty: '暫無工件',
-        emptyDescription: '建立您的第一個工件來儲存和組織內容',
-        new: '新建工件',
-        edit: '編輯工件',
-        delete: '刪除',
-        updateError: '更新工件失敗。請重試。',
-        notFound: '未找到工件',
-        discardChanges: '放棄更改？',
-        discardChangesDescription: '您有未儲存的更改。確定要放棄它們嗎？',
-        deleteConfirm: '刪除工件？',
-        deleteConfirmDescription: '此工件將被永久刪除。',
-        titlePlaceholder: '工件標題',
-        bodyPlaceholder: '在此輸入內容...',
-        save: '儲存',
-        saving: '儲存中...',
-        loading: '載入中...',
-        error: '載入工件失敗',
-        titleLabel: '標題',
-        bodyLabel: '內容',
-        emptyFieldsError: '请输入標題或內容',
-        createError: '建立工件失敗。請重試。',
-    },
-
     friends: {
         // Friends feature
         title: '好友',
@@ -1054,27 +970,5 @@ export const zhHant: TranslationStructure = {
         cancelRequestConfirm: ({ name }: { name: string }) => `取消傳送給 ${name} 的好友請求？`,
         denyRequest: '拒絕請求',
         nowFriendsWith: ({ name }: { name: string }) => `您現在與 ${name} 是好友了`,
-    },
-
-    usage: {
-        // Usage panel strings
-        today: '今天',
-        last7Days: '過去 7 天',
-        last30Days: '過去 30 天',
-        totalTokens: '總權杖數',
-        totalCost: '總費用',
-        tokens: '權杖',
-        cost: '費用',
-        usageOverTime: '使用趨勢',
-        byModel: '按模型',
-        noData: '暫無使用資料',
-    },
-
-    feed: {
-        // Feed notifications for friend requests and acceptances
-        friendRequestFrom: ({ name }: { name: string }) => `${name} 向您傳送了好友請求`,
-        friendRequestGeneric: '新的好友請求',
-        friendAccepted: ({ name }: { name: string }) => `您現在與 ${name} 成為了好友`,
-        friendAcceptedGeneric: '好友請求已接受',
     },
 } as const;

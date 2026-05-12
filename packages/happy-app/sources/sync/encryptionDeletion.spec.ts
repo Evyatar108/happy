@@ -57,7 +57,17 @@ describe('deleted Sprint D surfaces', () => {
     });
 
     it('has no voice or realtime production surfaces', () => {
-        expect(findMatches(/voiceHooks|RealtimeProvider|RealtimeVoiceSession|RealtimeSession|VoiceAssistantStatusBar|applyVoiceUpsellOverride|realtimeClientTools|voiceConfig|voiceExperiment|voiceSystemPrompt|contextFormatters|microphonePermissions|@\/realtime\//)).toEqual([]);
+        expect(findMatches(/voiceHooks|RealtimeProvider|RealtimeVoiceSession|RealtimeSession|VoiceAssistantStatusBar|VoiceBars|applyVoiceUpsellOverride|realtimeClientTools|voiceConfig|voiceExperiment|voiceSystemPrompt|contextFormatters|microphonePermissions|@\/realtime\/|\bvoice\b/i)).toEqual([]);
+    });
+
+    it('has no obsolete feature files or imports', () => {
+        expect(productionFiles.filter(file => /\/artifacts\/|\/inbox\/|\/components\/usage\/|settings\/usage\.tsx|settings\/connect\/claude\.tsx|apiArtifacts|apiFeed|apiKv|apiVoice|apiUsage|apiGithub|apiServices|artifactTypes|feedTypes/.test(file))).toEqual([]);
+        expect(findMatches(/apiArtifacts|apiFeed|apiKv|apiVoice|apiUsage|apiGithub|apiServices|artifactTypes|feedTypes|InboxView|useInboxHasContent|disconnectService|connectService|settings\/connect\/claude|settings\/usage|\/inbox\b|\/artifacts\b/)).toEqual([]);
+    });
+
+    it('keeps push registration surfaces while obsolete APIs are deleted', () => {
+        expect(productionFiles).toContain('packages/happy-app/sources/sync/apiPush.ts');
+        expect(productionFiles).toContain('packages/happy-app/sources/sync/pushRegistration.ts');
     });
 
     it('has no retired Sprint D route/helper strings', () => {

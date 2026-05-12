@@ -17,16 +17,8 @@ function plural({ count, singular, plural }: { count: number; singular: string; 
 export const en = {
     tabs: {
         // Tab navigation labels
-        inbox: 'Inbox',
         sessions: 'Terminals',
         settings: 'Settings',
-    },
-
-    inbox: {
-        // Inbox screen
-        emptyTitle: 'Empty Inbox',
-        emptyDescription: 'Connect with friends to start sharing sessions',
-        updates: 'Updates',
     },
 
     common: {
@@ -173,8 +165,6 @@ export const en = {
         accountSubtitle: 'Manage your account details',
         appearance: 'Appearance',
         appearanceSubtitle: 'Customize how the app looks',
-        voiceAssistant: 'Voice Assistant',
-        voiceAssistantSubtitle: 'Configure voice interaction preferences',
         featuresTitle: 'Features',
         featuresSubtitle: 'Enable or disable app features',
         developer: 'Developer',
@@ -194,8 +184,6 @@ export const en = {
         connectGithubAccount: 'Connect your GitHub account',
         claudeAuthSuccess: 'Successfully connected to Claude',
         exchangingTokens: 'Exchanging tokens...',
-        usage: 'Usage',
-        usageSubtitle: 'View your API usage and costs',
         // Dynamic settings messages
         accountConnected: ({ service }: { service: string }) => `${service} account connected`,
         machineStatus: ({ name, status }: { name: string; status: 'online' | 'offline' }) =>
@@ -298,11 +286,6 @@ export const en = {
         tryAgain: 'Please try again',
         contactSupport: 'Contact support if the problem persists',
         sessionNotFound: 'Session not found',
-        voiceSessionFailed: 'Failed to start voice session',
-        voiceServiceUnavailable: 'Voice service is temporarily unavailable',
-        voiceLimitReachedTitle: 'Voice Limit Reached',
-        voiceHardLimitReached: ({ hours }: { hours: number }) => `You've used ${hours}+ hours of voice this month. This is the maximum allowed. You can configure your own ElevenLabs agent in Voice settings to use your own quota.`,
-        voiceConversationLimitReached: 'You\'ve reached the maximum number of voice conversations this month. We may add on-demand voice usage in the future — please file an issue at github.com/nicepkg/happy/issues if you hit this limit.',
         oauthInitializationFailed: 'Failed to initialize OAuth flow',
         tokenStorageFailed: 'Failed to store authentication tokens',
         oauthStateMismatch: 'Security validation failed. Please try again',
@@ -328,10 +311,6 @@ export const en = {
             `Retry in ${seconds} ${seconds === 1 ? 'second' : 'seconds'}`,
         errorWithCode: ({ message, code }: { message: string; code: number | string }) =>
             `${message} (Error ${code})`,
-        disconnectServiceFailed: ({ service }: { service: string }) => 
-            `Failed to disconnect ${service}`,
-        connectServiceFailed: ({ service }: { service: string }) =>
-            `Failed to connect ${service}. Please try again.`,
         failedToLoadFriends: 'Failed to load friends list',
         failedToAcceptRequest: 'Failed to accept friend request',
         failedToRejectRequest: 'Failed to reject friend request',
@@ -742,39 +721,6 @@ export const en = {
         deleted: 'Deleted',
     },
 
-    settingsVoice: {
-        // Voice settings screen
-        languageTitle: 'Language',
-        languageDescription: 'Choose your preferred language for voice assistant interactions. This setting syncs across all your devices.',
-        preferredLanguage: 'Preferred Language',
-        preferredLanguageSubtitle: 'Language used for voice assistant responses',
-        language: {
-            searchPlaceholder: 'Search languages...',
-            title: 'Languages',
-            footer: ({ count }: { count: number }) => `${count} ${plural({ count, singular: 'language', plural: 'languages' })} available`,
-            autoDetect: 'Auto-detect',
-        },
-        // Bring your own agent
-        byoTitle: 'Bring Your Own Agent',
-        byoDescription: 'Use your own ElevenLabs agent instead of the Happy default. No subscription required — connect directly with your own ElevenLabs account. Your agent must define two client tools: messageClaudeCode (sends text to the coding agent) and processPermissionRequest (allows or denies tool use). It receives session context via the {{initialConversationContext}} dynamic variable.',
-        customAgentId: 'ElevenLabs Agent ID',
-        customAgentIdNotSet: 'Not configured',
-        customAgentIdDescription: 'Enter your ElevenLabs agent ID. Leave empty to use the Happy default.',
-        customAgentIdPlaceholder: 'e.g. abc123def456',
-        bypassToken: 'Direct Connection',
-        bypassTokenSubtitle: 'Skip Happy server, connect straight to ElevenLabs',
-        promptGuideTitle: 'Agent Prompt Guide',
-        promptGuideDescription: 'Your ElevenLabs agent needs:\n\n• Tool: messageClaudeCode — parameter: message (string). Sends a message to the active coding session.\n• Tool: processPermissionRequest — parameter: decision ("allow" or "deny"). Approves or denies a pending tool permission.\n• Dynamic variable: {{initialConversationContext}} — receives session history and context on start.\n\nThe agent acts as a voice bridge between the user and coding agents. It should be concise, only respond when addressed, and report when a coding agent finishes work.',
-        // Voice usage
-        usageTitle: 'Usage (Last 30 Days)',
-        usageFooter: 'Voice time used in the last 30 days. Free tier: 20 min. Subscribed: 5 hours. Max 100 conversations per month.',
-        usageLabel: 'Voice Time',
-        conversationsLabel: 'Conversations',
-        usageUsed: ({ used, limit }: { used: string; limit: string }) => `${used} used of ${limit}`,
-        supportTitle: 'Upgrade Voice',
-        supportSubtitle: 'Get more voice time and support development',
-    },
-
     settingsAccount: {
         // Account settings screen
         accountInformation: 'Account Information',
@@ -846,10 +792,6 @@ export const en = {
         developerModeDisabled: 'Developer mode disabled',
         disconnectGithub: 'Disconnect GitHub',
         disconnectGithubConfirm: 'Are you sure you want to disconnect your GitHub account?',
-        disconnectService: ({ service }: { service: string }) => 
-            `Disconnect ${service}`,
-        disconnectServiceConfirm: ({ service }: { service: string }) => 
-            `Are you sure you want to disconnect ${service} from your account?`,
         disconnect: 'Disconnect',
         failedToConnectTerminal: 'Failed to connect terminal',
         cameraPermissionsRequiredToConnectTerminal: 'Camera permissions are required to connect terminal',
@@ -976,34 +918,6 @@ export const en = {
         mermaidRenderFailed: 'Failed to render mermaid diagram',
     },
 
-    artifacts: {
-        // Artifacts feature
-        title: 'Artifacts',
-        countSingular: '1 artifact',
-        countPlural: ({ count }: { count: number }) => `${count} artifacts`,
-        empty: 'No artifacts yet',
-        emptyDescription: 'Create your first artifact to get started',
-        new: 'New Artifact',
-        edit: 'Edit Artifact',
-        delete: 'Delete',
-        updateError: 'Failed to update artifact. Please try again.',
-        notFound: 'Artifact not found',
-        discardChanges: 'Discard changes?',
-        discardChangesDescription: 'You have unsaved changes. Are you sure you want to discard them?',
-        deleteConfirm: 'Delete artifact?',
-        deleteConfirmDescription: 'This action cannot be undone',
-        titleLabel: 'TITLE',
-        titlePlaceholder: 'Enter a title for your artifact',
-        bodyLabel: 'CONTENT',
-        bodyPlaceholder: 'Write your content here...',
-        emptyFieldsError: 'Please enter a title or content',
-        createError: 'Failed to create artifact. Please try again.',
-        save: 'Save',
-        saving: 'Saving...',
-        loading: 'Loading artifacts...',
-        error: 'Failed to load artifact',
-    },
-
     friends: {
         // Friends feature
         title: 'Friends',
@@ -1053,28 +967,6 @@ export const en = {
         cancelRequestConfirm: ({ name }: { name: string }) => `Cancel your friendship request to ${name}?`,
         denyRequest: 'Deny friendship',
         nowFriendsWith: ({ name }: { name: string }) => `You are now friends with ${name}`,
-    },
-
-    usage: {
-        // Usage panel strings
-        today: 'Today',
-        last7Days: 'Last 7 days',
-        last30Days: 'Last 30 days',
-        totalTokens: 'Total Tokens',
-        totalCost: 'Total Cost',
-        tokens: 'Tokens',
-        cost: 'Cost',
-        usageOverTime: 'Usage over time',
-        byModel: 'By Model',
-        noData: 'No usage data available',
-    },
-
-    feed: {
-        // Feed notifications for friend requests and acceptances
-        friendRequestFrom: ({ name }: { name: string }) => `${name} sent you a friend request`,
-        friendRequestGeneric: 'New friend request',
-        friendAccepted: ({ name }: { name: string }) => `You are now friends with ${name}`,
-        friendAcceptedGeneric: 'Friend request accepted',
     },
 
 } as const;

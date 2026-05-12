@@ -8,7 +8,6 @@ import {
 } from '@slopus/happy-wire';
 import { GitHubProfileSchema, ImageRefSchema } from './profile';
 import { RelationshipStatusSchema, UserProfileSchema } from './friendTypes';
-import { FeedBodySchema } from './feedTypes';
 
 export {
     ApiMessageSchema,
@@ -52,37 +51,6 @@ export const ApiUpdateAccountSchema = z.object({
     github: GitHubProfileSchema.nullish(),
 });
 
-// Artifact update schemas
-export const ApiNewArtifactSchema = z.object({
-    t: z.literal('new-artifact'),
-    artifactId: z.string(),
-    header: z.string(),
-    headerVersion: z.number(),
-    body: z.string().optional(),
-    bodyVersion: z.number().optional(),
-    seq: z.number(),
-    createdAt: z.number(),
-    updatedAt: z.number()
-});
-
-export const ApiUpdateArtifactSchema = z.object({
-    t: z.literal('update-artifact'),
-    artifactId: z.string(),
-    header: z.object({
-        value: z.string(),
-        version: z.number()
-    }).optional(),
-    body: z.object({
-        value: z.string(),
-        version: z.number()
-    }).optional()
-});
-
-export const ApiDeleteArtifactSchema = z.object({
-    t: z.literal('delete-artifact'),
-    artifactId: z.string()
-});
-
 // Relationship update schema
 export const ApiRelationshipUpdatedSchema = z.object({
     t: z.literal('relationship-updated'),
@@ -95,26 +63,6 @@ export const ApiRelationshipUpdatedSchema = z.object({
     timestamp: z.number()
 });
 
-// Feed update schema
-export const ApiNewFeedPostSchema = z.object({
-    t: z.literal('new-feed-post'),
-    id: z.string(),
-    body: FeedBodySchema,
-    cursor: z.string(),
-    createdAt: z.number(),
-    repeatKey: z.string().nullable()
-});
-
-// KV batch update schema for real-time KV updates
-export const ApiKvBatchUpdateSchema = z.object({
-    t: z.literal('kv-batch-update'),
-    changes: z.array(z.object({
-        key: z.string(),
-        value: z.string().nullable(),
-        version: z.number()
-    }))
-});
-
 // Use a plain union here to avoid runtime discriminator extraction issues
 // when some schemas come from shared package exports.
 export const ApiUpdateSchema = z.union([
@@ -125,17 +73,11 @@ export const ApiUpdateSchema = z.union([
     ApiUpdateAccountSchema,
     ApiUpdateMachineStateSchema,
     ApiDeleteMachineSchema,
-    ApiNewArtifactSchema,
-    ApiUpdateArtifactSchema,
-    ApiDeleteArtifactSchema,
     ApiRelationshipUpdatedSchema,
-    ApiNewFeedPostSchema,
-    ApiKvBatchUpdateSchema
 ]);
 
 export type ApiUpdateNewMessage = z.infer<typeof ApiUpdateNewMessageSchema>;
 export type ApiRelationshipUpdated = z.infer<typeof ApiRelationshipUpdatedSchema>;
-export type ApiKvBatchUpdate = z.infer<typeof ApiKvBatchUpdateSchema>;
 export type ApiUpdate = z.infer<typeof ApiUpdateSchema>;
 
 //

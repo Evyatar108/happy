@@ -19,7 +19,7 @@ import { Typography } from "@/constants/Typography";
 import { Item } from '@/components/Item';
 import { ItemGroup } from '@/components/ItemGroup';
 import { ItemList } from '@/components/ItemList';
-import { useEntitlement, useLocalSettingMutable, useSetting } from '@/sync/storage';
+import { useEntitlement, useLocalSettingMutable } from '@/sync/storage';
 import { sync } from '@/sync/sync';
 import { isUsingCustomServer } from '@/sync/serverConfig';
 import { trackPaywallButtonClicked, trackWhatsNewClicked } from '@/track';
@@ -30,7 +30,6 @@ import { isMachineOnline } from '@/utils/machineUtils';
 import { useUnistyles } from 'react-native-unistyles';
 import { layout } from '@/components/layout';
 import { useHappyAction } from '@/hooks/useHappyAction';
-import { disconnectService } from '@/sync/apiServices';
 import { DevTunnelsClientProvider, type MachineTunnel } from '@/sync/tunnelProvider';
 import { useProfile } from '@/sync/storage';
 import { getDisplayName, getAvatarUrl, getBio } from '@/sync/profile';
@@ -44,7 +43,6 @@ export const SettingsView = React.memo(function SettingsView() {
     const auth = useAuth();
     const [devModeEnabled, setDevModeEnabled] = useLocalSettingMutable('devModeEnabled');
     const isPro = __DEV__ || useEntitlement('pro');
-    const experiments = useSetting('experiments');
     const isCustomServer = isUsingCustomServer();
     const [showOfflineMachines, setShowOfflineMachines] = React.useState(false);
     const allMachinesWithOffline = useAllMachines({ includeOffline: true });
@@ -101,27 +99,6 @@ export const SettingsView = React.memo(function SettingsView() {
     }, {
         requiredClicks: 10,
         resetTimeout: 2000
-    });
-
-    // Connection status
-    const isAnthropicConnected = profile.connectedServices?.includes('anthropic') || false;
-
-    // Anthropic connection
-    const [connectingAnthropic, connectAnthropic] = useHappyAction(async () => {
-        router.push('/settings/connect/claude');
-    });
-
-    // Anthropic disconnection
-    const [disconnectingAnthropic, handleDisconnectAnthropic] = useHappyAction(async () => {
-        const confirmed = await Modal.confirm(
-            t('modals.disconnectService', { service: 'Claude' }),
-            t('modals.disconnectServiceConfirm', { service: 'Claude' }),
-            { confirmText: t('modals.disconnect'), destructive: true }
-        );
-        if (confirmed) {
-            await disconnectService(auth.credentials!, 'anthropic');
-            await sync.refreshProfile();
-        }
     });
 
     const [pairingMachine, handleAddMachine] = useHappyAction(async () => {
@@ -228,26 +205,6 @@ export const SettingsView = React.memo(function SettingsView() {
                 />
             </ItemGroup>
 
-            <ItemGroup title={t('settings.connectedAccounts')}>
-                <Item
-                    title="Claude Code"
-                    subtitle={isAnthropicConnected
-                        ? t('settingsAccount.statusActive')
-                        : t('settings.connectAccount')
-                    }
-                    icon={
-                        <Image
-                            source={require('@/assets/images/icon-claude.png')}
-                            style={{ width: 29, height: 29 }}
-                            contentFit="contain"
-                        />
-                    }
-                    onPress={isAnthropicConnected ? handleDisconnectAnthropic : connectAnthropic}
-                    loading={connectingAnthropic || disconnectingAnthropic}
-                    showChevron={false}
-                />
-            </ItemGroup>
-
             {/* Social */}
             {/* <ItemGroup title={t('settings.social')}>
                 <Item
@@ -333,14 +290,6 @@ export const SettingsView = React.memo(function SettingsView() {
                     icon={<Ionicons name="flask-outline" size={29} color="#FF9500" />}
                     onPress={() => router.push('/settings/features')}
                 />
-                {experiments && (
-                    <Item
-                        title={t('settings.usage')}
-                        subtitle={t('settings.usageSubtitle')}
-                        icon={<Ionicons name="analytics-outline" size={29} color="#007AFF" />}
-                        onPress={() => router.push('/settings/usage')}
-                    />
-                )}
             </ItemGroup>
 
             {/* Developer */}

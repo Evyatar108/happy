@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { View, ActivityIndicator, Text, Pressable } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
-import { useFriendRequests, useSocketStatus } from '@/sync/storage';
+import { useSocketStatus } from '@/sync/storage';
 import { useSidebar } from './SidebarContext';
 import { useVisibleSessionListViewData } from '@/hooks/useVisibleSessionListViewData';
 import { useIsTablet } from '@/utils/responsive';
@@ -10,7 +10,6 @@ import { EmptySessionsTablet } from './EmptySessionsTablet';
 import { SessionsList } from './SessionsList';
 import { FABWide } from './FABWide';
 import { TabBar, TabType } from './TabBar';
-import { InboxView } from './InboxView';
 import { SettingsViewWrapper } from './SettingsViewWrapper';
 import { SessionsListWrapper } from './SessionsListWrapper';
 import { Header } from './navigation/Header';
@@ -20,7 +19,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { Typography } from '@/constants/Typography';
 import { t } from '@/text';
 import { isUsingCustomServer } from '@/sync/serverConfig';
-import { trackFriendsSearch } from '@/track';
 
 interface MainViewProps {
     variant: 'phone' | 'sidebar';
@@ -101,12 +99,11 @@ const styles = StyleSheet.create((theme) => ({
 // Tab header configuration
 const TAB_TITLES = {
     sessions: 'tabs.sessions',
-    inbox: 'tabs.inbox',
     settings: 'tabs.settings',
 } as const;
 
 // Active tabs
-type ActiveTabType = 'sessions' | 'inbox' | 'settings';
+type ActiveTabType = 'sessions' | 'settings';
 
 // Header title component with connection status
 const HeaderTitle = React.memo(({ activeTab }: { activeTab: ActiveTabType }) => {
@@ -189,21 +186,6 @@ const HeaderRight = React.memo(({ activeTab }: { activeTab: ActiveTabType }) => 
         );
     }
 
-    if (activeTab === 'inbox') {
-        return (
-            <Pressable
-                onPress={() => {
-                    trackFriendsSearch();
-                    router.push('/friends/search');
-                }}
-                hitSlop={15}
-                style={styles.headerButton}
-            >
-                <Ionicons name="person-add-outline" size={24} color={theme.colors.header.tint} />
-            </Pressable>
-        );
-    }
-
     if (activeTab === 'settings') {
         if (!isCustomServer) {
             // Empty view to maintain header centering
@@ -228,16 +210,15 @@ export const MainView = React.memo(({ variant }: MainViewProps) => {
     const sessionListViewData = useVisibleSessionListViewData();
     const isTablet = useIsTablet();
     const router = useRouter();
-    const friendRequests = useFriendRequests();
     // Must be read before any conditional early return to stay on the stable hook order.
     // Only the fully-expanded tablet sidebar carries the session list on its own; the
     // collapsed 72-px rail shows active sessions only (no archive toggle / inactive),
     // and the hidden mode has no sidebar at all. In both of those cases the index
     // route must fall through to the phone tab layout so the user can still reach
-    // inactive sessions, inbox, settings. Yes, this produces a visible "double list"
+    // inactive sessions and settings. Yes, this produces a visible "double list"
     // on tablets in collapsed mode (rail on the left + full SessionsList in the main
     // pane) — intentional: the rail is a quick-switch, the main pane is the rich
-    // view. If the collapsed rail grows inbox/archive/settings icons of its own,
+    // view. If the collapsed rail grows archive/settings icons of its own,
     // revisit this gate.
     const { isExpanded: sidebarFullyExpanded } = useSidebar();
 
@@ -256,8 +237,6 @@ export const MainView = React.memo(({ variant }: MainViewProps) => {
     // Regular phone mode with tabs - define this before any conditional returns
     const renderTabContent = React.useCallback(() => {
         switch (activeTab) {
-            case 'inbox':
-                return <InboxView />;
             case 'settings':
                 return <SettingsViewWrapper />;
             case 'sessions':
@@ -320,7 +299,6 @@ export const MainView = React.memo(({ variant }: MainViewProps) => {
             <TabBar
                 activeTab={activeTab}
                 onTabPress={handleTabPress}
-                inboxBadgeCount={friendRequests.length}
             />
         </>
     );

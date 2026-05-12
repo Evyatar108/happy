@@ -46,14 +46,6 @@ export default function RootLayout() {
                 }}
             />
             <Stack.Screen
-                name="inbox/index"
-                options={{
-                    headerShown: false,
-                    headerTitle: t('tabs.inbox'),
-                    headerBackTitle: t('common.home')
-                }}
-            />
-            <Stack.Screen
                 name="settings/index"
                 options={{
                     headerShown: true,
@@ -149,36 +141,6 @@ export default function RootLayout() {
                     headerShown: true,
                     headerTitle: t('navigation.whatsNew'),
                     headerBackTitle: t('common.back'),
-                }}
-            />
-            <Stack.Screen
-                name="artifacts/index"
-                options={{
-                    headerShown: true,
-                    headerTitle: t('artifacts.title'),
-                    headerBackTitle: t('common.back'),
-                }}
-            />
-            <Stack.Screen
-                name="artifacts/[id]"
-                options={{
-                    headerShown: false, // We'll set header dynamically
-                }}
-            />
-            <Stack.Screen
-                name="artifacts/new"
-                options={{
-                    headerShown: true,
-                    headerTitle: t('artifacts.new'),
-                    headerBackTitle: t('common.cancel'),
-                }}
-            />
-            <Stack.Screen
-                name="artifacts/edit/[id]"
-                options={{
-                    headerShown: true,
-                    headerTitle: t('artifacts.edit'),
-                    headerBackTitle: t('common.cancel'),
                 }}
             />
             <Stack.Screen
@@ -284,21 +246,6 @@ export default function RootLayout() {
                     headerShown: true,
                     headerTitle: t('sessionHistory.title'),
                     headerBackTitle: t('common.back'),
-                }}
-            />
-            <Stack.Screen
-                name="settings/connect/claude"
-                options={{
-                    headerShown: true,
-                    headerTitle: 'Connect to Claude',
-                    headerBackTitle: t('common.back'),
-                    // headerStyle: {
-                    //     backgroundColor: Platform.OS === 'web' ? theme.colors.header.background : '#1F1E1C',
-                    // },
-                    // headerTintColor: Platform.OS === 'web' ? theme.colors.header.tint : '#FFFFFF',
-                    // headerTitleStyle: {
-                    //     color: Platform.OS === 'web' ? theme.colors.header.tint : '#FFFFFF',
-                    // },
                 }}
             />
             <Stack.Screen
