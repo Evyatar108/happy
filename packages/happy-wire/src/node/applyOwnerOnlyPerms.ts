@@ -12,8 +12,15 @@ export async function applyOwnerOnlyPerms(filePath: string): Promise<void> {
     }
 
     try {
+        // Remove pre-existing explicit ACEs for broad-access groups before granting owner-only ACE.
+        await execFileAsync('icacls', [
+            filePath,
+            '/remove:g', '*S-1-1-0',
+            '/remove:g', 'BUILTIN\\Users',
+            '/remove:g', 'Authenticated Users',
+        ]);
         await execFileAsync('icacls', [filePath, '/inheritance:r', '/grant:r', `${userInfo().username}:(R,W)`]);
-    } catch {
-        await fs.chmod(filePath, 0o600);
+    } catch (err) {
+        throw new Error(`applyOwnerOnlyPerms: failed to set owner-only ACL on "${filePath}": ${err}`);
     }
 }
