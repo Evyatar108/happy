@@ -65,7 +65,15 @@ declare module 'happy-server' {
     stop: () => Promise<void>;
   }
 
+  export interface BootstrapMachineForEmbeddedInput {
+    machineId: string;
+    metadata: string;
+    daemonState: string | null;
+    dataEncryptionKeyBase64?: string | null;
+  }
+
   export function createApp(config: CreateAppConfig): HappyServerHandle;
   export function createHappyServer(config: HappyServerConfig): HappyServerHandle;
   export function encodeTunnelClaim(payload: unknown, ed25519SecretKey: Uint8Array): Promise<string>;
+  export function bootstrapMachineForEmbedded(input: BootstrapMachineForEmbeddedInput): Promise<void>;
 }

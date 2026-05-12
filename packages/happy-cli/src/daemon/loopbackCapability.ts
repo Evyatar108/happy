@@ -1,8 +1,9 @@
 import { randomBytes } from 'node:crypto';
-import { chmodSync, lstatSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
+import { lstatSync, realpathSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join, parse, resolve, sep } from 'node:path';
 
 import { configuration } from '@/configuration';
+import { applyOwnerOnlyPerms } from '@slopus/happy-wire/node';
 
 export function loopbackCapabilityPath(happyHomeDir = configuration.happyHomeDir): string {
   return join(happyHomeDir, 'loopback-cap.txt');
@@ -28,7 +29,7 @@ function assertNoSymlinkInAncestors(dir: string) {
   }
 }
 
-export function writeLoopbackCapability(happyHomeDir = configuration.happyHomeDir): { token: string; path: string } {
+export async function writeLoopbackCapability(happyHomeDir = configuration.happyHomeDir): Promise<{ token: string; path: string }> {
   const token = randomBytes(32).toString('base64url');
   const path = loopbackCapabilityPath(happyHomeDir);
   const dir = dirname(path);
@@ -41,9 +42,7 @@ export function writeLoopbackCapability(happyHomeDir = configuration.happyHomeDi
 
   writeFileSync(tmpPath, `${token}\n`, { encoding: 'utf-8', mode: 0o600 });
   renameSync(tmpPath, path);
-  if (process.platform !== 'win32') {
-    chmodSync(path, 0o600);
-  }
+  await applyOwnerOnlyPerms(path);
 
   return { token, path };
 }

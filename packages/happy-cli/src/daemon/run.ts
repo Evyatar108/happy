@@ -5,6 +5,7 @@ import * as tmp from 'tmp';
 import axios from 'axios';
 
 import { ApiClient } from '@/api/api';
+import { bootstrapMachineForEmbedded } from 'happy-server';
 import type { ForkSessionOptions } from '@/api/apiMachine';
 import { TrackedSession, SessionEncryptionData } from './types';
 import { MachineMetadata, DaemonState, Metadata } from '@/api/types';
@@ -38,9 +39,10 @@ import { forkSession } from './forkSession';
 import { spawnInWorktree } from './spawnInWorktree';
 import { recoverPending } from './worktreeTransactions';
 import { stopTrackedSession } from './stopTrackedSession';
-import { dualListenerBinding } from './dualListenerBinding';
-import { writeLoopbackCapability } from './loopbackCapability';
+import { loopbackCapabilityPath } from './loopbackCapability';
 import { getLocalTunnelClaim } from './getLocalTunnelClaim';
+import { getLocalMachine } from './getLocalMachine';
+import { bindListenersAndWriteCapability } from './bindListenersAndWriteCapability';
 
 // Prepare initial metadata
 // Suffix host with `-dev` for the HAPPY_VARIANT=dev variant so the dev daemon
@@ -61,12 +63,17 @@ export const initialMachineMetadata: MachineMetadata = {
 async function resolveMachineState(machineId: string): Promise<MachineLocallyPersistedState> {
   const machineState = await readMachineState(machineId);
   if (machineState) {
+    if (machineState.machineId !== machineId) {
+      const updated = { ...machineState, machineId };
+      await writeMachineState(updated);
+      return updated;
+    }
     if (machineState.tunnelPort !== machineState.loopbackPort) {
       return machineState;
     }
     const loopbackPort = await pickFreeLoopbackPort();
     const updated = { ...machineState, loopbackPort };
-    writeMachineState(updated);
+    await writeMachineState(updated);
     return updated;
   }
 
@@ -76,7 +83,7 @@ async function resolveMachineState(machineId: string): Promise<MachineLocallyPer
     loopbackPort = await pickFreeLoopbackPort();
   }
   const created = { machineId, tunnelPort, loopbackPort, tunnelId: '', lastTunnelUrl: null };
-  writeMachineState(created);
+  await writeMachineState(created);
   return created;
 }
 
@@ -201,8 +208,7 @@ export async function startDaemon(): Promise<void> {
       x25519SecretKey: tofuKeypairs.ecdhPrivateKey,
       ed25519Fingerprint: tofuKeypairs.ed25519Fingerprint,
     };
-    const loopbackCapability = writeLoopbackCapability(configuration.happyHomeDir);
-    const listenerBinding = await dualListenerBinding({
+    const listenerBinding = await bindListenersAndWriteCapability({
       sharedContext: {
         dataDir: configuration.happyHomeDir,
         machineKey: tofuKeypairs.ed25519PublicKey,
@@ -213,14 +219,14 @@ export async function startDaemon(): Promise<void> {
       paths: {
         profile: join(configuration.happyHomeDir, 'profile.json'),
         accountSettings: join(configuration.happyHomeDir, 'account-settings.json'),
-        loopbackCap: loopbackCapability.path,
+        loopbackCap: loopbackCapabilityPath(configuration.happyHomeDir),
       },
       machineState: () => machineState,
       machineInfo: {
         hostname: initialMachineMetadata.host,
         owner: machineId,
       },
-    });
+    }, configuration.happyHomeDir);
     const tunnelConfig = listenerBinding.tunnelConfig;
     machineState = {
       ...machineState,
@@ -228,7 +234,7 @@ export async function startDaemon(): Promise<void> {
       lastTunnelUrl: tunnelConfig.tunnelUrl,
     };
     try {
-      writeMachineState(machineState);
+      await writeMachineState(machineState);
     } catch (writeError) {
       await listenerBinding.stop();
       throw writeError;
@@ -897,19 +903,26 @@ export async function startDaemon(): Promise<void> {
       startedAt: Date.now()
     };
 
-    // Create API client
-    const api = await ApiClient.create(credentials);
-
-    // Get or create machine
-    const machine = await api.getOrCreateMachine({
+    const localMachine = getLocalMachine({
+      credentials,
       machineId,
       metadata: {
         ...initialMachineMetadata,
         tunnelUrl: tunnelConfig.tunnelUrl,
       },
-      daemonState: initialDaemonState
+      daemonState: initialDaemonState,
     });
+    await bootstrapMachineForEmbedded({
+      machineId,
+      metadata: localMachine.encryptedMetadata,
+      daemonState: localMachine.encryptedDaemonState,
+      dataEncryptionKeyBase64: localMachine.dataEncryptionKeyBase64,
+    });
+    const machine = localMachine.machine;
     logger.debug(`[DAEMON RUN] Machine registered: ${machine.id}`);
+
+    // Create API client
+    const api = await ApiClient.create(credentials);
 
     // Create realtime machine session
     const apiMachine = api.machineSyncClient(machine);

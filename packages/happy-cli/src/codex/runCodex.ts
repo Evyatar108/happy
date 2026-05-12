@@ -12,6 +12,7 @@ import { execSync } from 'node:child_process';
 import { logger } from '@/ui/logger';
 import { Credentials, readSettings } from '@/persistence';
 import { initialMachineMetadata } from '@/daemon/run';
+import { getLocalMachine } from '@/daemon/getLocalMachine';
 import { configuration } from '@/configuration';
 import packageJson from '../../package.json';
 import { MessageQueue2 } from '@/utils/MessageQueue2';
@@ -126,10 +127,9 @@ export async function runCodex(opts: {
         process.exit(1);
     }
     logger.debug(`Using machineId: ${machineId}`);
-    await api.getOrCreateMachine({
-        machineId,
-        metadata: initialMachineMetadata
-    });
+    if (opts.credentials.encryption) {
+        getLocalMachine({ credentials: opts.credentials, machineId, metadata: initialMachineMetadata });
+    }
 
     //
     // Create session

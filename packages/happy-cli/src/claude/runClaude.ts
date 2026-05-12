@@ -15,6 +15,7 @@ import { getEnvironmentInfo } from '@/ui/doctor';
 import { configuration } from '@/configuration';
 import { notifyDaemonSessionStarted } from '@/daemon/controlClient';
 import { initialMachineMetadata } from '@/daemon/run';
+import { getLocalMachine } from '@/daemon/getLocalMachine';
 import { startHappyServer } from '@/claude/utils/startHappyServer';
 import { startHookServer } from '@/claude/utils/startHookServer';
 import { generateHookSettingsFile, cleanupHookSettingsFile } from '@/claude/utils/generateHookSettings';
@@ -107,10 +108,9 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
     logger.debug(`Using machineId: ${machineId}`);
 
     // Create machine if it doesn't exist
-    await api.getOrCreateMachine({
-        machineId,
-        metadata: initialMachineMetadata
-    });
+    if (credentials.encryption) {
+        getLocalMachine({ credentials, machineId, metadata: initialMachineMetadata });
+    }
 
     let metadata: Metadata = {
         path: workingDirectory,

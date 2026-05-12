@@ -318,7 +318,7 @@ export async function readMachineState(machineIdFallback?: string): Promise<Mach
     if (!machineId) {
       return null;
     }
-    return {
+    const migrated = {
       machineId,
       tunnelPort,
       loopbackPort,
@@ -329,18 +329,17 @@ export async function readMachineState(machineIdFallback?: string): Promise<Mach
           ? parsed.tunnelUrl
           : null,
     };
+    if (!isValidPort(parsed.tunnelPort) || !isValidPort(parsed.loopbackPort) || parsed.machineId !== migrated.machineId || parsed.tunnelUrl !== undefined) {
+      await writeMachineState(migrated);
+    }
+    return migrated;
   } catch {
     return null;
   }
 }
 
-export function writeMachineState(state: MachineLocallyPersistedState): void {
-  const tmpFile = configuration.machineFile + '.tmp';
-  writeFileSync(tmpFile, JSON.stringify(state, null, 2), { encoding: 'utf-8', mode: 0o600 });
-  renameSync(tmpFile, configuration.machineFile);
-  if (process.platform !== 'win32') {
-    chmodSync(configuration.machineFile, 0o600);
-  }
+export async function writeMachineState(state: MachineLocallyPersistedState): Promise<void> {
+  await writeJsonAtomically(configuration.machineFile, state);
 }
 
 /**

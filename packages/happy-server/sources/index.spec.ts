@@ -5,6 +5,7 @@ import path from "path";
 import { encodeBase64 } from "privacy-kit";
 import { bootstrapMachineForEmbedded, createApp, type HappyServerHandle } from "./index";
 import { db, getPGlite } from "./storage/db";
+import { machineUpdateHandler } from "./app/api/socket/machineUpdateHandler";
 
 async function createMachineTable() {
     const pglite = getPGlite();
@@ -80,4 +81,56 @@ describe("bootstrapMachineForEmbedded", () => {
         });
         expect(Array.from(row.dataEncryptionKey ?? [])).toEqual([1, 2, 3, 4]);
     }, 20_000);
+
+    it("allows machine-update-state after embedded bootstrap for data-key and legacy machines", async () => {
+        const dataDir = await mkdtemp(path.join(os.tmpdir(), "happy-server-embedded-"));
+        server = createApp({
+            dataDir,
+            port: 0,
+            machineKey: "test-machine-key",
+            localUserId: "local-user",
+        });
+        await server.start();
+        await createMachineTable();
+
+        await bootstrapMachineForEmbedded({
+            machineId: "machine-data-key",
+            metadata: "encrypted-metadata",
+            daemonState: "encrypted-daemon-state",
+            dataEncryptionKeyBase64: encodeBase64(new Uint8Array([1, 2, 3, 4])),
+        });
+        await bootstrapMachineForEmbedded({
+            machineId: "machine-legacy",
+            metadata: "encrypted-metadata",
+            daemonState: "encrypted-daemon-state",
+            dataEncryptionKeyBase64: null,
+        });
+
+        await expect(triggerMachineUpdateState("machine-data-key", "next-state", 1)).resolves.toEqual({
+            result: "success",
+            version: 2,
+            daemonState: "next-state",
+        });
+        await expect(triggerMachineUpdateState("machine-legacy", "legacy-next-state", 1)).resolves.toEqual({
+            result: "success",
+            version: 2,
+            daemonState: "legacy-next-state",
+        });
+    }, 20_000);
 });
+
+async function triggerMachineUpdateState(machineId: string, encryptedDaemonState: string, expectedVersion: number) {
+    const handlers = new Map<string, (...args: any[]) => void>();
+    const socket = {
+        data: { happyClient: "cli-daemon/test" },
+        on: (event: string, handler: (...args: any[]) => void) => handlers.set(event, handler),
+    } as any;
+    const eventRouter = { emitEphemeral: () => undefined, emitUpdate: () => undefined } as any;
+    machineUpdateHandler("local-user", socket, eventRouter);
+    const handler = handlers.get("machine-update-state");
+    if (!handler) throw new Error("machine-update-state handler was not registered");
+
+    return await new Promise(resolve => {
+        handler({ machineId, daemonState: encryptedDaemonState, expectedVersion }, resolve);
+    });
+}

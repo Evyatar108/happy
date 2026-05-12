@@ -153,6 +153,11 @@ listener and one loopback listener from shared Happy server context. Keep
 `loopback-cap.txt` as a per-start regenerated local capability and pass its
 path into loopback auth via `paths.loopbackCap`.
 
+Write `loopback-cap.txt` only after both listeners bind successfully, and stop
+the listeners if capability or `machine.json` persistence fails during startup.
+Bootstrap the embedded Machine row before `ApiMachineClient.connect()` so
+machine-update Socket.IO events can CAS against version 1 immediately.
+
 Local callers that need the embedded listeners should go through
 `daemonClient.ts`: loopback requests use `X-Loopback-Capability`, tunnel
 requests and Socket.IO auth use a freshly minted `tunnel <claim>` value. Do not
