@@ -19,6 +19,7 @@ describe('tunnelTransport', () => {
         pinnedPubkey: 'server-pubkey',
         sessionKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
         firstSeenAt: 123,
+        githubToken: 'github-token',
     };
 
     it('injects X-Tunnel-Authorization on Socket.IO connection options', () => {

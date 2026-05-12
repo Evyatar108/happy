@@ -26,6 +26,7 @@ describe('apiGithub', () => {
         pinnedPubkey: 'test-pubkey',
         sessionKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
         firstSeenAt: 123,
+        githubToken: 'github-token',
     };
 
     beforeEach(() => {

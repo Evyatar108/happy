@@ -13,7 +13,7 @@ import { MainView } from "@/components/MainView";
 import { t } from '@/text';
 import {
     createX25519KeyPair, credentialsFromPairMachine, connectMachine,
-    startDeviceTunnelFlow, pollDeviceTunnelFlow, listHappyTunnels, fetchTunnelConnectToken,
+    startDeviceTunnelFlow, pollDeviceTunnelFlow, listHappyTunnels, fetchTunnelConnectToken, fetchGitHubUserProfile,
     type DiscoveredMachine, type PairMachine,
 } from '@/auth/pairing';
 import { Modal } from '@/modal';
@@ -39,6 +39,20 @@ type PendingPairing = {
     localKeyPair: ReturnType<typeof createX25519KeyPair>;
     githubToken: string;
     githubLogin: string;
+    avatarUrl: string;
+    deviceCode: string;
+    deviceCodeExpiresAt: number;
+};
+
+type TunnelAuth = {
+    connectToken: string;
+    connectTokenExpiry: number;
+    githubToken: string;
+    tunnelId: string;
+    login: string;
+    avatarUrl: string;
+    deviceCode: string;
+    deviceCodeExpiresAt: number;
 };
 
 function NotAuthenticated() {
@@ -52,7 +66,7 @@ function NotAuthenticated() {
     const completePairing = async (
         machine: PairMachine,
         localKeyPair: ReturnType<typeof createX25519KeyPair>,
-        tunnelAuth?: { connectToken: string; connectTokenExpiry: number; githubToken: string; tunnelId: string },
+        tunnelAuth?: TunnelAuth,
     ) => {
         const trustedMachines = await TokenStorage.getCredentialsList();
         const existingMachine = trustedMachines.find(item => item.machineId === machine.machineId);
@@ -86,6 +100,7 @@ function NotAuthenticated() {
 
             const localKeyPair = createX25519KeyPair();
             const deadline = Date.now() + flow.expires_in * 1000;
+            const deviceCodeExpiresAt = deadline;
             let githubToken: string | null = null;
             while (Date.now() < deadline) {
                 await new Promise(resolve => setTimeout(resolve, Math.max(flow.interval, 1) * 1000));
@@ -93,6 +108,8 @@ function NotAuthenticated() {
                 if (githubToken) break;
             }
             if (!githubToken) throw new Error(t('welcome.deviceAuthorizationExpired'));
+            await TokenStorage.setDevTunnelsToken(githubToken);
+            const githubProfile = await fetchGitHubUserProfile(githubToken);
 
             // Enumerate happy-* tunnels via Dev Tunnels API
             const discovered = await listHappyTunnels(githubToken);
@@ -104,13 +121,16 @@ function NotAuthenticated() {
                     discoveredMachines: discovered,
                     localKeyPair,
                     githubToken,
-                    githubLogin: '',
+                    githubLogin: githubProfile.login,
+                    avatarUrl: githubProfile.avatarUrl,
+                    deviceCode: flow.device_code,
+                    deviceCodeExpiresAt,
                 });
                 return;
             }
 
             // Single machine — auto-connect
-            await connectAndPair(discovered[0]!, githubToken, localKeyPair);
+            await connectAndPair(discovered[0]!, githubToken, localKeyPair, githubProfile.login, githubProfile.avatarUrl, flow.device_code, deviceCodeExpiresAt);
         } catch (error) {
             console.error('Error pairing machine', error);
             Modal.alert(t('common.error'), error instanceof Error ? error.message : t('welcome.pairingFailed'));
@@ -121,6 +141,10 @@ function NotAuthenticated() {
         machine: DiscoveredMachine,
         githubToken: string,
         localKeyPair: ReturnType<typeof createX25519KeyPair>,
+        login: string,
+        avatarUrl: string,
+        deviceCode: string,
+        deviceCodeExpiresAt: number,
     ) => {
         // Get real Dev Tunnels connect JWT — this is the tunnel-level auth credential
         const { connectToken, connectTokenExpiry } = await fetchTunnelConnectToken(machine.tunnelId, githubToken);
@@ -133,6 +157,10 @@ function NotAuthenticated() {
             connectTokenExpiry,
             githubToken,
             tunnelId: machine.tunnelId,
+            login,
+            avatarUrl,
+            deviceCode,
+            deviceCodeExpiresAt,
         });
     };
 
@@ -140,7 +168,15 @@ function NotAuthenticated() {
         if (!pendingPairing || connecting) return;
         setConnecting(true);
         try {
-            await connectAndPair(machine, pendingPairing.githubToken, pendingPairing.localKeyPair);
+            await connectAndPair(
+                machine,
+                pendingPairing.githubToken,
+                pendingPairing.localKeyPair,
+                pendingPairing.githubLogin,
+                pendingPairing.avatarUrl,
+                pendingPairing.deviceCode,
+                pendingPairing.deviceCodeExpiresAt,
+            );
             setPendingPairing(null);
         } catch (error) {
             Modal.alert(t('common.error'), error instanceof Error ? error.message : t('welcome.pairingFailed'));

@@ -16,7 +16,7 @@ vi.mock('react-native', () => ({
     Platform: { OS: 'ios' },
 }));
 
-import { pollPairing, startPairing } from './pairing';
+import { fetchGitHubUserProfile, pollPairing, startPairing } from './pairing';
 
 describe('pairing', () => {
     beforeEach(() => {
@@ -64,5 +64,30 @@ describe('pairing', () => {
             status: 'authorized',
             machines: [{ machineId: 'machine-1', tunnelUrl: 'https://machine.example.test' }],
         });
+    });
+
+    it('best-effort fetches GitHub user profile metadata from the OAuth token', async () => {
+        (global.fetch as any).mockResolvedValue({
+            ok: true,
+            json: async () => ({ login: 'octocat', avatar_url: 'https://avatars.example.test/octocat.png' }),
+        });
+
+        await expect(fetchGitHubUserProfile('ghu-token')).resolves.toEqual({
+            login: 'octocat',
+            avatarUrl: 'https://avatars.example.test/octocat.png',
+        });
+
+        expect(global.fetch).toHaveBeenCalledWith('https://api.github.com/user', {
+            headers: {
+                Accept: 'application/vnd.github+json',
+                Authorization: 'Bearer ghu-token',
+            },
+        });
+    });
+
+    it('returns empty GitHub profile metadata when the best-effort user fetch fails', async () => {
+        (global.fetch as any).mockResolvedValue({ ok: false });
+
+        await expect(fetchGitHubUserProfile('ghu-token')).resolves.toEqual({ login: '', avatarUrl: '' });
     });
 });

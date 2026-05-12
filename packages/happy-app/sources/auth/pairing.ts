@@ -1,6 +1,6 @@
 import * as WebBrowser from 'expo-web-browser';
 
-import { AuthCredentials } from './tokenStorage';
+import { AuthCredentials, TokenStorage } from './tokenStorage';
 import { decodeBase64, encodeBase64 } from '@/encryption/base64';
 import { getServerUrl } from '@/sync/serverConfig';
 import { createX25519KeyPair, deriveX25519SessionKey } from '@/sync/tunnelTransport';
@@ -57,6 +57,47 @@ export async function pollDeviceTunnelFlow(deviceCode: string): Promise<string |
     if (data.error) throw new Error(data.error);
     if (!data.access_token) return null;
     return data.access_token;
+}
+
+export type GitHubUserProfile = {
+    login: string;
+    avatarUrl: string;
+};
+
+export async function fetchGitHubUserProfile(githubToken: string): Promise<GitHubUserProfile> {
+    try {
+        const response = await fetch('https://api.github.com/user', {
+            headers: {
+                Accept: 'application/vnd.github+json',
+                Authorization: `Bearer ${githubToken}`,
+            },
+        });
+        if (!response.ok) {
+            return { login: '', avatarUrl: '' };
+        }
+        const data = await response.json() as { login?: unknown; avatar_url?: unknown };
+        return {
+            login: typeof data.login === 'string' ? data.login : '',
+            avatarUrl: typeof data.avatar_url === 'string' ? data.avatar_url : '',
+        };
+    } catch {
+        return { login: '', avatarUrl: '' };
+    }
+}
+
+export async function loginInteractive(): Promise<string> {
+    const flow = await startDeviceTunnelFlow();
+    await WebBrowser.openBrowserAsync(flow.verification_uri_complete ?? flow.verification_uri);
+    const deadline = Date.now() + flow.expires_in * 1000;
+    while (Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, Math.max(flow.interval, 1) * 1000));
+        const token = await pollDeviceTunnelFlow(flow.device_code);
+        if (token) {
+            await TokenStorage.setDevTunnelsToken(token);
+            return token;
+        }
+    }
+    throw new Error('GitHub device authorization expired');
 }
 
 type DevTunnelsListItem = {
@@ -190,5 +231,6 @@ export function credentialsFromPairMachine(machine: PairMachine, localKeyPair: R
         pinnedPubkey: machine.ed25519PublicKey,
         sessionKey,
         firstSeenAt: Date.now(),
+        githubToken: '',
     };
 }

@@ -179,7 +179,7 @@ function getDevEnvironmentCredentials(): AuthCredentials | null {
         return null;
     }
 
-    return { machineId, tunnelUrl, tunnelClaim, pinnedPubkey, sessionKey, firstSeenAt: Date.now() };
+    return { machineId, tunnelUrl, tunnelClaim, pinnedPubkey, sessionKey, firstSeenAt: Date.now(), githubToken: '' };
 }
 
 function getDevWebQueryCredentials(): AuthCredentials | null {
@@ -197,7 +197,7 @@ function getDevWebQueryCredentials(): AuthCredentials | null {
         return null;
     }
 
-    return { machineId, tunnelUrl, tunnelClaim, pinnedPubkey, sessionKey, firstSeenAt: Date.now() };
+    return { machineId, tunnelUrl, tunnelClaim, pinnedPubkey, sessionKey, firstSeenAt: Date.now(), githubToken: '' };
 }
 
 export default function RootLayout() {

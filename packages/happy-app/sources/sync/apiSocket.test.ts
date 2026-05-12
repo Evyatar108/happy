@@ -63,6 +63,12 @@ function credential(machineId: string) {
         pinnedPubkey: `pub-${machineId}`,
         sessionKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
         firstSeenAt: 1,
+        githubToken: `github-${machineId}`,
+        tunnelId: `tunnel-${machineId}`,
+        login: `login-${machineId}`,
+        avatarUrl: `https://avatars.example.test/${machineId}.png`,
+        deviceCode: `device-${machineId}`,
+        deviceCodeExpiresAt: 2,
     };
 }
 

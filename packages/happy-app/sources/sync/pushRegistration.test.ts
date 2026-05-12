@@ -63,6 +63,12 @@ function credentials(machineId: string): AuthCredentials {
         pinnedPubkey: `pub-${machineId}`,
         sessionKey: `session-${machineId}`,
         firstSeenAt: 1,
+        githubToken: `github-${machineId}`,
+        tunnelId: `tunnel-${machineId}`,
+        login: `login-${machineId}`,
+        avatarUrl: `https://avatars.example.test/${machineId}.png`,
+        deviceCode: `device-${machineId}`,
+        deviceCodeExpiresAt: 2,
     };
 }
 
