@@ -34,7 +34,7 @@ function validateFreshClaim(tunnelClaim: string): void {
     if (typeof payload.accountId !== 'number') {
         throw new Error('Fresh tunnel claim is missing numeric accountId');
     }
-    if (typeof payload.iat !== 'number' || typeof payload.exp !== 'number' || payload.exp - payload.iat > 3600) {
+    if (typeof payload.iat !== 'number' || typeof payload.exp !== 'number' || payload.exp <= payload.iat || payload.exp - payload.iat > 3600 || payload.exp <= Date.now() / 1000) {
         throw new Error('Fresh tunnel claim has invalid lifetime');
     }
     if (typeof payload.jti !== 'string' || payload.jti.length === 0) {
