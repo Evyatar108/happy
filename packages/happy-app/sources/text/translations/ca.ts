@@ -156,8 +156,6 @@ export const ca: TranslationStructure = {
     },
 
     connect: {
-        restoreAccount: 'Restaura el compte',
-        enterSecretKey: 'Introdueix la teva clau secreta',
         invalidSecretKey: 'Clau secreta no vàlida. Comprova-ho i torna-ho a provar.',
         enterUrlManually: 'Introdueix l\'URL manualment',
     },
@@ -183,7 +181,7 @@ export const ca: TranslationStructure = {
         developer: 'Desenvolupador',
         developerTools: 'Eines de desenvolupador',
         about: 'Quant a',
-        aboutFooter: 'Happy Coder és un client mòbil de Codex i Claude Code. Tot està xifrat punt a punt i el teu compte es guarda només al teu dispositiu. No està afiliat amb Anthropic.',
+        aboutFooter: 'Happy Coder is a Codex and Claude Code mobile client that connects through your paired Dev Tunnels machines. Not affiliated with Anthropic.',
         whatsNew: 'Novetats',
         whatsNewSubtitle: 'Mira les últimes actualitzacions i millores',
         reportIssue: 'Informa d\'un problema',
@@ -193,7 +191,6 @@ export const ca: TranslationStructure = {
         supportUs: 'Dona\'ns suport',
         supportUsSubtitlePro: 'Gràcies pel teu suport!',
         supportUsSubtitle: 'Dona suport al desenvolupament del projecte',
-        scanQrCodeToAuthenticate: 'Escaneja el codi QR per autenticar-te',
         githubConnected: ({ login }: { login: string }) => `Connectat com a @${login}`,
         connectGithubAccount: 'Connecta el teu compte de GitHub',
         claudeAuthSuccess: 'Connexió amb Claude realitzada amb èxit',
@@ -790,20 +787,14 @@ export const ca: TranslationStructure = {
         publicId: 'ID públic',
         notAvailable: 'No disponible',
         linkNewDevice: 'Enllaça un nou dispositiu',
-        linkNewDeviceSubtitle: 'Escaneja el codi QR per enllaçar el dispositiu',
         profile: 'Perfil',
         name: 'Nom',
         github: 'GitHub',
         tapToDisconnect: 'Toca per desconnectar',
         server: 'Servidor',
         backup: 'Còpia de seguretat',
-        backupDescription: 'La teva clau secreta és l\'única manera de recuperar el teu compte. Desa-la en un lloc segur com un gestor de contrasenyes.',
-        secretKey: 'Clau secreta',
         tapToReveal: 'Toca per revelar',
         tapToHide: 'Toca per ocultar',
-        secretKeyLabel: 'CLAU SECRETA (TOCA PER COPIAR)',
-        secretKeyCopied: 'Clau secreta copiada al porta-retalls. Desa-la en un lloc segur!',
-        secretKeyCopyFailed: 'Ha fallat copiar la clau secreta',
         privacy: 'Privadesa',
         privacyDescription: 'Ajuda a millorar l\'aplicació compartint dades d\'ús anònimes. No es recopila informació personal.',
         analytics: 'Analítiques',
@@ -827,11 +818,6 @@ export const ca: TranslationStructure = {
         restartNow: 'Reinicia ara',
     },
 
-    connectButton: {
-        authenticate: 'Autentica el terminal',
-        authenticateWithUrlPaste: 'Autentica el terminal amb enganxat d\'URL',
-        pasteAuthUrl: 'Enganxa l\'URL d\'autenticació del teu terminal',
-    },
 
     updateBanner: {
         updateAvailable: 'Actualització disponible',
@@ -849,29 +835,6 @@ export const ca: TranslationStructure = {
         noEntriesAvailable: 'No hi ha entrades de registre de canvis disponibles.',
     },
 
-    terminal: {
-        // Used by terminal connection screens
-        webBrowserRequired: 'Es requereix un navegador web',
-        webBrowserRequiredDescription: 'Els enllaços de connexió de terminal només es poden obrir en un navegador web per raons de seguretat. Utilitza l\'escàner de codi QR o obre aquest enllaç en un ordinador.',
-        processingConnection: 'Processant la connexió...',
-        invalidConnectionLink: 'Enllaç de connexió no vàlid',
-        invalidConnectionLinkDescription: 'L\'enllaç de connexió falta o no és vàlid. Comprova l\'URL i torna-ho a provar.',
-        connectTerminal: 'Connecta el terminal',
-        terminalRequestDescription: 'Un terminal està sol·licitant connectar-se al teu compte de Happy Coder. Això permetrà al terminal enviar i rebre missatges de forma segura.',
-        connectionDetails: 'Detalls de la connexió',
-        publicKey: 'Clau pública',
-        encryption: 'Xifratge',
-        endToEndEncrypted: 'Xifrat punt a punt',
-        acceptConnection: 'Accepta la connexió',
-        connecting: 'Connectant...',
-        reject: 'Rebutja',
-        security: 'Seguretat',
-        securityFooter: 'Aquest enllaç de connexió s\'ha processat de forma segura al teu navegador i mai s\'ha enviat a cap servidor. Les teves dades privades es mantindran segures i només tu pots desxifrar els missatges.',
-        securityFooterDevice: 'Aquesta connexió s\'ha processat de forma segura al teu dispositiu i mai s\'ha enviat a cap servidor. Les teves dades privades es mantindran segures i només tu pots desxifrar els missatges.',
-        clientSideProcessing: 'Processament del costat del client',
-        linkProcessedLocally: 'Enllaç processat localment al navegador',
-        linkProcessedOnDevice: 'Enllaç processat localment al dispositiu',
-    },
 
     modals: {
         // Used across connect flows and settings
@@ -898,9 +861,7 @@ export const ca: TranslationStructure = {
 
     navigation: {
         // Navigation titles and screen headers
-        connectTerminal: 'Connecta el terminal',
         linkNewDevice: 'Enllaça un nou dispositiu', 
-        restoreWithSecretKey: 'Restaura amb clau secreta',
         whatsNew: 'Novetats',
         friends: 'Amics',
     },
@@ -908,16 +869,11 @@ export const ca: TranslationStructure = {
     welcome: {
         // Main welcome screen for unauthenticated users
         title: 'Client mòbil de Codex i Claude Code',
-        subtitle: 'Xifrat punt a punt i el teu compte s\'emmagatzema només al teu dispositiu.',
+        subtitle: 'Connect to your paired Dev Tunnels machines and keep your account on this device.',
         createAccount: 'Crea un compte',
         linkOrRestoreAccount: 'Enllaça o restaura un compte',
         loginWithMobileApp: 'Inicia sessió amb l\'aplicació mòbil',
         pairMachine: 'Aparella la màquina',
-        trustMachine: 'Confies en aquesta màquina?',
-        trust: 'Confia',
-        ed25519Fingerprint: ({ fingerprint }: { fingerprint: string }) => `Empremta Ed25519:\n${fingerprint}`,
-        pubkeyRotationTitle: 'La clau pública ha canviat',
-        pubkeyRotationWarning: 'Aquesta màquina presenta una clau pública diferent de la que havies confiat. Continua només si has reinstal·lat o restablert Happy en aquest ordinador.',
         noMachinesForIdentity: 'No s\'ha retornat cap màquina per a aquesta identitat de GitHub',
         deviceAuthorizationExpired: 'L\'autorització del dispositiu de GitHub ha caducat',
         pairingFailed: 'Failed to pair machine',

@@ -2,8 +2,6 @@ import Constants from 'expo-constants';
 import { apiSocket, getHappyClientId } from '@/sync/apiSocket';
 import { AuthCredentials, TokenStorage } from '@/auth/tokenStorage';
 import { tunnelFetch } from '@/auth/machineAuth';
-import { Encryption } from '@/sync/encryption/encryption';
-import { decodeBase64, encodeBase64 } from '@/encryption/base64';
 import { storage } from './storage';
 import { ApiEphemeralUpdateSchema, ApiMessage, ApiUpdateContainerSchema } from './apiTypes';
 import type { ApiEphemeralActivityUpdate } from './apiTypes';
@@ -37,20 +35,16 @@ import { log } from '@/log';
 import { gitStatusSync } from './gitStatusSync';
 import { projectManager } from './projectManager';
 import { AsyncLock } from '@/utils/lock';
-import { voiceHooks } from '@/realtime/hooks/voiceHooks';
-import { Message } from './typesMessage';
-import { EncryptionCache } from './encryption/encryptionCache';
 import { systemPrompt } from './prompt/systemPrompt';
 import { fetchArtifact, fetchArtifacts, createArtifact, updateArtifact } from './apiArtifacts';
 import { DecryptedArtifact, Artifact, ArtifactCreateRequest, ArtifactUpdateRequest } from './artifactTypes';
-import { ArtifactEncryption } from './encryption/artifactEncryption';
 import { getFriendsList, getUserProfile } from './apiFriends';
 import { fetchFeed } from './apiFeed';
 import { FeedItem } from './feedTypes';
 import { UserProfile } from './friendTypes';
 import { resolveMessageModeMeta } from './messageMeta';
 import { computeInitialAfterSeq, computeOlderPageAfterSeq } from './paginationMath';
-import { PrefetchManager, type PrefetchManagerEncryptionAdapter, type PrefetchManagerTransport, type RunInSessionLock } from './prefetchManager';
+import { PrefetchManager, type PrefetchManagerMessageAdapter, type PrefetchManagerTransport, type RunInSessionLock } from './prefetchManager';
 import { computeRenderWindow, computePrefetchOlderRange, shouldPrefetchOlder } from './messageWindow';
 import type { DecryptedMessage } from './storageTypes';
 import { getSessionMode } from '@/utils/sessionUtils';
@@ -92,6 +86,39 @@ type OutboxMessage = {
     content: string;
 };
 
+function parsePlainJson<T>(value: unknown, fallback: T): T {
+    if (typeof value !== 'string') {
+        return (value ?? fallback) as T;
+    }
+    try {
+        return JSON.parse(value) as T;
+    } catch {
+        return fallback;
+    }
+}
+
+function decodeApiMessage(message: ApiMessage): DecryptedMessage | null {
+    const content = parsePlainJson<RawRecord | null>(message.content.c, null);
+    if (!content) {
+        return null;
+    }
+    return {
+        id: message.id,
+        localId: message.localId ?? null,
+        createdAt: message.createdAt,
+        seq: message.seq,
+        content,
+    };
+}
+
+function decodeApiMessages(messages: ApiMessage[]): (DecryptedMessage | null)[] {
+    return messages.map(decodeApiMessage);
+}
+
+function encodeApiRecord(content: RawRecord): string {
+    return JSON.stringify(content);
+}
+
 export type AttachmentRef = {
     remotePath: string;
     name: string;
@@ -119,14 +146,11 @@ const OLDER_MESSAGES_PAGE_SIZE = 80;
 
 class Sync {
     private static readonly BACKGROUND_SEND_TIMEOUT_MS = 30_000;
-    encryption!: Encryption;
     serverID!: string;
     anonID!: string;
     private credentials!: AuthCredentials;
     private credentialsList: AuthCredentials[] = [];
     private credentialsByMachineId = new Map<string, AuthCredentials>();
-    private encryptionsByMachineId = new Map<string, Encryption>();
-    public encryptionCache = new EncryptionCache();
     private sessionsSync: InvalidateSync;
     private messagesSync = new Map<string, InvalidateSync>();
     private sendSync = new Map<string, InvalidateSync>();
@@ -135,15 +159,11 @@ class Sync {
     private pendingOutbox = new Map<string, OutboxMessage[]>();
     private sessionMessageQueue = new Map<string, NormalizedMessage[]>();
     private sessionQueueProcessing = new Set<string>();
-    // Queue of raw `new-message` socket events that arrived for a session whose
-    // encryption keys are not yet loaded. Drained after `sessionsSync` lands.
+    // Queue of raw `new-message` socket events that arrived before the session row loaded.
     private pendingNewMessages = new Map<string, unknown[]>();
     private sessionInitInFlight = new Set<string>();
     private deferredSwitchRequests = new Set<string>();
     private sessionMessageLocks = new Map<string, AsyncLock>();
-    private sessionDataKeys = new Map<string, Uint8Array>(); // Store session data encryption keys internally
-    private machineDataKeys = new Map<string, Uint8Array>(); // Store machine data encryption keys internally
-    private artifactDataKeys = new Map<string, Uint8Array>(); // Store artifact data encryption keys internally
     private settingsSync: InvalidateSync;
     private profileSync: InvalidateSync;
     private purchasesSync: InvalidateSync;
@@ -168,8 +188,7 @@ class Sync {
     // US-006: streaming-pagination prefetch manager. Owns the per-session
     // generation counter for socket-pushed older-page fetches. Wired here
     // (not at module scope) so the constructor can supply the per-session
-    // AsyncLock closure and an encryption adapter that pulls fresh per-session
-    // encryption out of `this.encryption` at decrypt time.
+    // AsyncLock closure and plaintext adapter for session range prefetches.
     private prefetchManager: PrefetchManager;
     // US-006: only `onActiveSessionChanged` writes this. Used to short-circuit
     // re-entries with the same active session id and to know which previous
@@ -203,18 +222,10 @@ class Sync {
 
         // US-006: instantiate the per-session prefetch manager. The lock
         // closure routes the in-lock commit through the same per-session
-        // AsyncLock that serializes loadOlder() and the live new-message
-        // queue. The encryption adapter pulls per-session encryption fresh
-        // from `this.encryption` so manager-issued requests during a session
-        // switch use the right key set.
-        const prefetchEncryptionAdapter: PrefetchManagerEncryptionAdapter = {
-            decryptMessages: async (sessionId, messages) => {
-                const encryption = this.getEncryptionForSession(sessionId)?.getSessionEncryption(sessionId);
-                if (!encryption) {
-                    throw new Error(`Session encryption not ready for ${sessionId}`);
-                }
-                const decrypted = await encryption.decryptMessages(messages);
-                return decrypted as (DecryptedMessage | null)[];
+        // AsyncLock that serializes loadOlder() and the live new-message queue.
+        const prefetchMessageAdapter: PrefetchManagerMessageAdapter = {
+            decodeMessages: async (sessionId, messages) => {
+                return decodeApiMessages(messages);
             },
         };
         const prefetchTransport: PrefetchManagerTransport = {
@@ -230,7 +241,7 @@ class Sync {
                 applyPrefetchedRange: (sid, msgs, params) => storage.getState().applyPrefetchedRange(sid, msgs, params),
                 clearActivePrefetch: (sid, requestId) => storage.getState().clearActivePrefetch(sid, requestId),
             },
-            encryption: prefetchEncryptionAdapter,
+            messages: prefetchMessageAdapter,
             transport: prefetchTransport,
             runInSessionLock: prefetchRunInSessionLock,
         });
@@ -268,17 +279,14 @@ class Sync {
         });
     }
 
-    private configureMachines(credentialsList: AuthCredentials[], encryptionsByMachineId: Map<string, Encryption>) {
+    private configureMachines(credentialsList: AuthCredentials[]) {
         this.credentialsList = credentialsList;
         this.credentialsByMachineId = new Map(credentialsList.map(credentials => [credentials.machineId, credentials]));
-        this.encryptionsByMachineId = encryptionsByMachineId;
         this.credentials = credentialsList[0];
-        const primaryEncryption = this.credentials ? encryptionsByMachineId.get(this.credentials.machineId) : null;
-        if (!this.credentials || !primaryEncryption) {
+        if (!this.credentials) {
             throw new Error('No machine credentials configured');
         }
-        this.encryption = primaryEncryption;
-        this.anonID = primaryEncryption.anonID;
+        this.anonID = this.credentials.machineId;
         this.serverID = this.credentials.machineId;
     }
 
@@ -286,16 +294,8 @@ class Sync {
         return this.credentialsByMachineId.get(machineId) ?? null;
     }
 
-    private getEncryptionForMachine(machineId: string): Encryption | null {
-        return this.encryptionsByMachineId.get(machineId) ?? (this.credentials?.machineId === machineId ? this.encryption : null) ?? null;
-    }
-
     private resolveSessionRef(sessionId: string) {
         return parseCompositeSessionId(sessionId, this.credentials?.machineId ?? '');
-    }
-
-    private getEncryptionForSession(sessionId: string): Encryption | null {
-        return this.getEncryptionForMachine(this.resolveSessionRef(sessionId).machineId) ?? this.encryption ?? null;
     }
 
     private toCompositeSession(machineId: string, session: Omit<Session, 'presence' | 'permissionModeUserChosen'> & {
@@ -310,8 +310,8 @@ class Sync {
         };
     }
 
-    async create(credentials: AuthCredentials, encryption: Encryption) {
-        this.configureMachines([credentials], new Map([[credentials.machineId, encryption]]));
+    async create(credentials: AuthCredentials) {
+        this.configureMachines([credentials]);
         await this.#init();
 
         // Await settings sync to have fresh settings
@@ -324,23 +324,23 @@ class Sync {
         await this.purchasesSync.awaitQueue();
     }
 
-    async restore(credentials: AuthCredentials, encryption: Encryption) {
+    async restore(credentials: AuthCredentials) {
         // NOTE: No awaiting anything here, we're restoring from a disk (ie app restarted)
         // Purchases sync is invalidated in #init() and will complete asynchronously
-        this.configureMachines([credentials], new Map([[credentials.machineId, encryption]]));
+        this.configureMachines([credentials]);
         await this.#init();
     }
 
-    async createMany(credentialsList: AuthCredentials[], encryptionsByMachineId: Map<string, Encryption>) {
-        this.configureMachines(credentialsList, encryptionsByMachineId);
+    async createMany(credentialsList: AuthCredentials[]) {
+        this.configureMachines(credentialsList);
         await this.#init();
         await this.settingsSync.awaitQueue();
         await this.profileSync.awaitQueue();
         await this.purchasesSync.awaitQueue();
     }
 
-    async restoreMany(credentialsList: AuthCredentials[], encryptionsByMachineId: Map<string, Encryption>) {
-        this.configureMachines(credentialsList, encryptionsByMachineId);
+    async restoreMany(credentialsList: AuthCredentials[]) {
+        this.configureMachines(credentialsList);
         await this.#init();
     }
 
@@ -374,9 +374,7 @@ class Sync {
         this.feedSync.invalidate();
         log.log('🔄 #init: All syncs invalidated, including artifacts');
 
-        // Mark UI ready as soon as sessions load. Machines sync may hang
-        // when encryption keys are unavailable (e.g. V1 auth fallback) —
-        // let it resolve in the background instead of blocking the UI.
+        // Mark UI ready as soon as sessions load.
         this.sessionsSync.awaitQueue().then(() => {
             storage.getState().applyReady();
         }).catch((error) => {
@@ -393,11 +391,6 @@ class Sync {
         // Also invalidate git status sync for this session
         gitStatusSync.getSync(sessionId).invalidate();
 
-        // Notify voice assistant about session visibility
-        const session = storage.getState().sessions[sessionId];
-        if (session) {
-            voiceHooks.onSessionFocus(sessionId, session.metadata || undefined);
-        }
     }
 
     /**
@@ -560,11 +553,6 @@ class Sync {
                     return;
                 }
 
-                const encryption = this.getEncryptionForSession(sessionId)?.getSessionEncryption(sessionId);
-                if (!encryption) {
-                    throw new Error(`Session encryption not ready for ${sessionId}`);
-                }
-
                 const pagination = computeOlderPageAfterSeq(
                     current.oldestLoadedSeq,
                     OLDER_MESSAGES_PAGE_SIZE
@@ -589,7 +577,7 @@ class Sync {
 
                 const data = await response.json() as V3GetSessionMessagesResponse;
                 const messages = Array.isArray(data.messages) ? data.messages : [];
-                const decryptedMessages = await encryption.decryptMessages(messages);
+                const decryptedMessages = decodeApiMessages(messages);
                 const normalizedMessages: NormalizedMessage[] = [];
 
                 for (let i = 0; i < decryptedMessages.length; i++) {
@@ -830,17 +818,6 @@ class Sync {
         const switchMode = options?.switchMode ?? 'now';
         const isWhenIdle = switchMode === 'when-idle';
 
-        // Get encryption
-        const encryption = this.getEncryptionForSession(sessionId)?.getSessionEncryption(sessionId);
-        if (!encryption) { // Should never happen
-            console.error(`Session ${sessionId} not found`);
-            if (isWhenIdle) {
-                Modal.alert(t('common.error'), t('errors.sendFailed'));
-                throw new Error(`Session ${sessionId} not found`);
-            }
-            return;
-        }
-
         // Get session data from storage
         const session = storage.getState().sessions[sessionId];
         if (!session) {
@@ -919,11 +896,6 @@ class Sync {
             tagDeferredSwitch: boolean;
         }
     ) {
-        const encryption = this.getEncryptionForSession(sessionId)?.getSessionEncryption(sessionId);
-        if (!encryption) {
-            throw new Error(`Session ${sessionId} not found`);
-        }
-
         const localId = options.localId ?? generateLocalMessageId();
 
         // Determine sentFrom based on platform
@@ -964,7 +936,7 @@ class Sync {
                 ...(options.displayText && { displayText: options.displayText }) // Add displayText if provided
             }
         };
-        const encryptedRawRecord = await encryption.encryptRawRecord(content);
+        const rawRecord = encodeApiRecord(content);
 
         // Add to messages - normalize the raw record
         const createdAt = Date.now();
@@ -980,7 +952,7 @@ class Sync {
         }
         pending.push({
             localId,
-            content: encryptedRawRecord
+            content: rawRecord
         });
         trackMessageSent(options.source, session.metadata);
 
@@ -1122,15 +1094,15 @@ class Sync {
 
     async assumeUsers(userIds: string[]): Promise<void> {
         if (!this.credentials || userIds.length === 0) return;
-        
+
         const state = storage.getState();
         // Filter out users we already have in cache (including null for 404s)
         const missingIds = userIds.filter(id => !(id in state.users));
-        
+
         if (missingIds.length === 0) return;
-        
+
         log.log(`👤 Fetching ${missingIds.length} missing users...`);
-        
+
         // Fetch missing users in parallel
         const results = await Promise.all(
             missingIds.map(async (id) => {
@@ -1143,13 +1115,13 @@ class Sync {
                 }
             })
         );
-        
+
         // Convert to Record<string, UserProfile | null>
         const usersMap: Record<string, UserProfile | null> = {};
         results.forEach(({ id, profile }) => {
             usersMap[id] = profile;
         });
-        
+
         storage.getState().applyUsers(usersMap);
         log.log(`👤 Applied ${results.length} users to cache (${results.filter(r => r.profile).length} found, ${results.filter(r => !r.profile).length} not found)`);
     }
@@ -1167,10 +1139,6 @@ class Sync {
         })[] = [];
 
         await Promise.all(this.credentialsList.map(async (credentials) => {
-            const encryption = this.getEncryptionForMachine(credentials.machineId);
-            if (!encryption) {
-                return;
-            }
             let response: Response;
             try {
                 response = await tunnelFetch(`${credentials.tunnelUrl}/v1/sessions`, credentials, {
@@ -1200,7 +1168,6 @@ class Sync {
                 metadataVersion: number;
                 agentState: string | null;
                 agentStateVersion: number;
-                dataEncryptionKey: string | null;
                 active: boolean;
                 activeAt: number;
                 createdAt: number;
@@ -1208,32 +1175,9 @@ class Sync {
                 lastMessage: ApiMessage | null;
             }>;
 
-            const sessionKeys = new Map<string, Uint8Array | null>();
             for (const session of sessions) {
-                const compositeId = compositeSessionId(credentials.machineId, session.id);
-                if (session.dataEncryptionKey) {
-                    const decrypted = await encryption.decryptEncryptionKey(session.dataEncryptionKey);
-                    if (!decrypted) {
-                        console.error(`Failed to decrypt data encryption key for session ${compositeId}`);
-                        continue;
-                    }
-                    sessionKeys.set(compositeId, decrypted);
-                } else {
-                    sessionKeys.set(compositeId, null);
-                }
-            }
-            await encryption.initializeSessions(sessionKeys);
-
-            for (const session of sessions) {
-                const compositeId = compositeSessionId(credentials.machineId, session.id);
-                const sessionEncryption = encryption.getSessionEncryption(compositeId);
-                if (!sessionEncryption) {
-                    console.error(`Session encryption not found for ${compositeId} - this should never happen`);
-                    continue;
-                }
-
-                const metadata = await sessionEncryption.decryptMetadata(session.metadataVersion, session.metadata);
-                const agentState = await sessionEncryption.decryptAgentState(session.agentStateVersion, session.agentState);
+                const metadata = parsePlainJson(session.metadata, null);
+                const agentState = parsePlainJson(session.agentState, null);
 
                 decryptedSessions.push(this.toCompositeSession(credentials.machineId, {
                     ...session,
@@ -1278,22 +1222,8 @@ class Sync {
 
             for (const artifact of artifacts) {
                 try {
-                    // Decrypt the data encryption key
-                    const decryptedKey = await this.encryption.decryptEncryptionKey(artifact.dataEncryptionKey);
-                    if (!decryptedKey) {
-                        console.error(`Failed to decrypt key for artifact ${artifact.id}`);
-                        continue;
-                    }
+                    const header = parsePlainJson<{ title: string | null; sessions?: string[]; draft?: boolean } | null>(artifact.header, null);
 
-                    // Store the decrypted key in memory
-                    this.artifactDataKeys.set(artifact.id, decryptedKey);
-
-                    // Create artifact encryption instance
-                    const artifactEncryption = new ArtifactEncryption(decryptedKey);
-
-                    // Decrypt header
-                    const header = await artifactEncryption.decryptHeader(artifact.header);
-                    
                     decryptedArtifacts.push({
                         id: artifact.id,
                         title: header?.title || null,
@@ -1308,8 +1238,7 @@ class Sync {
                         isDecrypted: !!header,
                     });
                 } catch (err) {
-                    console.error(`Failed to decrypt artifact ${artifact.id}:`, err);
-                    // Add with decryption failed flag
+                    console.error(`Failed to parse artifact ${artifact.id}:`, err);
                     decryptedArtifacts.push({
                         id: artifact.id,
                         title: null,
@@ -1339,22 +1268,8 @@ class Sync {
         try {
             const artifact = await fetchArtifact(this.credentials, artifactId);
 
-            // Decrypt the data encryption key
-            const decryptedKey = await this.encryption.decryptEncryptionKey(artifact.dataEncryptionKey);
-            if (!decryptedKey) {
-                console.error(`Failed to decrypt key for artifact ${artifactId}`);
-                return null;
-            }
-
-            // Store the decrypted key in memory
-            this.artifactDataKeys.set(artifact.id, decryptedKey);
-
-            // Create artifact encryption instance
-            const artifactEncryption = new ArtifactEncryption(decryptedKey);
-
-            // Decrypt header and body
-            const header = await artifactEncryption.decryptHeader(artifact.header);
-            const body = artifact.body ? await artifactEncryption.decryptBody(artifact.body) : null;
+            const header = parsePlainJson<{ title: string | null; sessions?: string[]; draft?: boolean } | null>(artifact.header, null);
+            const body = artifact.body ? parsePlainJson<{ body: string | null } | null>(artifact.body, null) : null;
 
             return {
                 id: artifact.id,
@@ -1376,7 +1291,7 @@ class Sync {
     }
 
     public async createArtifact(
-        title: string | null, 
+        title: string | null,
         body: string | null,
         sessions?: string[],
         draft?: boolean
@@ -1386,36 +1301,20 @@ class Sync {
         }
 
         try {
-            // Generate unique artifact ID
-            const artifactId = this.encryption.generateId();
+            const artifactId = randomUUID();
+            const header = JSON.stringify({ title, sessions, draft });
+            const artifactBody = JSON.stringify({ body });
 
-            // Generate data encryption key
-            const dataEncryptionKey = ArtifactEncryption.generateDataEncryptionKey();
-            
-            // Store the decrypted key in memory
-            this.artifactDataKeys.set(artifactId, dataEncryptionKey);
-            
-            // Encrypt the data encryption key with user's key
-            const encryptedKey = await this.encryption.encryptEncryptionKey(dataEncryptionKey);
-            
-            // Create artifact encryption instance
-            const artifactEncryption = new ArtifactEncryption(dataEncryptionKey);
-            
-            // Encrypt header and body
-            const encryptedHeader = await artifactEncryption.encryptHeader({ title, sessions, draft });
-            const encryptedBody = await artifactEncryption.encryptBody({ body });
-            
             // Create the request
             const request: ArtifactCreateRequest = {
                 id: artifactId,
-                header: encryptedHeader,
-                body: encryptedBody,
-                dataEncryptionKey: encodeBase64(encryptedKey, 'base64'),
+                header,
+                body: artifactBody,
             };
-            
+
             // Send to server
             const artifact = await createArtifact(this.credentials, request);
-            
+
             // Add to local storage
             const decryptedArtifact: DecryptedArtifact = {
                 id: artifact.id,
@@ -1430,9 +1329,9 @@ class Sync {
                 updatedAt: artifact.updatedAt,
                 isDecrypted: true,
             };
-            
+
             storage.getState().addArtifact(decryptedArtifact);
-            
+
             return artifactId;
         } catch (error) {
             console.error('Failed to create artifact:', error);
@@ -1441,8 +1340,8 @@ class Sync {
     }
 
     public async updateArtifact(
-        artifactId: string, 
-        title: string | null, 
+        artifactId: string,
+        title: string | null,
         body: string | null,
         sessions?: string[],
         draft?: boolean
@@ -1452,58 +1351,39 @@ class Sync {
         }
 
         try {
-            // Get current artifact to get versions and encryption key
             const currentArtifact = storage.getState().artifacts[artifactId];
             if (!currentArtifact) {
                 throw new Error('Artifact not found');
             }
 
-            // Get the data encryption key from memory or fetch it
-            let dataEncryptionKey = this.artifactDataKeys.get(artifactId);
-            
-            // Fetch full artifact if we don't have version info or encryption key
             let headerVersion = currentArtifact.headerVersion;
             let bodyVersion = currentArtifact.bodyVersion;
-            
-            if (headerVersion === undefined || bodyVersion === undefined || !dataEncryptionKey) {
+
+            if (headerVersion === undefined || bodyVersion === undefined) {
                 const fullArtifact = await fetchArtifact(this.credentials, artifactId);
                 headerVersion = fullArtifact.headerVersion;
                 bodyVersion = fullArtifact.bodyVersion;
-                
-                // Decrypt and store the data encryption key if we don't have it
-                if (!dataEncryptionKey) {
-                    const decryptedKey = await this.encryption.decryptEncryptionKey(fullArtifact.dataEncryptionKey);
-                    if (!decryptedKey) {
-                        throw new Error('Failed to decrypt encryption key');
-                    }
-                    this.artifactDataKeys.set(artifactId, decryptedKey);
-                    dataEncryptionKey = decryptedKey;
-                }
             }
-
-            // Create artifact encryption instance
-            const artifactEncryption = new ArtifactEncryption(dataEncryptionKey);
 
             // Prepare update request
             const updateRequest: ArtifactUpdateRequest = {};
-            
+
             // Check if header needs updating (title, sessions, or draft changed)
-            if (title !== currentArtifact.title || 
+            if (title !== currentArtifact.title ||
                 JSON.stringify(sessions) !== JSON.stringify(currentArtifact.sessions) ||
                 draft !== currentArtifact.draft) {
-                const encryptedHeader = await artifactEncryption.encryptHeader({ 
-                    title, 
-                    sessions, 
-                    draft 
+                const nextHeader = JSON.stringify({
+                    title,
+                    sessions,
+                    draft
                 });
-                updateRequest.header = encryptedHeader;
+                updateRequest.header = nextHeader;
                 updateRequest.expectedHeaderVersion = headerVersion;
             }
 
             // Only update body if it changed
             if (body !== currentArtifact.body) {
-                const encryptedBody = await artifactEncryption.encryptBody({ body });
-                updateRequest.body = encryptedBody;
+                updateRequest.body = JSON.stringify({ body });
                 updateRequest.expectedBodyVersion = bodyVersion;
             }
 
@@ -1514,7 +1394,7 @@ class Sync {
 
             // Send update to server
             const response = await updateArtifact(this.credentials, artifactId, updateRequest);
-            
+
             if (!response.success) {
                 // Handle version mismatch
                 if (response.error === 'version-mismatch') {
@@ -1534,7 +1414,7 @@ class Sync {
                 bodyVersion: response.bodyVersion !== undefined ? response.bodyVersion : bodyVersion,
                 updatedAt: Date.now(),
             };
-            
+
             storage.getState().updateArtifact(updatedArtifact);
         } catch (error) {
             console.error('Failed to update artifact:', error);
@@ -1598,7 +1478,7 @@ class Sync {
 
     private fetchFriends = async () => {
         if (!this.credentials) return;
-        
+
         try {
             log.log('👥 Fetching friends list...');
             const friendsList = await getFriendsList(this.credentials);
@@ -1624,37 +1504,37 @@ class Sync {
             const state = storage.getState();
             const existingItems = state.feedItems;
             const head = state.feedHead;
-            
+
             // Load feed items - if we have a head, load newer items
             let allItems: FeedItem[] = [];
             let hasMore = true;
             let cursor = head ? { after: head } : undefined;
             let loadedCount = 0;
             const maxItems = 500;
-            
+
             // Keep loading until we reach known items or hit max limit
             while (hasMore && loadedCount < maxItems) {
                 const response = await fetchFeed(this.credentials, {
                     limit: 100,
                     ...cursor
                 });
-                
+
                 // Check if we reached known items
-                const foundKnown = response.items.some(item => 
+                const foundKnown = response.items.some(item =>
                     existingItems.some(existing => existing.id === item.id)
                 );
-                
+
                 allItems.push(...response.items);
                 loadedCount += response.items.length;
                 hasMore = response.hasMore && !foundKnown;
-                
+
                 // Update cursor for next page
                 if (response.items.length > 0) {
                     const lastItem = response.items[response.items.length - 1];
                     cursor = { after: lastItem.cursor };
                 }
             }
-            
+
             // If this is initial load (no head), also load older items
             if (!head && allItems.length < 100) {
                 const response = await fetchFeed(this.credentials, {
@@ -1662,7 +1542,7 @@ class Sync {
                 });
                 allItems.push(...response.items);
             }
-            
+
             // Collect user IDs from friend-related feed items
             const userIds = new Set<string>();
             allItems.forEach(item => {
@@ -1670,28 +1550,28 @@ class Sync {
                     userIds.add(item.body.uid);
                 }
             });
-            
+
             // Fetch missing users
             if (userIds.size > 0) {
                 await this.assumeUsers(Array.from(userIds));
             }
-            
+
             // Filter out items where user is not found (404)
             const users = storage.getState().users;
             const compatibleItems = allItems.filter(item => {
                 // Keep text items
                 if (item.body.kind === 'text') return true;
-                
+
                 // For friend-related items, check if user exists and is not null (404)
                 if (item.body.kind === 'friend_request' || item.body.kind === 'friend_accepted') {
                     const userProfile = users[item.body.uid];
                     // Keep item only if user exists and is not null
                     return userProfile !== null && userProfile !== undefined;
                 }
-                
+
                 return true;
             });
-            
+
             // Apply only compatible items to storage
             storage.getState().applyFeedItems(compatibleItems);
             log.log(`📰 fetchFeed completed - loaded ${compatibleItems.length} compatible items (${allItems.length - compatibleItems.length} filtered)`);
@@ -1961,12 +1841,6 @@ class Sync {
         log.log(`💬 fetchMessages starting for session ${sessionId} - acquiring lock`);
         const lock = this.getSessionMessageLock(sessionId);
         await lock.inLock(async () => {
-            const encryption = this.getEncryptionForSession(sessionId)?.getSessionEncryption(sessionId);
-            if (!encryption) {
-                log.log(`💬 fetchMessages: Session encryption not ready for ${sessionId}, will retry`);
-                throw new Error(`Session encryption not ready for ${sessionId}`);
-            }
-
             const isColdStart = !this.sessionLastSeq.has(sessionId);
             let afterSeq = this.sessionLastSeq.get(sessionId) ?? 0;
             let hasOlder = false;
@@ -2004,7 +1878,7 @@ class Sync {
                     }
                 }
 
-                const decryptedMessages = await encryption.decryptMessages(messages);
+                const decryptedMessages = decodeApiMessages(messages);
                 const normalizedMessages: NormalizedMessage[] = [];
                 for (let i = 0; i < decryptedMessages.length; i++) {
                     const decrypted = decryptedMessages[i];
@@ -2115,19 +1989,12 @@ class Sync {
 
         if (updateData.body.t === 'new-message') {
 
-            // Get encryption
             const sid = sourceMachineId ? compositeSessionId(sourceMachineId, updateData.body.sid) : updateData.body.sid;
-            const encryption = this.getEncryptionForSession(sid)?.getSessionEncryption(sid);
-            if (!encryption) {
+            if (!storage.getState().sessions[sid]) {
                 if (isReplay) {
-                    // We just awaited sessionsSync and encryption is still missing.
-                    // Don't requeue (would loop) — drop with an error.
-                    console.error(`Session ${sid} encryption still missing after sessions refetch; dropping new-message event`);
+                    console.error(`Session ${sid} still missing after sessions refetch; dropping new-message event`);
                     return;
                 }
-                // Race: `new-session` lands before `sessionsSync` finishes loading the
-                // session row + encryption keys, but a `new-message` event for that
-                // session has already arrived. Queue it and replay after init.
                 const queue = this.pendingNewMessages.get(sid) ?? [];
                 queue.push(update);
                 this.pendingNewMessages.set(sid, queue);
@@ -2145,10 +2012,9 @@ class Sync {
                 return;
             }
 
-            // Decrypt message
             let lastMessage: NormalizedMessage | null = null;
             if (updateData.body.message) {
-                const decrypted = await encryption.decryptMessage(updateData.body.message);
+                const decrypted = decodeApiMessage(updateData.body.message);
                 if (decrypted) {
                     lastMessage = normalizeRawMessage(decrypted.id, decrypted.localId, decrypted.createdAt, decrypted.seq, decrypted.content);
 
@@ -2208,9 +2074,6 @@ class Sync {
             // Remove session from storage
             storage.getState().deleteSession(sessionId);
 
-            // Remove encryption keys from memory
-            this.getEncryptionForSession(sessionId)?.removeSessionEncryption(sessionId);
-
             // Remove from project manager
             projectManager.removeSession(sessionId);
 
@@ -2240,18 +2103,11 @@ class Sync {
             const sessionId = sourceMachineId ? compositeSessionId(sourceMachineId, updateData.body.id) : updateData.body.id;
             const session = storage.getState().sessions[sessionId];
             if (session) {
-                // Get session encryption
-                const sessionEncryption = this.getEncryptionForSession(sessionId)?.getSessionEncryption(sessionId);
-                if (!sessionEncryption) {
-                    console.error(`Session encryption not found for ${sessionId} - this should never happen`);
-                    return;
-                }
-
-                const agentState = updateData.body.agentState && sessionEncryption
-                    ? await sessionEncryption.decryptAgentState(updateData.body.agentState.version, updateData.body.agentState.value)
+                const agentState = updateData.body.agentState
+                    ? parsePlainJson(updateData.body.agentState.value, null)
                     : session.agentState;
-                const metadata = updateData.body.metadata && sessionEncryption
-                    ? await sessionEncryption.decryptMetadata(updateData.body.metadata.version, updateData.body.metadata.value)
+                const metadata = updateData.body.metadata
+                    ? parsePlainJson(updateData.body.metadata.value, null)
                     : session.metadata;
                 const metadataPathChanged = updateData.body.metadata
                     ? metadata?.path !== session.metadata?.path
@@ -2279,14 +2135,6 @@ class Sync {
                 }
 
                 if (updateData.body.agentState) {
-                    // Check for new permission requests and notify voice assistant
-                    if (agentState?.requests && Object.keys(agentState.requests).length > 0) {
-                        const requestIds = Object.keys(agentState.requests);
-                        const firstRequest = agentState.requests[requestIds[0]];
-                        const toolName = firstRequest?.tool;
-                        voiceHooks.onPermissionRequested(sessionId, requestIds[0], toolName, firstRequest?.arguments);
-                    }
-
                     // Re-fetch messages when control returns to mobile (local -> remote mode switch)
                     // This catches up on any messages that were exchanged while desktop had control
                     const wasControlledByUser = session.agentState?.controlledByUser;
@@ -2322,8 +2170,7 @@ class Sync {
             // Handle settings updates (new for profile sync)
             if (accountUpdate.settings?.value) {
                 try {
-                    const decryptedSettings = await this.encryption.decryptRaw(accountUpdate.settings.value);
-                    const parsedSettings = settingsParse(decryptedSettings);
+                    const parsedSettings = settingsParse(parsePlainJson(accountUpdate.settings.value, {}));
 
                     // Version compatibility check
                     const settingsSchemaVersion = parsedSettings.schemaVersion ?? 1;
@@ -2360,35 +2207,25 @@ class Sync {
                 daemonStateVersion: machine?.daemonStateVersion ?? 0
             };
 
-            // Get machine-specific encryption (might not exist if machine wasn't initialized)
-            const machineEncryption = this.getEncryptionForMachine(machineId)?.getMachineEncryption(machineId)
-                ?? (sourceMachineId ? this.getEncryptionForMachine(sourceMachineId)?.getMachineEncryption(machineId) : null);
-            if (!machineEncryption) {
-                console.error(`Machine encryption not found for ${machineId} - cannot decrypt updates`);
-                return;
-            }
-
-            // If metadata is provided, decrypt and update it
             const metadataUpdate = machineUpdate.metadata;
             if (metadataUpdate) {
                 try {
-                    const metadata = await machineEncryption.decryptMetadata(metadataUpdate.version, metadataUpdate.value);
+                    const metadata = parsePlainJson(metadataUpdate.value, null);
                     updatedMachine.metadata = metadata;
                     updatedMachine.metadataVersion = metadataUpdate.version;
                 } catch (error) {
-                    console.error(`Failed to decrypt machine metadata for ${machineId}:`, error);
+                    console.error(`Failed to parse machine metadata for ${machineId}:`, error);
                 }
             }
 
-            // If daemonState is provided, decrypt and update it
             const daemonStateUpdate = machineUpdate.daemonState;
             if (daemonStateUpdate) {
                 try {
-                    const daemonState = await machineEncryption.decryptDaemonState(daemonStateUpdate.version, daemonStateUpdate.value);
+                    const daemonState = parsePlainJson(daemonStateUpdate.value, null);
                     updatedMachine.daemonState = daemonState;
                     updatedMachine.daemonStateVersion = daemonStateUpdate.version;
                 } catch (error) {
-                    console.error(`Failed to decrypt machine daemonState for ${machineId}:`, error);
+                    console.error(`Failed to parse machine daemonState for ${machineId}:`, error);
                 }
             }
 
@@ -2401,13 +2238,11 @@ class Sync {
                 log.log(`Machine ${machineId} not in storage, skipping delete`);
             } else {
                 storage.getState().deleteMachine(machineId);
-                this.getEncryptionForMachine(machineId)?.removeMachineEncryption(machineId);
-                this.machineDataKeys.delete(machineId);
             }
         } else if (updateData.body.t === 'relationship-updated') {
             log.log('👥 Received relationship-updated update');
             const relationshipUpdate = updateData.body;
-            
+
             // Apply the relationship update to storage
             storage.getState().applyRelationshipUpdate({
                 fromUserId: relationshipUpdate.fromUserId,
@@ -2418,7 +2253,7 @@ class Sync {
                 toUser: relationshipUpdate.toUser,
                 timestamp: relationshipUpdate.timestamp
             });
-            
+
             // Invalidate friends data to refresh with latest changes
             this.friendsSync.invalidate();
             this.friendRequestsSync.invalidate();
@@ -2427,31 +2262,15 @@ class Sync {
             log.log('📦 Received new-artifact update');
             const artifactUpdate = updateData.body;
             const artifactId = artifactUpdate.artifactId;
-            
+
             try {
-                // Decrypt the data encryption key
-                const decryptedKey = await this.encryption.decryptEncryptionKey(artifactUpdate.dataEncryptionKey);
-                if (!decryptedKey) {
-                    console.error(`Failed to decrypt key for new artifact ${artifactId}`);
-                    return;
-                }
-                
-                // Store the decrypted key in memory
-                this.artifactDataKeys.set(artifactId, decryptedKey);
-                
-                // Create artifact encryption instance
-                const artifactEncryption = new ArtifactEncryption(decryptedKey);
-                
-                // Decrypt header
-                const header = await artifactEncryption.decryptHeader(artifactUpdate.header);
-                
-                // Decrypt body if provided
+                const header = parsePlainJson<{ title: string | null; sessions?: string[]; draft?: boolean } | null>(artifactUpdate.header, null);
                 let decryptedBody: string | null | undefined = undefined;
                 if (artifactUpdate.body && artifactUpdate.bodyVersion !== undefined) {
-                    const body = await artifactEncryption.decryptBody(artifactUpdate.body);
+                    const body = parsePlainJson<{ body: string | null } | null>(artifactUpdate.body, null);
                     decryptedBody = body?.body || null;
                 }
-                
+
                 // Add to storage
                 const decryptedArtifact: DecryptedArtifact = {
                     id: artifactId,
@@ -2464,7 +2283,7 @@ class Sync {
                     updatedAt: artifactUpdate.updatedAt,
                     isDecrypted: !!header,
                 };
-                
+
                 storage.getState().addArtifact(decryptedArtifact);
                 log.log(`📦 Added new artifact ${artifactId} to storage`);
             } catch (error) {
@@ -2474,7 +2293,7 @@ class Sync {
             log.log('📦 Received update-artifact update');
             const artifactUpdate = updateData.body;
             const artifactId = artifactUpdate.artifactId;
-            
+
             // Get existing artifact
             const existingArtifact = storage.getState().artifacts[artifactId];
             if (!existingArtifact) {
@@ -2483,42 +2302,29 @@ class Sync {
                 this.artifactsSync.invalidate();
                 return;
             }
-            
+
             try {
-                // Get the data encryption key from memory
-                let dataEncryptionKey = this.artifactDataKeys.get(artifactId);
-                if (!dataEncryptionKey) {
-                    console.error(`Encryption key not found for artifact ${artifactId}, fetching artifacts`);
-                    this.artifactsSync.invalidate();
-                    return;
-                }
-                
-                // Create artifact encryption instance
-                const artifactEncryption = new ArtifactEncryption(dataEncryptionKey);
-                
-                // Update artifact with new data  
+                // Update artifact with new data
                 const updatedArtifact: DecryptedArtifact = {
                     ...existingArtifact,
                     seq: updateData.seq,
                     updatedAt: updateData.createdAt,
                 };
-                
-                // Decrypt and update header if provided
+
                 if (artifactUpdate.header) {
-                    const header = await artifactEncryption.decryptHeader(artifactUpdate.header.value);
+                    const header = parsePlainJson<{ title: string | null; sessions?: string[]; draft?: boolean } | null>(artifactUpdate.header.value, null);
                     updatedArtifact.title = header?.title || null;
                     updatedArtifact.sessions = header?.sessions;
                     updatedArtifact.draft = header?.draft;
                     updatedArtifact.headerVersion = artifactUpdate.header.version;
                 }
-                
-                // Decrypt and update body if provided
+
                 if (artifactUpdate.body) {
-                    const body = await artifactEncryption.decryptBody(artifactUpdate.body.value);
+                    const body = parsePlainJson<{ body: string | null } | null>(artifactUpdate.body.value, null);
                     updatedArtifact.body = body?.body || null;
                     updatedArtifact.bodyVersion = artifactUpdate.body.version;
                 }
-                
+
                 storage.getState().updateArtifact(updatedArtifact);
                 log.log(`📦 Updated artifact ${artifactId} in storage`);
             } catch (error) {
@@ -2528,16 +2334,14 @@ class Sync {
             log.log('📦 Received delete-artifact update');
             const artifactUpdate = updateData.body;
             const artifactId = artifactUpdate.artifactId;
-            
+
             // Remove from storage
             storage.getState().deleteArtifact(artifactId);
-            
-            // Remove encryption key from memory
-            this.artifactDataKeys.delete(artifactId);
+
         } else if (updateData.body.t === 'new-feed-post') {
             log.log('📰 Received new-feed-post update');
             const feedUpdate = updateData.body;
-            
+
             // Convert to FeedItem with counter from cursor
             const feedItem: FeedItem = {
                 id: feedUpdate.id,
@@ -2547,11 +2351,11 @@ class Sync {
                 repeatKey: feedUpdate.repeatKey,
                 counter: parseInt(feedUpdate.cursor.substring(2), 10)
             };
-            
+
             // Check if we need to fetch user for friend-related items
             if (feedItem.body && (feedItem.body.kind === 'friend_request' || feedItem.body.kind === 'friend_accepted')) {
                 await this.assumeUsers([feedItem.body.uid]);
-                
+
                 // Check if user fetch failed (404) - don't store item if user not found
                 const users = storage.getState().users;
                 const userProfile = users[feedItem.body.uid];
@@ -2561,7 +2365,7 @@ class Sync {
                     return;
                 }
             }
-            
+
             // Apply to storage (will handle repeatKey replacement)
             storage.getState().applyFeedItems([feedItem]);
         }
@@ -2634,44 +2438,13 @@ class Sync {
 
     private applyMessages = (sessionId: string, messages: NormalizedMessage[]) => {
         const result = storage.getState().applyMessages(sessionId, messages);
-        let m: Message[] = [];
-        for (let messageId of result.changed) {
-            const message = storage.getState().sessionMessages[sessionId].messagesMap[messageId];
-            if (message) {
-                m.push(message);
-            }
-        }
-        if (m.length > 0) {
-            voiceHooks.onMessages(sessionId, m);
-        }
-        if (result.hasReadyEvent) {
-            voiceHooks.onReady(sessionId);
-        }
     }
 
     private applySessions = (sessions: (Omit<Session, "presence" | "permissionModeUserChosen"> & {
         presence?: "online" | number;
         permissionModeUserChosen?: boolean;
     })[]) => {
-        const active = storage.getState().getActiveSessions();
         storage.getState().applySessions(sessions);
-        const newActive = storage.getState().getActiveSessions();
-        this.applySessionDiff(active, newActive);
-    }
-
-    private applySessionDiff = (active: Session[], newActive: Session[]) => {
-        let wasActive = new Set(active.map(s => s.id));
-        let isActive = new Set(newActive.map(s => s.id));
-        for (let s of active) {
-            if (!isActive.has(s.id)) {
-                voiceHooks.onSessionOffline(s.id, s.metadata ?? undefined);
-            }
-        }
-        for (let s of newActive) {
-            if (!wasActive.has(s.id)) {
-                voiceHooks.onSessionOnline(s.id, s.metadata ?? undefined);
-            }
-        }
     }
 
     generateLocalMessageId = () => generateLocalMessageId();
@@ -2717,15 +2490,7 @@ export async function syncAppendMachine(credentials: AuthCredentials): Promise<v
     if (!saved) {
         throw new Error('Failed to save machine credentials');
     }
-    const sessionKey = decodeBase64(credentials.sessionKey, 'base64url');
-    if (sessionKey.length !== 32) {
-        throw new Error(`Invalid session key length for ${credentials.machineId}: ${sessionKey.length}, expected 32`);
-    }
-    const encryption = await Encryption.create(sessionKey);
-    await apiSocket.appendMachine({
-        config: { endpoint: credentials.tunnelUrl, credentials },
-        encryption,
-    });
+    await apiSocket.appendMachine({ endpoint: credentials.tunnelUrl, credentials });
     storage.getState().applyMachines([{
         id: credentials.machineId,
         seq: Date.now(),
@@ -2750,25 +2515,13 @@ async function syncInit(credentials: AuthCredentials, restore: boolean) {
     const rawList = storedCredentials.length > 0 ? storedCredentials : [credentials];
 
     const credentialsList = rawList;
-    const encryptionsByMachineId = new Map<string, Encryption>();
-    const socketConfigs: Array<{ config: { endpoint: string; credentials: AuthCredentials }; encryption: Encryption }> = [];
-
-    for (const machineCredentials of credentialsList) {
-        const sessionKey = decodeBase64(machineCredentials.sessionKey, 'base64url');
-        if (sessionKey.length !== 32) {
-            throw new Error(`Invalid session key length for ${machineCredentials.machineId}: ${sessionKey.length}, expected 32`);
-        }
-        const encryption = await Encryption.create(sessionKey);
-        encryptionsByMachineId.set(machineCredentials.machineId, encryption);
-        socketConfigs.push({
-            config: { endpoint: machineCredentials.tunnelUrl, credentials: machineCredentials },
-            encryption,
-        });
-    }
+    const socketConfigs = credentialsList.map(machineCredentials => ({
+        endpoint: machineCredentials.tunnelUrl,
+        credentials: machineCredentials,
+    }));
 
     // Initialize tracking
-    const primaryEncryption = encryptionsByMachineId.get(credentialsList[0].machineId)!;
-    initializeTracking(primaryEncryption.anonID);
+    initializeTracking(credentialsList[0].machineId);
 
     // Initialize socket connection
     await apiSocket.initializeMany(socketConfigs);
@@ -2780,8 +2533,8 @@ async function syncInit(credentials: AuthCredentials, restore: boolean) {
 
     // Initialize sessions engine
     if (restore) {
-        await sync.restoreMany(credentialsList, encryptionsByMachineId);
+        await sync.restoreMany(credentialsList);
     } else {
-        await sync.createMany(credentialsList, encryptionsByMachineId);
+        await sync.createMany(credentialsList);
     }
 }

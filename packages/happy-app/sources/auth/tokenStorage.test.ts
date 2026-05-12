@@ -19,10 +19,7 @@ describe('TokenStorage', () => {
         machineId: 'machine-1',
         tunnelUrl: 'https://machine.example.test',
         tunnelClaim: 'jwt-1',
-        pinnedPubkey: 'ed-pubkey',
-        sessionKey: 'shared-session-key',
         firstSeenAt: 123,
-        githubToken: 'github-token-1',
         tunnelId: 'tunnel-1',
         login: 'octocat',
         avatarUrl: 'https://avatars.example.test/octocat.png',
@@ -135,9 +132,38 @@ describe('TokenStorage', () => {
         );
     });
 
-    it('detects old-shape records passively without wiping them yet', () => {
-        expect(isOldShape(credentials)).toBe(true);
-        expect(isOldShape({ ...credentials, pinnedPubkey: '', sessionKey: '', tunnelClaim: undefined })).toBe(true);
-        expect(isOldShape({ ...credentials, pinnedPubkey: '', sessionKey: '', tunnelClaim: 'jwt-1' })).toBe(false);
+    it('detects old-shape records', () => {
+        expect(isOldShape({ ...credentials, pinnedPubkey: 'ed-pubkey' })).toBe(true);
+        expect(isOldShape({ ...credentials, sessionKey: 'shared-session-key' })).toBe(true);
+        expect(isOldShape({ ...credentials, tunnelClaim: undefined })).toBe(true);
+        expect(isOldShape(credentials)).toBe(false);
+    });
+
+    it('wipes old-shape records while preserving Dev Tunnels OAuth and rolling primary machine', async () => {
+        const cleanSecond: AuthCredentials = {
+            ...credentials,
+            machineId: 'machine-2',
+            tunnelUrl: 'https://machine-2.example.test',
+            tunnelClaim: 'jwt-2',
+        };
+        const oldPinned = { ...credentials, pinnedPubkey: 'legacy-pubkey' };
+        const oldSession = { ...credentials, machineId: 'machine-3', sessionKey: 'legacy-session' };
+        const missingClaim = { ...credentials, machineId: 'machine-4', tunnelClaim: undefined };
+        secureStore.getItemAsync.mockResolvedValue(JSON.stringify({
+            primaryMachineId: 'machine-1',
+            machines: [oldPinned, cleanSecond, oldSession, missingClaim],
+            devTunnelsAccess: 'oauth-token-5',
+        }));
+
+        await expect(TokenStorage.getCredentialsList()).resolves.toEqual([cleanSecond]);
+
+        expect(secureStore.setItemAsync).toHaveBeenCalledWith(
+            'machine_credentials',
+            JSON.stringify({
+                primaryMachineId: 'machine-2',
+                machines: [cleanSecond],
+                devTunnelsAccess: 'oauth-token-5',
+            })
+        );
     });
 });

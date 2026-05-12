@@ -144,18 +144,6 @@ export default function RootLayout() {
                 }}
             />
             <Stack.Screen
-                name="terminal/connect"
-                options={{
-                    headerTitle: t('navigation.connectTerminal'),
-                }}
-            />
-            <Stack.Screen
-                name="terminal/index"
-                options={{
-                    headerTitle: t('navigation.connectTerminal'),
-                }}
-            />
-            <Stack.Screen
                 name="changelog"
                 options={{
                     headerShown: true,

@@ -175,3 +175,14 @@ remains blocked on R-D18 resolution (path a/b/c). Plan-documented assertions
 in `socketOptions.test.ts` + `pairing.test.ts` (AC-D15 round-15 EXR1-006) and
 `sources/.../*.test.{ts,tsx}` test code remain valid because they exercise
 mocked transports and do not depend on the production tunnel access policy.
+
+## Sprint D US-D4 implementation notes
+
+- Dev-environment credentials use the plaintext tunnel-claim path: set
+  `EXPO_PUBLIC_DEV_DEVICE_CODE`, `EXPO_PUBLIC_DEV_DEVICE_CODE_EXPIRES_AT`,
+  `EXPO_PUBLIC_DEV_TUNNEL_URL`, `EXPO_PUBLIC_DEV_MACHINE_ID`, and any non-empty
+  `EXPO_PUBLIC_DEV_TUNNEL_CLAIM`. The old dev-only `pinnedPubkey` +
+  `sessionKey` injection path is intentionally removed.
+- Sprint A `jti` replay protection is process-local in memory. Tests that
+  compare fresh claims must not restart the server between assertion
+  connections. Durable replay protection remains deferred to Sprint E.

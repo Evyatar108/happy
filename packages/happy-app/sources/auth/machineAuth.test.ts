@@ -15,10 +15,7 @@ const credentials: AuthCredentials = {
     machineId: 'machine-1',
     tunnelUrl: 'https://machine.example.test',
     tunnelClaim: 'stale-claim',
-    pinnedPubkey: 'pub',
-    sessionKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
     firstSeenAt: 1,
-    githubToken: 'github',
     deviceCode: 'device-1',
     deviceCodeExpiresAt: Date.now() + 60_000,
 };

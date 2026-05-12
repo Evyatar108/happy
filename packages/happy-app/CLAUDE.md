@@ -111,27 +111,25 @@ This generates `sources/changelog/changelog.json` which is used by the app.
 - **Unistyles** for cross-platform styling with themes and breakpoints
 - **Expo Router v6** for file-based routing
 - **Socket.io** for real-time WebSocket communication
-- **libsodium** (via `@more-tech/react-native-libsodium`) for end-to-end encryption
-- **LiveKit** for real-time voice communication
+- **Dev Tunnels** plaintext tunnel claims for machine authentication
 
 ### Project Structure
 ```
 sources/
 ├── app/              # Expo Router screens
-├── auth/             # Authentication logic (QR code based)
+├── auth/             # Dev Tunnels OAuth, pairing, and credential storage
 ├── components/       # Reusable UI components
-├── sync/             # Real-time sync engine with encryption
+├── sync/             # Real-time sync engine over tunnel HTTP + Socket.IO
 └── utils/            # Utility functions
 ```
 
 ### Key Architectural Patterns
 
-1. **Authentication Flow**: QR code-based authentication using expo-camera with challenge-response mechanism
-2. **Data Synchronization**: WebSocket-based real-time sync with automatic reconnection and state management
-3. **Encryption**: End-to-end encryption using libsodium for all sensitive data
+1. **Authentication Flow**: GitHub device flow discovers Dev Tunnels machines, then `/pair/start` and `/pair/status` mint tunnel claims.
+2. **Data Synchronization**: HTTP and Socket.IO calls authenticate with fresh plaintext tunnel claims; reconnects create replacement sockets instead of reusing stale claims.
+3. **Credential Storage**: `TokenStorage` stores a nullable primary machine id, per-machine tunnel credentials, and top-level Dev Tunnels OAuth access.
 4. **State Management**: React Context for auth state, custom reducer for sync state
-5. **Real-time Voice**: LiveKit integration for voice communication sessions
-6. **Platform-Specific Code**: Separate implementations for web vs native when needed
+5. **Platform-Specific Code**: Separate implementations for web vs native when needed
 
 ### Development Guidelines
 
@@ -141,7 +139,7 @@ sources/
 - TypeScript strict mode is enabled - ensure all code is properly typed
 - Follow existing component patterns when creating new UI components
 - Real-time sync operations are handled through SyncSocket and SyncSession classes
-- Session metadata writes should go through `sources/sync/ops.ts` `sessionUpdateMetadata(...)`, which encrypts metadata client-side, emits the existing session socket event `update-metadata`, and retries version mismatches locally.
+- Session metadata writes should go through `sources/sync/ops.ts` `sessionUpdateMetadata(...)`, which JSON-encodes metadata, emits the existing session socket event `update-metadata`, and retries version mismatches locally.
 - Active-session model / permission / effort controls live in `sources/components/SessionContextDrawer.tsx`, mounted above the composer by `sources/-session/SessionView.tsx`. The drawer is confirmatory: picker taps call `sources/sync/ops.ts` `sessionEmitAgentConfiguration(...)`, and visible chips read the echoed `metadata.currentModelCode`, `currentPermissionModeCode`, and `currentThoughtLevelCode` values after `update-session` applies.
 - Shared picker UI for model/path-style pickers lives in `sources/components/pickers/` (`PickerContent`, `PathPickerContent`, and `pickerStyles`). Reuse that module instead of copying picker definitions from the new-session screen.
 - Codex session forking uses `sources/app/(app)/session/[id]/fork-composer.tsx`, not the new-session composer. The screen is picker-only, shows a non-removable parent pill, keeps the agent locked to Codex, and calls `machineForkSession(...)` only after optional app-side `createWorktree(...)` succeeds.
@@ -154,7 +152,7 @@ sources/
 - Composer file attachment state should use `sources/hooks/useFileAttachment`; it enforces the 25 MB per-file and 100 MB per-message limits and returns sanitized, deduped, base64-ready attachments.
 - In-chat composer attachment forwarding uses the extended `AgentInput.onSend(switchMode, attachments)` callback; keep upload sequencing in `SessionView` so composer state stays presentational and can clear itself only after the parent send succeeds.
 - Attachment send flows should call `sources/sync/sync.ts` `generateLocalMessageId()` before uploading, write files under `.happy/attachments/<localId>/...`, then call `sync.sendMessage(..., { localId, attachmentRefs, displayText })` so the optimistic message id and remote attachment refs stay deterministic.
-- New-session attachment sends must keep `sync.refreshSessions()` between `machineSpawnNewSession(...)` and any `sessionWriteFile(...)`; the refresh loads encryption keys for the newly-created session before uploads or the initial `sync.sendMessage(...)` run.
+- New-session attachment sends must keep `sync.refreshSessions()` between `machineSpawnNewSession(...)` and any `sessionWriteFile(...)`; the refresh loads the newly-created session before uploads or the initial `sync.sendMessage(...)` run.
 - Manual web e2e scripts live under `scripts/e2e/` and are operator-run only; keep real-remote validation out of CI, drive browser checks through `npx agent-browser`, and write artefacts under `scripts/e2e/artefacts/`.
 - Keep the "Send when idle" gate in `sources/-session/SessionView.tsx`: compute Claude flavor, `getSessionMode(session) === 'local'`, `agentState.turnActive === true`, and no `agentState.pendingSwitch` there, then pass only a boolean to presentational composer components.
 - Active session project/worktree ordering is stored per account in `sessionGroupOrder` as a flat list of `${machineId}::${path}` keys. `sources/components/ActiveSessionsGroupCompact.tsx` owns the web-only drag-handle UI and persists through that setting; keep native behavior free of drag affordances.
@@ -168,7 +166,7 @@ sources/
 - Composer UI that reacts to cross-device context changes should read `useLatestBoundary(sessionId)` and compare `latestBoundary.at` to local compose start time; it must warn without setting `AgentInput.blockSend`.
 - `sources/sync/reducer/messageToEvent.ts` still preserves old-CLI plan-mode synthesis from `EnterPlanMode` tool calls, but suppress it when a typed `plan-mode-enter` boundary is already in the reducer batch or `reducerState.latestBoundary`.
 - ExitPlanMode permission UI is reducer-owned. Claude permission request ids can differ from the `ExitPlanMode`/`exit_plan_mode` tool-call id, so `sources/sync/reducer/reducer.ts` correlates plan-exit permissions by tool name plus input and maps both ids to the same tool message. Do not fix this by editing `ExitPlanToolView.tsx`, `knownTools.tsx`, or `PermissionFooter.tsx`.
-- New-session lifecycle has a recv-side race: `new-session` socket events only invalidate `sessionsSync` (deferred), so `new-message` events for that session can arrive before encryption keys are loaded. The handler at `sources/sync/sync.ts:1864` queues such events in `pendingNewMessages` keyed by sid, awaits `sessionsSync.invalidateAndAwait()`, and replays them with `isReplay=true` to avoid loops. Do not change this to a fire-and-forget `fetchSessions()` again — it silently drops messages.
+- New-session lifecycle has a recv-side race: `new-session` socket events only invalidate `sessionsSync` (deferred), so `new-message` events for that session can arrive before the session row is loaded. The handler in `sources/sync/sync.ts` queues such events in `pendingNewMessages` keyed by sid, awaits `sessionsSync.invalidateAndAwait()`, and replays them with `isReplay=true` to avoid loops. Do not change this to a fire-and-forget `fetchSessions()` again - it silently drops messages.
 - Multi-machine mobile sync stores app-local session ids as `${machineId}:${localSessionId}`. Use `sources/sync/machineSessionId.ts` helpers to build/parse composite ids, and localize ids before calling a single machine's REST or Socket.IO API.
 - Push registration must run once per paired machine. Use the full `TokenStorage.getCredentialsList()`/sync credentials list so every machine receives the current Expo token via its own tunnel.
 - Store all temporary scripts and any test outside of unit tests in sources/trash folder

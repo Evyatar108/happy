@@ -155,8 +155,6 @@ export const en = {
     },
 
     connect: {
-        restoreAccount: 'Restore Account',
-        enterSecretKey: 'Please enter a secret key',
         invalidSecretKey: 'Invalid secret key. Please check and try again.',
         enterUrlManually: 'Enter URL manually',
     },
@@ -182,7 +180,7 @@ export const en = {
         developer: 'Developer',
         developerTools: 'Developer Tools',
         about: 'About',
-        aboutFooter: 'Happy Coder is a Codex and Claude Code mobile client. It\'s fully end-to-end encrypted and your account is stored only on your device. Not affiliated with Anthropic.',
+        aboutFooter: 'Happy Coder is a Codex and Claude Code mobile client that connects through your paired Dev Tunnels machines. Not affiliated with Anthropic.',
         whatsNew: 'What\'s New',
         whatsNewSubtitle: 'See the latest updates and improvements',
         reportIssue: 'Report an Issue',
@@ -192,7 +190,6 @@ export const en = {
         supportUs: 'Support us',
         supportUsSubtitlePro: 'Thank you for your support!',
         supportUsSubtitle: 'Support project development',
-        scanQrCodeToAuthenticate: 'Scan QR code to authenticate',
         githubConnected: ({ login }: { login: string }) => `Connected as @${login}`,
         connectGithubAccount: 'Connect your GitHub account',
         claudeAuthSuccess: 'Successfully connected to Claude',
@@ -788,20 +785,14 @@ export const en = {
         publicId: 'Public ID',
         notAvailable: 'Not available',
         linkNewDevice: 'Link New Device',
-        linkNewDeviceSubtitle: 'Scan QR code to link device',
         profile: 'Profile',
         name: 'Name',
         github: 'GitHub',
         tapToDisconnect: 'Tap to disconnect',
         server: 'Server',
         backup: 'Backup',
-        backupDescription: 'Your secret key is the only way to recover your account. Save it in a secure place like a password manager.',
-        secretKey: 'Secret Key',
         tapToReveal: 'Tap to reveal',
         tapToHide: 'Tap to hide',
-        secretKeyLabel: 'SECRET KEY (TAP TO COPY)',
-        secretKeyCopied: 'Secret key copied to clipboard. Store it in a safe place!',
-        secretKeyCopyFailed: 'Failed to copy secret key',
         privacy: 'Privacy',
         privacyDescription: 'Help improve the app by sharing anonymous usage data. No personal information is collected.',
         analytics: 'Analytics',
@@ -825,11 +816,6 @@ export const en = {
         restartNow: 'Restart Now',
     },
 
-    connectButton: {
-        authenticate: 'Authenticate Terminal',
-        authenticateWithUrlPaste: 'Authenticate Terminal with URL paste',
-        pasteAuthUrl: 'Paste the auth URL from your terminal',
-    },
 
     updateBanner: {
         updateAvailable: 'Update available',
@@ -847,29 +833,6 @@ export const en = {
         noEntriesAvailable: 'No changelog entries available.',
     },
 
-    terminal: {
-        // Used by terminal connection screens
-        webBrowserRequired: 'Web Browser Required',
-        webBrowserRequiredDescription: 'Terminal connection links can only be opened in a web browser for security reasons. Please use the QR code scanner or open this link on a computer.',
-        processingConnection: 'Processing connection...',
-        invalidConnectionLink: 'Invalid Connection Link',
-        invalidConnectionLinkDescription: 'The connection link is missing or invalid. Please check the URL and try again.',
-        connectTerminal: 'Connect Terminal',
-        terminalRequestDescription: 'A terminal is requesting to connect to your Happy Coder account. This will allow the terminal to send and receive messages securely.',
-        connectionDetails: 'Connection Details',
-        publicKey: 'Public Key',
-        encryption: 'Encryption',
-        endToEndEncrypted: 'End-to-end encrypted',
-        acceptConnection: 'Accept Connection',
-        connecting: 'Connecting...',
-        reject: 'Reject',
-        security: 'Security',
-        securityFooter: 'This connection link was processed securely in your browser and was never sent to any server. Your private data will remain secure and only you can decrypt the messages.',
-        securityFooterDevice: 'This connection was processed securely on your device and was never sent to any server. Your private data will remain secure and only you can decrypt the messages.',
-        clientSideProcessing: 'Client-Side Processing',
-        linkProcessedLocally: 'Link processed locally in browser',
-        linkProcessedOnDevice: 'Link processed locally on device',
-    },
 
     modals: {
         // Used across connect flows and settings
@@ -896,9 +859,7 @@ export const en = {
 
     navigation: {
         // Navigation titles and screen headers
-        connectTerminal: 'Connect Terminal',
         linkNewDevice: 'Link New Device', 
-        restoreWithSecretKey: 'Restore with Secret Key',
         whatsNew: "What's New",
         friends: 'Friends',
     },
@@ -906,16 +867,11 @@ export const en = {
     welcome: {
         // Main welcome screen for unauthenticated users
         title: 'Codex and Claude Code mobile client',
-        subtitle: 'End-to-end encrypted and your account is stored only on your device.',
+        subtitle: 'Connect to your paired Dev Tunnels machines and keep your account on this device.',
         createAccount: 'Create account',
         linkOrRestoreAccount: 'Link or restore account',
         loginWithMobileApp: 'Login with mobile app',
         pairMachine: 'Pair machine',
-        trustMachine: 'Trust this machine?',
-        trust: 'Trust',
-        ed25519Fingerprint: ({ fingerprint }: { fingerprint: string }) => `Ed25519 fingerprint:\n${fingerprint}`,
-        pubkeyRotationTitle: 'Public key changed',
-        pubkeyRotationWarning: 'This machine is presenting a different public key than the one you trusted before. Only continue if you reinstalled or reset Happy on that computer.',
         noMachinesForIdentity: 'No machines returned for this GitHub identity',
         deviceAuthorizationExpired: 'GitHub device authorization expired',
         pairingFailed: 'Failed to pair machine',

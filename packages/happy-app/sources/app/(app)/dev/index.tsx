@@ -21,7 +21,7 @@ export default function DevScreen() {
     const [verboseLogging, setVerboseLogging] = useLocalSettingMutable('verboseLogging');
     const [consoleLoggingEnabled, setConsoleLoggingEnabled] = useLocalSettingMutable('consoleLoggingEnabled');
     const socketStatus = useSocketStatus();
-    const anonymousId = sync.encryption!.anonID;
+    const anonymousId = sync.anonID;
     const { theme } = useUnistyles();
 
     const handleEditServerUrl = async () => {
@@ -284,12 +284,6 @@ export default function DevScreen() {
                     subtitle="React Native Unistyles features and capabilities"
                     icon={<Ionicons name="brush-outline" size={28} color="#FF6B6B" />}
                     onPress={() => router.push('/dev/unistyles-demo')}
-                />
-                <Item
-                    title="QR Code Test"
-                    subtitle="Test QR code generation with different parameters"
-                    icon={<Ionicons name="qr-code-outline" size={28} color="#007AFF" />}
-                    onPress={() => router.push('/dev/qr-test')}
                 />
                 <Item
                     title="Session Composer"

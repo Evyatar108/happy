@@ -1,20 +1,19 @@
 /**
- * Encrypted artifact from API
+ * Artifact from API
  */
 export interface Artifact {
     id: string;
-    header: string;  // Base64 encoded encrypted JSON { "title": string | null }
+    header: string;
     headerVersion: number;
-    body?: string;  // Base64 encoded encrypted JSON { "body": string | null } - only in full fetch
+    body?: string;
     bodyVersion?: number;  // Only in full fetch
-    dataEncryptionKey: string;  // Base64 encoded encryption key (encrypted with user key)
     seq: number;
     createdAt: number;
     updatedAt: number;
 }
 
 /**
- * Decrypted artifact header
+ * Artifact header
  */
 export interface ArtifactHeader {
     title: string | null;
@@ -23,14 +22,14 @@ export interface ArtifactHeader {
 }
 
 /**
- * Decrypted artifact body
+ * Artifact body
  */
 export interface ArtifactBody {
     body: string | null;
 }
 
 /**
- * Decrypted artifact for UI
+ * Artifact for UI
  */
 export interface DecryptedArtifact {
     id: string;
@@ -43,7 +42,7 @@ export interface DecryptedArtifact {
     seq: number;
     createdAt: number;
     updatedAt: number;
-    isDecrypted: boolean;  // Whether decryption was successful
+    isDecrypted: boolean;
 }
 
 /**
@@ -51,18 +50,17 @@ export interface DecryptedArtifact {
  */
 export interface ArtifactCreateRequest {
     id: string;  // UUID generated client-side
-    header: string;  // Base64 encoded encrypted header
-    body: string;  // Base64 encoded encrypted body
-    dataEncryptionKey: string;  // Base64 encoded encryption key (encrypted with user key)
+    header: string;
+    body: string;
 }
 
 /**
  * Request to update an existing artifact
  */
 export interface ArtifactUpdateRequest {
-    header?: string;  // Base64 encoded encrypted header
+    header?: string;
     expectedHeaderVersion?: number;
-    body?: string;  // Base64 encoded encrypted body
+    body?: string;
     expectedBodyVersion?: number;
 }
 

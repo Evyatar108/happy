@@ -156,8 +156,6 @@ export const pt: TranslationStructure = {
     },
 
     connect: {
-        restoreAccount: 'Restaurar conta',
-        enterSecretKey: 'Por favor, insira uma chave secreta',
         invalidSecretKey: 'Chave secreta inválida. Verifique e tente novamente.',
         enterUrlManually: 'Inserir URL manualmente',
     },
@@ -183,7 +181,7 @@ export const pt: TranslationStructure = {
         developer: 'Desenvolvedor',
         developerTools: 'Ferramentas de desenvolvedor',
         about: 'Sobre',
-        aboutFooter: 'Happy Coder é um cliente móvel para Codex e Claude Code. É totalmente criptografado ponta a ponta e sua conta é armazenada apenas no seu dispositivo. Não é afiliado à Anthropic.',
+        aboutFooter: 'Happy Coder is a Codex and Claude Code mobile client that connects through your paired Dev Tunnels machines. Not affiliated with Anthropic.',
         whatsNew: 'Novidades',
         whatsNewSubtitle: 'Veja as atualizações e melhorias mais recentes',
         reportIssue: 'Relatar um problema',
@@ -193,7 +191,6 @@ export const pt: TranslationStructure = {
         supportUs: 'Nos apoie',
         supportUsSubtitlePro: 'Obrigado pelo seu apoio!',
         supportUsSubtitle: 'Apoie o desenvolvimento do projeto',
-        scanQrCodeToAuthenticate: 'Escaneie o código QR para autenticar',
         githubConnected: ({ login }: { login: string }) => `Conectado como @${login}`,
         connectGithubAccount: 'Conecte sua conta GitHub',
         claudeAuthSuccess: 'Conectado ao Claude com sucesso',
@@ -789,20 +786,14 @@ export const pt: TranslationStructure = {
         publicId: 'ID público',
         notAvailable: 'Não disponível',
         linkNewDevice: 'Vincular novo dispositivo',
-        linkNewDeviceSubtitle: 'Escanear código QR para vincular dispositivo',
         profile: 'Perfil',
         name: 'Nome',
         github: 'GitHub',
         tapToDisconnect: 'Toque para desconectar',
         server: 'Servidor',
         backup: 'Backup',
-        backupDescription: 'Sua chave secreta é a única forma de recuperar sua conta. Salve-a em um local seguro como um gerenciador de senhas.',
-        secretKey: 'Chave secreta',
         tapToReveal: 'Toque para revelar',
         tapToHide: 'Toque para ocultar',
-        secretKeyLabel: 'CHAVE SECRETA (TOQUE PARA COPIAR)',
-        secretKeyCopied: 'Chave secreta copiada para a área de transferência. Guarde-a em um local seguro!',
-        secretKeyCopyFailed: 'Falha ao copiar chave secreta',
         privacy: 'Privacidade',
         privacyDescription: 'Ajude a melhorar o aplicativo compartilhando dados de uso anônimos. Nenhuma informação pessoal é coletada.',
         analytics: 'Análises',
@@ -826,11 +817,6 @@ export const pt: TranslationStructure = {
         restartNow: 'Reiniciar agora',
     },
 
-    connectButton: {
-        authenticate: 'Autenticar terminal',
-        authenticateWithUrlPaste: 'Autenticar terminal com colagem de URL',
-        pasteAuthUrl: 'Cole a URL de autenticação do seu terminal',
-    },
 
     updateBanner: {
         updateAvailable: 'Atualização disponível',
@@ -848,29 +834,6 @@ export const pt: TranslationStructure = {
         noEntriesAvailable: 'Nenhuma entrada de changelog disponível.',
     },
 
-    terminal: {
-        // Used by terminal connection screens
-        webBrowserRequired: 'Navegador web necessário',
-        webBrowserRequiredDescription: 'Links de conexão de terminal só podem ser abertos em um navegador web por questões de segurança. Use o leitor de código QR ou abra este link num computador.',
-        processingConnection: 'Processando conexão...',
-        invalidConnectionLink: 'Link de conexão inválido',
-        invalidConnectionLinkDescription: 'O link de conexão está ausente ou inválido. Verifique a URL e tente novamente.',
-        connectTerminal: 'Conectar terminal',
-        terminalRequestDescription: 'Um terminal está solicitando conexão à sua conta Happy Coder. Isso permitirá que o terminal envie e receba mensagens com segurança.',
-        connectionDetails: 'Detalhes da conexão',
-        publicKey: 'Chave pública',
-        encryption: 'Criptografia',
-        endToEndEncrypted: 'Criptografia ponta a ponta',
-        acceptConnection: 'Aceitar conexão',
-        connecting: 'Conectando...',
-        reject: 'Rejeitar',
-        security: 'Segurança',
-        securityFooter: 'Este link de conexão foi processado com segurança no seu navegador e nunca foi enviado para nenhum servidor. Seus dados privados permanecerão seguros e apenas você pode descriptografar as mensagens.',
-        securityFooterDevice: 'Esta conexão foi processada com segurança no seu dispositivo e nunca foi enviada para nenhum servidor. Seus dados privados permanecerão seguros e apenas você pode descriptografar as mensagens.',
-        clientSideProcessing: 'Processamento do lado cliente',
-        linkProcessedLocally: 'Link processado localmente no navegador',
-        linkProcessedOnDevice: 'Link processado localmente no dispositivo',
-    },
 
     modals: {
         // Used across connect flows and settings
@@ -897,9 +860,7 @@ export const pt: TranslationStructure = {
 
     navigation: {
         // Navigation titles and screen headers
-        connectTerminal: 'Conectar terminal',
         linkNewDevice: 'Vincular novo dispositivo', 
-        restoreWithSecretKey: 'Restaurar com chave secreta',
         whatsNew: 'Novidades',
         friends: 'Amigos',
     },
@@ -912,11 +873,6 @@ export const pt: TranslationStructure = {
         linkOrRestoreAccount: 'Vincular ou restaurar conta',
         loginWithMobileApp: 'Fazer login com aplicativo móvel',
         pairMachine: 'Parear máquina',
-        trustMachine: 'Confiar nesta máquina?',
-        trust: 'Confiar',
-        ed25519Fingerprint: ({ fingerprint }: { fingerprint: string }) => `Impressão digital Ed25519:\n${fingerprint}`,
-        pubkeyRotationTitle: 'A chave pública mudou',
-        pubkeyRotationWarning: 'Esta máquina está apresentando uma chave pública diferente daquela em que você confiou antes. Continue somente se você reinstalou ou redefiniu o Happy nesse computador.',
         noMachinesForIdentity: 'Nenhuma máquina retornada para esta identidade do GitHub',
         deviceAuthorizationExpired: 'A autorização do dispositivo do GitHub expirou',
         pairingFailed: 'Failed to pair machine',

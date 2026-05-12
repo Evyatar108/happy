@@ -158,8 +158,6 @@ export const ja: TranslationStructure = {
     },
 
     connect: {
-        restoreAccount: 'アカウントを復元',
-        enterSecretKey: 'シークレットキーを入力してください',
         invalidSecretKey: 'シークレットキーが無効です。確認して再試行してください。',
         enterUrlManually: 'URLを手動で入力',
     },
@@ -185,7 +183,7 @@ export const ja: TranslationStructure = {
         developer: '開発者',
         developerTools: '開発者ツール',
         about: 'このアプリについて',
-        aboutFooter: 'Happy CoderはCodexとClaude Codeのモバイルクライアントです。完全なエンドツーエンド暗号化を採用し、アカウントはデバイスにのみ保存されます。Anthropicとは提携していません。',
+        aboutFooter: 'Happy Coder is a Codex and Claude Code mobile client that connects through your paired Dev Tunnels machines. Not affiliated with Anthropic.',
         whatsNew: '新機能',
         whatsNewSubtitle: '最新のアップデートと改善を確認',
         reportIssue: '問題を報告',
@@ -195,7 +193,6 @@ export const ja: TranslationStructure = {
         supportUs: '開発を支援',
         supportUsSubtitlePro: 'ご支援ありがとうございます！',
         supportUsSubtitle: 'プロジェクト開発を支援',
-        scanQrCodeToAuthenticate: 'QRコードをスキャンして認証',
         githubConnected: ({ login }: { login: string }) => `@${login}として接続中`,
         connectGithubAccount: 'GitHubアカウントを接続',
         claudeAuthSuccess: 'Claudeへの接続に成功しました',
@@ -791,20 +788,14 @@ export const ja: TranslationStructure = {
         publicId: '公開ID',
         notAvailable: '利用不可',
         linkNewDevice: '新しいデバイスをリンク',
-        linkNewDeviceSubtitle: 'QRコードをスキャンしてデバイスをリンク',
         profile: 'プロフィール',
         name: '名前',
         github: 'GitHub',
         tapToDisconnect: 'タップして切断',
         server: 'サーバー',
         backup: 'バックアップ',
-        backupDescription: 'シークレットキーはアカウントを復元する唯一の方法です。パスワードマネージャーなどの安全な場所に保存してください。',
-        secretKey: 'シークレットキー',
         tapToReveal: 'タップして表示',
         tapToHide: 'タップして非表示',
-        secretKeyLabel: 'シークレットキー (タップでコピー)',
-        secretKeyCopied: 'シークレットキーがクリップボードにコピーされました。安全な場所に保管してください！',
-        secretKeyCopyFailed: 'シークレットキーのコピーに失敗しました',
         privacy: 'プライバシー',
         privacyDescription: '匿名の使用データを共有してアプリの改善にご協力ください。個人情報は収集されません。',
         analytics: 'アナリティクス',
@@ -828,11 +819,6 @@ export const ja: TranslationStructure = {
         restartNow: '今すぐ再起動',
     },
 
-    connectButton: {
-        authenticate: 'ターミナルを認証',
-        authenticateWithUrlPaste: 'URLペーストでターミナルを認証',
-        pasteAuthUrl: 'ターミナルから認証URLを貼り付け',
-    },
 
     updateBanner: {
         updateAvailable: 'アップデートが利用可能',
@@ -850,29 +836,6 @@ export const ja: TranslationStructure = {
         noEntriesAvailable: '変更履歴はありません。',
     },
 
-    terminal: {
-        // Used by terminal connection screens
-        webBrowserRequired: 'Webブラウザが必要です',
-        webBrowserRequiredDescription: 'ターミナル接続リンクはセキュリティ上の理由からWebブラウザでのみ開くことができます。QRコードスキャナーを使用するか、コンピューターでこのリンクを開いてください。',
-        processingConnection: '接続を処理中...',
-        invalidConnectionLink: '無効な接続リンク',
-        invalidConnectionLinkDescription: '接続リンクが見つからないか無効です。URLを確認して再試行してください。',
-        connectTerminal: 'ターミナルを接続',
-        terminalRequestDescription: 'ターミナルがHappy Coderアカウントへの接続を要求しています。これにより、ターミナルは安全にメッセージを送受信できるようになります。',
-        connectionDetails: '接続の詳細',
-        publicKey: '公開鍵',
-        encryption: '暗号化',
-        endToEndEncrypted: 'エンドツーエンド暗号化',
-        acceptConnection: '接続を承認',
-        connecting: '接続中...',
-        reject: '拒否',
-        security: 'セキュリティ',
-        securityFooter: 'この接続リンクはブラウザ内で安全に処理され、サーバーには送信されませんでした。あなたのプライベートデータは安全に保たれ、メッセージを復号できるのはあなただけです。',
-        securityFooterDevice: 'この接続はデバイス上で安全に処理され、サーバーには送信されませんでした。あなたのプライベートデータは安全に保たれ、メッセージを復号できるのはあなただけです。',
-        clientSideProcessing: 'クライアントサイド処理',
-        linkProcessedLocally: 'リンクはブラウザ内でローカルに処理されました',
-        linkProcessedOnDevice: 'リンクはデバイス上でローカルに処理されました',
-    },
 
     modals: {
         // Used across connect flows and settings
@@ -899,9 +862,7 @@ export const ja: TranslationStructure = {
 
     navigation: {
         // Navigation titles and screen headers
-        connectTerminal: 'ターミナルを接続',
         linkNewDevice: '新しいデバイスをリンク',
-        restoreWithSecretKey: 'シークレットキーで復元',
         whatsNew: "新機能",
         friends: '友達',
     },
@@ -909,16 +870,11 @@ export const ja: TranslationStructure = {
     welcome: {
         // Main welcome screen for unauthenticated users
         title: 'CodexとClaude Codeのモバイルクライアント',
-        subtitle: 'エンドツーエンド暗号化され、アカウントはデバイスにのみ保存されます。',
+        subtitle: 'Connect to your paired Dev Tunnels machines and keep your account on this device.',
         createAccount: 'アカウントを作成',
         linkOrRestoreAccount: 'アカウントをリンクまたは復元',
         loginWithMobileApp: 'モバイルアプリでログイン',
         pairMachine: 'マシンをペアリング',
-        trustMachine: 'このマシンを信頼しますか？',
-        trust: '信頼',
-        ed25519Fingerprint: ({ fingerprint }: { fingerprint: string }) => `Ed25519 フィンガープリント:\n${fingerprint}`,
-        pubkeyRotationTitle: '公開鍵が変更されました',
-        pubkeyRotationWarning: 'このマシンは、以前信頼したものとは異なる公開鍵を提示しています。そのコンピューターで Happy を再インストールまたはリセットした場合のみ続行してください。',
         noMachinesForIdentity: 'この GitHub ID のマシンは返されませんでした',
         deviceAuthorizationExpired: 'GitHub デバイス認証の期限が切れました',
         pairingFailed: 'Failed to pair machine',

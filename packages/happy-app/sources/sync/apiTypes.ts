@@ -60,7 +60,6 @@ export const ApiNewArtifactSchema = z.object({
     headerVersion: z.number(),
     body: z.string().optional(),
     bodyVersion: z.number().optional(),
-    dataEncryptionKey: z.string(),
     seq: z.number(),
     createdAt: z.number(),
     updatedAt: z.number()

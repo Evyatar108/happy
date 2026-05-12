@@ -107,6 +107,8 @@ describe('pairing', () => {
             avatarUrl: 'https://avatars.example.test/octocat.png',
             deviceCode: 'device-1',
         });
+        expect(credentials.deviceCodeExpiresAt).toBeGreaterThanOrEqual(Date.now() + 895_000);
+        expect(credentials.deviceCodeExpiresAt).toBeLessThanOrEqual(Date.now() + 905_000);
         expect(credentials).not.toHaveProperty('pinnedPubkey');
         expect(credentials).not.toHaveProperty('sessionKey');
     });

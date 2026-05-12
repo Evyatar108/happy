@@ -138,8 +138,6 @@ export const ru: TranslationStructure = {
     },
 
     connect: {
-        restoreAccount: 'Восстановить аккаунт',
-        enterSecretKey: 'Пожалуйста, введите секретный ключ',
         invalidSecretKey: 'Неверный секретный ключ. Проверьте и попробуйте снова.',
         enterUrlManually: 'Ввести URL вручную',
     },
@@ -172,7 +170,7 @@ export const ru: TranslationStructure = {
         developer: 'Разработчик',
         developerTools: 'Инструменты разработчика',
         about: 'О программе',
-        aboutFooter: 'Happy Coder — мобильное приложение для работы с Codex и Claude Code. Использует сквозное шифрование, все данные аккаунта хранятся только на вашем устройстве. Не связано с Anthropic.',
+        aboutFooter: 'Happy Coder is a Codex and Claude Code mobile client that connects through your paired Dev Tunnels machines. Not affiliated with Anthropic.',
         whatsNew: 'Что нового',
         whatsNewSubtitle: 'Посмотреть последние обновления и улучшения',
         reportIssue: 'Сообщить о проблеме',
@@ -182,7 +180,6 @@ export const ru: TranslationStructure = {
         supportUs: 'Поддержите нас',
         supportUsSubtitlePro: 'Спасибо за вашу поддержку!',
         supportUsSubtitle: 'Поддержать разработку проекта',
-        scanQrCodeToAuthenticate: 'Отсканируйте QR-код для авторизации',
         githubConnected: ({ login }: { login: string }) => `Подключен как @${login}`,
         connectGithubAccount: 'Подключить аккаунт GitHub',
         claudeAuthSuccess: 'Успешно подключено к Claude',
@@ -806,20 +803,14 @@ export const ru: TranslationStructure = {
         publicId: 'Публичный ID',
         notAvailable: 'Недоступно',
         linkNewDevice: 'Привязать новое устройство',
-        linkNewDeviceSubtitle: 'Отсканируйте QR-код для привязки устройства',
         profile: 'Профиль',
         name: 'Имя',
         github: 'GitHub',
         tapToDisconnect: 'Нажмите для отключения',
         server: 'Сервер',
         backup: 'Резервная копия',
-        backupDescription: 'Ваш секретный ключ - единственный способ восстановить ваш аккаунт. Сохраните его в безопасном месте, например в менеджере паролей.',
-        secretKey: 'Секретный ключ',
         tapToReveal: 'Нажмите для показа',
         tapToHide: 'Нажмите для скрытия',
-        secretKeyLabel: 'СЕКРЕТНЫЙ КЛЮЧ (НАЖМИТЕ ДЛЯ КОПИРОВАНИЯ)',
-        secretKeyCopied: 'Секретный ключ скопирован в буфер обмена. Сохраните его в безопасном месте!',
-        secretKeyCopyFailed: 'Не удалось скопировать секретный ключ',
         privacy: 'Конфиденциальность',
         privacyDescription: 'Помогите улучшить приложение, поделившись анонимными данными об использовании. Никакая личная информация не собирается.',
         analytics: 'Аналитика',
@@ -831,11 +822,6 @@ export const ru: TranslationStructure = {
         logoutConfirm: 'Вы уверены, что хотите выйти? Убедитесь, что вы сохранили резервную копию секретного ключа!',
     },
 
-    connectButton: {
-        authenticate: 'Авторизация терминала',
-        authenticateWithUrlPaste: 'Авторизация терминала через URL',
-        pasteAuthUrl: 'Вставьте авторизационный URL из терминала',
-    },
 
     updateBanner: {
         updateAvailable: 'Доступно обновление',
@@ -853,29 +839,6 @@ export const ru: TranslationStructure = {
         noEntriesAvailable: 'Записи журнала изменений недоступны.',
     },
 
-    terminal: {
-        // Used by terminal connection screens
-        webBrowserRequired: 'Требуется веб-браузер',
-        webBrowserRequiredDescription: 'Ссылки подключения терминала можно открывать только в веб-браузере по соображениям безопасности. Используйте сканер QR-кодов или откройте эту ссылку на компьютере.',
-        processingConnection: 'Обработка подключения...',
-        invalidConnectionLink: 'Неверная ссылка подключения',
-        invalidConnectionLinkDescription: 'Ссылка подключения отсутствует или неверна. Проверьте URL и попробуйте снова.',
-        connectTerminal: 'Подключить терминал',
-        terminalRequestDescription: 'Терминал запрашивает подключение к вашему аккаунту Happy Coder. Это позволит терминалу безопасно отправлять и получать сообщения.',
-        connectionDetails: 'Детали подключения',
-        publicKey: 'Публичный ключ',
-        encryption: 'Шифрование',
-        endToEndEncrypted: 'Сквозное шифрование',
-        acceptConnection: 'Принять подключение',
-        connecting: 'Подключение...',
-        reject: 'Отклонить',
-        security: 'Безопасность',
-        securityFooter: 'Эта ссылка подключения была безопасно обработана в вашем браузере и никогда не отправлялась на сервер. Ваши личные данные останутся в безопасности, и только вы можете расшифровать сообщения.',
-        securityFooterDevice: 'Это подключение было безопасно обработано на вашем устройстве и никогда не отправлялось на сервер. Ваши личные данные останутся в безопасности, и только вы можете расшифровать сообщения.',
-        clientSideProcessing: 'Обработка на стороне клиента',
-        linkProcessedLocally: 'Ссылка обработана локально в браузере',
-        linkProcessedOnDevice: 'Ссылка обработана локально на устройстве',
-    },
 
     modals: {
         // Used across connect flows and settings
@@ -902,9 +865,7 @@ export const ru: TranslationStructure = {
 
     navigation: {
         // Navigation titles and screen headers
-        connectTerminal: 'Подключить терминал',
         linkNewDevice: 'Связать новое устройство',
-        restoreWithSecretKey: 'Восстановить секретным ключом',
         whatsNew: 'Что нового',
         friends: 'Друзья',
     },
@@ -912,16 +873,11 @@ export const ru: TranslationStructure = {
     welcome: {
         // Main welcome screen for unauthenticated users
         title: 'Мобильный клиент Codex и Claude Code',
-        subtitle: 'Сквозное шифрование, аккаунт хранится только на вашем устройстве.',
+        subtitle: 'Connect to your paired Dev Tunnels machines and keep your account on this device.',
         createAccount: 'Создать аккаунт',
         linkOrRestoreAccount: 'Связать или восстановить аккаунт',
         loginWithMobileApp: 'Войти через мобильное приложение',
         pairMachine: 'Сопрячь машину',
-        trustMachine: 'Доверять этой машине?',
-        trust: 'Доверять',
-        ed25519Fingerprint: ({ fingerprint }: { fingerprint: string }) => `Отпечаток Ed25519:\n${fingerprint}`,
-        pubkeyRotationTitle: 'Публичный ключ изменился',
-        pubkeyRotationWarning: 'Эта машина предъявляет другой публичный ключ, не тот, которому вы доверяли раньше. Продолжайте только если вы переустановили или сбросили Happy на этом компьютере.',
         noMachinesForIdentity: 'Для этой личности GitHub не вернулись машины',
         deviceAuthorizationExpired: 'Авторизация устройства GitHub истекла',
         pairingFailed: 'Failed to pair machine',

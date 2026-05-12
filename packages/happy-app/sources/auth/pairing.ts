@@ -109,16 +109,12 @@ export type PairStartResponse = {
 export type PairMachine = {
     machineId: string;
     tunnelUrl: string;
-    ed25519PublicKey: string;
-    x25519PublicKey: string;
-    ed25519Fingerprint?: string;
     tunnelClaim: string;
 };
 
 export type PairStatusResponse = {
     status: 'pending' | 'authorized';
     githubLogin?: string;
-    githubToken?: string;
     machines?: PairMachine[];
 };
 
@@ -191,7 +187,7 @@ export function credentialsFromPairMachine(machine: MachineTunnel, pairMachine: 
         avatarUrl: metadata.avatarUrl ?? '',
         deviceCode: metadata.deviceCode,
         deviceCodeExpiresAt: metadata.deviceCodeExpiresAt,
-    } as AuthCredentials;
+    };
 }
 
 export async function waitForPairStatus(machine: MachineTunnel, flow: PairStartResponse): Promise<PairStatusResponse> {

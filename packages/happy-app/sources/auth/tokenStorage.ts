@@ -6,20 +6,14 @@ const AUTH_KEY = 'machine_credentials';
 export interface AuthCredentials {
     machineId: string;
     tunnelUrl: string;
-    tunnelClaim?: string;
-    pinnedPubkey: string;
-    sessionKey: string;
+    tunnelClaim: string;
     firstSeenAt: number;
     login?: string;
     avatarUrl?: string;
     deviceCode?: string;
     deviceCodeExpiresAt?: number;
-    // Real Dev Tunnels connect JWT (preferred over tunnelClaim for tunnel-level auth)
     connectToken?: string;
-    connectTokenExpiry?: number;   // unix ms
-    // GitHub token for connect token refresh (stored securely)
-    githubToken: string;
-    // Tunnel ID for connect token refresh
+    connectTokenExpiry?: number;
     tunnelId?: string;
 }
 
@@ -37,8 +31,9 @@ function isStoredMachineCredentials(value: unknown): value is StoredMachineCrede
     return (candidate.primaryMachineId === null || typeof candidate.primaryMachineId === 'string') && Array.isArray(candidate.machines);
 }
 
-export function isOldShape(credentials: AuthCredentials): boolean {
-    return Boolean(credentials.pinnedPubkey) || Boolean(credentials.sessionKey) || !credentials.tunnelClaim;
+export function isOldShape(credentials: Partial<AuthCredentials> | (Partial<AuthCredentials> & Record<string, unknown>)): boolean {
+    const candidate = credentials as Partial<AuthCredentials> & Record<string, unknown>;
+    return Boolean(candidate.pinnedPubkey) || Boolean(candidate.sessionKey) || !candidate.tunnelClaim;
 }
 
 function parseStoredCredentials(stored: string | null): StoredMachineCredentials | null {
@@ -73,6 +68,22 @@ function serializeCredentials(credentials: StoredMachineCredentials): string {
     return JSON.stringify(credentials);
 }
 
+function filterOldShapeCredentials(credentials: StoredMachineCredentials): StoredMachineCredentials {
+    const machines = credentials.machines.filter(machine => !isOldShape(machine as Partial<AuthCredentials> & Record<string, unknown>));
+    const primaryMachineId = credentials.primaryMachineId && machines.some(machine => machine.machineId === credentials.primaryMachineId)
+        ? credentials.primaryMachineId
+        : machines[0]?.machineId ?? null;
+    return {
+        primaryMachineId,
+        machines,
+        devTunnelsAccess: credentials.devTunnelsAccess,
+    };
+}
+
+function credentialsChanged(a: StoredMachineCredentials, b: StoredMachineCredentials): boolean {
+    return serializeCredentials(a) !== serializeCredentials(b);
+}
+
 export const TokenStorage = {
     async getCredentials(): Promise<AuthCredentials | null> {
         const stored = await this.getStoredCredentials();
@@ -88,13 +99,24 @@ export const TokenStorage = {
     },
 
     async getStoredCredentials(): Promise<StoredMachineCredentials | null> {
+        const migrate = async (stored: StoredMachineCredentials | null): Promise<StoredMachineCredentials | null> => {
+            if (!stored) {
+                return null;
+            }
+            const filtered = filterOldShapeCredentials(stored);
+            if (credentialsChanged(stored, filtered)) {
+                await this.writeStoredCredentials(filtered);
+            }
+            return filtered;
+        };
+
         if (Platform.OS === 'web') {
             const stored = localStorage.getItem(AUTH_KEY);
-            return parseStoredCredentials(stored);
+            return migrate(parseStoredCredentials(stored));
         }
         try {
             const stored = await SecureStore.getItemAsync(AUTH_KEY);
-            return parseStoredCredentials(stored);
+            return migrate(parseStoredCredentials(stored));
         } catch (error) {
             console.error('Error getting credentials:', error);
             return null;

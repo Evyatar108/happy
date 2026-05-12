@@ -2,7 +2,6 @@ import { io, Socket } from 'socket.io-client';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { AuthCredentials, TokenStorage } from '@/auth/tokenStorage';
-import { Encryption } from './encryption/encryption';
 import { storage } from './storage';
 import { tunnelFetch } from '@/auth/machineAuth';
 import { buildTunnelSocketOptions } from './socketOptions';
@@ -40,7 +39,6 @@ export type SyncSocketListener = (state: SyncSocketState) => void;
 interface MachineConnection {
     socket: Socket | null;
     config: SyncSocketConfig;
-    encryption: Encryption;
     status: SyncSocketStatus;
     intentionalDisconnect: boolean;
     hasConnected: boolean;
@@ -58,23 +56,21 @@ class ApiSocket {
     private machineDisconnectListeners: Set<(machineId: string, lastSeenAt: number) => void> = new Set();
     private currentStatus: SyncSocketStatus = 'disconnected';
 
-    async initialize(config: SyncSocketConfig, encryption: Encryption) {
-        await this.initializeMany([{ config, encryption }]);
+    async initialize(config: SyncSocketConfig) {
+        await this.initializeMany([config]);
     }
 
-    async initializeMany(items: Array<{ config: SyncSocketConfig; encryption: Encryption }>) {
-        for (const item of items) {
-            const machineId = item.config.credentials.machineId;
+    async initializeMany(items: SyncSocketConfig[]) {
+        for (const config of items) {
+            const machineId = config.credentials.machineId;
             const existing = this.connections.get(machineId);
             if (existing) {
-                existing.config = item.config;
-                existing.encryption = item.encryption;
+                existing.config = config;
                 continue;
             }
             this.connections.set(machineId, {
                 socket: null,
-                config: item.config,
-                encryption: item.encryption,
+                config,
                 status: 'disconnected',
                 intentionalDisconnect: false,
                 hasConnected: false,
@@ -87,17 +83,15 @@ class ApiSocket {
         await this.connect();
     }
 
-    async appendMachine(item: { config: SyncSocketConfig; encryption: Encryption }, timeoutMs = 15_000): Promise<void> {
-        const machineId = item.config.credentials.machineId;
+    async appendMachine(config: SyncSocketConfig, timeoutMs = 15_000): Promise<void> {
+        const machineId = config.credentials.machineId;
         const existing = this.connections.get(machineId);
         if (existing) {
-            existing.config = item.config;
-            existing.encryption = item.encryption;
+            existing.config = config;
         } else {
             this.connections.set(machineId, {
                 socket: null,
-                config: item.config,
-                encryption: item.encryption,
+                config,
                 status: 'disconnected',
                 intentionalDisconnect: false,
                 hasConnected: false,
@@ -190,36 +184,26 @@ class ApiSocket {
     async sessionRPC<R, A>(sessionId: string, method: string, params: A): Promise<R> {
         const ref = this.resolveSessionRef(sessionId);
         const connection = this.requireConnection(ref.machineId);
-        const sessionEncryption = connection.encryption.getSessionEncryption(sessionId);
-        if (!sessionEncryption) {
-            throw new Error(`Session encryption not found for ${sessionId}`);
-        }
-
         const result = await connection.socket!.emitWithAck('rpc-call', {
             method: `${ref.localSessionId}:${method}`,
-            params: await sessionEncryption.encryptRaw(params)
+            params,
         });
 
         if (result.ok) {
-            return await sessionEncryption.decryptRaw(result.result) as R;
+            return result.result as R;
         }
         throw new Error('RPC call failed');
     }
 
     async machineRPC<R, A>(machineId: string, method: string, params: A): Promise<R> {
         const connection = this.requireConnection(machineId);
-        const machineEncryption = connection.encryption.getMachineEncryption(machineId);
-        if (!machineEncryption) {
-            throw new Error(`Machine encryption not found for ${machineId}`);
-        }
-
         const result = await connection.socket!.emitWithAck('rpc-call', {
             method: `${machineId}:${method}`,
-            params: await machineEncryption.encryptRaw(params)
+            params,
         });
 
         if (result.ok) {
-            return await machineEncryption.decryptRaw(result.result) as R;
+            return result.result as R;
         }
         throw new Error(result.error || 'RPC call failed');
     }

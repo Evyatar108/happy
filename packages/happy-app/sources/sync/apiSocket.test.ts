@@ -65,10 +65,7 @@ function credential(machineId: string) {
         machineId,
         tunnelUrl: `https://${machineId}.example.test`,
         tunnelClaim: `jwt-${machineId}`,
-        pinnedPubkey: `pub-${machineId}`,
-        sessionKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
         firstSeenAt: 1,
-        githubToken: `github-${machineId}`,
         tunnelId: `tunnel-${machineId}`,
         login: `login-${machineId}`,
         avatarUrl: `https://avatars.example.test/${machineId}.png`,
@@ -88,10 +85,7 @@ describe('apiSocket multi-machine connections', () => {
 
     it('maintains one Socket.IO connection per configured machine', async () => {
         const { apiSocket } = await import('./apiSocket');
-        await apiSocket.initializeMany(mocks.credentials.map((item) => ({
-            config: { endpoint: item.tunnelUrl, credentials: item },
-            encryption: {} as any,
-        })));
+        await apiSocket.initializeMany(mocks.credentials.map((item) => ({ endpoint: item.tunnelUrl, credentials: item })));
 
         expect(apiSocket.getConnectionCount()).toBe(2);
         expect(mocks.io).toHaveBeenCalledTimes(2);
@@ -103,10 +97,7 @@ describe('apiSocket multi-machine connections', () => {
 
     it('routes events with the source machine id and marks a disconnected machine stale', async () => {
         const { apiSocket } = await import('./apiSocket');
-        await apiSocket.initializeMany(mocks.credentials.map((item) => ({
-            config: { endpoint: item.tunnelUrl, credentials: item },
-            encryption: {} as any,
-        })));
+        await apiSocket.initializeMany(mocks.credentials.map((item) => ({ endpoint: item.tunnelUrl, credentials: item })));
 
         const handler = vi.fn();
         const stale = vi.fn();
@@ -126,10 +117,7 @@ describe('apiSocket multi-machine connections', () => {
         mocks.refreshTunnelClaim.mockImplementation(async (_credentials: any, machineId: string) => `jwt-${machineId}-${++claimIndex}`);
 
         const { apiSocket } = await import('./apiSocket');
-        await apiSocket.initializeMany([{
-            config: { endpoint: mocks.credentials[0].tunnelUrl, credentials: mocks.credentials[0] },
-            encryption: {} as any,
-        }]);
+        await apiSocket.initializeMany([{ endpoint: mocks.credentials[0].tunnelUrl, credentials: mocks.credentials[0] }]);
 
         const reconnected = vi.fn();
         apiSocket.onReconnected(reconnected);

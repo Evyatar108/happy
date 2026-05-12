@@ -158,8 +158,6 @@ export const zhHans: TranslationStructure = {
     },
 
     connect: {
-        restoreAccount: '恢复账户',
-        enterSecretKey: '请输入密钥',
         invalidSecretKey: '无效的密钥，请检查后重试。',
         enterUrlManually: '手动输入 URL',
     },
@@ -185,7 +183,7 @@ export const zhHans: TranslationStructure = {
         developer: '开发者',
         developerTools: '开发者工具',
         about: '关于',
-        aboutFooter: 'Happy Coder 是一个 Codex 和 Claude Code 移动客户端。它采用端到端加密，您的账户仅存储在本地设备上。与 Anthropic 无关联。',
+        aboutFooter: 'Happy Coder is a Codex and Claude Code mobile client that connects through your paired Dev Tunnels machines. Not affiliated with Anthropic.',
         whatsNew: '更新日志',
         whatsNewSubtitle: '查看最新更新和改进',
         reportIssue: '报告问题',
@@ -195,7 +193,6 @@ export const zhHans: TranslationStructure = {
         supportUs: '支持我们',
         supportUsSubtitlePro: '感谢您的支持！',
         supportUsSubtitle: '支持项目开发',
-        scanQrCodeToAuthenticate: '扫描二维码进行认证',
         githubConnected: ({ login }: { login: string }) => `已连接为 @${login}`,
         connectGithubAccount: '连接您的 GitHub 账户',
         claudeAuthSuccess: '成功连接到 Claude',
@@ -791,20 +788,14 @@ export const zhHans: TranslationStructure = {
         publicId: '公共 ID',
         notAvailable: '不可用',
         linkNewDevice: '链接新设备',
-        linkNewDeviceSubtitle: '扫描二维码来链接设备',
         profile: '个人资料',
         name: '姓名',
         github: 'GitHub',
         tapToDisconnect: '点击断开连接',
         server: '服务器',
         backup: '备份',
-        backupDescription: '您的密钥是恢复账户的唯一方法。请将其保存在安全的地方，比如密码管理器中。',
-        secretKey: '密钥',
         tapToReveal: '点击显示',
         tapToHide: '点击隐藏',
-        secretKeyLabel: '密钥（点击复制）',
-        secretKeyCopied: '密钥已复制到剪贴板。请将其保存在安全的地方！',
-        secretKeyCopyFailed: '复制密钥失败',
         privacy: '隐私',
         privacyDescription: '通过分享匿名使用数据来帮助改进应用。不会收集个人信息。',
         analytics: '分析',
@@ -828,11 +819,6 @@ export const zhHans: TranslationStructure = {
         restartNow: '立即重启',
     },
 
-    connectButton: {
-        authenticate: '认证终端',
-        authenticateWithUrlPaste: '通过 URL 粘贴认证终端',
-        pasteAuthUrl: '粘贴来自您终端的认证 URL',
-    },
 
     updateBanner: {
         updateAvailable: '有可用更新',
@@ -850,29 +836,6 @@ export const zhHans: TranslationStructure = {
         noEntriesAvailable: '没有可用的更新日志条目。',
     },
 
-    terminal: {
-        // Used by terminal connection screens
-        webBrowserRequired: '需要 Web 浏览器',
-        webBrowserRequiredDescription: '出于安全原因，终端连接链接只能在 Web 浏览器中打开。请使用二维码扫描器或在计算机上打开此链接。',
-        processingConnection: '正在处理连接...',
-        invalidConnectionLink: '无效的连接链接',
-        invalidConnectionLinkDescription: '连接链接缺失或无效。请检查 URL 并重试。',
-        connectTerminal: '连接终端',
-        terminalRequestDescription: '有终端正在请求连接到您的 Happy Coder 账户。这将允许终端安全地发送和接收消息。',
-        connectionDetails: '连接详情',
-        publicKey: '公钥',
-        encryption: '加密',
-        endToEndEncrypted: '端到端加密',
-        acceptConnection: '接受连接',
-        connecting: '连接中...',
-        reject: '拒绝',
-        security: '安全',
-        securityFooter: '此连接链接在您的浏览器中安全处理，从未发送到任何服务器。您的私人数据将保持安全，只有您能解密消息。',
-        securityFooterDevice: '此连接在您的设备上安全处理，从未发送到任何服务器。您的私人数据将保持安全，只有您能解密消息。',
-        clientSideProcessing: '客户端处理',
-        linkProcessedLocally: '链接在浏览器中本地处理',
-        linkProcessedOnDevice: '链接在设备上本地处理',
-    },
 
     modals: {
         // Used across connect flows and settings
@@ -899,9 +862,7 @@ export const zhHans: TranslationStructure = {
 
     navigation: {
         // Navigation titles and screen headers
-        connectTerminal: '连接终端',
         linkNewDevice: '链接新设备', 
-        restoreWithSecretKey: '通过密钥恢复',
         whatsNew: "更新日志",
         friends: '好友',
     },
@@ -909,16 +870,11 @@ export const zhHans: TranslationStructure = {
     welcome: {
         // Main welcome screen for unauthenticated users
         title: 'Codex 和 Claude Code 移动客户端',
-        subtitle: '端到端加密，您的账户仅存储在您的设备上。',
+        subtitle: 'Connect to your paired Dev Tunnels machines and keep your account on this device.',
         createAccount: '创建账户',
         linkOrRestoreAccount: '链接或恢复账户',
         loginWithMobileApp: '使用移动应用登录',
         pairMachine: '配对设备',
-        trustMachine: '信任这台设备？',
-        trust: '信任',
-        ed25519Fingerprint: ({ fingerprint }: { fingerprint: string }) => `Ed25519 指纹:\n${fingerprint}`,
-        pubkeyRotationTitle: '公钥已更改',
-        pubkeyRotationWarning: '这台设备提供的公钥与您之前信任的不同。只有在您重新安装或重置了该电脑上的 Happy 时才继续。',
         noMachinesForIdentity: '没有为此 GitHub 身份返回任何设备',
         deviceAuthorizationExpired: 'GitHub 设备授权已过期',
         pairingFailed: 'Failed to pair machine',

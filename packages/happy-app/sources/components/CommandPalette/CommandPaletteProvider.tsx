@@ -54,16 +54,6 @@ export function CommandPaletteProvider({ children }: { children: React.ReactNode
                     router.push('/settings');
                 }
             },
-            {
-                id: 'connect',
-                title: 'Connect Device',
-                subtitle: 'Connect a new device via web',
-                icon: 'link-outline',
-                category: 'Navigation',
-                action: () => {
-                    router.push('/terminal/connect');
-                }
-            },
         ];
 
         // Add session-specific commands

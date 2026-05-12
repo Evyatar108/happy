@@ -167,8 +167,6 @@ export const pl: TranslationStructure = {
     },
 
     connect: {
-        restoreAccount: 'Przywróć konto',
-        enterSecretKey: 'Proszę wprowadzić klucz tajny',
         invalidSecretKey: 'Nieprawidłowy klucz tajny. Sprawdź i spróbuj ponownie.',
         enterUrlManually: 'Wprowadź URL ręcznie',
     },
@@ -200,7 +198,7 @@ export const pl: TranslationStructure = {
         developer: 'Deweloper',
         developerTools: 'Narzędzia deweloperskie',
         about: 'O aplikacji',
-        aboutFooter: 'Happy Coder to mobilny klient Codex i Claude Code. Jest w pełni szyfrowany end-to-end, a Twoje konto jest przechowywane tylko na Twoim urządzeniu. Nie jest powiązany z Anthropic.',
+        aboutFooter: 'Happy Coder is a Codex and Claude Code mobile client that connects through your paired Dev Tunnels machines. Not affiliated with Anthropic.',
         whatsNew: 'Co nowego',
         whatsNewSubtitle: 'Zobacz najnowsze aktualizacje i ulepszenia',
         reportIssue: 'Zgłoś problem',
@@ -210,7 +208,6 @@ export const pl: TranslationStructure = {
         supportUs: 'Wesprzyj nas',
         supportUsSubtitlePro: 'Dziękujemy za wsparcie!',
         supportUsSubtitle: 'Wesprzyj rozwój projektu',
-        scanQrCodeToAuthenticate: 'Zeskanuj kod QR, aby się uwierzytelnić',
         githubConnected: ({ login }: { login: string }) => `Połączono jako @${login}`,
         connectGithubAccount: 'Połącz konto GitHub',
         claudeAuthSuccess: 'Pomyślnie połączono z Claude',
@@ -806,20 +803,14 @@ export const pl: TranslationStructure = {
         publicId: 'ID publiczne',
         notAvailable: 'Niedostępne',
         linkNewDevice: 'Połącz nowe urządzenie',
-        linkNewDeviceSubtitle: 'Zeskanuj kod QR, aby połączyć urządzenie',
         profile: 'Profil',
         name: 'Nazwa',
         github: 'GitHub',
         tapToDisconnect: 'Dotknij, aby rozłączyć',
         server: 'Serwer',
         backup: 'Kopia zapasowa',
-        backupDescription: 'Twój klucz tajny to jedyny sposób na odzyskanie konta. Zapisz go w bezpiecznym miejscu, takim jak menedżer haseł.',
-        secretKey: 'Klucz tajny',
         tapToReveal: 'Dotknij, aby pokazać',
         tapToHide: 'Dotknij, aby ukryć',
-        secretKeyLabel: 'KLUCZ TAJNY (DOTKNIJ, ABY SKOPIOWAĆ)',
-        secretKeyCopied: 'Klucz tajny skopiowany do schowka. Przechowuj go w bezpiecznym miejscu!',
-        secretKeyCopyFailed: 'Nie udało się skopiować klucza tajnego',
         privacy: 'Prywatność',
         privacyDescription: 'Pomóż ulepszyć aplikację, udostępniając anonimowe dane o użytkowaniu. Nie zbieramy żadnych informacji osobistych.',
         analytics: 'Analityka',
@@ -843,11 +834,6 @@ export const pl: TranslationStructure = {
         restartNow: 'Uruchom ponownie',
     },
 
-    connectButton: {
-        authenticate: 'Uwierzytelnij terminal',
-        authenticateWithUrlPaste: 'Uwierzytelnij terminal poprzez wklejenie URL',
-        pasteAuthUrl: 'Wklej URL uwierzytelnienia z terminala',
-    },
 
     updateBanner: {
         updateAvailable: 'Dostępna aktualizacja',
@@ -865,29 +851,6 @@ export const pl: TranslationStructure = {
         noEntriesAvailable: 'Brak dostępnych wpisów dziennika zmian.',
     },
 
-    terminal: {
-        // Used by terminal connection screens
-        webBrowserRequired: 'Wymagana przeglądarka internetowa',
-        webBrowserRequiredDescription: 'Linki połączenia terminala można otwierać tylko w przeglądarce internetowej ze względów bezpieczeństwa. Użyj skanera kodów QR lub otwórz ten link na komputerze.',
-        processingConnection: 'Przetwarzanie połączenia...',
-        invalidConnectionLink: 'Nieprawidłowy link połączenia',
-        invalidConnectionLinkDescription: 'Link połączenia jest nieprawidłowy lub go brakuje. Sprawdź URL i spróbuj ponownie.',
-        connectTerminal: 'Połącz terminal',
-        terminalRequestDescription: 'Terminal żąda połączenia z Twoim kontem Happy Coder. Pozwoli to terminalowi bezpiecznie wysyłać i odbierać wiadomości.',
-        connectionDetails: 'Szczegóły połączenia',
-        publicKey: 'Klucz publiczny',
-        encryption: 'Szyfrowanie',
-        endToEndEncrypted: 'Szyfrowanie end-to-end',
-        acceptConnection: 'Akceptuj połączenie',
-        connecting: 'Łączenie...',
-        reject: 'Odrzuć',
-        security: 'Bezpieczeństwo',
-        securityFooter: 'Ten link połączenia został bezpiecznie przetworzony w Twojej przeglądarce i nigdy nie został wysłany na żaden serwer. Twoje prywatne dane pozostaną bezpieczne i tylko Ty możesz odszyfrować wiadomości.',
-        securityFooterDevice: 'To połączenie zostało bezpiecznie przetworzone na Twoim urządzeniu i nigdy nie zostało wysłane na żaden serwer. Twoje prywatne dane pozostaną bezpieczne i tylko Ty możesz odszyfrować wiadomości.',
-        clientSideProcessing: 'Przetwarzanie po stronie klienta',
-        linkProcessedLocally: 'Link przetworzony lokalnie w przeglądarce',
-        linkProcessedOnDevice: 'Link przetworzony lokalnie na urządzeniu',
-    },
 
     modals: {
         // Used across connect flows and settings
@@ -914,9 +877,7 @@ export const pl: TranslationStructure = {
 
     navigation: {
         // Navigation titles and screen headers
-        connectTerminal: 'Połącz terminal',
         linkNewDevice: 'Połącz nowe urządzenie',
-        restoreWithSecretKey: 'Przywróć kluczem tajnym',
         whatsNew: 'Co nowego',
         friends: 'Przyjaciele',
     },
@@ -924,16 +885,11 @@ export const pl: TranslationStructure = {
     welcome: {
         // Main welcome screen for unauthenticated users
         title: 'Mobilny klient Codex i Claude Code',
-        subtitle: 'Szyfrowanie end-to-end, a Twoje konto jest przechowywane tylko na Twoim urządzeniu.',
+        subtitle: 'Connect to your paired Dev Tunnels machines and keep your account on this device.',
         createAccount: 'Utwórz konto',
         linkOrRestoreAccount: 'Połącz lub przywróć konto',
         loginWithMobileApp: 'Zaloguj się przez aplikację mobilną',
         pairMachine: 'Sparuj maszynę',
-        trustMachine: 'Zaufać tej maszynie?',
-        trust: 'Zaufaj',
-        ed25519Fingerprint: ({ fingerprint }: { fingerprint: string }) => `Odcisk Ed25519:\n${fingerprint}`,
-        pubkeyRotationTitle: 'Klucz publiczny się zmienił',
-        pubkeyRotationWarning: 'Ta maszyna przedstawia inny klucz publiczny niż ten, któremu wcześniej zaufano. Kontynuuj tylko wtedy, gdy ponownie zainstalowano lub zresetowano Happy na tym komputerze.',
         noMachinesForIdentity: 'Nie zwrócono żadnych maszyn dla tej tożsamości GitHub',
         deviceAuthorizationExpired: 'Autoryzacja urządzenia GitHub wygasła',
         pairingFailed: 'Failed to pair machine',
