@@ -126,6 +126,12 @@ its results below; on a clean run the log should contain three PASS lines
 
 ## AC-D16 verdict — source-code inspection (2026-05-12)
 
+**Operator Decision (2026-05-12):** The user explicitly opted out of executing
+the `verify-refresh-supported.mjs` manual gate before Sprint D implementation.
+This decision is recorded in `.ralph/jobs/devtunnels-D-app/notepad.md` under
+"User Preferences". The inspection-based verdicts below ARE the operative
+AC-D16 outcome for this Sprint D run.
+
 The implementer elected to derive the AC-D16 verdicts from Sprint A source-code
 inspection rather than executing the manual gate script, on the grounds that
 the runtime behavior of `pairRoutes.ts` and `tunnelManager.ts` is fully
