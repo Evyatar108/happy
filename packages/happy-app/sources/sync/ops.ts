@@ -259,7 +259,7 @@ export async function machineDelete(machineId: string): Promise<{ success: boole
         const auth = getCurrentAuth();
         const wasActiveMachine = auth?.credentials?.machineId === machineId;
         await TokenStorage.removeMachineCredentials(machineId);
-        apiSocket.disconnect(machineId);
+        apiSocket.removeMachine(machineId);
         storage.getState().deleteMachine(machineId);
         if (wasActiveMachine) {
             const remaining = await TokenStorage.getCredentials();

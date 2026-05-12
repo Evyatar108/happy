@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
     removeMachineCredentials: vi.fn(async () => true),
     getCredentials: vi.fn(async () => null as null | { machineId: string }),
     deleteMachine: vi.fn(),
-    disconnect: vi.fn(),
+    removeMachine: vi.fn(),
     request: vi.fn(),
     logout: vi.fn(async () => {}),
     refreshCredentials: vi.fn(async () => {}),
@@ -23,7 +23,7 @@ vi.mock('./storage', () => ({
 }));
 
 vi.mock('./apiSocket', () => ({
-    apiSocket: { request: mocks.request, disconnect: mocks.disconnect },
+    apiSocket: { request: mocks.request, removeMachine: mocks.removeMachine },
 }));
 
 vi.mock('./sync', () => ({
@@ -49,10 +49,10 @@ describe('machineDelete', () => {
         expect(mocks.request).not.toHaveBeenCalled();
     });
 
-    it('disconnects the socket for the deleted machine', async () => {
+    it('removes the machine from the socket connection map', async () => {
         mocks.getCurrentAuth.mockReturnValue(null);
         await machineDelete('machine-1');
-        expect(mocks.disconnect).toHaveBeenCalledWith('machine-1');
+        expect(mocks.removeMachine).toHaveBeenCalledWith('machine-1');
     });
 
     it('calls logout when the deleted machine was the active credential and no machines remain', async () => {

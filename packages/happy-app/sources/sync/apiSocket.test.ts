@@ -125,6 +125,51 @@ describe('apiSocket multi-machine connections', () => {
         ).rejects.toThrow(`No credentials found in TokenStorage for machine ${cred.machineId}`);
     });
 
+    it('removeMachine decrements connection count and clears the entry', async () => {
+        const { apiSocket } = await import('./apiSocket');
+        await apiSocket.initializeMany(mocks.credentials.map((item) => ({ endpoint: item.tunnelUrl, credentials: item })));
+        expect(apiSocket.getConnectionCount()).toBe(2);
+
+        apiSocket.removeMachine('machine-a');
+
+        expect(apiSocket.getConnectionCount()).toBe(1);
+        expect(apiSocket.getConnectionMachineIds()).toEqual(['machine-b']);
+    });
+
+    it('removeMachine reassigns primaryMachineId to a remaining connection when the primary is deleted', async () => {
+        const { apiSocket } = await import('./apiSocket');
+        await apiSocket.initializeMany(mocks.credentials.map((item) => ({ endpoint: item.tunnelUrl, credentials: item })));
+
+        // machine-a is set as primaryMachineId first because initializeMany iterates in order
+        apiSocket.removeMachine('machine-a');
+
+        // The remaining connection should be machine-b
+        expect(apiSocket.getConnectionCount()).toBe(1);
+        expect(apiSocket.getConnectionMachineIds()).toEqual(['machine-b']);
+    });
+
+    it('removeMachine sets primaryMachineId to null when the last connection is removed', async () => {
+        const { apiSocket } = await import('./apiSocket');
+        const cred = mocks.credentials[0];
+        await apiSocket.initializeMany([{ endpoint: cred.tunnelUrl, credentials: cred }]);
+
+        apiSocket.removeMachine(cred.machineId);
+
+        expect(apiSocket.getConnectionCount()).toBe(0);
+        await expect(apiSocket.request('/test')).rejects.toThrow('SyncSocket not initialized');
+    });
+
+    it('removeMachine does not affect primaryMachineId when a non-primary machine is removed', async () => {
+        const { apiSocket } = await import('./apiSocket');
+        await apiSocket.initializeMany(mocks.credentials.map((item) => ({ endpoint: item.tunnelUrl, credentials: item })));
+        mocks.sockets[0].trigger('connect');
+
+        apiSocket.removeMachine('machine-b');
+
+        expect(apiSocket.getConnectionCount()).toBe(1);
+        expect(apiSocket.getConnectionMachineIds()).toEqual(['machine-a']);
+    });
+
     it('replaces unintentional disconnects with a fresh-claim socket and skips intentional reconnects', async () => {
         let claimIndex = 0;
         mocks.refreshTunnelClaim.mockImplementation(async (_credentials: any, machineId: string) => `jwt-${machineId}-${++claimIndex}`);

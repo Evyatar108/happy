@@ -161,6 +161,24 @@ class ApiSocket {
         }
     }
 
+    removeMachine(machineId: string) {
+        const connection = this.getConnection(machineId);
+        if (!connection) {
+            return;
+        }
+        connection.intentionalDisconnect = true;
+        if (connection.socket) {
+            connection.socket.disconnect();
+            connection.socket = null;
+        }
+        this.connections.delete(machineId);
+        if (this.primaryMachineId === machineId) {
+            const nextEntry = this.connections.keys().next();
+            this.primaryMachineId = nextEntry.done ? null : nextEntry.value;
+        }
+        this.updateMachineStatus(machineId, 'disconnected');
+    }
+
     getConnectionCount(): number {
         return this.connections.size;
     }
