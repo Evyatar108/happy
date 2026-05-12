@@ -9,7 +9,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { execFileSync } from 'child_process';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import tweetnacl from 'tweetnacl';
 import {
     encodeBase64,
     decodeBase64,
@@ -333,7 +332,7 @@ describe('Smoke: Error handling', () => {
     describe('invalid session ID (in unit-tested code paths)', () => {
         it('resolveSessionEncryption throws for undecryptable key', () => {
             const creds = makeCredentials();
-            const otherKeyPair = tweetnacl.box.keyPair();
+            const otherKeyPair = deriveContentKeyPair(getRandomBytes(32));
             const sessionKey = getRandomBytes(32);
             const encryptedKey = libsodiumEncryptForPublicKey(sessionKey, otherKeyPair.publicKey);
             const withVersion = new Uint8Array(1 + encryptedKey.length);
@@ -542,7 +541,7 @@ describe('Smoke: Full test suite runs', () => {
         expect(decryptLegacy(legacyEncrypted, legacyKey)).toEqual(legacyData);
 
         // Box encryption round-trip
-        const keyPair = tweetnacl.box.keyPair();
+        const keyPair = deriveContentKeyPair(getRandomBytes(32));
         const boxData = getRandomBytes(64);
         const boxEncrypted = libsodiumEncryptForPublicKey(boxData, keyPair.publicKey);
         const boxDecrypted = decryptBoxBundle(boxEncrypted, keyPair.secretKey);

@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import tweetnacl from 'tweetnacl';
 import {
     encodeBase64,
     getRandomBytes,
@@ -170,7 +169,7 @@ describe('api', () => {
 
         it('throws when dataEncryptionKey cannot be decrypted', () => {
             // Create a session with a key encrypted for a different keypair
-            const otherKeyPair = tweetnacl.box.keyPair();
+            const otherKeyPair = deriveContentKeyPair(getRandomBytes(32));
             const sessionKey = getRandomBytes(32);
             const encryptedKey = libsodiumEncryptForPublicKey(sessionKey, otherKeyPair.publicKey);
             const withVersion = new Uint8Array(1 + encryptedKey.length);

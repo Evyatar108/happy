@@ -178,6 +178,10 @@ export function authChallenge(secret: Uint8Array): {
     };
 }
 
+export function verifyAuthChallenge(challenge: Uint8Array, signature: Uint8Array, publicKey: Uint8Array): boolean {
+    return tweetnacl.sign.detached.verify(challenge, signature, publicKey);
+}
+
 // --- NaCl box encryption (public key) ---
 
 export function libsodiumEncryptForPublicKey(data: Uint8Array, recipientPublicKey: Uint8Array): Uint8Array {

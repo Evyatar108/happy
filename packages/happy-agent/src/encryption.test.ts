@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import tweetnacl from 'tweetnacl';
 import {
     encodeBase64,
     decodeBase64,
@@ -20,6 +19,7 @@ import {
     libsodiumEncryptForPublicKey,
     decryptBoxBundle,
     authChallenge,
+    verifyAuthChallenge,
 } from './encryption';
 
 // Helper: hex encode for test vector comparison
@@ -264,7 +264,7 @@ describe('encrypt/decrypt dispatcher', () => {
 
 describe('libsodiumEncryptForPublicKey + decryptBoxBundle', () => {
     it('round-trip encryption/decryption', () => {
-        const recipientKeyPair = tweetnacl.box.keyPair();
+        const recipientKeyPair = deriveContentKeyPair(getRandomBytes(32));
         const data = new Uint8Array([1, 2, 3, 4, 5]);
         const encrypted = libsodiumEncryptForPublicKey(data, recipientKeyPair.publicKey);
         const decrypted = decryptBoxBundle(encrypted, recipientKeyPair.secretKey);
@@ -272,7 +272,7 @@ describe('libsodiumEncryptForPublicKey + decryptBoxBundle', () => {
     });
 
     it('bundle has correct structure (32 pubkey + 24 nonce + ciphertext)', () => {
-        const recipientKeyPair = tweetnacl.box.keyPair();
+        const recipientKeyPair = deriveContentKeyPair(getRandomBytes(32));
         const data = new Uint8Array([1, 2, 3]);
         const encrypted = libsodiumEncryptForPublicKey(data, recipientKeyPair.publicKey);
         // Minimum: 32 (pubkey) + 24 (nonce) + ciphertext (data + MAC overhead)
@@ -280,20 +280,20 @@ describe('libsodiumEncryptForPublicKey + decryptBoxBundle', () => {
     });
 
     it('decryption fails with wrong secret key', () => {
-        const recipientKeyPair = tweetnacl.box.keyPair();
-        const wrongKeyPair = tweetnacl.box.keyPair();
+        const recipientKeyPair = deriveContentKeyPair(getRandomBytes(32));
+        const wrongKeyPair = deriveContentKeyPair(getRandomBytes(32));
         const data = new Uint8Array([1, 2, 3]);
         const encrypted = libsodiumEncryptForPublicKey(data, recipientKeyPair.publicKey);
         expect(decryptBoxBundle(encrypted, wrongKeyPair.secretKey)).toBeNull();
     });
 
     it('decryption returns null for too-short bundle', () => {
-        const keyPair = tweetnacl.box.keyPair();
+        const keyPair = deriveContentKeyPair(getRandomBytes(32));
         expect(decryptBoxBundle(new Uint8Array(10), keyPair.secretKey)).toBeNull();
     });
 
     it('works with empty data', () => {
-        const recipientKeyPair = tweetnacl.box.keyPair();
+        const recipientKeyPair = deriveContentKeyPair(getRandomBytes(32));
         const data = new Uint8Array([]);
         const encrypted = libsodiumEncryptForPublicKey(data, recipientKeyPair.publicKey);
         const decrypted = decryptBoxBundle(encrypted, recipientKeyPair.secretKey);
@@ -322,7 +322,7 @@ describe('authChallenge', () => {
     it('signature is verifiable with tweetnacl.sign.detached.verify', () => {
         const secret = getRandomBytes(32);
         const result = authChallenge(secret);
-        const valid = tweetnacl.sign.detached.verify(result.challenge, result.signature, result.publicKey);
+        const valid = verifyAuthChallenge(result.challenge, result.signature, result.publicKey);
         expect(valid).toBe(true);
     });
 
@@ -331,7 +331,7 @@ describe('authChallenge', () => {
         const secret2 = getRandomBytes(32);
         const result1 = authChallenge(secret1);
         const result2 = authChallenge(secret2);
-        const valid = tweetnacl.sign.detached.verify(result1.challenge, result1.signature, result2.publicKey);
+        const valid = verifyAuthChallenge(result1.challenge, result1.signature, result2.publicKey);
         expect(valid).toBe(false);
     });
 
