@@ -203,9 +203,14 @@ Machine-aware commands such as `spawn --machine <machine-id>` also support ID pr
 
 All machine and session data is end-to-end encrypted. New records use AES-256-GCM with per-record keys. Existing records created by other clients are decrypted using the appropriate key scheme (AES-256-GCM or legacy NaCl secretbox).
 
+## Development
+
+The `test`, `test:integration`, and `prepublishOnly` scripts invoke `pnpm` by name rather than `$npm_execpath`. This is intentional: on Windows, `$npm_execpath` resolves to a cmd shim that pnpm cannot exec under Git Bash, causing the build to fail. Contributors must invoke these scripts via `pnpm` (e.g. `pnpm test`) or from a pnpm workspace context; running them through `npm run` or `yarn run` directly is not supported.
+
 ## Requirements
 
 - Node.js >= 20.0.0
+- pnpm >= 10 (npm and yarn are not supported as script runners; see Development note above)
 - A Happy mobile app account for authentication
 
 ## Publishing to npm
