@@ -1,6 +1,11 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
+// Web persists credentials (devTunnelsAccess GitHub OAuth token, per-machine
+// tunnelClaim/deviceCode) into localStorage; native uses expo-secure-store.
+// The localStorage choice is an accepted trade-off for the single-user
+// self-host scope — see packages/happy-app/scripts/sprint-a-gap.md
+// "Web platform threat model (TokenStorage persistence)".
 const AUTH_KEY = 'machine_credentials';
 
 export interface AuthCredentials {

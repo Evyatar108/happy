@@ -182,6 +182,45 @@ in `socketOptions.test.ts` + `pairing.test.ts` (AC-D15 round-15 EXR1-006) and
 `sources/.../*.test.{ts,tsx}` test code remain valid because they exercise
 mocked transports and do not depend on the production tunnel access policy.
 
+## Web platform threat model (TokenStorage persistence)
+
+happy-app's primary target is native mobile (iOS + Android), where `TokenStorage`
+persists credentials via `expo-secure-store` (OS-keystore-backed). Web is a
+**secondary** target per `packages/happy-app/CLAUDE.md` "Project Scope and
+Priorities".
+
+On web (`Platform.OS === 'web'`), `sources/auth/tokenStorage.ts` persists the
+following into `localStorage` under `AUTH_KEY = 'machine_credentials'`:
+
+- `devTunnelsAccess` — the GitHub OAuth `ghu_*` token from the device flow
+  (scope: `read:user`). Used to discover Dev Tunnels machines.
+- Per-machine `tunnelClaim`, `deviceCode`, `connectToken`, `tunnelUrl`, etc. —
+  the inputs `/pair/status` consumes to mint fresh 1h tunnel claims.
+
+`localStorage` is JS-accessible and would be readable by any XSS sink in the
+SPA. This is an explicit, accepted trade-off for the project's stated scope:
+
+- **Single-user self-host.** Each user runs their own happy-server + Dev
+  Tunnels + happy-app instance; there is no multi-tenant web deployment.
+- **The user controls their browser environment.** They are not loading the
+  SPA from a context that mixes untrusted third-party scripts.
+- **XSS is out of scope.** No untrusted user-generated content from other
+  accounts is rendered. The SPA loads its own bundle from its own origin.
+- **The blast radius is bounded.** `devTunnelsAccess` is a `read:user` GitHub
+  token (no repo/write scope); per-machine `tunnelClaim` minting still
+  requires the device_code, which expires every ~15 min per R-D11.
+
+This is consistent with the previous encryption-era design's threat model
+(which assumed the same single-user posture) and does not regress the
+production-faithful native flow.
+
+**Revisit trigger.** If the fork ever ships a public multi-user web build —
+i.e. a web target where one origin serves multiple users' tokens, or where
+third-party scripts may execute in the SPA's origin — this trade-off MUST be
+revisited. Candidate mitigations: (i) session-only in-memory tokens with
+re-auth every web session, or (ii) a BFF (backend-for-frontend) that holds
+tokens server-side and exposes only a same-site session cookie to the SPA.
+
 ## Sprint D US-D4 implementation notes
 
 - Dev-environment credentials use the plaintext tunnel-claim path: set
