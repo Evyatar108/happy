@@ -342,6 +342,9 @@ export async function refreshTunnelClaim(
     }
 
     const refreshed = response.machines[0];
+    if (refreshed.machineId !== machineId) {
+        throw new RefreshFailedError(`Pair status returned machine ${refreshed.machineId}, expected ${machineId}`);
+    }
     return {
         tunnelUrl: refreshed.tunnelUrl,
         tunnelClaim: refreshed.tunnelClaim,

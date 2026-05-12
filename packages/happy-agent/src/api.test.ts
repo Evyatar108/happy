@@ -297,6 +297,25 @@ describe('api', () => {
             await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow(RefreshFailedError);
         });
 
+        it('throws RefreshFailedError before claim decode when response machineId does not match requested machineId', async () => {
+            const now = Math.floor(Date.now() / 1000);
+            const mismatchedResponse = {
+                data: {
+                    status: 'authorized',
+                    machines: [{
+                        machineId: 'machine-9',
+                        tunnelUrl: 'https://machine-9.devtunnels.ms',
+                        tunnelClaim: encodeTunnelClaim({ accountId: 456, iat: now, exp: now + 600, jti: 'fresh-jti' }),
+                    }],
+                },
+            };
+            mockedAxios.post.mockResolvedValueOnce(mismatchedResponse);
+
+            await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow(
+                new RefreshFailedError('Pair status returned machine machine-9, expected machine-1'),
+            );
+        });
+
         it('rejects tunnel claims without required signed-envelope payload fields', async () => {
             mockedAxios.post.mockResolvedValueOnce({
                 data: {
