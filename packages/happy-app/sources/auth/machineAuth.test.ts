@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const refresh = vi.hoisted(() => ({
     refreshTunnelClaim: vi.fn(async () => 'fresh-claim'),
@@ -43,5 +45,14 @@ describe('machine auth', () => {
         global.fetch = vi.fn(async () => new Response(JSON.stringify({ error: 'other' }), { status: 401 })) as never;
         const response = await tunnelFetch('https://machine.example.test/v2/me/settings', credentials);
         expect(response.status).toBe(401);
+    });
+
+    it('relies on Sprint A socket middleware to populate socket.data.accountId', () => {
+        const socketSource = readFileSync(
+            resolve(__dirname, '../../../happy-server/sources/app/api/socket.ts'),
+            'utf8'
+        );
+
+        expect(socketSource).toContain('socket.data.accountId = accountId');
     });
 });

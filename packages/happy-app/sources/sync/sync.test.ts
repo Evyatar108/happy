@@ -4,9 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     sessionRPC: vi.fn(),
+    tunnelFetch: vi.fn(),
     alert: vi.fn(),
     storageState: {
         sessions: {} as Record<string, any>,
+        settings: {} as Record<string, any>,
         applySessions: vi.fn(),
         applySettings: vi.fn(),
         applySettingsLocal: vi.fn(),
@@ -30,6 +32,10 @@ vi.mock('./apiSocket', () => ({
         emitWithAck: vi.fn(),
     },
     getHappyClientId: vi.fn(() => 'client-1'),
+}));
+
+vi.mock('@/auth/machineAuth', () => ({
+    tunnelFetch: mocks.tunnelFetch,
 }));
 
 vi.mock('react-native', () => ({
@@ -478,6 +484,28 @@ describe('sync.sendMessage switch policy', () => {
 
         await expect(uploadThenSend()).rejects.toThrow('upload failed');
         expect(sendSpy).not.toHaveBeenCalled();
+    });
+});
+
+describe('sync settings payload limit', () => {
+    beforeEach(() => {
+        vi.restoreAllMocks();
+        vi.clearAllMocks();
+        resetStorageHarness();
+        (sync as any).credentials = {
+            machineId: 'machine-1',
+            tunnelUrl: 'https://machine.example.test',
+        };
+    });
+
+    it('rejects oversized settings before sending a tunnel request', async () => {
+        mocks.storageState.settings = { large: 'x'.repeat(1024 * 1024) };
+
+        await expect((sync as any).syncSettings()).rejects.toMatchObject({
+            name: 'SettingsPayloadTooLargeError',
+            limit: 1024 * 1024,
+        });
+        expect(mocks.tunnelFetch).not.toHaveBeenCalled();
     });
 });
 

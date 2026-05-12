@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
     }),
     credentials: [] as any[],
     markMachineDisconnected: vi.fn(),
+    refreshTunnelClaim: vi.fn(async (_credentials: any, machineId: string) => `jwt-${machineId}-fresh`),
 }));
 
 vi.mock('socket.io-client', () => ({
@@ -47,7 +48,7 @@ vi.mock('@/auth/tokenStorage', () => ({
 }));
 
 vi.mock('@/sync/refreshClaim', () => ({
-    refreshTunnelClaim: vi.fn(async (_credentials: any, machineId: string) => `jwt-${machineId}-fresh`),
+    refreshTunnelClaim: mocks.refreshTunnelClaim,
 }));
 
 vi.mock('./storage', () => ({
@@ -82,6 +83,7 @@ describe('apiSocket multi-machine connections', () => {
         vi.clearAllMocks();
         mocks.sockets.length = 0;
         mocks.credentials = [credential('machine-a'), credential('machine-b')];
+        mocks.refreshTunnelClaim.mockImplementation(async (_credentials: any, machineId: string) => `jwt-${machineId}-fresh`);
     });
 
     it('maintains one Socket.IO connection per configured machine', async () => {
@@ -117,5 +119,40 @@ describe('apiSocket multi-machine connections', () => {
         expect(handler).toHaveBeenCalledWith({ body: { t: 'new-session' } }, 'machine-b');
         expect(stale.mock.calls[0][0]).toBe('machine-b');
         expect(typeof stale.mock.calls[0][1]).toBe('number');
+    });
+
+    it('replaces unintentional disconnects with a fresh-claim socket and skips intentional reconnects', async () => {
+        let claimIndex = 0;
+        mocks.refreshTunnelClaim.mockImplementation(async (_credentials: any, machineId: string) => `jwt-${machineId}-${++claimIndex}`);
+
+        const { apiSocket } = await import('./apiSocket');
+        await apiSocket.initializeMany([{
+            config: { endpoint: mocks.credentials[0].tunnelUrl, credentials: mocks.credentials[0] },
+            encryption: {} as any,
+        }]);
+
+        const reconnected = vi.fn();
+        apiSocket.onReconnected(reconnected);
+        mocks.sockets[0].trigger('connect');
+        const firstAuth = mocks.sockets[0].options.extraHeaders['X-Tunnel-Authorization'];
+
+        mocks.sockets[0].trigger('disconnect');
+        await Promise.resolve();
+        await Promise.resolve();
+        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(mocks.sockets).toHaveLength(2);
+        const secondAuth = mocks.sockets[1].options.extraHeaders['X-Tunnel-Authorization'];
+        expect(secondAuth).not.toBe(firstAuth);
+
+        mocks.sockets[1].trigger('connect');
+        expect(reconnected).toHaveBeenCalledTimes(1);
+        expect(reconnected).toHaveBeenCalledWith('machine-a');
+
+        mocks.refreshTunnelClaim.mockClear();
+        apiSocket.disconnect('machine-a');
+        mocks.sockets[1].trigger('disconnect');
+        await Promise.resolve();
+        expect(mocks.refreshTunnelClaim).not.toHaveBeenCalled();
+        expect(mocks.sockets).toHaveLength(2);
     });
 });

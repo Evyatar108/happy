@@ -6,9 +6,9 @@ import { ItemGroup } from '@/components/ItemGroup';
 import { ItemList } from '@/components/ItemList';
 import { Typography } from '@/constants/Typography';
 import { useSessions, useAllMachines, useMachine } from '@/sync/storage';
-import { Ionicons, Octicons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import type { Session } from '@/sync/storageTypes';
-import { machineStopDaemon, machineUpdateMetadata, machineDelete } from '@/sync/ops';
+import { machineStopDaemon, machineDelete } from '@/sync/ops';
 import { Modal } from '@/modal';
 import { formatPathRelativeToHome, getSessionName, getSessionSubtitle } from '@/utils/sessionUtils';
 import { isMachineOnline } from '@/utils/machineUtils';
@@ -71,7 +71,6 @@ export default function MachineDetailScreen() {
     const navigateToSession = useNavigateToSession();
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isStoppingDaemon, setIsStoppingDaemon] = useState(false);
-    const [isRenamingMachine, setIsRenamingMachine] = useState(false);
     const [isDeletingMachine, setIsDeletingMachine] = useState(false);
     const [customPath, setCustomPath] = useState('');
     const [isSpawning, setIsSpawning] = useState(false);
@@ -190,48 +189,6 @@ export default function MachineDetailScreen() {
         }
     };
 
-    const handleRenameMachine = async () => {
-        if (!machine || !machineId) return;
-
-        const newDisplayName = await Modal.prompt(
-            'Rename Machine',
-            'Give this machine a custom name. Leave empty to use the default hostname.',
-            {
-                defaultValue: machine.metadata?.displayName || '',
-                placeholder: machine.metadata?.host || 'Enter machine name',
-                cancelText: t('common.cancel'),
-                confirmText: t('common.rename')
-            }
-        );
-
-        if (newDisplayName !== null) {
-            setIsRenamingMachine(true);
-            try {
-                const updatedMetadata = {
-                    ...machine.metadata!,
-                    displayName: newDisplayName.trim() || undefined
-                };
-                
-                await machineUpdateMetadata(
-                    machineId,
-                    updatedMetadata,
-                    machine.metadataVersion ?? 0
-                );
-                
-                Modal.alert(t('common.success'), 'Machine renamed successfully');
-            } catch (error) {
-                Modal.alert(
-                    'Error',
-                    error instanceof Error ? error.message : 'Failed to rename machine'
-                );
-                // Refresh to get latest state
-                await sync.refreshMachines();
-            } finally {
-                setIsRenamingMachine(false);
-            }
-        }
-    };
-
     const handleStartSession = async (approvedNewDirectoryCreation: boolean = false): Promise<void> => {
         if (!machine || !machineId) return;
         try {
@@ -336,22 +293,6 @@ export default function MachineDetailScreen() {
                                 </Text>
                             </View>
                         </View>
-                    ),
-                    headerRight: () => (
-                        <Pressable
-                            onPress={handleRenameMachine}
-                            hitSlop={10}
-                            style={{
-                                opacity: isRenamingMachine ? 0.5 : 1
-                            }}
-                            disabled={isRenamingMachine}
-                        >
-                            <Octicons
-                                name="pencil"
-                                size={24}
-                                color={theme.colors.text}
-                            />
-                        </Pressable>
                     ),
                     headerBackTitle: t('machine.back')
                 }}
@@ -478,41 +419,6 @@ export default function MachineDetailScreen() {
                                 )
                             }
                         />
-                        {machine.daemonState && (
-                            <>
-                                {machine.daemonState.pid && (
-                                    <Item
-                                        title={t('machine.lastKnownPid')}
-                                        subtitle={String(machine.daemonState.pid)}
-                                        subtitleStyle={{ fontFamily: 'Menlo', fontSize: 13 }}
-                                    />
-                                )}
-                                {machine.daemonState.httpPort && (
-                                    <Item
-                                        title={t('machine.lastKnownHttpPort')}
-                                        subtitle={String(machine.daemonState.httpPort)}
-                                        subtitleStyle={{ fontFamily: 'Menlo', fontSize: 13 }}
-                                    />
-                                )}
-                                {machine.daemonState.startTime && (
-                                    <Item
-                                        title={t('machine.startedAt')}
-                                        subtitle={new Date(machine.daemonState.startTime).toLocaleString()}
-                                    />
-                                )}
-                                {machine.daemonState.startedWithCliVersion && (
-                                    <Item
-                                        title={t('machine.cliVersion')}
-                                        subtitle={machine.daemonState.startedWithCliVersion}
-                                        subtitleStyle={{ fontFamily: 'Menlo', fontSize: 13 }}
-                                    />
-                                )}
-                            </>
-                        )}
-                        <Item
-                            title={t('machine.daemonStateVersion')}
-                            subtitle={String(machine.daemonStateVersion)}
-                        />
                 </ItemGroup>
 
                 {/* CLI Availability */}
@@ -616,10 +522,6 @@ export default function MachineDetailScreen() {
                         <Item
                             title={t('machine.lastSeen')}
                             subtitle={machine.activeAt ? new Date(machine.activeAt).toLocaleString() : t('machine.never')}
-                        />
-                        <Item
-                            title={t('machine.metadataVersion')}
-                            subtitle={String(machine.metadataVersion)}
                         />
                 </ItemGroup>
 

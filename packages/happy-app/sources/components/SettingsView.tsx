@@ -6,6 +6,15 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useAuth } from '@/auth/AuthContext';
+import {
+    credentialsFromPairMachine,
+    fetchGitHubUserProfile,
+    loginInteractive,
+    openGitHubDeviceFlow,
+    startPairFlow,
+    waitForPairStatus,
+} from '@/auth/pairing';
+import { TokenStorage } from '@/auth/tokenStorage';
 import { Typography } from "@/constants/Typography";
 import { Item } from '@/components/Item';
 import { ItemGroup } from '@/components/ItemGroup';
@@ -23,6 +32,7 @@ import { useUnistyles } from 'react-native-unistyles';
 import { layout } from '@/components/layout';
 import { useHappyAction } from '@/hooks/useHappyAction';
 import { disconnectService } from '@/sync/apiServices';
+import { DevTunnelsClientProvider, type MachineTunnel } from '@/sync/tunnelProvider';
 import { useProfile } from '@/sync/storage';
 import { getDisplayName, getAvatarUrl, getBio } from '@/sync/profile';
 import { Avatar } from '@/components/Avatar';
@@ -115,6 +125,59 @@ export const SettingsView = React.memo(function SettingsView() {
             await disconnectService(auth.credentials!, 'anthropic');
             await sync.refreshProfile();
         }
+    });
+
+    const [pairingMachine, handleAddMachine] = useHappyAction(async () => {
+        const provider = new DevTunnelsClientProvider({
+            credentials: TokenStorage,
+            loginInteractive,
+        });
+        if (!(await provider.isLoggedIn())) {
+            await provider.loginInteractive();
+        }
+
+        const githubToken = await TokenStorage.getDevTunnelsToken();
+        const githubProfile = githubToken
+            ? await fetchGitHubUserProfile(githubToken)
+            : { login: '', avatarUrl: '' };
+        const pairedMachineIds = new Set(allMachinesWithOffline.map(machine => machine.id));
+        const availableMachines = (await provider.listMachineTunnels())
+            .filter(machine => !pairedMachineIds.has(machine.machineId));
+        if (availableMachines.length === 0) {
+            throw new Error(t('welcome.noMachinesForIdentity'));
+        }
+
+        let selectedMachine: MachineTunnel | undefined = availableMachines[0];
+        if (availableMachines.length > 1) {
+            const selection = await Modal.prompt(
+                t('welcome.pairMachine'),
+                availableMachines.map(machine => machine.machineId).join('\n'),
+                { placeholder: availableMachines[0].machineId, confirmText: t('common.continue') }
+            );
+            if (!selection?.trim()) {
+                return;
+            }
+            selectedMachine = availableMachines.find(machine => machine.machineId === selection.trim());
+            if (!selectedMachine) {
+                throw new Error(t('welcome.pairingFailed'));
+            }
+        }
+
+        const flow = await startPairFlow(selectedMachine);
+        const deviceCodeExpiresAt = Date.now() + (flow.expires_in ?? 15 * 60) * 1000;
+        await openGitHubDeviceFlow(flow);
+        const status = await waitForPairStatus(selectedMachine, flow);
+        const paired = status.machines?.[0];
+        if (!paired) {
+            throw new Error(t('welcome.pairingFailed'));
+        }
+
+        await auth.login(credentialsFromPairMachine(selectedMachine, paired, {
+            login: githubProfile.login,
+            avatarUrl: githubProfile.avatarUrl,
+            deviceCode: flow.device_code,
+            deviceCodeExpiresAt,
+        }));
     });
 
 
@@ -232,6 +295,13 @@ export const SettingsView = React.memo(function SettingsView() {
             {/* Machines (sorted: online first, then last seen desc) */}
             {allMachinesWithOffline.length > 0 && (
                 <ItemGroup title={t('settings.machines')}>
+                    <Item
+                        title={t('welcome.pairMachine')}
+                        icon={<Ionicons name="add-circle-outline" size={29} color="#007AFF" />}
+                        onPress={handleAddMachine}
+                        loading={pairingMachine}
+                        showChevron={false}
+                    />
                     {visibleMachines.map((machine) => {
                         const isOnline = isMachineOnline(machine);
                         const host = machine.metadata?.host || 'Unknown';

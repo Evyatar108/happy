@@ -565,7 +565,19 @@ function NewSessionScreen() {
         setIsSpawning(true);
         try {
             const pathToUse = trimPathInput(selectedPath) || '~';
-            const absolutePath = resolveAbsolutePath(pathToUse, selectedMachine.metadata?.homeDir);
+            let homeDir = selectedMachine.metadata?.homeDir;
+            if (pathToUse.startsWith('~') && !homeDir) {
+                const promptedHomeDir = await Modal.prompt(
+                    t('machine.homeDirectory'),
+                    undefined,
+                    { placeholder: '/Users/name', confirmText: t('common.continue') }
+                );
+                if (!promptedHomeDir?.trim()) {
+                    return;
+                }
+                homeDir = promptedHomeDir.trim();
+            }
+            const absolutePath = resolveAbsolutePath(pathToUse, homeDir);
 
             // Handle worktree selection
             let spawnDirectory = absolutePath;
