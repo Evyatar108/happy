@@ -14,7 +14,8 @@ import { machineUpdateHandler } from "./socket/machineUpdateHandler";
 import { artifactUpdateHandler } from "./socket/artifactUpdateHandler";
 import { accessKeyHandler } from "./socket/accessKeyHandler";
 import { sessionMessageRangeHandler } from "./socket/sessionMessageRangeHandler";
-import { verifyTunnelClaim, type TofuHandshakeConfig } from "./api";
+import type { TofuHandshakeConfig } from "./api";
+import { verifyTunnelClaim } from "./auth/tunnelClaim";
 import { makeLoopbackTokenReader, type LoopbackCapabilityPaths } from "./auth/loopbackCapability";
 import { parseCorsOrigins } from "./utils/parseCorsOrigins";
 
@@ -62,6 +63,8 @@ export function createSocketAuthMiddleware(tofuConfig: TofuHandshakeConfig, sock
         : null;
 
     return async function socketAuthMiddleware(socket: any, next: (err?: Error) => void) {
+        let accountId: number | null = null;
+
         if (socketOptions.auth === 'loopback') {
             const capHeader = socket.handshake.headers['x-loopback-capability'] as string | undefined;
             const expectedToken = await readLoopbackToken!();
@@ -80,6 +83,7 @@ export function createSocketAuthMiddleware(tofuConfig: TofuHandshakeConfig, sock
                 next(new Error('Unauthorized'));
                 return;
             }
+            accountId = claim.payload.accountId ?? null;
         }
 
         const clientType = socket.handshake.auth.clientType as 'session-scoped' | 'user-scoped' | 'machine-scoped' | undefined;
@@ -103,6 +107,7 @@ export function createSocketAuthMiddleware(tofuConfig: TofuHandshakeConfig, sock
         socket.data.clientType = clientType;
         socket.data.sessionId = sessionId;
         socket.data.machineId = machineId;
+        socket.data.accountId = accountId;
         socket.data.tofuPublicKeys = tofuConfig.tofuPublicKeys;
         socket.data.happyClient = socket.handshake.auth.happyClient as string
             || socket.handshake.headers['x-happy-client'] as string
