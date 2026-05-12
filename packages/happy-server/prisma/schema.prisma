@@ -2,34 +2,17 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-    provider        = "prisma-client-js"
-    previewFeatures = ["metrics", "relationJoins", "driverAdapters"]
+  provider        = "prisma-client-js"
+  previewFeatures = ["metrics", "relationJoins", "driverAdapters"]
 }
 
 generator json {
-    provider = "prisma-json-types-generator"
+  provider = "prisma-json-types-generator"
 }
 
 datasource db {
-    provider = "postgresql"
-    url      = env("DATABASE_URL")
-}
-
-model TerminalAuthRequest {
-    id         String   @id @default(cuid())
-    publicKey  String   @unique
-    supportsV2 Boolean  @default(false)
-    response   String?
-    createdAt  DateTime @default(now())
-    updatedAt  DateTime @updatedAt
-}
-
-model AccountAuthRequest {
-    id        String   @id @default(cuid())
-    publicKey String   @unique
-    response  String?
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 //
@@ -37,91 +20,37 @@ model AccountAuthRequest {
 //
 
 model Session {
-    id                String           @id @default(cuid())
-    tag               String
-    metadata          String
-    metadataVersion   Int              @default(0)
-    agentState        String?
-    agentStateVersion Int              @default(0)
-    dataEncryptionKey Bytes?
-    seq               Int              @default(0)
-    active            Boolean          @default(true)
-    lastActiveAt      DateTime         @default(now())
-    createdAt         DateTime         @default(now())
-    updatedAt         DateTime         @updatedAt
-    messages          SessionMessage[]
-    usageReports      UsageReport[]
-    accessKeys        AccessKey[]
+  id                String           @id @default(cuid())
+  tag               String
+  metadata          String
+  metadataVersion   Int              @default(0)
+  agentState        String?
+  agentStateVersion Int              @default(0)
+  dataEncryptionKey Bytes?
+  seq               Int              @default(0)
+  active            Boolean          @default(true)
+  lastActiveAt      DateTime         @default(now())
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  messages          SessionMessage[]
 
-    @@unique([tag])
-    @@index([updatedAt(sort: Desc)])
+  @@unique([tag])
+  @@index([updatedAt(sort: Desc)])
 }
 
 model SessionMessage {
-    id        String   @id @default(cuid())
-    sessionId String
-    session   Session  @relation(fields: [sessionId], references: [id])
-    localId   String?
-    seq       Int
-    /// [SessionMessageContent]
-    content   Json
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+  id        String   @id @default(cuid())
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id])
+  localId   String?
+  seq       Int
+  /// [SessionMessageContent]
+  content   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-    @@unique([sessionId, localId])
-    @@index([sessionId, seq])
-}
-
-model GithubOrganization {
-    id        String   @id
-    /// [GitHubOrg]
-    profile   Json
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-}
-
-//
-// Utility
-//
-
-model GlobalLock {
-    key       String   @id @default(cuid())
-    value     String
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-    expiresAt DateTime
-}
-
-model RepeatKey {
-    key       String   @id
-    value     String
-    createdAt DateTime @default(now())
-    expiresAt DateTime
-}
-
-model SimpleCache {
-    key       String   @id
-    value     String
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-}
-
-//
-// Usage Reporting
-//
-
-model UsageReport {
-    id        String   @id @default(cuid())
-    key       String
-    sessionId String?
-    session   Session? @relation(fields: [sessionId], references: [id])
-    /// [UsageReportData]
-    data      Json
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-
-    @@unique([sessionId, key])
-    @@index([sessionId])
+  @@unique([sessionId, localId])
+  @@index([sessionId, seq])
 }
 
 //
@@ -129,135 +58,27 @@ model UsageReport {
 //
 
 model Machine {
-    id                 String      @id
-    metadata           String // Encrypted - contains static machine info
-    metadataVersion    Int         @default(0)
-    daemonState        String? // Encrypted - contains dynamic daemon state
-    daemonStateVersion Int         @default(0)
-    dataEncryptionKey  Bytes?
-    seq                Int         @default(0)
-    active             Boolean     @default(true)
-    lastActiveAt       DateTime    @default(now())
-    createdAt          DateTime    @default(now())
-    updatedAt          DateTime    @updatedAt
-    accessKeys         AccessKey[]
+  id                 String   @id
+  metadata           String // Encrypted - contains static machine info
+  metadataVersion    Int      @default(0)
+  daemonState        String? // Encrypted - contains dynamic daemon state
+  daemonStateVersion Int      @default(0)
+  dataEncryptionKey  Bytes?
+  seq                Int      @default(0)
+  active             Boolean  @default(true)
+  lastActiveAt       DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 }
 
 model PushToken {
-    id            String   @id @default(cuid())
-    machineId     String
-    deviceId      String
-    expoPushToken String
-    createdAt     DateTime @default(now())
-    updatedAt     DateTime @updatedAt
+  id            String   @id @default(cuid())
+  machineId     String
+  deviceId      String
+  expoPushToken String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-    @@unique([machineId, deviceId])
-    @@index([machineId])
-}
-
-model UploadedFile {
-    id        String   @id @default(cuid())
-    path      String
-    width     Int?
-    height    Int?
-    thumbhash String?
-    reuseKey  String?
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-
-    @@unique([path])
-}
-
-model ServiceAccountToken {
-    id         String    @id @default(cuid())
-    vendor     String
-    token      Bytes // Encrypted token
-    metadata   Json? // Optional vendor metadata
-    lastUsedAt DateTime?
-    createdAt  DateTime  @default(now())
-    updatedAt  DateTime  @updatedAt
-
-    @@unique([vendor])
-}
-
-//
-// Artifacts
-//
-
-model Artifact {
-    id                String   @id // UUID provided by client
-    header            Bytes // Encrypted header (can contain JSON)
-    headerVersion     Int      @default(0)
-    body              Bytes // Encrypted body
-    bodyVersion       Int      @default(0)
-    dataEncryptionKey Bytes // Encryption key for this artifact
-    seq               Int      @default(0)
-    createdAt         DateTime @default(now())
-    updatedAt         DateTime @updatedAt
-
-    @@index([updatedAt(sort: Desc)])
-}
-
-//
-// Access Keys
-//
-
-model AccessKey {
-    id          String   @id @default(cuid())
-    machineId   String
-    machine     Machine  @relation(fields: [machineId], references: [id])
-    sessionId   String
-    session     Session  @relation(fields: [sessionId], references: [id])
-    data        String // Encrypted data
-    dataVersion Int      @default(0)
-    createdAt   DateTime @default(now())
-    updatedAt   DateTime @updatedAt
-
-    @@unique([machineId, sessionId])
-    @@index([sessionId])
-    @@index([machineId])
-}
-
-//
-// Feed
-//
-
-model UserFeedItem {
-    id        String   @id @default(cuid())
-    counter   BigInt
-    repeatKey String?
-    /// [FeedBody]
-    body      Json
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-
-    @@unique([counter])
-    @@unique([repeatKey])
-    @@index([counter(sort: Desc)])
-}
-
-//
-// Key-Value Storage
-//
-
-model UserKVStore {
-    id        String   @id @default(cuid())
-    key       String   @unique // Unencrypted for indexing
-    value     Bytes?   // Encrypted value, null when "deleted"
-    version   Int      @default(0)
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-}
-
-//
-// Voice Conversations - tracks ElevenLabs conversations for rate limiting
-//
-
-model VoiceConversation {
-    id                         String   @id @default(cuid())
-    elevenLabsConversationId   String   @unique
-    durationSecs               Int?     // Filled in lazily from ElevenLabs API
-    createdAt                  DateTime @default(now())
-
-    @@index([createdAt(sort: Desc)])
+  @@unique([machineId, deviceId])
+  @@index([machineId])
 }
