@@ -22,7 +22,6 @@ import { isMachineOnline } from '@/utils/machineUtils';
 import { useUnistyles } from 'react-native-unistyles';
 import { layout } from '@/components/layout';
 import { useHappyAction } from '@/hooks/useHappyAction';
-import { getGitHubOAuthParams, disconnectGitHub } from '@/sync/apiGithub';
 import { disconnectService } from '@/sync/apiServices';
 import { useProfile } from '@/sync/storage';
 import { getDisplayName, getAvatarUrl, getBio } from '@/sync/profile';
@@ -98,26 +97,7 @@ export const SettingsView = React.memo(function SettingsView() {
     });
 
     // Connection status
-    const isGitHubConnected = !!profile.github;
     const isAnthropicConnected = profile.connectedServices?.includes('anthropic') || false;
-
-    // GitHub connection
-    const [connectingGitHub, connectGitHub] = useHappyAction(async () => {
-        const params = await getGitHubOAuthParams(auth.credentials!);
-        await Linking.openURL(params.url);
-    });
-
-    // GitHub disconnection
-    const [disconnectingGitHub, handleDisconnectGitHub] = useHappyAction(async () => {
-        const confirmed = await Modal.confirm(
-            t('modals.disconnectGithub'),
-            t('modals.disconnectGithubConfirm'),
-            { confirmText: t('modals.disconnect'), destructive: true }
-        );
-        if (confirmed) {
-            await disconnectGitHub(auth.credentials!);
-        }
-    });
 
     // Anthropic connection
     const [connectingAnthropic, connectAnthropic] = useHappyAction(async () => {
@@ -235,23 +215,6 @@ export const SettingsView = React.memo(function SettingsView() {
                     }
                     onPress={isAnthropicConnected ? handleDisconnectAnthropic : connectAnthropic}
                     loading={connectingAnthropic || disconnectingAnthropic}
-                    showChevron={false}
-                />
-                <Item
-                    title={t('settings.github')}
-                    subtitle={isGitHubConnected
-                        ? t('settings.githubConnected', { login: profile.github?.login! })
-                        : t('settings.connectGithubAccount')
-                    }
-                    icon={
-                        <Ionicons
-                            name="logo-github"
-                            size={29}
-                            color={isGitHubConnected ? theme.colors.status.connected : theme.colors.textSecondary}
-                        />
-                    }
-                    onPress={isGitHubConnected ? handleDisconnectGitHub : connectGitHub}
-                    loading={connectingGitHub || disconnectingGitHub}
                     showChevron={false}
                 />
             </ItemGroup>

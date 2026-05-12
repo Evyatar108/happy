@@ -5,7 +5,7 @@ import { AuthCredentials, TokenStorage } from '@/auth/tokenStorage';
 import { Encryption } from './encryption/encryption';
 import { storage } from './storage';
 import { tunnelFetch } from '@/auth/machineAuth';
-import { buildTunnelSocketOptions } from './tunnelTransport';
+import { buildTunnelSocketOptions } from './socketOptions';
 import { localizeSessionPath, parseCompositeSessionId } from './machineSessionId';
 import {
     SessionMessageRangeRequestSchema,
@@ -42,6 +42,9 @@ interface MachineConnection {
     config: SyncSocketConfig;
     encryption: Encryption;
     status: SyncSocketStatus;
+    intentionalDisconnect: boolean;
+    hasConnected: boolean;
+    firstConnectWaiters: Array<() => void>;
 }
 
 type MessageHandler = (data: any, machineId: string) => void;
@@ -55,11 +58,11 @@ class ApiSocket {
     private machineDisconnectListeners: Set<(machineId: string, lastSeenAt: number) => void> = new Set();
     private currentStatus: SyncSocketStatus = 'disconnected';
 
-    initialize(config: SyncSocketConfig, encryption: Encryption) {
-        this.initializeMany([{ config, encryption }]);
+    async initialize(config: SyncSocketConfig, encryption: Encryption) {
+        await this.initializeMany([{ config, encryption }]);
     }
 
-    initializeMany(items: Array<{ config: SyncSocketConfig; encryption: Encryption }>) {
+    async initializeMany(items: Array<{ config: SyncSocketConfig; encryption: Encryption }>) {
         for (const item of items) {
             const machineId = item.config.credentials.machineId;
             const existing = this.connections.get(machineId);
@@ -73,15 +76,51 @@ class ApiSocket {
                 config: item.config,
                 encryption: item.encryption,
                 status: 'disconnected',
+                intentionalDisconnect: false,
+                hasConnected: false,
+                firstConnectWaiters: [],
             });
             if (!this.primaryMachineId) {
                 this.primaryMachineId = machineId;
             }
         }
-        this.connect();
+        await this.connect();
     }
 
-    connect(machineId?: string) {
+    async appendMachine(item: { config: SyncSocketConfig; encryption: Encryption }, timeoutMs = 15_000): Promise<void> {
+        const machineId = item.config.credentials.machineId;
+        const existing = this.connections.get(machineId);
+        if (existing) {
+            existing.config = item.config;
+            existing.encryption = item.encryption;
+        } else {
+            this.connections.set(machineId, {
+                socket: null,
+                config: item.config,
+                encryption: item.encryption,
+                status: 'disconnected',
+                intentionalDisconnect: false,
+                hasConnected: false,
+                firstConnectWaiters: [],
+            });
+        }
+        if (!this.primaryMachineId) {
+            this.primaryMachineId = machineId;
+        }
+
+        const connection = this.connections.get(machineId)!;
+        const connected = new Promise<void>((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error(`Socket connect timed out for machine ${machineId}`)), timeoutMs);
+            connection.firstConnectWaiters.push(() => {
+                clearTimeout(timeout);
+                resolve();
+            });
+        });
+        await this.connect(machineId);
+        await connected;
+    }
+
+    async connect(machineId?: string) {
         const targets = machineId
             ? [this.getConnection(machineId)]
             : Array.from(this.connections.values());
@@ -91,7 +130,8 @@ class ApiSocket {
                 continue;
             }
             this.updateMachineStatus(connection.config.credentials.machineId, 'connecting');
-            connection.socket = io(connection.config.endpoint, buildTunnelSocketOptions(connection.config.credentials));
+            connection.intentionalDisconnect = false;
+            connection.socket = io(connection.config.endpoint, await buildTunnelSocketOptions(connection.config.credentials));
             this.setupEventHandlers(connection);
         }
     }
@@ -105,6 +145,7 @@ class ApiSocket {
             if (!connection) {
                 continue;
             }
+            connection.intentionalDisconnect = true;
             if (connection.socket) {
                 connection.socket.disconnect();
                 connection.socket = null;
@@ -234,9 +275,9 @@ class ApiSocket {
         });
     }
 
-    reconnectWithCurrentCredentials() {
+    async reconnectWithCurrentCredentials() {
         this.disconnect();
-        this.connect();
+        await this.connect();
     }
 
     private resolveSessionRef(sessionId: string) {
@@ -309,7 +350,11 @@ class ApiSocket {
                 console.log('SyncSocket connected', { machineId, recovered: socket.recovered, socketId: socket.id });
             }
             this.updateMachineStatus(machineId, 'connected');
-            if (!socket.recovered) {
+            const waiters = connection.firstConnectWaiters.splice(0);
+            waiters.forEach(resolve => resolve());
+            const wasConnected = connection.hasConnected;
+            connection.hasConnected = true;
+            if (wasConnected && !socket.recovered) {
                 this.reconnectedListeners.forEach(listener => listener(machineId));
             }
         });
@@ -321,6 +366,11 @@ class ApiSocket {
             const lastSeenAt = Date.now();
             this.updateMachineStatus(machineId, 'disconnected');
             this.machineDisconnectListeners.forEach(listener => listener(machineId, lastSeenAt));
+            const intentional = connection.intentionalDisconnect;
+            connection.socket = null;
+            if (!intentional) {
+                void this.connect(machineId);
+            }
         });
 
         socket.on('connect_error', (error) => {

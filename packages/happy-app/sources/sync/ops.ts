@@ -255,14 +255,10 @@ export async function machineForkSession(options: ForkSessionOptions): Promise<S
  */
 export async function machineDelete(machineId: string): Promise<{ success: boolean; message?: string }> {
     try {
-        const response = await apiSocket.request(`/v1/machines/${machineId}`, {
-            method: 'DELETE'
-        });
-        if (response.ok) {
-            return { success: true };
-        }
-        const error = await response.text();
-        return { success: false, message: error || 'Failed to delete machine' };
+        const { TokenStorage } = await import('@/auth/tokenStorage');
+        await TokenStorage.removeMachineCredentials(machineId);
+        storage.getState().deleteMachine(machineId);
+        return { success: true };
     } catch (error) {
         return {
             success: false,

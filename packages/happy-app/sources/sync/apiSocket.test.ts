@@ -46,6 +46,10 @@ vi.mock('@/auth/tokenStorage', () => ({
     },
 }));
 
+vi.mock('@/sync/refreshClaim', () => ({
+    refreshTunnelClaim: vi.fn(async (_credentials: any, machineId: string) => `jwt-${machineId}-fresh`),
+}));
+
 vi.mock('./storage', () => ({
     storage: {
         getState: () => ({
@@ -68,7 +72,7 @@ function credential(machineId: string) {
         login: `login-${machineId}`,
         avatarUrl: `https://avatars.example.test/${machineId}.png`,
         deviceCode: `device-${machineId}`,
-        deviceCodeExpiresAt: 2,
+        deviceCodeExpiresAt: Date.now() + 60_000,
     };
 }
 
@@ -82,7 +86,7 @@ describe('apiSocket multi-machine connections', () => {
 
     it('maintains one Socket.IO connection per configured machine', async () => {
         const { apiSocket } = await import('./apiSocket');
-        apiSocket.initializeMany(mocks.credentials.map((item) => ({
+        await apiSocket.initializeMany(mocks.credentials.map((item) => ({
             config: { endpoint: item.tunnelUrl, credentials: item },
             encryption: {} as any,
         })));
@@ -97,7 +101,7 @@ describe('apiSocket multi-machine connections', () => {
 
     it('routes events with the source machine id and marks a disconnected machine stale', async () => {
         const { apiSocket } = await import('./apiSocket');
-        apiSocket.initializeMany(mocks.credentials.map((item) => ({
+        await apiSocket.initializeMany(mocks.credentials.map((item) => ({
             config: { endpoint: item.tunnelUrl, credentials: item },
             encryption: {} as any,
         })));

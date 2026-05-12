@@ -215,7 +215,7 @@ export default function MachineDetailScreen() {
                 await machineUpdateMetadata(
                     machineId,
                     updatedMetadata,
-                    machine.metadataVersion
+                    machine.metadataVersion ?? 0
                 );
                 
                 Modal.alert(t('common.success'), 'Machine renamed successfully');

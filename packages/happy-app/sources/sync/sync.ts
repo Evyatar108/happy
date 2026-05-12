@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { apiSocket, getHappyClientId } from '@/sync/apiSocket';
 import { AuthCredentials, TokenStorage } from '@/auth/tokenStorage';
-import { getMachineAuthHeaders } from '@/auth/machineAuth';
+import { tunnelFetch } from '@/auth/machineAuth';
 import { Encryption } from '@/sync/encryption/encryption';
 import { decodeBase64, encodeBase64 } from '@/encryption/base64';
 import { storage } from './storage';
@@ -18,7 +18,6 @@ import { isRunningOnMac } from '@/utils/platform';
 import { getRawRecordLifecycleState, NormalizedMessage, normalizeRawMessage, RawRecord } from './typesRaw';
 import { applySettings, Settings, settingsDefaults, settingsParse, SUPPORTED_SCHEMA_VERSION } from './settings';
 import { Profile, profileParse } from './profile';
-import { loadPendingSettings, savePendingSettings } from './persistence';
 import {
     initializeTracking,
     trackGitHubConnected,
@@ -58,6 +57,20 @@ import { getSessionMode } from '@/utils/sessionUtils';
 import { Modal } from '@/modal';
 import { t } from '@/text';
 import { compositeSessionId, parseCompositeSessionId } from './machineSessionId';
+
+const SETTINGS_PAYLOAD_LIMIT = 1024 * 1024;
+
+export class SettingsPayloadTooLargeError extends Error {
+    readonly byteLength: number;
+    readonly limit: number;
+
+    constructor(byteLength: number, limit = SETTINGS_PAYLOAD_LIMIT) {
+        super(`Settings payload is ${byteLength} bytes; limit is ${limit} bytes.`);
+        this.name = 'SettingsPayloadTooLargeError';
+        this.byteLength = byteLength;
+        this.limit = limit;
+    }
+}
 
 type V3GetSessionMessagesResponse = {
     messages: ApiMessage[];
@@ -142,7 +155,6 @@ class Sync {
     private friendRequestsSync: InvalidateSync;
     private feedSync: InvalidateSync;
     private activityAccumulator: ActivityUpdateAccumulator;
-    private pendingSettings: Partial<Settings> = loadPendingSettings();
     private appState: AppStateStatus = AppState.currentState;
     private backgroundSendTimeout: ReturnType<typeof setTimeout> | null = null;
     private backgroundSendNotificationId: string | null = null;
@@ -237,7 +249,7 @@ class Sync {
                     this.failPendingOutboxMessages('Message failed to send in background after 30s. Please retry.');
                 }
                 log.log('📱 App became active');
-                apiSocket.connect();
+                void apiSocket.connect();
                 this.purchasesSync.invalidate();
                 this.profileSync.invalidate();
                 this.machinesSync.invalidate();
@@ -976,20 +988,12 @@ class Sync {
         this.maybeStartBackgroundSendWatchdog();
     }
 
-    /** Server sent us settings — merge any pending local changes on top, then apply as one update. */
-    private applyServerSettings = (serverSettings: Settings, version: number) => {
-        const merged = Object.keys(this.pendingSettings).length > 0
-            ? applySettings(serverSettings, this.pendingSettings)
-            : serverSettings;
-        storage.getState().applySettings(merged, version);
+    private applyServerSettings = (serverSettings: Settings) => {
+        storage.getState().applySettings(serverSettings);
     }
 
     applySettings = (delta: Partial<Settings>) => {
         storage.getState().applySettingsLocal(delta);
-
-        // Save pending settings
-        this.pendingSettings = { ...this.pendingSettings, ...delta };
-        savePendingSettings(this.pendingSettings);
 
         // Sync PostHog opt-out state if it was changed
         if (tracking && 'analyticsOptOut' in delta) {
@@ -1169,11 +1173,10 @@ class Sync {
             }
             let response: Response;
             try {
-                response = await fetch(`${credentials.tunnelUrl}/v1/sessions`, {
+                response = await tunnelFetch(`${credentials.tunnelUrl}/v1/sessions`, credentials, {
                     headers: {
                         'Content-Type': 'application/json',
                         'X-Happy-Client': getHappyClientId(),
-                        ...getMachineAuthHeaders(credentials),
                     }
                 });
             } catch (error) {
@@ -1546,17 +1549,12 @@ class Sync {
         const decryptedMachines: Machine[] = [];
 
         await Promise.all(this.credentialsList.map(async (credentials) => {
-            const encryption = this.getEncryptionForMachine(credentials.machineId);
-            if (!encryption) {
-                return;
-            }
             let response: Response;
             try {
-                response = await fetch(`${credentials.tunnelUrl}/v1/machines`, {
+                response = await tunnelFetch(`${credentials.tunnelUrl}/v2/me/machine`, credentials, {
                     headers: {
                         'Content-Type': 'application/json',
                         'X-Happy-Client': getHappyClientId(),
-                        ...getMachineAuthHeaders(credentials),
                     }
                 });
             } catch (error) {
@@ -1569,81 +1567,29 @@ class Sync {
                 return;
             }
 
-            const data = await response.json();
-            const machines = data as Array<{
-                id: string;
-                metadata: string;
-                metadataVersion: number;
-                daemonState?: string | null;
-                daemonStateVersion?: number;
-                dataEncryptionKey?: string | null;
-                seq: number;
-                active: boolean;
-                activeAt: number;
-                createdAt: number;
-                updatedAt: number;
-            }>;
-
-            const machineKeysMap = new Map<string, Uint8Array | null>();
-            for (const machine of machines) {
-                if (machine.dataEncryptionKey) {
-                    const decryptedKey = await encryption.decryptEncryptionKey(machine.dataEncryptionKey);
-                    if (!decryptedKey) {
-                        console.error(`Failed to decrypt data encryption key for machine ${machine.id}`);
-                        continue;
-                    }
-                    machineKeysMap.set(machine.id, decryptedKey);
-                    this.machineDataKeys.set(machine.id, decryptedKey);
-                } else {
-                    machineKeysMap.set(machine.id, null);
-                }
-            }
-
-            await encryption.initializeMachines(machineKeysMap);
-
-            for (const machine of machines) {
-                const machineEncryption = encryption.getMachineEncryption(machine.id);
-                if (!machineEncryption) {
-                    console.error(`Machine encryption not found for ${machine.id} - this should never happen`);
-                    continue;
-                }
-
-                try {
-                    const metadata = machine.metadata
-                        ? await machineEncryption.decryptMetadata(machine.metadataVersion, machine.metadata)
-                        : null;
-                    const daemonState = machine.daemonState
-                        ? await machineEncryption.decryptDaemonState(machine.daemonStateVersion || 0, machine.daemonState)
-                        : null;
-
-                    decryptedMachines.push({
-                        id: machine.id,
-                        seq: machine.seq,
-                        createdAt: machine.createdAt,
-                        updatedAt: machine.updatedAt,
-                        active: machine.active,
-                        activeAt: machine.activeAt,
-                        metadata,
-                        metadataVersion: machine.metadataVersion,
-                        daemonState,
-                        daemonStateVersion: machine.daemonStateVersion || 0
-                    });
-                } catch (error) {
-                    console.error(`Failed to decrypt machine ${machine.id}:`, error);
-                    decryptedMachines.push({
-                        id: machine.id,
-                        seq: machine.seq,
-                        createdAt: machine.createdAt,
-                        updatedAt: machine.updatedAt,
-                        active: machine.active,
-                        activeAt: machine.activeAt,
-                        metadata: null,
-                        metadataVersion: machine.metadataVersion,
-                        daemonState: null,
-                        daemonStateVersion: 0
-                    });
-                }
-            }
+            const machine = await response.json() as {
+                machineId: string;
+                hostname: string;
+                tunnelUrl: string;
+                lastSeenAt: number | string;
+            };
+            const activeAt = typeof machine.lastSeenAt === 'number' ? machine.lastSeenAt : Date.parse(machine.lastSeenAt);
+            decryptedMachines.push({
+                id: machine.machineId,
+                seq: activeAt || Date.now(),
+                createdAt: activeAt || Date.now(),
+                updatedAt: activeAt || Date.now(),
+                active: true,
+                activeAt: activeAt || Date.now(),
+                metadata: {
+                    host: machine.hostname,
+                    platform: '',
+                    happyCliVersion: '',
+                    happyHomeDir: '',
+                    homeDir: '',
+                    tunnelUrl: machine.tunnelUrl,
+                },
+            });
         }));
 
         storage.getState().applyMachines(decryptedMachines, true);
@@ -1758,118 +1704,44 @@ class Sync {
         if (!this.credentials) return;
 
         const API_ENDPOINT = this.credentials.tunnelUrl;
-        const maxRetries = 3;
-        let retryCount = 0;
-
-        // Apply pending settings
-        if (Object.keys(this.pendingSettings).length > 0) {
-
-            while (retryCount < maxRetries) {
-                // Snapshot what we're about to send so we can detect concurrent changes
-                const sentPending = { ...this.pendingSettings };
-                let version = storage.getState().settingsVersion;
-                let settings = applySettings(storage.getState().settings, this.pendingSettings);
-                const response = await fetch(`${API_ENDPOINT}/v1/account/settings`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        settings: await this.encryption.encryptRaw(settings),
-                        expectedVersion: version ?? 0
-                    }),
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Happy-Client': getHappyClientId(),
-                        ...getMachineAuthHeaders(this.credentials),
-                    }
-                });
-                const data = await response.json() as {
-                    success: false,
-                    error: string,
-                    currentVersion: number,
-                    currentSettings: string | null
-                } | {
-                    success: true
-                };
-                if (data.success) {
-                    // Only clear keys we actually sent — preserve any settings
-                    // added by applySettings() calls during the POST roundtrip
-                    const newPending: Partial<Settings> = {};
-                    for (const key of Object.keys(this.pendingSettings) as (keyof Settings)[]) {
-                        if (!(key in sentPending) || this.pendingSettings[key] !== sentPending[key]) {
-                            (newPending as any)[key] = this.pendingSettings[key];
-                        }
-                    }
-                    this.pendingSettings = newPending;
-                    savePendingSettings(this.pendingSettings);
-                    break;
-                }
-                if (data.error === 'version-mismatch') {
-                    // Parse server settings
-                    const serverSettings = data.currentSettings
-                        ? settingsParse(await this.encryption.decryptRaw(data.currentSettings))
-                        : { ...settingsDefaults };
-
-                    // Merge: server base + our pending changes (our changes win)
-                    const mergedSettings = applySettings(serverSettings, this.pendingSettings);
-
-                    // Update local storage with merged result at server's version
-                    this.applyServerSettings(mergedSettings, data.currentVersion);
-
-                    // Sync tracking state with merged settings
-                    if (tracking) {
-                        mergedSettings.analyticsOptOut ? tracking.optOut() : tracking.optIn();
-                    }
-
-                    // Log and retry
-                    console.log('settings version-mismatch, retrying', {
-                        serverVersion: data.currentVersion,
-                        retry: retryCount + 1,
-                        pendingKeys: Object.keys(this.pendingSettings)
-                    });
-                    retryCount++;
-                    continue;
-                } else {
-                    throw new Error(`Failed to sync settings: ${data.error}`);
-                }
-            }
+        const payload = storage.getState().settings;
+        const serialized = JSON.stringify(payload);
+        const byteLength = new TextEncoder().encode(serialized).byteLength;
+        if (byteLength > SETTINGS_PAYLOAD_LIMIT) {
+            throw new SettingsPayloadTooLargeError(byteLength);
         }
 
-        // If exhausted retries, throw to trigger outer backoff delay
-        if (retryCount >= maxRetries) {
-            throw new Error(`Settings sync failed after ${maxRetries} retries due to version conflicts`);
-        }
-
-        // Run request
-        const response = await fetch(`${API_ENDPOINT}/v1/account/settings`, {
+        await tunnelFetch(`${API_ENDPOINT}/v2/me/settings`, this.credentials, {
+            method: 'PUT',
+            body: serialized,
             headers: {
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(this.credentials),
+            }
+        });
+
+        // Run request
+        const response = await tunnelFetch(`${API_ENDPOINT}/v2/me/settings`, this.credentials, {
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Happy-Client': getHappyClientId(),
             }
         });
         if (!response.ok) {
             throw new Error(`Failed to fetch settings: ${response.status}`);
         }
-        const data = await response.json() as {
-            settings: string | null,
-            settingsVersion: number
-        };
+        const data = await response.json();
 
         // Parse response
-        let parsedSettings: Settings;
-        if (data.settings) {
-            parsedSettings = settingsParse(await this.encryption.decryptRaw(data.settings));
-        } else {
-            parsedSettings = { ...settingsDefaults };
-        }
+        let parsedSettings = settingsParse(data);
 
         // Log
         console.log('settings', JSON.stringify({
             settings: parsedSettings,
-            version: data.settingsVersion
         }));
 
         // Apply settings to storage, re-layering any pending local changes on top
-        this.applyServerSettings(parsedSettings, data.settingsVersion);
+        this.applyServerSettings(parsedSettings);
 
         // Sync PostHog opt-out state with settings
         if (tracking) {
@@ -1885,11 +1757,10 @@ class Sync {
         if (!this.credentials) return;
 
         const API_ENDPOINT = this.credentials.tunnelUrl;
-        const response = await fetch(`${API_ENDPOINT}/v1/account/profile`, {
+        const response = await tunnelFetch(`${API_ENDPOINT}/v2/me/profile`, this.credentials, {
             headers: {
                 'Content-Type': 'application/json',
                 'X-Happy-Client': getHappyClientId(),
-                ...getMachineAuthHeaders(this.credentials),
             }
         });
 
@@ -2463,7 +2334,7 @@ class Sync {
                         );
                     }
 
-                    this.applyServerSettings(parsedSettings, accountUpdate.settings.version);
+                    this.applyServerSettings(parsedSettings);
                     log.log(`📋 Settings synced from server (schema v${settingsSchemaVersion}, version ${accountUpdate.settings.version})`);
                 } catch (error) {
                     console.error('❌ Failed to process settings update:', error);
@@ -2833,6 +2704,47 @@ export async function syncRestore(credentials: AuthCredentials) {
     await syncInit(credentials, true);
 }
 
+export function isSyncInitialized(): boolean {
+    return isInitialized;
+}
+
+export async function syncAppendMachine(credentials: AuthCredentials): Promise<void> {
+    if (!isInitialized) {
+        await syncCreate(credentials);
+        return;
+    }
+    const saved = await TokenStorage.setCredentials(credentials);
+    if (!saved) {
+        throw new Error('Failed to save machine credentials');
+    }
+    const sessionKey = decodeBase64(credentials.sessionKey, 'base64url');
+    if (sessionKey.length !== 32) {
+        throw new Error(`Invalid session key length for ${credentials.machineId}: ${sessionKey.length}, expected 32`);
+    }
+    const encryption = await Encryption.create(sessionKey);
+    await apiSocket.appendMachine({
+        config: { endpoint: credentials.tunnelUrl, credentials },
+        encryption,
+    });
+    storage.getState().applyMachines([{
+        id: credentials.machineId,
+        seq: Date.now(),
+        createdAt: credentials.firstSeenAt,
+        updatedAt: Date.now(),
+        active: true,
+        activeAt: Date.now(),
+        metadata: {
+            host: credentials.login || credentials.machineId,
+            platform: '',
+            happyCliVersion: '',
+            happyHomeDir: '',
+            homeDir: '',
+            displayName: credentials.login || credentials.machineId,
+            tunnelUrl: credentials.tunnelUrl,
+        },
+    }]);
+}
+
 async function syncInit(credentials: AuthCredentials, restore: boolean) {
     const storedCredentials = await TokenStorage.getCredentialsList();
     const rawList = storedCredentials.length > 0 ? storedCredentials : [credentials];
@@ -2859,7 +2771,7 @@ async function syncInit(credentials: AuthCredentials, restore: boolean) {
     initializeTracking(primaryEncryption.anonID);
 
     // Initialize socket connection
-    apiSocket.initializeMany(socketConfigs);
+    await apiSocket.initializeMany(socketConfigs);
 
     // Wire socket status to storage
     apiSocket.onStatusChange((status) => {

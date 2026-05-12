@@ -167,7 +167,6 @@ export type SessionListItem = string | Session;
 
 interface StorageState {
     settings: Settings;
-    settingsVersion: number | null;
     localSettings: LocalSettings;
     purchases: Purchases;
     profile: Profile;
@@ -234,7 +233,7 @@ interface StorageState {
         }
     ) => void;
     clearActivePrefetch: (sessionId: string, expectedRequestId: string) => void;
-    applySettings: (settings: Settings, version: number) => void;
+    applySettings: (settings: Settings) => void;
     applySettingsLocal: (settings: Partial<Settings>) => void;
     applyLocalSettings: (settings: Partial<LocalSettings>) => void;
     applyPurchases: (customerInfo: CustomerInfo) => void;
@@ -382,7 +381,7 @@ function buildSessionListViewData(
 }
 
 export const storage = create<StorageState>()((set, get) => {
-    let { settings, version } = loadSettings();
+    let settings = loadSettings();
     let localSettings = loadLocalSettings();
     let purchases = loadPurchases();
     let profile = loadProfile();
@@ -394,7 +393,6 @@ export const storage = create<StorageState>()((set, get) => {
     let sessionPinnedAvatars = loadSessionPinnedAvatars();
     return {
         settings,
-        settingsVersion: version,
         localSettings,
         purchases,
         profile,
@@ -1055,23 +1053,18 @@ export const storage = create<StorageState>()((set, get) => {
             };
         }),
         applySettingsLocal: (settings: Partial<Settings>) => set((state) => {
-            saveSettings(applySettings(state.settings, settings), state.settingsVersion ?? 0);
+            saveSettings(applySettings(state.settings, settings));
             return {
                 ...state,
                 settings: applySettings(state.settings, settings)
             };
         }),
-        applySettings: (settings: Settings, version: number) => set((state) => {
-            if (state.settingsVersion === null || state.settingsVersion < version) {
-                saveSettings(settings, version);
-                return {
-                    ...state,
-                    settings,
-                    settingsVersion: version
-                };
-            } else {
-                return state;
-            }
+        applySettings: (settings: Settings) => set((state) => {
+            saveSettings(settings);
+            return {
+                ...state,
+                settings,
+            };
         }),
         applyLocalSettings: (delta: Partial<LocalSettings>) => set((state) => {
             const updatedLocalSettings = applyLocalSettings(state.localSettings, delta);

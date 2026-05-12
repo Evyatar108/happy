@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { TokenStorage, AuthCredentials } from '@/auth/tokenStorage';
-import { syncCreate } from '@/sync/sync';
+import { isSyncInitialized, syncAppendMachine, syncCreate } from '@/sync/sync';
 import * as Updates from 'expo-updates';
 import { clearPersistence, loadRegisteredPushToken } from '@/sync/persistence';
 import { unregisterPushToken } from '@/sync/apiPush';
@@ -28,7 +28,11 @@ export function AuthProvider({ children, initialCredentials }: { children: React
     const login = async (newCredentials: AuthCredentials) => {
         const success = await TokenStorage.setCredentials(newCredentials);
         if (success) {
-            await syncCreate(newCredentials);
+            if (isSyncInitialized()) {
+                await syncAppendMachine(newCredentials);
+            } else {
+                await syncCreate(newCredentials);
+            }
             setCredentials(newCredentials);
             setIsAuthenticated(true);
         } else {
