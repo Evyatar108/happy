@@ -263,8 +263,10 @@ class ApiSocket {
 
     async requestForMachine(machineId: string, path: string, options?: RequestInit): Promise<Response> {
         const connection = this.requireConnection(machineId);
-        const credentials = (await TokenStorage.getCredentialsList()).find(item => item.machineId === machineId)
-            ?? connection.config.credentials;
+        const credentials = (await TokenStorage.getCredentialsList()).find(item => item.machineId === machineId);
+        if (!credentials) {
+            throw new Error(`No credentials found in TokenStorage for machine ${machineId}`);
+        }
         const url = `${connection.config.endpoint}${path}`;
         const headers: Record<string, string> = {
             'X-Happy-Client': getHappyClientId(),

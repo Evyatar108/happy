@@ -112,6 +112,19 @@ describe('apiSocket multi-machine connections', () => {
         expect(typeof stale.mock.calls[0][1]).toBe('number');
     });
 
+    it('requestForMachine throws when TokenStorage has no credentials for the machine', async () => {
+        const { apiSocket } = await import('./apiSocket');
+        const cred = mocks.credentials[0];
+        await apiSocket.initializeMany([{ endpoint: cred.tunnelUrl, credentials: cred }]);
+        mocks.sockets[0].trigger('connect');
+
+        mocks.credentials = [];
+
+        await expect(
+            apiSocket.requestForMachine(cred.machineId, '/api/test'),
+        ).rejects.toThrow(`No credentials found in TokenStorage for machine ${cred.machineId}`);
+    });
+
     it('replaces unintentional disconnects with a fresh-claim socket and skips intentional reconnects', async () => {
         let claimIndex = 0;
         mocks.refreshTunnelClaim.mockImplementation(async (_credentials: any, machineId: string) => `jwt-${machineId}-${++claimIndex}`);
