@@ -259,7 +259,7 @@ Trust this machine
 Ed25519 fingerprint SHA256:abc123...
 ```
 
-After trust is accepted, mobile stores `{ machineId, tunnelUrl, tunnelJwt, pinnedPubkey, sessionKey, firstSeenAt }` in SecureStore and uses the saved machine list for future multi-machine sync.
+After trust is accepted, mobile stores `{ machineId, tunnelUrl, tunnelClaim, tunnelId, deviceCode, deviceCodeExpiresAt, login, avatarUrl, firstSeenAt }` per machine in SecureStore and uses the saved machine list for future multi-machine sync. The `tunnelClaim` is a server-signed envelope that mobile refreshes per request; there is no client-side X25519 session-key derivation. The persisted `deviceCode` has a 15-minute TTL (`deviceCodeExpiresAt`), and its expiry is the re-pair UX boundary — once it lapses, mobile must run the GitHub device flow again to mint a fresh claim.
 
 ## Web And Desktop Tunnel Clients Deferred To V2
 
