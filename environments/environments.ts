@@ -158,6 +158,23 @@ function isPortInUse(port: number): boolean {
     }
 }
 
+function probePort(port: number): Promise<boolean> {
+    return new Promise(resolve => {
+        const socket = net.createConnection({ host: "127.0.0.1", port });
+        let settled = false;
+        const finish = (value: boolean) => {
+            if (settled) return;
+            settled = true;
+            socket.destroy();
+            resolve(value);
+        };
+        socket.setTimeout(500);
+        socket.once("connect", () => finish(true));
+        socket.once("timeout", () => finish(false));
+        socket.once("error", () => finish(false));
+    });
+}
+
 function readDevAuth(envDir: string): { secret: string; token: string } | null {
     const accessKeyPath = path.join(envDir, "cli", "home", "access.key");
     if (!fs.existsSync(accessKeyPath)) {
@@ -346,11 +363,12 @@ export async function createEnvironment(opts?: { noSwitch?: boolean }): Promise<
     return name;
 }
 
-export async function startEnvironmentServices(name: string): Promise<void> {
+export async function startEnvironmentServices(name: string, options: { web?: boolean } = {}): Promise<void> {
     const envDir = getEnvironmentDir(name);
     const config = readEnvironmentConfig(name);
     const envVars = buildEnvVars(envDir, config.serverPort, config.expoPort);
     const mergedEnv: Record<string, string | undefined> = { ...process.env, ...envVars };
+    const startWeb = options.web ?? true;
 
     const serverLogFile = path.join(envDir, "server", "stdout.log");
     console.log(`Starting server on port ${config.serverPort}...`);
@@ -372,6 +390,10 @@ export async function startEnvironmentServices(name: string): Promise<void> {
     }
     console.log(`  Server is healthy.`);
 
+    if (!startWeb) {
+        return;
+    }
+
     const webLogFile = path.join(envDir, "web", "stdout.log");
     fs.mkdirSync(path.join(envDir, "web"), { recursive: true });
     console.log(`Starting web on port ${config.expoPort}...`);
@@ -383,7 +405,7 @@ export async function startEnvironmentServices(name: string): Promise<void> {
     writePidFile(envDir, "web", webPid);
 
     try {
-        await waitFor(() => isPortInUse(config.expoPort), 30_000, "web");
+        await waitFor(() => probePort(config.expoPort), 30_000, "web");
     } catch {
         throw new Error(`Web failed to start. Check logs: ${webLogFile}`);
     }
@@ -402,30 +424,8 @@ export async function seedEnvironment(name: string): Promise<void> {
         throw new Error(`Server not reachable at ${serverUrl}. Start it first: pnpm env:server`);
     }
 
-    const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
-    const jwk = publicKey.export({ format: "jwk" }) as { x?: string };
-    const rawPublicKey = Buffer.from(jwk.x || "", "base64url");
-
-    const challenge = crypto.randomBytes(32);
-    const signature = crypto.sign(null, challenge, privateKey);
-
     const toBase64 = (buf: Buffer | Uint8Array) => Buffer.from(buf).toString("base64");
-    const toBase64Url = (buf: Buffer | Uint8Array) =>
-        Buffer.from(buf).toString("base64url");
-
-    const authRes = await fetch(`${serverUrl}/v1/auth`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            publicKey: toBase64(rawPublicKey),
-            challenge: toBase64(challenge),
-            signature: toBase64(signature),
-        }),
-    });
-    if (!authRes.ok) {
-        throw new Error(`Auth failed: ${authRes.status} ${await authRes.text()}`);
-    }
-    const { token } = (await authRes.json()) as { token: string };
+    const token = crypto.randomBytes(32).toString("base64url");
 
     const secret = crypto.randomBytes(32);
     const secretBase64 = toBase64(secret);
