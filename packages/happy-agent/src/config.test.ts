@@ -11,6 +11,8 @@ describe('config', () => {
         delete process.env.HAPPY_PAIRING_URL;
         delete process.env.HAPPY_AGENT_HOME_DIR;
         delete process.env.HAPPY_HOME_DIR;
+        delete process.env.HAPPY_ALLOW_INSECURE;
+        delete process.env.NODE_ENV;
         vi.spyOn(console, 'warn').mockImplementation(() => {});
     });
 
@@ -66,6 +68,53 @@ describe('config', () => {
             expect(config.homeDir).toBe(join(homedir(), '.happy-agent'));
             expect(config.credentialPath).toBe(join(homedir(), '.happy-agent', 'credentials.json'));
             expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('HAPPY_HOME_DIR is deprecated'));
+        });
+    });
+
+    describe('transport security', () => {
+        it('throws when HAPPY_SERVER_URL is http:// for a non-localhost host', () => {
+            process.env.HAPPY_SERVER_URL = 'http://api.example.com';
+            expect(() => loadConfig()).toThrow(/HAPPY_SERVER_URL uses http:\/\//);
+        });
+
+        it('throws when HAPPY_PAIRING_URL is http:// for a non-localhost host', () => {
+            process.env.HAPPY_SERVER_URL = 'https://api.example.com';
+            process.env.HAPPY_PAIRING_URL = 'http://pairing.example.com';
+            expect(() => loadConfig()).toThrow(/HAPPY_PAIRING_URL uses http:\/\//);
+        });
+
+        it('allows http://localhost without warning', () => {
+            process.env.HAPPY_SERVER_URL = 'http://localhost:3000';
+            const config = loadConfig();
+            expect(config.legacyServerUrl).toBe('http://localhost:3000');
+        });
+
+        it('allows http://127.0.0.1 without warning', () => {
+            process.env.HAPPY_SERVER_URL = 'http://127.0.0.1:3000';
+            const config = loadConfig();
+            expect(config.legacyServerUrl).toBe('http://127.0.0.1:3000');
+        });
+
+        it('allows http://[::1] without warning', () => {
+            process.env.HAPPY_SERVER_URL = 'http://[::1]:3000';
+            const config = loadConfig();
+            expect(config.legacyServerUrl).toBe('http://[::1]:3000');
+        });
+
+        it('warns instead of throwing when HAPPY_ALLOW_INSECURE=1', () => {
+            process.env.HAPPY_SERVER_URL = 'http://api.example.com';
+            process.env.HAPPY_ALLOW_INSECURE = '1';
+            const config = loadConfig();
+            expect(config.legacyServerUrl).toBe('http://api.example.com');
+            expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('HAPPY_SERVER_URL uses http://'));
+        });
+
+        it('warns instead of throwing when NODE_ENV=development', () => {
+            process.env.HAPPY_SERVER_URL = 'http://api.example.com';
+            process.env.NODE_ENV = 'development';
+            const config = loadConfig();
+            expect(config.legacyServerUrl).toBe('http://api.example.com');
+            expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('HAPPY_SERVER_URL uses http://'));
         });
     });
 });
