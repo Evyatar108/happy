@@ -82,7 +82,9 @@ function readAgentCredentials() {
     const credentials = readLocalHappyAgentCredentials();
     if (!credentials) {
         throw new Error(
-            `Cannot resume historical Happy sessions without ${credentialPath}. Run \`happy-agent auth login\` in this environment first.`,
+            `Cannot resume Happy sessions on this machine without ${credentialPath}. ` +
+            `Run \`happy-agent auth login\` on this machine first. ` +
+            `Note: as of Sprint B, \`happy resume\` requires the Happy daemon to be running locally — cross-machine resume is no longer supported.`,
         );
     }
     return credentials;
@@ -126,11 +128,22 @@ function decryptSessionMetadata(session: RawSession, credentials: LocalHappyAgen
 }
 
 async function fetchSessions(): Promise<RawSession[]> {
-    const response = await daemonClient.tunnelFetch('/v1/sessions', {
-        headers: {
-            'X-Happy-Client': `cli-coding-session/${configuration.currentCliVersion}`,
-        },
-    });
+    let response: Response;
+    try {
+        response = await daemonClient.tunnelFetch('/v1/sessions', {
+            headers: {
+                'X-Happy-Client': `cli-coding-session/${configuration.currentCliVersion}`,
+            },
+        });
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        throw new Error(
+            `Cannot resume Happy session: the Happy daemon is not running on this machine. ` +
+            `Run \`happy daemon start\` first. ` +
+            `Note: as of Sprint B, \`happy resume\` requires a local daemon — cross-machine resume is no longer supported. ` +
+            `(${message})`,
+        );
+    }
     if (response.status === 401) {
         throw new Error('Happy session lookup authentication expired. Run `happy-agent auth login` in this environment.');
     }
