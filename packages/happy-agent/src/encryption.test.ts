@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import tweetnacl from 'tweetnacl';
 import {
     encodeBase64,
     decodeBase64,
@@ -19,7 +20,6 @@ import {
     libsodiumEncryptForPublicKey,
     decryptBoxBundle,
     authChallenge,
-    verifyAuthChallenge,
 } from './encryption';
 
 // Helper: hex encode for test vector comparison
@@ -322,7 +322,7 @@ describe('authChallenge', () => {
     it('signature is verifiable with tweetnacl.sign.detached.verify', () => {
         const secret = getRandomBytes(32);
         const result = authChallenge(secret);
-        const valid = verifyAuthChallenge(result.challenge, result.signature, result.publicKey);
+        const valid = tweetnacl.sign.detached.verify(result.challenge, result.signature, result.publicKey);
         expect(valid).toBe(true);
     });
 
@@ -331,7 +331,7 @@ describe('authChallenge', () => {
         const secret2 = getRandomBytes(32);
         const result1 = authChallenge(secret1);
         const result2 = authChallenge(secret2);
-        const valid = verifyAuthChallenge(result1.challenge, result1.signature, result2.publicKey);
+        const valid = tweetnacl.sign.detached.verify(result1.challenge, result1.signature, result2.publicKey);
         expect(valid).toBe(false);
     });
 
