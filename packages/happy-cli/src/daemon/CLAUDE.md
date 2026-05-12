@@ -153,6 +153,12 @@ listener and one loopback listener from shared Happy server context. Keep
 `loopback-cap.txt` as a per-start regenerated local capability and pass its
 path into loopback auth via `paths.loopbackCap`.
 
+Local callers that need the embedded listeners should go through
+`daemonClient.ts`: loopback requests use `X-Loopback-Capability`, tunnel
+requests and Socket.IO auth use a freshly minted `tunnel <claim>` value. Do not
+cache signed tunnel claims because the embedded server rejects replayed `jti`s;
+cache only stable key material or rereadable capability state.
+
 ### Lock File
 - Created with O_EXCL flag for atomic acquisition
 - Contains PID for debugging
