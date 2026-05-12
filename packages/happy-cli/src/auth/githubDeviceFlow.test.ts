@@ -66,11 +66,31 @@ describe('githubDeviceFlow', () => {
         expect(delays).toEqual([6000]);
     });
 
-    it('retries transient network errors', async () => {
+    it('retries transient network errors (TypeError from fetch)', async () => {
         vi.spyOn(globalThis, 'fetch')
-            .mockRejectedValueOnce(new Error('network down'))
+            .mockRejectedValueOnce(new TypeError('fetch failed'))
             .mockResolvedValueOnce(jsonResponse({ access_token: 'ghu_token' }));
 
         await expect(pollForToken('device-code', 1, 60, { delayMs: async () => {} })).resolves.toBe('ghu_token');
+    });
+
+    it('surfaces non-200 HTTP errors immediately instead of looping to expiry', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({}, 500));
+
+        await expect(pollForToken('device-code', 1, 60, { delayMs: async () => {} })).rejects.toThrow('500');
+    });
+
+    it('surfaces unrecognized GitHub error codes immediately', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+            jsonResponse({ error: 'incomprehensible_request', error_description: 'bad client id' }),
+        );
+
+        await expect(pollForToken('device-code', 1, 60, { delayMs: async () => {} })).rejects.toThrow('bad client id');
+    });
+
+    it('throws on malformed device code response body', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ unexpected: true }));
+
+        await expect(requestDeviceCode()).rejects.toThrow();
     });
 });

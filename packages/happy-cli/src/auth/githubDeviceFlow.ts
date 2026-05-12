@@ -1,23 +1,29 @@
+import { z } from 'zod';
+
 import { delay } from '@/utils/time';
 
 const DEFAULT_GITHUB_CLIENT_ID = 'Iv1.e7b89e013f801f03';
 const DEVICE_CODE_URL = 'https://github.com/login/device/code';
 const ACCESS_TOKEN_URL = 'https://github.com/login/oauth/access_token';
 
-export interface GitHubDeviceCodeResponse {
-    device_code: string;
-    user_code: string;
-    verification_uri: string;
-    verification_uri_complete?: string;
-    expires_in: number;
-    interval: number;
-}
+const GitHubDeviceCodeSchema = z.object({
+    device_code: z.string(),
+    user_code: z.string(),
+    verification_uri: z.string(),
+    verification_uri_complete: z.string().optional(),
+    expires_in: z.number(),
+    interval: z.number(),
+});
 
-interface GitHubAccessTokenResponse {
-    access_token?: string;
-    error?: string;
-    error_description?: string;
-}
+export type GitHubDeviceCodeResponse = z.infer<typeof GitHubDeviceCodeSchema>;
+
+const GitHubAccessTokenSchema = z.object({
+    access_token: z.string().optional(),
+    error: z.string().optional(),
+    error_description: z.string().optional(),
+});
+
+type GitHubAccessTokenResponse = z.infer<typeof GitHubAccessTokenSchema>;
 
 interface PollForTokenOptions {
     delayMs?: (ms: number) => Promise<void>;
@@ -28,11 +34,11 @@ function githubClientId(): string {
     return process.env.HAPPY_GITHUB_CLIENT_ID || DEFAULT_GITHUB_CLIENT_ID;
 }
 
-async function readGitHubJson<T>(response: Response): Promise<T> {
+async function readGitHubJson<T>(response: Response, schema: z.ZodType<T>): Promise<T> {
     if (!response.ok) {
         throw new Error(`GitHub device flow request failed: ${response.status}`);
     }
-    return await response.json() as T;
+    return schema.parse(await response.json());
 }
 
 export async function requestDeviceCode(): Promise<GitHubDeviceCodeResponse> {
@@ -45,7 +51,7 @@ export async function requestDeviceCode(): Promise<GitHubDeviceCodeResponse> {
         headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
         body: body.toString(),
     });
-    return await readGitHubJson<GitHubDeviceCodeResponse>(response);
+    return await readGitHubJson(response, GitHubDeviceCodeSchema);
 }
 
 export async function pollForToken(
@@ -60,6 +66,7 @@ export async function pollForToken(
     let pollIntervalSeconds = interval;
 
     while (now() <= deadline) {
+        let tokenData: GitHubAccessTokenResponse;
         try {
             const body = new URLSearchParams({
                 client_id: githubClientId(),
@@ -71,26 +78,29 @@ export async function pollForToken(
                 headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: body.toString(),
             });
-            const tokenData = await readGitHubJson<GitHubAccessTokenResponse>(response);
-            if (tokenData.access_token) {
-                return tokenData.access_token;
-            }
-            if (tokenData.error === 'slow_down') {
-                pollIntervalSeconds += 5;
-            } else if (tokenData.error === 'access_denied') {
-                throw new Error('GitHub device authorization denied');
-            } else if (tokenData.error === 'expired_token') {
-                throw new Error('GitHub device authorization expired');
-            } else if (tokenData.error && tokenData.error !== 'authorization_pending') {
-                throw new Error(tokenData.error_description ?? tokenData.error);
-            }
+            tokenData = await readGitHubJson(response, GitHubAccessTokenSchema);
         } catch (error) {
-            if (error instanceof Error && (
-                error.message === 'GitHub device authorization denied'
-                || error.message === 'GitHub device authorization expired'
-            )) {
-                throw error;
+            if (error instanceof TypeError) {
+                if (now() + pollIntervalSeconds * 1000 > deadline) {
+                    break;
+                }
+                await sleep(pollIntervalSeconds * 1000);
+                continue;
             }
+            throw error;
+        }
+
+        if (tokenData.access_token) {
+            return tokenData.access_token;
+        }
+        if (tokenData.error === 'slow_down') {
+            pollIntervalSeconds += 5;
+        } else if (tokenData.error === 'access_denied') {
+            throw new Error('GitHub device authorization denied');
+        } else if (tokenData.error === 'expired_token') {
+            throw new Error('GitHub device authorization expired');
+        } else if (tokenData.error && tokenData.error !== 'authorization_pending') {
+            throw new Error(tokenData.error_description ?? tokenData.error);
         }
 
         if (now() + pollIntervalSeconds * 1000 > deadline) {
