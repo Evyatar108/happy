@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { saveCredentials, deleteCredentials, legacyCredentialsToPersisted, type PersistedCredentials, type PersistedDiscoveredMachine, type PersistedMachineCredentials } from './credentials';
+import { encodeBase64 } from './encryption';
 import type { Config } from './config';
 
 const DEFAULT_POLL_INTERVAL_SECONDS = 5;
@@ -207,7 +208,11 @@ function readLegacyCredentials(): Pick<PersistedCredentials, 'legacyToken' | 'le
     if (typeof parsed.token !== 'string' || typeof parsed.secret !== 'string') {
         throw new Error(`Legacy credentials file ${legacyPath} is malformed`);
     }
-    return legacyCredentialsToPersisted(parsed.token, Buffer.from(parsed.secret, 'base64'));
+    const secretBytes = Buffer.from(parsed.secret, 'base64');
+    if (secretBytes.length !== 32 || encodeBase64(secretBytes) !== parsed.secret) {
+        throw new Error(`Legacy credentials file ${legacyPath} is malformed`);
+    }
+    return legacyCredentialsToPersisted(parsed.token, secretBytes);
 }
 
 function requireString(value: unknown, label: string): string {

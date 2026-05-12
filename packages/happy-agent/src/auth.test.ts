@@ -159,6 +159,28 @@ describe('auth', () => {
             expect(existsSync(config.credentialPath)).toBe(false);
         });
 
+        it('aborts without writing new credentials when the legacy secret is not valid base64', async () => {
+            mkdirSync(legacyHome, { recursive: true });
+            writeFileSync(join(legacyHome, 'agent.key'), JSON.stringify({ token: 'legacy-token', secret: 'not-real-base64!!' }));
+            mockedAxios.get.mockResolvedValueOnce({
+                data: { device_code: 'device-code', user_code: 'ABCD-EFGH', verification_uri: 'https://github.com/login/device', expires_in: 900, interval: 1 },
+            });
+            mockedAxios.post.mockResolvedValueOnce({
+                data: {
+                    status: 'authorized',
+                    githubLogin: 'octocat',
+                    machines: [machine()],
+                    discoveredMachines: [],
+                },
+            });
+
+            const assertion = expect(authLogin(config)).rejects.toThrow(`Legacy credentials file ${join(legacyHome, 'agent.key')} is malformed`);
+            await vi.advanceTimersByTimeAsync(1000);
+
+            await assertion;
+            expect(existsSync(config.credentialPath)).toBe(false);
+        });
+
         it('backs off on polling 429 and resets to the configured interval after a 200 response', async () => {
             const { AxiosError } = await import('axios');
             const rateLimit = new AxiosError('rate limited') as any;
