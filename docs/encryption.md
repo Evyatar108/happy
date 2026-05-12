@@ -1,6 +1,6 @@
 # Encryption And Trust
 
-Happy uses client-side encryption for session data and a server-per-machine trust model for pairing. The embedded server publishes machine public keys; the mobile app pins the Ed25519 key on first use and derives a per-machine session key with X25519 ECDH.
+Happy uses a server-per-machine trust model for pairing. The embedded server publishes machine public keys for CLI-internal use; mobile authenticates to a paired machine by presenting a plaintext `tunnelClaim` envelope issued during pairing.
 
 For transport and event shapes, see `protocol.md` and `packages/happy-wire`.
 
@@ -31,67 +31,50 @@ The Socket.IO handshake and pairing response publish the same machine public key
 }
 ```
 
-The server emits this as `tofu-pubkeys` after accepting a Socket.IO connection. The `/pair/status` response also returns the keys with the authorized machine entry so mobile can show a trust dialog before saving credentials.
+The server emits this as `tofu-pubkeys` after accepting a Socket.IO connection. The `/pair/status` response also returns the keys with the authorized machine entry so a trust dialog can be shown before saving credentials. The Ed25519/X25519 keypairs continue to underpin happy-cli's internal trust state; mobile authentication itself flows through the `tunnelClaim` envelope described below.
 
-On first connection to a machine, mobile shows the Ed25519 fingerprint. If the operator accepts it, the app stores the pinned Ed25519 public key for that `machineId`. Future connections compare the advertised Ed25519 public key to the pinned value and warn on rotation.
+## Tunnel Claim Authentication
 
-## Per-Machine Session Key
+Sprint D removed X25519 ECDH session-key derivation entirely from happy-app. The mobile app no longer generates an X25519 keypair, no longer pins the server's Ed25519 public key, and no longer derives a per-machine session key. The `tunnelClaim` envelope returned by `/pair/status` is now the only authentication artifact the app holds for a paired machine.
 
-Mobile generates its own X25519 keypair with `tweetnacl.box.keyPair()`, reads the server X25519 public key from the pairing response, and derives a shared session key with `tweetnacl.box.before(remotePublicKey, localPrivateKey)`.
+`tunnelClaim` is a base64url-encoded JSON envelope of the form `{ p, s }`, where `p` is a base64url-encoded JSON payload signed by the machine's Ed25519 server key. The decoded payload is:
 
-The stored mobile credential shape is:
+```ts
+{
+  sub: string;        // subject (machine-scoped identifier)
+  iat: number;        // issued-at (seconds)
+  exp: number;        // expiry (seconds)
+  jti: string;        // replay-protection nonce
+  accountId: number;  // GitHub-derived account binding
+}
+```
+
+The embedded server rejects replayed `jti` values. Mobile presents the current `tunnelClaim` on every tunnel HTTP request and on the Socket.IO handshake; there is no separate session-key step.
+
+The stored mobile credential shape, written by `packages/happy-app/sources/auth/tokenStorage.ts`, is:
 
 ```ts
 {
   machineId: string;
   tunnelUrl: string;
-  tunnelJwt: string;
-  pinnedPubkey: string;
-  sessionKey: string;
+  tunnelClaim: string;
   firstSeenAt: number;
+  login?: string;
+  avatarUrl?: string;
+  deviceCode?: string;
+  deviceCodeExpiresAt?: number;
+  connectToken?: string;
+  connectTokenExpiry?: number;
+  tunnelId?: string;
 }
 ```
 
-This replaces the old `secret` field from `tokenStorage`. Happy-relay bearer tokens are not part of the mobile credential model; tunnel requests use `X-Tunnel-Authorization: tunnel <JWT>` and encrypted session content uses the per-machine session key.
-
-## Content Encryption Variants
-
-Happy still supports encrypted content containers used by existing session and machine data.
-
-### Legacy NaCl Secretbox
-
-Used when a client has a 32-byte shared key.
-
-- Algorithm: `tweetnacl.secretbox` (XSalsa20-Poly1305).
-- Nonce length: 24 bytes.
-- Binary layout: `[ nonce (24) | ciphertext+auth ]`.
-
-### DataKey AES-GCM
-
-Used for per-session or per-machine data keys.
-
-- Algorithm: AES-256-GCM.
-- Nonce length: 12 bytes.
-- Auth tag: 16 bytes.
-- Binary layout: `[ version (1) | nonce (12) | ciphertext | authTag (16) ]`.
-
-When a data encryption key is wrapped, the wrapper uses `tweetnacl.box` with an ephemeral X25519 keypair:
-
-```text
-[ version (1 = 0) | ephPublicKey (32) | nonce (24) | ciphertext ]
-```
-
-The resulting bytes are base64-encoded for wire fields such as `dataEncryptionKey`.
+Credentials are kept per machine inside a `{ primaryMachineId, machines[], devTunnelsAccess }` envelope so the app can pair with multiple operator machines concurrently. The Sprint A `pinnedPubkey`, `sessionKey`, and `githubToken` fields have been removed from `AuthCredentials`; legacy credentials carrying any of them are filtered out by the `isOldShape(...)` migration check on load so the app forces a re-pair instead of attempting to use them.
 
 ## Where Encryption Is Applied
 
-The embedded server treats encrypted fields as opaque strings or bytes. Clients encrypt before sending and decrypt after receiving.
+The mobile app no longer performs content encryption. Happy-app does not import libsodium, tweetnacl, `@stablelib`, or any other crypto primitives for session content, and the `sources/encryption/` directory was removed in Sprint D (US-005). Wire bodies — session messages, session metadata, agent state, machine metadata, and daemon state — travel as plaintext over the authenticated tunnel; confidentiality is provided by the tunnel transport rather than by an app-side encryption layer.
 
-- Session metadata and agent state.
-- Session messages.
-- Machine metadata and daemon state.
-- Artifact headers and bodies.
-- Access key payloads.
-- Key-value store values.
+The artifact, access-key, and key-value-store encryption surfaces no longer exist on the app side either: their callers (`apiArtifacts.ts`, `apiKv.ts`, `apiUsage.ts`, `apiServices.ts`, `apiFeed.ts`) were deleted in Sprint D (US-006).
 
-Server-side routes persist and fan out the encrypted blobs without inspecting plaintext.
+Encryption infrastructure remains in `packages/happy-cli` (TweetNaCl-based) and on the server, where it continues to operate for CLI-internal flows that are out of scope for this document.

@@ -2,7 +2,7 @@
 
 Audience: developers working on Happy's daemon, server, agent, and app transport layers.
 
-This document records the Sprint A target contract for the Dev Tunnels migration. Sprint A documented the contract and supporting guardrails only. Sprint B has now landed and deleted the handler-side RPC encryption in happy-cli; the coordinated C+D portion of the cutover still removes the remaining caller-side per-message RPC encryption code in happy-agent and happy-app.
+This document records the Sprint A target contract for the Dev Tunnels migration. Sprints A, B, C, and D have all landed: Sprint A documented the contract and supporting guardrails, Sprint B deleted handler-side RPC encryption in happy-cli, Sprint C deleted caller-side RPC encryption in happy-agent, and Sprint D deleted the remaining caller-side encryption and the X25519 session-key derivation path in happy-app. The X25519 per-message RPC layer is now fully removed end-to-end across happy-cli, happy-agent, and happy-app. The only remaining known production-readiness gap is R-D18 (public Dev Tunnels reachability): Sprint A's production tunnel-creation path does not currently invoke `--allow-anonymous`, so production rollout depends on one of the three R-D18 resolution paths (a/b/c) tracked in `packages/happy-app/scripts/sprint-a-gap.md`.
 
 ## Trust Model
 
@@ -28,7 +28,7 @@ Untrusted parties:
 
 Option A is plaintext-over-TLS plus Happy claim authorization for RPC payloads. After the B+C+D cutover, `rpc-call` params and `rpc-request` responses are ordinary JSON payloads carried over the Dev Tunnels TLS transport. The server continues to route RPC messages by Socket.IO room and does not become the account identity source.
 
-As of Sprint B, the happy-cli handler side no longer decrypts incoming RPC params or encrypts outgoing results — `packages/happy-cli/src/api/rpc/RpcHandlerManager.ts` now reads `request.params` directly and returns plaintext JSON. The remaining callers in happy-agent and happy-app still use X25519-derived per-message encryption for RPC params and results; that caller-side encryption is retained until Sprint C and Sprint D land. In the target contract, the X25519 per-message RPC layer is REMOVED end-to-end.
+As of Sprint D, the X25519 per-message RPC layer is REMOVED end-to-end. The happy-cli handler side (Sprint B) reads `request.params` directly and returns plaintext JSON via `packages/happy-cli/src/api/rpc/RpcHandlerManager.ts`. The happy-agent caller side (Sprint C) emits plaintext `rpc-call` params and consumes plaintext results via `packages/happy-agent/src/machineRpc.ts`. The happy-app caller side (Sprint D) emits plaintext params and consumes plaintext results via `packages/happy-app/sources/sync/apiSocket.ts`, and the X25519 session-key derivation path that previously lived in `pairing.ts` and `tunnelTransport.ts` has been deleted along with the entire `packages/happy-app/sources/encryption/` directory and the `packages/happy-app/sources/sync/encryption/` subtree.
 
 Pre-cutover (Sprint A only, now historical), callers sent encrypted base64 strings:
 
@@ -97,26 +97,22 @@ This keeps tunnel-authenticated RPC traffic and loopback-capability RPC traffic 
 
 ## Coordinated B+C+D Cutover Tasks
 
-The following code changes must land together in the coordinated B+C+D cutover.
+The following code changes landed together in the coordinated B+C+D cutover.
 
 Landed:
 
 - Sprint B deleted handler-side RPC param decryption and response encryption in `packages/happy-cli/src/api/rpc/RpcHandlerManager.ts`. The handler now consumes plaintext `request.params` and returns plaintext result objects.
+- Sprint C deleted caller-side RPC param encryption and result decryption in `packages/happy-agent/src/machineRpc.ts`. happy-agent now emits plaintext `rpc-call` params and consumes plaintext result objects.
+- Sprint D deleted app-side RPC param encryption and result decryption in `packages/happy-app/sources/sync/apiSocket.ts`. The Socket.IO RPC paths (`sessionRPC`, `machineRPC`) now emit plaintext params and consume plaintext results directly.
+- Sprint D deleted pair-time X25519 session key derivation from stored app credentials and from `packages/happy-app/sources/auth/pairing.ts`. `AuthCredentials` no longer carries a session key, and pairing only persists the tunnel claim envelope and device-code metadata.
+- Sprint D deleted the app-side X25519 helper usage for tunnel transport credentials. `packages/happy-app/sources/sync/tunnelTransport.ts` was removed entirely; its successor `packages/happy-app/sources/sync/socketOptions.ts` builds Socket.IO options from a fresh tunnel claim (refreshed via `packages/happy-app/sources/sync/refreshClaim.ts` and surfaced through `packages/happy-app/sources/auth/machineAuth.ts:getMachineAuthHeaders`) and emits no encryption-derived material.
+- Sprint D deleted the entire `packages/happy-app/sources/encryption/` directory (aes, base64, deriveKey, hex, hmac_sha512, libsodium, text) and the `packages/happy-app/sources/sync/encryption/` subtree (artifactEncryption, encryption, encryptionCache, encryptor, machineEncryption, sessionEncryption) as part of US-D4. The cutover also updated tests that previously asserted encrypted base64 RPC params or results, replacing those assertions with plaintext JSON payload expectations.
 
-Pending:
+## Sprint A Non-Changes (historical)
 
-- Sprint C deletes caller-side RPC param encryption and result decryption in `packages/happy-agent/src/machineRpc.ts:85-112,159-181`.
-- Sprint D deletes app-side RPC param encryption and result decryption in `packages/happy-app/sources/sync/apiSocket.ts:149-181`.
-- Sprint D deletes pair-time X25519 session key derivation from stored app credentials in `packages/happy-app/sources/auth/pairing.ts:184-193`.
-- Sprint D deletes app-side X25519 helper usage for tunnel transport credentials in `packages/happy-app/sources/sync/tunnelTransport.ts:49-55`.
+Sprint A intentionally left these areas unchanged at the time of its own landing. Sprints B, C, and D have since changed most of them; this section is retained for historical context.
 
-The cutover should also update tests that currently assert encrypted base64 RPC params or results, replacing those assertions with plaintext JSON payload expectations.
-
-## Sprint A Non-Changes
-
-Sprint A intentionally leaves these areas unchanged:
-
-- `packages/happy-agent/src/machineRpc.ts` continues encrypting params and decrypting results.
-- `packages/happy-app/sources/sync/apiSocket.ts`, `packages/happy-app/sources/auth/pairing.ts`, and `packages/happy-app/sources/sync/tunnelTransport.ts` continue using the existing X25519-derived session-key path.
-- The happy-wire RPC payload shape remains opaque to shared wire schemas. Existing typed Socket.IO surfaces use `params: string` for encrypted RPC payloads; the Sprint A documentation story does not change package exports or schemas.
-- `packages/happy-server/sources/app/api/socket/rpcHandler.ts` continues forwarding opaque RPC payloads.
+- At the end of Sprint A: `packages/happy-agent/src/machineRpc.ts` continued encrypting params and decrypting results — superseded by Sprint C, which deleted both code paths.
+- At the end of Sprint A: `packages/happy-app/sources/sync/apiSocket.ts`, `packages/happy-app/sources/auth/pairing.ts`, and `packages/happy-app/sources/sync/tunnelTransport.ts` continued using the existing X25519-derived session-key path — superseded by Sprint D, which deleted that path. `tunnelTransport.ts` was removed and replaced by `socketOptions.ts`; `pairing.ts` no longer derives or stores a session key; `apiSocket.ts` no longer touches encryption helpers.
+- The happy-wire RPC payload shape is no longer opaque after the B+C+D cutover; shared wire schemas now describe plaintext params and results. (Sprint A originally documented this as opaque, with `params: string` for encrypted payloads.)
+- `packages/happy-server/sources/app/api/socket/rpcHandler.ts` continues forwarding RPC payloads without inspecting them. The only Happy-specific cryptography retained on the server side is ed25519 signature verification of the tunnel-claim envelope in `packages/happy-server/sources/app/api/auth/tunnelClaim.ts` (`verifyHappyEnvelope` / `verifyTunnelClaim`). The server does not derive X25519 session keys, and the app no longer derives them either.
