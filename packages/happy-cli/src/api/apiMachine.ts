@@ -96,7 +96,8 @@ const PARENT_SESSION_ID_MAX_LENGTH = 128;
 const PARENT_SESSION_ID_SHAPE = /^[A-Za-z0-9_-]+$/;
 
 export class ApiMachineClient {
-    private socket!: Socket<ServerToDaemonEvents, DaemonToServerEvents>;
+    private socket: Socket<ServerToDaemonEvents, DaemonToServerEvents> | null = null;
+    private socketReady: Promise<void> = Promise.resolve();
     private keepAliveInterval: NodeJS.Timeout | null = null;
     private lastKnownCLIAvailability: CLIAvailability | null = null;
     private lastKnownResumeSupport: ResumeSupport | null = null;
@@ -312,10 +313,12 @@ export class ApiMachineClient {
      * for example to set a custom name.
      */
     async updateMachineMetadata(handler: (metadata: MachineMetadata | null) => MachineMetadata): Promise<void> {
+        await this.socketReady;
         await backoff(async () => {
+            const socket = this.socket!;
             const updated = handler(this.machine.metadata);
 
-            const answer = await this.socket.emitWithAck('machine-update-metadata', {
+            const answer = await socket.emitWithAck('machine-update-metadata', {
                 machineId: this.machine.id,
                 metadata: encodeBase64(encrypt(this.machine.encryptionKey, this.machine.encryptionVariant, updated)),
                 expectedVersion: this.machine.metadataVersion
@@ -340,10 +343,12 @@ export class ApiMachineClient {
      * Simplified without lock - relies on backoff for retry
      */
     async updateDaemonState(handler: (state: DaemonState | null) => DaemonState): Promise<void> {
+        await this.socketReady;
         await backoff(async () => {
+            const socket = this.socket!;
             const updated = handler(this.machine.daemonState);
 
-            const answer = await this.socket.emitWithAck('machine-update-state', {
+            const answer = await socket.emitWithAck('machine-update-state', {
                 machineId: this.machine.id,
                 daemonState: encodeBase64(encrypt(this.machine.encryptionKey, this.machine.encryptionVariant, updated)),
                 expectedVersion: this.machine.daemonStateVersion
@@ -364,7 +369,7 @@ export class ApiMachineClient {
     }
 
     connect() {
-        void this.connectToTunnelListener().catch((error) => {
+        this.socketReady = this.connectToTunnelListener().catch((error) => {
             logger.debug('[API MACHINE] Failed to connect to tunnel listener:', error);
         });
     }
@@ -471,6 +476,7 @@ export class ApiMachineClient {
     private startKeepAlive() {
         this.stopKeepAlive();
         this.keepAliveInterval = setInterval(() => {
+            if (!this.socket) return;
             const payload = {
                 machineId: this.machine.id,
                 time: Date.now()
@@ -510,7 +516,7 @@ export class ApiMachineClient {
         if (this.reconnectInterval) return;
 
         this.reconnectInterval = setInterval(() => {
-            if (this.socket.connected) {
+            if (this.socket?.connected) {
                 clearInterval(this.reconnectInterval!);
                 this.reconnectInterval = null;
                 return;
@@ -520,7 +526,7 @@ export class ApiMachineClient {
                 return;
             }
             logger.debug('[API MACHINE] Attempting reconnect');
-            void this.refreshTunnelAuth().then(() => this.socket.connect()).catch((error) => {
+            void this.refreshTunnelAuth().then(() => this.socket?.connect()).catch((error) => {
                 logger.debug('[API MACHINE] Failed to refresh tunnel auth before reconnect:', error);
             });
         }, 3000);
@@ -528,8 +534,8 @@ export class ApiMachineClient {
         if (shouldReconnect()) {
             logger.debug('[API MACHINE] Network up + lid open — reconnecting in 1s');
             setTimeout(() => {
-                if (!this.socket.connected) {
-                    void this.refreshTunnelAuth().then(() => this.socket.connect()).catch((error) => {
+                if (!this.socket?.connected) {
+                    void this.refreshTunnelAuth().then(() => this.socket?.connect()).catch((error) => {
                         logger.debug('[API MACHINE] Failed to refresh tunnel auth before reconnect:', error);
                     });
                 }

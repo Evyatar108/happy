@@ -185,7 +185,8 @@ export class ApiSessionClient extends EventEmitter {
     private metadataVersion: number;
     private agentState: AgentState | null;
     private agentStateVersion: number;
-    private socket!: Socket<ServerToClientEvents, ClientToServerEvents>;
+    private socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
+    private socketReady: Promise<void>;
     private pendingMessages: UserMessage[] = [];
     private pendingMessageCallback: ((message: UserMessage) => void) | null = null;
     private pendingAgentConfigurations: AgentConfiguration[] = [];
@@ -252,7 +253,7 @@ export class ApiSessionClient extends EventEmitter {
         // Connect (deferred until tunnel URL is resolved)
         //
 
-        void this.connectWithFreshTunnelAuth().catch((error) => {
+        this.socketReady = this.connectWithFreshTunnelAuth().catch((error) => {
             logger.debug('[API] Failed to prepare initial tunnel socket auth:', error);
         });
     }
@@ -913,6 +914,7 @@ export class ApiSessionClient extends EventEmitter {
         kind: 'done' | 'permission' | 'question';
         data?: Record<string, unknown>;
     }) {
+        if (!this.socket) return;
         const mappedKind: 'status-change' | 'codex-finish' = event.kind === 'done' ? 'codex-finish' : 'status-change';
         const payload = {
             sid: this.sessionId,
@@ -931,6 +933,7 @@ export class ApiSessionClient extends EventEmitter {
      * Send a ping message to keep the connection alive
      */
     keepAlive(thinking: boolean, mode: 'local' | 'remote') {
+        if (!this.socket) return;
         if (process.env.DEBUG) { // too verbose for production
             logger.debug(`[API] Sending keep alive message: ${thinking}`);
         }
@@ -947,6 +950,7 @@ export class ApiSessionClient extends EventEmitter {
      */
     sendSessionDeath() {
         this.rejectPendingConsumptionAcks(new Error('Session ended before message consumption was observed'));
+        if (!this.socket) return;
         this.socket.emit('session-end', { sid: this.sessionId, time: Date.now() });
     }
 
@@ -977,6 +981,7 @@ export class ApiSessionClient extends EventEmitter {
             }
         }
         logger.debugLargeJson('[SOCKET] Sending usage data:', usageReport)
+        if (!this.socket) return;
         this.socket.emit('usage-report', usageReport);
     }
 
@@ -1005,9 +1010,11 @@ export class ApiSessionClient extends EventEmitter {
 
     updateMetadata(handler: (metadata: Metadata) => Metadata): Promise<void> {
         return this.metadataLock.inLock(async () => {
+            await this.socketReady;
             await backoff(async () => {
+                const socket = this.socket!;
                 let updated = handler(this.metadata!); // Weird state if metadata is null - should never happen but here we are
-                const answer = await this.socket.emitWithAck('update-metadata', { sid: this.sessionId, expectedVersion: this.metadataVersion, metadata: encodeBase64(encrypt(this.encryptionKey, this.encryptionVariant, updated)) });
+                const answer = await socket.emitWithAck('update-metadata', { sid: this.sessionId, expectedVersion: this.metadataVersion, metadata: encodeBase64(encrypt(this.encryptionKey, this.encryptionVariant, updated)) });
                 if (answer.result === 'success') {
                     this.metadata = decrypt(this.encryptionKey, this.encryptionVariant, decodeBase64(answer.metadata));
                     this.metadataVersion = answer.version;
@@ -1033,9 +1040,11 @@ export class ApiSessionClient extends EventEmitter {
     updateAgentState(handler: (metadata: AgentState) => AgentState) {
         logger.debugLargeJson('Updating agent state', this.agentState);
         this.agentStateLock.inLock(async () => {
+            await this.socketReady;
             await backoff(async () => {
+                const socket = this.socket!;
                 let updated = handler(this.agentState || {});
-                const answer = await this.socket.emitWithAck('update-state', { sid: this.sessionId, expectedVersion: this.agentStateVersion, agentState: updated ? encodeBase64(encrypt(this.encryptionKey, this.encryptionVariant, updated)) : null });
+                const answer = await socket.emitWithAck('update-state', { sid: this.sessionId, expectedVersion: this.agentStateVersion, agentState: updated ? encodeBase64(encrypt(this.encryptionKey, this.encryptionVariant, updated)) : null });
                 if (answer.result === 'success') {
                     this.agentState = answer.agentState ? decrypt(this.encryptionKey, this.encryptionVariant, decodeBase64(answer.agentState)) : null;
                     this.agentStateVersion = answer.version;
@@ -1062,11 +1071,12 @@ export class ApiSessionClient extends EventEmitter {
             this.sendSync.invalidateAndAwait(),
             delay(10000)
         ]);
-        if (!this.socket.connected) {
+        if (!this.socket || !this.socket.connected) {
             return;
         }
+        const socket = this.socket;
         return new Promise((resolve) => {
-            this.socket.emit('ping', () => {
+            socket.emit('ping', () => {
                 resolve();
             });
             setTimeout(() => {
@@ -1088,14 +1098,16 @@ export class ApiSessionClient extends EventEmitter {
             clearInterval(this.reconnectInterval);
             this.reconnectInterval = null;
         }
-        this.socket.close();
+        if (this.socket) {
+            this.socket.close();
+        }
     }
 
     private startSmartReconnect() {
         if (this.reconnectInterval) return;
 
         this.reconnectInterval = setInterval(() => {
-            if (this.socket.connected) {
+            if (this.socket?.connected) {
                 clearInterval(this.reconnectInterval!);
                 this.reconnectInterval = null;
                 return;
@@ -1113,7 +1125,7 @@ export class ApiSessionClient extends EventEmitter {
         if (shouldReconnect()) {
             logger.debug('[API] Network up + lid open — reconnecting in 1s');
             setTimeout(() => {
-                if (!this.socket.connected) {
+                if (!this.socket?.connected) {
                     void this.connectWithFreshTunnelAuth().catch((error) => {
                         logger.debug('[API] Failed to refresh tunnel auth before reconnect:', error);
                     });
