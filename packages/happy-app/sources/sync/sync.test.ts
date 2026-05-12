@@ -451,6 +451,7 @@ describe('sync settings payload limit', () => {
             machineId: 'machine-1',
             tunnelUrl: 'https://machine.example.test',
         };
+        mocks.storageState.settings = { theme: 'dark' };
     });
 
     it('rejects oversized settings before sending a tunnel request', async () => {
@@ -461,6 +462,61 @@ describe('sync settings payload limit', () => {
             limit: 1024 * 1024,
         });
         expect(mocks.tunnelFetch).not.toHaveBeenCalled();
+    });
+
+    it('maps a 413 PUT response to SettingsPayloadTooLargeError and skips the follow-up GET', async () => {
+        mocks.tunnelFetch.mockResolvedValueOnce({ ok: false, status: 413 });
+
+        await expect((sync as any).syncSettings()).rejects.toMatchObject({
+            name: 'SettingsPayloadTooLargeError',
+        });
+        expect(mocks.tunnelFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('maps a 401 PUT response to SettingsAuthError and skips the follow-up GET', async () => {
+        mocks.tunnelFetch.mockResolvedValueOnce({ ok: false, status: 401 });
+
+        await expect((sync as any).syncSettings()).rejects.toMatchObject({
+            name: 'SettingsAuthError',
+            status: 401,
+        });
+        expect(mocks.tunnelFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('maps a 403 PUT response to SettingsAuthError and skips the follow-up GET', async () => {
+        mocks.tunnelFetch.mockResolvedValueOnce({ ok: false, status: 403 });
+
+        await expect((sync as any).syncSettings()).rejects.toMatchObject({
+            name: 'SettingsAuthError',
+            status: 403,
+        });
+        expect(mocks.tunnelFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws SettingsSyncError on a 5xx PUT response and skips the follow-up GET', async () => {
+        mocks.tunnelFetch.mockResolvedValueOnce({ ok: false, status: 503 });
+
+        await expect((sync as any).syncSettings()).rejects.toMatchObject({
+            name: 'SettingsSyncError',
+            status: 503,
+        });
+        expect(mocks.tunnelFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('proceeds to the follow-up GET when the PUT response is 200', async () => {
+        mocks.tunnelFetch.mockResolvedValueOnce({ ok: true, status: 200 });
+        mocks.tunnelFetch.mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({}),
+        });
+        vi.spyOn(sync as any, 'applyServerSettings').mockImplementation(() => undefined);
+
+        await (sync as any).syncSettings();
+
+        expect(mocks.tunnelFetch).toHaveBeenCalledTimes(2);
+        expect(mocks.tunnelFetch.mock.calls[0]?.[2]?.method).toBe('PUT');
+        expect(mocks.tunnelFetch.mock.calls[1]?.[2]?.method).toBeUndefined();
     });
 });
 

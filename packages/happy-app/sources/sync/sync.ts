@@ -62,6 +62,26 @@ export class SettingsPayloadTooLargeError extends Error {
     }
 }
 
+export class SettingsAuthError extends Error {
+    readonly status: number;
+
+    constructor(status: number) {
+        super(`Settings request rejected with auth status ${status}.`);
+        this.name = 'SettingsAuthError';
+        this.status = status;
+    }
+}
+
+export class SettingsSyncError extends Error {
+    readonly status: number;
+
+    constructor(status: number) {
+        super(`Failed to persist settings: ${status}`);
+        this.name = 'SettingsSyncError';
+        this.status = status;
+    }
+}
+
 type V3GetSessionMessagesResponse = {
     messages: ApiMessage[];
     hasMore: boolean;
@@ -1287,7 +1307,7 @@ class Sync {
             throw new SettingsPayloadTooLargeError(byteLength);
         }
 
-        await tunnelFetch(`${API_ENDPOINT}/v2/me/settings`, this.credentials, {
+        const putResponse = await tunnelFetch(`${API_ENDPOINT}/v2/me/settings`, this.credentials, {
             method: 'PUT',
             body: serialized,
             headers: {
@@ -1295,6 +1315,15 @@ class Sync {
                 'X-Happy-Client': getHappyClientId(),
             }
         });
+        if (!putResponse.ok) {
+            if (putResponse.status === 413) {
+                throw new SettingsPayloadTooLargeError(byteLength);
+            }
+            if (putResponse.status === 401 || putResponse.status === 403) {
+                throw new SettingsAuthError(putResponse.status);
+            }
+            throw new SettingsSyncError(putResponse.status);
+        }
 
         // Run request
         const response = await tunnelFetch(`${API_ENDPOINT}/v2/me/settings`, this.credentials, {
