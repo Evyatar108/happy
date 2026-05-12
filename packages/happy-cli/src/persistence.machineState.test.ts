@@ -38,13 +38,20 @@ describe('machine state persistence', () => {
       tunnelId: '',
       lastTunnelUrl: 'https://old.devtunnels.ms',
     });
+    await expect(readFile(path.join(dir, 'machine.json'), 'utf-8').then(JSON.parse)).resolves.toEqual({
+      machineId: 'machine-1',
+      tunnelPort: 62000,
+      loopbackPort: 62000,
+      tunnelId: '',
+      lastTunnelUrl: 'https://old.devtunnels.ms',
+    });
   });
 
   it('writes machine.json atomically with the new persisted shape', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'happy-machine-state-'));
     const { writeMachineState } = await loadPersistence(dir);
 
-    writeMachineState({
+    await writeMachineState({
       machineId: 'machine-1',
       tunnelPort: 62000,
       loopbackPort: 62001,

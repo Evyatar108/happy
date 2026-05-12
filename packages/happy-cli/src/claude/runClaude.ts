@@ -14,7 +14,7 @@ import { parseSpecialCommand } from '@/parsers/specialCommands';
 import { getEnvironmentInfo } from '@/ui/doctor';
 import { configuration } from '@/configuration';
 import { notifyDaemonSessionStarted } from '@/daemon/controlClient';
-import { initialMachineMetadata } from '@/daemon/run';
+import * as daemonClient from '@/daemon/daemonClient';
 import { startHappyServer } from '@/claude/utils/startHappyServer';
 import { startHookServer } from '@/claude/utils/startHookServer';
 import { generateHookSettingsFile, cleanupHookSettingsFile } from '@/claude/utils/generateHookSettings';
@@ -106,12 +106,6 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
     }
     logger.debug(`Using machineId: ${machineId}`);
 
-    // Create machine if it doesn't exist
-    await api.getOrCreateMachine({
-        machineId,
-        metadata: initialMachineMetadata
-    });
-
     let metadata: Metadata = {
         path: workingDirectory,
         host: os.hostname(),
@@ -165,7 +159,14 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         let offlineSessionId: string | null = null;
 
         const reconnection = startOfflineReconnection({
-            serverUrl: configuration.serverUrl,
+            healthCheck: async () => {
+                try {
+                    const response = await daemonClient.loopbackFetch('/v2/me/settings', { method: 'HEAD' });
+                    return response.ok;
+                } catch {
+                    return false;
+                }
+            },
             onReconnected: async () => {
                 const resp = await api.getOrCreateSession({ tag: randomUUID(), metadata, state });
                 if (!resp) throw new Error('Server unavailable');

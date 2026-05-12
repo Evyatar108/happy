@@ -43,7 +43,7 @@ vi.mock('@/ui/logger', () => ({
 // ============================================================================
 
 interface TestHandleConfig<T = { id: string }> {
-    healthCheck?: () => Promise<void>;
+    healthCheck?: () => Promise<boolean>;
     onReconnected?: () => Promise<T>;
     onNotify?: (msg: string) => void;
     onCleanup?: () => void;
@@ -60,11 +60,10 @@ function createTestHandle<T = { id: string }>(config: TestHandleConfig<T> = {}) 
     const onCleanup = config.onCleanup ?? vi.fn();
 
     const handle = startOfflineReconnection<T>({
-        serverUrl: 'http://test-server',
         onReconnected: onReconnected as () => Promise<T>,
         onNotify,
         onCleanup,
-        healthCheck: config.healthCheck ?? (async () => { /* success */ }),
+        healthCheck: config.healthCheck ?? (async () => true),
         initialDelayMs: config.initialDelayMs ?? 1
     });
 
@@ -157,6 +156,7 @@ describe('startOfflineReconnection', () => {
             const healthCheck = async () => {
                 attemptCount++;
                 if (attemptCount < 2) throw new Error('ECONNREFUSED');
+                return true;
             };
 
             const { handle, onReconnected } = createTestHandle({ healthCheck });
@@ -193,6 +193,7 @@ describe('startOfflineReconnection', () => {
             const healthCheck = async () => {
                 attemptCount++;
                 if (attemptCount < 3) throw new Error('Network error');
+                return true;
             };
 
             const { handle } = createTestHandle({ healthCheck });
@@ -284,6 +285,7 @@ describe('startOfflineReconnection', () => {
             const healthCheck = async () => {
                 attemptCount++;
                 if (attemptCount < 2) throw createAxiosError(500);
+                return true;
             };
 
             const { handle } = createTestHandle({ healthCheck });
@@ -301,6 +303,7 @@ describe('startOfflineReconnection', () => {
             const healthCheck = async () => {
                 attemptCount++;
                 if (attemptCount < 2) throw createAxiosError(503);
+                return true;
             };
 
             const { handle } = createTestHandle({ healthCheck });
@@ -321,6 +324,7 @@ describe('startOfflineReconnection', () => {
                     (error as any).code = 'ECONNREFUSED';
                     throw error;
                 }
+                return true;
             };
 
             const { handle } = createTestHandle({ healthCheck });
@@ -341,6 +345,7 @@ describe('startOfflineReconnection', () => {
                     (error as any).code = 'ETIMEDOUT';
                     throw error;
                 }
+                return true;
             };
 
             const { handle } = createTestHandle({ healthCheck });
@@ -357,6 +362,7 @@ describe('startOfflineReconnection', () => {
             const healthCheck = async () => {
                 attemptCount++;
                 if (attemptCount < 2) throw createAxiosError(403);
+                return true;
             };
 
             const { handle, onNotify } = createTestHandle({ healthCheck });
@@ -384,6 +390,7 @@ describe('startOfflineReconnection', () => {
             const { handle, onReconnected } = createTestHandle({
                 healthCheck: async () => {
                     await healthCheckPromise;
+                    return true;
                 }
             });
 
@@ -490,10 +497,9 @@ describe('startOfflineReconnection', () => {
 
         it('should work without optional onCleanup callback', async () => {
             const handle = startOfflineReconnection({
-                serverUrl: 'http://test',
                 onReconnected: async () => ({ id: 'session' }),
                 onNotify: vi.fn(),
-                healthCheck: async () => {},
+                healthCheck: async () => true,
                 initialDelayMs: 1
                 // onCleanup intentionally omitted
             });

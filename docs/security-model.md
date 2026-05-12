@@ -2,7 +2,7 @@
 
 Audience: developers working on Happy's daemon, server, agent, and app transport layers.
 
-This document records the Sprint A target contract for the Dev Tunnels migration. Sprint A documents the contract and supporting guardrails only. The coordinated B+C+D cutover removes the old per-message RPC encryption code after every caller and handler is ready to switch at the same time.
+This document records the Sprint A target contract for the Dev Tunnels migration. Sprint A documented the contract and supporting guardrails only. Sprint B has now landed and deleted the handler-side RPC encryption in happy-cli; the coordinated C+D portion of the cutover still removes the remaining caller-side per-message RPC encryption code in happy-agent and happy-app.
 
 ## Trust Model
 
@@ -28,9 +28,9 @@ Untrusted parties:
 
 Option A is plaintext-over-TLS plus Happy claim authorization for RPC payloads. After the B+C+D cutover, `rpc-call` params and `rpc-request` responses are ordinary JSON payloads carried over the Dev Tunnels TLS transport. The server continues to route RPC messages by Socket.IO room and does not become the account identity source.
 
-Current Sprint A code still uses X25519-derived per-message encryption for RPC params and results. That encryption is retained until the coordinated cutover lands. In the target contract, the X25519 per-message RPC layer is REMOVED.
+As of Sprint B, the happy-cli handler side no longer decrypts incoming RPC params or encrypts outgoing results — `packages/happy-cli/src/api/rpc/RpcHandlerManager.ts` now reads `request.params` directly and returns plaintext JSON. The remaining callers in happy-agent and happy-app still use X25519-derived per-message encryption for RPC params and results; that caller-side encryption is retained until Sprint C and Sprint D land. In the target contract, the X25519 per-message RPC layer is REMOVED end-to-end.
 
-Before cutover, callers send encrypted base64 strings:
+Pre-cutover (Sprint A only, now historical), callers sent encrypted base64 strings:
 
 ```json
 {
@@ -42,7 +42,7 @@ Before cutover, callers send encrypted base64 strings:
 }
 ```
 
-Before cutover, handlers return encrypted base64 strings:
+Pre-cutover (Sprint A only, now historical), handlers returned encrypted base64 strings:
 
 ```json
 {
@@ -97,10 +97,15 @@ This keeps tunnel-authenticated RPC traffic and loopback-capability RPC traffic 
 
 ## Coordinated B+C+D Cutover Tasks
 
-The following code changes must land together in the coordinated B+C+D cutover. Sprint A does not make these edits.
+The following code changes must land together in the coordinated B+C+D cutover.
+
+Landed:
+
+- Sprint B deleted handler-side RPC param decryption and response encryption in `packages/happy-cli/src/api/rpc/RpcHandlerManager.ts`. The handler now consumes plaintext `request.params` and returns plaintext result objects.
+
+Pending:
 
 - Sprint C deletes caller-side RPC param encryption and result decryption in `packages/happy-agent/src/machineRpc.ts:85-112,159-181`.
-- Sprint B deletes handler-side RPC param decryption and response encryption in `packages/happy-cli/src/api/rpc/RpcHandlerManager.ts`.
 - Sprint D deletes app-side RPC param encryption and result decryption in `packages/happy-app/sources/sync/apiSocket.ts:149-181`.
 - Sprint D deletes pair-time X25519 session key derivation from stored app credentials in `packages/happy-app/sources/auth/pairing.ts:184-193`.
 - Sprint D deletes app-side X25519 helper usage for tunnel transport credentials in `packages/happy-app/sources/sync/tunnelTransport.ts:49-55`.
@@ -112,7 +117,6 @@ The cutover should also update tests that currently assert encrypted base64 RPC 
 Sprint A intentionally leaves these areas unchanged:
 
 - `packages/happy-agent/src/machineRpc.ts` continues encrypting params and decrypting results.
-- `packages/happy-cli/src/api/rpc/RpcHandlerManager.ts` continues decrypting params and encrypting responses.
 - `packages/happy-app/sources/sync/apiSocket.ts`, `packages/happy-app/sources/auth/pairing.ts`, and `packages/happy-app/sources/sync/tunnelTransport.ts` continue using the existing X25519-derived session-key path.
 - The happy-wire RPC payload shape remains opaque to shared wire schemas. Existing typed Socket.IO surfaces use `params: string` for encrypted RPC payloads; the Sprint A documentation story does not change package exports or schemas.
 - `packages/happy-server/sources/app/api/socket/rpcHandler.ts` continues forwarding opaque RPC payloads.

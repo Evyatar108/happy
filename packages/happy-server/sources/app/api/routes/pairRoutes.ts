@@ -3,10 +3,10 @@ import nacl from "tweetnacl";
 import * as os from "os";
 import * as path from "path";
 import { randomUUID } from "crypto";
+import { writeJsonAtomically } from "@slopus/happy-wire/node";
 import { type Fastify } from "../types";
 import { type TofuHandshakeConfig } from "../api";
 import { encodeTunnelClaim } from "../auth/tunnelClaim";
-import { writeJsonAtomically } from "../utils/writeJsonAtomically";
 
 type DeviceCodeResponse = {
     device_code: string;

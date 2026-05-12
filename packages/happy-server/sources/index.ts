@@ -3,6 +3,10 @@ import { mkdir } from "fs/promises";
 import path from "path";
 import type { EventRouter } from "./app/events/eventRouter";
 import type { ApiPaths, MachineStateGetter } from "./app/api/api";
+import { decodeBase64 } from "privacy-kit";
+import { db, getPGlite } from "./storage/db";
+
+export { encodeTunnelClaim } from "./app/api/auth/tunnelClaim";
 
 export interface TofuPublicKeys {
     ed25519PublicKey: string | Uint8Array;
@@ -48,6 +52,34 @@ export interface HappyServerHandle {
     eventRouter: EventRouter;
     start: () => Promise<void>;
     stop: () => Promise<void>;
+}
+
+export interface BootstrapMachineForEmbeddedInput {
+    machineId: string;
+    metadata: string;
+    daemonState: string | null;
+    dataEncryptionKeyBase64?: string | null;
+}
+
+export async function bootstrapMachineForEmbedded(input: BootstrapMachineForEmbeddedInput): Promise<void> {
+    if (!getPGlite()) {
+        throw new Error("Embedded PGlite database is not configured; call createApp(...).start() before bootstrapMachineForEmbedded().");
+    }
+
+    await db.machine.upsert({
+        where: { id: input.machineId },
+        create: {
+            id: input.machineId,
+            metadata: input.metadata,
+            metadataVersion: 1,
+            daemonState: input.daemonState,
+            daemonStateVersion: 1,
+            dataEncryptionKey: input.dataEncryptionKeyBase64
+                ? decodeBase64(input.dataEncryptionKeyBase64)
+                : null,
+        },
+        update: {},
+    });
 }
 
 function machineKeyToSeed(machineKey: string | Uint8Array) {

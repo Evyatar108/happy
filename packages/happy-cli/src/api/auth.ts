@@ -1,6 +1,4 @@
-import axios from 'axios';
-import { encodeBase64, encodeBase64Url, authChallenge } from './encryption';
-import { configuration } from '@/configuration';
+import { encodeBase64Url } from './encryption';
 
 /**
  * Note: This function is deprecated. Use readPrivateKey/writePrivateKey from persistence module instead.
@@ -17,23 +15,8 @@ export async function getOrCreateSecretKey(): Promise<Uint8Array> {
  * @returns The authentication token
  */
 export async function authGetToken(secret: Uint8Array): Promise<string> {
-  const { challenge, publicKey, signature } = authChallenge(secret);
-  
-  const response = await axios.post(`${configuration.serverUrl}/v1/auth`, {
-    challenge: encodeBase64(challenge),
-    publicKey: encodeBase64(publicKey),
-    signature: encodeBase64(signature)
-  }, {
-    headers: {
-      'X-Happy-Client': `cli/${configuration.currentCliVersion}`
-    }
-  });
-
-  if (!response.data.success || !response.data.token) {
-    throw new Error('Authentication failed');
-  }
-
-  return response.data.token;
+  void secret;
+  throw new Error('authGetToken is deprecated. Use GitHub device-flow authentication from ui/auth.');
 }
 
 /**

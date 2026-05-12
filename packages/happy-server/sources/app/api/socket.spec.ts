@@ -139,12 +139,13 @@ describe("createSocketAuthMiddleware — AC-A10 loopback vs tunnel auth", () => 
 
         expect(next).toHaveBeenCalledWith();
         expect(socket.data.userId).toBe("daemon-user");
+        expect(socket.data.accountId).toBeNull();
     });
 
     it("loopback: rejects a tunnel-claim header (cross-presented)", async () => {
         const tunnelConfig = await createTunnelConfig();
         const claim = await encodeTunnelClaim(
-            { sub: tunnelConfig.localUserId, iat: Math.floor(Date.now() / 1000) },
+            { sub: tunnelConfig.localUserId, iat: Math.floor(Date.now() / 1000), accountId: 12345 },
             tunnelConfig.ed25519SecretKey
         );
         const middleware = createSocketAuthMiddleware({ localUserId: "daemon-user" }, {
@@ -162,7 +163,7 @@ describe("createSocketAuthMiddleware — AC-A10 loopback vs tunnel auth", () => 
     it("tunnel: accepts a valid tunnel claim", async () => {
         const tunnelConfig = await createTunnelConfig();
         const claim = await encodeTunnelClaim(
-            { sub: tunnelConfig.localUserId, iat: Math.floor(Date.now() / 1000) },
+            { sub: tunnelConfig.localUserId, iat: Math.floor(Date.now() / 1000), accountId: 12345 },
             tunnelConfig.ed25519SecretKey
         );
         const middleware = createSocketAuthMiddleware(tunnelConfig, { auth: "tunnel" });
@@ -173,6 +174,7 @@ describe("createSocketAuthMiddleware — AC-A10 loopback vs tunnel auth", () => 
 
         expect(next).toHaveBeenCalledWith();
         expect(socket.data.userId).toBe(tunnelConfig.localUserId);
+        expect(socket.data.accountId).toBe(12345);
     });
 
     it("tunnel: rejects a capability header (cross-presented)", async () => {

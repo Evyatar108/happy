@@ -55,15 +55,16 @@ Handles server communication and encryption.
 
 - **`api.ts`**: Main API client class for session management
 - **`apiSession.ts`**: WebSocket-based real-time session client with RPC support
-- **`auth.ts`**: Authentication flow using TweetNaCl for cryptographic signatures
+- **`auth.ts`**: Deprecation shim retained for compatibility; `authGetToken`/`getOrCreateSecretKey` throw on call. The active authentication flow is GitHub device flow in `src/auth/githubDeviceFlow.ts` driven by `src/ui/auth.ts` (device code request, browser open, OAuth token poll, credential persistence via `writeJsonAtomically` from `@slopus/happy-wire/node`).
 - **`encryption.ts`**: End-to-end encryption utilities using TweetNaCl
 - **`types.ts`**: Zod schemas for type-safe API communication
 
 **Key Features:**
-- End-to-end encryption for all communications
+- End-to-end encryption for message bodies, metadata, and state fields
 - Socket.IO for real-time messaging
 - Optimistic concurrency control for state updates
 - RPC handler registration for remote procedure calls
+- RPC request params and responses are plaintext Socket.IO payloads; keep encryption on message bodies, metadata, and state fields only.
 
 ### 2. Claude Integration (`/src/claude/`)
 Core Claude Code integration layer.
@@ -162,8 +163,8 @@ User interface components.
 
 ## Data Flow
 
-1. **Authentication**: 
-   - Generate/load secret key → Create signature challenge → Get auth token
+1. **Authentication**:
+   - Request GitHub device code → display `user_code` + verification URI (browser auto-open) → poll GitHub OAuth for access token → persist credentials atomically (`writeJsonAtomically` from `@slopus/happy-wire/node`)
 
 2. **Session Creation**:
    - Create encrypted session with server → Establish WebSocket connection
@@ -187,7 +188,7 @@ User interface components.
 
 - Private keys stored in `~/.handy/access.key` with restricted permissions
 - All communications encrypted using TweetNaCl
-- Challenge-response authentication prevents replay attacks
+- Tunnel claims include a `jti` nonce and the embedded server rejects replayed `jti`s; mobile-pairing identity is established via GitHub device flow + Ed25519/X25519 TOFU pinning rather than CLI-signed challenges
 - Session isolation through unique session IDs
 - `writeFile` RPC `createParents: true` is only for `.happy/attachments/*` targets and must keep both gates: lexical attachments allowlist plus `validatePathRealpath(...)` symlink/realpath confinement before directory creation.
 - Message metadata fields shared with the app must be added to every `MessageMetaSchema` copy: `packages/happy-app/sources/sync/typesMessageMeta.ts`, `packages/happy-wire/src/messageMeta.ts`, and `packages/happy-cli/src/api/types.ts`; otherwise Zod parsing strips the field on at least one side.

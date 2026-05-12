@@ -6,6 +6,7 @@
 import { io, Socket } from 'socket.io-client';
 import { logger } from '@/ui/logger';
 import { configuration } from '@/configuration';
+import * as daemonClient from '@/daemon/daemonClient';
 import { MachineMetadata, DaemonState, Machine, Update, UpdateMachineBody } from './types';
 import { isSupportedAgent, registerCommonHandlers, SpawnInWorktreeOptions, SpawnSessionOptions, SpawnSessionResult } from '../modules/common/registerCommonHandlers';
 import { encodeBase64, decodeBase64, encrypt, decrypt } from './encryption';
@@ -19,7 +20,7 @@ import { validateStopSessionId } from '@/daemon/stopTrackedSession';
 
 interface ServerToDaemonEvents {
     update: (data: Update) => void;
-    'rpc-request': (data: { method: string, params: string }, callback: (response: string) => void) => void;
+    'rpc-request': (data: { method: string, params: unknown }, callback: (response: unknown) => void) => void;
     'rpc-registered': (data: { method: string }) => void;
     'rpc-unregistered': (data: { method: string }) => void;
     'rpc-error': (data: { type: string, error: string }) => void;
@@ -95,7 +96,8 @@ const PARENT_SESSION_ID_MAX_LENGTH = 128;
 const PARENT_SESSION_ID_SHAPE = /^[A-Za-z0-9_-]+$/;
 
 export class ApiMachineClient {
-    private socket!: Socket<ServerToDaemonEvents, DaemonToServerEvents>;
+    private socket: Socket<ServerToDaemonEvents, DaemonToServerEvents> | null = null;
+    private socketReady: Promise<void> = new Promise(() => { /* resolves only after connect() assigns this.socket */ });
     private keepAliveInterval: NodeJS.Timeout | null = null;
     private lastKnownCLIAvailability: CLIAvailability | null = null;
     private lastKnownResumeSupport: ResumeSupport | null = null;
@@ -104,6 +106,15 @@ export class ApiMachineClient {
     private forkSessionHandler: ((options: ForkSessionOptions) => Promise<SpawnSessionResult>) | null = null;
     private reconnectInterval: NodeJS.Timeout | null = null;
 
+    private socketAuthBase() {
+        return {
+            token: this.token,
+            clientType: 'machine-scoped' as const,
+            machineId: this.machine.id,
+            happyClient: `cli-daemon/${configuration.currentCliVersion}`
+        };
+    }
+
     constructor(
         private token: string,
         private machine: Machine
@@ -111,8 +122,6 @@ export class ApiMachineClient {
         // Initialize RPC handler manager
         this.rpcHandlerManager = new RpcHandlerManager({
             scopePrefix: this.machine.id,
-            encryptionKey: this.machine.encryptionKey,
-            encryptionVariant: this.machine.encryptionVariant,
             logger: (msg, data) => logger.debug(msg, data)
         });
 
@@ -304,10 +313,13 @@ export class ApiMachineClient {
      * for example to set a custom name.
      */
     async updateMachineMetadata(handler: (metadata: MachineMetadata | null) => MachineMetadata): Promise<void> {
+        await this.socketReady;
         await backoff(async () => {
+            const socket = this.socket;
+            if (!socket) { throw new Error('socket not yet constructed'); }
             const updated = handler(this.machine.metadata);
 
-            const answer = await this.socket.emitWithAck('machine-update-metadata', {
+            const answer = await socket.emitWithAck('machine-update-metadata', {
                 machineId: this.machine.id,
                 metadata: encodeBase64(encrypt(this.machine.encryptionKey, this.machine.encryptionVariant, updated)),
                 expectedVersion: this.machine.metadataVersion
@@ -332,10 +344,13 @@ export class ApiMachineClient {
      * Simplified without lock - relies on backoff for retry
      */
     async updateDaemonState(handler: (state: DaemonState | null) => DaemonState): Promise<void> {
+        await this.socketReady;
         await backoff(async () => {
+            const socket = this.socket;
+            if (!socket) { throw new Error('socket not yet constructed'); }
             const updated = handler(this.machine.daemonState);
 
-            const answer = await this.socket.emitWithAck('machine-update-state', {
+            const answer = await socket.emitWithAck('machine-update-state', {
                 machineId: this.machine.id,
                 daemonState: encodeBase64(encrypt(this.machine.encryptionKey, this.machine.encryptionVariant, updated)),
                 expectedVersion: this.machine.daemonStateVersion
@@ -356,22 +371,21 @@ export class ApiMachineClient {
     }
 
     connect() {
-        const serverUrl = configuration.serverUrl.replace(/^http/, 'ws');
-        logger.debug(`[API MACHINE] Connecting to ${serverUrl}`);
+        this.socketReady = this.connectToTunnelListener().catch((error) => {
+            logger.debug('[API MACHINE] Failed to connect to tunnel listener:', error);
+        });
+    }
 
-        this.socket = io(serverUrl, {
+    private buildSocket(url: string, auth: object): Socket<ServerToDaemonEvents, DaemonToServerEvents> {
+        const socket = io(url, {
             transports: ['websocket'],
-            auth: {
-                token: this.token,
-                clientType: 'machine-scoped' as const,
-                machineId: this.machine.id,
-                happyClient: `cli-daemon/${configuration.currentCliVersion}`
-            },
+            auth,
             path: '/v1/updates',
             reconnection: false,
+            autoConnect: false,
         });
 
-        this.socket.on('connect', () => {
+        socket.on('connect', () => {
             logger.debug('[API MACHINE] Connected to server');
 
             if (this.reconnectInterval) {
@@ -387,29 +401,25 @@ export class ApiMachineClient {
                 startedAt: Date.now()
             }));
 
-            this.rpcHandlerManager.onSocketConnect(this.socket);
+            this.rpcHandlerManager.onSocketConnect(socket);
             this.syncResumeSessionRpcRegistration();
             this.startKeepAlive();
         });
 
-        this.socket.on('disconnect', (reason) => {
+        socket.on('disconnect', (reason) => {
             logger.debug(`[API MACHINE] Disconnected from server — reason: ${reason}`);
             this.rpcHandlerManager.onSocketDisconnect();
             this.stopKeepAlive();
             this.startSmartReconnect();
         });
 
-        // Single consolidated RPC handler
-        this.socket.on('rpc-request', async (data: { method: string, params: string }, callback: (response: string) => void) => {
+        socket.on('rpc-request', async (data: { method: string, params: unknown }, callback: (response: unknown) => void) => {
             logger.debugLargeJson(`[API MACHINE] Received RPC request:`, data);
             callback(await this.rpcHandlerManager.handleRequest(data));
         });
 
-        // Handle update events from server
-        this.socket.on('update', (data: Update) => {
-            // Machine clients should only care about machine updates
+        socket.on('update', (data: Update) => {
             if (data.body.t === 'update-machine' && (data.body as UpdateMachineBody).machineId === this.machine.id) {
-                // Handle machine metadata or daemon state updates from other clients (e.g., mobile app)
                 const update = data.body as UpdateMachineBody;
 
                 if (update.metadata) {
@@ -428,18 +438,47 @@ export class ApiMachineClient {
             }
         });
 
-        this.socket.on('connect_error', (error) => {
+        socket.on('connect_error', (error) => {
             logger.debug(`[API MACHINE] Connection error: ${error.message}`);
+            this.startSmartReconnect();
         });
 
-        this.socket.io.on('error', (error: any) => {
+        socket.io.on('error', (error: any) => {
             logger.debug('[API MACHINE] Socket error:', error);
         });
+
+        return socket;
+    }
+
+    private async refreshTunnelAuth(): Promise<void> {
+        const options = await daemonClient.tunnelSocketIOOptions();
+        const auth = {
+            ...this.socketAuthBase(),
+            ...options.auth,
+        };
+        if (this.socket) {
+            this.socket.removeAllListeners();
+            this.socket.disconnect();
+        }
+        this.socket = this.buildSocket(options.url, auth);
+    }
+
+    private async connectToTunnelListener(): Promise<void> {
+        const options = await daemonClient.tunnelSocketIOOptions();
+        logger.debug(`[API MACHINE] Connecting to ${options.url}`);
+
+        this.socket = this.buildSocket(options.url, {
+            ...this.socketAuthBase(),
+            ...options.auth,
+        });
+
+        this.socket.connect();
     }
 
     private startKeepAlive() {
         this.stopKeepAlive();
         this.keepAliveInterval = setInterval(() => {
+            if (!this.socket) return;
             const payload = {
                 machineId: this.machine.id,
                 time: Date.now()
@@ -479,7 +518,7 @@ export class ApiMachineClient {
         if (this.reconnectInterval) return;
 
         this.reconnectInterval = setInterval(() => {
-            if (this.socket.connected) {
+            if (this.socket?.connected) {
                 clearInterval(this.reconnectInterval!);
                 this.reconnectInterval = null;
                 return;
@@ -489,12 +528,20 @@ export class ApiMachineClient {
                 return;
             }
             logger.debug('[API MACHINE] Attempting reconnect');
-            this.socket.connect();
+            void this.refreshTunnelAuth().then(() => this.socket?.connect()).catch((error) => {
+                logger.debug('[API MACHINE] Failed to refresh tunnel auth before reconnect:', error);
+            });
         }, 3000);
 
         if (shouldReconnect()) {
             logger.debug('[API MACHINE] Network up + lid open — reconnecting in 1s');
-            setTimeout(() => { if (!this.socket.connected) this.socket.connect() }, 1000);
+            setTimeout(() => {
+                if (!this.socket?.connected) {
+                    void this.refreshTunnelAuth().then(() => this.socket?.connect()).catch((error) => {
+                        logger.debug('[API MACHINE] Failed to refresh tunnel auth before reconnect:', error);
+                    });
+                }
+            }, 1000);
         }
     }
 

@@ -293,7 +293,7 @@ export class TunnelManager {
   private async persistTunnelUrl(tunnelUrl: string): Promise<void> {
     const current = await readMachineState();
     if (!current) return;
-    writeMachineState({ ...current, lastTunnelUrl: tunnelUrl });
+    await writeMachineState({ ...current, lastTunnelUrl: tunnelUrl });
   }
 }
 
@@ -308,12 +308,12 @@ export async function runInitCommand(): Promise<void> {
     const tunnelPort = await pickFreeLoopbackPort();
     const loopbackPort = await pickFreeLoopbackPort();
     machineState = { machineId: settings.machineId, tunnelPort, loopbackPort, tunnelId: '', lastTunnelUrl: null };
-    writeMachineState(machineState);
+    await writeMachineState(machineState);
   }
 
   const manager = new TunnelManager();
   const config = await manager.init(settings.machineId, machineState.tunnelPort);
-  writeMachineState({
+  await writeMachineState({
     ...machineState,
     tunnelId: config.tunnelId,
     lastTunnelUrl: config.tunnelUrl,

@@ -10,8 +10,8 @@ describe('loopbackCapability', () => {
   it('writes a regenerated 32-byte capability token atomically', async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'happy-loopback-cap-'));
 
-    const first = writeLoopbackCapability(dir);
-    const second = writeLoopbackCapability(dir);
+    const first = await writeLoopbackCapability(dir);
+    const second = await writeLoopbackCapability(dir);
 
     expect(first.path).toBe(loopbackCapabilityPath(dir));
     expect(second.path).toBe(first.path);
@@ -46,7 +46,7 @@ describe('writeLoopbackCapability — symlink/realpath hardening (F-S007)', () =
       await symlink(realDir, symlinkDir);
     }
 
-    expect(() => writeLoopbackCapability(symlinkDir)).toThrow(
+    await expect(writeLoopbackCapability(symlinkDir)).rejects.toThrow(
       /^loopback_capability_aborted_symlink_at:/,
     );
 
@@ -67,7 +67,7 @@ describe('writeLoopbackCapability — symlink/realpath hardening (F-S007)', () =
     const childUnderSym = path.join(symlinkAncestor, 'child');
     mkdirSync(childUnderSym, { recursive: true });
 
-    expect(() => writeLoopbackCapability(childUnderSym)).toThrow(
+    await expect(writeLoopbackCapability(childUnderSym)).rejects.toThrow(
       /^loopback_capability_aborted_symlink_at:/,
     );
 

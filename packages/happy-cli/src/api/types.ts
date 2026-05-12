@@ -46,7 +46,7 @@ export type Usage = z.infer<typeof UsageSchema>
  */
 export interface ServerToClientEvents {
   update: (data: Update) => void
-  'rpc-request': (data: { method: string, params: string }, callback: (response: string) => void) => void
+  'rpc-request': (data: { method: string, params: unknown }, callback: (response: unknown) => void) => void
   'rpc-registered': (data: { method: string }) => void
   'rpc-unregistered': (data: { method: string }) => void
   'rpc-error': (data: { type: string, error: string }) => void
@@ -100,9 +100,9 @@ export interface ClientToServerEvents {
   'ping': (callback: () => void) => void
   'rpc-register': (data: { method: string }) => void
   'rpc-unregister': (data: { method: string }) => void
-  'rpc-call': (data: { method: string, params: string }, callback: (response: {
+  'rpc-call': (data: { method: string, params: unknown }, callback: (response: {
     ok: boolean
-    result?: string
+    result?: unknown
     error?: string
   }) => void) => void
   'usage-report': (data: {
