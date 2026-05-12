@@ -6,11 +6,11 @@ export type TriggerTestRpcResult = {
     error?: string;
 };
 
-export async function triggerTestRpc(method: string, params: unknown): Promise<TriggerTestRpcResult> {
+export async function triggerTestRpc(sessionId: string, method: string, params: unknown): Promise<TriggerTestRpcResult> {
     const socket = await connectTestTunnelSocket();
 
     try {
-        return await socket.emitWithAck('rpc-call', { method, params });
+        return await socket.emitWithAck('rpc-call', { method: `${sessionId}:${method}`, params });
     } finally {
         socket.close();
     }
