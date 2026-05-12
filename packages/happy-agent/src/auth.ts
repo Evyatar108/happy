@@ -1,85 +1,84 @@
 import axios, { AxiosError } from 'axios';
-import tweetnacl from 'tweetnacl';
-import qrcode from 'qrcode-terminal';
-import { encodeBase64, encodeBase64Url, decodeBase64, decryptBoxBundle, getRandomBytes } from './encryption';
-import { writeCredentials, clearCredentials, readCredentials } from './credentials';
+import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { saveCredentials, deleteCredentials, legacyCredentialsToPersisted, type PersistedCredentials, type PersistedDiscoveredMachine, type PersistedMachineCredentials } from './credentials';
 import type { Config } from './config';
 
-const POLL_INTERVAL_MS = 1000;
-const AUTH_TIMEOUT_MS = 120_000; // 2 minutes
+const DEFAULT_POLL_INTERVAL_SECONDS = 5;
+const MAX_POLL_INTERVAL_SECONDS = 30;
+const TARGET_DISCOVERY_TIMEOUT_MS = 10_000;
 
-export type AuthRequestResponse = {
-    state: 'requested' | 'authorized';
-    token?: string;
-    response?: string; // base64-encoded encrypted account secret
+type PairStartResponse = {
+    device_code: string;
+    user_code: string;
+    verification_uri: string;
+    expires_in: number;
+    interval?: number;
+};
+
+type PairStatusResponse = {
+    status: 'pending' | 'slow_down' | 'authorized' | 'expired';
+    githubLogin?: string;
+    machines?: PairStatusMachine[];
+    discoveredMachines?: PersistedDiscoveredMachine[];
+};
+
+type PairStatusMachine = PersistedMachineCredentials;
+
+type TunnelClaimPayload = {
+    accountId?: unknown;
+    iat?: unknown;
+    exp?: unknown;
+    jti?: unknown;
 };
 
 export async function authLogin(config: Config): Promise<void> {
-    // 1. Generate ephemeral box keypair
-    const seed = getRandomBytes(32);
-    const keypair = tweetnacl.box.keyPair.fromSecretKey(seed);
+    const start = await startPairing(config);
+    const expiresAt = Math.floor(Date.now() / 1000) + start.expires_in;
 
-    // 2. POST /v1/auth/account/request with publicKey
-    const publicKeyBase64 = encodeBase64(keypair.publicKey);
-    try {
-        await axios.post(`${config.serverUrl}/v1/auth/account/request`, {
-            publicKey: publicKeyBase64,
-        }, {
-            headers: { 'X-Happy-Client': 'cli-control-plane/0.1.0' },
-        });
-    } catch (err) {
-        if (err instanceof AxiosError) {
-            throw new Error(`Failed to initiate auth: ${err.message}`);
-        }
-        throw err;
-    }
-
-    // 3. Generate and display QR code
-    const qrData = `happy:///account?${encodeBase64Url(keypair.publicKey)}`;
-    console.log('');
-    qrcode.generate(qrData, { small: true }, (code: string) => {
-        console.log(code);
-    });
     console.log('## Authentication');
-    console.log('- Action: Scan this QR code with the Happy app');
-    console.log('- Path: Settings -> Account -> Link New Device');
-    console.log(`- Public Key: \`${publicKeyBase64}\``);
-    console.log(`- URL: \`${qrData}\``);
-    console.log('');
+    console.log(`- Open: ${start.verification_uri}`);
+    console.log(`- Code: ${start.user_code}`);
 
-    // 4. Poll until authorized or timeout
-    const startTime = Date.now();
-    while (Date.now() - startTime < AUTH_TIMEOUT_MS) {
-        await sleep(POLL_INTERVAL_MS);
-
-        let result: AuthRequestResponse;
+    let intervalSeconds = start.interval ?? DEFAULT_POLL_INTERVAL_SECONDS;
+    while (Math.floor(Date.now() / 1000) < expiresAt) {
+        await sleep(intervalSeconds * 1000);
+        let status: PairStatusResponse;
         try {
-            const resp = await axios.post(`${config.serverUrl}/v1/auth/account/request`, {
-                publicKey: publicKeyBase64,
-            }, {
-                headers: { 'X-Happy-Client': 'cli-control-plane/0.1.0' },
-            });
-            result = resp.data as AuthRequestResponse;
-        } catch (err) {
-            if (err instanceof AxiosError) {
-                throw new Error(`Auth polling failed: ${err.message}`);
+            status = await postPairStatus(config.pairingBaseUrl, start.device_code);
+            intervalSeconds = start.interval ?? DEFAULT_POLL_INTERVAL_SECONDS;
+        } catch (error) {
+            if (isAxiosStatus(error, 429)) {
+                intervalSeconds = Math.min(intervalSeconds * 2, MAX_POLL_INTERVAL_SECONDS);
+                continue;
             }
-            throw err;
+            throw new Error(`Auth polling failed: ${error instanceof Error ? error.message : String(error)}`);
         }
 
-        if (result.state === 'authorized' && result.token && result.response) {
-            // 5. Decrypt the response to get account secret
-            const encryptedResponse = decodeBase64(result.response);
-            const secret = decryptBoxBundle(encryptedResponse, keypair.secretKey);
-            if (!secret) {
-                throw new Error('Failed to decrypt auth response');
-            }
-
-            // 6. Save credentials
-            writeCredentials(config, result.token, secret);
-
-            console.log('## Authentication');
+        if (status.status === 'pending' || status.status === 'slow_down') {
+            continue;
+        }
+        if (status.status === 'expired') {
+            throw new Error("Device code expired. Run 'happy-agent auth login'");
+        }
+        if (status.status === 'authorized') {
+            const machines = await discoverAuthorizedMachines(status, start.device_code, intervalSeconds);
+            const auditedMachines = auditMachines(machines);
+            const legacy = readLegacyCredentials();
+            const persisted: PersistedCredentials = {
+                githubLogin: requireString(status.githubLogin, 'githubLogin'),
+                deviceCode: start.device_code,
+                deviceCodeExpiresAt: expiresAt,
+                pairingBaseUrl: config.pairingBaseUrl,
+                machines: auditedMachines,
+                discoveredMachines: status.discoveredMachines,
+                ...legacy,
+            };
+            await saveCredentials(config, persisted);
             console.log('- Status: Authenticated');
+            console.log(`- GitHub: ${persisted.githubLogin}`);
+            console.log(`- Machines: ${persisted.machines.length}`);
             return;
         }
     }
@@ -88,22 +87,138 @@ export async function authLogin(config: Config): Promise<void> {
 }
 
 export async function authLogout(config: Config): Promise<void> {
-    clearCredentials(config);
+    await deleteCredentials(config);
     console.log('## Authentication');
     console.log('- Status: Logged out');
     console.log('- Credentials: Cleared');
 }
 
 export async function authStatus(config: Config): Promise<void> {
-    const creds = readCredentials(config);
     console.log('## Authentication');
-    if (creds) {
-        console.log('- Status: Authenticated');
-        console.log(`- Public Key: \`${encodeBase64(creds.contentKeyPair.publicKey)}\``);
-    } else {
+    if (!existsSync(config.credentialPath)) {
         console.log('- Status: Not authenticated');
         console.log('- Action: Run `happy-agent auth login` to authenticate.');
+        return;
     }
+
+    const persisted = JSON.parse(readFileSync(config.credentialPath, 'utf-8')) as PersistedCredentials;
+    const remainingSeconds = Math.max(0, persisted.deviceCodeExpiresAt - Math.floor(Date.now() / 1000));
+    const hasLegacy = Boolean(persisted.legacyToken && persisted.legacySecret);
+    console.log('- Status: Authenticated');
+    console.log(`- GitHub: ${persisted.githubLogin}`);
+    console.log(`- Machines: ${persisted.machines.length}`);
+    console.log(`- Device Code Expires In: ${remainingSeconds}s`);
+    console.log(`- Has Legacy Credentials: ${hasLegacy ? 'yes' : 'no'}`);
+    if (!hasLegacy) {
+        console.warn('Legacy credentials were not found; REST/session commands require a legacy agent.key until Sprint E migration completes.');
+    }
+}
+
+async function startPairing(config: Config): Promise<PairStartResponse> {
+    try {
+        const resp = await axios.get(`${config.pairingBaseUrl}/pair/start`, {
+            headers: { 'X-Happy-Client': 'cli-control-plane/0.1.0' },
+        });
+        return resp.data as PairStartResponse;
+    } catch (error) {
+        if (error instanceof AxiosError) {
+            throw new Error(`Failed to initiate auth: ${error.message}`);
+        }
+        throw error;
+    }
+}
+
+async function postPairStatus(baseUrl: string, deviceCode: string, timeout?: number): Promise<PairStatusResponse> {
+    const resp = await axios.post(`${baseUrl}/pair/status`, {
+        device_code: deviceCode,
+    }, {
+        headers: { 'X-Happy-Client': 'cli-control-plane/0.1.0' },
+        ...(timeout ? { timeout } : {}),
+    });
+    return resp.data as PairStatusResponse;
+}
+
+async function discoverAuthorizedMachines(status: PairStatusResponse, deviceCode: string, intervalSeconds: number): Promise<PairStatusMachine[]> {
+    const machines = [...(status.machines ?? [])];
+    for (const discovered of status.discoveredMachines ?? []) {
+        if (discovered.isOnline === false) {
+            console.warn(`Skipping offline tunnel: ${discovered.displayName ?? discovered.tunnelUrl}`);
+            continue;
+        }
+
+        const retryAfterMs = Math.min(intervalSeconds * 2, MAX_POLL_INTERVAL_SECONDS) * 1000;
+        for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+                const target = await postPairStatus(discovered.tunnelUrl, deviceCode, TARGET_DISCOVERY_TIMEOUT_MS);
+                if (target.status === 'authorized' && target.machines?.[0]) {
+                    machines.push(target.machines[0]);
+                }
+                break;
+            } catch (error) {
+                if (isAxiosStatus(error, 429)) {
+                    if (attempt === 1) {
+                        console.warn(`Tunnel ${discovered.tunnelUrl} rate-limited; retrying once after ${retryAfterMs}ms`);
+                        await sleep(retryAfterMs);
+                        continue;
+                    }
+                    console.warn(`Skipping rate-limited tunnel ${discovered.tunnelUrl} after retry`);
+                    break;
+                }
+                if (error instanceof AxiosError && error.response?.status) {
+                    console.warn(`Skipping tunnel ${discovered.tunnelUrl}: ${error.response.status}`);
+                } else {
+                    console.warn(`Skipping unreachable tunnel ${discovered.tunnelUrl}: ${error instanceof Error ? error.message : String(error)}`);
+                }
+                break;
+            }
+        }
+    }
+    return machines;
+}
+
+function auditMachines(machines: PairStatusMachine[]): PersistedMachineCredentials[] {
+    const audited: PersistedMachineCredentials[] = [];
+    for (const machine of machines) {
+        try {
+            const payload = decodeTunnelClaimPayload(machine.tunnelClaim);
+            if (typeof payload.accountId !== 'number') throw new Error('accountId missing');
+            if (typeof payload.iat !== 'number' || typeof payload.exp !== 'number' || payload.exp - payload.iat > 3600) throw new Error('invalid lifetime');
+            if (typeof payload.jti !== 'string' || payload.jti.length === 0) throw new Error('jti missing');
+            audited.push({ ...machine, accountId: payload.accountId });
+        } catch (error) {
+            console.warn(`Skipping machine ${machine.machineId} with invalid tunnel claim: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+    return audited;
+}
+
+function decodeTunnelClaimPayload(tunnelClaim: string): TunnelClaimPayload {
+    const envelope = JSON.parse(Buffer.from(tunnelClaim, 'base64url').toString('utf-8')) as { p?: unknown; s?: unknown };
+    if (typeof envelope.p !== 'string' || typeof envelope.s !== 'string') {
+        throw new Error('invalid envelope');
+    }
+    return JSON.parse(Buffer.from(envelope.p, 'base64url').toString('utf-8')) as TunnelClaimPayload;
+}
+
+function readLegacyCredentials(): Pick<PersistedCredentials, 'legacyToken' | 'legacySecret'> {
+    const legacyPath = join(process.env.HAPPY_HOME_DIR ?? join(homedir(), '.happy'), 'agent.key');
+    if (!existsSync(legacyPath)) return {};
+    const parsed = JSON.parse(readFileSync(legacyPath, 'utf-8')) as { token?: unknown; secret?: unknown };
+    if (typeof parsed.token !== 'string' || typeof parsed.secret !== 'string') {
+        throw new Error(`Legacy credentials file ${legacyPath} is malformed`);
+    }
+    return legacyCredentialsToPersisted(parsed.token, Buffer.from(parsed.secret, 'base64'));
+}
+
+function requireString(value: unknown, label: string): string {
+    if (typeof value !== 'string' || value.length === 0) {
+        throw new Error(`Pairing response missing ${label}`);
+    }
+    return value;
+}
+
+function isAxiosStatus(error: unknown, status: number): boolean {
+    return error instanceof AxiosError && error.response?.status === status;
 }
 
 function sleep(ms: number): Promise<void> {

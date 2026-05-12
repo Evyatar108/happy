@@ -61,7 +61,18 @@ function runCli(...args: string[]): { stdout: string; stderr: string; exitCode: 
 function makeCredentials(): Credentials {
     const secret = getRandomBytes(32);
     const contentKeyPair = deriveContentKeyPair(secret);
-    return { token: 'test-jwt-token', secret, contentKeyPair };
+    return {
+        githubLogin: 'octocat',
+        deviceCode: 'device-code',
+        deviceCodeExpiresAt: 9999999999,
+        pairingBaseUrl: 'https://api.cluster-fluster.com',
+        machines: [],
+        legacyToken: 'test-jwt-token',
+        legacySecret: encodeBase64(secret),
+        token: 'test-jwt-token',
+        secret,
+        contentKeyPair,
+    };
 }
 
 function makeRawSessionWithDataKey(
@@ -126,7 +137,7 @@ describe('Smoke: CLI command surface', () => {
     describe('1. auth commands', () => {
         it('auth login help shows expected description', () => {
             const { stdout } = runCli('auth', 'login', '--help');
-            expect(stdout).toContain('Authenticate via QR code');
+            expect(stdout).toContain('Authenticate via GitHub device flow');
         });
 
         it('auth logout help shows expected description', () => {
@@ -553,9 +564,10 @@ describe('Smoke: Full test suite runs', () => {
 
         try {
             const config = loadConfig();
-            expect(config.serverUrl).toBe('https://api.cluster-fluster.com');
-            expect(config.homeDir).toContain('.happy');
-            expect(config.credentialPath).toContain('agent.key');
+            expect(config.legacyServerUrl).toBe('https://api.cluster-fluster.com');
+            expect(config.pairingBaseUrl).toBe('https://api.cluster-fluster.com');
+            expect(config.homeDir).toContain('.happy-agent');
+            expect(config.credentialPath).toContain('credentials.json');
         } finally {
             if (origUrl !== undefined) process.env.HAPPY_SERVER_URL = origUrl;
             if (origHome !== undefined) process.env.HAPPY_HOME_DIR = origHome;

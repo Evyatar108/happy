@@ -63,7 +63,7 @@ async function callMachineRpc(
     method: string,
     paramsPayload: Record<string, unknown>,
 ): Promise<SpawnMachineSessionResult> {
-    const socket = io(config.serverUrl, {
+    const socket = io(config.legacyServerUrl, {
         auth: {
             token,
         },
@@ -172,7 +172,7 @@ export async function resumeSessionOnMachine(
     token: string,
     sessionId: string,
 ): Promise<SpawnMachineSessionResult> {
-    const socket = io(config.serverUrl, {
+    const socket = io(config.legacyServerUrl, {
         auth: {
             token,
         },

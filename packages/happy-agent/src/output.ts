@@ -1,4 +1,4 @@
-import type { DecryptedMachine, DecryptedSession, DecryptedMessage } from './api';
+import type { DecryptedMachine, DecryptedSession, DecryptedMessage, MachineTunnel } from './api';
 
 // --- Types ---
 
@@ -113,7 +113,7 @@ export function formatSessionTable(sessions: DecryptedSession[]): string {
     return `## Sessions\n\n- Total: ${sessions.length}\n\n${sections.join('\n\n')}`;
 }
 
-export function formatMachineTable(machines: DecryptedMachine[]): string {
+export function formatMachineTable(machines: DecryptedMachine[], tunnels: MachineTunnel[] = []): string {
     if (machines.length === 0) {
         return '## Machines\n\n- Total: 0\n- Items: none';
     }
@@ -125,6 +125,7 @@ export function formatMachineTable(machines: DecryptedMachine[]): string {
         const platform = normalizeListValue(toNonEmptyString(metadata.platform) ?? '-');
         const status = machine.active ? (toNonEmptyString(daemonState?.status) ?? 'online') : 'offline';
         const homeDir = normalizeListValue(toNonEmptyString(metadata.homeDir) ?? '-');
+        const tunnelUrl = normalizeListValue(tunnels.find(tunnel => tunnel.machineId === machine.id)?.tunnelUrl ?? '-');
 
         return [
             `### Machine ${index + 1}`,
@@ -132,6 +133,7 @@ export function formatMachineTable(machines: DecryptedMachine[]): string {
             `- Host: ${host}`,
             `- Platform: ${platform}`,
             `- Status: ${status}`,
+            `- Tunnel URL: ${tunnelUrl}`,
             `- Home: ${homeDir}`,
             `- Last Active: ${normalizeListValue(formatLastActive(machine.activeAt))}`,
         ].join('\n');

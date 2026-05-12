@@ -29,9 +29,10 @@ const { spawnInWorktreeOnMachine, spawnSessionOnMachine } = await import('./mach
 const key = new Uint8Array(32).fill(7);
 
 const config: Config = {
-    serverUrl: 'http://server.test',
+    legacyServerUrl: 'http://server.test',
+    pairingBaseUrl: 'http://server.test',
     homeDir: '/tmp/happy-agent-test',
-    credentialPath: '/tmp/happy-agent-test/agent.key',
+    credentialPath: '/tmp/happy-agent-test/credentials.json',
 };
 
 const machine: DecryptedMachine = {

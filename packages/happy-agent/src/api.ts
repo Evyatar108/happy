@@ -80,6 +80,11 @@ export type DecryptedMachine = {
     encryption: RecordEncryption;
 };
 
+export type MachineTunnel = {
+    machineId: string;
+    tunnelUrl: string;
+};
+
 export type RawMessage = WireSessionMessage;
 
 export type DecryptedMessage = {
@@ -215,7 +220,7 @@ export async function listSessions(
 ): Promise<DecryptedSession[]> {
     let data: { sessions: RawSession[] };
     try {
-        const resp = await axios.get(`${config.serverUrl}/v1/sessions`, {
+        const resp = await axios.get(`${config.legacyServerUrl}/v1/sessions`, {
             headers: authHeaders(creds),
         });
         data = resp.data as { sessions: RawSession[] };
@@ -232,7 +237,7 @@ export async function listMachines(
 ): Promise<DecryptedMachine[]> {
     let data: RawMachine[];
     try {
-        const resp = await axios.get(`${config.serverUrl}/v1/machines`, {
+        const resp = await axios.get(`${config.legacyServerUrl}/v1/machines`, {
             headers: authHeaders(creds),
         });
         data = resp.data as RawMachine[];
@@ -249,7 +254,7 @@ export async function listActiveSessions(
 ): Promise<DecryptedSession[]> {
     let data: { sessions: RawSession[] };
     try {
-        const resp = await axios.get(`${config.serverUrl}/v2/sessions/active`, {
+        const resp = await axios.get(`${config.legacyServerUrl}/v2/sessions/active`, {
             headers: authHeaders(creds),
         });
         data = resp.data as { sessions: RawSession[] };
@@ -282,7 +287,7 @@ export async function createSession(
     let data: { session: RawSession };
     try {
         const resp = await axios.post(
-            `${config.serverUrl}/v1/sessions`,
+            `${config.legacyServerUrl}/v1/sessions`,
             {
                 tag: opts.tag,
                 metadata: metadataBase64,
@@ -305,7 +310,7 @@ export async function deleteSession(
     sessionId: string,
 ): Promise<void> {
     try {
-        await axios.delete(`${config.serverUrl}/v1/sessions/${encodeURIComponent(sessionId)}`, {
+        await axios.delete(`${config.legacyServerUrl}/v1/sessions/${encodeURIComponent(sessionId)}`, {
             headers: authHeaders(creds),
         });
     } catch (err) {
@@ -322,7 +327,7 @@ export async function getSessionMessages(
     let data: { messages: RawMessage[] };
     try {
         const resp = await axios.get(
-            `${config.serverUrl}/v1/sessions/${encodeURIComponent(sessionId)}/messages`,
+            `${config.legacyServerUrl}/v1/sessions/${encodeURIComponent(sessionId)}/messages`,
             { headers: authHeaders(creds) },
         );
         data = resp.data as { messages: RawMessage[] };

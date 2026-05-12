@@ -53,16 +53,28 @@ const mockedAxios = axios as any as {
 
 function makeConfig(): Config {
     return {
-        serverUrl: 'https://test-server.example.com',
+        legacyServerUrl: 'https://test-server.example.com',
+        pairingBaseUrl: 'https://test-server.example.com',
         homeDir: '/tmp/happy-test',
-        credentialPath: '/tmp/happy-test/agent.key',
+        credentialPath: '/tmp/happy-test/credentials.json',
     };
 }
 
 function makeCredentials(): Credentials {
     const secret = getRandomBytes(32);
     const contentKeyPair = deriveContentKeyPair(secret);
-    return { token: 'test-jwt-token', secret, contentKeyPair };
+    return {
+        githubLogin: 'octocat',
+        deviceCode: 'device-code',
+        deviceCodeExpiresAt: Math.floor(Date.now() / 1000) + 900,
+        pairingBaseUrl: 'https://test-server.example.com',
+        machines: [],
+        legacyToken: 'test-jwt-token',
+        legacySecret: encodeBase64(secret),
+        token: 'test-jwt-token',
+        secret,
+        contentKeyPair,
+    };
 }
 
 function makeRawSessionWithDataKey(

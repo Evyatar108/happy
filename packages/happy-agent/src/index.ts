@@ -5,7 +5,7 @@ import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { loadConfig } from './config';
 import type { Config } from './config';
-import { requireCredentials } from './credentials';
+import { loadCredentials } from './credentials';
 import type { Credentials } from './credentials';
 import { authLogin, authLogout, authStatus } from './auth';
 import { listSessions, listActiveSessions, createSession, getSessionMessages, listMachines } from './api';
@@ -49,7 +49,7 @@ function createClient(session: DecryptedSession, creds: Credentials, config: Con
         encryptionKey: session.encryption.key,
         encryptionVariant: session.encryption.variant,
         token: creds.token,
-        serverUrl: config.serverUrl,
+        serverUrl: config.legacyServerUrl,
         initialAgentState: session.agentState ?? null,
     });
 }
@@ -126,7 +126,7 @@ program
     .command('auth')
     .description('Manage authentication')
     .addCommand(
-        new Command('login').description('Authenticate via QR code').action(async () => {
+        new Command('login').description('Authenticate via GitHub device flow').action(async () => {
             const config = loadConfig();
             await authLogin(config);
         })
@@ -151,7 +151,7 @@ program
     .option('--json', 'Output as JSON')
     .action(async (opts: { active?: boolean; json?: boolean }) => {
         const config = loadConfig();
-        const creds = requireCredentials(config);
+        const creds = loadCredentials(config);
         const machines = await listMachines(config, creds);
         const filtered = opts.active ? machines.filter(machine => machine.active) : machines;
         if (opts.json) {
@@ -168,7 +168,7 @@ program
     .option('--json', 'Output as JSON')
     .action(async (opts: { active?: boolean; json?: boolean }) => {
         const config = loadConfig();
-        const creds = requireCredentials(config);
+        const creds = loadCredentials(config);
         const sessions = opts.active
             ? await listActiveSessions(config, creds)
             : await listSessions(config, creds);
@@ -187,7 +187,7 @@ program
     .option('--json', 'Output as JSON')
     .action(async (opts: { runId: string; watch?: boolean; json?: boolean }) => {
         const config = loadConfig();
-        const creds = requireCredentials(config);
+        const creds = loadCredentials(config);
 
         if (opts.watch) {
             const teardown = await runMonitorWatch(config, creds, opts.runId);
@@ -220,11 +220,11 @@ program
 program
     .command('status')
     .description('Get live session state')
-    .argument('<session-id>', 'Session ID or prefix')
+    .arguments('<session-id>')
     .option('--json', 'Output as JSON')
     .action(async (sessionId: string, opts: { json?: boolean }) => {
         const config = loadConfig();
-        const creds = requireCredentials(config);
+        const creds = loadCredentials(config);
         const session = await resolveSession(config, creds, sessionId);
 
         const client = createClient(session, creds, config);
@@ -299,7 +299,7 @@ program
         json?: boolean;
     }) => {
         const config = loadConfig();
-        const creds = requireCredentials(config);
+        const creds = loadCredentials(config);
         const machine = await resolveMachine(config, creds, opts.machine);
 
         if (opts.newWorktree) {
@@ -409,11 +409,11 @@ program
 program
     .command('resume')
     .description('Resume a session on its original machine')
-    .argument('<session-id>', 'Session ID or prefix')
+    .arguments('<session-id>')
     .option('--json', 'Output as JSON')
     .action(async (sessionId: string, opts: { json?: boolean }) => {
         const config = loadConfig();
-        const creds = requireCredentials(config);
+        const creds = loadCredentials(config);
         const session = await resolveSession(config, creds, sessionId);
         const machineId = resolveSessionMachineId(session);
         const machine = await resolveMachine(config, creds, machineId);
@@ -459,7 +459,7 @@ program
     .option('--json', 'Output as JSON')
     .action(async (opts: { tag: string; path?: string; json?: boolean }) => {
         const config = loadConfig();
-        const creds = requireCredentials(config);
+        const creds = loadCredentials(config);
         const metadata = {
             tag: opts.tag,
             path: opts.path ?? process.cwd(),
@@ -483,14 +483,13 @@ program
 program
     .command('send')
     .description('Send a message to a session')
-    .argument('<session-id>', 'Session ID or prefix')
-    .argument('<message>', 'Message text')
+    .arguments('<session-id> <message>')
     .option('--yolo', 'Send with permissionMode=yolo')
     .option('--wait', 'Wait for agent to become idle')
     .option('--json', 'Output as JSON')
     .action(async (sessionId: string, message: string, opts: { yolo?: boolean; wait?: boolean; json?: boolean }) => {
         const config = loadConfig();
-        const creds = requireCredentials(config);
+        const creds = loadCredentials(config);
         const session = await resolveSession(config, creds, sessionId);
         const permissionMode = opts.yolo ? 'yolo' : null;
 
@@ -526,7 +525,7 @@ program
 program
     .command('history')
     .description('Read message history')
-    .argument('<session-id>', 'Session ID or prefix')
+    .arguments('<session-id>')
     .option('--limit <n>', 'Limit number of messages', (v: string) => {
         const n = parseInt(v, 10);
         if (isNaN(n) || n <= 0) throw new Error('--limit must be a positive integer');
@@ -535,7 +534,7 @@ program
     .option('--json', 'Output as JSON')
     .action(async (sessionId: string, opts: { limit?: number; json?: boolean }) => {
         const config = loadConfig();
-        const creds = requireCredentials(config);
+        const creds = loadCredentials(config);
         const session = await resolveSession(config, creds, sessionId);
         let messages = await getSessionMessages(config, creds, session.id, session.encryption);
 
@@ -557,10 +556,10 @@ program
 program
     .command('stop')
     .description('Stop a session')
-    .argument('<session-id>', 'Session ID or prefix')
+    .arguments('<session-id>')
     .action(async (sessionId: string) => {
         const config = loadConfig();
-        const creds = requireCredentials(config);
+        const creds = loadCredentials(config);
         const session = await resolveSession(config, creds, sessionId);
 
         const client = createClient(session, creds, config);
@@ -584,7 +583,7 @@ program
 program
     .command('wait')
     .description('Wait for agent to become idle')
-    .argument('<session-id>', 'Session ID or prefix')
+    .arguments('<session-id>')
     .option('--timeout <seconds>', 'Timeout in seconds', (v: string) => {
         const n = parseInt(v, 10);
         if (isNaN(n) || n <= 0) throw new Error('--timeout must be a positive integer');
@@ -592,7 +591,7 @@ program
     }, 300)
     .action(async (sessionId: string, opts: { timeout: number }) => {
         const config = loadConfig();
-        const creds = requireCredentials(config);
+        const creds = loadCredentials(config);
         const session = await resolveSession(config, creds, sessionId);
 
         const client = createClient(session, creds, config);

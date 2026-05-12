@@ -20,10 +20,10 @@ cd packages/happy-agent && npm link
 
 ## Authentication
 
-Happy Agent uses account authentication via QR code, the same flow as linking a device in the Happy mobile app.
+Happy Agent authenticates with GitHub device flow and stores per-machine Dev Tunnel pairing data for daemon RPC. REST and session commands still need legacy account credentials until the session transport migration is complete, so first-time installs that do not have a legacy `agent.key` can log in but cannot use those legacy-backed commands yet.
 
 ```bash
-# Authenticate by scanning QR code with the Happy mobile app
+# Authenticate with GitHub device flow
 happy-agent auth login
 
 # Check authentication status
@@ -33,7 +33,7 @@ happy-agent auth status
 happy-agent auth logout
 ```
 
-Credentials are stored at `~/.happy/agent.key`.
+Credentials are stored at `~/.happy-agent/credentials.json` by default. During login, Happy Agent also looks for a legacy key at `${HAPPY_HOME_DIR:-~/.happy}/agent.key` and copies its token material into the new credentials file when present.
 
 ## Commands
 
@@ -188,8 +188,10 @@ Exit code 0 when agent becomes idle, 1 on timeout.
 
 ## Environment Variables
 
-- `HAPPY_SERVER_URL` - API server URL (default: `https://api.cluster-fluster.com`)
-- `HAPPY_HOME_DIR` - Home directory for credential storage (default: `~/.happy`)
+- `HAPPY_SERVER_URL` - legacy API server URL for REST and session traffic (default: `https://api.cluster-fluster.com`)
+- `HAPPY_PAIRING_URL` - pairing API URL for `auth login` (defaults to `HAPPY_SERVER_URL`)
+- `HAPPY_AGENT_HOME_DIR` - Happy Agent credential directory (default: `~/.happy-agent`; credentials file is `credentials.json` inside this directory)
+- `HAPPY_HOME_DIR` - legacy Happy home used only to find `agent.key` during login (default: `~/.happy`)
 
 ## Session ID Matching
 

@@ -31,12 +31,20 @@ const repoRoot = resolve(testDir, '..', '..', '..');
 const fixtureDir = join(repoRoot, 'tests', 'fixtures', 'monitor', '10-session-10-minute');
 
 const config: Config = {
-    serverUrl: 'https://example.com',
+    legacyServerUrl: 'https://example.com',
+    pairingBaseUrl: 'https://example.com',
     homeDir: '/tmp/happy-agent-monitor-test',
-    credentialPath: '/tmp/happy-agent-monitor-test/agent.key',
+    credentialPath: '/tmp/happy-agent-monitor-test/credentials.json',
 };
 
 const creds: Credentials = {
+    githubLogin: 'octocat',
+    deviceCode: 'device-code',
+    deviceCodeExpiresAt: 9999999999,
+    pairingBaseUrl: 'https://example.com',
+    machines: [],
+    legacyToken: 'token',
+    legacySecret: '',
     token: 'token',
     secret: new Uint8Array(32),
     contentKeyPair: {
