@@ -5,6 +5,7 @@ var node_child_process = require('node:child_process');
 var node_os = require('node:os');
 var node_util = require('node:util');
 var path = require('node:path');
+var node_crypto = require('node:crypto');
 
 function _interopNamespaceDefault(e) {
     var n = Object.create(null);
@@ -58,6 +59,20 @@ async function assertNoSymlinkInAncestors(dir) {
     }
   }
 }
+async function replaceFile(tempPath, filePath) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      await fs__namespace.rename(tempPath, filePath);
+      return;
+    } catch (error) {
+      const code = error.code;
+      if (process.platform !== "win32" || code !== "EEXIST" && code !== "EPERM" || attempt === 4) {
+        throw error;
+      }
+      await fs__namespace.rm(filePath, { force: true });
+    }
+  }
+}
 async function writeJsonAtomically(filePath, value) {
   const dir = path__namespace.dirname(filePath);
   await assertNoSymlinkInAncestors(dir);
@@ -66,12 +81,16 @@ async function writeJsonAtomically(filePath, value) {
   if (path__namespace.resolve(realDir) !== path__namespace.resolve(dir)) {
     throw new Error(`atomic_write_aborted_realpath_mismatch:${dir}`);
   }
-  const tempPath = path__namespace.join(dir, `.${path__namespace.basename(filePath)}.${process.pid}.${Date.now()}.tmp`);
+  const tempPath = path__namespace.join(dir, `.${path__namespace.basename(filePath)}.${process.pid}.${Date.now()}.${node_crypto.randomUUID()}.tmp`);
   try {
     await fs__namespace.writeFile(tempPath, `${JSON.stringify(value, null, 2)}
 `, { mode: 384 });
-    await fs__namespace.rename(tempPath, filePath);
-    await applyOwnerOnlyPerms(filePath);
+    await replaceFile(tempPath, filePath);
+    await applyOwnerOnlyPerms(filePath).catch((error) => {
+      if (error.code !== "ENOENT") {
+        throw error;
+      }
+    });
   } catch (error) {
     await fs__namespace.unlink(tempPath).catch(() => void 0);
     throw error;

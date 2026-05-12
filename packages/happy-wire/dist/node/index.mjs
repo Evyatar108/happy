@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process';
 import { userInfo } from 'node:os';
 import { promisify } from 'node:util';
 import * as path from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 const execFileAsync = promisify(execFile);
 async function applyOwnerOnlyPerms(filePath) {
@@ -36,6 +37,20 @@ async function assertNoSymlinkInAncestors(dir) {
     }
   }
 }
+async function replaceFile(tempPath, filePath) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      await fs.rename(tempPath, filePath);
+      return;
+    } catch (error) {
+      const code = error.code;
+      if (process.platform !== "win32" || code !== "EEXIST" && code !== "EPERM" || attempt === 4) {
+        throw error;
+      }
+      await fs.rm(filePath, { force: true });
+    }
+  }
+}
 async function writeJsonAtomically(filePath, value) {
   const dir = path.dirname(filePath);
   await assertNoSymlinkInAncestors(dir);
@@ -44,12 +59,16 @@ async function writeJsonAtomically(filePath, value) {
   if (path.resolve(realDir) !== path.resolve(dir)) {
     throw new Error(`atomic_write_aborted_realpath_mismatch:${dir}`);
   }
-  const tempPath = path.join(dir, `.${path.basename(filePath)}.${process.pid}.${Date.now()}.tmp`);
+  const tempPath = path.join(dir, `.${path.basename(filePath)}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`);
   try {
     await fs.writeFile(tempPath, `${JSON.stringify(value, null, 2)}
 `, { mode: 384 });
-    await fs.rename(tempPath, filePath);
-    await applyOwnerOnlyPerms(filePath);
+    await replaceFile(tempPath, filePath);
+    await applyOwnerOnlyPerms(filePath).catch((error) => {
+      if (error.code !== "ENOENT") {
+        throw error;
+      }
+    });
   } catch (error) {
     await fs.unlink(tempPath).catch(() => void 0);
     throw error;

@@ -32,6 +32,7 @@ import { connectionState } from '@/utils/serverConnectionErrors';
 import { publishAgentConfigurationMetadataIfChanged } from '@/utils/publishPermissionMode';
 import { setupOfflineReconnection } from '@/utils/setupOfflineReconnection';
 import type { AgentConfiguration, ApiSessionClient } from '@/api/apiSession';
+import { readVendorToken } from '@/vendorTokens';
 
 import { createGeminiBackend } from '@/agent/factories/gemini';
 import type { AgentBackend, AgentMessage } from '@/agent';
@@ -92,15 +93,15 @@ export async function runGemini(opts: {
   }
 
   //
-  // Fetch Gemini cloud token (from 'happy connect gemini')
+  // Fetch Gemini token from 'happy connect gemini'.
   //
   let cloudToken: string | undefined = undefined;
   let currentUserEmail: string | undefined = undefined;
   try {
-    const vendorToken = await api.getVendorToken('gemini');
+    const vendorToken = await readVendorToken('gemini');
     if (vendorToken?.oauth?.access_token) {
       cloudToken = vendorToken.oauth.access_token;
-      logger.debug('[Gemini] Using OAuth token from Happy cloud');
+      logger.debug('[Gemini] Using OAuth token from local Happy vendor token store');
       
       // Extract email from id_token for per-account project matching
       if (vendorToken.oauth.id_token) {

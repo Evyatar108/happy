@@ -26,6 +26,19 @@ describe('writeJsonAtomically', () => {
         expect(JSON.parse(content)).toEqual(value);
     });
 
+    it('keeps the target parseable during concurrent same-file writes', async () => {
+        const filePath = path.join(tmpDir, 'output.json');
+
+        await Promise.all([
+            writeJsonAtomically(filePath, { writer: 'a' }),
+            writeJsonAtomically(filePath, { writer: 'b' }),
+            writeJsonAtomically(filePath, { writer: 'c' }),
+        ]);
+
+        const content = await fs.readFile(filePath, 'utf-8');
+        expect(['a', 'b', 'c']).toContain(JSON.parse(content).writer);
+    });
+
     it('throws atomic_write_aborted_symlink_at when an ancestor directory is a symlink', async () => {
         const realDir = await fs.mkdtemp(path.join(os.tmpdir(), 'real-dir-'));
         const symlinkDir = path.join(tmpDir, 'symlink-ancestor');
