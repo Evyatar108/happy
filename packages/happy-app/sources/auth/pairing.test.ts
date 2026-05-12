@@ -16,7 +16,29 @@ vi.mock('react-native', () => ({
     Platform: { OS: 'ios' },
 }));
 
-import { pollPairing, startPairing } from './pairing';
+import {
+    PairingClaimMissingAccountId,
+    credentialsFromPairMachine,
+    fetchGitHubUserProfile,
+    parseTunnelClaimPayload,
+    pollPairStatus,
+    startPairFlow,
+} from './pairing';
+import type { MachineTunnel } from '@/sync/tunnelProvider';
+
+function encodeClaim(payload: unknown): string {
+    const p = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    return Buffer.from(JSON.stringify({ p, s: 'signature' })).toString('base64url');
+}
+
+const machine: MachineTunnel = {
+    machineId: 'machine-1',
+    tunnelId: 'tunnel-1',
+    url: 'https://machine.example.test',
+    tags: ['happy-machine'],
+    lastSeenAt: '2026-05-11T12:00:00.000Z',
+    owner: 'octocat',
+};
 
 describe('pairing', () => {
     beforeEach(() => {
@@ -24,7 +46,8 @@ describe('pairing', () => {
         global.fetch = vi.fn();
     });
 
-    it('starts GitHub device flow and polls machine discovery status', async () => {
+    it('starts and polls the selected machine pair flow without connect-token transport auth', async () => {
+        const tunnelClaim = encodeClaim({ sub: 'local-user', iat: 1, exp: 3601, jti: 'jti-1', accountId: 42 });
         (global.fetch as any)
             .mockResolvedValueOnce({
                 ok: true,
@@ -32,8 +55,7 @@ describe('pairing', () => {
                     device_code: 'device-1',
                     user_code: 'ABCD-EFGH',
                     verification_uri: 'https://github.com/login/device',
-                    expires_in: 900,
-                    interval: 1,
+                    interval: 5,
                 }),
             })
             .mockResolvedValueOnce({
@@ -46,13 +68,14 @@ describe('pairing', () => {
                         ed25519PublicKey: 'ed-pubkey',
                         x25519PublicKey: 'x-pubkey',
                         ed25519Fingerprint: 'SHA256:test',
-                        tunnelClaim: 'jwt-1',
+                        tunnelClaim,
+                        mobileSharedSecret: 'legacy-secret',
                     }],
                 }),
             });
 
-        const start = await startPairing();
-        const status = await pollPairing(start.device_code);
+        const start = await startPairFlow(machine);
+        const status = await pollPairStatus(machine, start.device_code, start.interval);
 
         expect(global.fetch).toHaveBeenNthCalledWith(1, 'https://machine.example.test/pair/start');
         expect(global.fetch).toHaveBeenNthCalledWith(2, 'https://machine.example.test/pair/status', expect.objectContaining({
@@ -60,9 +83,109 @@ describe('pairing', () => {
             headers: { 'Content-Type': 'application/json' },
             body: expect.stringContaining('"device_code":"device-1"'),
         }));
+        expect(JSON.stringify((global.fetch as any).mock.calls)).not.toContain('/pair/connect');
+        expect(JSON.stringify((global.fetch as any).mock.calls)).not.toContain('X-Tunnel-Authorization');
+        expect(start.expires_in).toBe(900);
+        expect(start.interval).toBe(12);
         expect(status).toMatchObject({
             status: 'authorized',
             machines: [{ machineId: 'machine-1', tunnelUrl: 'https://machine.example.test' }],
         });
+        expect(parseTunnelClaimPayload(tunnelClaim)).toMatchObject({ sub: 'local-user', accountId: 42, jti: 'jti-1' });
+        const credentials = credentialsFromPairMachine(machine, status.machines![0]!, {
+            login: 'octocat',
+            avatarUrl: 'https://avatars.example.test/octocat.png',
+            deviceCode: 'device-1',
+            deviceCodeExpiresAt: Date.now() + 900_000,
+        });
+        expect(credentials).toMatchObject({
+            machineId: 'machine-1',
+            tunnelId: 'tunnel-1',
+            tunnelUrl: 'https://machine.example.test',
+            tunnelClaim,
+            login: 'octocat',
+            avatarUrl: 'https://avatars.example.test/octocat.png',
+            deviceCode: 'device-1',
+        });
+        expect(credentials.deviceCodeExpiresAt).toBeGreaterThanOrEqual(Date.now() + 895_000);
+        expect(credentials.deviceCodeExpiresAt).toBeLessThanOrEqual(Date.now() + 905_000);
+        expect(credentials).not.toHaveProperty('pinnedPubkey');
+        expect(credentials).not.toHaveProperty('sessionKey');
+    });
+
+    it('rejects authorized pair status without accountId and backs off rate-limited polls', async () => {
+        (global.fetch as any).mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                status: 'authorized',
+                machines: [{
+                    machineId: 'machine-1',
+                    tunnelUrl: 'https://machine.example.test',
+                    ed25519PublicKey: 'ed-pubkey',
+                    x25519PublicKey: 'x-pubkey',
+                    tunnelClaim: encodeClaim({ sub: 'local-user', iat: 1, exp: 3601, jti: 'jti-2' }),
+                }],
+            }),
+        });
+
+        await expect(pollPairStatus(machine, 'device-1', 5)).rejects.toBeInstanceOf(PairingClaimMissingAccountId);
+
+        (global.fetch as any).mockResolvedValueOnce({
+            ok: false,
+            status: 429,
+            json: async () => ({ error: 'rate_limited' }),
+        });
+
+        await expect(pollPairStatus(machine, 'device-1', 5)).resolves.toEqual({
+            status: 'pending',
+            retryAfterMs: 12_000,
+        });
+    });
+
+    it('rejects authorized pair status with zero machines or more than one machine', async () => {
+        (global.fetch as any).mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ status: 'authorized', machines: [] }),
+        });
+
+        await expect(pollPairStatus(machine, 'device-1', 5)).rejects.toThrow('exactly one machine');
+
+        (global.fetch as any).mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                status: 'authorized',
+                machines: [
+                    { machineId: 'machine-1', tunnelUrl: 'https://m1.example.test', tunnelClaim: encodeClaim({ accountId: 1 }) },
+                    { machineId: 'machine-2', tunnelUrl: 'https://m2.example.test', tunnelClaim: encodeClaim({ accountId: 2 }) },
+                ],
+            }),
+        });
+
+        await expect(pollPairStatus(machine, 'device-1', 5)).rejects.toThrow('exactly one machine');
+    });
+
+    it('best-effort fetches GitHub user profile metadata from the OAuth token', async () => {
+        (global.fetch as any).mockResolvedValue({
+            ok: true,
+            json: async () => ({ login: 'octocat', avatar_url: 'https://avatars.example.test/octocat.png' }),
+        });
+
+        await expect(fetchGitHubUserProfile('ghu-token')).resolves.toEqual({
+            login: 'octocat',
+            avatarUrl: 'https://avatars.example.test/octocat.png',
+        });
+
+        expect(global.fetch).toHaveBeenCalledWith('https://api.github.com/user', {
+            headers: {
+                Accept: 'application/vnd.github+json',
+                Authorization: 'Bearer ghu-token',
+            },
+        });
+    });
+
+    it('returns empty GitHub profile metadata when the best-effort user fetch fails', async () => {
+        (global.fetch as any).mockResolvedValue({ ok: false });
+
+        await expect(fetchGitHubUserProfile('ghu-token')).resolves.toEqual({ login: '', avatarUrl: '' });
     });
 });

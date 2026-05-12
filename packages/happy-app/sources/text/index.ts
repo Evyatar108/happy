@@ -97,8 +97,8 @@ let currentLanguage: SupportedLanguage = DEFAULT_LANGUAGE;
 // Read from settings
 let settings = loadSettings();
 let found = false;
-if (settings.settings.preferredLanguage && settings.settings.preferredLanguage in translations) {
-    currentLanguage = settings.settings.preferredLanguage as SupportedLanguage;
+if (settings.preferredLanguage && settings.preferredLanguage in translations) {
+    currentLanguage = settings.preferredLanguage as SupportedLanguage;
     found = true;
     console.log(`[i18n] Using preferred language: ${currentLanguage}`);
 }

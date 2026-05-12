@@ -1,6 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { EncryptionCache } from './encryption/encryptionCache';
-import { SessionEncryption } from './encryption/sessionEncryption';
 import { AgentStateSchema, MetadataSchema } from './storageTypes';
 
 describe('MetadataSchema', () => {
@@ -24,7 +22,7 @@ describe('MetadataSchema', () => {
         expect(metadata.archiveReason).toBe('User terminated');
     });
 
-    it('preserves richer SDK init metadata through sessionEncryption.safeParse', async () => {
+    it('preserves richer SDK init metadata', () => {
         const expectedMetadata = {
             path: '/tmp/project',
             host: 'local-machine',
@@ -40,16 +38,7 @@ describe('MetadataSchema', () => {
                 github: { transport: 'http', url: 'https://example.test/mcp' },
             },
         };
-        const sessionEncryption = new SessionEncryption(
-            'session-1',
-            {
-                encrypt: async () => [new Uint8Array([0])],
-                decrypt: async () => [expectedMetadata],
-            },
-            new EncryptionCache(),
-        );
-
-        const metadata = await sessionEncryption.decryptMetadata(1, 'AA==');
+        const metadata = MetadataSchema.parse(expectedMetadata);
 
         expect(metadata).toEqual(expectedMetadata);
     });
@@ -71,7 +60,7 @@ describe('MetadataSchema', () => {
         expect(metadata.plugins?.[1]).not.toHaveProperty('source');
     });
 
-    it('preserves latest context boundary through sessionEncryption.safeParse', async () => {
+    it('preserves latest context boundary', () => {
         const expectedMetadata = {
             path: '/tmp/project',
             host: 'local-machine',
@@ -83,16 +72,7 @@ describe('MetadataSchema', () => {
                 forkedFromSid: 'previous-session',
             },
         };
-        const sessionEncryption = new SessionEncryption(
-            'session-1',
-            {
-                encrypt: async () => [new Uint8Array([0])],
-                decrypt: async () => [expectedMetadata],
-            },
-            new EncryptionCache(),
-        );
-
-        const metadata = await sessionEncryption.decryptMetadata(1, 'AA==');
+        const metadata = MetadataSchema.parse(expectedMetadata);
 
         expect(metadata?.latestBoundary).toEqual(expectedMetadata.latestBoundary);
     });

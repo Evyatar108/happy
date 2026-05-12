@@ -24,13 +24,13 @@ What lives **only in Zustand in-memory state** (`storage.ts`):
 - `friends` / `users`
 - All sync state
 
-Implication: every cold start (force-quit, OS-killed-for-memory, low-RAM eviction) wipes session messages. The next chat open re-fetches the recent window via `GET /v3/sessions/{id}/messages?after_seq=N&limit=80` over HTTP, then decrypts each message via libsodium.
+Implication: every cold start (force-quit, OS-killed-for-memory, low-RAM eviction) wipes session messages. The next chat open re-fetches the recent window via `GET /v3/sessions/{id}/messages?after_seq=N&limit=80` over the authenticated Dev Tunnels HTTP path, then JSON-parses each message body. (Post-Sprint-D the app no longer holds libsodium or per-session content keys; message bodies travel as plaintext over the tunnel.)
 
-Older-page pagination (`sync.loadOlder` in `packages/happy-app/sources/sync/sync.ts:259`) is also always-remote: each scroll-to-top boundary triggers a fresh HTTP fetch + decrypt round-trip. There is no layer that says "I already saw seq=3..82 yesterday — give me from local first."
+Older-page pagination (`sync.loadOlder` in `packages/happy-app/sources/sync/sync.ts`) is also always-remote: each scroll-to-top boundary triggers a fresh HTTP fetch + JSON-parse round-trip. There is no layer that says "I already saw seq=3..82 yesterday — give me from local first."
 
 ## Problem
 
-1. **Cold-start latency.** First chat open on a fresh launch always pays HTTPS RTT + libsodium decrypt for the recent window. On weak CPUs (the e-ink tablet) the decrypt can dominate.
+1. **Cold-start latency.** First chat open on a fresh launch always pays HTTPS RTT + JSON parse for the recent window. The post-Sprint-D parse cost is much cheaper than the old libsodium decrypt, but on weak CPUs (the e-ink tablet) the RTT itself is already user-visible — the tablet's slow paint of the empty chat is the dominant complaint, not crypto work.
 2. **Force-quit cost.** Force-quit / OS-kill blows the in-memory window. Re-opening the same chat re-fetches the same data already fetched minutes ago.
 3. **No offline mode.** WiFi flap → fetches fail → user sees nothing for chats not currently in memory. (We saw this during the chat-rename test session: WS held but HTTP fetches failed; loaded chats kept rendering, unloaded ones showed empty.)
 4. **Pagination cost.** Scrolling to the very top of a long chat fetches each older page sequentially. With ~80 messages per page over LTE on the tablet, this is visibly not-instant — exactly the user's question that prompted this doc.
@@ -39,7 +39,7 @@ Older-page pagination (`sync.loadOlder` in `packages/happy-app/sources/sync/sync
 
 The `lazy-load-long-chats` work (commit `1da743db feat: US-002 - Tier 1 - Cap initial message fetch window + pagination state`) introduced the pagination shape (`oldestLoadedSeq`, `hasOlder`, `computeOlderPageAfterSeq`) but stopped at the in-memory layer. Disk persistence was an explicit non-goal for Tier 1 — the hard problem there was "don't OOM on a 5000-message session", which the windowed in-memory state already solves.
 
-A side note: the encrypted-metadata model (libsodium per-message) means whatever we persist must either be (a) the encrypted ciphertext (cheap to store, but every cold-start read still pays decrypt) or (b) plaintext (avoids re-decrypt on hot paths but raises a real question about device-storage threat model — see "Open Questions" below).
+A side note: post-Sprint-D the server returns plaintext message bodies over the authenticated Dev Tunnels HTTP path, so whatever we persist is already plaintext and the only on-device threat-model question is at-rest storage of that plaintext — see "Open Questions" below.
 
 ## Approaches to Consider
 
@@ -65,7 +65,7 @@ Cons: schema migration story, larger surface area, expo-sqlite adds a native dep
 
 ### C — Service-worker-style HTTP cache for `/v3/sessions/{id}/messages`
 
-Reject. The `apiSocket.request` path uses authenticated `Authorization: Bearer ...` headers and the response body is encrypted; a generic HTTP cache on top doesn't avoid the libsodium decrypt anyway, which is the actual bottleneck on e-ink CPU.
+Reject. The `apiSocket.request` path uses authenticated `Authorization: Bearer ...` headers minted per machine, so a generic HTTP cache on top can't transparently key, refresh, or invalidate across machine credential rotations. A bespoke read-cache keyed by `(sessionId, seq)` is what Approach A / B actually describe — `Cache-Control` plumbing buys nothing on top of that.
 
 ## Recommended Direction
 
@@ -111,4 +111,4 @@ Implications for the disk persistence design above:
 - Older-page fetch logic: `packages/happy-app/sources/sync/sync.ts:259-334` (`loadOlder`)
 - Apply path that would need a "persist after apply" hook: `packages/happy-app/sources/sync/storage.ts:787` (`applyOlderMessages`)
 - Existing MMKV usage pattern: `packages/happy-app/sources/sync/persistence.ts`
-- Server endpoint: `GET /v3/sessions/{id}/messages?after_seq=N&limit=M` (returns encrypted blobs + `hasMore`)
+- Server endpoint: `GET /v3/sessions/{id}/messages?after_seq=N&limit=M` (returns plaintext message bodies + `hasMore`)

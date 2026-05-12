@@ -1,5 +1,5 @@
 import { MMKV } from 'react-native-mmkv';
-import { Settings, settingsDefaults, settingsParse, SettingsSchema } from './settings';
+import { Settings, settingsDefaults, settingsParse } from './settings';
 import { LocalSettings, localSettingsDefaults, localSettingsParse } from './localSettings';
 import { Purchases, purchasesDefaults, purchasesParse } from './purchases';
 import { Profile, profileDefaults, profileParse } from './profile';
@@ -9,9 +9,6 @@ import { allImages, colorPairs } from '@/components/avatarBrutalistAssets';
 const mmkv = new MMKV();
 const NEW_SESSION_DRAFT_KEY = 'new-session-draft-v1';
 const REGISTERED_PUSH_TOKEN_KEY = 'registered-push-token-v1';
-const VOICE_SOFT_PAYWALL_SHOWN_KEY = 'voice-soft-paywall-shown';
-const VOICE_ONBOARDING_PROMPT_LOAD_COUNT_KEY = 'voice-onboarding-prompt-load-count';
-const VOICE_MESSAGE_COUNT_KEY = 'voice-message-count';
 
 export type NewSessionAgentType = 'claude' | 'codex' | 'gemini' | 'openclaw';
 export type NewSessionSessionType = 'simple' | 'worktree';
@@ -28,40 +25,22 @@ export interface NewSessionDraft {
     updatedAt: number;
 }
 
-export function loadSettings(): { settings: Settings, version: number | null } {
+export function loadSettings(): Settings {
     const settings = mmkv.getString('settings');
     if (settings) {
         try {
             const parsed = JSON.parse(settings);
-            return { settings: settingsParse(parsed.settings), version: parsed.version };
+            return settingsParse(parsed.settings ?? parsed);
         } catch (e) {
             console.error('Failed to parse settings', e);
-            return { settings: { ...settingsDefaults }, version: null };
+            return { ...settingsDefaults };
         }
     }
-    return { settings: { ...settingsDefaults }, version: null };
+    return { ...settingsDefaults };
 }
 
-export function saveSettings(settings: Settings, version: number) {
-    mmkv.set('settings', JSON.stringify({ settings, version }));
-}
-
-export function loadPendingSettings(): Partial<Settings> {
-    const pending = mmkv.getString('pending-settings');
-    if (pending) {
-        try {
-            const parsed = JSON.parse(pending);
-            return SettingsSchema.partial().parse(parsed);
-        } catch (e) {
-            console.error('Failed to parse pending settings', e);
-            return {};
-        }
-    }
-    return {};
-}
-
-export function savePendingSettings(settings: Partial<Settings>) {
-    mmkv.set('pending-settings', JSON.stringify(settings));
+export function saveSettings(settings: Settings) {
+    mmkv.set('settings', JSON.stringify(settings));
 }
 
 export function loadLocalSettings(): LocalSettings {
@@ -336,44 +315,6 @@ export function retrieveTempText(id: string): string | null {
         return content;
     }
     return null;
-}
-
-export function getVoiceSoftPaywallShownCount(): number {
-    return mmkv.getNumber(VOICE_SOFT_PAYWALL_SHOWN_KEY) ?? 0;
-}
-
-export function incrementVoiceSoftPaywallShown() {
-    mmkv.set(VOICE_SOFT_PAYWALL_SHOWN_KEY, getVoiceSoftPaywallShownCount() + 1);
-}
-
-export function getVoiceOnboardingPromptLoadCount(): number {
-    return mmkv.getNumber(VOICE_ONBOARDING_PROMPT_LOAD_COUNT_KEY) ?? 0;
-}
-
-export function incrementVoiceOnboardingPromptLoadCount() {
-    mmkv.set(VOICE_ONBOARDING_PROMPT_LOAD_COUNT_KEY, getVoiceOnboardingPromptLoadCount() + 1);
-}
-
-export function getVoiceMessageCount(): number {
-    return mmkv.getNumber(VOICE_MESSAGE_COUNT_KEY) ?? 0;
-}
-
-export function incrementVoiceMessageCount() {
-    mmkv.set(VOICE_MESSAGE_COUNT_KEY, getVoiceMessageCount() + 1);
-}
-
-export function getVoiceLocalCounters() {
-    return {
-        softPaywallShownCount: getVoiceSoftPaywallShownCount(),
-        onboardingPromptLoadCount: getVoiceOnboardingPromptLoadCount(),
-        voiceMessageCount: getVoiceMessageCount(),
-    };
-}
-
-export function resetVoiceLocalCounters() {
-    mmkv.delete(VOICE_SOFT_PAYWALL_SHOWN_KEY);
-    mmkv.delete(VOICE_ONBOARDING_PROMPT_LOAD_COUNT_KEY);
-    mmkv.delete(VOICE_MESSAGE_COUNT_KEY);
 }
 
 export function clearPersistence() {

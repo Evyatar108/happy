@@ -60,9 +60,12 @@ function credentials(machineId: string): AuthCredentials {
         machineId,
         tunnelUrl: `https://${machineId}.example.test`,
         tunnelClaim: `jwt-${machineId}`,
-        pinnedPubkey: `pub-${machineId}`,
-        sessionKey: `session-${machineId}`,
         firstSeenAt: 1,
+        tunnelId: `tunnel-${machineId}`,
+        login: `login-${machineId}`,
+        avatarUrl: `https://avatars.example.test/${machineId}.png`,
+        deviceCode: `device-${machineId}`,
+        deviceCodeExpiresAt: 2,
     };
 }
 

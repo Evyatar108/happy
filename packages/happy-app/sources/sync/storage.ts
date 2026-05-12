@@ -33,16 +33,9 @@ import type { PermissionModeKey } from '@/components/PermissionModeSelector';
 import type { CustomerInfo } from './revenueCat/types';
 import React from "react";
 import { sync } from "./sync";
-import { getCurrentRealtimeSessionId, getVoiceSession } from '@/realtime/RealtimeSession';
 import { isMutableTool } from "@/components/tools/knownTools";
 import { projectManager } from "./projectManager";
-import { DecryptedArtifact } from "./artifactTypes";
-import { FeedItem } from "./feedTypes";
 import { parseCompositeSessionId } from "./machineSessionId";
-
-// Debounce timer for realtimeMode changes
-let realtimeModeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-const REALTIME_MODE_DEBOUNCE_MS = 150;
 
 /**
  * Centralized session online state resolver
@@ -167,7 +160,6 @@ export type SessionListItem = string | Session;
 
 interface StorageState {
     settings: Settings;
-    settingsVersion: number | null;
     localSettings: LocalSettings;
     purchases: Purchases;
     profile: Profile;
@@ -179,18 +171,9 @@ interface StorageState {
     sessionGitStatusFiles: Record<string, GitStatusFiles | null>;
     sessionFileCache: Record<string, Record<string, { content: string | null; diff: string | null; isBinary: boolean; cachedAt: number }>>;
     machines: Record<string, Machine>;
-    artifacts: Record<string, DecryptedArtifact>;  // New artifacts storage
     friends: Record<string, UserProfile>;  // All relationships (friends, pending, requested, etc.)
     users: Record<string, UserProfile | null>;  // Global user cache, null = 404/failed fetch
-    feedItems: FeedItem[];  // Simple list of feed items
-    feedHead: string | null;  // Newest cursor
-    feedTail: string | null;  // Oldest cursor
-    feedHasMore: boolean;
-    feedLoaded: boolean;  // True after initial feed fetch
     friendsLoaded: boolean;  // True after initial friends fetch
-    realtimeStatus: 'disconnected' | 'connecting' | 'connected' | 'error';
-    realtimeMode: 'idle' | 'agent-speaking' | 'user-speaking';
-    voiceSessionGeneration: number;
     socketStatus: 'disconnected' | 'connecting' | 'connected' | 'error';
     socketLastConnectedAt: number | null;
     socketLastDisconnectedAt: number | null;
@@ -234,7 +217,7 @@ interface StorageState {
         }
     ) => void;
     clearActivePrefetch: (sessionId: string, expectedRequestId: string) => void;
-    applySettings: (settings: Settings, version: number) => void;
+    applySettings: (settings: Settings) => void;
     applySettingsLocal: (settings: Partial<Settings>) => void;
     applyLocalSettings: (settings: Partial<LocalSettings>) => void;
     applyPurchases: (customerInfo: CustomerInfo) => void;
@@ -244,10 +227,6 @@ interface StorageState {
     applyFileCache: (sessionId: string, filePath: string, content: string | null, diff: string | null, isBinary: boolean) => void;
     applyNativeUpdateStatus: (status: { available: boolean; updateUrl?: string } | null) => void;
     isMutableToolCall: (sessionId: string, callId: string) => boolean;
-    setRealtimeStatus: (status: 'disconnected' | 'connecting' | 'connected' | 'error') => void;
-    setRealtimeMode: (mode: 'idle' | 'agent-speaking' | 'user-speaking', immediate?: boolean) => void;
-    clearRealtimeModeDebounce: () => void;
-    incrementVoiceSessionGeneration: () => void;
     setSocketStatus: (status: 'disconnected' | 'connecting' | 'connected' | 'error') => void;
     getActiveSessions: () => Session[];
     updateSessionDraft: (sessionId: string, draft: string | null) => void;
@@ -256,11 +235,6 @@ interface StorageState {
     updateSessionEffortLevel: (sessionId: string, level: string) => void;
     sessionSetPinnedAvatar: (sessionId: string, pin: { imageIndex: number; colorIndex: number }) => void;
     sessionClearPinnedAvatar: (sessionId: string) => void;
-    // Artifact methods
-    applyArtifacts: (artifacts: DecryptedArtifact[]) => void;
-    addArtifact: (artifact: DecryptedArtifact) => void;
-    updateArtifact: (artifact: DecryptedArtifact) => void;
-    deleteArtifact: (artifactId: string) => void;
     deleteSession: (sessionId: string) => void;
     // Project management methods
     getProjects: () => import('./projectManager').Project[];
@@ -280,9 +254,6 @@ interface StorageState {
     applyUsers: (users: Record<string, UserProfile | null>) => void;
     getUser: (userId: string) => UserProfile | null | undefined;
     assumeUsers: (userIds: string[]) => Promise<void>;
-    // Feed methods
-    applyFeedItems: (items: FeedItem[]) => void;
-    clearFeed: () => void;
 }
 
 // Helper function to build unified list view data from sessions and machines
@@ -382,7 +353,7 @@ function buildSessionListViewData(
 }
 
 export const storage = create<StorageState>()((set, get) => {
-    let { settings, version } = loadSettings();
+    let settings = loadSettings();
     let localSettings = loadLocalSettings();
     let purchases = loadPurchases();
     let profile = loadProfile();
@@ -394,20 +365,13 @@ export const storage = create<StorageState>()((set, get) => {
     let sessionPinnedAvatars = loadSessionPinnedAvatars();
     return {
         settings,
-        settingsVersion: version,
         localSettings,
         purchases,
         profile,
         sessions: {},
         machines: {},
-        artifacts: {},  // Initialize artifacts
         friends: {},  // Initialize relationships cache
         users: {},  // Initialize global user cache
-        feedItems: [],  // Initialize feed items list
-        feedHead: null,
-        feedTail: null,
-        feedHasMore: false,
-        feedLoaded: false,  // Initialize as false
         friendsLoaded: false,  // Initialize as false
         sessionsData: null,  // Legacy - to be removed
         sessionListViewData: null,
@@ -415,9 +379,6 @@ export const storage = create<StorageState>()((set, get) => {
         sessionGitStatus: {},
         sessionGitStatusFiles: {},
         sessionFileCache: {},
-        realtimeStatus: 'disconnected',
-        realtimeMode: 'idle',
-        voiceSessionGeneration: 0,
         socketStatus: 'disconnected',
         socketLastConnectedAt: null,
         socketLastDisconnectedAt: null,
@@ -558,36 +519,6 @@ export const storage = create<StorageState>()((set, get) => {
 
                 if (existingSessionMessages && newSession.agentState &&
                     (!oldSession || newSession.agentStateVersion > (oldSession.agentStateVersion || 0))) {
-
-                    // Check for NEW permission requests before processing
-                    const currentRealtimeSessionId = getCurrentRealtimeSessionId();
-                    const voiceSession = getVoiceSession();
-
-                    // console.log('[REALTIME DEBUG] Permission check:', {
-                    //     currentRealtimeSessionId,
-                    //     sessionId: session.id,
-                    //     match: currentRealtimeSessionId === session.id,
-                    //     hasVoiceSession: !!voiceSession,
-                    //     oldRequests: Object.keys(oldSession?.agentState?.requests || {}),
-                    //     newRequests: Object.keys(newSession.agentState?.requests || {})
-                    // });
-
-                    if (currentRealtimeSessionId === session.id && voiceSession) {
-                        const oldRequests = oldSession?.agentState?.requests || {};
-                        const newRequests = newSession.agentState?.requests || {};
-
-                        // Find NEW permission requests only
-                        for (const [requestId, request] of Object.entries(newRequests)) {
-                            if (!oldRequests[requestId]) {
-                                // This is a NEW permission request
-                                const toolName = request.tool;
-                                // console.log('[REALTIME DEBUG] Sending permission notification for:', toolName);
-                                voiceSession.sendTextMessage(
-                                    `Claude is requesting permission to use the ${toolName} tool`
-                                );
-                            }
-                        }
-                    }
 
                     // Process new AgentState through reducer
                     const reducerResult = reducer(existingSessionMessages.reducerState, [], newSession.agentState);
@@ -1055,23 +986,18 @@ export const storage = create<StorageState>()((set, get) => {
             };
         }),
         applySettingsLocal: (settings: Partial<Settings>) => set((state) => {
-            saveSettings(applySettings(state.settings, settings), state.settingsVersion ?? 0);
+            saveSettings(applySettings(state.settings, settings));
             return {
                 ...state,
                 settings: applySettings(state.settings, settings)
             };
         }),
-        applySettings: (settings: Settings, version: number) => set((state) => {
-            if (state.settingsVersion === null || state.settingsVersion < version) {
-                saveSettings(settings, version);
-                return {
-                    ...state,
-                    settings,
-                    settingsVersion: version
-                };
-            } else {
-                return state;
-            }
+        applySettings: (settings: Settings) => set((state) => {
+            saveSettings(settings);
+            return {
+                ...state,
+                settings,
+            };
         }),
         applyLocalSettings: (delta: Partial<LocalSettings>) => set((state) => {
             const updatedLocalSettings = applyLocalSettings(state.localSettings, delta);
@@ -1132,39 +1058,6 @@ export const storage = create<StorageState>()((set, get) => {
         applyNativeUpdateStatus: (status: { available: boolean; updateUrl?: string } | null) => set((state) => ({
             ...state,
             nativeUpdateStatus: status
-        })),
-        setRealtimeStatus: (status: 'disconnected' | 'connecting' | 'connected' | 'error') => set((state) => ({
-            ...state,
-            realtimeStatus: status
-        })),
-        setRealtimeMode: (mode: 'idle' | 'agent-speaking' | 'user-speaking', immediate?: boolean) => {
-            if (immediate) {
-                // Clear any pending debounce and set immediately
-                if (realtimeModeDebounceTimer) {
-                    clearTimeout(realtimeModeDebounceTimer);
-                    realtimeModeDebounceTimer = null;
-                }
-                set((state) => ({ ...state, realtimeMode: mode }));
-            } else {
-                // Debounce mode changes to avoid flickering
-                if (realtimeModeDebounceTimer) {
-                    clearTimeout(realtimeModeDebounceTimer);
-                }
-                realtimeModeDebounceTimer = setTimeout(() => {
-                    realtimeModeDebounceTimer = null;
-                    set((state) => ({ ...state, realtimeMode: mode }));
-                }, REALTIME_MODE_DEBOUNCE_MS);
-            }
-        },
-        clearRealtimeModeDebounce: () => {
-            if (realtimeModeDebounceTimer) {
-                clearTimeout(realtimeModeDebounceTimer);
-                realtimeModeDebounceTimer = null;
-            }
-        },
-        incrementVoiceSessionGeneration: () => set((state) => ({
-            ...state,
-            voiceSessionGeneration: state.voiceSessionGeneration + 1
         })),
         setSocketStatus: (status: 'disconnected' | 'connecting' | 'connected' | 'error') => set((state) => {
             const now = Date.now();
@@ -1444,50 +1337,6 @@ export const storage = create<StorageState>()((set, get) => {
                 sessionListViewData: buildSessionListViewData(state.sessions, remaining)
             };
         }),
-        // Artifact methods
-        applyArtifacts: (artifacts: DecryptedArtifact[]) => set((state) => {
-            console.log(`🗂️ Storage.applyArtifacts: Applying ${artifacts.length} artifacts`);
-            const mergedArtifacts = { ...state.artifacts };
-            artifacts.forEach(artifact => {
-                mergedArtifacts[artifact.id] = artifact;
-            });
-            console.log(`🗂️ Storage.applyArtifacts: Total artifacts after merge: ${Object.keys(mergedArtifacts).length}`);
-            
-            return {
-                ...state,
-                artifacts: mergedArtifacts
-            };
-        }),
-        addArtifact: (artifact: DecryptedArtifact) => set((state) => {
-            const updatedArtifacts = {
-                ...state.artifacts,
-                [artifact.id]: artifact
-            };
-            
-            return {
-                ...state,
-                artifacts: updatedArtifacts
-            };
-        }),
-        updateArtifact: (artifact: DecryptedArtifact) => set((state) => {
-            const updatedArtifacts = {
-                ...state.artifacts,
-                [artifact.id]: artifact
-            };
-            
-            return {
-                ...state,
-                artifacts: updatedArtifacts
-            };
-        }),
-        deleteArtifact: (artifactId: string) => set((state) => {
-            const { [artifactId]: _, ...remainingArtifacts } = state.artifacts;
-            
-            return {
-                ...state,
-                artifacts: remainingArtifacts
-            };
-        }),
         deleteSession: (sessionId: string) => set((state) => {
             // Remove session from sessions
             const { [sessionId]: deletedSession, ...remainingSessions } = state.sessions;
@@ -1598,72 +1447,6 @@ export const storage = create<StorageState>()((set, get) => {
             const { sync } = await import('./sync');
             return sync.assumeUsers(userIds);
         },
-        // Feed methods
-        applyFeedItems: (items: FeedItem[]) => set((state) => {
-            // Always mark feed as loaded even if empty
-            if (items.length === 0) {
-                return {
-                    ...state,
-                    feedLoaded: true  // Mark as loaded even when empty
-                };
-            }
-
-            // Create a map of existing items for quick lookup
-            const existingMap = new Map<string, FeedItem>();
-            state.feedItems.forEach(item => {
-                existingMap.set(item.id, item);
-            });
-
-            // Process new items
-            const updatedItems = [...state.feedItems];
-            let head = state.feedHead;
-            let tail = state.feedTail;
-
-            items.forEach(newItem => {
-                // Remove items with same repeatKey if it exists
-                if (newItem.repeatKey) {
-                    const indexToRemove = updatedItems.findIndex(item =>
-                        item.repeatKey === newItem.repeatKey
-                    );
-                    if (indexToRemove !== -1) {
-                        updatedItems.splice(indexToRemove, 1);
-                    }
-                }
-
-                // Add new item if it doesn't exist
-                if (!existingMap.has(newItem.id)) {
-                    updatedItems.push(newItem);
-                }
-
-                // Update head/tail cursors
-                if (!head || newItem.counter > parseInt(head.substring(2), 10)) {
-                    head = newItem.cursor;
-                }
-                if (!tail || newItem.counter < parseInt(tail.substring(2), 10)) {
-                    tail = newItem.cursor;
-                }
-            });
-
-            // Sort by counter (desc - newest first)
-            updatedItems.sort((a, b) => b.counter - a.counter);
-
-            return {
-                ...state,
-                feedItems: updatedItems,
-                feedHead: head,
-                feedTail: tail,
-                feedLoaded: true  // Mark as loaded after first fetch
-            };
-        }),
-        clearFeed: () => set((state) => ({
-            ...state,
-            feedItems: [],
-            feedHead: null,
-            feedTail: null,
-            feedHasMore: false,
-            feedLoaded: false,  // Reset loading flag
-            friendsLoaded: false  // Reset loading flag
-        })),
     }
 });
 
@@ -1786,60 +1569,8 @@ export function useLocalSetting<K extends keyof LocalSettings>(name: K): LocalSe
     return storage(useShallow((state) => state.localSettings[name]));
 }
 
-// Artifact hooks
-export function useArtifacts(): DecryptedArtifact[] {
-    return storage(useShallow((state) => {
-        if (!state.isDataReady) return [];
-        // Filter out draft artifacts from the main list
-        return Object.values(state.artifacts)
-            .filter(artifact => !artifact.draft)
-            .sort((a, b) => b.updatedAt - a.updatedAt);
-    }));
-}
-
-export function useAllArtifacts(): DecryptedArtifact[] {
-    return storage(useShallow((state) => {
-        if (!state.isDataReady) return [];
-        // Return all artifacts including drafts
-        return Object.values(state.artifacts).sort((a, b) => b.updatedAt - a.updatedAt);
-    }));
-}
-
-export function useDraftArtifacts(): DecryptedArtifact[] {
-    return storage(useShallow((state) => {
-        if (!state.isDataReady) return [];
-        // Return only draft artifacts
-        return Object.values(state.artifacts)
-            .filter(artifact => artifact.draft === true)
-            .sort((a, b) => b.updatedAt - a.updatedAt);
-    }));
-}
-
-export function useArtifact(artifactId: string): DecryptedArtifact | null {
-    return storage(useShallow((state) => state.artifacts[artifactId] ?? null));
-}
-
-export function useArtifactsCount(): number {
-    return storage(useShallow((state) => {
-        // Count only non-draft artifacts
-        return Object.values(state.artifacts).filter(a => !a.draft).length;
-    }));
-}
-
 export function useEntitlement(id: KnownEntitlements): boolean {
     return storage(useShallow((state) => state.purchases.entitlements[id] ?? false));
-}
-
-export function useRealtimeStatus(): 'disconnected' | 'connecting' | 'connected' | 'error' {
-    return storage(useShallow((state) => state.realtimeStatus));
-}
-
-export function useRealtimeMode(): 'idle' | 'agent-speaking' | 'user-speaking' {
-    return storage(useShallow((state) => state.realtimeMode));
-}
-
-export function useVoiceSessionGeneration(): number {
-    return storage(useShallow((state) => state.voiceSessionGeneration));
 }
 
 export function useSocketStatus() {
@@ -1887,12 +1618,6 @@ export function useAcceptedFriends() {
     }));
 }
 
-export function useFeedItems() {
-    return storage(useShallow((state) => state.feedItems));
-}
-export function useFeedLoaded() {
-    return storage((state) => state.feedLoaded);
-}
 export function useFriendsLoaded() {
     return storage((state) => state.friendsLoaded);
 }

@@ -4,18 +4,14 @@
   <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
   <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" tools:node="remove"/>
   <uses-permission android:name="android.permission.BLUETOOTH"/>
-  <uses-permission android:name="android.permission.CAMERA"/>
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
   <uses-permission android:name="android.permission.INTERNET"/>
-  <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
   <uses-permission android:name="android.permission.READ_CALENDAR"/>
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove"/>
   <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove"/>
   <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove"/>
   <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
-  <uses-permission android:name="android.permission.RECORD_AUDIO"/>
   <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
   <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
   <uses-permission android:name="android.permission.USE_FINGERPRINT"/>
@@ -30,11 +26,6 @@
   <uses-feature android:name="android.hardware.faketouch" android:required="false"/>
   <uses-feature android:name="android.hardware.screen.portrait" android:required="false"/>
   <uses-feature android:name="android.hardware.screen.landscape" android:required="false"/>
-  <uses-feature android:name="android.hardware.camera" android:required="false"/>
-  <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
-  <uses-feature android:name="android.hardware.camera.front" android:required="false"/>
-  <uses-feature android:name="android.hardware.camera.flash" android:required="false"/>
-  <uses-feature android:name="android.hardware.camera.any" android:required="false"/>
   <uses-feature android:name="android.hardware.bluetooth" android:required="false"/>
   <uses-feature android:name="android.hardware.bluetooth_le" android:required="false"/>
   <uses-feature android:name="android.hardware.telephony" android:required="false"/>
@@ -53,7 +44,6 @@
   <uses-feature android:name="android.hardware.sensor.proximity" android:required="false"/>
   <uses-feature android:name="android.hardware.sensor.stepcounter" android:required="false"/>
   <uses-feature android:name="android.hardware.sensor.stepdetector" android:required="false"/>
-  <uses-feature android:name="android.hardware.microphone" android:required="false"/>
   <uses-feature android:name="android.hardware.audio.output" android:required="false"/>
   <uses-feature android:name="android.hardware.audio.low_latency" android:required="false"/>
   <uses-feature android:name="android.hardware.audio.pro" android:required="false"/>
@@ -89,12 +79,6 @@
     <meta-data android:name="expo.modules.updates.EXPO_UPDATES_LAUNCH_WAIT_MS" android:value="0"/>
     <meta-data android:name="expo.modules.updates.EXPO_UPDATE_URL" android:value="https://u.expo.dev/4558dd3d-cd5a-47cd-bad9-e591a241cc06"/>
     <meta-data android:name="expo.modules.updates.UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY" android:value="{&quot;expo-channel-name&quot;:&quot;production&quot;}"/>
-    <service android:name="expo.modules.audio.service.AudioControlsService" android:exported="false" android:foregroundServiceType="mediaPlayback">
-      <intent-filter>
-        <action android:name="androidx.media3.session.MediaSessionService"/>
-      </intent-filter>
-    </service>
-    <service android:name="com.swmansion.audioapi.system.MediaNotificationManager$AudioForegroundService" android:stopWithTask="true" android:foregroundServiceType="mediaPlayback"/>
     <activity android:name=".MainActivity" android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode|smallestScreenSize|locale|layoutDirection" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize" android:theme="@style/Theme.App.SplashScreen" android:exported="true" android:screenOrientation="unspecified">
       <intent-filter>
         <action android:name="android.intent.action.MAIN"/>

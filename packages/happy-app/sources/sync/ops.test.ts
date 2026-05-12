@@ -12,15 +12,6 @@ vi.mock('./apiSocket', () => ({
     }
 }));
 
-vi.mock('./sync', () => ({
-    sync: {
-        encryption: {
-            getSessionEncryption: vi.fn(),
-            getMachineEncryption: vi.fn(),
-        }
-    }
-}));
-
 vi.mock('./storage', () => ({
     storage: {
         getState: () => ({ sessions: mockSessions.value }),
@@ -29,7 +20,6 @@ vi.mock('./storage', () => ({
 
 import { apiSocket } from './apiSocket';
 import { cancelPendingSwitch, machineForkSession, requestSwitch, sessionEmitAgentConfiguration, sessionUpdateMetadata, sessionWriteFile } from './ops';
-import { sync } from './sync';
 
 describe('sessionUpdateMetadata', () => {
     const initialSessionMetadata: Metadata = {
@@ -51,7 +41,7 @@ describe('sessionUpdateMetadata', () => {
         };
     });
 
-    it('applies patchFn to session metadata, retries with freshly-decrypted server metadata on version mismatch', async () => {
+    it('applies patchFn to session metadata and retries with server metadata on version mismatch', async () => {
         const serverMetadataAfterConflict: Metadata = {
             path: '/workspace/project',
             host: 'devbox',
@@ -62,27 +52,16 @@ describe('sessionUpdateMetadata', () => {
             },
         };
 
-        const encryptMetadata = vi
-            .fn()
-            .mockResolvedValueOnce('encrypted-v7')
-            .mockResolvedValueOnce('encrypted-v8');
-        const decryptMetadata = vi.fn().mockResolvedValue(serverMetadataAfterConflict);
-
-        vi.mocked(sync.encryption.getSessionEncryption).mockReturnValue({
-            encryptMetadata,
-            decryptMetadata,
-        } as never);
-
         vi.mocked(apiSocket.emitWithAck)
             .mockResolvedValueOnce({
                 result: 'version-mismatch',
                 version: 8,
-                metadata: 'server-metadata-v8',
+                metadata: JSON.stringify(serverMetadataAfterConflict),
             })
             .mockResolvedValueOnce({
                 result: 'success',
                 version: 9,
-                metadata: 'encrypted-v8',
+                metadata: JSON.stringify({ ...serverMetadataAfterConflict, summary: { text: 'Renamed chat', updatedAt: 200 } }),
             });
 
         // patchFn applies only the summary field — simulating the /rename caller
@@ -93,26 +72,15 @@ describe('sessionUpdateMetadata', () => {
 
         const result = await sessionUpdateMetadata('session-1', patchFn, 7);
 
-        expect(result).toEqual({ version: 9, metadata: 'encrypted-v8' });
-        // First attempt: patchFn applied to the initial session metadata
-        expect(encryptMetadata).toHaveBeenNthCalledWith(1, {
-            ...initialSessionMetadata,
-            summary: { text: 'Renamed chat', updatedAt: 200 },
-        });
+        expect(result.version).toBe(9);
         expect(apiSocket.emitWithAck).toHaveBeenNthCalledWith(1, 'update-metadata', {
             sid: 'session-1',
-            metadata: 'encrypted-v7',
+            metadata: JSON.stringify({ ...initialSessionMetadata, summary: { text: 'Renamed chat', updatedAt: 200 } }),
             expectedVersion: 7,
-        });
-        expect(decryptMetadata).toHaveBeenCalledWith(8, 'server-metadata-v8');
-        // Second attempt: patchFn applied to fresh server metadata, preserving concurrent server fields
-        expect(encryptMetadata).toHaveBeenNthCalledWith(2, {
-            ...serverMetadataAfterConflict,
-            summary: { text: 'Renamed chat', updatedAt: 200 },
         });
         expect(apiSocket.emitWithAck).toHaveBeenNthCalledWith(2, 'update-metadata', {
             sid: 'session-1',
-            metadata: 'encrypted-v8',
+            metadata: JSON.stringify({ ...serverMetadataAfterConflict, summary: { text: 'Renamed chat', updatedAt: 200 } }),
             expectedVersion: 8,
         });
     });
@@ -136,15 +104,10 @@ describe('sessionEmitAgentConfiguration', () => {
     });
 
     it('layers supplied config fields over current metadata and emits update-metadata', async () => {
-        const encryptMetadata = vi.fn().mockResolvedValue('encrypted-v4');
-        vi.mocked(sync.encryption.getSessionEncryption).mockReturnValue({
-            encryptMetadata,
-            decryptMetadata: vi.fn(),
-        } as never);
         vi.mocked(apiSocket.emitWithAck).mockResolvedValue({
             result: 'success',
             version: 5,
-            metadata: 'encrypted-v4',
+            metadata: 'metadata-v4',
         });
 
         const result = await sessionEmitAgentConfiguration({
@@ -153,31 +116,25 @@ describe('sessionEmitAgentConfiguration', () => {
             thinkingLevel: 'high',
         });
 
-        expect(result).toEqual({ version: 5, metadata: 'encrypted-v4' });
-        expect(encryptMetadata).toHaveBeenCalledWith({
-            path: '/workspace/project',
-            host: 'devbox',
-            currentModelCode: 'gpt-5-high',
-            currentPermissionModeCode: 'default',
-            currentThoughtLevelCode: 'high',
-        });
+        expect(result).toEqual({ version: 5, metadata: 'metadata-v4' });
         expect(apiSocket.emitWithAck).toHaveBeenCalledWith('update-metadata', {
             sid: 'session-1',
-            metadata: 'encrypted-v4',
+            metadata: JSON.stringify({
+                path: '/workspace/project',
+                host: 'devbox',
+                currentModelCode: 'gpt-5-high',
+                currentPermissionModeCode: 'default',
+                currentThoughtLevelCode: 'high',
+            }),
             expectedVersion: 4,
         });
     });
 
     it('updates only the supplied fields', async () => {
-        const encryptMetadata = vi.fn().mockResolvedValue('encrypted-v4');
-        vi.mocked(sync.encryption.getSessionEncryption).mockReturnValue({
-            encryptMetadata,
-            decryptMetadata: vi.fn(),
-        } as never);
         vi.mocked(apiSocket.emitWithAck).mockResolvedValue({
             result: 'success',
             version: 5,
-            metadata: 'encrypted-v4',
+            metadata: 'metadata-v4',
         });
 
         await sessionEmitAgentConfiguration({
@@ -185,12 +142,16 @@ describe('sessionEmitAgentConfiguration', () => {
             permissionMode: 'bypassPermissions',
         });
 
-        expect(encryptMetadata).toHaveBeenCalledWith({
-            path: '/workspace/project',
-            host: 'devbox',
-            currentModelCode: 'claude-sonnet',
-            currentPermissionModeCode: 'bypassPermissions',
-            currentThoughtLevelCode: 'medium',
+        expect(apiSocket.emitWithAck).toHaveBeenCalledWith('update-metadata', {
+            sid: 'session-1',
+            metadata: JSON.stringify({
+                path: '/workspace/project',
+                host: 'devbox',
+                currentModelCode: 'claude-sonnet',
+                currentPermissionModeCode: 'bypassPermissions',
+                currentThoughtLevelCode: 'medium',
+            }),
+            expectedVersion: 4,
         });
     });
 });

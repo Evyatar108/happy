@@ -8,7 +8,6 @@ export const LocalSettingsSchema = z.object({
     // Developer settings (device-specific)
     debugMode: z.boolean().describe('Enable debug logging'),
     devModeEnabled: z.boolean().describe('Enable developer menu in settings'),
-    voiceUpsellOverride: z.enum(['control', 'show-paywall-before-first-voice-chat', 'voice-onboarding-and-upsell']).nullable().describe('Developer-only local override for the voice-upsell PostHog flag'),
     chatFontScale: z.number().min(0.85).max(1.6).describe('Scale factor for chat typography'),
     chatWidthMode: z.number().int().min(0).max(50).describe('Side-margin percentage for chat layout on large screens (0 = no margin / full width; picker exposes 0/3/5/10/15)'),
     pinchToZoomEnabled: z.boolean().describe('Enable pinch-to-zoom chat text preview'),
@@ -42,7 +41,6 @@ export type LocalSettings = z.infer<typeof LocalSettingsSchema>;
 export const localSettingsDefaults: LocalSettings = {
     debugMode: false,
     devModeEnabled: false,
-    voiceUpsellOverride: null,
     chatFontScale: 1.0,
     chatWidthMode: 5,
     pinchToZoomEnabled: false,

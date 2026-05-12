@@ -5,7 +5,6 @@
 
 import { apiSocket } from './apiSocket';
 import { parseCompositeSessionId } from './machineSessionId';
-import { sync } from './sync';
 import { storage } from './storage';
 import type { MachineMetadata, Metadata } from './storageTypes';
 
@@ -255,14 +254,22 @@ export async function machineForkSession(options: ForkSessionOptions): Promise<S
  */
 export async function machineDelete(machineId: string): Promise<{ success: boolean; message?: string }> {
     try {
-        const response = await apiSocket.request(`/v1/machines/${machineId}`, {
-            method: 'DELETE'
-        });
-        if (response.ok) {
-            return { success: true };
+        const { TokenStorage } = await import('@/auth/tokenStorage');
+        const { getCurrentAuth } = await import('@/auth/AuthContext');
+        const auth = getCurrentAuth();
+        const wasActiveMachine = auth?.credentials?.machineId === machineId;
+        await TokenStorage.removeMachineCredentials(machineId);
+        apiSocket.removeMachine(machineId);
+        storage.getState().deleteMachine(machineId);
+        if (wasActiveMachine) {
+            const remaining = await TokenStorage.getCredentials();
+            if (!remaining) {
+                await auth?.logout();
+            } else {
+                await auth?.refreshCredentials();
+            }
         }
-        const error = await response.text();
-        return { success: false, message: error || 'Failed to delete machine' };
+        return { success: true };
     } catch (error) {
         return {
             success: false,
@@ -334,13 +341,8 @@ export async function machineUpdateMetadata(
     let currentMetadata = { ...metadata };
     let retryCount = 0;
 
-    const machineEncryption = sync.encryption.getMachineEncryption(machineId);
-    if (!machineEncryption) {
-        throw new Error(`Machine encryption not found for ${machineId}`);
-    }
-
     while (retryCount < maxRetries) {
-        const encryptedMetadata = await machineEncryption.encryptRaw(currentMetadata);
+        const metadataValue = JSON.stringify(currentMetadata);
 
         const result = await apiSocket.emitWithAck<{
             result: 'success' | 'version-mismatch' | 'error';
@@ -349,7 +351,7 @@ export async function machineUpdateMetadata(
             message?: string;
         }>('machine-update-metadata', {
             machineId,
-            metadata: encryptedMetadata,
+            metadata: metadataValue,
             expectedVersion: currentVersion
         });
 
@@ -361,7 +363,7 @@ export async function machineUpdateMetadata(
         } else if (result.result === 'version-mismatch') {
             // Get the latest version and metadata from the response
             currentVersion = result.version!;
-            const latestMetadata = await machineEncryption.decryptRaw(result.metadata!) as MachineMetadata;
+            const latestMetadata = JSON.parse(result.metadata!) as MachineMetadata;
 
             // Merge our changes with the latest metadata
             // Preserve the displayName we're trying to set, but use latest values for other fields
@@ -404,11 +406,6 @@ export async function sessionUpdateMetadata(
     let currentVersion = expectedVersion;
     let retryCount = 0;
 
-    const sessionEncryption = sync.encryption.getSessionEncryption(sessionId);
-    if (!sessionEncryption) {
-        throw new Error(`Session encryption not found for ${sessionId}`);
-    }
-
     const initialMetadata = storage.getState().sessions[sessionId]?.metadata;
     if (!initialMetadata) {
         throw new Error(`Session metadata not found for ${sessionId}`);
@@ -417,7 +414,7 @@ export async function sessionUpdateMetadata(
     let currentMetadata = patchFn(initialMetadata);
 
     while (retryCount < maxRetries) {
-        const encryptedMetadata = await sessionEncryption.encryptMetadata(currentMetadata);
+        const metadataValue = JSON.stringify(currentMetadata);
 
         const result = await apiSocket.emitWithAck<{
             result: 'success' | 'version-mismatch' | 'error';
@@ -426,7 +423,7 @@ export async function sessionUpdateMetadata(
             message?: string;
         }>('update-metadata', {
             sid: sessionId,
-            metadata: encryptedMetadata,
+            metadata: metadataValue,
             expectedVersion: currentVersion
         });
 
@@ -437,10 +434,10 @@ export async function sessionUpdateMetadata(
             };
         } else if (result.result === 'version-mismatch') {
             currentVersion = result.version!;
-            const latestMetadata = await sessionEncryption.decryptMetadata(result.version!, result.metadata!);
+            const latestMetadata = result.metadata ? JSON.parse(result.metadata) as Metadata : null;
 
             if (!latestMetadata) {
-                throw new Error('Failed to decrypt latest session metadata after version mismatch');
+                throw new Error('Failed to parse latest session metadata after version mismatch');
             }
 
             currentMetadata = patchFn(latestMetadata);

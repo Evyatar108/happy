@@ -113,14 +113,15 @@ vi.mock('@/utils/forkAvailability', () => ({
     forkAvailability: (session: unknown, machine: unknown) => shared.forkAvailabilityMock(session, machine),
 }));
 
-vi.mock('@/utils/worktree', async () => {
-    const actual = await vi.importActual<typeof import('@/utils/worktree')>('@/utils/worktree');
-    return {
-        ...actual,
-        createWorktree: shared.createWorktreeMock,
-        listWorktrees: shared.listWorktreesMock,
-    };
-});
+vi.mock('@/utils/worktree', () => ({
+    createWorktree: shared.createWorktreeMock,
+    listWorktrees: shared.listWorktreesMock,
+    getRepoPath: (path: string) => {
+        const marker = '/.dev/worktree/';
+        const idx = path.indexOf(marker);
+        return idx === -1 ? path : path.slice(0, idx);
+    },
+}));
 
 const { ForkComposerScreen } = await import('./fork-composer');
 

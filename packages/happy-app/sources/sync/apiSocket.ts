@@ -2,10 +2,9 @@ import { io, Socket } from 'socket.io-client';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { AuthCredentials, TokenStorage } from '@/auth/tokenStorage';
-import { Encryption } from './encryption/encryption';
 import { storage } from './storage';
-import { tunnelFetch } from '@/auth/machineAuth';
-import { buildTunnelSocketOptions } from './tunnelTransport';
+import { tunnelFetch, DeviceCodeExpired, ClaimExpired } from '@/auth/machineAuth';
+import { buildTunnelSocketOptions } from './socketOptions';
 import { localizeSessionPath, parseCompositeSessionId } from './machineSessionId';
 import {
     SessionMessageRangeRequestSchema,
@@ -40,8 +39,10 @@ export type SyncSocketListener = (state: SyncSocketState) => void;
 interface MachineConnection {
     socket: Socket | null;
     config: SyncSocketConfig;
-    encryption: Encryption;
     status: SyncSocketStatus;
+    intentionalDisconnect: boolean;
+    hasConnected: boolean;
+    firstConnectWaiters: Array<() => void>;
 }
 
 type MessageHandler = (data: any, machineId: string) => void;
@@ -53,35 +54,68 @@ class ApiSocket {
     private reconnectedListeners: Set<(machineId: string) => void> = new Set();
     private statusListeners: Set<(status: SyncSocketStatus) => void> = new Set();
     private machineDisconnectListeners: Set<(machineId: string, lastSeenAt: number) => void> = new Set();
+    private deviceCodeExpiredListeners: Set<(machineId: string) => void> = new Set();
     private currentStatus: SyncSocketStatus = 'disconnected';
 
-    initialize(config: SyncSocketConfig, encryption: Encryption) {
-        this.initializeMany([{ config, encryption }]);
+    async initialize(config: SyncSocketConfig) {
+        await this.initializeMany([config]);
     }
 
-    initializeMany(items: Array<{ config: SyncSocketConfig; encryption: Encryption }>) {
-        for (const item of items) {
-            const machineId = item.config.credentials.machineId;
+    async initializeMany(items: SyncSocketConfig[]) {
+        for (const config of items) {
+            const machineId = config.credentials.machineId;
             const existing = this.connections.get(machineId);
             if (existing) {
-                existing.config = item.config;
-                existing.encryption = item.encryption;
+                existing.config = config;
                 continue;
             }
             this.connections.set(machineId, {
                 socket: null,
-                config: item.config,
-                encryption: item.encryption,
+                config,
                 status: 'disconnected',
+                intentionalDisconnect: false,
+                hasConnected: false,
+                firstConnectWaiters: [],
             });
             if (!this.primaryMachineId) {
                 this.primaryMachineId = machineId;
             }
         }
-        this.connect();
+        await this.connect();
     }
 
-    connect(machineId?: string) {
+    async appendMachine(config: SyncSocketConfig, timeoutMs = 15_000): Promise<void> {
+        const machineId = config.credentials.machineId;
+        const existing = this.connections.get(machineId);
+        if (existing) {
+            existing.config = config;
+        } else {
+            this.connections.set(machineId, {
+                socket: null,
+                config,
+                status: 'disconnected',
+                intentionalDisconnect: false,
+                hasConnected: false,
+                firstConnectWaiters: [],
+            });
+        }
+        if (!this.primaryMachineId) {
+            this.primaryMachineId = machineId;
+        }
+
+        const connection = this.connections.get(machineId)!;
+        const connected = new Promise<void>((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error(`Socket connect timed out for machine ${machineId}`)), timeoutMs);
+            connection.firstConnectWaiters.push(() => {
+                clearTimeout(timeout);
+                resolve();
+            });
+        });
+        await this.connect(machineId);
+        await connected;
+    }
+
+    async connect(machineId?: string) {
         const targets = machineId
             ? [this.getConnection(machineId)]
             : Array.from(this.connections.values());
@@ -90,8 +124,21 @@ class ApiSocket {
             if (!connection || connection.socket) {
                 continue;
             }
-            this.updateMachineStatus(connection.config.credentials.machineId, 'connecting');
-            connection.socket = io(connection.config.endpoint, buildTunnelSocketOptions(connection.config.credentials));
+            const mid = connection.config.credentials.machineId;
+            this.updateMachineStatus(mid, 'connecting');
+            connection.intentionalDisconnect = false;
+            let socketOptions;
+            try {
+                socketOptions = await buildTunnelSocketOptions(connection.config.credentials);
+            } catch (error) {
+                if (error instanceof DeviceCodeExpired || error instanceof ClaimExpired) {
+                    this.updateMachineStatus(mid, 'error');
+                    this.deviceCodeExpiredListeners.forEach(listener => listener(mid));
+                    continue;
+                }
+                throw error;
+            }
+            connection.socket = io(connection.config.endpoint, socketOptions);
             this.setupEventHandlers(connection);
         }
     }
@@ -105,12 +152,31 @@ class ApiSocket {
             if (!connection) {
                 continue;
             }
+            connection.intentionalDisconnect = true;
             if (connection.socket) {
                 connection.socket.disconnect();
                 connection.socket = null;
             }
             this.updateMachineStatus(connection.config.credentials.machineId, 'disconnected');
         }
+    }
+
+    removeMachine(machineId: string) {
+        const connection = this.getConnection(machineId);
+        if (!connection) {
+            return;
+        }
+        connection.intentionalDisconnect = true;
+        if (connection.socket) {
+            connection.socket.disconnect();
+            connection.socket = null;
+        }
+        this.connections.delete(machineId);
+        if (this.primaryMachineId === machineId) {
+            const nextEntry = this.connections.keys().next();
+            this.primaryMachineId = nextEntry.done ? null : nextEntry.value;
+        }
+        this.updateMachineStatus(machineId, 'disconnected');
     }
 
     getConnectionCount(): number {
@@ -137,6 +203,11 @@ class ApiSocket {
         return () => this.machineDisconnectListeners.delete(listener);
     };
 
+    onDeviceCodeExpired = (listener: (machineId: string) => void) => {
+        this.deviceCodeExpiredListeners.add(listener);
+        return () => this.deviceCodeExpiredListeners.delete(listener);
+    };
+
     onMessage(event: string, handler: MessageHandler) {
         this.messageHandlers.set(event, handler);
         return () => this.messageHandlers.delete(event);
@@ -149,36 +220,26 @@ class ApiSocket {
     async sessionRPC<R, A>(sessionId: string, method: string, params: A): Promise<R> {
         const ref = this.resolveSessionRef(sessionId);
         const connection = this.requireConnection(ref.machineId);
-        const sessionEncryption = connection.encryption.getSessionEncryption(sessionId);
-        if (!sessionEncryption) {
-            throw new Error(`Session encryption not found for ${sessionId}`);
-        }
-
         const result = await connection.socket!.emitWithAck('rpc-call', {
             method: `${ref.localSessionId}:${method}`,
-            params: await sessionEncryption.encryptRaw(params)
+            params,
         });
 
         if (result.ok) {
-            return await sessionEncryption.decryptRaw(result.result) as R;
+            return result.result as R;
         }
         throw new Error('RPC call failed');
     }
 
     async machineRPC<R, A>(machineId: string, method: string, params: A): Promise<R> {
         const connection = this.requireConnection(machineId);
-        const machineEncryption = connection.encryption.getMachineEncryption(machineId);
-        if (!machineEncryption) {
-            throw new Error(`Machine encryption not found for ${machineId}`);
-        }
-
         const result = await connection.socket!.emitWithAck('rpc-call', {
             method: `${machineId}:${method}`,
-            params: await machineEncryption.encryptRaw(params)
+            params,
         });
 
         if (result.ok) {
-            return await machineEncryption.decryptRaw(result.result) as R;
+            return result.result as R;
         }
         throw new Error(result.error || 'RPC call failed');
     }
@@ -220,8 +281,10 @@ class ApiSocket {
 
     async requestForMachine(machineId: string, path: string, options?: RequestInit): Promise<Response> {
         const connection = this.requireConnection(machineId);
-        const credentials = (await TokenStorage.getCredentialsList()).find(item => item.machineId === machineId)
-            ?? connection.config.credentials;
+        const credentials = (await TokenStorage.getCredentialsList()).find(item => item.machineId === machineId);
+        if (!credentials) {
+            throw new Error(`No credentials found in TokenStorage for machine ${machineId}`);
+        }
         const url = `${connection.config.endpoint}${path}`;
         const headers: Record<string, string> = {
             'X-Happy-Client': getHappyClientId(),
@@ -234,9 +297,9 @@ class ApiSocket {
         });
     }
 
-    reconnectWithCurrentCredentials() {
+    async reconnectWithCurrentCredentials() {
         this.disconnect();
-        this.connect();
+        await this.connect();
     }
 
     private resolveSessionRef(sessionId: string) {
@@ -309,7 +372,11 @@ class ApiSocket {
                 console.log('SyncSocket connected', { machineId, recovered: socket.recovered, socketId: socket.id });
             }
             this.updateMachineStatus(machineId, 'connected');
-            if (!socket.recovered) {
+            const waiters = connection.firstConnectWaiters.splice(0);
+            waiters.forEach(resolve => resolve());
+            const wasConnected = connection.hasConnected;
+            connection.hasConnected = true;
+            if (wasConnected && !socket.recovered) {
                 this.reconnectedListeners.forEach(listener => listener(machineId));
             }
         });
@@ -321,6 +388,11 @@ class ApiSocket {
             const lastSeenAt = Date.now();
             this.updateMachineStatus(machineId, 'disconnected');
             this.machineDisconnectListeners.forEach(listener => listener(machineId, lastSeenAt));
+            const intentional = connection.intentionalDisconnect;
+            connection.socket = null;
+            if (!intentional) {
+                void this.connect(machineId);
+            }
         });
 
         socket.on('connect_error', (error) => {

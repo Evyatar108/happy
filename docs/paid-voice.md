@@ -1,40 +1,48 @@
 # Paid Voice — Rate Limiting & Auth
 
-## Flow
+> **Status note (Sprint D US-005 / US-006):** happy-app's voice surface
+> (`realtime/`, `apiVoice.ts`, voice settings screens, `VoiceBars`,
+> `VoiceAssistantStatusBar`) was deleted from the mobile client. The
+> server-side endpoints below still exist in happy-server and continue to
+> enforce the rate-limit / auth contract — any future re-implementation of a
+> client-side voice surface must integrate with them.
+
+## Server-Side Rate-Limit Contract
+
+The server owns all usage accounting and token minting. ElevenLabs is the
+source of truth — there is no local DB row per conversation.
 
 ```
-User taps mic
+POST /v1/voice/conversations { agentId }
+│   (preHandler: app.authenticate)
 │
-├─ Bypass mode? (custom agent ID)
-│   └─ connect directly to ElevenLabs, skip everything
+├─ deriveElevenUserId(userId) = "u_" + base64url(HMAC-SHA256(HANDY_MASTER_SECRET, userId))
 │
-├─ POST /v1/voice/conversations { agentId }
-│   │
-│   ├─ GET /v1/convai/conversations?agent_id=X&user_id=Y&created_after=<30d>&page_size=100
-│   │   └─ Sum call_duration_secs → usedSeconds (~108ms)
-│   │
-│   ├─ conversations == 100?          → { allowed: false, reason: "voice_conversation_limit_reached" }
-│   ├─ usedSeconds >= 5h?             → { allowed: false, reason: "voice_hard_limit_reached" }
-│   ├─ usedSeconds >= 20min + no sub? → { allowed: false, reason: "subscription_required" }
-│   │
-│   ├─ GET /v1/convai/conversation/token?agent_id=X&participant_name=ELEVEN_USER_ID
-│   │   └─ Decode JWT → extract conv_id from video.room
-│   │
-│   └─ Return { conversationToken, conversationId, agentId, elevenUserId, usedSeconds, limitSeconds }
+├─ getVoiceUsage(elevenUserId)
+│   └─ GET https://api.elevenlabs.io/v1/convai/conversations
+│            ?user_id=<elevenUserId>&created_after=<30d>&page_size=100
+│        → { usedSeconds = Σ call_duration_secs, conversationCount }
 │
-├─ allowed: false?
-│   ├─ "voice_conversation_limit_reached" → alert (file issue on GitHub)
-│   └─ other → paywall flow="voice_must_pay"
+├─ conversationCount >= 100?           → { allowed: false, reason: "voice_conversation_limit_reached" }
+├─ usedSeconds >= 18000 (5h)?          → { allowed: false, reason: "voice_hard_limit_reached" }
+├─ usedSeconds >= 1200 (20m) && !sub?  → { allowed: false, reason: "subscription_required" }
+│       (subscription via RevenueCat /v2/projects/.../active_entitlements)
 │
-└─ allowed: true
-    ├─ feature flag voice-upsell == "show-paywall-before-first-voice-chat"?
-    │   └─ first free voice start only → soft paywall flow="voice_trial_eligible"
-    ├─ feature flag voice-upsell == "voice-onboarding-and-upsell"?
-    │   └─ inject onboarding + upsell guidance into voice prompt
-    └─ otherwise
-        └─ control → no soft paywall and no onboarding experiment
-        then startSession({ conversationToken }) → WebRTC via LiveKit
+├─ GET /v1/convai/conversation/token?agent_id=X&participant_name=<elevenUserId>
+│   └─ Decode JWT → extract conv_id from video.room (matches /conv_[A-Za-z0-9]+/)
+│
+└─ Return { allowed: true, conversationToken, conversationId, agentId,
+            elevenUserId, usedSeconds, limitSeconds }
+
+GET /v1/voice/usage
+│   (preHandler: app.authenticate)
+└─ Parallel: getVoiceUsage(...) + hasActiveSubscription(userId)
+   → { usedSeconds, limitSeconds, conversationCount, conversationLimit, elevenUserId }
 ```
+
+Implementation: `packages/happy-server/sources/app/api/routes/voiceRoutes.ts`.
+Response schemas: `packages/happy-wire/src/voice.ts`
+(`VoiceConversationResponseSchema`, `VoiceUsageResponseSchema`).
 
 ## Limits
 
@@ -46,6 +54,11 @@ User taps mic
 | Any | 100 conversations | 30 days | — | Hard block → file issue |
 
 Cost: ~$0.01/min ($1600 / 171K min measured).
+
+Constants in `voiceRoutes.ts`:
+- `VOICE_FREE_LIMIT_SECONDS = 1200`
+- `VOICE_HARD_LIMIT_SECONDS = 18000`
+- `VOICE_MAX_CONVERSATIONS = 100`
 
 ## Tracking
 
@@ -60,7 +73,10 @@ ElevenLabs is the source of truth. No local DB.
 
 ## Paywall Flows (RevenueCat)
 
-Single paywall template, rules driven by custom variable `flow`:
+These flow identifiers were used by the now-deleted client surface and
+remain documented here as the contract any future voice client would carry
+back into the paywall. A single paywall template is keyed off custom
+variable `flow`:
 
 | Flow | When | Behavior |
 |------|------|----------|

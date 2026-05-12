@@ -21,7 +21,7 @@ export default function DevScreen() {
     const [verboseLogging, setVerboseLogging] = useLocalSettingMutable('verboseLogging');
     const [consoleLoggingEnabled, setConsoleLoggingEnabled] = useLocalSettingMutable('consoleLoggingEnabled');
     const socketStatus = useSocketStatus();
-    const anonymousId = sync.encryption!.anonID;
+    const anonymousId = sync.anonID;
     const { theme } = useUnistyles();
 
     const handleEditServerUrl = async () => {
@@ -286,12 +286,6 @@ export default function DevScreen() {
                     onPress={() => router.push('/dev/unistyles-demo')}
                 />
                 <Item
-                    title="QR Code Test"
-                    subtitle="Test QR code generation with different parameters"
-                    icon={<Ionicons name="qr-code-outline" size={28} color="#007AFF" />}
-                    onPress={() => router.push('/dev/qr-test')}
-                />
-                <Item
                     title="Session Composer"
                     subtitle="New session creation screen layout"
                     icon={<Ionicons name="add-circle-outline" size={28} color="#007AFF" />}
@@ -301,12 +295,6 @@ export default function DevScreen() {
 
             {/* Test Features */}
             <ItemGroup title="Test Features" footer="These actions may affect app stability">
-                <Item
-                    title="Claude OAuth Test"
-                    subtitle="Test Claude authentication flow"
-                    icon={<Ionicons name="key-outline" size={28} color="#007AFF" />}
-                    onPress={() => router.push('/settings/connect/claude')}
-                />
                 <Item
                     title="Test Crash"
                     subtitle="Trigger a test crash"

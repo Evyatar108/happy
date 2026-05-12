@@ -1,7 +1,6 @@
 import { Ionicons, Octicons } from '@expo/vector-icons';
 import * as React from 'react';
 import { View, Platform, useWindowDimensions, ViewStyle, Text, ActivityIndicator, TouchableWithoutFeedback, Image as RNImage, Pressable } from 'react-native';
-import { Image } from 'expo-image';
 import { MultiTextInput, KeyPressEvent } from './MultiTextInput';
 import { Typography } from '@/constants/Typography';
 import { PermissionMode, ModelMode } from './PermissionModeSelector';
@@ -34,8 +33,6 @@ interface AgentInputProps {
     sessionId?: string;
     onSend: (switchMode: 'now' | 'when-idle', attachments: readonly FileAttachment[]) => void | boolean | Promise<void | boolean>;
     sendIcon?: React.ReactNode;
-    onMicPress?: () => void;
-    isMicActive?: boolean;
     permissionMode?: PermissionMode | null;
     availableModes?: PermissionMode[];
     onPermissionModeChange?: (mode: PermissionMode) => void;
@@ -465,7 +462,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
     const canPressSendButton = !props.isSending
         && !props.isSendDisabled
         && !isSendPending
-        && (isSendBlocked ? hasSendableContent : (hasSendableContent || !!props.onMicPress));
+        && (isSendBlocked ? hasSendableContent : hasSendableContent);
 
     // Abort button state
     const [isAborting, setIsAborting] = React.useState(false);
@@ -642,7 +639,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
         if (hasSendableContent) {
             submitSend('now');
         } else {
-            props.onMicPress?.();
+            return;
         }
     }, [handleBlockedSendAttempt, hasSendableContent, isSendBlocked, props, submitSend]);
 
@@ -1594,12 +1591,12 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                 )}
                                 </View>
 
-                                {/* Send/Voice button - aligned with first row */}
+                                {/* Send button - aligned with first row */}
                                 <View
                                     style={[
                                         styles.sendButton,
                                         isSendBlocked ? styles.sendButtonLocked :
-                                        (hasSendableContent || props.isSending || (props.onMicPress && !props.isMicActive))
+                                        (hasSendableContent || props.isSending)
                                             ? styles.sendButtonActive
                                             : styles.sendButtonInactive
                                     ]}
@@ -1637,15 +1634,6 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                                     styles.sendButtonIcon,
                                                     { marginTop: Platform.OS === 'web' ? 2 : 0 }
                                                 ]}
-                                            />
-                                        ) : props.onMicPress && !props.isMicActive ? (
-                                            <Image
-                                                source={require('@/assets/images/icon-voice-white.png')}
-                                                style={{
-                                                    width: 24,
-                                                    height: 24,
-                                                }}
-                                                tintColor={theme.colors.button.primary.tint}
                                             />
                                         ) : (
                                             <Octicons

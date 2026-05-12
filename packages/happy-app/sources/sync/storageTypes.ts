@@ -217,9 +217,9 @@ export interface Machine {
     active: boolean;
     activeAt: number;  // Changed from lastActiveAt to activeAt for consistency
     metadata: MachineMetadata | null;
-    metadataVersion: number;
-    daemonState: any | null;  // Dynamic daemon state (runtime info)
-    daemonStateVersion: number;
+    metadataVersion?: number;
+    daemonState?: any | null;  // Dynamic daemon state (runtime info)
+    daemonStateVersion?: number;
 }
 
 //

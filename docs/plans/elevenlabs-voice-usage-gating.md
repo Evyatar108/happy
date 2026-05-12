@@ -1,5 +1,8 @@
 # ElevenLabs Voice Usage Gating
 
+> **Status: blocked — re-scope required before reactivating.**
+> Sprint D removed the happy-app voice surface this plan targeted (commit `db96a40f`, US-005 / US-D4). The app-side files this plan referenced — `sync/apiVoice.ts`, `realtime/RealtimeSession.ts`, `realtime/RealtimeVoiceSession.tsx`, `realtime/RealtimeVoiceSession.web.tsx`, `realtime/types.ts`, plus the rest of `realtime/` and the voice settings screens — no longer exist. The server-side `/v1/voice/token` route and `ELEVENLABS_API_KEY` plumbing are still present, so the usage-gating contract described below remains potentially valuable as prior art for a future re-implementation. Do not treat the client-side sections as actionable until a new voice surface is designed.
+
 ## Problem
 
 We want to require a subscription after a user has consumed 1 hour of ElevenLabs conversation time.
@@ -15,21 +18,22 @@ That means the gate runs only when a new voice session starts. If a user crosses
 
 ## Current Repo State
 
-The current `main` implementation does not reliably gate voice usage:
+Sprint D US-005 (commit `db96a40f`) deleted the happy-app voice surface this plan was written against. As of this revision:
 
-- With `experiments=false`, the app starts ElevenLabs directly with `agentId` and bypasses billing/auth entirely.
-- With `experiments=true`, the app calls `/v1/voice/token`, but the app no longer sends `revenueCatPublicKey`.
-- The server still expects `revenueCatPublicKey` in production.
-- The client treats `400` from `/v1/voice/token` as `allowed:true`, which bypasses the paywall path.
+- `packages/happy-app/sources/sync/apiVoice.ts` — **deleted**.
+- `packages/happy-app/sources/realtime/RealtimeSession.ts` — **deleted**.
+- `packages/happy-app/sources/realtime/RealtimeVoiceSession.tsx` — **deleted**.
+- `packages/happy-app/sources/realtime/RealtimeVoiceSession.web.tsx` — **deleted**.
+- `packages/happy-app/sources/realtime/types.ts` and the rest of `packages/happy-app/sources/realtime/` — **deleted**.
+- `packages/happy-app/sources/app/(app)/settings/voice.tsx` and the voice settings sub-routes — **deleted**.
+- The `experiments=true|false` voice branches and the `revenueCatPublicKey` client payload no longer exist on the app side.
 
-Relevant files:
+Server-side scaffolding is unchanged and still relevant for any future re-implementation:
 
-- Server token route: `packages/happy-server/sources/app/api/routes/voiceRoutes.ts`
-- Client token fetch: `packages/happy-app/sources/sync/apiVoice.ts`
-- Voice start decision: `packages/happy-app/sources/realtime/RealtimeSession.ts`
-- ElevenLabs client session start:
-  - `packages/happy-app/sources/realtime/RealtimeVoiceSession.tsx`
-  - `packages/happy-app/sources/realtime/RealtimeVoiceSession.web.tsx`
+- Server token route: `packages/happy-server/sources/app/api/routes/voiceRoutes.ts` — still present, still reads `ELEVENLABS_API_KEY`, still documented in `docs/deployment.md`.
+- `packages/happy-server/deploy/handy.yaml` still extracts `/handy-elevenlabs` and `/handy-revenuecat`.
+
+Before any of the changes below can land, a new app-side voice surface needs to be designed and built. The historical client-side notes (paywall flow, `experiments` flag, `400 => allowed:true` fallback) are retained only as a record of what previously existed.
 
 ## Existing Secret Assumptions
 
@@ -204,21 +208,21 @@ type VoiceTokenResponse =
 
 ### Client
 
-Update:
+**Blocked.** The files this section previously enumerated were deleted in Sprint D US-005 (`db96a40f`):
 
-- `packages/happy-app/sources/realtime/types.ts`
-- `packages/happy-app/sources/realtime/RealtimeVoiceSession.tsx`
-- `packages/happy-app/sources/realtime/RealtimeVoiceSession.web.tsx`
-- `packages/happy-app/sources/realtime/RealtimeSession.ts`
-- `packages/happy-app/sources/sync/apiVoice.ts`
+- `packages/happy-app/sources/realtime/types.ts` — deleted
+- `packages/happy-app/sources/realtime/RealtimeVoiceSession.tsx` — deleted
+- `packages/happy-app/sources/realtime/RealtimeVoiceSession.web.tsx` — deleted
+- `packages/happy-app/sources/realtime/RealtimeSession.ts` — deleted
+- `packages/happy-app/sources/sync/apiVoice.ts` — deleted
 
-Changes needed:
+There is no current happy-app voice client to modify. A future re-implementation would need to recreate an equivalent surface (token fetch, session start, paywall handling) before applying the behavioural changes that were originally planned:
 
-- add `userId?: string` to `VoiceSessionConfig`
-- pass `userId` into `conversationInstance.startSession(...)`
-- remove the `400 => allowed:true` fallback
-- remove or redesign the `experiments=false` bypass if voice gating should apply to all users
-- retry the token request after successful purchase
+- add a `userId?: string` field to whatever replaces `VoiceSessionConfig`
+- pass `userId` into `conversationInstance.startSession(...)` on the new ElevenLabs client wrapper
+- do not reintroduce a `400 => allowed:true` fallback when fetching the token
+- decide up front whether voice gating applies to all users or only an experimental cohort, instead of reintroducing an `experiments=false` bypass
+- retry the token request after a successful purchase
 
 ## Subscription Check
 

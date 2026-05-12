@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { View, Pressable, Text, FlatList } from 'react-native';
+import { View, Pressable, FlatList } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, usePathname } from 'expo-router';
 import { useHeaderHeight } from '@/utils/responsive';
@@ -12,7 +12,6 @@ import { Avatar } from './Avatar';
 import { useVisibleSessionListViewData } from '@/hooks/useVisibleSessionListViewData';
 import { useNavigateToSession } from '@/hooks/useNavigateToSession';
 import { SessionRowData } from '@/sync/storage';
-import { Typography } from '@/constants/Typography';
 import { t } from '@/text';
 
 // 72px icon rail with logo, connection status, top-level nav, and a vertical
@@ -23,15 +22,11 @@ interface CollapsedSidebarViewProps {
         color: string;
         isPulsing: boolean;
     };
-    friendRequestsCount: number;
-    inboxHasContent: boolean;
 }
 
 export const CollapsedSidebarView = React.memo(({
     onNewSession,
     connectionStatus,
-    friendRequestsCount,
-    inboxHasContent,
 }: CollapsedSidebarViewProps) => {
     const { theme } = useUnistyles();
     const safeArea = useSafeAreaInsets();
@@ -102,31 +97,6 @@ export const CollapsedSidebarView = React.memo(({
                     </View>
 
                     <View style={styles.divider} />
-
-                    {/* Inbox */}
-                    <Pressable
-                        style={styles.iconButton}
-                        onPress={() => router.push('/(app)/inbox')}
-                        hitSlop={10}
-                        accessibilityLabel={t('tabs.inbox')}
-                    >
-                        <Image
-                            source={require('@/assets/images/brutalist/Brutalism-27.png')}
-                            contentFit="contain"
-                            style={[{ width: 28, height: 28 }]}
-                            tintColor={theme.colors.header.tint}
-                        />
-                        {friendRequestsCount > 0 && (
-                            <View style={styles.badge}>
-                                <Text style={styles.badgeText}>
-                                    {friendRequestsCount > 99 ? '99+' : friendRequestsCount}
-                                </Text>
-                            </View>
-                        )}
-                        {inboxHasContent && friendRequestsCount === 0 && (
-                            <View style={styles.indicatorDot} />
-                        )}
-                    </Pressable>
 
                     {/* Settings */}
                     <Pressable
@@ -214,31 +184,5 @@ const styles = StyleSheet.create((theme) => ({
     },
     sessionItemSelected: {
         backgroundColor: theme.colors.surfaceSelected,
-    },
-    badge: {
-        position: 'absolute',
-        top: -2,
-        right: -2,
-        backgroundColor: theme.colors.status.error,
-        borderRadius: 8,
-        minWidth: 16,
-        height: 16,
-        paddingHorizontal: 4,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    badgeText: {
-        color: '#FFFFFF',
-        fontSize: 10,
-        ...Typography.default('semiBold'),
-    },
-    indicatorDot: {
-        position: 'absolute',
-        top: 2,
-        right: 2,
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: theme.colors.text,
     },
 }));

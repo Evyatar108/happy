@@ -17,24 +17,19 @@ import { Deferred } from '@/components/Deferred';
 import { EmptyMessages } from '@/components/EmptyMessages';
 import { SessionActionsAnchor, SessionActionsPopover } from '@/components/SessionActionsPopover';
 import { ResumeCommandCopyBlock, SessionContextDrawer } from '@/components/SessionContextDrawer';
-import { VoiceAssistantStatusBar } from '@/components/VoiceAssistantStatusBar';
 import { useChatWidth } from '@/hooks/useChatWidth';
 import { useDraft } from '@/hooks/useDraft';
 import { usePreSendCommand } from '@/hooks/usePreSendCommand';
 import { Modal } from '@/modal';
-import { voiceHooks } from '@/realtime/hooks/voiceHooks';
-import { getCurrentVoiceConversationId, getCurrentVoiceSessionDurationSeconds, startRealtimeSession, stopRealtimeSession } from '@/realtime/RealtimeSession';
 import { shouldShowBoundaryAdvisory, updateComposeStartAt } from './composeBoundaryAdvisory';
 import { gitStatusSync } from '@/sync/gitStatusSync';
 import { cancelPendingSwitch, requestSwitch, sessionAbort, sessionEmitAgentConfiguration, sessionWriteFile } from '@/sync/ops';
-import { storage, useIsDataReady, useLatestBoundary, useLocalSetting, useLocalSettingMutable, useMachine, useRealtimeStatus, useSessionMessages, useSessionUsage, useSetting } from '@/sync/storage';
-import { useSidebar } from '@/components/SidebarContext';
+import { storage, useIsDataReady, useLatestBoundary, useLocalSetting, useLocalSettingMutable, useMachine, useSessionMessages, useSessionUsage, useSetting } from '@/sync/storage';
 import { useSession } from '@/sync/storage';
 import { Session } from '@/sync/storageTypes';
 import { generateLocalMessageId, sync } from '@/sync/sync';
 import { t } from '@/text';
 import { tracking } from '@/track';
-import { getVoiceMessageCount, getVoiceOnboardingPromptLoadCount } from '@/sync/persistence';
 import { resolveTopicBrutalistAvatar } from '@/utils/avatarTopic';
 import { isRunningOnMac } from '@/utils/platform';
 import { useDeviceType, useHeaderHeight, useIsLandscape, useIsTablet } from '@/utils/responsive';
@@ -50,7 +45,6 @@ import { buildMessageWithAttachmentRefs } from '@/components/composer/Attachment
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as React from 'react';
-import { useMemo } from 'react';
 import { ActivityIndicator, Platform, Pressable, Text, View, useWindowDimensions } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -75,12 +69,7 @@ export const SessionView = React.memo((props: { id: string }) => {
     const isLandscape = useIsLandscape();
     const deviceType = useDeviceType();
     const headerHeight = useHeaderHeight();
-    const realtimeStatus = useRealtimeStatus();
     const isTablet = useIsTablet();
-    // Voice bar normally lives in the tablet sidebar. It needs to appear here
-    // when the sidebar is anything other than fully expanded.
-    const { isExpanded: sidebarExpanded } = useSidebar();
-    const showVoiceInSession = !isTablet || !sidebarExpanded;
     const { width: windowWidth } = useWindowDimensions();
     const [sessionActionsAnchor, setSessionActionsAnchor] = React.useState<SessionActionsAnchor | null>(null);
     const fileDiffsSidebarEnabled = useSetting('fileDiffsSidebar');
@@ -123,7 +112,7 @@ export const SessionView = React.memo((props: { id: string }) => {
     }, []);
 
     // Compute header props based on session state
-    const headerProps = useMemo(() => {
+    const headerProps = React.useMemo(() => {
         if (!isDataReady) {
             return {
                 title: '',
@@ -211,17 +200,11 @@ export const SessionView = React.memo((props: { id: string }) => {
                         onSidebarTogglePress={showSidebar ? toggleSidebar : undefined}
                         sidebarCollapsed={sidebarCollapsed}
                     />
-                    {/* Voice status bar below header — shown here when the sidebar is not visible
-                        (phone, or tablet with the user-hidden sidebar). When the tablet sidebar is
-                        visible, the status bar lives in SidebarView instead. */}
-                    {showVoiceInSession && realtimeStatus !== 'disconnected' && (
-                        <VoiceAssistantStatusBar variant="full" />
-                    )}
                 </View>
             )}
 
             {/* Content based on state */}
-            <View style={{ flex: 1, paddingTop: !(isLandscape && deviceType === 'phone' && Platform.OS !== 'web') ? safeArea.top + headerHeight + (showVoiceInSession && realtimeStatus !== 'disconnected' ? 32 : 0) : 0 }}>
+            <View style={{ flex: 1, paddingTop: !(isLandscape && deviceType === 'phone' && Platform.OS !== 'web') ? safeArea.top + headerHeight : 0 }}>
                 {!isDataReady ? (
                     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                         <ActivityIndicator size="small" color={theme.colors.textSecondary} />
@@ -289,7 +272,6 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
     const [message, setMessage] = React.useState('');
     const messageRef = React.useRef('');
     const composeStartAtRef = React.useRef<number | null>(null);
-    const realtimeStatus = useRealtimeStatus();
     const { messages, isLoaded } = useSessionMessages(sessionId);
     const latestBoundary = useLatestBoundary(sessionId);
     const acknowledgedCliVersions = useLocalSetting('acknowledgedCliVersions');
@@ -514,56 +496,6 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
         },
     }), []);
 
-
-    // Handle microphone button press - memoized to prevent button flashing
-    const handleMicrophonePress = React.useCallback(async () => {
-        if (realtimeStatus === 'connecting') {
-            return; // Prevent actions during transitions
-        }
-        if (realtimeStatus === 'disconnected' || realtimeStatus === 'error') {
-            try {
-                const initialPrompt = voiceHooks.onVoiceStarted(sessionId);
-                const conversationId = await startRealtimeSession(sessionId, initialPrompt);
-                if (conversationId) {
-                    const hasPro = storage.getState().purchases.entitlements['pro'] ?? false;
-                    tracking?.capture('voice_session_started', {
-                        session_id: sessionId,
-                        elevenlabs_conversation_id: conversationId,
-                        has_pro: hasPro,
-                        onboarding_prompt_load_count: getVoiceOnboardingPromptLoadCount(),
-                        voice_message_count: getVoiceMessageCount(),
-                    });
-                }
-            } catch (error) {
-                console.error('Failed to start realtime session:', error);
-                Modal.alert(t('common.error'), t('errors.voiceSessionFailed'));
-                tracking?.capture('voice_session_error', {
-                    session_id: sessionId,
-                    elevenlabs_conversation_id: getCurrentVoiceConversationId(),
-                    error: error instanceof Error ? error.message : 'Unknown error',
-                });
-            }
-        } else if (realtimeStatus === 'connected') {
-            const conversationId = getCurrentVoiceConversationId();
-            const durationSeconds = getCurrentVoiceSessionDurationSeconds();
-            await stopRealtimeSession();
-            tracking?.capture('voice_session_stopped', {
-                session_id: sessionId,
-                elevenlabs_conversation_id: conversationId,
-                ...(durationSeconds !== undefined ? { duration_seconds: durationSeconds } : {}),
-            });
-
-            // Notify voice assistant about voice session stop
-            voiceHooks.onVoiceStopped();
-        }
-    }, [realtimeStatus, sessionId]);
-
-    // Memoize mic button state to prevent flashing during chat transitions
-    const micButtonState = useMemo(() => ({
-        onMicPress: handleMicrophonePress,
-        isMicActive: realtimeStatus === 'connected' || realtimeStatus === 'connecting'
-    }), [handleMicrophonePress, realtimeStatus]);
-
     // Trigger session visibility and initialize git status sync
     React.useLayoutEffect(() => {
 
@@ -573,12 +505,8 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
 
         // Initialize git status sync for this session
         gitStatusSync.getSync(sessionId);
-    }, [sessionId, realtimeStatus]);
+    }, [sessionId]);
 
-    // US-006: NEW useEffect keyed on [sessionId] only — disjoint from the
-    // [sessionId, realtimeStatus]-keyed layoutEffect above (F-046 regression
-    // guard). This is the ONLY entrypoint that resets the new session's
-    // renderWindow and bumps the previous session's prefetch generation.
     React.useEffect(() => {
         sync.onActiveSessionChanged(sessionId);
     }, [sessionId]);
@@ -706,8 +634,6 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                     return true;
                 }
             }}
-            onMicPress={isDisconnected ? undefined : micButtonState.onMicPress}
-            isMicActive={isDisconnected ? false : micButtonState.isMicActive}
             onAbort={isDisconnected ? undefined : handleAbortPress}
             showAbortButton={sessionStatus.state === 'thinking' || sessionStatus.state === 'waiting'}
             onFileViewerPress={experiments ? () => router.push(`/session/${sessionId}/files`) : undefined}
@@ -814,7 +740,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                         paddingVertical: 7,
                         flexDirection: 'row',
                         alignItems: 'center',
-                        zIndex: 998, // Below voice bar but above content
+                        zIndex: 998,
                         shadowColor: '#000',
                         shadowOffset: { width: 0, height: 2 },
                         shadowOpacity: 0.15,

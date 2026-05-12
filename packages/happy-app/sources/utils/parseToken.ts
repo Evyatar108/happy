@@ -1,5 +1,4 @@
-import { decodeBase64 } from "@/encryption/base64";
-import { decodeUTF8, encodeUTF8 } from "@/encryption/text";
+import { decodeBase64Url } from '@/utils/base64url';
 
 export function parseToken(token: string) {
     const parts = token.split('.');
@@ -9,7 +8,7 @@ export function parseToken(token: string) {
     const [header, payload, signature] = parts;
 
     try {
-        const sub = JSON.parse(decodeUTF8(decodeBase64(payload))).sub;
+        const sub = JSON.parse(decodeBase64Url(payload)).sub;
         if (typeof sub !== 'string') {
             throw new Error('Invalid token: missing or invalid sub claim');
         }

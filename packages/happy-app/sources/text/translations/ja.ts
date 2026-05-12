@@ -20,16 +20,8 @@ function plural({ count, singular, plural }: { count: number; singular: string; 
 export const ja: TranslationStructure = {
     tabs: {
         // Tab navigation labels
-        inbox: '受信トレイ',
         sessions: 'ターミナル',
         settings: '設定',
-    },
-
-    inbox: {
-        // Inbox screen
-        emptyTitle: '受信トレイは空です',
-        emptyDescription: '友達と接続してセッションを共有しましょう',
-        updates: '更新',
     },
 
     common: {
@@ -158,8 +150,6 @@ export const ja: TranslationStructure = {
     },
 
     connect: {
-        restoreAccount: 'アカウントを復元',
-        enterSecretKey: 'シークレットキーを入力してください',
         invalidSecretKey: 'シークレットキーが無効です。確認して再試行してください。',
         enterUrlManually: 'URLを手動で入力',
     },
@@ -178,14 +168,12 @@ export const ja: TranslationStructure = {
         accountSubtitle: 'アカウントの詳細を管理',
         appearance: '外観',
         appearanceSubtitle: 'アプリの見た目をカスタマイズ',
-        voiceAssistant: '音声アシスタント',
-        voiceAssistantSubtitle: '音声操作の設定',
         featuresTitle: '機能',
         featuresSubtitle: 'アプリ機能の有効/無効を切り替え',
         developer: '開発者',
         developerTools: '開発者ツール',
         about: 'このアプリについて',
-        aboutFooter: 'Happy CoderはCodexとClaude Codeのモバイルクライアントです。完全なエンドツーエンド暗号化を採用し、アカウントはデバイスにのみ保存されます。Anthropicとは提携していません。',
+        aboutFooter: 'Happy Coder is a Codex and Claude Code mobile client that connects through your paired Dev Tunnels machines. Not affiliated with Anthropic.',
         whatsNew: '新機能',
         whatsNewSubtitle: '最新のアップデートと改善を確認',
         reportIssue: '問題を報告',
@@ -195,13 +183,10 @@ export const ja: TranslationStructure = {
         supportUs: '開発を支援',
         supportUsSubtitlePro: 'ご支援ありがとうございます！',
         supportUsSubtitle: 'プロジェクト開発を支援',
-        scanQrCodeToAuthenticate: 'QRコードをスキャンして認証',
         githubConnected: ({ login }: { login: string }) => `@${login}として接続中`,
         connectGithubAccount: 'GitHubアカウントを接続',
         claudeAuthSuccess: 'Claudeへの接続に成功しました',
         exchangingTokens: 'トークンを交換中...',
-        usage: '使用状況',
-        usageSubtitle: 'API使用量とコストを確認',
         // Dynamic settings messages
         accountConnected: ({ service }: { service: string }) => `${service}アカウントが接続されました`,
         machineStatus: ({ name, status }: { name: string; status: 'online' | 'offline' }) =>
@@ -304,11 +289,6 @@ export const ja: TranslationStructure = {
         tryAgain: '再試行してください',
         contactSupport: '問題が続く場合はサポートにお問い合わせください',
         sessionNotFound: 'セッションが見つかりません',
-        voiceSessionFailed: '音声セッションの開始に失敗しました',
-        voiceServiceUnavailable: '音声サービスは一時的に利用できません',
-        voiceLimitReachedTitle: '音声の上限に達しました',
-        voiceHardLimitReached: ({ hours }: { hours: number }) => `今月${hours}時間以上の音声を使用しました。これは許可される最大量です。音声設定で独自の ElevenLabs エージェントを設定して、自分のクォータを使用できます。`,
-        voiceConversationLimitReached: '今月の音声会話の最大数に達しました。将来的にオンデマンドの音声利用を追加する可能性があります。この制限に達した場合は、github.com/nicepkg/happy/issues で issue を作成してください。',
         oauthInitializationFailed: 'OAuth フローの初期化に失敗しました',
         tokenStorageFailed: '認証トークンの保存に失敗しました',
         oauthStateMismatch: 'セキュリティ検証に失敗しました。再試行してください',
@@ -334,16 +314,15 @@ export const ja: TranslationStructure = {
             `${seconds}秒後に再試行`,
         errorWithCode: ({ message, code }: { message: string; code: number | string }) =>
             `${message} (エラー ${code})`,
-        disconnectServiceFailed: ({ service }: { service: string }) =>
-            `${service}の切断に失敗しました`,
-        connectServiceFailed: ({ service }: { service: string }) =>
-            `${service}の接続に失敗しました。再試行してください。`,
         failedToLoadFriends: '友達リストの読み込みに失敗しました',
         failedToAcceptRequest: '友達リクエストの承認に失敗しました',
         failedToRejectRequest: '友達リクエストの拒否に失敗しました',
         failedToRemoveFriend: '友達の削除に失敗しました',
         searchFailed: '検索に失敗しました。再試行してください。',
         failedToSendRequest: '友達リクエストの送信に失敗しました',
+        deviceCodeExpiredTitle: 'マシンのペアリングが期限切れです',
+        deviceCodeExpiredMessage: ({ machineId }: { machineId: string }) =>
+            `マシン "${machineId}" のペアリングが期限切れです。接続を復元するには、このマシンを再ペアリングしてください。`,
     },
 
     newSession: {
@@ -749,38 +728,6 @@ export const ja: TranslationStructure = {
         deleted: '削除済み',
     },
 
-    settingsVoice: {
-        // Voice settings screen
-        languageTitle: '言語',
-        languageDescription: '音声アシスタントの操作に使用する言語を選択します。この設定はすべてのデバイスで同期されます。',
-        preferredLanguage: '優先言語',
-        preferredLanguageSubtitle: '音声アシスタントの応答に使用する言語',
-        language: {
-            searchPlaceholder: '言語を検索...',
-            title: '言語',
-            footer: ({ count }: { count: number }) => `${count}言語が利用可能`,
-            autoDetect: '自動検出',
-        },
-        // Bring your own agent
-        byoTitle: '自分のエージェントを使う',
-        byoDescription: 'Happy のデフォルトの代わりに、独自の ElevenLabs エージェントを使用します。サブスクリプション不要 — 自分の ElevenLabs アカウントで直接接続できます。エージェントには2つのクライアントツールを定義する必要があります: messageClaudeCode（コーディングエージェントにテキストを送信）と processPermissionRequest（ツール使用を許可または拒否）。セッションコンテキストは {{initialConversationContext}} 動的変数を通じて受信されます。',
-        customAgentId: 'ElevenLabs Agent ID',
-        customAgentIdNotSet: '未設定',
-        customAgentIdDescription: 'ElevenLabs Agent ID を入力してください。空のままにすると Happy のデフォルトが使用されます。',
-        customAgentIdPlaceholder: 'e.g. abc123def456',
-        bypassToken: '直接接続',
-        bypassTokenSubtitle: 'Happy サーバーをスキップし、ElevenLabs に直接接続',
-        promptGuideTitle: 'エージェントプロンプトガイド',
-        promptGuideDescription: 'ElevenLabs エージェントには以下が必要です:\n\n• ツール: messageClaudeCode — パラメータ: message (string)。アクティブなコーディングセッションにメッセージを送信します。\n• ツール: processPermissionRequest — パラメータ: decision ("allow" または "deny")。保留中のツール許可を承認または拒否します。\n• 動的変数: {{initialConversationContext}} — 開始時にセッション履歴とコンテキストを受信します。\n\nエージェントはユーザーとコーディングエージェント間の音声ブリッジとして機能します。簡潔に、話しかけられた時のみ応答し、コーディングエージェントが作業を完了したら報告する必要があります。',
-        usageTitle: '使用状況（過去30日間）',
-        usageFooter: '過去30日間に使用した音声時間。無料プラン: 20分。サブスクリプション: 5時間。月間最大100会話。',
-        usageLabel: '音声時間',
-        conversationsLabel: '会話',
-        usageUsed: ({ used, limit }: { used: string; limit: string }) => `${limit}中${used}使用済み`,
-        supportTitle: '音声をアップグレード',
-        supportSubtitle: '音声時間を増やして開発を支援',
-    },
-
     settingsAccount: {
         // Account settings screen
         accountInformation: 'アカウント情報',
@@ -791,20 +738,14 @@ export const ja: TranslationStructure = {
         publicId: '公開ID',
         notAvailable: '利用不可',
         linkNewDevice: '新しいデバイスをリンク',
-        linkNewDeviceSubtitle: 'QRコードをスキャンしてデバイスをリンク',
         profile: 'プロフィール',
         name: '名前',
         github: 'GitHub',
         tapToDisconnect: 'タップして切断',
         server: 'サーバー',
         backup: 'バックアップ',
-        backupDescription: 'シークレットキーはアカウントを復元する唯一の方法です。パスワードマネージャーなどの安全な場所に保存してください。',
-        secretKey: 'シークレットキー',
         tapToReveal: 'タップして表示',
         tapToHide: 'タップして非表示',
-        secretKeyLabel: 'シークレットキー (タップでコピー)',
-        secretKeyCopied: 'シークレットキーがクリップボードにコピーされました。安全な場所に保管してください！',
-        secretKeyCopyFailed: 'シークレットキーのコピーに失敗しました',
         privacy: 'プライバシー',
         privacyDescription: '匿名の使用データを共有してアプリの改善にご協力ください。個人情報は収集されません。',
         analytics: 'アナリティクス',
@@ -828,11 +769,6 @@ export const ja: TranslationStructure = {
         restartNow: '今すぐ再起動',
     },
 
-    connectButton: {
-        authenticate: 'ターミナルを認証',
-        authenticateWithUrlPaste: 'URLペーストでターミナルを認証',
-        pasteAuthUrl: 'ターミナルから認証URLを貼り付け',
-    },
 
     updateBanner: {
         updateAvailable: 'アップデートが利用可能',
@@ -850,29 +786,6 @@ export const ja: TranslationStructure = {
         noEntriesAvailable: '変更履歴はありません。',
     },
 
-    terminal: {
-        // Used by terminal connection screens
-        webBrowserRequired: 'Webブラウザが必要です',
-        webBrowserRequiredDescription: 'ターミナル接続リンクはセキュリティ上の理由からWebブラウザでのみ開くことができます。QRコードスキャナーを使用するか、コンピューターでこのリンクを開いてください。',
-        processingConnection: '接続を処理中...',
-        invalidConnectionLink: '無効な接続リンク',
-        invalidConnectionLinkDescription: '接続リンクが見つからないか無効です。URLを確認して再試行してください。',
-        connectTerminal: 'ターミナルを接続',
-        terminalRequestDescription: 'ターミナルがHappy Coderアカウントへの接続を要求しています。これにより、ターミナルは安全にメッセージを送受信できるようになります。',
-        connectionDetails: '接続の詳細',
-        publicKey: '公開鍵',
-        encryption: '暗号化',
-        endToEndEncrypted: 'エンドツーエンド暗号化',
-        acceptConnection: '接続を承認',
-        connecting: '接続中...',
-        reject: '拒否',
-        security: 'セキュリティ',
-        securityFooter: 'この接続リンクはブラウザ内で安全に処理され、サーバーには送信されませんでした。あなたのプライベートデータは安全に保たれ、メッセージを復号できるのはあなただけです。',
-        securityFooterDevice: 'この接続はデバイス上で安全に処理され、サーバーには送信されませんでした。あなたのプライベートデータは安全に保たれ、メッセージを復号できるのはあなただけです。',
-        clientSideProcessing: 'クライアントサイド処理',
-        linkProcessedLocally: 'リンクはブラウザ内でローカルに処理されました',
-        linkProcessedOnDevice: 'リンクはデバイス上でローカルに処理されました',
-    },
 
     modals: {
         // Used across connect flows and settings
@@ -886,10 +799,6 @@ export const ja: TranslationStructure = {
         developerModeDisabled: '開発者モードが無効になりました',
         disconnectGithub: 'GitHubを切断',
         disconnectGithubConfirm: 'GitHubアカウントを切断してもよろしいですか？',
-        disconnectService: ({ service }: { service: string }) =>
-            `${service}を切断`,
-        disconnectServiceConfirm: ({ service }: { service: string }) =>
-            `${service}をアカウントから切断してもよろしいですか？`,
         disconnect: '切断',
         failedToConnectTerminal: 'ターミナルの接続に失敗しました',
         cameraPermissionsRequiredToConnectTerminal: 'ターミナルの接続にはカメラの権限が必要です',
@@ -899,9 +808,7 @@ export const ja: TranslationStructure = {
 
     navigation: {
         // Navigation titles and screen headers
-        connectTerminal: 'ターミナルを接続',
         linkNewDevice: '新しいデバイスをリンク',
-        restoreWithSecretKey: 'シークレットキーで復元',
         whatsNew: "新機能",
         friends: '友達',
     },
@@ -909,16 +816,11 @@ export const ja: TranslationStructure = {
     welcome: {
         // Main welcome screen for unauthenticated users
         title: 'CodexとClaude Codeのモバイルクライアント',
-        subtitle: 'エンドツーエンド暗号化され、アカウントはデバイスにのみ保存されます。',
+        subtitle: 'Connect to your paired Dev Tunnels machines and keep your account on this device.',
         createAccount: 'アカウントを作成',
         linkOrRestoreAccount: 'アカウントをリンクまたは復元',
         loginWithMobileApp: 'モバイルアプリでログイン',
         pairMachine: 'マシンをペアリング',
-        trustMachine: 'このマシンを信頼しますか？',
-        trust: '信頼',
-        ed25519Fingerprint: ({ fingerprint }: { fingerprint: string }) => `Ed25519 フィンガープリント:\n${fingerprint}`,
-        pubkeyRotationTitle: '公開鍵が変更されました',
-        pubkeyRotationWarning: 'このマシンは、以前信頼したものとは異なる公開鍵を提示しています。そのコンピューターで Happy を再インストールまたはリセットした場合のみ続行してください。',
         noMachinesForIdentity: 'この GitHub ID のマシンは返されませんでした',
         deviceAuthorizationExpired: 'GitHub デバイス認証の期限が切れました',
         pairingFailed: 'Failed to pair machine',
@@ -1023,34 +925,6 @@ export const ja: TranslationStructure = {
         mermaidRenderFailed: 'Mermaidダイアグラムのレンダリングに失敗しました',
     },
 
-    artifacts: {
-        // Artifacts feature
-        title: 'アーティファクト',
-        countSingular: '1件のアーティファクト',
-        countPlural: ({ count }: { count: number }) => `${count}件のアーティファクト`,
-        empty: 'アーティファクトはまだありません',
-        emptyDescription: '最初のアーティファクトを作成して始めましょう',
-        new: '新規アーティファクト',
-        edit: 'アーティファクトを編集',
-        delete: '削除',
-        updateError: 'アーティファクトの更新に失敗しました。再試行してください。',
-        notFound: 'アーティファクトが見つかりません',
-        discardChanges: '変更を破棄しますか？',
-        discardChangesDescription: '保存されていない変更があります。破棄してもよろしいですか？',
-        deleteConfirm: 'アーティファクトを削除しますか？',
-        deleteConfirmDescription: 'この操作は取り消せません',
-        titleLabel: 'タイトル',
-        titlePlaceholder: 'アーティファクトのタイトルを入力',
-        bodyLabel: 'コンテンツ',
-        bodyPlaceholder: 'ここにコンテンツを書いてください...',
-        emptyFieldsError: 'タイトルまたはコンテンツを入力してください',
-        createError: 'アーティファクトの作成に失敗しました。再試行してください。',
-        save: '保存',
-        saving: '保存中...',
-        loading: 'アーティファクトを読み込み中...',
-        error: 'アーティファクトの読み込みに失敗しました',
-    },
-
     friends: {
         // Friends feature
         title: '友達',
@@ -1101,26 +975,4 @@ export const ja: TranslationStructure = {
         denyRequest: '友達リクエストを拒否',
         nowFriendsWith: ({ name }: { name: string }) => `${name}さんと友達になりました`,
     },
-
-    usage: {
-        // Usage panel strings
-        today: '今日',
-        last7Days: '過去7日間',
-        last30Days: '過去30日間',
-        totalTokens: '合計トークン',
-        totalCost: '合計コスト',
-        tokens: 'トークン',
-        cost: 'コスト',
-        usageOverTime: '使用量の推移',
-        byModel: 'モデル別',
-        noData: '使用データがありません',
-    },
-
-    feed: {
-        // Feed notifications for friend requests and acceptances
-        friendRequestFrom: ({ name }: { name: string }) => `${name}さんから友達リクエストが届きました`,
-        friendRequestGeneric: '新しい友達リクエスト',
-        friendAccepted: ({ name }: { name: string }) => `${name}さんと友達になりました`,
-        friendAcceptedGeneric: '友達リクエストが承認されました',
-    }
 } as const;
