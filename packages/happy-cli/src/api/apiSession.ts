@@ -1012,7 +1012,8 @@ export class ApiSessionClient extends EventEmitter {
         return this.metadataLock.inLock(async () => {
             await this.socketReady;
             await backoff(async () => {
-                const socket = this.socket!;
+                const socket = this.socket;
+                if (!socket) { throw new Error('socket not yet constructed'); }
                 let updated = handler(this.metadata!); // Weird state if metadata is null - should never happen but here we are
                 const answer = await socket.emitWithAck('update-metadata', { sid: this.sessionId, expectedVersion: this.metadataVersion, metadata: encodeBase64(encrypt(this.encryptionKey, this.encryptionVariant, updated)) });
                 if (answer.result === 'success') {
@@ -1042,7 +1043,8 @@ export class ApiSessionClient extends EventEmitter {
         this.agentStateLock.inLock(async () => {
             await this.socketReady;
             await backoff(async () => {
-                const socket = this.socket!;
+                const socket = this.socket;
+                if (!socket) { throw new Error('socket not yet constructed'); }
                 let updated = handler(this.agentState || {});
                 const answer = await socket.emitWithAck('update-state', { sid: this.sessionId, expectedVersion: this.agentStateVersion, agentState: updated ? encodeBase64(encrypt(this.encryptionKey, this.encryptionVariant, updated)) : null });
                 if (answer.result === 'success') {

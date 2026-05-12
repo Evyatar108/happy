@@ -97,7 +97,7 @@ const PARENT_SESSION_ID_SHAPE = /^[A-Za-z0-9_-]+$/;
 
 export class ApiMachineClient {
     private socket: Socket<ServerToDaemonEvents, DaemonToServerEvents> | null = null;
-    private socketReady: Promise<void> = Promise.resolve();
+    private socketReady: Promise<void> = new Promise(() => { /* resolves only after connect() assigns this.socket */ });
     private keepAliveInterval: NodeJS.Timeout | null = null;
     private lastKnownCLIAvailability: CLIAvailability | null = null;
     private lastKnownResumeSupport: ResumeSupport | null = null;
@@ -315,7 +315,8 @@ export class ApiMachineClient {
     async updateMachineMetadata(handler: (metadata: MachineMetadata | null) => MachineMetadata): Promise<void> {
         await this.socketReady;
         await backoff(async () => {
-            const socket = this.socket!;
+            const socket = this.socket;
+            if (!socket) { throw new Error('socket not yet constructed'); }
             const updated = handler(this.machine.metadata);
 
             const answer = await socket.emitWithAck('machine-update-metadata', {
@@ -345,7 +346,8 @@ export class ApiMachineClient {
     async updateDaemonState(handler: (state: DaemonState | null) => DaemonState): Promise<void> {
         await this.socketReady;
         await backoff(async () => {
-            const socket = this.socket!;
+            const socket = this.socket;
+            if (!socket) { throw new Error('socket not yet constructed'); }
             const updated = handler(this.machine.daemonState);
 
             const answer = await socket.emitWithAck('machine-update-state', {
