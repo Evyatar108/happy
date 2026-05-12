@@ -142,6 +142,28 @@ describe('pairing', () => {
         });
     });
 
+    it('rejects authorized pair status with zero machines or more than one machine', async () => {
+        (global.fetch as any).mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ status: 'authorized', machines: [] }),
+        });
+
+        await expect(pollPairStatus(machine, 'device-1', 5)).rejects.toThrow('exactly one machine');
+
+        (global.fetch as any).mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                status: 'authorized',
+                machines: [
+                    { machineId: 'machine-1', tunnelUrl: 'https://m1.example.test', tunnelClaim: encodeClaim({ accountId: 1 }) },
+                    { machineId: 'machine-2', tunnelUrl: 'https://m2.example.test', tunnelClaim: encodeClaim({ accountId: 2 }) },
+                ],
+            }),
+        });
+
+        await expect(pollPairStatus(machine, 'device-1', 5)).rejects.toThrow('exactly one machine');
+    });
+
     it('best-effort fetches GitHub user profile metadata from the OAuth token', async () => {
         (global.fetch as any).mockResolvedValue({
             ok: true,

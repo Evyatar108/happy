@@ -159,7 +159,7 @@ export async function pollPairStatus(machine: MachineTunnel, deviceCode: string,
     }
     const data = await response.json() as PairStatusResponse;
     if (data.status === 'authorized') {
-        assertAuthorizedPairingHasAccountId(data);
+        assertPrimaryMachineHasAccountId(data);
     }
     return {
         ...data,
@@ -217,10 +217,10 @@ export function parseTunnelClaimPayload(tunnelClaim: string): TunnelClaimPayload
     return JSON.parse(decodeBase64Url(envelope.p)) as TunnelClaimPayload;
 }
 
-function assertAuthorizedPairingHasAccountId(status: PairStatusResponse): void {
-    const machine = status.machines?.[0];
-    if (!machine) throw new Error('Pairing response did not include a machine');
-    const payload = parseTunnelClaimPayload(machine.tunnelClaim);
+function assertPrimaryMachineHasAccountId(status: PairStatusResponse): void {
+    const machines = status.machines ?? [];
+    if (machines.length !== 1) throw new Error(`Pairing response must contain exactly one machine, got ${machines.length}`);
+    const payload = parseTunnelClaimPayload(machines[0].tunnelClaim);
     if (payload.accountId === undefined) {
         throw new PairingClaimMissingAccountId();
     }
