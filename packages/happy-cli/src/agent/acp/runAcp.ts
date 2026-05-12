@@ -11,8 +11,6 @@ import { logger } from '@/ui/logger';
 import { MessageQueue2 } from '@/utils/MessageQueue2';
 import { hashObject } from '@/utils/deterministicJson';
 import { Credentials, readSettings } from '@/persistence';
-import { initialMachineMetadata } from '@/daemon/run';
-import { getLocalMachine } from '@/daemon/getLocalMachine';
 import { createSessionMetadata } from '@/utils/createSessionMetadata';
 import { setupOfflineReconnection } from '@/utils/setupOfflineReconnection';
 import { notifyDaemonSessionStarted } from '@/daemon/controlClient';
@@ -469,10 +467,6 @@ export async function runAcp(opts: {
   const settings = await readSettings();
   if (!settings?.machineId) {
     throw new Error('No machine ID found in settings');
-  }
-
-  if (opts.credentials.encryption) {
-    getLocalMachine({ credentials: opts.credentials, machineId: settings.machineId, metadata: initialMachineMetadata });
   }
 
   const { state, metadata } = createSessionMetadata({
