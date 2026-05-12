@@ -78,7 +78,7 @@ Ranking is by **e-ink tablet quality-of-life** (the fork's primary target), then
 ## Further out (mentioned in brainstorm, not planned yet)
 
 - **Stream throttle / "quiet mode"** during agent streaming — coalesce token-by-token updates into 1–2 Hz redraws on e-ink. Biggest latent e-ink win but touches the message reducer, not just presentation. *Flagged for promotion to Near-term by the 2026-04-24 multi-model brainstorm (Claude × 2 + Codex + Copilot); two reviewers independently argued it outweighs cold-open latency on felt impact during active sessions.*
-- **E-ink display profile** (single switch bundling: no animations, Skia fallbacks for `VoiceBars`/`ShimmerView`/`AvatarSkia`, monochrome theme, `animationEnabled: false` on navigation). Builds on top of the above.
+- **E-ink display profile** (single switch bundling: no animations, Skia fallbacks for `ShimmerView`/`AvatarSkia`, monochrome theme, `animationEnabled: false` on navigation). Builds on top of the above.
 - **"Collapse noise" defaults** — default-collapse tool-call views, default-hide thinking, cap long bash output.
 
 ---
