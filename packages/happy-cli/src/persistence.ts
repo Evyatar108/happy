@@ -4,10 +4,11 @@
  * Handles settings and private key storage in ~/.happy/ or local .happy/
  */
 
-import { FileHandle } from 'node:fs/promises'
-import { readFile, writeFile, mkdir, open, unlink, rename, stat } from 'node:fs/promises'
+import { readFile, writeFile, mkdir, open, unlink, stat } from 'node:fs/promises'
+import type { FileHandle } from 'node:fs/promises'
 import { chmodSync, existsSync, writeFileSync, readFileSync, unlinkSync, renameSync } from 'node:fs'
 import { constants } from 'node:fs'
+import { writeJsonAtomically } from '@slopus/happy-wire/node';
 import { configuration } from '@/configuration'
 import * as z from 'zod';
 import { encodeBase64, decodeBase64 } from '@/api/encryption';
@@ -142,7 +143,7 @@ export async function writeSettings(settings: Settings): Promise<void> {
     schemaVersion: settings.schemaVersion ?? SUPPORTED_SCHEMA_VERSION
   };
 
-  await writeFile(configuration.settingsFile, JSON.stringify(settingsWithVersion, null, 2))
+  await writeJsonAtomically(configuration.settingsFile, settingsWithVersion)
 }
 
 /**
@@ -159,7 +160,6 @@ export async function updateSettings(
   const STALE_LOCK_TIMEOUT_MS = 10000; // Consider lock stale after 10 seconds
 
   const lockFile = configuration.settingsFile + '.lock';
-  const tmpFile = configuration.settingsFile + '.tmp';
   let fileHandle;
   let attempts = 0;
 
@@ -204,9 +204,7 @@ export async function updateSettings(
       await mkdir(configuration.happyHomeDir, { recursive: true });
     }
 
-    // Write atomically using rename
-    await writeFile(tmpFile, JSON.stringify(updated, null, 2));
-    await rename(tmpFile, configuration.settingsFile); // Atomic on POSIX
+    await writeJsonAtomically(configuration.settingsFile, updated)
 
     return updated;
   } finally {
@@ -245,15 +243,7 @@ export async function readCredentials(): Promise<Credentials | null> {
   try {
     const keyBase64 = (await readFile(configuration.privateKeyFile, 'utf8'));
     const credentials = credentialsSchema.parse(JSON.parse(keyBase64));
-    if (credentials.secret) {
-      return {
-        token: credentials.token,
-        encryption: {
-          type: 'legacy',
-          secret: new Uint8Array(Buffer.from(credentials.secret, 'base64'))
-        }
-      };
-    } else if (credentials.encryption) {
+    if (credentials.encryption) {
       return {
         token: credentials.token,
         encryption: {
@@ -262,6 +252,14 @@ export async function readCredentials(): Promise<Credentials | null> {
           machineKey: new Uint8Array(Buffer.from(credentials.encryption.machineKey, 'base64'))
         }
       }
+    } else if (credentials.secret) {
+      return {
+        token: credentials.token,
+        encryption: {
+          type: 'legacy',
+          secret: new Uint8Array(Buffer.from(credentials.secret, 'base64'))
+        }
+      };
     }
   } catch {
     return null
@@ -273,20 +271,20 @@ export async function writeCredentialsLegacy(credentials: { secret: Uint8Array, 
   if (!existsSync(configuration.happyHomeDir)) {
     await mkdir(configuration.happyHomeDir, { recursive: true })
   }
-  await writeFile(configuration.privateKeyFile, JSON.stringify({
+  await writeJsonAtomically(configuration.privateKeyFile, {
     secret: encodeBase64(credentials.secret),
     token: credentials.token
-  }, null, 2));
+  });
 }
 
 export async function writeCredentialsDataKey(credentials: { publicKey: Uint8Array, machineKey: Uint8Array, token: string }): Promise<void> {
   if (!existsSync(configuration.happyHomeDir)) {
     await mkdir(configuration.happyHomeDir, { recursive: true })
   }
-  await writeFile(configuration.privateKeyFile, JSON.stringify({
+  await writeJsonAtomically(configuration.privateKeyFile, {
     encryption: { publicKey: encodeBase64(credentials.publicKey), machineKey: encodeBase64(credentials.machineKey) },
     token: credentials.token
-  }, null, 2));
+  });
 }
 
 export async function clearCredentials(): Promise<void> {

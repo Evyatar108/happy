@@ -2,9 +2,9 @@ import { z } from "zod";
 import * as fs from "fs/promises";
 import * as os from "os";
 import * as path from "path";
+import { writeJsonAtomically } from "@slopus/happy-wire/node";
 import { type Fastify } from "../types";
 import { type ApiPaths } from "../api";
-import { writeJsonAtomically } from "../utils/writeJsonAtomically";
 import { requireAccountIdForTunnel } from "../utils/requireAccountIdForTunnel";
 
 const ProfileSchema = z.object({

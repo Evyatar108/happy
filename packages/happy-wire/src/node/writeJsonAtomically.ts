@@ -1,10 +1,7 @@
-import * as fs from "fs/promises";
-import * as path from "path";
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+import { applyOwnerOnlyPerms } from './applyOwnerOnlyPerms';
 
-/**
- * Walk every ancestor of `dir` and throw if any segment is a symlink.
- * Stops early on ENOENT (directory does not yet exist — mkdir will create it).
- */
 async function assertNoSymlinkInAncestors(dir: string): Promise<void> {
     const resolved = path.resolve(dir);
     const parsed = path.parse(resolved);
@@ -19,16 +16,12 @@ async function assertNoSymlinkInAncestors(dir: string): Promise<void> {
             }
         } catch (error) {
             const code = (error as NodeJS.ErrnoException).code;
-            if (code === "ENOENT") return;
+            if (code === 'ENOENT') return;
             throw error;
         }
     }
 }
 
-/**
- * Write `value` as pretty-printed JSON to `filePath` atomically (tmp + rename),
- * with mode 0o600 and symlink/realpath confinement.
- */
 export async function writeJsonAtomically(filePath: string, value: unknown): Promise<void> {
     const dir = path.dirname(filePath);
     await assertNoSymlinkInAncestors(dir);
@@ -41,9 +34,7 @@ export async function writeJsonAtomically(filePath: string, value: unknown): Pro
     try {
         await fs.writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
         await fs.rename(tempPath, filePath);
-        if (process.platform !== "win32") {
-            await fs.chmod(filePath, 0o600);
-        }
+        await applyOwnerOnlyPerms(filePath);
     } catch (error) {
         await fs.unlink(tempPath).catch(() => undefined);
         throw error;
