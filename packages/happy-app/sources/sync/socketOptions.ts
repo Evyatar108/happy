@@ -29,7 +29,7 @@ export async function buildTunnelSocketOptions(credentials: AuthCredentials, mac
         auth: {
             clientType: 'user-scoped' as const,
             happyClient,
-            machineId: credentials.machineId,
+            machineId,
             ...tunnelHeaders,
         },
         extraHeaders: headers,
