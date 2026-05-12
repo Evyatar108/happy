@@ -12,6 +12,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import { Server as SocketIoServer } from 'socket.io';
 import {
     encodeBase64,
     decodeBase64,
@@ -364,6 +365,122 @@ describe('Smoke: machines command tunnel join', () => {
             rmSync(homeDir, { recursive: true, force: true });
         }
     });
+});
+
+describe('Smoke: spawn and resume tunnel RPC wiring', () => {
+    it('refreshes tunnel claims and sends plaintext spawn/resume RPC params', async () => {
+        const creds = makeCredentials();
+        const metadata = {
+            host: 'laptop',
+            platform: 'linux',
+            homeDir: '/home/octo',
+            resumeSupport: { rpcAvailable: true, happyAgentAuthenticated: true },
+        };
+        const rawMachine = {
+            id: 'machine-1',
+            seq: 1,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            active: true,
+            activeAt: Date.now(),
+            metadata: encodeBase64(encryptLegacy(metadata, creds.secret)),
+            metadataVersion: 1,
+            daemonState: encodeBase64(encryptLegacy({ status: 'ready' }, creds.secret)),
+            daemonStateVersion: 1,
+            dataEncryptionKey: null,
+        };
+        const rawSession = makeRawSessionLegacy(creds, { machineId: 'machine-1', path: '/repo' }, null, { id: 'session-source' });
+        const rpcCalls: Array<{ method: string; params: unknown; auth: unknown }> = [];
+        let pairStatusCalls = 0;
+        let tunnelUrl = '';
+
+        const server = createServer((req, res) => {
+            if (req.method === 'GET' && req.url === '/v1/machines') {
+                res.writeHead(200, { 'content-type': 'application/json' });
+                res.end(JSON.stringify([rawMachine]));
+                return;
+            }
+            if (req.method === 'GET' && req.url === '/v1/sessions') {
+                res.writeHead(200, { 'content-type': 'application/json' });
+                res.end(JSON.stringify({ sessions: [rawSession] }));
+                return;
+            }
+            if (req.method === 'POST' && req.url === '/pair/status') {
+                pairStatusCalls += 1;
+                const now = Math.floor(Date.now() / 1000);
+                res.writeHead(200, { 'content-type': 'application/json' });
+                res.end(JSON.stringify({
+                    status: 'authorized',
+                    machines: [{
+                        machineId: 'machine-1',
+                        tunnelUrl,
+                        tunnelClaim: encodeTunnelClaim({ accountId: 123, iat: now, exp: now + 600, jti: `jti-${pairStatusCalls}` }),
+                    }],
+                }));
+                return;
+            }
+            res.writeHead(404);
+            res.end();
+        });
+        const ioServer = new SocketIoServer(server, { path: '/v1/updates', transports: ['websocket'] });
+        ioServer.on('connection', socket => {
+            socket.on('rpc-call', (payload: { method: string; params: unknown }, ack: (response: unknown) => void) => {
+                rpcCalls.push({ method: payload.method, params: payload.params, auth: socket.handshake.auth });
+                const sessionId = payload.method.endsWith(':resume-happy-session') ? 'session-resumed' : 'session-spawned';
+                ack({ ok: true, result: { type: 'success', sessionId, worktreePath: '/repo/.worktree', branchName: 'branch-1', runId: 'run-1' } });
+            });
+        });
+        await new Promise<void>(resolveListen => server.listen(0, '127.0.0.1', resolveListen));
+        const address = server.address();
+        if (!address || typeof address === 'string') throw new Error('Failed to bind test server');
+
+        const homeDir = mkdtempSync(join(tmpdir(), 'happy-agent-cli-rpc-'));
+        tunnelUrl = `http://127.0.0.1:${address.port}`;
+        writeFileSync(join(homeDir, 'credentials.json'), JSON.stringify({
+            githubLogin: 'octocat',
+            deviceCode: 'device-code',
+            deviceCodeExpiresAt: Math.floor(Date.now() / 1000) + 900,
+            pairingBaseUrl: tunnelUrl,
+            machines: [{
+                machineId: 'machine-1',
+                tunnelUrl,
+                tunnelClaim: encodeTunnelClaim({ accountId: 123, iat: 1, exp: 2, jti: 'initial-jti' }),
+                accountId: 123,
+                ed25519PublicKey: 'ed',
+                x25519PublicKey: 'x',
+            }],
+            legacyToken: 'test-jwt-token',
+            legacySecret: encodeBase64(creds.secret),
+        }));
+
+        try {
+            const env = { HAPPY_AGENT_HOME_DIR: homeDir, HAPPY_SERVER_URL: tunnelUrl };
+            const legacySpawn = await runCliAsync(env, 'spawn', '--machine', 'machine-1', '--path', '/repo', '--json');
+            expect(legacySpawn.exitCode).toBe(0);
+
+            const worktreeSpawn = await runCliAsync(env, 'spawn', '--machine', 'machine-1', '--new-worktree', '--repo', '/repo', '--agent', 'codex', '--json');
+            expect(worktreeSpawn.exitCode).toBe(0);
+
+            const resume = await runCliAsync(env, 'resume', 'session-source', '--json');
+            expect(resume.exitCode).toBe(0);
+
+            expect(pairStatusCalls).toBe(3);
+            expect(rpcCalls.map(call => call.method)).toEqual([
+                'machine-1:spawn-happy-session',
+                'machine-1:spawn-in-worktree',
+                'machine-1:resume-happy-session',
+            ]);
+            expect(rpcCalls.every(call => typeof call.params === 'object' && call.params !== null && !Array.isArray(call.params))).toBe(true);
+            expect(rpcCalls[0].params).toMatchObject({ machineId: 'machine-1', type: 'spawn-in-directory', directory: '/repo' });
+            expect(rpcCalls[1].params).toMatchObject({ machineId: 'machine-1', repoPath: '/repo', agent: 'codex' });
+            expect(rpcCalls[2].params).toEqual({ machineId: 'machine-1', sessionId: 'session-source' });
+            expect(rpcCalls.every(call => (call.auth as { tunnelAuthorization?: string }).tunnelAuthorization?.startsWith('tunnel '))).toBe(true);
+        } finally {
+            ioServer.close();
+            server.close();
+            rmSync(homeDir, { recursive: true, force: true });
+        }
+    }, 20000);
 });
 
 describe('Smoke: --json flag on applicable commands', () => {
