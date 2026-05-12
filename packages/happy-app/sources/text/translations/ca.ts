@@ -319,6 +319,9 @@ export const ca: TranslationStructure = {
         failedToRemoveFriend: 'No s\'ha pogut eliminar l\'amic',
         searchFailed: 'La cerca ha fallat. Si us plau, torna-ho a provar.',
         failedToSendRequest: 'No s\'ha pogut enviar la sol·licitud d\'amistat',
+        deviceCodeExpiredTitle: 'L\'associació de la màquina ha caducat',
+        deviceCodeExpiredMessage: ({ machineId }: { machineId: string }) =>
+            `L\'associació de la màquina "${machineId}" ha caducat. Torneu a associar aquesta màquina per restaurar la connexió.`,
     },
 
     newSession: {

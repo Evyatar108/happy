@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { apiSocket, getHappyClientId } from '@/sync/apiSocket';
 import { AuthCredentials, TokenStorage } from '@/auth/tokenStorage';
-import { tunnelFetch } from '@/auth/machineAuth';
+import { tunnelFetch, DeviceCodeExpired, ClaimExpired } from '@/auth/machineAuth';
 import { storage } from './storage';
 import { ApiEphemeralUpdateSchema, ApiMessage, ApiUpdateContainerSchema } from './apiTypes';
 import type { ApiEphemeralActivityUpdate } from './apiTypes';
@@ -1135,6 +1135,11 @@ class Sync {
                     }
                 });
             } catch (error) {
+                if (error instanceof DeviceCodeExpired || error instanceof ClaimExpired) {
+                    storage.getState().markMachineDisconnected(credentials.machineId, Date.now());
+                    this.notifyDeviceCodeExpired(credentials.machineId);
+                    return;
+                }
                 storage.getState().markMachineDisconnected(credentials.machineId, Date.now());
                 console.error(`Failed to fetch sessions for ${credentials.machineId}:`, error);
                 return;
@@ -1209,6 +1214,11 @@ class Sync {
                     }
                 });
             } catch (error) {
+                if (error instanceof DeviceCodeExpired || error instanceof ClaimExpired) {
+                    storage.getState().markMachineDisconnected(credentials.machineId, Date.now());
+                    this.notifyDeviceCodeExpired(credentials.machineId);
+                    return;
+                }
                 console.error(`Failed to fetch machines from ${credentials.machineId}:`, error);
                 return;
             }
@@ -1626,12 +1636,23 @@ class Sync {
         }
     }
 
+    private notifyDeviceCodeExpired = (machineId: string) => {
+        Modal.alert(
+            t('errors.deviceCodeExpiredTitle'),
+            t('errors.deviceCodeExpiredMessage', { machineId }),
+            [{ text: t('common.ok'), style: 'cancel' }],
+        );
+    };
+
     private subscribeToUpdates = () => {
         // Subscribe to message updates
         apiSocket.onMessage('update', (update, machineId) => this.handleUpdate(update, false, machineId));
         apiSocket.onMessage('ephemeral', (update, machineId) => this.handleEphemeralUpdate(update, machineId));
         apiSocket.onMachineDisconnected((machineId, lastSeenAt) => {
             storage.getState().markMachineDisconnected(machineId, lastSeenAt);
+        });
+        apiSocket.onDeviceCodeExpired((machineId) => {
+            this.notifyDeviceCodeExpired(machineId);
         });
 
         // Subscribe to connection state changes

@@ -333,6 +333,9 @@ export const en: TranslationStructure = {
         failedToRemoveFriend: 'Failed to remove friend',
         searchFailed: 'Search failed. Please try again.',
         failedToSendRequest: 'Failed to send friend request',
+        deviceCodeExpiredTitle: 'Machine pairing expired',
+        deviceCodeExpiredMessage: ({ machineId }: { machineId: string }) =>
+            `The pairing for machine "${machineId}" has expired. Please re-pair this machine to restore the connection.`,
     },
 
     newSession: {

@@ -319,6 +319,9 @@ export const zhHant: TranslationStructure = {
         failedToRemoveFriend: '刪除好友失敗',
         searchFailed: '搜尋失敗。請重試。',
         failedToSendRequest: '傳送好友請求失敗',
+        deviceCodeExpiredTitle: '機器配對已過期',
+        deviceCodeExpiredMessage: ({ machineId }: { machineId: string }) =>
+            `機器 "${machineId}" 的配對已過期。請重新配對此機器以恢復連線。`,
     },
 
     newSession: {

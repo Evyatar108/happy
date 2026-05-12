@@ -336,6 +336,9 @@ export const pl: TranslationStructure = {
         failedToRemoveFriend: 'Nie udało się usunąć przyjaciela',
         searchFailed: 'Wyszukiwanie nie powiodło się. Spróbuj ponownie.',
         failedToSendRequest: 'Nie udało się wysłać zaproszenia do znajomych',
+        deviceCodeExpiredTitle: 'Parowanie maszyny wygasło',
+        deviceCodeExpiredMessage: ({ machineId }: { machineId: string }) =>
+            `Parowanie maszyny "${machineId}" wygasło. Sparuj ponownie tę maszynę, aby przywrócić połączenie.`,
     },
 
     newSession: {

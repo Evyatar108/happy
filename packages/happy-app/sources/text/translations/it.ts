@@ -317,6 +317,9 @@ export const it: TranslationStructure = {
         failedToRemoveFriend: 'Impossibile rimuovere l\'amico',
         searchFailed: 'Ricerca non riuscita. Riprova.',
         failedToSendRequest: 'Impossibile inviare la richiesta di amicizia',
+        deviceCodeExpiredTitle: 'Abbinamento macchina scaduto',
+        deviceCodeExpiredMessage: ({ machineId }: { machineId: string }) =>
+            `L\'abbinamento per la macchina "${machineId}" è scaduto. Ripeti l\'abbinamento di questa macchina per ripristinare la connessione.`,
     },
 
     newSession: {

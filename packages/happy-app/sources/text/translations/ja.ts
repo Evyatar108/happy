@@ -320,6 +320,9 @@ export const ja: TranslationStructure = {
         failedToRemoveFriend: '友達の削除に失敗しました',
         searchFailed: '検索に失敗しました。再試行してください。',
         failedToSendRequest: '友達リクエストの送信に失敗しました',
+        deviceCodeExpiredTitle: 'マシンのペアリングが期限切れです',
+        deviceCodeExpiredMessage: ({ machineId }: { machineId: string }) =>
+            `マシン "${machineId}" のペアリングが期限切れです。接続を復元するには、このマシンを再ペアリングしてください。`,
     },
 
     newSession: {

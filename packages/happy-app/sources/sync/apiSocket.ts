@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { AuthCredentials, TokenStorage } from '@/auth/tokenStorage';
 import { storage } from './storage';
-import { tunnelFetch } from '@/auth/machineAuth';
+import { tunnelFetch, DeviceCodeExpired, ClaimExpired } from '@/auth/machineAuth';
 import { buildTunnelSocketOptions } from './socketOptions';
 import { localizeSessionPath, parseCompositeSessionId } from './machineSessionId';
 import {
@@ -54,6 +54,7 @@ class ApiSocket {
     private reconnectedListeners: Set<(machineId: string) => void> = new Set();
     private statusListeners: Set<(status: SyncSocketStatus) => void> = new Set();
     private machineDisconnectListeners: Set<(machineId: string, lastSeenAt: number) => void> = new Set();
+    private deviceCodeExpiredListeners: Set<(machineId: string) => void> = new Set();
     private currentStatus: SyncSocketStatus = 'disconnected';
 
     async initialize(config: SyncSocketConfig) {
@@ -123,9 +124,21 @@ class ApiSocket {
             if (!connection || connection.socket) {
                 continue;
             }
-            this.updateMachineStatus(connection.config.credentials.machineId, 'connecting');
+            const mid = connection.config.credentials.machineId;
+            this.updateMachineStatus(mid, 'connecting');
             connection.intentionalDisconnect = false;
-            connection.socket = io(connection.config.endpoint, await buildTunnelSocketOptions(connection.config.credentials));
+            let socketOptions;
+            try {
+                socketOptions = await buildTunnelSocketOptions(connection.config.credentials);
+            } catch (error) {
+                if (error instanceof DeviceCodeExpired || error instanceof ClaimExpired) {
+                    this.updateMachineStatus(mid, 'error');
+                    this.deviceCodeExpiredListeners.forEach(listener => listener(mid));
+                    continue;
+                }
+                throw error;
+            }
+            connection.socket = io(connection.config.endpoint, socketOptions);
             this.setupEventHandlers(connection);
         }
     }
@@ -170,6 +183,11 @@ class ApiSocket {
     onMachineDisconnected = (listener: (machineId: string, lastSeenAt: number) => void) => {
         this.machineDisconnectListeners.add(listener);
         return () => this.machineDisconnectListeners.delete(listener);
+    };
+
+    onDeviceCodeExpired = (listener: (machineId: string) => void) => {
+        this.deviceCodeExpiredListeners.add(listener);
+        return () => this.deviceCodeExpiredListeners.delete(listener);
     };
 
     onMessage(event: string, handler: MessageHandler) {

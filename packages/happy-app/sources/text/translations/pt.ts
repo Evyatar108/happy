@@ -318,6 +318,9 @@ export const pt: TranslationStructure = {
         failedToRemoveFriend: 'Falha ao remover amigo',
         searchFailed: 'A busca falhou. Por favor, tente novamente.',
         failedToSendRequest: 'Falha ao enviar solicitação de amizade',
+        deviceCodeExpiredTitle: 'Emparelhamento da máquina expirou',
+        deviceCodeExpiredMessage: ({ machineId }: { machineId: string }) =>
+            `O emparelhamento da máquina "${machineId}" expirou. Emparelhe novamente esta máquina para restaurar a conexão.`,
     },
 
     newSession: {

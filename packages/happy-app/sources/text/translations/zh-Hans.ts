@@ -320,6 +320,9 @@ export const zhHans: TranslationStructure = {
         failedToRemoveFriend: '删除好友失败',
         searchFailed: '搜索失败。请重试。',
         failedToSendRequest: '发送好友请求失败',
+        deviceCodeExpiredTitle: '机器配对已过期',
+        deviceCodeExpiredMessage: ({ machineId }: { machineId: string }) =>
+            `机器 "${machineId}" 的配对已过期。请重新配对此机器以恢复连接。`,
     },
 
     newSession: {

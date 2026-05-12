@@ -307,6 +307,9 @@ export const ru: TranslationStructure = {
         failedToRemoveFriend: 'Не удалось удалить друга',
         searchFailed: 'Поиск не удался. Пожалуйста, попробуйте снова.',
         failedToSendRequest: 'Не удалось отправить запрос в друзья',
+        deviceCodeExpiredTitle: 'Срок сопряжения машины истёк',
+        deviceCodeExpiredMessage: ({ machineId }: { machineId: string }) =>
+            `Срок сопряжения машины "${machineId}" истёк. Повторно выполните сопряжение этой машины для восстановления подключения.`,
     },
 
     newSession: {
