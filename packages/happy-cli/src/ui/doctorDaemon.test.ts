@@ -65,6 +65,44 @@ describe('runDoctorDaemon', () => {
     vi.useRealTimers();
   });
 
+  it('prints <none> for Tunnel URL when machineState exists but lastTunnelUrl is absent', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-12T01:00:00.000Z'));
+    const output: string[] = [];
+    vi.spyOn(console, 'log').mockImplementation((line = '') => output.push(String(line)));
+    mocks.checkIfDaemonRunningAndCleanupStaleState.mockResolvedValue(true);
+    mocks.readDaemonState.mockResolvedValue({
+      pid: 1234,
+      httpPort: 4555,
+      startTime: new Date('2026-05-12T00:58:30.000Z').toISOString(),
+      startedWithCliVersion: '1.2.3',
+      daemonLogPath: '/tmp/happy.log',
+    });
+    mocks.readMachineState.mockResolvedValue({
+      machineId: 'machine-1',
+      tunnelPort: 62000,
+      loopbackPort: 62001,
+      tunnelId: 'happy-machine-1',
+      lastTunnelUrl: null,
+    });
+
+    const { runDoctorDaemon } = await import('./doctor');
+    await runDoctorDaemon();
+
+    expect(stripAnsi(output)).toEqual([
+      'Daemon running (PID: 1234)',
+      '  Version: 1.2.3',
+      '  Uptime: 1m 30s',
+      '  Machine ID: machine-1',
+      '  Tunnel Port: 62000',
+      '  Loopback Port: 62001',
+      '  Tunnel URL: <none>',
+      '  HTTP Control Port: 4555',
+      '  Log: /tmp/happy.log',
+    ]);
+    vi.useRealTimers();
+  });
+
   it('keeps machine-sourced lines when machine.json is missing', async () => {
     const output: string[] = [];
     vi.spyOn(console, 'log').mockImplementation((line = '') => output.push(String(line)));

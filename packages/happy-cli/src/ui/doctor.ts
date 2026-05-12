@@ -82,7 +82,7 @@ export async function runDoctorDaemon(): Promise<void> {
             console.log(`  Machine ID: ${machineState?.machineId ?? '<unknown>'}`);
             console.log(`  Tunnel Port: ${machineState?.tunnelPort ?? '<unknown>'}`);
             console.log(`  Loopback Port: ${machineState?.loopbackPort ?? '<unknown>'}`);
-            console.log(`  Tunnel URL: ${machineState?.lastTunnelUrl ?? '<unknown>'}`);
+            console.log(`  Tunnel URL: ${machineState != null ? (machineState.lastTunnelUrl ?? '<none>') : '<unknown>'}`);
             console.log(`  HTTP Control Port: ${state.httpPort}`);
             console.log(`  Log: ${state.daemonLogPath ?? '<unknown>'}`);
         } else if (state && !isRunning) {
