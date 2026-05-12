@@ -66,11 +66,14 @@ async function refreshTunnelClaimOnce(credentials: AuthCredentials, machineId: s
         machines?: Array<{ machineId?: string; tunnelClaim?: string }>;
     } | null;
 
+    if (!response.ok) {
+        if (response.status >= 400 && response.status < 500 && (body?.error === 'device_code_expired' || body?.error === 'access_denied')) {
+            throw new DeviceCodeExpired(machineId);
+        }
+        throw new Error(`Failed to refresh tunnel claim: ${response.status}`);
+    }
     if (body?.error === 'device_code_expired' || body?.error === 'access_denied') {
         throw new DeviceCodeExpired(machineId);
-    }
-    if (!response.ok) {
-        throw new Error(`Failed to refresh tunnel claim: ${response.status}`);
     }
 
     const machine = body?.machines?.find(item => item.machineId === machineId) ?? body?.machines?.[0];
