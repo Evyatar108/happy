@@ -469,24 +469,15 @@ conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
     indicator + new "Upstream sync" workstream + new "Cadence" filter
     axis. Last full happy-upstream-sync: 2026-05-03 (absorbed 79
     commits). Next due ~2026-06-03.
-  - **Codex agent project-`.mcp.json` parity (open, surfaced 2026-05-13):**
+  - ✅ **Codex agent project-`.mcp.json` parity (delivered 2026-05-13):**
     The Claude agent under happy reads `.mcp.json` from the session cwd (Claude
     Code's standard project-MCP convention) — so `codexu/.mcp.json` (with the
-    `paper` MCP server) lights up automatically. The **codex agent does NOT**.
-    `runCodex.ts:700-705` builds the `mcpServers` object handed to
-    `client.startThread({ mcpServers })` with ONLY the `happy` bridge entry;
-    project-level MCP servers are silently dropped. The gim-home/codex fork
-    (HEAD `ed5d2fd` as of the codex submodule pull 2026-05-13) has
-    `.mcp.json` reading code only in (1) the external-agent one-shot migrator
-    (`external-agent-migration/src/lib.rs`) and (2) the plugin-internal
-    `.mcp.json` loader (`core-plugins/src/loader.rs:715`, with new
-    `${CLAUDE_PLUGIN_ROOT}` substitution per commit `1b38e5b`). Neither covers
-    project-cwd runtime discovery. **Fix lives on the happy-cli side** (not
-    codex): merge `<cwd>/.mcp.json` `mcpServers` into the object passed to
-    `client.startThread` + `client.resumeExistingThread`. Validate with Zod;
-    log + skip malformed entries. Estimated ~30-45 min including tests. Plan:
-    ship as a small standalone PR — short ralph command in
-    `plans/parallel-assignments.md` (tab `mcp-discovery`).
+    `paper` MCP server) lights up automatically. Codex now mirrors that
+    project-MCP convention from happy-cli: `loadProjectMcpServers(process.cwd())`
+    reads and Zod-validates `<cwd>/.mcp.json`, skips malformed entries with
+    structured warnings, and merges valid project servers into the object passed
+    to both `client.startThread` and `client.resumeThread` through the existing
+    resume forwarder. The Happy bridge remains authoritative on duplicate names.
   - **Codex agent parity audit (shipped 2026-05-13):** structured survey of
     every Claude-Code feature the codex agent under happy doesn't match today —
     doc at `plans/codex-agent-parity-audit.md`. 12 gaps catalogued with
@@ -1007,26 +998,6 @@ without new evidence:
 - **Plugin scoping (host vs agent context) is required new feature.**
   Without it, ralph plugin's skills load inside spawned worker agents
   and create recursion / context bloat.
-- **Phase 1a — codex fork-layout strategy (2026-05-13).** Locked: option
-  (a) from "Decisions still open #1" — stay on `gim-home/codex` +
-  overlay-crate pattern, with opportunistic upstream PRs for pieces
-  openai/codex is likely to want. Concretely: subtree mirror at
-  `codex/external/repos/codex-patched/` (Rust workspace at `codex-rs/`
-  inside it) + overlay crates at `codex/codex-rs-overlay/` (precedents:
-  `codex-copilot`, `codex-copilot-launcher`, `codex-invariant-tests`) +
-  `codex/` submodule pinned to `gim-home/codex`. Cadence is
-  *procedural-only* (stable upstream tags via
-  `codex/scripts/check_subtree_lag.sh`; pull frequency operator-gated,
-  no fixed cadence locked here). The open W-5 RFC in
-  `codex/docs/plans/reduce-conflict-surface.md` (proposal to convert the
-  inner subtree to a submodule) remains open and is NOT resolved by
-  this commit. RPC contract versioning, also referenced in Phase 1a as
-  future work, is NOT part of this commit either. Canonical docs:
-  `codex/docs/implementation/architecture.md` § "Fork strategy",
-  `codex/docs/implementation/patch-surface.md` § 17, and
-  `codex/CLAUDE.md` § "Consumer: codexu". Codex-side commit:
-  `gim-home/codex@1799936`. Companion entry under "Decisions still
-  open #1" links back here.
 
 ## Decisions still open
 
@@ -1035,10 +1006,6 @@ options + default-if-no-decision) at #1, #2, #4, #5, #7; and **open
 questions** (drill-in items requiring research) at #3, #6, #8, #9.
 
 1. **Codex fork strategy.** When: Phase 1a. Owner: user.
-
-   **RESOLVED 2026-05-13** — see § "Decisions made" entry for "Phase 1a
-   — codex fork-layout strategy (2026-05-13)". Chose option (a) with
-   opportunistic (b). Original options retained below for history.
 
    | Option | Action | Trade-off | Default-if-no-decision |
    |---|---|---|---|

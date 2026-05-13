@@ -546,14 +546,14 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `3a-skills` | Phase 3a — Ralph skills port | ⏸ paused (prerequisites not yet met) | — |
 | ~~`F-013-perms`~~ | Claude permission latent override | 🚫 closed (obsolete-by-design) | b5d18eb5 → close-out |
 | `F-015-toast` | Stale-creds toast on cold launch | ⏸ paused (awaiting reproduction) | — |
-| `mcp-discovery` | Codex agent project-.mcp.json parity | 🟡 in progress | — |
+| `mcp-discovery` | Codex agent project-.mcp.json parity | ✅ landed 2026-05-13 | 462776df |
 | `codex-parity-audit` | Research: gaps in codex agent feature parity vs Claude | ✅ landed 2026-05-13 | — (research-only; output `plans/codex-agent-parity-audit.md`) |
-| `codex-wire-spike` 🤖 | Pre-flight wire-acceptance spike for Gaps 2/3/5 | 🟡 in progress | — |
-| `codex-claude-md-autoload` 🤖 | Gap 2: project CLAUDE.md auto-load on codex path | ⬜ not started (conflicts with mcp-discovery) | — |
+| `codex-wire-spike` 🤖 | Pre-flight wire-acceptance spike for Gaps 2/3/5 | ⬜ not started | — |
+| `codex-claude-md-autoload` 🤖 | Gap 2: project CLAUDE.md auto-load on codex path | ⬜ not started | — |
 | `codex-attachments` 🤖 | Gap 3: image attachments on codex turn input | ⬜ blocked on codex-wire-spike | — |
-| `codex-system-prompts` 🤖 | Gap 7: customSystemPrompt + appendSystemPrompt parity | ⬜ not started (conflicts with mcp-discovery) | — |
+| `codex-system-prompts` 🤖 | Gap 7: customSystemPrompt + appendSystemPrompt parity | ⬜ not started | — |
 | `codex-hooks-parity` 🤖 | Gap 4: fan codex events to happy turn-lifecycle handlers | ⬜ not started (sequence after earlier codex-* land) | — |
-| `1a-fork-doc` | Phase 1a — fork strategy commit | ✅ shipped | 7fa6ff3b |
+| `1a-fork-doc` | Phase 1a — fork strategy commit | 🟡 in progress | — |
 | `1b-multidev` | Phase 1b sub-tasks 3 + 4 | ⬜ not started | — |
 | `3b-agents` | Phase 3b-i + ii — subagents → roles | ⬜ blocked on 3a discovery | — |
 | `3c-hooks` | Phase 3c — hooks port / verify | 🟡 in progress | — |
@@ -566,7 +566,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `codex-upstream-rebase` 🔄 | Periodic — rebase codex submodule on openai/codex | ⬜ first run pending | — |
 | `agent-view-research` | Research Claude Code's agent-view feature | ✅ landed 2026-05-14 | — (research-only; output `plans/agent-view-research.md`) |
 | `agent-tree-rpc` 🤖 | App-server RPC for codex live spawn tree | 🟡 in progress | — |
-| `session-parent-link` 🤖 | Add parentSessionId + spawnedChildren to Session metadata | ✅ shipped | 11c3eafb |
+| `session-parent-link` 🤖 | Add parentSessionId + spawnedChildren to Session metadata | 🟡 in progress | — |
 | `mobile-tree-view` 🤖 | Tree-style session list with depth indentation | ⬜ blocked on session-parent-link | — |
 | `session-role-pill` 🤖 | Flavor + model + permission-mode pills in session row | ✅ shipped | 7e9f724c |
 | `spawn-from-app` 🤖 | "Spawn child session" affordance + RPC | ⬜ blocked on session-parent-link | — |
@@ -578,9 +578,9 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `codex-channels` | Stage B from channels-research: `experimental["codex/channel"]` envelope + prompt-queue policy | ⬜ deferred — operator decision before scoping | — |
 | `async-events-design` | Design async event listening for agents | 🔒 blocked on `mcp-server-notifications` (re-blocked 2026-05-14) | — (draft preserved at `plans/async-events-design.md`) |
 | `native-agent-parity` | Research codex parity with Claude Code's native subagents | ✅ landed 2026-05-14 | — (research-only; output `plans/native-agent-parity.md`) |
-| `port-explorer-prompt` 🤖 | Fill empty `explorer.toml` stub | 🟡 in progress | — |
+| `port-explorer-prompt` 🤖 | Fill empty `explorer.toml` stub | ⬜ not started | — |
 | `port-plan-and-verification-roles` 🤖 | Add `plan.toml` + `verification.toml` built-ins | ⬜ blocked on §6 operator decisions | — |
-| `audit-general-purpose-vs-worker` 🤖 | 30-min prompt diff vs codex worker.toml | ✅ landed 2026-05-14 (no-op) | — (research-only; finding in `plans/native-agent-parity.md` §2.4) |
+| `audit-general-purpose-vs-worker` 🤖 | 30-min prompt diff vs codex worker.toml | ⬜ not started | — |
 | `roadmap-plugin` 🛠 | Plugin: agents manage roadmap/overview.html via skill + MCP | ⬜ not started | — |
 
 🟡 = in progress (agent actively working, not yet committed). Refresh after each landing.

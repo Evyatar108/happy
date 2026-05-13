@@ -41,6 +41,7 @@ import type { ReasoningEffort } from './codexAppServerTypes';
 import { HAPPY_FORKED_FROM_SESSION_ID } from '@/utils/envNames';
 import { createCodexPatchApprovalInput } from './codexApprovalSnapshot';
 import type { LedgerRecord } from '@slopus/happy-wire';
+import { loadProjectMcpServers } from './projectMcpConfig';
 
 function getMessageDelivery(message: { messageId?: string; seq?: number }): MessageDelivery | undefined {
     return typeof message.messageId === 'string' && typeof message.seq === 'number'
@@ -692,17 +693,20 @@ export async function runCodex(opts: {
 
     // Start Happy MCP server (HTTP) and prepare STDIO bridge config for Codex
     const happyServer = await startHappyServer(session);
+    const cwdAtStart = process.cwd();
+    const projectMcpServers = loadProjectMcpServers(cwdAtStart);
     // Launch the bridge via `node <path>` (rather than relying on the .mjs shebang)
     // so it works on Windows, where Windows can't execute shebang scripts directly.
     // codex would otherwise fail to start the MCP server, the change_title tool would
     // not be visible to the model, and the model would improvise with shell echoes.
     const bridgeEntrypoint = join(projectPath(), 'bin', 'happy-mcp.mjs');
     const mcpServers = {
+        ...projectMcpServers,
         happy: {
             command: process.execPath,
             args: ['--no-warnings', '--no-deprecation', bridgeEntrypoint, '--url', happyServer.url]
         }
-    } as const;
+    };
     let first = true;
 
     try {
@@ -721,7 +725,7 @@ export async function runCodex(opts: {
                 session,
                 messageBuffer,
                 threadId: opts.resumeThreadId,
-                cwd: process.cwd(),
+                cwd: cwdAtStart,
                 mcpServers,
             });
             if (forkedFromSessionId) {
@@ -788,7 +792,7 @@ export async function runCodex(opts: {
                 if (!client.hasActiveThread()) {
                     const startedThread = await client.startThread({
                         model: message.mode.model,
-                        cwd: process.cwd(),
+                        cwd: cwdAtStart,
                         approvalPolicy: executionPolicy.approvalPolicy,
                         sandbox: executionPolicy.sandbox,
                         mcpServers,

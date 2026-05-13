@@ -1,10 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import { HAPPY_FORKED_FROM_SESSION_ID } from '@/utils/envNames';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {
-    const rpcHandlers = new Map<string, (...args: any[]) => any>();
-    const mockAbortTurnWithFallback = vi.fn(async () => ({ forcedRestart: false, resumedThread: true }));
+    const queuedBatches: any[] = [];
     let lastCodexClient: any = null;
 
     const mockSession = {
@@ -16,21 +16,16 @@ const mocks = vi.hoisted(() => {
         updateAgentState: vi.fn(),
         sendSessionEvent: vi.fn(),
         sendSessionProtocolMessage: vi.fn(),
-        sendContextBoundary: vi.fn(async () => {}),
         sendMessageConsumption: vi.fn(),
         sendSessionDeath: vi.fn(),
         flush: vi.fn(async () => {}),
         close: vi.fn(async () => {}),
         getMetadata: vi.fn(() => ({})),
         rpcHandlerManager: {
-            registerHandler: vi.fn((name: string, handler: (...args: any[]) => any) => {
-                rpcHandlers.set(name, handler);
-            }),
+            registerHandler: vi.fn(),
         },
         sessionId: 'session-1',
     };
-
-    const queuedBatches: any[] = [];
 
     class MockMessageQueue2 {
         async waitForMessagesAndGetAsString() {
@@ -52,20 +47,18 @@ const mocks = vi.hoisted(() => {
         disconnect = vi.fn(async () => {});
         setApprovalHandler = vi.fn();
         setEventHandler = vi.fn();
-        hasActiveThread = vi.fn(() => true);
+        hasActiveThread = vi.fn(() => false);
         startThread = vi.fn(async () => ({ threadId: 'thread-1' }));
+        resumeThread = vi.fn(async () => ({ threadId: 'thread-2', model: 'gpt-test' }));
         sendTurnAndWait = vi.fn(async () => ({ aborted: false }));
-        abortTurnWithFallback = mockAbortTurnWithFallback;
+        abortTurnWithFallback = vi.fn(async () => ({ forcedRestart: false, resumedThread: true }));
     }
 
     return {
         mockSession,
         MockMessageQueue2,
         MockCodexAppServerClient,
-        mockAbortTurnWithFallback,
         getLastCodexClient: () => lastCodexClient,
-        getRpcHandler: (name: string) => rpcHandlers.get(name),
-        clearRpcHandlers: () => rpcHandlers.clear(),
         mockExecSync: vi.fn(() => 'codex-cli 0.120.0'),
         mockApiCreate: vi.fn(),
         mockGetOrCreateMachine: vi.fn(async () => ({})),
@@ -81,7 +74,6 @@ const mocks = vi.hoisted(() => {
         mockProjectPath: vi.fn(() => '/tmp/happy'),
         mockLoggerDebug: vi.fn(),
         mockLoggerWarn: vi.fn(),
-        mockResumeExistingThread: vi.fn(async () => ({ threadId: 'new-codex-thread', model: 'gpt-5.4' })),
         queueBatch: (batch: any) => queuedBatches.push(batch),
         clearQueuedBatches: () => { queuedBatches.length = 0; },
     };
@@ -141,10 +133,6 @@ vi.mock('./codexAppServerClient', () => ({
     CodexAppServerClient: mocks.MockCodexAppServerClient,
 }));
 
-vi.mock('./resumeExistingThread', () => ({
-    resumeExistingThread: mocks.mockResumeExistingThread,
-}));
-
 vi.mock('@/ui/logger', () => ({
     logger: {
         debug: mocks.mockLoggerDebug,
@@ -155,6 +143,9 @@ vi.mock('@/ui/logger', () => ({
 
 const { runCodex } = await import('./runCodex');
 
+const originalCwd = process.cwd();
+let tempDir: string | null = null;
+
 function createApi() {
     return {
         getOrCreateMachine: mocks.mockGetOrCreateMachine,
@@ -163,96 +154,113 @@ function createApi() {
     };
 }
 
-async function runResume() {
-    await runCodex({
-        credentials: { token: 'token' } as any,
-        resumeThreadId: 'parent-codex-thread',
+function enqueueUserBatch() {
+    mocks.queueBatch({
+        message: 'hello',
+        mode: { permissionMode: 'default' },
+        isolate: false,
+        hash: 'default-mode',
+        consumedMessages: [],
     });
 }
 
-describe('runCodex fork boundary emission', () => {
+function writeMcpConfig(body: string) {
+    writeFileSync(join(tempDir!, '.mcp.json'), body);
+}
+
+function writeHttpMcpConfig() {
+    writeMcpConfig(JSON.stringify({
+        mcpServers: {
+            paper: {
+                type: 'http',
+                url: 'http://127.0.0.1:29979/mcp',
+            },
+        },
+    }));
+}
+
+describe('runCodex project .mcp.json discovery', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        mocks.clearRpcHandlers();
         mocks.clearQueuedBatches();
-        delete process.env[HAPPY_FORKED_FROM_SESSION_ID];
         mocks.mockApiCreate.mockResolvedValue(createApi());
         mocks.mockReadSettings.mockResolvedValue({ machineId: 'machine-1', sandboxConfig: undefined });
-        mocks.mockAbortTurnWithFallback.mockResolvedValue({ forcedRestart: false, resumedThread: true });
+        tempDir = mkdtempSync(join(tmpdir(), 'happy-codex-project-mcp-'));
+        process.chdir(tempDir);
+        enqueueUserBatch();
     });
 
-    it('emits a session-fork-resume boundary after resuming when fork env is set', async () => {
-        process.env[HAPPY_FORKED_FROM_SESSION_ID] = 'parent-happy-session';
+    afterEach(() => {
+        process.chdir(originalCwd);
+        if (tempDir) {
+            rmSync(tempDir, { recursive: true, force: true });
+            tempDir = null;
+        }
+    });
 
-        await runResume();
+    it('passes valid HTTP project MCP entries to startThread with type stripped', async () => {
+        writeHttpMcpConfig();
 
-        expect(mocks.mockResumeExistingThread).toHaveBeenCalledWith(expect.objectContaining({
-            threadId: 'parent-codex-thread',
+        await runCodex({ credentials: { token: 'token' } as any });
+
+        expect(mocks.getLastCodexClient().hasActiveThread).toHaveBeenCalled();
+        expect(mocks.getLastCodexClient().startThread).toHaveBeenCalledWith(expect.objectContaining({
+            cwd: tempDir,
+            mcpServers: {
+                paper: {
+                    url: 'http://127.0.0.1:29979/mcp',
+                },
+                happy: expect.objectContaining({
+                    command: process.execPath,
+                    args: expect.arrayContaining(['--url', 'http://127.0.0.1:3000/mcp']),
+                }),
+            },
         }));
-        expect(mocks.mockSession.sendContextBoundary).toHaveBeenCalledWith({
-            kind: 'session-fork-resume',
-            triggeredBy: 'user',
-            at: expect.any(Number),
-            forkedFromSid: 'parent-happy-session',
-        });
-        expect(mocks.mockResumeExistingThread.mock.invocationCallOrder[0])
-            .toBeLessThan(mocks.mockSession.sendContextBoundary.mock.invocationCallOrder[0]);
     });
 
-    it('does not emit a fork boundary when fork env is unset', async () => {
-        await runResume();
+    it('passes only the Happy bridge to startThread when .mcp.json is absent', async () => {
+        await runCodex({ credentials: { token: 'token' } as any });
 
-        expect(mocks.mockResumeExistingThread).toHaveBeenCalled();
-        expect(mocks.mockSession.sendContextBoundary).not.toHaveBeenCalled();
+        expect(mocks.getLastCodexClient().hasActiveThread).toHaveBeenCalled();
+        const startArgs = mocks.getLastCodexClient().startThread.mock.calls[0][0];
+        expect(startArgs.cwd).toBe(tempDir);
+        expect(Object.keys(startArgs.mcpServers)).toEqual(['happy']);
+        expect(startArgs.mcpServers.happy).toEqual(expect.objectContaining({
+            command: process.execPath,
+        }));
     });
 
-    it('coalesces concurrent abort RPC calls into one Codex interruption', async () => {
-        let resolveAbort!: () => void;
-        mocks.mockAbortTurnWithFallback.mockImplementationOnce(async () => {
-            await new Promise<void>((resolve) => {
-                resolveAbort = resolve;
-            });
-            return { forcedRestart: false, resumedThread: true };
+    it('warns and falls back to only the Happy bridge when project MCP JSON is broken', async () => {
+        writeMcpConfig('{ not valid json');
+
+        await runCodex({ credentials: { token: 'token' } as any });
+
+        expect(mocks.mockLoggerWarn).toHaveBeenCalledWith('[codex] .mcp.json parse failed', {
+            path: join(tempDir!, '.mcp.json'),
+            reason: expect.any(String),
         });
-
-        await runResume();
-
-        const abortHandler = mocks.getRpcHandler('abort');
-        expect(abortHandler).toBeDefined();
-
-        const firstAbort = abortHandler!();
-        const secondAbort = abortHandler!();
-
-        await Promise.resolve();
-        expect(mocks.getLastCodexClient().abortTurnWithFallback).toHaveBeenCalledTimes(1);
-
-        resolveAbort();
-        await expect(Promise.all([firstAbort, secondAbort])).resolves.toEqual([undefined, undefined]);
-        expect(mocks.getLastCodexClient().abortTurnWithFallback).toHaveBeenCalledTimes(1);
+        const startArgs = mocks.getLastCodexClient().startThread.mock.calls[0][0];
+        expect(Object.keys(startArgs.mcpServers)).toEqual(['happy']);
     });
 
-    it('emits one codex consumption receipt per dequeued user message', async () => {
-        mocks.queueBatch({
-            message: 'one\ntwo',
-            mode: { permissionMode: 'default' },
-            isolate: false,
-            hash: 'same-mode',
-            consumedMessages: [
-                { messageId: 'user-message-1', seq: 1 },
-                { messageId: 'user-message-2', seq: 2 },
-            ],
-        });
+    it('passes valid HTTP project MCP entries through the real resumeExistingThread forwarder', async () => {
+        writeHttpMcpConfig();
 
-        await runResume();
+        await runCodex({ credentials: { token: 'token' } as any, resumeThreadId: 'parent-thread' });
 
-        expect(mocks.mockSession.sendMessageConsumption).toHaveBeenCalledTimes(2);
-        expect(mocks.mockSession.sendMessageConsumption).toHaveBeenNthCalledWith(1, {
-            messageId: 'user-message-1',
-            agentFlavor: 'codex',
-        });
-        expect(mocks.mockSession.sendMessageConsumption).toHaveBeenNthCalledWith(2, {
-            messageId: 'user-message-2',
-            agentFlavor: 'codex',
+        expect(mocks.getLastCodexClient().hasActiveThread).toHaveBeenCalled();
+        expect(mocks.getLastCodexClient().resumeThread).toHaveBeenCalledWith({
+            threadId: 'parent-thread',
+            cwd: tempDir,
+            mcpServers: {
+                paper: {
+                    url: 'http://127.0.0.1:29979/mcp',
+                },
+                happy: expect.objectContaining({
+                    command: process.execPath,
+                    args: expect.arrayContaining(['--url', 'http://127.0.0.1:3000/mcp']),
+                }),
+            },
         });
     });
 });
