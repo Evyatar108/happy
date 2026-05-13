@@ -157,6 +157,85 @@
 
   .footnote { color: var(--muted); font-size: 12px; margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--border); }
 
+  /* Always-visible Ready Now strip */
+  .ready-strip {
+    display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+    margin: 16px 0;
+    padding: 12px 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .strip-label {
+    font-size: 12px;
+    color: var(--muted);
+    margin-right: 6px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .chip {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-family: 'SF Mono', 'Cascadia Code', Menlo, monospace;
+    font-weight: 600;
+    text-decoration: none !important;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--fg);
+    transition: background 0.1s, color 0.1s, border-color 0.1s;
+  }
+  .chip:hover { background: var(--accent); color: white; border-color: var(--accent); }
+  .chip-ready { border-color: rgba(122,162,247,0.45); }
+  .chip-inflight { border-color: rgba(224,175,104,0.55); background: rgba(224,175,104,0.12); }
+  .strip-count { margin-left: auto; font-size: 11px; color: var(--muted); }
+
+  /* Area-color left borders for kanban cards */
+  .card.area-bdr-app { border-left: 3px solid var(--info); }
+  .card.area-bdr-server { border-left: 3px solid var(--accent); }
+  .card.area-bdr-cli { border-left: 3px solid var(--purple); }
+  .card.area-bdr-codex { border-left: 3px solid #ff9e64; }
+  .card.area-bdr-multi { border-left: 3px solid var(--warn); }
+
+  /* Status count chips inside section summaries */
+  .section-counts {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--muted);
+  }
+  .section-counts .sc { margin-left: 8px; }
+  .section-counts .sc-ready { color: var(--accent); }
+  .section-counts .sc-inflight { color: var(--warn); font-weight: 600; }
+  .section-counts .sc-blocked { color: var(--done); }
+  .section-counts .sc-paused { color: var(--done); }
+  .section-counts .sc-closed { color: var(--ok); }
+
+  /* Phase-inner sub-list collapsible (for the long Phase 4 / Phase 5 walls) */
+  .phase-subdetails { margin-top: 4px; }
+  .phase-subdetails > summary {
+    cursor: pointer;
+    list-style: none;
+    color: var(--muted);
+    font-size: 12px;
+    padding: 2px 0;
+  }
+  .phase-subdetails > summary::-webkit-details-marker { display: none; }
+  .phase-subdetails > summary::before {
+    content: '▶ ';
+    color: var(--muted);
+    font-size: 9px;
+    transition: transform 0.2s;
+    display: inline-block;
+  }
+  .phase-subdetails[open] > summary::before { transform: rotate(90deg); }
+  .phase-subdetails ul { margin-top: 4px; }
+
+  /* Highlight target of URL hash (e.g. on deep-link) */
+  :target.cmd, :target.card { box-shadow: 0 0 0 2px var(--accent); }
+
   /* Collapsible top-level sections */
   details.section { margin: 24px 0 0; }
   details.section > summary {
@@ -293,8 +372,14 @@
   </ol>
 </div>
 
+<div class="ready-strip" id="ready-strip" aria-label="Right-now lane status">
+  <span class="strip-label">Right now</span>
+  <!-- Chips populated by JS from each ralph command's status badge -->
+  <span class="strip-count" id="ready-strip-count"></span>
+</div>
+
 <details class="section">
-<summary class="section-head">Kanban — assignable now</summary>
+<summary class="section-head">Kanban — assignable now <span class="section-counts" id="counts-kanban"></span></summary>
 <div class="legend">
   <span class="pill area-app">happy-app</span>
   <span class="pill area-server">happy-server</span>
@@ -652,14 +737,14 @@
 </details>
 
 <details class="section">
-<summary class="section-head">Ralph commands — click to expand, button to copy</summary>
+<summary class="section-head">Ralph commands — click to expand, button to copy <span class="section-counts" id="counts-cmds"></span></summary>
 <div class="sub" style="margin-bottom:12px;">
   Self-contained <code>/plan-with-ralph</code> prompts mirrored from <code>plans/parallel-assignments.md</code>. Click a row to reveal the full command and copy with one click. Status badge reflects current state.
 </div>
 
 <div class="cmd-list">
 
-  <details class="cmd">
+  <details class="cmd" id="cmd-perf-WS1" data-task-id="perf-WS1">
     <summary><span class="cmd-name">perf-WS1</span><span class="cmd-badge b-inflight">🟡 in flight</span><span class="cmd-desc">Realtime perf — refresh-skip (happy-app)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -667,7 +752,7 @@
     </div>
   </details>
 
-  <details class="cmd">
+  <details class="cmd" id="cmd-perf-WS3" data-task-id="perf-WS3">
     <summary><span class="cmd-name">perf-WS3</span><span class="cmd-badge b-inflight">🟡 in flight</span><span class="cmd-desc">Realtime perf — server replay buffer + client lastSeenSeq (multi-package)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -675,7 +760,7 @@
     </div>
   </details>
 
-  <details class="cmd">
+  <details class="cmd" id="cmd-3a-skills" data-task-id="3a-skills">
     <summary><span class="cmd-name">3a-skills</span><span class="cmd-badge b-paused">⏸ paused</span><span class="cmd-desc">Phase 3a — Ralph skills port (prerequisites not met)</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⏸ Paused 2026-05-13. Operator closed the discovery session because prerequisites aren't yet met. Do not re-spawn until the operator re-establishes context (missing notepad / scaffolding inputs / template clarifications).</div>
@@ -684,14 +769,14 @@
     </div>
   </details>
 
-  <details class="cmd">
+  <details class="cmd" id="cmd-F-013-perms" data-task-id="F-013-perms">
     <summary><span class="cmd-name">F-013-perms</span><span class="cmd-badge b-closed">🚫 closed</span><span class="cmd-desc">Claude permission latent override — obsolete-by-design</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn closed">🚫 Closed 2026-05-13 (commit <code>bfe7ef67</code>). F-013 is structurally Claude-only; Phase 5 of the roadmap drops Claude Code entirely. Latent path at <code>packages/happy-cli/src/claude/utils/permissionHandler.ts:87-89</code> intentionally left until the Phase 5 deletion. No command — do not re-fire.</div>
     </div>
   </details>
 
-  <details class="cmd">
+  <details class="cmd" id="cmd-F-015-toast" data-task-id="F-015-toast">
     <summary><span class="cmd-name">F-015-toast</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Stale-creds toast on cold launch (happy-app)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -699,7 +784,7 @@
     </div>
   </details>
 
-  <details class="cmd">
+  <details class="cmd" id="cmd-mcp-discovery" data-task-id="mcp-discovery">
     <summary><span class="cmd-name">mcp-discovery</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Codex agent project-.mcp.json parity (happy-cli)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -707,7 +792,7 @@
     </div>
   </details>
 
-  <details class="cmd">
+  <details class="cmd" id="cmd-codex-parity-audit" data-task-id="codex-parity-audit">
     <summary><span class="cmd-name">codex-parity-audit</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Research: codex-vs-Claude feature parity survey (docs-only)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -715,7 +800,7 @@
     </div>
   </details>
 
-  <details class="cmd">
+  <details class="cmd" id="cmd-perf-WS2" data-task-id="perf-WS2">
     <summary><span class="cmd-name">perf-WS2</span><span class="cmd-badge b-blocked">🔒 blocked on WS3</span><span class="cmd-desc">Realtime perf — optimistic placeholder session</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Wait until <code>perf-WS3</code> lands. Both touch <code>storage.ts</code> and WS3's replay-overflow semantics define WS2's fallback scope.</div>
@@ -724,7 +809,7 @@
     </div>
   </details>
 
-  <details class="cmd">
+  <details class="cmd" id="cmd-1a-fork-doc" data-task-id="1a-fork-doc">
     <summary><span class="cmd-name">1a-fork-doc</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Phase 1a — Codex fork strategy commit (codex submodule docs)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -732,7 +817,7 @@
     </div>
   </details>
 
-  <details class="cmd">
+  <details class="cmd" id="cmd-1b-multidev" data-task-id="1b-multidev">
     <summary><span class="cmd-name">1b-multidev</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Phase 1b sub-tasks 3+4 — multi-device discoverability + approval fan-out</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⚠️ Conflicts with <code>mcp-discovery</code> (both touch <code>runCodex.ts</code>). Land mcp-discovery first, then 1b-multidev rebases trivially.</div>
@@ -741,7 +826,7 @@
     </div>
   </details>
 
-  <details class="cmd">
+  <details class="cmd" id="cmd-3b-agents" data-task-id="3b-agents">
     <summary><span class="cmd-name">3b-agents</span><span class="cmd-badge b-blocked">🔒 blocked on 3a</span><span class="cmd-desc">Phase 3b-i + 3b-ii — subagents → codex agent roles</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Blocked on <code>3a-skills</code> discovery commit (currently paused). Re-read prerequisites before assigning.</div>
@@ -750,7 +835,7 @@
     </div>
   </details>
 
-  <details class="cmd">
+  <details class="cmd" id="cmd-3c-hooks" data-task-id="3c-hooks">
     <summary><span class="cmd-name">3c-hooks</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Phase 3c — Ralph hooks port / verify (likely zero work)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -758,7 +843,7 @@
     </div>
   </details>
 
-  <details class="cmd">
+  <details class="cmd" id="cmd-3d-workers" data-task-id="3d-workers">
     <summary><span class="cmd-name">3d-workers</span><span class="cmd-badge b-blocked">🔒 blocked on 3a + 3b</span><span class="cmd-desc">Phase 3d — codex-based workers via native spawn</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Blocked on <code>3a-skills</code> discovery (paused) AND <code>3b-agents</code> landing the agent role TOMLs.</div>
@@ -767,7 +852,7 @@
     </div>
   </details>
 
-  <details class="cmd">
+  <details class="cmd" id="cmd-3fg-package" data-task-id="3fg-package">
     <summary><span class="cmd-name">3fg-package</span><span class="cmd-badge b-blocked">🔒 blocked on 3a</span><span class="cmd-desc">Phase 3f + 3g — asset migration + plugin packaging</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Blocked on <code>3a-skills</code> discovery commit (paused). The discovery may change the plugin.json schema expectations this command builds against.</div>
@@ -776,7 +861,7 @@
     </div>
   </details>
 
-  <details class="cmd">
+  <details class="cmd" id="cmd-3h-options" data-task-id="3h-options">
     <summary><span class="cmd-name">3h-options</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Phase 3h — options-mode plugin migration (separate plugin, parallel-safe)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -784,7 +869,7 @@
     </div>
   </details>
 
-  <details class="cmd">
+  <details class="cmd" id="cmd-userid-cleanup" data-task-id="userid-cleanup">
     <summary><span class="cmd-name">userid-cleanup</span><span class="cmd-badge b-blocked">🔒 blocked on WS3</span><span class="cmd-desc">Drop multi-tenant userId scoping in happy-server (~140 refs)</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Sequence after <code>perf-WS3</code> lands. WS3's per-user replay-buffer ring partition gets stripped as part of this commit; firing this BEFORE WS3 would force a mid-flight redesign.</div>
@@ -793,7 +878,7 @@
     </div>
   </details>
 
-  <details class="cmd">
+  <details class="cmd" id="cmd-polish-Fs" data-task-id="polish-Fs">
     <summary><span class="cmd-name">polish-Fs</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">F-017 + F-001/F-002 + F-003..F-007 bundled polish PR</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⚠️ Sequence after <code>perf-WS3</code> lands — polish-Fs touches happy-server for security findings; would collide with perf-WS3's eventRouter changes.</div>
@@ -854,33 +939,39 @@
 
   <div class="phase">
     <div class="phase-head">Phase 4 — Coexistence verification <span class="ptag">gated on Phase 3</span></div>
-    <ul>
-      <li>4a codex from codexu works (smoke)</li>
-      <li>4b ralph from codex works</li>
-      <li>4c ralph + codexu combined (laptop + phone)</li>
-      <li>4d Plugin scoping works (host vs agent)</li>
-      <li>4e Cross-vendor fan-out</li>
-      <li>4f AskUserQuestion fan-out</li>
-      <li>4g App-server lifecycle (reattach)</li>
-      <li>4h End-to-end trace IDs</li>
-      <li>4i Pre-Phase-3 ralph state migrates</li>
-      <li>4j Reviewer fan-out determinism</li>
-      <li>4k Output-file contract migration</li>
-      <li>4l Sandbox-bypass parity</li>
-      <li>4m Stop-hook tag enforcement post-port</li>
-    </ul>
+    <details class="phase-subdetails">
+      <summary>13 sub-items (all blocked) — click to expand</summary>
+      <ul>
+        <li>4a codex from codexu works (smoke)</li>
+        <li>4b ralph from codex works</li>
+        <li>4c ralph + codexu combined (laptop + phone)</li>
+        <li>4d Plugin scoping works (host vs agent)</li>
+        <li>4e Cross-vendor fan-out</li>
+        <li>4f AskUserQuestion fan-out</li>
+        <li>4g App-server lifecycle (reattach)</li>
+        <li>4h End-to-end trace IDs</li>
+        <li>4i Pre-Phase-3 ralph state migrates</li>
+        <li>4j Reviewer fan-out determinism</li>
+        <li>4k Output-file contract migration</li>
+        <li>4l Sandbox-bypass parity</li>
+        <li>4m Stop-hook tag enforcement post-port</li>
+      </ul>
+    </details>
   </div>
 
   <div class="phase">
     <div class="phase-head">Phase 5 — Drop Claude Code <span class="ptag">gated on Phase 4</span></div>
-    <ul>
-      <li>5a Dual-stack dogfood (2-week buffer)</li>
-      <li>5b Audit remaining Claude Code workflows</li>
-      <li>5c Archive Claude Code configs</li>
-      <li>5d Uninstall Claude Code binary</li>
-      <li>5e Update personal docs</li>
-      <li>5f Mark migration complete</li>
-    </ul>
+    <details class="phase-subdetails">
+      <summary>6 sub-items (all gated) — click to expand</summary>
+      <ul>
+        <li>5a Dual-stack dogfood (2-week buffer)</li>
+        <li>5b Audit remaining Claude Code workflows</li>
+        <li>5c Archive Claude Code configs</li>
+        <li>5d Uninstall Claude Code binary</li>
+        <li>5e Update personal docs</li>
+        <li>5f Mark migration complete</li>
+      </ul>
+    </details>
   </div>
 
   <div class="phase">
@@ -1056,6 +1147,7 @@
 </div>
 
 <script>
+  // ===== Clipboard copy on .copy-btn click =====
   document.addEventListener('click', function (e) {
     var btn = e.target;
     if (!btn.classList || !btn.classList.contains('copy-btn')) return;
@@ -1063,7 +1155,6 @@
     if (!pre) return;
     var text = pre.textContent;
     var done = function (ok) {
-      var label = btn.textContent;
       btn.textContent = ok ? '✓ Copied' : '✗ Failed';
       btn.classList.toggle('copied', ok);
       setTimeout(function () {
@@ -1074,18 +1165,142 @@
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); });
     } else {
-      // Fallback for non-secure contexts / older browsers
       var ta = document.createElement('textarea');
       ta.value = text;
       ta.style.position = 'fixed';
       ta.style.opacity = '0';
       document.body.appendChild(ta);
       ta.select();
-      try { done(document.execCommand('copy')); }
-      catch (_) { done(false); }
+      try { done(document.execCommand('copy')); } catch (_) { done(false); }
       document.body.removeChild(ta);
     }
   });
+
+  // ===== Status helpers =====
+  function classifyCmd(cmdEl) {
+    var badge = cmdEl.querySelector('.cmd-badge');
+    if (!badge) return 'unknown';
+    var cls = badge.className || '';
+    if (cls.indexOf('b-ready') >= 0) return 'ready';
+    if (cls.indexOf('b-inflight') >= 0) return 'inflight';
+    if (cls.indexOf('b-paused') >= 0) return 'paused';
+    if (cls.indexOf('b-blocked') >= 0) return 'blocked';
+    if (cls.indexOf('b-closed') >= 0) return 'closed';
+    return 'unknown';
+  }
+
+  // ===== Build the Ready Now strip from existing cmd rows =====
+  (function buildReadyStrip() {
+    var strip = document.getElementById('ready-strip');
+    var countEl = document.getElementById('ready-strip-count');
+    if (!strip) return;
+    var rows = document.querySelectorAll('details.cmd');
+    var counts = { ready: 0, inflight: 0, paused: 0, blocked: 0, closed: 0 };
+    var insertBefore = countEl;
+    rows.forEach(function (r) {
+      var status = classifyCmd(r);
+      counts[status] = (counts[status] || 0) + 1;
+      if (status !== 'ready' && status !== 'inflight') return;
+      var name = r.getAttribute('data-task-id');
+      if (!name) return;
+      var chip = document.createElement('a');
+      chip.className = 'chip chip-' + status;
+      chip.href = '#cmd-' + name;
+      chip.textContent = (status === 'inflight' ? '🟡 ' : '⬜ ') + name;
+      chip.title = (status === 'inflight' ? 'In flight — ' : 'Ready — ') + name;
+      strip.insertBefore(chip, insertBefore);
+    });
+    if (countEl) {
+      countEl.textContent = counts.inflight + ' in flight · ' + counts.ready + ' ready · ' + counts.blocked + ' blocked · ' + counts.paused + ' paused · ' + counts.closed + ' closed';
+    }
+    // Also populate the Ralph commands section-count summary
+    var cmds = document.getElementById('counts-cmds');
+    if (cmds) {
+      var total = rows.length;
+      cmds.innerHTML =
+        '(' + total + ' total)' +
+        '<span class="sc sc-ready">' + counts.ready + ' ready</span>' +
+        '<span class="sc sc-inflight">' + counts.inflight + ' in flight</span>' +
+        '<span class="sc sc-blocked">' + counts.blocked + ' blocked</span>' +
+        '<span class="sc sc-paused">' + counts.paused + ' paused</span>' +
+        '<span class="sc sc-closed">' + counts.closed + ' closed</span>';
+    }
+  })();
+
+  // ===== Populate Kanban section count from card distribution =====
+  (function populateKanbanCount() {
+    var el = document.getElementById('counts-kanban');
+    if (!el) return;
+    // Each kanban column header text encodes its status semantics; count via the per-column .card lists
+    var cols = document.querySelectorAll('.kanban .col');
+    var labels = ['Ready', 'Soon', 'Blocked'];
+    var parts = [];
+    cols.forEach(function (c, i) {
+      var n = c.querySelectorAll('.card').length;
+      parts.push('<span class="sc">' + n + ' ' + (labels[i] || ('col ' + i)) + '</span>');
+    });
+    el.innerHTML = parts.join('');
+  })();
+
+  // ===== Auto-tag kanban cards with area-bdr-* from the area pill inside =====
+  (function tagKanbanCardsByArea() {
+    var pillToArea = {
+      'area-app': 'area-bdr-app',
+      'area-server': 'area-bdr-server',
+      'area-cli': 'area-bdr-cli',
+      'area-codex': 'area-bdr-codex',
+      'area-multi': 'area-bdr-multi'
+    };
+    document.querySelectorAll('.kanban .card').forEach(function (card) {
+      for (var pillClass in pillToArea) {
+        if (card.querySelector('.pill.' + pillClass)) {
+          card.classList.add(pillToArea[pillClass]);
+          break;
+        }
+      }
+    });
+  })();
+
+  // ===== localStorage persistence of <details> open state =====
+  (function persistDetails() {
+    var KEY = 'codexu-overview-details-state-v1';
+    var state;
+    try { state = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (_) { state = {}; }
+    // Restore
+    document.querySelectorAll('details[id]').forEach(function (d) {
+      if (state[d.id] === true) d.open = true;
+      else if (state[d.id] === false) d.open = false;
+    });
+    // Persist on toggle
+    document.addEventListener('toggle', function (e) {
+      var d = e.target;
+      if (!(d instanceof HTMLDetailsElement)) return;
+      if (!d.id) return;
+      state[d.id] = d.open;
+      try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) {}
+    }, true);
+  })();
+
+  // ===== URL hash auto-open: expand ancestor <details> so the target is visible =====
+  (function expandHashTarget() {
+    function openAncestors(el) {
+      while (el && el !== document.body) {
+        if (el.tagName && el.tagName.toLowerCase() === 'details') el.open = true;
+        el = el.parentElement;
+      }
+    }
+    function focusHash() {
+      var hash = window.location.hash;
+      if (!hash || hash.length < 2) return;
+      var target;
+      try { target = document.querySelector(hash); } catch (_) { return; }
+      if (!target) return;
+      openAncestors(target);
+      setTimeout(function () { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
+    }
+    window.addEventListener('hashchange', focusHash);
+    focusHash();
+  })();
 </script>
 </body>
 </html>
