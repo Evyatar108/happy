@@ -247,11 +247,15 @@ convention. Known gap, surfaced 2026-05-13, fix pending:
   inside the external-agent one-shot migrator and the plugin-internal loader,
   neither runtime-cwd-scoped. Ralph plan: `mcp-discovery` tab in
   `plans/parallel-assignments.md`.
-- **Broader audit pending.** The `.mcp.json` gap was found by accident. A
-  `codex-parity-audit` ralph command in `plans/parallel-assignments.md` runs
-  a structured survey of every Claude-Code project convention the codex agent
-  doesn't yet match (project-CLAUDE.md auto-load, hooks parity, plan mode,
-  attachment handling, etc.) and outputs `plans/codex-agent-parity-audit.md`.
+- **Broader audit landed 2026-05-13.** The full inventory is at
+  `plans/codex-agent-parity-audit.md` — 12 gaps catalogued with file:line
+  evidence, severity (3 High / 4 Medium / 5 Low), and a ralph-command shape
+  per gap. The `.mcp.json` gap is Gap 1; project-CLAUDE.md auto-load is Gap 2;
+  image attachments dropped on the codex path is Gap 3. All proposed fix-sites
+  are happy-cli-side except Gap 6 (plan mode) which has a deferred overlay-crate
+  option. Tracked follow-up ralph commands: `codex-claude-md-autoload`,
+  `codex-attachments`, `codex-system-prompts`, `codex-hooks-parity`, plus a
+  pre-flight `codex-wire-spike` covering Gaps 2/3/5.
 
 When adding new MCP-server plumbing or thread-start hooks, check `runCodex.ts`
 for the `mcpServers` build site and respect the per-cwd discovery semantics

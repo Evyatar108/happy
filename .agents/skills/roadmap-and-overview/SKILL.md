@@ -242,6 +242,79 @@ If you're adding a new view (e.g., a new section, a new filter axis, a new badge
 - **Status counts in `<summary>` headers** are auto-populated by the `buildTodayPanel` IIFE from the cmd rows' badge classes. Manually-edited badge text won't be reflected unless the class is also right (e.g., a row marked `<span class="cmd-badge b-ready">🟡 in progress</span>` will be counted as ready, not in-progress, because the class is what classifies).
 - **`localStorage` keys** in use: `codexu-overview-details-state-v1` (open/closed state), `codexu-overview-last-visit-v1` (for what's-new banner), `codexu-overview-notes-v1` (operator scratch notes). Don't reuse these for new features; pick a new versioned key.
 - **`spawnedFrom` is one-directional and flat** — child → parent. The reverse index (parent → children) is computed at runtime by `injectSpawnRelationships`. Don't try to encode a tree shape; one child can only have one parent (use blocks-on for multi-prereq relationships instead). If a child was spawned by multiple ancestors, pick the most-proximate one and mention the others in prose.
+- **Landing agents only flip their own badge — the full close-out is a bookkeeping pass.** Across the 2026-05-13 / 2026-05-14 session, four landing agents (`codex-parity-audit`, `agent-view-research`, `native-agent-parity`, `channels-research`) each updated their own row's badge to `b-closed` and updated `lastTouched`, but only one (`agent-view-research`) also added the `runs[]` entry and one (`channels-research`) updated `plans/parallel-assignments.md`'s status-table row. The remaining bookkeeping always falls to the operator-side commit. **The full "task landed" checklist is procedure B in this skill — and an incomplete close-out means the dashboard's "Recently shipped" footer + the parallel-assignments tracker drift out of sync within the same commit.** When auditing a recently-landed task, verify all 6 items in procedure B explicitly; don't trust that an agent did them.
+
+## Action-button cluster (`.cmd-actions`)
+
+Every `<div class="cmd-body">` has a `.cmd-actions` flex wrapper at
+its top-right corner. The wrapper uses `position: absolute; top: 6px;
+right: 6px; display: flex; flex-direction: row-reverse; gap: 6px` —
+so the first child rendered is the rightmost button, and additional
+buttons stack to its left with uniform spacing.
+
+Currently 3 buttons live in the wrapper:
+
+1. `.copy-btn` (Copy Command) — static in the HTML for every cmd row; reads from `<pre class="cmd-pre">`
+2. `.copy-name-btn` (Copy Name) — injected by `injectCopyNameButtons` IIFE; reads from `data-task-id`
+3. `.notes-toggle` (📝 Notes) — injected by the notes IIFE; toggles a per-cmd textarea panel
+
+The shared injection helper is `getOrCreateCmdActions(body)` near the
+top of the main `<script>`. It finds-or-creates the wrapper, moves
+the static `.copy-btn` into it on first call, and returns the wrapper
+so subsequent injections can `.appendChild()` to it.
+
+**Adding a new action button** (e.g., the future "Take task" affordance
+from `roadmap-plugin`):
+
+1. Add CSS for the button class, sibling to `.copy-btn` and
+   `.copy-name-btn` — do **not** add `position: absolute` or
+   `top/right` rules; the wrapper handles placement.
+2. In the JS IIFE that injects it, call `getOrCreateCmdActions(body)`
+   to get the wrapper, then `wrap.appendChild(yourButton)`. Order
+   matters: later-appended buttons sit further left.
+3. Don't reintroduce per-button absolute positioning — that's how
+   the original 3-button layout grew uneven spacing in commit
+   `cd314bd7` before being refactored to flex in `230e83b6`.
+
+The narrow-viewport (`@media`) overrides only need to touch
+`.cmd-actions` (top/right/gap), not each button individually.
+
+## Research-task → spawned follow-ups: pick a pattern
+
+Research tasks (e.g., `*-research`, `*-audit`) typically surface
+follow-up implementation tasks. There are three patterns observed in
+this session — choose one explicitly when authoring the parent's
+ralph command, and write it into the prompt:
+
+| Pattern | Example | What the agent does | When to use |
+|---|---|---|---|
+| **Pre-create in dashboard** | `agent-view-research` | Writes the research doc AND adds new `<details class="cmd">` rows + JSON metadata + `spawnedFrom` entries + `parallel-assignments.md` lettered sections + status-table rows | Follow-ups are obvious from the research and don't need operator architectural review before scoping |
+| **Recommend in doc only** | `codex-parity-audit`, `native-agent-parity` | Writes the research doc with a "Recommended next ralph commands" section listing each follow-up's ralph-command shape; does NOT touch the dashboard | Follow-ups depend on operator architectural choices (e.g., overlay-crate vs upstream patch) that need review before scoping |
+| **Mixed** | `channels-research` | Updates `parallel-assignments.md` lettered sections + status table; does NOT update `overview.html` (explicitly notes the HTML/JSON dual-update is best left to the operator) | When the agent has enough context to draft the ralph commands but the dashboard's JSON-schema bookkeeping is tedious enough to defer |
+
+**The pattern is determined by the parent's ralph command text** —
+e.g., agent-view-research's prompt said "Add new task entries to
+plans/parallel-assignments.md and plans/overview.html roadmap-data
+JSON for each follow-up that emerges from the research, AND set
+spawnedFrom='agent-view-research'..." while codex-parity-audit's said
+"Output: new file plans/codex-agent-parity-audit.md... Surface to
+operator for review before opening any subsequent ralph fix-commands."
+
+**When authoring a new research-task ralph command:**
+
+- If you (the operator) want one-step landing-to-actionable-task,
+  use **pre-create** wording. Be explicit: "add new cmd rows with
+  full ralph commands, populate the 5 JSON metadata maps, set
+  `spawnedFrom='<parent>'`, add lettered sections to
+  parallel-assignments.md".
+- If you want to gate scoping on your review, use **recommend-only**
+  wording: "Output: research doc with a 'Recommended next ralph
+  commands' section; do NOT pre-create task entries — surface to
+  operator first." Then run the promotion step yourself or via a
+  follow-up agent invocation.
+- The dashboard's `spawnedFrom` map is populated either way — the
+  difference is whether dashboard rows exist when the research
+  commits land.
 
 ## URL filtering — pin a specific subset of tasks
 
