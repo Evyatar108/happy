@@ -502,7 +502,7 @@
   <input type="search" id="search" placeholder="Search tasks…  (press / to focus, esc to clear)" aria-label="Filter tasks by name/description" />
   <div class="filter-chips" id="filter-chips" aria-label="Filter by status">
     <button class="filter-chip" data-filter-status="ready" type="button">⬜ ready</button>
-    <button class="filter-chip" data-filter-status="inflight" type="button">🟡 in flight</button>
+    <button class="filter-chip" data-filter-status="inflight" type="button">🟡 in progress</button>
     <button class="filter-chip" data-filter-status="blocked" type="button">🔒 blocked</button>
     <button class="filter-chip" data-filter-status="paused" type="button">⏸ paused</button>
     <button class="filter-chip" data-filter-status="closed" type="button">🚫 closed</button>
@@ -542,7 +542,7 @@
     <div class="col-head"><h3>Ready now</h3><span class="badge b-now">assignable</span></div>
 
     <div class="card" style="border-color: var(--warn);">
-      <div class="card-title">🟡 Realtime sync perf — WS1: skip refreshTunnelClaim when valid <span class="sub">(in flight)</span></div>
+      <div class="card-title">🟡 Realtime sync perf — WS1: skip refreshTunnelClaim when valid <span class="sub">(in progress)</span></div>
       <div class="sub">Parse <code>exp</code>, skip roundtrip when claim valid 60-120 s ahead. Foreground fan-out 6×~2.5 s → 1×~2.5 s + 5×~0.5 s.</div>
       <div class="card-meta">
         <span class="pill area-app">happy-app</span>
@@ -564,7 +564,7 @@
     </div>
 
     <div class="card" style="border-color: var(--warn);">
-      <div class="card-title">🟡 Realtime sync perf — WS3: server replay buffer + client lastSeenSeq <span class="sub">(in flight)</span></div>
+      <div class="card-title">🟡 Realtime sync perf — WS3: server replay buffer + client lastSeenSeq <span class="sub">(in progress)</span></div>
       <div class="sub">Server keeps ring of last N events per user; client ships <code>lastSeenSeq</code> on reconnect handshake. Eliminates HTTP fallback on reconnect.</div>
       <div class="card-meta">
         <span class="pill area-multi">multi-package</span>
@@ -890,7 +890,7 @@
 <div class="cmd-list">
 
   <details class="cmd" id="cmd-perf-WS1" data-task-id="perf-WS1">
-    <summary><span class="cmd-name">perf-WS1</span><span class="cmd-badge b-inflight">🟡 in flight</span><span class="cmd-desc">Realtime perf — refresh-skip (happy-app)</span></summary>
+    <summary><span class="cmd-name">perf-WS1</span><span class="cmd-badge b-inflight">🟡 in progress</span><span class="cmd-desc">Realtime perf — refresh-skip (happy-app)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
 <pre class="cmd-pre">/plan-with-ralph "Realtime sync perf — Workstream 1: skip refreshTunnelClaim roundtrip when current claim is still valid. Per plans/realtime-sync-perf.md §Workstream 1. In packages/happy-app/sources/sync/refreshClaim.ts, before doing the HTTP POST to /pair/complete, parse the cached credentials.tunnelClaim via parseTunnelClaimPayload (from packages/happy-app/sources/auth/pairing.ts) and skip the network call when exp - now &gt; SAFETY_WINDOW_S (suggest 60-120s). Keep the existing MIN_REFRESH_INTERVAL_MS as a secondary guard. Read packages/happy-app/CLAUDE.md sync invariants (especially 'Session/machine-scoped network calls') before editing. Acceptance: existing refreshClaim tests stay green; add one new test asserting no fetch when cached claim still has exp &gt; now + SAFETY_WINDOW_S. Test command: pnpm --filter '{packages/happy-app}' exec vitest run sources/sync/refreshClaim.test.ts 2&gt;&amp;1 | tee /tmp/codexu-ws1.log. Cross-package typecheck must stay green. Single commit on main with body referencing plans/realtime-sync-perf.md §WS1. Update plans/realtime-sync-perf.md and docs/validation/devtunnels-boox-result.md 'Realtime sync perf (deferred)' subsection to mark WS1 done."</pre>
@@ -898,7 +898,7 @@
   </details>
 
   <details class="cmd" id="cmd-perf-WS3" data-task-id="perf-WS3">
-    <summary><span class="cmd-name">perf-WS3</span><span class="cmd-badge b-inflight">🟡 in flight</span><span class="cmd-desc">Realtime perf — server replay buffer + client lastSeenSeq (multi-package)</span></summary>
+    <summary><span class="cmd-name">perf-WS3</span><span class="cmd-badge b-inflight">🟡 in progress</span><span class="cmd-desc">Realtime perf — server replay buffer + client lastSeenSeq (multi-package)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
 <pre class="cmd-pre">/plan-with-ralph "Realtime sync perf — Workstream 3: server-side per-user event replay buffer + client lastSeenSeq handshake. Per plans/realtime-sync-perf.md §Workstream 3. Server: in packages/happy-server/sources/app/events/eventRouter.ts add a per-user ring buffer of last N events (cap MAX_REPLAY_BUFFER=1024 or MAX_REPLAY_AGE_MS=60_000, whichever is larger); every emitUpdate appends keyed by userId. In packages/happy-server/sources/app/api/socket.ts on connection check socket.handshake.auth.lastSeenSeq; if present and within buffer, replay events with seq &gt; lastSeenSeq in order; if older than oldest buffered seq respond { replayOverflow: true, currentSeq }. Client: in packages/happy-app/sources/sync/storage.ts add lastSeenUpdateSeq to MMKV-persisted state; persist on every applied update.seq. In packages/happy-app/sources/sync/socketOptions.ts:30 inside buildTunnelSocketOptions add lastSeenSeq to the auth object. On server replayOverflow, fall back to existing fetchSessions path. Read packages/happy-server/CLAUDE.md and packages/happy-app/CLAUDE.md sync invariants first. Document the in-memory-only nature: ring buffer is single-process state; cross-cluster Redis is deferred. Acceptance: unit test eventRouter — emit 10 events, disconnect, reconnect with lastSeenSeq=5, verify 6-10 in order; overflow test with cap and 2000 events. Client test — lastSeenUpdateSeq persists across applyUpdate calls. Test command: pnpm --filter '{packages/happy-server}' --filter '{packages/happy-app}' exec vitest run 2&gt;&amp;1 | tee /tmp/codexu-ws3.log. Single commit on main. Pitfall: do not reorder allocateUserSeq vs emitUpdate."</pre>
@@ -1205,7 +1205,7 @@
       <td>Both touch <code>runCodex.ts</code>. Land mcp-discovery first (45 min), then 1b-multidev rebases trivially.</td>
     </tr>
     <tr>
-      <td>3a-skills (in flight) + 3b-agents / 3d-workers / 3fg-package</td>
+      <td>3a-skills (paused, was in progress) + 3b-agents / 3d-workers / 3fg-package</td>
       <td class="no">❌ no — wait for discovery</td>
       <td>3a is in pre-code discovery; its commit may add prerequisites to these three. Hold all three until 3a's discovery pass lands.</td>
     </tr>
@@ -1352,11 +1352,11 @@
       chip.className = 'chip chip-' + status;
       chip.href = '#cmd-' + name;
       chip.textContent = (status === 'inflight' ? '🟡 ' : '⬜ ') + name;
-      chip.title = (status === 'inflight' ? 'In flight — ' : 'Ready — ') + name;
+      chip.title = (status === 'inflight' ? 'In progress — ' : 'Ready — ') + name;
       strip.insertBefore(chip, insertBefore);
     });
     if (countEl) {
-      countEl.textContent = counts.inflight + ' in flight · ' + counts.ready + ' ready · ' + counts.blocked + ' blocked · ' + counts.paused + ' paused · ' + counts.closed + ' closed';
+      countEl.textContent = counts.inflight + ' in progress · ' + counts.ready + ' ready · ' + counts.blocked + ' blocked · ' + counts.paused + ' paused · ' + counts.closed + ' closed';
     }
     // Also populate the Ralph commands section-count summary
     var cmds = document.getElementById('counts-cmds');
@@ -1365,7 +1365,7 @@
       cmds.innerHTML =
         '(' + total + ' total)' +
         '<span class="sc sc-ready">' + counts.ready + ' ready</span>' +
-        '<span class="sc sc-inflight">' + counts.inflight + ' in flight</span>' +
+        '<span class="sc sc-inflight">' + counts.inflight + ' in progress</span>' +
         '<span class="sc sc-blocked">' + counts.blocked + ' blocked</span>' +
         '<span class="sc sc-paused">' + counts.paused + ' paused</span>' +
         '<span class="sc sc-closed">' + counts.closed + ' closed</span>';

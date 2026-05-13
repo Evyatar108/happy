@@ -240,8 +240,8 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 
 | Tab title | Task | Status | Commit |
 |---|---|---|---|
-| `perf-WS1` | Realtime perf — refresh-skip | 🟡 in flight | — |
-| `perf-WS3` | Realtime perf — replay buffer | 🟡 in flight | — |
+| `perf-WS1` | Realtime perf — refresh-skip | 🟡 in progress | — |
+| `perf-WS3` | Realtime perf — replay buffer | 🟡 in progress | — |
 | `perf-WS2` | Realtime perf — placeholder (after WS3) | ⬜ blocked on WS3 | — |
 | `3a-skills` | Phase 3a — Ralph skills port | ⏸ paused (prerequisites not yet met) | — |
 | ~~`F-013-perms`~~ | Claude permission latent override | 🚫 closed (obsolete-by-design) | b5d18eb5 → close-out |
@@ -258,6 +258,6 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `polish-Fs` | F-017 + F-001/F-002 + F-003-F-007 | ⬜ not started | — |
 | `userid-cleanup` | Drop multi-tenant userId scoping in happy-server | ⬜ blocked on perf-WS3 | — |
 
-🟡 = in flight (agent running but not yet committed). Refresh after each landing.
+🟡 = in progress (agent actively working, not yet committed). Refresh after each landing.
 
 When all of the above land, the roadmap's next gate is **Phase 4 — Coexistence verification** (13 integration sub-items 4a-4m). Those run sequentially per environment, not parallel, so they're not in this file.
