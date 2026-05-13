@@ -333,8 +333,11 @@ describe('Smoke: machines command tunnel join', () => {
             pairingBaseUrl: tunnelUrl,
             machines: [{
                 machineId: 'machine-1',
+                tunnelId: 'tunnel-1',
                 tunnelUrl,
                 tunnelClaim: encodeTunnelClaim({ accountId: 123, iat: 1, exp: 2, jti: 'jti-1' }),
+                connectToken: 'test-connect-token',
+                connectTokenExpiry: Date.now() + 3_600_000,
                 accountId: 123,
                 ed25519PublicKey: 'ed',
                 x25519PublicKey: 'x',
