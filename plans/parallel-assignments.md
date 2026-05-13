@@ -382,25 +382,25 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `3a-skills` | Phase 3a — Ralph skills port | ⏸ paused (prerequisites not yet met) | — |
 | ~~`F-013-perms`~~ | Claude permission latent override | 🚫 closed (obsolete-by-design) | b5d18eb5 → close-out |
 | `F-015-toast` | Stale-creds toast on cold launch | ⬜ not started | — |
-| `mcp-discovery` | Codex agent project-.mcp.json parity | ⬜ not started | — |
-| `codex-parity-audit` | Research: gaps in codex agent feature parity vs Claude | ⬜ not started | — |
-| `1a-fork-doc` | Phase 1a — fork strategy commit | ⬜ not started | — |
+| `mcp-discovery` | Codex agent project-.mcp.json parity | 🟡 in progress | — |
+| `codex-parity-audit` | Research: gaps in codex agent feature parity vs Claude | 🟡 in progress | — |
+| `1a-fork-doc` | Phase 1a — fork strategy commit | 🟡 in progress | — |
 | `1b-multidev` | Phase 1b sub-tasks 3 + 4 | ⬜ not started | — |
 | `3b-agents` | Phase 3b-i + ii — subagents → roles | ⬜ blocked on 3a discovery | — |
-| `3c-hooks` | Phase 3c — hooks port / verify | ⬜ not started | — |
+| `3c-hooks` | Phase 3c — hooks port / verify | 🟡 in progress | — |
 | `3d-workers` | Phase 3d — native worker spawn (after 3b) | ⬜ blocked on 3a + 3b | — |
 | `3fg-package` | Phase 3f + 3g — asset + packaging | ⬜ blocked on 3a discovery | — |
-| `3h-options` | Phase 3h — options-mode migration | ⬜ not started | — |
+| `3h-options` | Phase 3h — options-mode migration | 🟡 in progress | — |
 | `polish-Fs` | F-017 + F-001/F-002 + F-003-F-007 | ⬜ not started | — |
 | `userid-cleanup` | Drop multi-tenant userId scoping in happy-server | ⬜ blocked on perf-WS3 | — |
 | `happy-upstream-sync` 🔄 | Periodic — review new slopus/happy commits since last sync | ⬜ next due ~4w from 2026-05-03 | — |
 | `codex-upstream-rebase` 🔄 | Periodic — rebase codex submodule on openai/codex | ⬜ first run pending | — |
-| `agent-view-research` | Research Claude Code's agent-view feature | ⬜ not started | — |
+| `agent-view-research` | Research Claude Code's agent-view feature | 🟡 in progress | — |
 | `plugin-scope-agents` | Top-level-only plugin scoping + agent-spawner | ⬜ blocked on agent-view-research | — |
 | `agent-comms` | Top-level agent ↔ agent communication (MCP-based) | ⬜ blocked on plugin-scope-agents + channels-research | — |
-| `channels-research` | Research Claude Code "channels" + codex 2-way MCP plan | ⬜ not started | — |
+| `channels-research` | Research Claude Code "channels" + codex 2-way MCP plan | 🟡 in progress | — |
 | `async-events-design` | Design async event listening for agents | ⬜ blocked on channels-research | — |
-| `native-agent-parity` | Research codex parity with Claude Code's native subagents | ⬜ not started | — |
+| `native-agent-parity` | Research codex parity with Claude Code's native subagents | 🟡 in progress | — |
 | `roadmap-plugin` 🛠 | Plugin: agents manage roadmap/overview.html via skill + MCP | ⬜ not started | — |
 
 🟡 = in progress (agent actively working, not yet committed). Refresh after each landing.
