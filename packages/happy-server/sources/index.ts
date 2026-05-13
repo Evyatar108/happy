@@ -6,8 +6,6 @@ import type { ApiPaths, MachineStateGetter } from "./app/api/api";
 import { decodeBase64 } from "privacy-kit";
 import { db, getPGlite } from "./storage/db";
 
-export { encodeTunnelClaim } from "./app/api/auth/tunnelClaim";
-
 export interface TofuPublicKeys {
     ed25519PublicKey: string | Uint8Array;
     ed25519SecretKey?: Uint8Array;

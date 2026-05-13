@@ -57,7 +57,7 @@ declare module 'fastify' {
     }
     interface FastifyInstance {
         authenticate: any;
-        authenticateTunnelClaim: any;
+        authenticateTunnel: any;
         verifyLoopbackCapability: any;
     }
 }

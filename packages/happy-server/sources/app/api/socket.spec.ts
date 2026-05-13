@@ -126,12 +126,12 @@ describe("createSocketAuthMiddleware — AC-A10 loopback vs tunnel auth", () => 
         expect(socket.data.userId).toBe("daemon-user");
     });
 
-    it("loopback: rejects a tunnel-claim header (cross-presented)", async () => {
+    it("loopback: rejects a tunnel auth header (cross-presented)", async () => {
         const middleware = createSocketAuthMiddleware({ localUserId: "daemon-user" }, {
             auth: "loopback",
             paths: { loopbackCap: capabilityPath },
         });
-        const socket = fakeSocket({ "x-codexu-authorization": "tunnel obsolete-claim" });
+        const socket = fakeSocket({ "x-tunnel-authorization": "tunnel gateway-token" });
         const next = vi.fn();
 
         await middleware(socket, next);

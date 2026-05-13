@@ -153,12 +153,12 @@ describe("/v2/me routes", () => {
         expect(tunnelResponse.statusCode).toBe(200);
         expect(tunnelResponse.json()).toEqual(expect.objectContaining({ githubUserId: 42 }));
 
-        const tunnelClaimOnLoopback = await loopbackApp.inject({
+        const tunnelAuthOnLoopback = await loopbackApp.inject({
             method: "GET",
             url: "/v2/me/profile",
-            headers: { "X-Codexu-Authorization": "tunnel obsolete-claim" },
+            headers: { "X-Tunnel-Authorization": "tunnel gateway-token" },
         });
-        expect(tunnelClaimOnLoopback.statusCode).toBe(401);
-        expect(tunnelClaimOnLoopback.json()).toEqual({ error: "invalid_loopback_capability" });
+        expect(tunnelAuthOnLoopback.statusCode).toBe(401);
+        expect(tunnelAuthOnLoopback.json()).toEqual({ error: "invalid_loopback_capability" });
     });
 });

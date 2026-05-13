@@ -59,7 +59,7 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
     const allowedOrigins = parseCorsOrigins();
     fastifyApp.register(import('@fastify/cors'), {
         origin: allowedOrigins.length === 0 ? false : allowedOrigins,
-        allowedHeaders: ['X-Tunnel-Authorization', 'X-Codexu-Authorization', 'X-Loopback-Capability', 'X-Happy-Client', 'Content-Type'],
+        allowedHeaders: ['X-Tunnel-Authorization', 'X-Loopback-Capability', 'X-Happy-Client', 'Content-Type'],
         methods: ['GET', 'POST', 'PUT', 'DELETE']
     });
     fastifyApp.get('/', function (request, reply) {
@@ -75,10 +75,10 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
     enableMonitoring(typed);
     enableErrorHandlers(typed);
     typed.decorate('verifyLoopbackCapability', verifyLoopbackCapability(options.paths, tofuConfig.localUserId));
-    typed.decorate('authenticateTunnelClaim', async function (request: any) {
+    typed.decorate('authenticateTunnel', async function (request: any) {
         request.userId = tofuConfig.localUserId;
     });
-    typed.decorate('authenticate', options.auth === "loopback" ? typed.verifyLoopbackCapability : typed.authenticateTunnelClaim);
+    typed.decorate('authenticate', options.auth === "loopback" ? typed.verifyLoopbackCapability : typed.authenticateTunnel);
 
     // Serve local files when using local storage
     if (isLocalStorage()) {
