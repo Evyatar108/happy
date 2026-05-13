@@ -500,6 +500,46 @@
   }
   .filter-chip:hover { color: var(--fg); border-color: var(--accent); }
   .filter-chip.active { background: var(--accent); color: white; border-color: var(--accent); }
+  .url-filter-banner {
+    display: none;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 12px 0;
+    padding: 8px 12px;
+    background: rgba(122,162,247,0.10);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    font-size: 12px;
+    color: var(--fg);
+  }
+  .url-filter-banner.active { display: flex; }
+  .url-filter-banner .ufb-label { font-weight: 600; color: var(--accent); }
+  .url-filter-banner .ufb-ids { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+  .url-filter-banner .ufb-clear {
+    margin-left: auto;
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    padding: 3px 10px;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .url-filter-banner .ufb-clear:hover { background: var(--accent); color: white; }
+  .url-filter-banner .ufb-copy {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 10px;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .url-filter-banner .ufb-copy:hover { color: var(--fg); border-color: var(--accent); }
   .bulk-btn {
     background: var(--accent);
     color: white;
@@ -1267,6 +1307,14 @@
 
 <div class="cmd-list">
 
+  <div id="url-filter-banner" class="url-filter-banner" role="status" aria-live="polite">
+    <span class="ufb-label">URL filter active</span>
+    <span class="ufb-summary"></span>
+    <span class="ufb-ids"></span>
+    <button type="button" class="ufb-copy" title="Copy this URL to clipboard">Copy link</button>
+    <button type="button" class="ufb-clear" title="Show all tasks">Clear filter</button>
+  </div>
+
   <details class="cmd" id="cmd-perf-WS1" data-task-id="perf-WS1">
     <summary><span class="cmd-name">perf-WS1</span><span class="cmd-badge b-closed">🚫 closed</span><span class="cmd-desc">Realtime perf — refresh-skip · obsoleted by claim-removal merge <code>188cfd9c</code></span></summary>
     <div class="cmd-body">
@@ -1797,8 +1845,8 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-13T22:30:00Z",
-  "generatedFromCommit": "33ec9f75",
+  "generatedAt": "2026-05-13T23:00:00Z",
+  "generatedFromCommit": "b59f234b",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -2247,6 +2295,57 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     }
   });
 
+  // ===== URL ?tasks=a,b,c filter — pin a specific subset of task IDs =====
+  function parseTaskIdFilter() {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      var raw = params.get('tasks');
+      if (!raw) return null;
+      var ids = raw.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+      if (ids.length === 0) return null;
+      return new Set(ids);
+    } catch (_) { return null; }
+  }
+  var taskIdFilter = parseTaskIdFilter();
+  (function renderUrlFilterBanner() {
+    var banner = document.getElementById('url-filter-banner');
+    if (!banner) return;
+    if (!taskIdFilter) { banner.classList.remove('active'); return; }
+    banner.classList.add('active');
+    var ids = Array.from(taskIdFilter);
+    var sum = banner.querySelector('.ufb-summary');
+    var idsEl = banner.querySelector('.ufb-ids');
+    if (sum) sum.textContent = 'Showing ' + ids.length + ' pinned task' + (ids.length === 1 ? '' : 's');
+    if (idsEl) idsEl.textContent = ids.join(', ');
+    var clearBtn = banner.querySelector('.ufb-clear');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function () {
+        var url = new URL(window.location.href);
+        url.searchParams.delete('tasks');
+        window.location.href = url.toString();
+      });
+    }
+    var copyBtn = banner.querySelector('.ufb-copy');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', function () {
+        var done = function (ok) {
+          var orig = copyBtn.textContent;
+          copyBtn.textContent = ok ? 'Copied ✓' : 'Copy failed';
+          setTimeout(function () { copyBtn.textContent = orig; }, 1200);
+        };
+        var url = window.location.href;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(url).then(function () { done(true); }, function () { done(false); });
+        } else {
+          var ta = document.createElement('textarea');
+          ta.value = url; document.body.appendChild(ta); ta.select();
+          try { done(document.execCommand('copy')); } catch (_) { done(false); }
+          document.body.removeChild(ta);
+        }
+      });
+    }
+  })();
+
   // ===== Multi-axis filter (search + status + workstream + size) =====
   var search = document.getElementById('search');
   var activeFilters = {
@@ -2262,14 +2361,16 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
       var ws = cmd.dataset.workstream || '';
       var sz = cmd.dataset.sizeBucket || '';
       var cad = cmd.dataset.cadence || 'one-shot';
+      var tid = cmd.dataset.taskId || '';
       var statusOk = activeFilters.status.size === 0 || activeFilters.status.has(status);
       var wsOk = activeFilters.workstream.size === 0 || activeFilters.workstream.has(ws);
       var sizeOk = activeFilters.size.size === 0 || activeFilters.size.has(sz);
       var cadOk = activeFilters.cadence.size === 0 || activeFilters.cadence.has(cad);
+      var idOk = !taskIdFilter || taskIdFilter.has(tid);
       var textOk = !q || cmd.textContent.toLowerCase().indexOf(q) >= 0;
-      var show = statusOk && wsOk && sizeOk && cadOk && textOk;
+      var show = statusOk && wsOk && sizeOk && cadOk && idOk && textOk;
       cmd.classList.toggle('cmd-hidden', !show);
-      if (show && q) openAncestors(cmd);
+      if (show && (q || taskIdFilter)) openAncestors(cmd);
     });
     document.querySelectorAll('.kanban .card').forEach(function (card) {
       var ws = card.dataset.workstream || '';

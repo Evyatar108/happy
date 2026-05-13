@@ -243,6 +243,33 @@ If you're adding a new view (e.g., a new section, a new filter axis, a new badge
 - **`localStorage` keys** in use: `codexu-overview-details-state-v1` (open/closed state), `codexu-overview-last-visit-v1` (for what's-new banner), `codexu-overview-notes-v1` (operator scratch notes). Don't reuse these for new features; pick a new versioned key.
 - **`spawnedFrom` is one-directional and flat** — child → parent. The reverse index (parent → children) is computed at runtime by `injectSpawnRelationships`. Don't try to encode a tree shape; one child can only have one parent (use blocks-on for multi-prereq relationships instead). If a child was spawned by multiple ancestors, pick the most-proximate one and mention the others in prose.
 
+## URL filtering — pin a specific subset of tasks
+
+The cmd-list supports `?tasks=<comma-separated-task-ids>` in the URL.
+When set, only those `data-task-id` cmd rows render; everything else
+is hidden, a banner appears at the top of the cmd-list with the active
+list + a "Clear filter" + "Copy link" buttons, and matched rows are
+auto-expanded.
+
+Use this to hand someone (operator, another agent, a doc reference) a
+pre-filtered view of which tasks to look at. Example:
+
+```
+plans/overview.html?tasks=F-015-toast,mcp-discovery,1a-fork-doc
+```
+
+The URL filter is AND'd with the axis filters (status / workstream /
+size / cadence) — they compose. Search box still filters within the
+pinned set. Clearing the URL filter goes back to the full list. The
+banner's "Copy link" button writes the current URL to clipboard for
+easy sharing.
+
+Implementation lives in `parseTaskIdFilter` + `renderUrlFilterBanner`
+at the top of the multi-axis-filter IIFE; the `idOk` check inside
+`applyFilter` is what gates row visibility. Add new pinning UX (e.g.,
+saved views, deep-link from kanban) by extending those entry points
+rather than adding a parallel hide-loop.
+
 ## File map at a glance
 
 ```
