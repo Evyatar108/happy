@@ -49,6 +49,8 @@ Evidence:
 - Confirmation that `devtunnel access create --anonymous` was NOT invoked: verified — `packages/happy-cli/src/tunnel/tunnelManager.ts` does not call `devtunnel access` at all; only `devtunnel create`, `port create`, `host`, `show`. Searching the daemon log for `allow-anonymous` returns no hits.
 
 Notes: Phases 2-6 not yet attempted in this session — operator paused validation here to commit the design corrections. Resume from Phase 2 in a follow-up session against the same paired BOOX + daemon.
+
+> **PENDING OPERATOR VERIFICATION (remove-tunnel-claim-layer):** The Phase 1 PASS above was recorded against a build that still sent `X-Codexu-Authorization`. The remove-tunnel-claim-layer work has since deleted that header entirely. Before merging, the operator must re-run the BOOX → daemon HTTP + socket flow against the new build and confirm that pairing and chat round-trips succeed without `X-Codexu-Authorization`. Replace this block with a one-line confirmation (e.g. "re-verified PASS on <date> against build <sha>") once done.
 <!-- optional per-phase notes -->
 
 ---
