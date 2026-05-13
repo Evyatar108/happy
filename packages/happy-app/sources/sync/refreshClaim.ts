@@ -42,10 +42,10 @@ function validateFreshClaim(tunnelClaim: string): void {
         exp?: unknown;
         jti?: unknown;
     };
-    if (typeof payload.accountId !== 'number') {
-        throw new Error('Fresh tunnel claim is missing numeric accountId');
+    if (payload.accountId !== undefined && typeof payload.accountId !== 'number') {
+        throw new Error('Fresh tunnel claim has non-numeric accountId');
     }
-    if (typeof payload.iat !== 'number' || typeof payload.exp !== 'number' || payload.exp <= payload.iat || payload.exp - payload.iat > 3600 || payload.exp <= Date.now() / 1000) {
+    if (typeof payload.iat !== 'number' || typeof payload.exp !== 'number' || payload.exp <= payload.iat || payload.exp - payload.iat > 3600 || payload.exp <= Math.floor(Date.now() / 1000) - 30) {
         throw new Error('Fresh tunnel claim has invalid lifetime');
     }
     if (typeof payload.jti !== 'string' || payload.jti.length === 0) {
