@@ -376,7 +376,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 
 | Tab title | Task | Status | Commit |
 |---|---|---|---|
-| `perf-WS1` | Realtime perf — refresh-skip | 🟡 in progress | — |
+| ~~`perf-WS1`~~ | Realtime perf — refresh-skip | 🚫 closed (obsolete) | 188cfd9c |
 | `perf-WS3` | Realtime perf — replay buffer | 🟡 in progress | — |
 | `perf-WS2` | Realtime perf — placeholder (after WS3) | ⬜ blocked on WS3 | — |
 | `3a-skills` | Phase 3a — Ralph skills port | ⏸ paused (prerequisites not yet met) | — |

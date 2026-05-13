@@ -1268,7 +1268,7 @@
 <div class="cmd-list">
 
   <details class="cmd" id="cmd-perf-WS1" data-task-id="perf-WS1">
-    <summary><span class="cmd-name">perf-WS1</span><span class="cmd-badge b-inflight">🟡 in progress</span><span class="cmd-desc">Realtime perf — refresh-skip (happy-app)</span></summary>
+    <summary><span class="cmd-name">perf-WS1</span><span class="cmd-badge b-closed">🚫 closed</span><span class="cmd-desc">Realtime perf — refresh-skip · obsoleted by claim-removal merge <code>188cfd9c</code></span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
 <pre class="cmd-pre">/plan-with-ralph "Realtime sync perf — Workstream 1: skip refreshTunnelClaim roundtrip when current claim is still valid. Per plans/realtime-sync-perf.md §Workstream 1. In packages/happy-app/sources/sync/refreshClaim.ts, before doing the HTTP POST to /pair/complete, parse the cached credentials.tunnelClaim via parseTunnelClaimPayload (from packages/happy-app/sources/auth/pairing.ts) and skip the network call when exp - now &gt; SAFETY_WINDOW_S (suggest 60-120s). Keep the existing MIN_REFRESH_INTERVAL_MS as a secondary guard. Read packages/happy-app/CLAUDE.md sync invariants (especially 'Session/machine-scoped network calls') before editing. Acceptance: existing refreshClaim tests stay green; add one new test asserting no fetch when cached claim still has exp &gt; now + SAFETY_WINDOW_S. Test command: pnpm --filter '{packages/happy-app}' exec vitest run sources/sync/refreshClaim.test.ts 2&gt;&amp;1 | tee /tmp/codexu-ws1.log. Cross-package typecheck must stay green. Single commit on main with body referencing plans/realtime-sync-perf.md §WS1. Update plans/realtime-sync-perf.md and docs/validation/devtunnels-boox-result.md 'Realtime sync perf (deferred)' subsection to mark WS1 done."</pre>
@@ -1797,10 +1797,10 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-13T18:30:00Z",
-  "generatedFromCommit": "5122dd57",
+  "generatedAt": "2026-05-13T22:30:00Z",
+  "generatedFromCommit": "33ec9f75",
   "lastTouched": {
-    "perf-WS1": "2026-05-13T22:00:00Z",
+    "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
     "3a-skills": "2026-05-13T21:30:00Z",
     "F-013-perms": "2026-05-13T21:00:00Z",
@@ -1836,6 +1836,14 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "codex-upstream-rebase": "periodic"
   },
   "runs": [
+    {
+      "id": "perf-WS1/2026-05-13",
+      "taskId": "perf-WS1",
+      "ranAt": "2026-05-13T22:00:00Z",
+      "outcome": "closed-obsolete",
+      "commits": ["188cfd9c", "5dae2a65", "33ec9f75"],
+      "summary": "Closed as obsolete-by-design — the entire refreshTunnelClaim layer was removed end-to-end via the remove-tunnel-claim-layer merge, so the WS1 skip-when-cached optimization no longer has a roundtrip to skip."
+    },
     {
       "id": "perf-WS3/2026-05-13",
       "taskId": "perf-WS3",
