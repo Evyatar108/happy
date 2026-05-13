@@ -2366,7 +2366,11 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
       text = btn.dataset.copyText || '';
       resetLabel = 'Copy Name';
     } else {
-      var pre = btn.parentElement.querySelector('.cmd-pre');
+      // Walk up to the cmd-body (the Copy button now lives inside the
+      // .cmd-actions flex wrapper, so .parentElement is no longer the
+      // body — find the <pre> by climbing to the enclosing cmd-body).
+      var body = btn.closest('.cmd-body');
+      var pre = body && body.querySelector('.cmd-pre');
       if (!pre) return;
       text = pre.textContent;
       resetLabel = 'Copy Command';
