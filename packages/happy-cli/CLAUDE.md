@@ -189,7 +189,7 @@ User interface components.
 
 - Private keys stored in `~/.handy/access.key` with restricted permissions
 - All communications encrypted using TweetNaCl
-- Tunnel claims include a `jti` nonce and the embedded server rejects replayed `jti`s; mobile-pairing identity is established via GitHub device flow + Ed25519/X25519 TOFU pinning rather than CLI-signed challenges
+- Remote-caller identity is gated by Microsoft Dev Tunnels gateway auth via the `X-Tunnel-Authorization: tunnel <connect-jwt>` header (the Happy Ed25519 tunnel-claim layer with its `jti` replay rejection has been retired); local loopback callers are gated by `X-Loopback-Capability`; mobile-pairing identity is established via GitHub device flow + Ed25519/X25519 TOFU pinning. See `docs/security-model.md`.
 - Session isolation through unique session IDs
 - `writeFile` RPC `createParents: true` is only for `.happy/attachments/*` targets and must keep both gates: lexical attachments allowlist plus `validatePathRealpath(...)` symlink/realpath confinement before directory creation.
 - Message metadata fields shared with the app must be added to every `MessageMetaSchema` copy: `packages/happy-app/sources/sync/typesMessageMeta.ts`, `packages/happy-wire/src/messageMeta.ts`, and `packages/happy-cli/src/api/types.ts`; otherwise Zod parsing strips the field on at least one side.
