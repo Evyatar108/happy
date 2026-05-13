@@ -171,9 +171,10 @@
   <h3>Recommended assignment order</h3>
   <ol>
     <li><strong>Agent A → realtime-sync-perf, all 3 workstreams sequentially.</strong> Biggest user-visible win. ~4 h. WS1 → WS3 → WS2 (WS3 simplifies WS2's scope).</li>
-    <li><strong>🟡 Agent B (3a-skills) → already running.</strong> Currently in pre-code DISCOVERY phase per operator instruction — surveying Phase 3a prerequisites and committing them to <code>plans/codexu-roadmap.md</code> + <code>plans/parallel-assignments.md</code> + this file BEFORE writing skills-port code. <strong>Other Phase 3 sub-phases (`3b-agents`, `3d-workers`, `3fg-package`) are blocked on this discovery commit.</strong></li>
-    <li><strong>Agent C (optional) → one polish item (F-015 / F-017).</strong> Tiny isolated surfaces, no overlap with A or B. Pick the one whose user-pain matches today. (F-013 closed 2026-05-13 as obsolete-by-design — Phase 5 drop-Claude supersedes it.)</li>
-    <li><strong>Agent D (optional) → mcp-discovery</strong> — codex agent project-<code>.mcp.json</code> parity gap. Small, isolated to <code>runCodex.ts</code>, ~30-45 min including tests. Closes the daily-driver gap where the codex agent doesn't see your <code>codexu/.mcp.json</code> (paper MCP server).</li>
+    <li><strong>⏸ 3a-skills paused.</strong> Operator closed the session 2026-05-13 because the agent's prerequisites weren't yet met. Don't re-spawn until that context is re-established. Phase 3 sub-phases that build on 3a (<code>3b-agents</code>, <code>3d-workers</code>, <code>3fg-package</code>) remain blocked on its eventual discovery commit. <code>3c-hooks</code> + <code>3h-options</code> unaffected.</li>
+    <li><strong>Agent B (optional) → one polish item (F-015 / F-017).</strong> Tiny isolated surfaces. Pick the one whose user-pain matches today. (F-013 closed 2026-05-13 as obsolete-by-design — Phase 5 drop-Claude supersedes it.)</li>
+    <li><strong>Agent C (optional) → mcp-discovery</strong> — codex agent project-<code>.mcp.json</code> parity gap. Small, isolated to <code>runCodex.ts</code>, ~30-45 min including tests. Closes the daily-driver gap where the codex agent doesn't see your <code>codexu/.mcp.json</code> (paper MCP server).</li>
+    <li><strong>Agent D (optional) → codex-parity-audit</strong> — research-only ralph job. Survey every Claude-Code feature the codex agent doesn't match (project-CLAUDE.md auto-load, hooks, plan mode, permission profile mapping, etc.); output doc names fix-site (happy-cli vs overlay crate vs upstream patch) + effort + severity per gap. No code commits; runs in parallel with everything.</li>
     <li><strong>Defer:</strong> Phase 1b sub-tasks 3-5 (need a re-read against the now-resolved tunnel protocol first), Phase 2c/2d (upstream codex work, separate trees), Phase 4-7 (integration tests + drop-Claude-Code; gated on Phase 3 landing).</li>
   </ol>
 </div>
@@ -228,9 +229,9 @@
       </div>
     </div>
 
-    <div class="card" style="border-color: var(--warn);">
-      <div class="card-title">🟡 Phase 3a — Ralph skills port to codex plugin <span class="sub">(in flight)</span></div>
-      <div class="sub">Agent currently in pre-code discovery — surveying prerequisites and committing them to the roadmap before writing skills-port code. Phase 3 sub-phases that build on 3a (`3b-agents`, `3d-workers`, `3fg-package`) are blocked on the discovery commit.</div>
+    <div class="card" style="border-color: var(--muted); opacity: 0.7;">
+      <div class="card-title">⏸ Phase 3a — Ralph skills port to codex plugin <span class="sub">(paused)</span></div>
+      <div class="sub">Paused 2026-05-13 — operator closed the session because the prerequisites the agent needs aren't yet met. Don't re-spawn until that context is re-established. Phase 3 sub-phases that build on 3a (<code>3b-agents</code>, <code>3d-workers</code>, <code>3fg-package</code>) remain blocked on its eventual discovery commit.</div>
       <div class="card-meta">
         <span class="pill area-codex">codex / plugin</span>
         <span class="pill p-med">medium</span>
@@ -247,6 +248,17 @@
         <span class="pill p-low">low</span>
         <span>~45 min</span>
         <span class="sub">see <code>plans/codexu-roadmap.md</code> "Codex agent project-.mcp.json parity"</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">codex-parity-audit — research: feature parity vs Claude agent</div>
+      <div class="sub">Research-only ralph job. Survey every Claude-Code feature the codex agent under happy doesn't yet match (project-CLAUDE.md auto-load, hooks, plan mode, permission profile mapping, attachment handling, slash commands, etc.). Output: <code>plans/codex-agent-parity-audit.md</code> listing one section per gap with fix-site (happy-cli / overlay crate / upstream patch), effort, severity. No code changes. Closes the "we found the .mcp.json gap by accident" failure mode.</div>
+      <div class="card-meta">
+        <span class="pill area-docs">research</span>
+        <span class="pill p-low">low</span>
+        <span>~2 h</span>
+        <span class="sub">parallel with anything (doc-only output)</span>
       </div>
     </div>
 
@@ -717,8 +729,12 @@
       <td>Will technically PASS but feel slow. Phase 2 chat round-trip will look broken to a non-internal validator.</td>
     </tr>
     <tr>
-      <td>🟡 3a-skills is in discovery — block dependents</td>
-      <td>Operator instructed `3a-skills` to commit a prerequisite-discovery pass to the roadmap BEFORE writing code. Until that commit lands, do NOT assign `3b-agents`, `3d-workers`, or `3fg-package` — the requirements they assume may change. Other Phase 3 sub-phases (`3c-hooks`, `3h-options`) are unaffected.</td>
+      <td>⏸ 3a-skills paused — block dependents</td>
+      <td>Operator closed the 3a-skills session 2026-05-13; the agent's discovery prerequisites aren't yet met. Until 3a is re-spawned AND lands its discovery commit, do NOT assign `3b-agents`, `3d-workers`, or `3fg-package`. Other Phase 3 sub-phases (`3c-hooks`, `3h-options`) are unaffected.</td>
+    </tr>
+    <tr>
+      <td>Any ralph plan that needs codex source edits</td>
+      <td>Per <code>plans/codexu-roadmap.md</code> §"Codex changes — minimize upstream conflict surface": avoid editing codex source if possible; when needed, add a new package in <code>codex/codex-rs-overlay/</code> (the <code>codex-copilot</code> / <code>codex-copilot-launcher</code> / <code>codex-invariant-tests</code> precedent); patches to upstream-canonical files in <code>codex/external/repos/codex-patched/codex-rs/</code> need explicit operator review (minimal diff). Use a worktree of the codex submodule at <code>.ralph/jobs/&lt;name&gt;/codex-worktree/</code> — don't edit the parent codexu checkout's submodule directly.</td>
     </tr>
     <tr>
       <td>mcp-discovery</td>

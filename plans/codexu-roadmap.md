@@ -179,14 +179,53 @@ Track here when an agent is actively working a roadmap story. **Refresh after
 each commit lands or when scope shifts**.
 
 - **`3a-skills`** (Phase 3a — Ralph plugin skills port to codex plugin format):
-  in flight. Operator instructed the agent to first SURVEY prerequisites and
-  update this roadmap section + `plans/parallel-assignments.md` + `plans/overview.html`
-  with anything Phase 3a depends on (e.g., codex plugin format quirks, marketplace
-  schema constraints, scaffold-template gaps) BEFORE starting code work. Other
-  Phase 3 sub-phases that build on 3a (3b-i agents, 3d native worker spawn,
-  3fg packaging) may have their assignment scope adjusted once this discovery
-  pass commits. Do not assign `3b-agents`, `3d-workers`, or `3fg-package` until
-  `3a-skills` either lands or completes its discovery commit.
+  ⏸ **PAUSED 2026-05-13**. Operator closed the session because the prerequisites
+  the agent needs to survey are not yet met. Don't re-spawn until the operator
+  re-establishes the missing context (the agent was asked to survey codex plugin
+  format quirks, marketplace schema constraints, scaffold-template gaps before
+  writing any code). Phase 3 sub-phases that build on 3a — `3b-agents`,
+  `3d-workers`, `3fg-package` — remain blocked on 3a's eventual discovery
+  commit. `3c-hooks` and `3h-options` are parallel-safe and unaffected.
+
+### Codex changes — minimize upstream conflict surface
+
+**`codex/` is a git submodule** (its own repo: `gim-home/codex`). Inside it
+there's a subtree mirror of openai/codex at
+`codex/external/repos/codex-patched/`, overlay crates at
+`codex-rs-overlay/` (e.g. `codex-copilot`, `codex-copilot-launcher`,
+`codex-invariant-tests`), and divergence docs at `codex/docs/`.
+
+The tenet for every ralph plan that needs codex changes:
+
+1. **Avoid editing codex source if you can.** Most happy-cli–side work
+   doesn't need to touch the submodule at all — read-only references for
+   schema shape / call-site signatures are fine. Verify "do I actually need
+   to patch codex?" before assuming so.
+2. **When new behavior IS needed inside codex, prefer a new package
+   alongside.** The `codex-rs-overlay/` divergence crates are the
+   working precedent (Copilot adapter, Copilot launcher, invariant tests).
+   New divergence work goes there, not into upstream-canonical files.
+3. **If you must patch upstream-canonical files inside
+   `external/repos/codex-patched/codex-rs/`, keep the diff as small as
+   possible.** Every local edit there creates a merge conflict on the next
+   subtree pull. Surface the patch to the operator for review BEFORE
+   committing.
+4. **Use a worktree of the codex submodule** for the ralph job's work, the
+   same way ralph jobs use codexu worktrees under
+   `.ralph/jobs/<name>/worktree/`. Recommended layout:
+   `.ralph/jobs/<name>/codex-worktree/` — a `git worktree add` off
+   gim-home/codex's main, scoped to the job, cleaned up when the job
+   merges. This isolates the agent's in-flight codex edits from the
+   shared submodule checkout in the parent codexu worktree.
+5. **Submodule pointer bumps in codexu** are a separate commit on codexu
+   main after the codex-side commit lands and is pushed to gim-home/codex.
+
+The corresponding ralph commands in `plans/parallel-assignments.md` carry
+this tenet inline. If a new ralph command needs codex changes, propagate
+the callout there too. Phase 1a (`1a-fork-doc`) is the canonical commit
+that locks the fork-tracking strategy in `codex/docs/implementation/`,
+including how `codex-rs-overlay/` relates to the subtree and how upstream
+syncs land.
 
 ### Right now (2026-05-07): Phase 1b sub-task 2 shipped; pause before sub-task 3
 
