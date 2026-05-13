@@ -1539,6 +1539,113 @@
   and regenerate.
 </div>
 
+<!-- Hand-curated task metadata. Must come BEFORE the main script so
+     getRoadmapData() can read it synchronously. Update lastTouched ISO
+     timestamps when a task's state changes (status flip, scope edit,
+     plan rewrite). The HTML data attributes remain authoritative for
+     everything else (status badge, area pill, blocked reason). -->
+<script type="application/json" id="roadmap-data">
+{
+  "generatedAt": "2026-05-14T01:00:00Z",
+  "generatedFromCommit": "3d4da028",
+  "lastTouched": {
+    "perf-WS1": "2026-05-13T22:00:00Z",
+    "perf-WS3": "2026-05-13T22:00:00Z",
+    "3a-skills": "2026-05-13T21:30:00Z",
+    "F-013-perms": "2026-05-13T21:00:00Z",
+    "F-015-toast": "2026-05-13T20:00:00Z",
+    "mcp-discovery": "2026-05-13T21:30:00Z",
+    "codex-parity-audit": "2026-05-13T21:30:00Z",
+    "perf-WS2": "2026-05-13T19:30:00Z",
+    "1a-fork-doc": "2026-05-13T21:30:00Z",
+    "1b-multidev": "2026-05-13T19:30:00Z",
+    "3b-agents": "2026-05-13T19:30:00Z",
+    "3c-hooks": "2026-05-13T19:30:00Z",
+    "3d-workers": "2026-05-13T19:30:00Z",
+    "3fg-package": "2026-05-13T19:30:00Z",
+    "3h-options": "2026-05-13T19:30:00Z",
+    "userid-cleanup": "2026-05-13T21:45:00Z",
+    "polish-Fs": "2026-05-13T19:30:00Z"
+  },
+  "effort": {
+    "perf-WS1": 0.75,
+    "perf-WS3": 3,
+    "3a-skills": 12,
+    "F-013-perms": 0,
+    "F-015-toast": 0.75,
+    "mcp-discovery": 0.75,
+    "codex-parity-audit": 2,
+    "perf-WS2": 1.5,
+    "1a-fork-doc": 2,
+    "1b-multidev": 8,
+    "3b-agents": 12,
+    "3c-hooks": 4,
+    "3d-workers": 12,
+    "3fg-package": 8,
+    "3h-options": 16,
+    "userid-cleanup": 6,
+    "polish-Fs": 8
+  },
+  "risk": {
+    "perf-WS1": "low",
+    "perf-WS3": "medium",
+    "3a-skills": "medium",
+    "F-013-perms": "low",
+    "F-015-toast": "low",
+    "mcp-discovery": "low",
+    "codex-parity-audit": "low",
+    "perf-WS2": "medium",
+    "1a-fork-doc": "low",
+    "1b-multidev": "medium",
+    "3b-agents": "medium",
+    "3c-hooks": "low",
+    "3d-workers": "medium",
+    "3fg-package": "low",
+    "3h-options": "medium",
+    "userid-cleanup": "medium",
+    "polish-Fs": "medium"
+  },
+  "workstream": {
+    "perf-WS1": "perf",
+    "perf-WS3": "perf",
+    "perf-WS2": "perf",
+    "3a-skills": "codex-spec",
+    "1a-fork-doc": "codex-spec",
+    "1b-multidev": "codex-spec",
+    "3b-agents": "codex-spec",
+    "3c-hooks": "codex-spec",
+    "3d-workers": "codex-spec",
+    "3fg-package": "codex-spec",
+    "3h-options": "codex-spec",
+    "mcp-discovery": "codex-parity",
+    "codex-parity-audit": "codex-parity",
+    "F-013-perms": "polish",
+    "F-015-toast": "polish",
+    "polish-Fs": "polish",
+    "userid-cleanup": "cleanup"
+  },
+  "sizeBucket": {
+    "perf-WS1": "quick",
+    "perf-WS3": "small",
+    "3a-skills": "large",
+    "F-013-perms": "quick",
+    "F-015-toast": "quick",
+    "mcp-discovery": "quick",
+    "codex-parity-audit": "small",
+    "perf-WS2": "small",
+    "1a-fork-doc": "small",
+    "1b-multidev": "medium",
+    "3b-agents": "large",
+    "3c-hooks": "small",
+    "3d-workers": "large",
+    "3fg-package": "medium",
+    "3h-options": "large",
+    "userid-cleanup": "medium",
+    "polish-Fs": "medium"
+  }
+}
+</script>
+
 <script>
   // ===== Clipboard copy on .copy-btn click =====
   document.addEventListener('click', function (e) {
@@ -2153,110 +2260,5 @@
   })();
 </script>
 
-<!-- Hand-curated task metadata. Update lastTouched ISO timestamps when a task's
-     state in the visualization changes (status flip, scope edit, plan rewrite).
-     The HTML's data attributes remain authoritative for everything else (id,
-     status badge, area pill, blocked reason). -->
-<script type="application/json" id="roadmap-data">
-{
-  "generatedAt": "2026-05-14T00:30:00Z",
-  "generatedFromCommit": "7aa1b7db",
-  "lastTouched": {
-    "perf-WS1": "2026-05-13T22:00:00Z",
-    "perf-WS3": "2026-05-13T22:00:00Z",
-    "3a-skills": "2026-05-13T21:30:00Z",
-    "F-013-perms": "2026-05-13T21:00:00Z",
-    "F-015-toast": "2026-05-13T20:00:00Z",
-    "mcp-discovery": "2026-05-13T21:30:00Z",
-    "codex-parity-audit": "2026-05-13T21:30:00Z",
-    "perf-WS2": "2026-05-13T19:30:00Z",
-    "1a-fork-doc": "2026-05-13T21:30:00Z",
-    "1b-multidev": "2026-05-13T19:30:00Z",
-    "3b-agents": "2026-05-13T19:30:00Z",
-    "3c-hooks": "2026-05-13T19:30:00Z",
-    "3d-workers": "2026-05-13T19:30:00Z",
-    "3fg-package": "2026-05-13T19:30:00Z",
-    "3h-options": "2026-05-13T19:30:00Z",
-    "userid-cleanup": "2026-05-13T21:45:00Z",
-    "polish-Fs": "2026-05-13T19:30:00Z"
-  },
-  "effort": {
-    "perf-WS1": 0.75,
-    "perf-WS3": 3,
-    "3a-skills": 12,
-    "F-013-perms": 0,
-    "F-015-toast": 0.75,
-    "mcp-discovery": 0.75,
-    "codex-parity-audit": 2,
-    "perf-WS2": 1.5,
-    "1a-fork-doc": 2,
-    "1b-multidev": 8,
-    "3b-agents": 12,
-    "3c-hooks": 4,
-    "3d-workers": 12,
-    "3fg-package": 8,
-    "3h-options": 16,
-    "userid-cleanup": 6,
-    "polish-Fs": 8
-  },
-  "risk": {
-    "perf-WS1": "low",
-    "perf-WS3": "medium",
-    "3a-skills": "medium",
-    "F-013-perms": "low",
-    "F-015-toast": "low",
-    "mcp-discovery": "low",
-    "codex-parity-audit": "low",
-    "perf-WS2": "medium",
-    "1a-fork-doc": "low",
-    "1b-multidev": "medium",
-    "3b-agents": "medium",
-    "3c-hooks": "low",
-    "3d-workers": "medium",
-    "3fg-package": "low",
-    "3h-options": "medium",
-    "userid-cleanup": "medium",
-    "polish-Fs": "medium"
-  },
-  "workstream": {
-    "perf-WS1": "perf",
-    "perf-WS3": "perf",
-    "perf-WS2": "perf",
-    "3a-skills": "codex-spec",
-    "1a-fork-doc": "codex-spec",
-    "1b-multidev": "codex-spec",
-    "3b-agents": "codex-spec",
-    "3c-hooks": "codex-spec",
-    "3d-workers": "codex-spec",
-    "3fg-package": "codex-spec",
-    "3h-options": "codex-spec",
-    "mcp-discovery": "codex-parity",
-    "codex-parity-audit": "codex-parity",
-    "F-013-perms": "polish",
-    "F-015-toast": "polish",
-    "polish-Fs": "polish",
-    "userid-cleanup": "cleanup"
-  },
-  "sizeBucket": {
-    "perf-WS1": "quick",
-    "perf-WS3": "small",
-    "3a-skills": "large",
-    "F-013-perms": "quick",
-    "F-015-toast": "quick",
-    "mcp-discovery": "quick",
-    "codex-parity-audit": "small",
-    "perf-WS2": "small",
-    "1a-fork-doc": "small",
-    "1b-multidev": "medium",
-    "3b-agents": "large",
-    "3c-hooks": "small",
-    "3d-workers": "large",
-    "3fg-package": "medium",
-    "3h-options": "large",
-    "userid-cleanup": "medium",
-    "polish-Fs": "medium"
-  }
-}
-</script>
 </body>
 </html>
