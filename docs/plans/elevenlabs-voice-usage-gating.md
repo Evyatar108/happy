@@ -1,7 +1,7 @@
 # ElevenLabs Voice Usage Gating
 
-> **Status: blocked — re-scope required before reactivating.**
-> Sprint D removed the happy-app voice surface this plan targeted (commit `db96a40f`, US-005 / US-D4). The app-side files this plan referenced — `sync/apiVoice.ts`, `realtime/RealtimeSession.ts`, `realtime/RealtimeVoiceSession.tsx`, `realtime/RealtimeVoiceSession.web.tsx`, `realtime/types.ts`, plus the rest of `realtime/` and the voice settings screens — no longer exist. The server-side `[deleted voice route]` route and `ELEVENLABS_API_KEY` plumbing are still present, so the usage-gating contract described below remains potentially valuable as prior art for a future re-implementation. Do not treat the client-side sections as actionable until a new voice surface is designed.
+> **Status: historical — full rebuild required before reactivating.**
+> Sprint D removed the happy-app voice surface this plan targeted (commit `db96a40f`, US-005 / US-D4), and Sprint E US-001 then deleted the server-side voice surface as well: `packages/happy-server/sources/app/api/routes/voiceRoutes.ts` and the `VoiceConversation` Prisma model are gone, and `docs/deployment.md` no longer documents `ELEVENLABS_API_KEY` as a required production secret. The app-side files this plan referenced — `sync/apiVoice.ts`, `realtime/RealtimeSession.ts`, `realtime/RealtimeVoiceSession.tsx`, `realtime/RealtimeVoiceSession.web.tsx`, `realtime/types.ts`, plus the rest of `realtime/` and the voice settings screens — also no longer exist. Treat this document as prior-art only: no actionable code path in this plan currently resolves to a file in the repo. Reviving voice would require re-creating the server route module and Prisma model before any of the gating logic below could be applied.
 
 ## Problem
 
@@ -18,7 +18,9 @@ That means the gate runs only when a new voice session starts. If a user crosses
 
 ## Current Repo State
 
-Sprint D US-005 (commit `db96a40f`) deleted the happy-app voice surface this plan was written against. As of this revision:
+Sprint D US-005 (commit `db96a40f`) deleted the happy-app voice surface this plan was written against, and Sprint E US-001 then deleted the matching server surface. As of this revision:
+
+App-side (Sprint D, `db96a40f`):
 
 - `packages/happy-app/sources/sync/apiVoice.ts` — **deleted**.
 - `packages/happy-app/sources/realtime/RealtimeSession.ts` — **deleted**.
@@ -28,22 +30,26 @@ Sprint D US-005 (commit `db96a40f`) deleted the happy-app voice surface this pla
 - `packages/happy-app/sources/app/(app)/settings/voice.tsx` and the voice settings sub-routes — **deleted**.
 - The `experiments=true|false` voice branches and the `revenueCatPublicKey` client payload no longer exist on the app side.
 
-Server-side scaffolding is unchanged and still relevant for any future re-implementation:
+Server-side (Sprint E US-001):
 
-- Server token route: `packages/happy-server/sources/app/api/routes/voiceRoutes.ts` — still present, still reads `ELEVENLABS_API_KEY`, still documented in `docs/deployment.md`.
-- `packages/happy-server/deploy/handy.yaml` still extracts `/handy-elevenlabs` and `/handy-revenuecat`.
+- `packages/happy-server/sources/app/api/routes/voiceRoutes.ts` — **deleted**. The route is no longer registered in `api.ts`.
+- The `VoiceConversation` Prisma model has been removed from `packages/happy-server/prisma/schema.prisma`.
+- `docs/deployment.md` no longer documents `ELEVENLABS_API_KEY` as a required production secret.
+- `packages/happy-server/deploy/handy.yaml` still extracts `/handy-elevenlabs` and `/handy-revenuecat`, but the consuming server code is gone, so those secrets are now orphaned plumbing pending a future cleanup or revival.
 
-Before any of the changes below can land, a new app-side voice surface needs to be designed and built. The historical client-side notes (paywall flow, `experiments` flag, `400 => allowed:true` fallback) are retained only as a record of what previously existed.
+Before any of the changes below can land, both a new app-side voice surface and the server-side route module need to be re-created. The historical client-side notes (paywall flow, `experiments` flag, `400 => allowed:true` fallback) are retained only as a record of what previously existed.
 
 ## Existing Secret Assumptions
 
-The repo already assumes ElevenLabs API access exists on the server:
+Historically (pre-Sprint E) the repo assumed ElevenLabs API access existed on the server. As of Sprint E US-001 that is no longer true at the code level:
 
-- `packages/happy-server/sources/app/api/routes/voiceRoutes.ts` reads `process.env.ELEVENLABS_API_KEY`.
-- `packages/happy-server/deploy/handy.yaml` extracts `/handy-elevenlabs`.
-- `docs/deployment.md` documents `ELEVENLABS_API_KEY` as required for `[deleted voice route]` in production.
+- `packages/happy-server/sources/app/api/routes/voiceRoutes.ts` — **deleted**. No server file currently reads `process.env.ELEVENLABS_API_KEY`.
+- `packages/happy-server/deploy/handy.yaml` still extracts `/handy-elevenlabs`, but the deployed secret has no consumer in-tree.
+- `docs/deployment.md` no longer documents `ELEVENLABS_API_KEY` as a required production secret.
 
 The app does not currently have an ElevenLabs API secret. Client config only carries public values such as RevenueCat public keys and ElevenLabs agent IDs.
+
+Any future revival of this plan must re-establish the server-side `ELEVENLABS_API_KEY` consumer before relying on it.
 
 ## Decision
 
@@ -176,7 +182,13 @@ Next mic tap repeats the same preflight check
 
 ### Server
 
-Update `packages/happy-server/sources/app/api/routes/voiceRoutes.ts` to:
+**Blocked.** Sprint E US-001 deleted `packages/happy-server/sources/app/api/routes/voiceRoutes.ts` and removed the `VoiceConversation` Prisma model. There is no current server-side voice surface to modify. Before any of the behaviours below can be implemented, the implementer must first:
+
+- re-create a `voiceRoutes.ts` (or equivalent) module and register it in `packages/happy-server/sources/app/api/api.ts`
+- re-introduce whatever Prisma model (if any) is needed for usage accounting, and run the corresponding migration via the operator-only flow described in `packages/happy-server/prisma/migrations/README.md`
+- restore `ELEVENLABS_API_KEY` documentation in `docs/deployment.md` once a consumer exists again
+
+Once the route module exists again, the original behavioural goals were:
 
 - derive and return `elevenUserId`
 - query ElevenLabs conversation history before minting a token
