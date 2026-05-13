@@ -701,6 +701,190 @@ describe('sync update-session git-status invalidation', () => {
 
         expect(mocks.gitStatusInvalidate).not.toHaveBeenCalled();
     });
+
+    it('promotes bare parent and child refs with the in-store metadata machineId', async () => {
+        const session = makeSession({
+            metadata: { flavor: 'claude', path: '/repo/old', host: 'host', machineId: 'm1' },
+            metadataVersion: 1,
+            agentStateVersion: 1,
+            agentState: { controlledByUser: true },
+        });
+        mocks.storageState.sessions = { 'session-1': session };
+        vi.spyOn(sync as any, 'applySessions').mockImplementation(() => undefined);
+
+        await (sync as any).handleUpdate(makeUpdate(1, {
+            t: 'update-session',
+            id: 'session-1',
+            metadata: {
+                version: 2,
+                value: JSON.stringify({
+                    flavor: 'claude',
+                    path: '/repo/old',
+                    host: 'host',
+                    parentSessionId: 'parent',
+                    spawnedChildren: ['child-a', 'm2:child-b'],
+                }),
+            },
+        }));
+
+        expect((sync as any).applySessions).toHaveBeenCalledWith([
+            expect.objectContaining({
+                metadata: expect.objectContaining({
+                    parentSessionId: 'm1:parent',
+                    spawnedChildren: ['m1:child-a', 'm2:child-b'],
+                }),
+            }),
+        ]);
+    });
+
+    it('uses the composite session id machineId when metadata has no machineId', async () => {
+        const session = makeSession({
+            id: 'm1:session-1',
+            metadata: { flavor: 'claude', path: '/repo/old', host: 'host' },
+            metadataVersion: 1,
+        });
+        mocks.storageState.sessions = { 'm1:session-1': session };
+        vi.spyOn(sync as any, 'applySessions').mockImplementation(() => undefined);
+
+        await (sync as any).handleUpdate(makeUpdate(1, {
+            t: 'update-session',
+            id: 'm1:session-1',
+            metadata: {
+                version: 2,
+                value: JSON.stringify({ flavor: 'claude', path: '/repo/old', host: 'host', parentSessionId: 'parent' }),
+            },
+        }));
+
+        expect((sync as any).applySessions).toHaveBeenCalledWith([
+            expect.objectContaining({
+                metadata: expect.objectContaining({ parentSessionId: 'm1:parent' }),
+            }),
+        ]);
+    });
+
+    it('preserves cross-machine refs and is idempotent on re-emit', async () => {
+        const session = makeSession({
+            metadata: { flavor: 'claude', path: '/repo/old', host: 'host', machineId: 'm1' },
+            metadataVersion: 1,
+        });
+        mocks.storageState.sessions = { 'session-1': session };
+        vi.spyOn(sync as any, 'applySessions').mockImplementation((sessions: unknown) => {
+            mocks.storageState.sessions['session-1'] = (sessions as StoredSession[])[0];
+        });
+        const metadata = {
+            flavor: 'claude',
+            path: '/repo/old',
+            host: 'host',
+            parentSessionId: 'm2:parent',
+            spawnedChildren: ['m1:child-a', 'child-b'],
+        };
+
+        await (sync as any).handleUpdate(makeUpdate(1, {
+            t: 'update-session',
+            id: 'session-1',
+            metadata: { version: 2, value: JSON.stringify(metadata) },
+        }));
+        const once = (sync as any).applySessions.mock.calls[0][0][0].metadata;
+
+        await (sync as any).handleUpdate(makeUpdate(2, {
+            t: 'update-session',
+            id: 'session-1',
+            metadata: { version: 3, value: JSON.stringify(once) },
+        }));
+        const twice = (sync as any).applySessions.mock.calls[1][0][0].metadata;
+
+        expect(once).toEqual({
+            ...metadata,
+            spawnedChildren: ['m1:child-a', 'm1:child-b'],
+        });
+        expect(twice).toEqual(once);
+    });
+
+    it('does not crash on malformed parentSessionId or spawnedChildren shapes', async () => {
+        const session = makeSession({
+            metadata: { flavor: 'claude', path: '/repo/old', host: 'host', machineId: 'm1' },
+            metadataVersion: 1,
+        });
+        mocks.storageState.sessions = { 'session-1': session };
+        vi.spyOn(sync as any, 'applySessions').mockImplementation(() => undefined);
+
+        await expect((sync as any).handleUpdate(makeUpdate(1, {
+            t: 'update-session',
+            id: 'session-1',
+            metadata: {
+                version: 2,
+                value: JSON.stringify({
+                    flavor: 'claude',
+                    path: '/repo/old',
+                    host: 'host',
+                    parentSessionId: 42,
+                    spawnedChildren: 'not-an-array',
+                }),
+            },
+        }))).resolves.toBeUndefined();
+
+        expect((sync as any).applySessions).toHaveBeenCalledWith([
+            expect.objectContaining({
+                metadata: expect.objectContaining({
+                    parentSessionId: 42,
+                    spawnedChildren: 'not-an-array',
+                }),
+            }),
+        ]);
+    });
+});
+
+describe('sync fetch-session metadata parent/child normalization', () => {
+    beforeEach(() => {
+        vi.restoreAllMocks();
+        vi.clearAllMocks();
+        resetStorageHarness();
+        (sync as any).configureMachines([{ machineId: 'm1', tunnelUrl: 'https://m1.invalid', firstSeenAt: 1 }]);
+    });
+
+    it('normalizes initial-fetch metadata and leaves composite refs unchanged', async () => {
+        mocks.tunnelFetch.mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({
+                sessions: [{
+                    id: 'session-1',
+                    tag: 'tag-1',
+                    seq: 1,
+                    metadataVersion: 1,
+                    metadata: JSON.stringify({
+                        flavor: 'claude',
+                        path: '/repo',
+                        host: 'host',
+                        parentSessionId: 'parent',
+                        spawnedChildren: ['child-a', 'm2:child-b'],
+                    }),
+                    agentState: null,
+                    agentStateVersion: 1,
+                    active: true,
+                    activeAt: 100,
+                    createdAt: 90,
+                    updatedAt: 100,
+                    lastMessage: null,
+                }],
+            }),
+        });
+
+        await (sync as any).fetchSessions();
+        const storedSession = mocks.storageState.applySessions.mock.calls[0][0][0];
+        const normalizedAgain = (sync as any).toCompositeSession('m1', {
+            ...storedSession,
+            id: 'session-1',
+            metadata: storedSession.metadata,
+        });
+
+        expect(storedSession.metadata).toEqual(expect.objectContaining({
+            machineId: 'm1',
+            parentSessionId: 'm1:parent',
+            spawnedChildren: ['m1:child-a', 'm2:child-b'],
+        }));
+        expect(normalizedAgain.metadata).toEqual(storedSession.metadata);
+    });
 });
 
 describe('sync WS3 last-seen update seq persistence', () => {

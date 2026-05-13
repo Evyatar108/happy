@@ -40,6 +40,8 @@ export const MetadataSchema = z.object({
         updatedAt: z.number()
     }).optional(),
     machineId: z.string().optional(),
+    parentSessionId: z.string().nullish(),
+    spawnedChildren: z.array(z.string()).optional(),
     claudeSessionId: z.string().optional(), // Claude Code session ID
     codexThreadId: z.string().optional(), // Codex app-server thread ID
     tools: z.array(z.string()).optional(),

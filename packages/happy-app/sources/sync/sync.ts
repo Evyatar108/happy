@@ -111,6 +111,41 @@ function parsePlainJson<T>(value: unknown, fallback: T): T {
     }
 }
 
+function toCompositeRef(ref: string, machineId: string | null): string {
+    if (!machineId || ref.includes(':')) {
+        return ref;
+    }
+    return compositeSessionId(machineId, ref);
+}
+
+function normalizeMetadataParentChildRefs(raw: unknown, machineId: string | null): unknown {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        return raw;
+    }
+
+    const rawMetadata = raw as Record<string, unknown>;
+    let normalized: Record<string, unknown> | null = null;
+
+    if (typeof rawMetadata.parentSessionId === 'string') {
+        const parentSessionId = toCompositeRef(rawMetadata.parentSessionId, machineId);
+        if (parentSessionId !== rawMetadata.parentSessionId) {
+            normalized = { ...rawMetadata, parentSessionId };
+        }
+    }
+
+    if (Array.isArray(rawMetadata.spawnedChildren)) {
+        const sourceChildren = rawMetadata.spawnedChildren;
+        const spawnedChildren = sourceChildren.map(child => (
+            typeof child === 'string' ? toCompositeRef(child, machineId) : child
+        ));
+        if (spawnedChildren.some((child, index) => child !== sourceChildren[index])) {
+            normalized = { ...(normalized ?? rawMetadata), spawnedChildren };
+        }
+    }
+
+    return normalized ?? raw;
+}
+
 function decodeApiMessage(message: ApiMessage): DecryptedMessage | null {
     const content = parsePlainJson<RawRecord | null>(message.content.c, null);
     if (!content) {
@@ -326,10 +361,13 @@ class Sync {
         permissionModeUserChosen?: boolean;
     }) {
         const id = compositeSessionId(machineId, session.id);
+        const metadata = normalizeMetadataParentChildRefs(session.metadata, machineId) as Session['metadata'];
         return {
             ...session,
             id,
-            metadata: session.metadata ? { ...session.metadata, machineId } : session.metadata,
+            metadata: metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+                ? { ...metadata, machineId }
+                : metadata,
         };
     }
 
@@ -1823,8 +1861,15 @@ class Sync {
                 const metadata = updateData.body.metadata
                     ? parsePlainJson(updateData.body.metadata.value, null)
                     : session.metadata;
+                const parsedMachineId = parseCompositeSessionId(sessionId, '').machineId;
+                const metadataMachineId = session.metadata?.machineId ?? (parsedMachineId || null);
+                const normalizedMetadata = (updateData.body.metadata
+                    ? normalizeMetadataParentChildRefs(metadata, metadataMachineId)
+                    : metadata) as Session['metadata'];
                 const metadataPathChanged = updateData.body.metadata
-                    ? metadata?.path !== session.metadata?.path
+                    ? normalizedMetadata && typeof normalizedMetadata === 'object' && !Array.isArray(normalizedMetadata)
+                        ? (normalizedMetadata as { path?: unknown }).path !== session.metadata?.path
+                        : session.metadata?.path !== undefined
                     : false;
 
                 // NOTE: same corruption rule as in the `new-message` handler — do not
@@ -1835,7 +1880,7 @@ class Sync {
                     agentStateVersion: updateData.body.agentState
                         ? updateData.body.agentState.version
                         : session.agentStateVersion,
-                    metadata,
+                    metadata: normalizedMetadata,
                     metadataVersion: updateData.body.metadata
                         ? updateData.body.metadata.version
                         : session.metadataVersion,

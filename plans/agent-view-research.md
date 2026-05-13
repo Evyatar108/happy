@@ -193,7 +193,7 @@ Six follow-ups emerge from this research. All are tagged `spawnedFrom=agent-view
 | Task ID | Bucket | Effort | Risk | Size | Blocks on | Summary |
 |---|---|---|---|---|---|---|
 | `agent-tree-rpc` | (a) | 8h | medium | medium | — | App-server RPC exposing codex's live spawn tree (`AgentRegistry.agent_tree` + `subscribe_status`) as a queryable + streamable surface |
-| `session-parent-link` | (b) | 4h | medium | small | — | Add `parentSessionId` + `spawnedChildren[]` to `Session` metadata; wire through happy-server schema |
+| `session-parent-link` | (b) | 4h | medium | small | ✅ shipped | Add `parentSessionId` + `spawnedChildren[]` to `Session` metadata; read-side contract, ingress normalization, storage helpers, and tests landed |
 | `mobile-tree-view` | (b) | 12h | medium | large | `session-parent-link` | Tree-style session list with depth indentation + expand/collapse |
 | `session-role-pill` | (b) | 3h | low | small | — | Surface `metadata.flavor` + `currentModelCode` + `currentPermissionModeCode` inline in session row (parallel-safe, no schema changes) |
 | `spawn-from-app` | (c) | 8h | medium | medium | `session-parent-link` | "Spawn child session" affordance + new `spawnSessionFromSession` RPC end-to-end |

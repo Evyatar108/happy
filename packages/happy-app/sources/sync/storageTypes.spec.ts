@@ -89,6 +89,28 @@ describe('MetadataSchema', () => {
         expect(metadata.currentPermissionModeCode).toBe('bypassPermissions');
         expect(metadata).not.toHaveProperty('futureCliField');
     });
+
+    it('round-trips parent and child session refs without defaulting absent children', () => {
+        const withRefs = MetadataSchema.parse({
+            path: '/tmp/project',
+            host: 'local-machine',
+            parentSessionId: 'm1:parent',
+            spawnedChildren: ['m1:child-a', 'm1:child-b'],
+        });
+        const reparsed = MetadataSchema.parse(JSON.parse(JSON.stringify(withRefs)));
+        const withoutChildren = MetadataSchema.parse({
+            path: '/tmp/project',
+            host: 'local-machine',
+            parentSessionId: null,
+        });
+
+        expect(reparsed).toEqual(withRefs);
+        expect(withRefs.parentSessionId).toBe('m1:parent');
+        expect(withRefs.spawnedChildren).toEqual(['m1:child-a', 'm1:child-b']);
+        expect(withoutChildren.parentSessionId).toBeNull();
+        expect(withoutChildren.spawnedChildren).toBeUndefined();
+        expect(withoutChildren).not.toHaveProperty('spawnedChildren');
+    });
 });
 
 describe('AgentStateSchema', () => {

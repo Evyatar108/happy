@@ -288,6 +288,8 @@ export type Metadata = {
     updatedAt: number
   },
   machineId?: string,
+  parentSessionId?: string | null,
+  spawnedChildren?: string[],
   claudeSessionId?: string, // Claude Code session ID
   latestBoundary?: {
     id: string,

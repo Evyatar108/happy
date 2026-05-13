@@ -1605,7 +1605,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
   </details>
 
   <details class="cmd" id="cmd-session-parent-link" data-task-id="session-parent-link">
-    <summary><span class="cmd-name">session-parent-link</span><span class="cmd-badge b-inflight">🟡 in progress</span><span class="cmd-desc">Add parentSessionId + spawnedChildren[] to Session metadata (foundation for tree view + spawn-from-app). Spawned by <code>agent-view-research</code>.</span></summary>
+    <summary><span class="cmd-name">session-parent-link</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Add parentSessionId + spawnedChildren[] to Session metadata (foundation for tree view + spawn-from-app). Spawned by <code>agent-view-research</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
 <pre class="cmd-pre">/plan-with-ralph "Add parentSessionId + spawnedChildren tracking to Session metadata end-to-end. Per plans/agent-view-research.md §6 task `session-parent-link`. Today Session has no concept of parent-child (packages/happy-app/sources/sync/storageTypes.ts:130-163) — the mobile app shows a flat list. Add: Metadata.parentSessionId?: string and Metadata.spawnedChildren?: string[] (composite session IDs). Plumb through: (1) happy-server schema/wire shape — if backend tracks the link, add columns; if metadata-only, just extend the JSON contract; surface choice to operator. (2) happy-app storageTypes.ts Session/Metadata types. (3) storage.ts:395-570 applySessions reducer — preserve the new fields on update merges. (4) New helper getSessionChildren(sid) and getSessionParent(sid) in sources/sync/storage.ts. NO UI changes yet — that's mobile-tree-view's job. Acceptance: writing a Session with parentSessionId='m1:abc' and spawnedChildren=['m1:def','m1:ghi'] round-trips through happy-server → app → MMKV → re-fetch unchanged; helpers return correct neighbours; cross-package typecheck green. Read packages/happy-app/CLAUDE.md sync invariants — composite-id (machineSessionId.ts) helpers must be respected for parent refs. Single commit on main. Pitfall: existing sessions have no parent — null parentSessionId means top-level; don't backfill spawnedChildren=[] on every existing session (use undefined/null to distinguish missing-field from empty-children)."</pre>
@@ -1999,8 +1999,8 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T11:00:00Z",
-  "generatedFromCommit": "345c3f80",
+  "generatedAt": "2026-05-13T20:00:00Z",
+  "generatedFromCommit": "9a85a320",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -2029,7 +2029,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "native-agent-parity": "2026-05-14T08:00:00Z",
     "roadmap-plugin": "2026-05-14T05:00:00Z",
     "agent-tree-rpc": "2026-05-14T07:30:00Z",
-    "session-parent-link": "2026-05-14T07:30:00Z",
+    "session-parent-link": "2026-05-13T20:00:00Z",
     "mobile-tree-view": "2026-05-14T06:00:00Z",
     "session-role-pill": "2026-05-14T07:30:00Z",
     "spawn-from-app": "2026-05-14T06:00:00Z",
@@ -2054,6 +2054,14 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "codex-upstream-rebase": "periodic"
   },
   "runs": [
+    {
+      "id": "session-parent-link/2026-05-13",
+      "taskId": "session-parent-link",
+      "ranAt": "2026-05-13T20:00:00Z",
+      "outcome": "completed",
+      "commits": [],
+      "summary": "Shipped the read-side parent/child session metadata contract: app schema and CLI type mirror, sync ingress normalization, pure storage relationship helpers, and focused sync/storage coverage."
+    },
     {
       "id": "audit-general-purpose-vs-worker/2026-05-14",
       "taskId": "audit-general-purpose-vs-worker",

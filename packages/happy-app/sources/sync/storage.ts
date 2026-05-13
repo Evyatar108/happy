@@ -1419,6 +1419,23 @@ export function useSession(id: string): Session | null {
     return storage(useShallow((state) => state.sessions[id] ?? null));
 }
 
+export function getSessionParent(sid: string): Session | null {
+    const sessions = storage.getState().sessions;
+    const parentSessionId = sessions[sid]?.metadata?.parentSessionId;
+    return parentSessionId ? sessions[parentSessionId] ?? null : null;
+}
+
+export function getSessionChildren(sid: string): Session[] {
+    const sessions = storage.getState().sessions;
+    const spawnedChildren = sessions[sid]?.metadata?.spawnedChildren;
+    if (!spawnedChildren?.length) {
+        return [];
+    }
+    return spawnedChildren
+        .map((childId) => sessions[childId])
+        .filter((session): session is Session => !!session);
+}
+
 const emptyArray: unknown[] = [];
 
 export function useSessionMessages(sessionId: string): { messages: Message[], isLoaded: boolean } {
