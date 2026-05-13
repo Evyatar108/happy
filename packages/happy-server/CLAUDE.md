@@ -79,8 +79,6 @@ Only two env vars are required for standalone (both already in `.env.dev`):
 ├── /storage              # Database and storage utilities
 │   ├── db.ts            # Database client
 │   ├── inTx.ts          # Transaction wrapper
-│   ├── repeatKey.ts     # Key utilities
-│   ├── simpleCache.ts   # Caching utility
 │   └── types.ts         # Storage types
 └── main.ts               # Main entry point
 ```
