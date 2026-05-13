@@ -1643,10 +1643,18 @@ class Sync {
         // Subscribe to message updates
         apiSocket.onMessage('update', (update, machineId) => this.handleUpdate(update, false, machineId));
         apiSocket.onMessage('replay-overflow', (data, machineId) => {
+            if (
+                data?.replayOverflow !== true
+                || typeof data?.currentSeq !== 'number'
+                || !Number.isFinite(data.currentSeq)
+                || !Number.isInteger(data.currentSeq)
+                || data.currentSeq < 0
+            ) {
+                return;
+            }
+            const currentSeq = data.currentSeq;
             void this.sessionsSync.invalidateAndAwait().then(() => {
-                if (typeof data?.currentSeq === 'number') {
-                    storage.getState().setLastSeenUpdateSeq(machineId, data.currentSeq);
-                }
+                storage.getState().resetLastSeenUpdateSeq(machineId, currentSeq);
             }).catch((error) => {
                 console.error('Failed to recover from replay overflow:', error);
             });
@@ -1718,14 +1726,20 @@ class Sync {
                 this.pendingNewMessages.set(sid, queue);
                 if (!this.sessionInitInFlight.has(sid)) {
                     this.sessionInitInFlight.add(sid);
-                    this.sessionsSync.invalidateAndAwait().finally(() => {
+                    this.sessionsSync.invalidateAndAwait().then(() => {
                         this.sessionInitInFlight.delete(sid);
                         const pending = this.pendingNewMessages.get(sid) ?? [];
                         this.pendingNewMessages.delete(sid);
+                        const sessionLoadedAfterRefetch = !!storage.getState().sessions[sid];
                         for (const evt of pending) {
                             void this.handleUpdate(evt, true, sourceMachineId);
                         }
-                        this.persistLastSeenUpdateSeq(sourceMachineId, updateData.seq);
+                        if (sessionLoadedAfterRefetch) {
+                            this.persistLastSeenUpdateSeq(sourceMachineId, updateData.seq);
+                        }
+                    }).catch(() => {
+                        this.sessionInitInFlight.delete(sid);
+                        this.pendingNewMessages.delete(sid);
                     });
                 }
                 return;
@@ -1962,7 +1976,7 @@ class Sync {
         }
 
         if (deferredInvalidate) {
-            void deferredInvalidate.then(() => this.persistLastSeenUpdateSeq(sourceMachineId, updateData.seq));
+            void deferredInvalidate.then(() => this.persistLastSeenUpdateSeq(sourceMachineId, updateData.seq)).catch((err) => console.error('Deferred invalidate failed for update', err));
             return;
         }
         // Persist after branch effects commit; reconnect replay may skip this seq next time.

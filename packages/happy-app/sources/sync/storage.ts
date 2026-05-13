@@ -225,6 +225,7 @@ interface StorageState {
     applyNativeUpdateStatus: (status: { available: boolean; updateUrl?: string } | null) => void;
     isMutableToolCall: (sessionId: string, callId: string) => boolean;
     setLastSeenUpdateSeq: (machineId: string, seq: number) => void;
+    resetLastSeenUpdateSeq: (machineId: string, seq: number) => void;
     setSocketStatus: (status: 'disconnected' | 'connecting' | 'connected' | 'error') => void;
     getActiveSessions: () => Session[];
     updateSessionDraft: (sessionId: string, draft: string | null) => void;
@@ -1057,6 +1058,20 @@ export const storage = create<StorageState>()((set, get) => {
             const nextMap = {
                 ...state.lastSeenUpdateSeqByMachineId,
                 [machineId]: nextSeq,
+            };
+            lastSeenUpdateSeqByMachineId = nextMap;
+            saveLastSeenUpdateSeqByMachineId(nextMap);
+            set({ lastSeenUpdateSeqByMachineId: nextMap });
+        },
+        resetLastSeenUpdateSeq: (machineId: string, seq: number) => {
+            const state = get();
+            const existing = state.lastSeenUpdateSeqByMachineId[machineId] ?? 0;
+            if (seq === existing) {
+                return;
+            }
+            const nextMap = {
+                ...state.lastSeenUpdateSeqByMachineId,
+                [machineId]: seq,
             };
             lastSeenUpdateSeqByMachineId = nextMap;
             saveLastSeenUpdateSeqByMachineId(nextMap);

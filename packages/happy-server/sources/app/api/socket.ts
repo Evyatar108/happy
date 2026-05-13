@@ -190,11 +190,14 @@ export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { lo
                 userId
             };
         }
+        const lastSeenSeq = socket.handshake.auth.lastSeenSeq;
+        const replay = (typeof lastSeenSeq === 'number' && Number.isFinite(lastSeenSeq))
+            ? eventRouter.getReplayForConnection(lastSeenSeq, connection)
+            : null;
+
         eventRouter.addConnection(userId, connection);
 
-        const lastSeenSeq = socket.handshake.auth.lastSeenSeq;
-        if (typeof lastSeenSeq === 'number' && Number.isFinite(lastSeenSeq)) {
-            const replay = eventRouter.getReplayForConnection(lastSeenSeq, connection);
+        if (replay !== null) {
             if (replay.overflow) {
                 socket.emit('replay-overflow', { replayOverflow: true, currentSeq: replay.currentSeq });
             } else {

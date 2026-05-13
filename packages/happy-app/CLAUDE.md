@@ -148,9 +148,26 @@ restart gaps arrive as `replay-overflow`, which performs the HTTP sessions
 fallback and persists `currentSeq` only after that fallback resolves.
 
 The v1 design accepts a per-event MMKV write when a handled update advances the
-stored seq. The mitigation is `setLastSeenUpdateSeq(...)`: it is monotonic and
-no-ops both Zustand notification and MMKV save when an async replay handler tries
-to write a regressing seq.
+stored seq. Two setters guard this state and must not be conflated:
+
+- `setLastSeenUpdateSeq(...)` is the **monotonic, no-op-on-regressing-write**
+  setter used by the per-update persist path — both the synchronous-apply
+  branches and the deferred-invalidate `.then()` tail-persists in `handleUpdate`.
+  It protects against out-of-order async `handleUpdate` completions clobbering a
+  higher stored seq with a lower one: when two updates resolve out of arrival
+  order, the late writer's lower seq must not overwrite the earlier writer's
+  higher seq. The guard no-ops both the Zustand notification and the MMKV save
+  in that case.
+- `resetLastSeenUpdateSeq(...)` is the **non-monotonic** setter used exclusively
+  by the `replay-overflow` handler in `subscribeToUpdates` (`sync.ts`). After
+  `sessionsSync.invalidateAndAwait()` resolves, it writes the server's
+  `currentSeq` whatever its value is — including values smaller than the stored
+  seq. This is required for the daemon-restart recovery path: when the stored
+  `lastSeenSeq > currentSeq` (the server's buffer rolled), the recovery must be
+  able to move the stored seq **backwards** to `currentSeq` so the next
+  reconnect's `auth.lastSeenSeq` matches what the server can replay. Routing
+  this through the monotonic guard would silently no-op the recovery and leave
+  the client stuck.
 
 ### Development Guidelines
 

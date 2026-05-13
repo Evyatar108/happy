@@ -93,4 +93,39 @@ describe('storage lastSeenUpdateSeqByMachineId persistence', () => {
         expect(stateListener).toHaveBeenCalledTimes(1);
         unsubscribe();
     });
+
+    it('resetLastSeenUpdateSeq writes a lower seq bypassing the monotonic guard', async () => {
+        const storage = await importFreshStorage();
+        const stateListener = vi.fn();
+        const unsubscribe = storage.subscribe(stateListener);
+
+        storage.getState().setLastSeenUpdateSeq('mA', 500);
+        stateListener.mockClear();
+        saveLastSeenUpdateSeqByMachineIdSpy.mockClear();
+
+        storage.getState().resetLastSeenUpdateSeq('mA', 7);
+
+        expect(storage.getState().lastSeenUpdateSeqByMachineId['mA']).toBe(7);
+        expect(saveLastSeenUpdateSeqByMachineIdSpy).toHaveBeenCalledTimes(1);
+        expect(saveLastSeenUpdateSeqByMachineIdSpy).toHaveBeenCalledWith({ mA: 7 });
+        expect(stateListener).toHaveBeenCalledTimes(1);
+        unsubscribe();
+    });
+
+    it('resetLastSeenUpdateSeq no-ops when seq is already equal to stored value', async () => {
+        const storage = await importFreshStorage();
+        const stateListener = vi.fn();
+        const unsubscribe = storage.subscribe(stateListener);
+
+        storage.getState().setLastSeenUpdateSeq('mA', 42);
+        stateListener.mockClear();
+        saveLastSeenUpdateSeqByMachineIdSpy.mockClear();
+
+        storage.getState().resetLastSeenUpdateSeq('mA', 42);
+
+        expect(storage.getState().lastSeenUpdateSeqByMachineId['mA']).toBe(42);
+        expect(saveLastSeenUpdateSeqByMachineIdSpy).not.toHaveBeenCalled();
+        expect(stateListener).not.toHaveBeenCalled();
+        unsubscribe();
+    });
 });

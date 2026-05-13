@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
         isMutableToolCall: vi.fn(),
         markMachineDisconnected: vi.fn(),
         setLastSeenUpdateSeq: vi.fn(),
+        resetLastSeenUpdateSeq: vi.fn(),
         setSocketStatus: vi.fn(),
     },
     randomUUID: vi.fn(),
@@ -194,6 +195,9 @@ function resetStorageHarness() {
             mocks.storageState.lastSeenUpdateSeqByMachineId[machineId] ?? 0,
             seq,
         );
+    });
+    mocks.storageState.resetLastSeenUpdateSeq.mockImplementation((machineId: string, seq: number) => {
+        mocks.storageState.lastSeenUpdateSeqByMachineId[machineId] = seq;
     });
     mocks.storageState.getActiveSessions.mockImplementation(() => Object.values(mocks.storageState.sessions));
     mocks.storageState.isMutableToolCall.mockReturnValue(false);
@@ -756,7 +760,7 @@ describe('sync WS3 last-seen update seq persistence', () => {
         expect(mocks.storageState.setLastSeenUpdateSeq).toHaveBeenCalledWith('mA', 4);
     });
 
-    it('persists missing-session new-message only after the deferred replay loop and skips replay drops', async () => {
+    it('does NOT persist when invalidateAndAwait resolves but session is still missing post-refetch', async () => {
         let resolveInvalidate!: () => void;
         const pending = new Promise<void>(resolve => { resolveInvalidate = resolve; });
         (sync as any).sessionsSync.invalidateAndAwait.mockReturnValueOnce(pending);
@@ -772,16 +776,30 @@ describe('sync WS3 last-seen update seq persistence', () => {
         await pending;
         await flushPromises();
 
-        expect(mocks.storageState.setLastSeenUpdateSeq).toHaveBeenCalledTimes(1);
-        expect(mocks.storageState.setLastSeenUpdateSeq).toHaveBeenCalledWith('mA', 5);
+        expect(mocks.storageState.setLastSeenUpdateSeq).not.toHaveBeenCalled();
+    });
 
-        mocks.storageState.setLastSeenUpdateSeq.mockClear();
+    it('persists when invalidateAndAwait resolves and session IS present post-refetch', async () => {
+        vi.spyOn(sync as any, 'getMessagesSync').mockReturnValue({ invalidate: vi.fn() });
+        vi.spyOn(sync as any, 'onSessionVisible').mockImplementation(() => undefined);
+
+        let resolveInvalidate!: () => void;
+        const pending = new Promise<void>(resolve => { resolveInvalidate = resolve; });
+        (sync as any).sessionsSync.invalidateAndAwait.mockReturnValueOnce(pending);
+
         await (sync as any).handleUpdate(makePlainUpdate({
             role: 'session',
-            content: { id: 'msg-6', time: 100, role: 'agent', turn: 'turn-1', ev: { t: 'turn-start' } },
-        }, 6), true, 'mA');
+            content: { id: 'msg-7', time: 100, role: 'agent', turn: 'turn-1', ev: { t: 'turn-start' } },
+        }, 7), false, 'mA');
 
         expect(mocks.storageState.setLastSeenUpdateSeq).not.toHaveBeenCalled();
+
+        mocks.storageState.sessions['mA:session-1'] = makeSession({ id: 'mA:session-1' });
+        resolveInvalidate();
+        await pending;
+        await flushPromises();
+
+        expect(mocks.storageState.setLastSeenUpdateSeq).toHaveBeenCalledWith('mA', 7);
     });
 
     it('does not persist invalid update payloads', async () => {
@@ -799,7 +817,8 @@ describe('sync WS3 last-seen update seq persistence', () => {
         await flushPromises();
 
         expect((sync as any).sessionsSync.invalidateAndAwait).toHaveBeenCalledOnce();
-        expect(mocks.storageState.setLastSeenUpdateSeq).toHaveBeenCalledWith('mA', 42);
+        expect(mocks.storageState.resetLastSeenUpdateSeq).toHaveBeenCalledWith('mA', 42);
+        expect(mocks.storageState.setLastSeenUpdateSeq).not.toHaveBeenCalled();
 
         vi.clearAllMocks();
         (sync as any).sessionsSync.invalidateAndAwait.mockRejectedValueOnce(new Error('refresh failed'));
@@ -807,6 +826,49 @@ describe('sync WS3 last-seen update seq persistence', () => {
         handler?.({ replayOverflow: true, currentSeq: 43 }, 'mA');
         await flushPromises();
 
+        expect(mocks.storageState.resetLastSeenUpdateSeq).not.toHaveBeenCalled();
+        expect(mocks.storageState.setLastSeenUpdateSeq).not.toHaveBeenCalled();
+    });
+
+    it('resets stored seq to lower currentSeq on replay-overflow after daemon restart', async () => {
+        mocks.storageState.lastSeenUpdateSeqByMachineId = { mA: 500 };
+        (sync as any).subscribeToUpdates();
+        const handler = mocks.messageHandlers.get('replay-overflow');
+        expect(handler).toBeDefined();
+
+        handler?.({ replayOverflow: true, currentSeq: 7 }, 'mA');
+        await flushPromises();
+
+        expect(mocks.storageState.resetLastSeenUpdateSeq).toHaveBeenCalledWith('mA', 7);
+        expect(mocks.storageState.lastSeenUpdateSeqByMachineId['mA']).toBe(7);
+    });
+
+    it('rejects pathological replay-overflow payloads', async () => {
+        (sync as any).subscribeToUpdates();
+        const handler = mocks.messageHandlers.get('replay-overflow');
+        expect(handler).toBeDefined();
+
+        const pathological: any[] = [
+            { replayOverflow: true, currentSeq: Number.NaN },
+            { replayOverflow: true, currentSeq: Number.POSITIVE_INFINITY },
+            { replayOverflow: true, currentSeq: Number.NEGATIVE_INFINITY },
+            { replayOverflow: true, currentSeq: -1 },
+            { replayOverflow: true, currentSeq: 1.5 },
+            { replayOverflow: true, currentSeq: '42' },
+            { replayOverflow: true },
+            { currentSeq: 42 },
+            { replayOverflow: false, currentSeq: 42 },
+            null,
+            undefined,
+        ];
+
+        for (const payload of pathological) {
+            handler?.(payload, 'mA');
+        }
+        await flushPromises();
+
+        expect((sync as any).sessionsSync.invalidateAndAwait).not.toHaveBeenCalled();
+        expect(mocks.storageState.resetLastSeenUpdateSeq).not.toHaveBeenCalled();
         expect(mocks.storageState.setLastSeenUpdateSeq).not.toHaveBeenCalled();
     });
 

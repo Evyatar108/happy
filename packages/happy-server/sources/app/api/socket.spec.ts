@@ -291,6 +291,22 @@ describe("startSocket replay handshake", () => {
         expect(socket.emit).not.toHaveBeenCalledWith("replay-overflow", expect.anything());
     });
 
+    it("captures replay snapshot before joining rooms (getReplayForConnection before addConnection)", () => {
+        const eventRouter = createFakeEventRouter();
+        const callOrder: string[] = [];
+        eventRouter.getReplayForConnection.mockImplementation(() => {
+            callOrder.push("getReplayForConnection");
+            return { events: [], overflow: false, currentSeq: 0 };
+        });
+        eventRouter.addConnection.mockImplementation(() => {
+            callOrder.push("addConnection");
+        });
+
+        connectWithReplay({ lastSeenSeq: 5 }, eventRouter);
+
+        expect(callOrder).toEqual(["getReplayForConnection", "addConnection"]);
+    });
+
     it("skips replay when lastSeenSeq is missing or non-finite", () => {
         for (const auth of [{}, { lastSeenSeq: "5" }, { lastSeenSeq: Number.POSITIVE_INFINITY }, { lastSeenSeq: Number.NaN }]) {
             const eventRouter = createFakeEventRouter();

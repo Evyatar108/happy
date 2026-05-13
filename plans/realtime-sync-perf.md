@@ -161,7 +161,7 @@ Each workstream stands on its own. Recommend executing in the order presented (c
 
 **Estimate:** 2–3 hours including tests.
 
-Status: implemented 2026-05-13 in commit pending-US-007-single-WS3-commit.
+Status: implemented 2026-05-13 in commit 197b0148.
 Touched files: `packages/happy-server/sources/app/events/eventRouter.ts`,
 `packages/happy-server/sources/app/api/socket.ts`,
 `packages/happy-app/sources/sync/storage.ts`,
