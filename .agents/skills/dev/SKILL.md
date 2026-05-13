@@ -124,6 +124,28 @@ togglable from the dev settings screen).
 - **Workspace deps:** `"@slopus/happy-wire": "workspace:*"` resolves to `packages/happy-wire/` — edits are picked up live.
 - **`$npm_execpath`:** legacy; happy-cli uses `pnpm` literally. Windows cmd.exe doesn't expand `$VAR`.
 - **Build before tests:** tests spawn the built CLI binary (for daemon integration), so `pnpm test` runs `build` first. Do not remove.
+- **pnpm filter syntax:** `pnpm --filter happy-cli ...` **silently no-ops** because the package name in `packages/happy-cli/package.json` is `happy`, not `happy-cli`. Use the path-style filter: `pnpm --filter "{packages/happy-cli}" ...`. Same for `happy-app`, `happy-server`, etc.
+
+## Capture long-running command output
+
+Tests, typechecks, and full builds are slow (10s – 5min) and produce more output than fits in conversation context. **Always tee stdout+stderr to a log file** so the run can be re-inspected with grep / Read without re-executing. Re-run only when source has actually changed since the captured run.
+
+```bash
+# Test run:
+pnpm --filter "{packages/happy-app}" exec vitest run 2>&1 | tee /tmp/codexu-app-tests.log
+
+# Typecheck:
+pnpm --filter "{packages/happy-cli}" exec tsc --noEmit 2>&1 | tee /tmp/codexu-cli-tc.log
+
+# Cross-package:
+pnpm --filter "{packages/happy-server}" --filter "{packages/happy-cli}" exec tsc --noEmit 2>&1 | tee /tmp/codexu-tc.log
+```
+
+Subsequent inspection:
+
+```bash
+grep -E "FAIL|×|✗|error TS" /tmp/codexu-*.log
+```
 
 ## Releasing
 

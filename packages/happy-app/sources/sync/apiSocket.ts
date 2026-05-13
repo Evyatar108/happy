@@ -5,7 +5,7 @@ import { AuthCredentials, TokenStorage } from '@/auth/tokenStorage';
 import { storage } from './storage';
 import { tunnelFetch, DeviceCodeExpired, ClaimExpired } from '@/auth/machineAuth';
 import { buildTunnelSocketOptions } from './socketOptions';
-import { localizeSessionPath, parseCompositeSessionId } from './machineSessionId';
+import { localizeSessionPath, parseCompositeSessionId, MachineSessionRef } from './machineSessionId';
 import {
     SessionMessageRangeRequestSchema,
     SessionMessageRangeResponseSchema,
@@ -46,6 +46,91 @@ interface MachineConnection {
 }
 
 type MessageHandler = (data: any, machineId: string) => void;
+
+/**
+ * Routing scope for socket / HTTP operations scoped to a specific session.
+ *
+ * The scope parses the (possibly composite) session id once at construction time
+ * and exposes the parsed {@link MachineSessionRef} via `ref`. Every method routes
+ * to `ref.machineId`. Callers writing paths or payloads that need the bare local
+ * session id MUST read it from `this.ref.localSessionId` rather than re-using
+ * the caller-side composite id — that is the invariant that prevents the
+ * composite-id-in-payload bug class.
+ */
+export class SessionScope {
+    constructor(
+        private readonly api: ApiSocket,
+        readonly ref: MachineSessionRef,
+    ) {}
+
+    /**
+     * HTTP request to the session's machine. The path may contain either the
+     * bare local id or the composite id; `localizeSessionPath` rewrites
+     * `/sessions/<machineId>:` segments into `/sessions/` so the server sees
+     * the bare id regardless.
+     */
+    async request(path: string, opts?: RequestInit): Promise<Response> {
+        return this.api._requestForMachine(this.ref.machineId, localizeSessionPath(path, this.ref.machineId), opts);
+    }
+
+    /**
+     * Session-scoped RPC: server routes by `${localSessionId}:${method}`.
+     */
+    async rpc<R, A = unknown>(method: string, params: A): Promise<R> {
+        return this.api._dispatchSessionRpc(this.ref, method, params);
+    }
+
+    /**
+     * Machine-scoped RPC delivered to the session's machine. The server routes
+     * by `${machineId}:${method}`. Use this for commands that are machine-scoped
+     * on the daemon (`resume-happy-session`, `fork-into-worktree`, ...) but whose
+     * routing target is determined by which machine owns a particular session.
+     * Caller-supplied params that reference the session MUST use
+     * `this.ref.localSessionId`.
+     */
+    async machineRpc<R, A = unknown>(method: string, params: A): Promise<R> {
+        return this.api._dispatchMachineRpc(this.ref.machineId, method, params);
+    }
+
+    async emitWithAck<T = any>(event: string, data: unknown): Promise<T> {
+        return this.api._emitWithAck(this.ref.machineId, event, data);
+    }
+
+    send(event: string, data: unknown): boolean {
+        return this.api._send(this.ref.machineId, event, data);
+    }
+}
+
+/**
+ * Routing scope for socket / HTTP operations targeting a specific machine.
+ * Used for machine-level commands and for operations targeting the primary
+ * machine when no other routing hint is available.
+ */
+export class MachineScope {
+    constructor(
+        private readonly api: ApiSocket,
+        readonly machineId: string,
+    ) {}
+
+    async request(path: string, opts?: RequestInit): Promise<Response> {
+        return this.api._requestForMachine(this.machineId, path, opts);
+    }
+
+    /**
+     * Machine-scoped RPC: server routes by `${machineId}:${method}`.
+     */
+    async rpc<R, A = unknown>(method: string, params: A): Promise<R> {
+        return this.api._dispatchMachineRpc(this.machineId, method, params);
+    }
+
+    async emitWithAck<T = any>(event: string, data: unknown): Promise<T> {
+        return this.api._emitWithAck(this.machineId, event, data);
+    }
+
+    send(event: string, data: unknown): boolean {
+        return this.api._send(this.machineId, event, data);
+    }
+}
 
 class ApiSocket {
     private connections: Map<string, MachineConnection> = new Map();
@@ -217,42 +302,28 @@ class ApiSocket {
         this.messageHandlers.delete(event);
     }
 
-    async sessionRPC<R, A>(sessionId: string, method: string, params: A): Promise<R> {
-        const ref = this.resolveSessionRef(sessionId);
-        const connection = this.requireConnection(ref.machineId);
-        const result = await connection.socket!.emitWithAck('rpc-call', {
-            method: `${ref.localSessionId}:${method}`,
-            params,
-        });
-
-        if (result.ok) {
-            return result.result as R;
-        }
-        throw new Error('RPC call failed');
+    /**
+     * Routing scope for operations targeting a specific session. Parses the
+     * (possibly composite) session id once and routes every subsequent call to
+     * the owning machine.
+     */
+    forSession(sessionId: string): SessionScope {
+        return new SessionScope(this, this.resolveSessionRef(sessionId));
     }
 
-    async machineRPC<R, A>(machineId: string, method: string, params: A): Promise<R> {
-        const connection = this.requireConnection(machineId);
-        const result = await connection.socket!.emitWithAck('rpc-call', {
-            method: `${machineId}:${method}`,
-            params,
-        });
-
-        if (result.ok) {
-            return result.result as R;
-        }
-        throw new Error(result.error || 'RPC call failed');
+    /**
+     * Routing scope for operations targeting a specific machine.
+     */
+    forMachine(machineId: string): MachineScope {
+        return new MachineScope(this, machineId);
     }
 
-    send(event: string, data: any, machineId?: string) {
-        const connection = this.requireConnection(machineId ?? this.requirePrimaryMachineId());
-        connection.socket!.emit(event, data);
-        return true;
-    }
-
-    async emitWithAck<T = any>(event: string, data: any, machineId?: string): Promise<T> {
-        const connection = this.requireConnection(machineId ?? this.requirePrimaryMachineId());
-        return await connection.socket!.emitWithAck(event, data);
+    /**
+     * Routing scope for operations that target the user's primary machine
+     * (account-scoped operations, default delivery target, etc.).
+     */
+    forPrimaryMachine(): MachineScope {
+        return new MachineScope(this, this.requirePrimaryMachineId());
     }
 
     async requestSessionMessageRange(req: SessionMessageRangeRequest): Promise<SessionMessageRangeResponse> {
@@ -270,16 +341,19 @@ class ApiSocket {
         return parsed.data;
     }
 
-    async request(path: string, options?: RequestInit): Promise<Response> {
-        return this.requestForMachine(this.requirePrimaryMachineId(), path, options);
+    async reconnectWithCurrentCredentials() {
+        this.disconnect();
+        await this.connect();
     }
 
-    async requestForSession(sessionId: string, path: string, options?: RequestInit): Promise<Response> {
-        const ref = this.resolveSessionRef(sessionId);
-        return this.requestForMachine(ref.machineId, localizeSessionPath(path, ref.machineId), options);
-    }
+    // ---------- internal helpers used by SessionScope / MachineScope ----------
+    // These are public on the class only because TS lacks package-private; they
+    // exist for the scope classes and `requestSessionMessageRange` to call.
+    // External callers should use `forSession`, `forMachine`, or
+    // `forPrimaryMachine` — never these directly.
 
-    async requestForMachine(machineId: string, path: string, options?: RequestInit): Promise<Response> {
+    /** @internal */
+    async _requestForMachine(machineId: string, path: string, opts?: RequestInit): Promise<Response> {
         const connection = this.requireConnection(machineId);
         const credentials = (await TokenStorage.getCredentialsList()).find(item => item.machineId === machineId);
         if (!credentials) {
@@ -288,21 +362,51 @@ class ApiSocket {
         const url = `${connection.config.endpoint}${path}`;
         const headers: Record<string, string> = {
             'X-Happy-Client': getHappyClientId(),
-            ...(options?.headers as Record<string, string> | undefined),
+            ...(opts?.headers as Record<string, string> | undefined),
         };
+        return tunnelFetch(url, credentials, { ...opts, headers });
+    }
 
-        return tunnelFetch(url, credentials, {
-            ...options,
-            headers
+    /** @internal */
+    async _dispatchSessionRpc<R, A>(ref: MachineSessionRef, method: string, params: A): Promise<R> {
+        const connection = this.requireConnection(ref.machineId);
+        const result = await connection.socket!.emitWithAck('rpc-call', {
+            method: `${ref.localSessionId}:${method}`,
+            params,
         });
+        if (result.ok) {
+            return result.result as R;
+        }
+        throw new Error('RPC call failed');
     }
 
-    async reconnectWithCurrentCredentials() {
-        this.disconnect();
-        await this.connect();
+    /** @internal */
+    async _dispatchMachineRpc<R, A>(machineId: string, method: string, params: A): Promise<R> {
+        const connection = this.requireConnection(machineId);
+        const result = await connection.socket!.emitWithAck('rpc-call', {
+            method: `${machineId}:${method}`,
+            params,
+        });
+        if (result.ok) {
+            return result.result as R;
+        }
+        throw new Error(result.error || 'RPC call failed');
     }
 
-    private resolveSessionRef(sessionId: string) {
+    /** @internal */
+    async _emitWithAck<T = any>(machineId: string, event: string, data: unknown): Promise<T> {
+        const connection = this.requireConnection(machineId);
+        return await connection.socket!.emitWithAck(event, data);
+    }
+
+    /** @internal */
+    _send(machineId: string, event: string, data: unknown): boolean {
+        const connection = this.requireConnection(machineId);
+        connection.socket!.emit(event, data);
+        return true;
+    }
+
+    private resolveSessionRef(sessionId: string): MachineSessionRef {
         return parseCompositeSessionId(sessionId, this.requirePrimaryMachineId());
     }
 
@@ -422,4 +526,5 @@ class ApiSocket {
     }
 }
 
+export type { ApiSocket };
 export const apiSocket = new ApiSocket();

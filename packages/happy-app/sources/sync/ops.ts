@@ -4,7 +4,6 @@
  */
 
 import { apiSocket } from './apiSocket';
-import { parseCompositeSessionId } from './machineSessionId';
 import { storage } from './storage';
 import type { MachineMetadata, Metadata } from './storageTypes';
 
@@ -184,14 +183,13 @@ export async function machineSpawnNewSession(options: SpawnSessionOptions): Prom
     const { machineId, directory, approvedNewDirectoryCreation = false, token, agent } = options;
 
     try {
-        const result = await apiSocket.machineRPC<SpawnSessionResult, {
+        const result = await apiSocket.forMachine(machineId).rpc<SpawnSessionResult, {
             type: 'spawn-in-directory'
             directory: string
             approvedNewDirectoryCreation?: boolean,
             token?: string,
             agent?: 'codex' | 'claude' | 'gemini' | 'openclaw',
         }>(
-            machineId,
             'spawn-happy-session',
             { type: 'spawn-in-directory', directory, approvedNewDirectoryCreation, token, agent }
         );
@@ -206,13 +204,13 @@ export async function machineSpawnNewSession(options: SpawnSessionOptions): Prom
 }
 
 export async function machineResumeSession(options: ResumeSessionOptions & { model?: string; permissionMode?: string }): Promise<SpawnSessionResult> {
-    const { machineId, sessionId, model, permissionMode } = options;
+    const { sessionId, model, permissionMode } = options;
 
     try {
-        const result = await apiSocket.machineRPC<SpawnSessionResult, { sessionId: string; model?: string; permissionMode?: string }>(
-            machineId,
+        const scope = apiSocket.forSession(sessionId);
+        const result = await scope.machineRpc<SpawnSessionResult, { sessionId: string; model?: string; permissionMode?: string }>(
             'resume-happy-session',
-            { sessionId, model, permissionMode },
+            { sessionId: scope.ref.localSessionId, model, permissionMode },
         );
         return result;
     } catch (error) {
@@ -224,20 +222,19 @@ export async function machineResumeSession(options: ResumeSessionOptions & { mod
 }
 
 export async function machineForkSession(options: ForkSessionOptions): Promise<SpawnSessionResult> {
-    const { machineId, parentSessionId, worktreePath, model, permissionMode, effortLevel } = options;
-    const { localSessionId } = parseCompositeSessionId(parentSessionId, machineId);
+    const { parentSessionId, worktreePath, model, permissionMode, effortLevel } = options;
 
     try {
-        const result = await apiSocket.machineRPC<SpawnSessionResult, {
+        const scope = apiSocket.forSession(parentSessionId);
+        const result = await scope.machineRpc<SpawnSessionResult, {
             parentSessionId: string;
             worktreePath: string;
             model?: string;
             permissionMode?: string;
             effortLevel?: string;
         }>(
-            machineId,
             'fork-into-worktree',
-            { parentSessionId: localSessionId, worktreePath, model, permissionMode, effortLevel },
+            { parentSessionId: scope.ref.localSessionId, worktreePath, model, permissionMode, effortLevel },
         );
         return result;
     } catch (error) {
@@ -282,8 +279,7 @@ export async function machineDelete(machineId: string): Promise<{ success: boole
  * Stop the daemon on a specific machine
  */
 export async function machineStopDaemon(machineId: string): Promise<{ message: string }> {
-    const result = await apiSocket.machineRPC<{ message: string }, {}>(
-        machineId,
+    const result = await apiSocket.forMachine(machineId).rpc<{ message: string }, {}>(
         'stop-daemon',
         {}
     );
@@ -304,7 +300,7 @@ export async function machineBash(
     exitCode: number;
 }> {
     try {
-        const result = await apiSocket.machineRPC<{
+        const result = await apiSocket.forMachine(machineId).rpc<{
             success: boolean;
             stdout: string;
             stderr: string;
@@ -313,7 +309,6 @@ export async function machineBash(
             command: string;
             cwd: string;
         }>(
-            machineId,
             'bash',
             { command, cwd }
         );
@@ -341,10 +336,12 @@ export async function machineUpdateMetadata(
     let currentMetadata = { ...metadata };
     let retryCount = 0;
 
+    const scope = apiSocket.forMachine(machineId);
+
     while (retryCount < maxRetries) {
         const metadataValue = JSON.stringify(currentMetadata);
 
-        const result = await apiSocket.emitWithAck<{
+        const result = await scope.emitWithAck<{
             result: 'success' | 'version-mismatch' | 'error';
             version?: number;
             metadata?: string;
@@ -413,16 +410,18 @@ export async function sessionUpdateMetadata(
 
     let currentMetadata = patchFn(initialMetadata);
 
+    const scope = apiSocket.forSession(sessionId);
+
     while (retryCount < maxRetries) {
         const metadataValue = JSON.stringify(currentMetadata);
 
-        const result = await apiSocket.emitWithAck<{
+        const result = await scope.emitWithAck<{
             result: 'success' | 'version-mismatch' | 'error';
             version?: number;
             metadata?: string;
             message?: string;
         }>('update-metadata', {
-            sid: sessionId,
+            sid: scope.ref.localSessionId,
             metadata: metadataValue,
             expectedVersion: currentVersion
         });
@@ -487,7 +486,7 @@ export async function sessionEmitAgentConfiguration({
  * Abort the current session operation
  */
 export async function sessionAbort(sessionId: string): Promise<void> {
-    await apiSocket.sessionRPC(sessionId, 'abort', {
+    await apiSocket.forSession(sessionId).rpc('abort', {
         reason: `The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.`
     });
 }
@@ -497,7 +496,7 @@ export async function sessionAbort(sessionId: string): Promise<void> {
  */
 export async function sessionAllow(sessionId: string, id: string, mode?: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan', allowedTools?: string[], decision?: 'approved' | 'approved_for_session', updatedInput?: Record<string, unknown>): Promise<void> {
     const request: SessionPermissionRequest = { id, approved: true, mode, allowTools: allowedTools, decision, updatedInput };
-    await apiSocket.sessionRPC(sessionId, 'permission', request);
+    await apiSocket.forSession(sessionId).rpc('permission', request);
 }
 
 /**
@@ -505,7 +504,7 @@ export async function sessionAllow(sessionId: string, id: string, mode?: 'defaul
  */
 export async function sessionDeny(sessionId: string, id: string, mode?: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan', allowedTools?: string[], decision?: 'denied' | 'abort'): Promise<void> {
     const request: SessionPermissionRequest = { id, approved: false, mode, allowTools: allowedTools, decision };
-    await apiSocket.sessionRPC(sessionId, 'permission', request);
+    await apiSocket.forSession(sessionId).rpc('permission', request);
 }
 
 /**
@@ -513,8 +512,7 @@ export async function sessionDeny(sessionId: string, id: string, mode?: 'default
  */
 export async function sessionSwitch(sessionId: string, to: 'remote' | 'local'): Promise<boolean> {
     const request: SessionModeChangeRequest = { to };
-    const response = await apiSocket.sessionRPC<boolean, SessionModeChangeRequest>(
-        sessionId,
+    const response = await apiSocket.forSession(sessionId).rpc<boolean, SessionModeChangeRequest>(
         'switch',
         request,
     );
@@ -522,16 +520,14 @@ export async function sessionSwitch(sessionId: string, to: 'remote' | 'local'): 
 }
 
 export async function requestSwitch(sessionId: string, mode: RequestSwitchMode): Promise<RequestSwitchResponse> {
-    return apiSocket.sessionRPC<RequestSwitchResponse, RequestSwitchRequest>(
-        sessionId,
+    return apiSocket.forSession(sessionId).rpc<RequestSwitchResponse, RequestSwitchRequest>(
         'request-switch',
         { mode },
     );
 }
 
 export async function cancelPendingSwitch(sessionId: string): Promise<void> {
-    await apiSocket.sessionRPC<void, Record<string, never>>(
-        sessionId,
+    await apiSocket.forSession(sessionId).rpc<void, Record<string, never>>(
         'cancel-pending-switch',
         {},
     );
@@ -542,8 +538,7 @@ export async function cancelPendingSwitch(sessionId: string): Promise<void> {
  */
 export async function sessionBash(sessionId: string, request: SessionBashRequest): Promise<SessionBashResponse> {
     try {
-        const response = await apiSocket.sessionRPC<SessionBashResponse, SessionBashRequest>(
-            sessionId,
+        const response = await apiSocket.forSession(sessionId).rpc<SessionBashResponse, SessionBashRequest>(
             'bash',
             request
         );
@@ -565,8 +560,7 @@ export async function sessionBash(sessionId: string, request: SessionBashRequest
 export async function sessionReadFile(sessionId: string, path: string): Promise<SessionReadFileResponse> {
     try {
         const request: SessionReadFileRequest = { path };
-        const response = await apiSocket.sessionRPC<SessionReadFileResponse, SessionReadFileRequest>(
-            sessionId,
+        const response = await apiSocket.forSession(sessionId).rpc<SessionReadFileResponse, SessionReadFileRequest>(
             'readFile',
             request
         );
@@ -599,8 +593,7 @@ export async function sessionWriteFile(
         if (options.createParents !== undefined) {
             request.createParents = options.createParents;
         }
-        const response = await apiSocket.sessionRPC<SessionWriteFileResponse, SessionWriteFileRequest>(
-            sessionId,
+        const response = await apiSocket.forSession(sessionId).rpc<SessionWriteFileResponse, SessionWriteFileRequest>(
             'writeFile',
             request
         );
@@ -619,8 +612,7 @@ export async function sessionWriteFile(
 export async function sessionListDirectory(sessionId: string, path: string): Promise<SessionListDirectoryResponse> {
     try {
         const request: SessionListDirectoryRequest = { path };
-        const response = await apiSocket.sessionRPC<SessionListDirectoryResponse, SessionListDirectoryRequest>(
-            sessionId,
+        const response = await apiSocket.forSession(sessionId).rpc<SessionListDirectoryResponse, SessionListDirectoryRequest>(
             'listDirectory',
             request
         );
@@ -643,8 +635,7 @@ export async function sessionGetDirectoryTree(
 ): Promise<SessionGetDirectoryTreeResponse> {
     try {
         const request: SessionGetDirectoryTreeRequest = { path, maxDepth };
-        const response = await apiSocket.sessionRPC<SessionGetDirectoryTreeResponse, SessionGetDirectoryTreeRequest>(
-            sessionId,
+        const response = await apiSocket.forSession(sessionId).rpc<SessionGetDirectoryTreeResponse, SessionGetDirectoryTreeRequest>(
             'getDirectoryTree',
             request
         );
@@ -667,8 +658,7 @@ export async function sessionRipgrep(
 ): Promise<SessionRipgrepResponse> {
     try {
         const request: SessionRipgrepRequest = { args, cwd };
-        const response = await apiSocket.sessionRPC<SessionRipgrepResponse, SessionRipgrepRequest>(
-            sessionId,
+        const response = await apiSocket.forSession(sessionId).rpc<SessionRipgrepResponse, SessionRipgrepRequest>(
             'ripgrep',
             request
         );
@@ -686,8 +676,7 @@ export async function sessionRipgrep(
  */
 export async function sessionKill(sessionId: string): Promise<SessionKillResponse> {
     try {
-        const response = await apiSocket.sessionRPC<SessionKillResponse, {}>(
-            sessionId,
+        const response = await apiSocket.forSession(sessionId).rpc<SessionKillResponse, {}>(
             'killSession',
             {}
         );
@@ -706,7 +695,8 @@ export async function sessionKill(sessionId: string): Promise<SessionKillRespons
  */
 export async function sessionArchive(sessionId: string): Promise<{ success: boolean; message?: string }> {
     try {
-        const response = await apiSocket.request(`/v1/sessions/${sessionId}/archive`, {
+        const scope = apiSocket.forSession(sessionId);
+        const response = await scope.request(`/v1/sessions/${scope.ref.localSessionId}/archive`, {
             method: 'POST'
         });
         if (!response.ok) {
@@ -725,7 +715,8 @@ export async function sessionArchive(sessionId: string): Promise<{ success: bool
  */
 export async function sessionDelete(sessionId: string): Promise<{ success: boolean; message?: string }> {
     try {
-        const response = await apiSocket.request(`/v1/sessions/${sessionId}`, {
+        const scope = apiSocket.forSession(sessionId);
+        const response = await scope.request(`/v1/sessions/${scope.ref.localSessionId}`, {
             method: 'DELETE'
         });
         

@@ -595,9 +595,9 @@ class Sync {
                     return;
                 }
 
-                const response = await apiSocket.requestForSession(
-                    sessionId,
-                    `/v3/sessions/${sessionId}/messages?after_seq=${pagination.afterSeq}&limit=${OLDER_MESSAGES_PAGE_SIZE}`
+                const scope = apiSocket.forSession(sessionId);
+                const response = await scope.request(
+                    `/v3/sessions/${scope.ref.localSessionId}/messages?after_seq=${pagination.afterSeq}&limit=${OLDER_MESSAGES_PAGE_SIZE}`
                 );
                 if (!response.ok) {
                     throw new Error(`Failed to fetch older messages for ${sessionId}: ${response.status}`);
@@ -881,8 +881,7 @@ class Sync {
                 const messagePreview = rawPreview.length > 80
                     ? rawPreview.slice(0, 80) + '…'
                     : rawPreview;
-                const response = await apiSocket.sessionRPC<RequestSwitchResponse, { mode: 'when-idle'; messagePreview: string }>(
-                    sessionId,
+                const response = await apiSocket.forSession(sessionId).rpc<RequestSwitchResponse, { mode: 'when-idle'; messagePreview: string }>(
                     'request-switch',
                     { mode: 'when-idle', messagePreview },
                 );
@@ -1480,7 +1479,8 @@ class Sync {
         const controller = new AbortController();
         this.sendAbortControllers.set(sessionId, controller);
         try {
-            const response = await apiSocket.requestForSession(sessionId, `/v3/sessions/${sessionId}/messages`, {
+            const sendScope = apiSocket.forSession(sessionId);
+            const response = await sendScope.request(`/v3/sessions/${sendScope.ref.localSessionId}/messages`, {
                 method: 'POST',
                 body: JSON.stringify({
                     messages: batch.map((message) => ({
@@ -1555,7 +1555,8 @@ class Sync {
             let totalNormalized = 0;
 
             while (hasMore) {
-                const response = await apiSocket.requestForSession(sessionId, `/v3/sessions/${sessionId}/messages?after_seq=${afterSeq}&limit=100`);
+                const fetchScope = apiSocket.forSession(sessionId);
+                const response = await fetchScope.request(`/v3/sessions/${fetchScope.ref.localSessionId}/messages?after_seq=${afterSeq}&limit=100`);
                 if (!response.ok) {
                     throw new Error(`Failed to fetch messages for ${sessionId}: ${response.status}`);
                 }

@@ -3,7 +3,9 @@ import { resolve, join, relative } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-    sessionRPC: vi.fn(),
+    sessionRpc: vi.fn(),
+    sessionRequest: vi.fn(),
+    sessionEmitWithAck: vi.fn(),
     tunnelFetch: vi.fn(),
     alert: vi.fn(),
     storageState: {
@@ -22,17 +24,28 @@ const mocks = vi.hoisted(() => ({
     gitStatusGetSyncInvalidate: vi.fn(),
 }));
 
-vi.mock('./apiSocket', () => ({
-    apiSocket: {
-        sessionRPC: mocks.sessionRPC,
-        initialize: vi.fn(),
-        onStatusChange: vi.fn(),
-        onReconnected: vi.fn(),
-        request: vi.fn(),
-        emitWithAck: vi.fn(),
-    },
-    getHappyClientId: vi.fn(() => 'client-1'),
-}));
+vi.mock('./apiSocket', async () => {
+    const { parseCompositeSessionId } = await import('./machineSessionId');
+    const FALLBACK_MACHINE_ID = 'primary-machine';
+    return {
+        apiSocket: {
+            forSession: vi.fn((sessionId: string) => ({
+                ref: parseCompositeSessionId(sessionId, FALLBACK_MACHINE_ID),
+                rpc: mocks.sessionRpc,
+                machineRpc: vi.fn(),
+                request: mocks.sessionRequest,
+                emitWithAck: mocks.sessionEmitWithAck,
+                send: vi.fn(),
+            })),
+            forMachine: vi.fn(),
+            forPrimaryMachine: vi.fn(),
+            initialize: vi.fn(),
+            onStatusChange: vi.fn(),
+            onReconnected: vi.fn(),
+        },
+        getHappyClientId: vi.fn(() => 'client-1'),
+    };
+});
 
 vi.mock('@/auth/machineAuth', () => ({
     tunnelFetch: mocks.tunnelFetch,
@@ -202,7 +215,7 @@ describe('sync.sendMessage switch policy', () => {
         vi.restoreAllMocks();
         vi.clearAllMocks();
         resetStorageHarness();
-        mocks.sessionRPC.mockResolvedValue({ deferred: true });
+        mocks.sessionRpc.mockResolvedValue({ deferred: true });
         mocks.randomUUID.mockReturnValue('local-1');
     });
 
@@ -211,7 +224,7 @@ describe('sync.sendMessage switch policy', () => {
 
         await sync.sendMessage('session-1', 'hello');
 
-        expect(apiSocket.sessionRPC).not.toHaveBeenCalled();
+        expect(mocks.sessionRpc).not.toHaveBeenCalled();
         expect(getPendingRecord().meta.capabilities).toBeUndefined();
         expect((sync as any).pendingOutbox.get('session-1')).toHaveLength(1);
     });
@@ -248,7 +261,7 @@ describe('sync.sendMessage switch policy', () => {
 
         await sync.sendMessage('session-1', 'hello', { switchMode: 'none', source: 'option' });
 
-        expect(apiSocket.sessionRPC).not.toHaveBeenCalled();
+        expect(mocks.sessionRpc).not.toHaveBeenCalled();
         expect(getPendingRecord().meta.capabilities).toBeUndefined();
     });
 
@@ -298,24 +311,24 @@ describe('sync.sendMessage switch policy', () => {
     });
 
     it('requests when-idle before enqueueing and tags only deferred responses', async () => {
-        mocks.sessionRPC.mockImplementation(async () => {
+        mocks.sessionRpc.mockImplementation(async () => {
             return { deferred: true };
         });
         installSyncHarness();
 
         await sync.sendMessage('session-1', 'hello', { switchMode: 'when-idle' });
 
-        expect(apiSocket.sessionRPC).toHaveBeenCalledWith('session-1', 'request-switch', { mode: 'when-idle', messagePreview: 'hello' });
+        expect(mocks.sessionRpc).toHaveBeenCalledWith('request-switch', { mode: 'when-idle', messagePreview: 'hello' });
         expect(getPendingRecord().meta.capabilities).toEqual({ deferredSwitch: true });
     });
 
     it('omits the tag when when-idle short-circuits to an immediate switch', async () => {
-        mocks.sessionRPC.mockResolvedValue({ deferred: false });
+        mocks.sessionRpc.mockResolvedValue({ deferred: false });
         installSyncHarness();
 
         await sync.sendMessage('session-1', 'hello', { switchMode: 'when-idle' });
 
-        expect(apiSocket.sessionRPC).toHaveBeenCalledOnce();
+        expect(mocks.sessionRpc).toHaveBeenCalledOnce();
         expect(getPendingRecord().meta.capabilities).toBeUndefined();
     });
 
@@ -328,7 +341,7 @@ describe('sync.sendMessage switch policy', () => {
 
         await sync.sendMessage('session-1', 'hello', { switchMode: 'when-idle' });
 
-        expect(apiSocket.sessionRPC).not.toHaveBeenCalled();
+        expect(mocks.sessionRpc).not.toHaveBeenCalled();
         expect(getPendingRecord().meta.capabilities).toBeUndefined();
     });
 
@@ -338,14 +351,14 @@ describe('sync.sendMessage switch policy', () => {
 
         await expect(sync.sendMessage('session-1', 'hello', { switchMode: 'when-idle' })).rejects.toThrow('not found');
 
-        expect(apiSocket.sessionRPC).not.toHaveBeenCalled();
+        expect(mocks.sessionRpc).not.toHaveBeenCalled();
         expect(Modal.alert).toHaveBeenCalledOnce();
         expect(Modal.alert).toHaveBeenCalledWith('common.error', 'errors.sendFailed');
         expect((sync as any).pendingOutbox.get('session-1')).toBeUndefined();
     });
 
     it('surfaces request-switch failure without enqueueing', async () => {
-        mocks.sessionRPC.mockRejectedValue(new Error('rpc failed'));
+        mocks.sessionRpc.mockRejectedValue(new Error('rpc failed'));
         const enqueueUserMessage = vi.spyOn(sync as any, 'enqueueUserMessage');
         installSyncHarness();
 
@@ -358,7 +371,7 @@ describe('sync.sendMessage switch policy', () => {
     });
 
     it('does NOT call cancel-pending-switch when request-switch deferred but enqueue fails', async () => {
-        mocks.sessionRPC.mockResolvedValueOnce({ deferred: true });
+        mocks.sessionRpc.mockResolvedValueOnce({ deferred: true });
         installSyncHarness();
         vi.spyOn(sync as any, 'enqueueUserMessage').mockRejectedValue(new Error('enqueue failed'));
 
@@ -366,13 +379,13 @@ describe('sync.sendMessage switch policy', () => {
 
         await new Promise(resolve => setTimeout(resolve, 0));
 
-        expect(mocks.sessionRPC).toHaveBeenCalledTimes(1);
-        expect(mocks.sessionRPC).toHaveBeenCalledWith('session-1', 'request-switch', { mode: 'when-idle', messagePreview: 'hello' });
+        expect(mocks.sessionRpc).toHaveBeenCalledTimes(1);
+        expect(mocks.sessionRpc).toHaveBeenCalledWith('request-switch', { mode: 'when-idle', messagePreview: 'hello' });
         expect(Modal.alert).toHaveBeenCalledWith('common.error', 'errors.sendFailed');
     });
 
     it('does not call cancel-pending-switch when request-switch was not deferred', async () => {
-        mocks.sessionRPC.mockResolvedValueOnce({ deferred: false });
+        mocks.sessionRpc.mockResolvedValueOnce({ deferred: false });
         installSyncHarness();
         vi.spyOn(sync as any, 'enqueueUserMessage').mockRejectedValue(new Error('enqueue failed'));
 
@@ -380,8 +393,8 @@ describe('sync.sendMessage switch policy', () => {
 
         await new Promise(resolve => setTimeout(resolve, 0));
 
-        expect(mocks.sessionRPC).toHaveBeenCalledTimes(1);
-        expect(mocks.sessionRPC).toHaveBeenCalledWith('session-1', 'request-switch', { mode: 'when-idle', messagePreview: 'hello' });
+        expect(mocks.sessionRpc).toHaveBeenCalledTimes(1);
+        expect(mocks.sessionRpc).toHaveBeenCalledWith('request-switch', { mode: 'when-idle', messagePreview: 'hello' });
     });
 
     it('now send failures do not throw to the caller (fire-and-forget)', async () => {
@@ -394,22 +407,22 @@ describe('sync.sendMessage switch policy', () => {
     });
 
     it('sends messagePreview truncated to 80 chars with newlines collapsed', async () => {
-        mocks.sessionRPC.mockResolvedValue({ deferred: true });
+        mocks.sessionRpc.mockResolvedValue({ deferred: true });
         installSyncHarness();
 
         const long = 'a'.repeat(90);
         await sync.sendMessage('session-1', long, { switchMode: 'when-idle' });
-        expect(mocks.sessionRPC).toHaveBeenCalledWith('session-1', 'request-switch', {
+        expect(mocks.sessionRpc).toHaveBeenCalledWith('request-switch', {
             mode: 'when-idle',
             messagePreview: 'a'.repeat(80) + '…',
         });
 
-        mocks.sessionRPC.mockClear();
-        mocks.sessionRPC.mockResolvedValue({ deferred: true });
+        mocks.sessionRpc.mockClear();
+        mocks.sessionRpc.mockResolvedValue({ deferred: true });
 
         const multiline = 'line1\nline2\nline3';
         await sync.sendMessage('session-1', multiline, { switchMode: 'when-idle' });
-        expect(mocks.sessionRPC).toHaveBeenCalledWith('session-1', 'request-switch', {
+        expect(mocks.sessionRpc).toHaveBeenCalledWith('request-switch', {
             mode: 'when-idle',
             messagePreview: 'line1 line2 line3',
         });
@@ -417,29 +430,29 @@ describe('sync.sendMessage switch policy', () => {
 
     it('latches concurrent when-idle RPCs per session and clears after settlement', async () => {
         let resolveFirst!: (value: { deferred: boolean }) => void;
-        mocks.sessionRPC.mockImplementationOnce(() => new Promise(resolve => { resolveFirst = resolve; }));
+        mocks.sessionRpc.mockImplementationOnce(() => new Promise(resolve => { resolveFirst = resolve; }));
         const enqueueUserMessage = vi.spyOn(sync as any, 'enqueueUserMessage');
         installSyncHarness();
 
         const first = sync.sendMessage('session-1', 'first', { switchMode: 'when-idle' });
         await expect(sync.sendMessage('session-1', 'second', { switchMode: 'when-idle' })).rejects.toThrow('request-switch already pending');
 
-        expect(apiSocket.sessionRPC).toHaveBeenCalledOnce();
+        expect(mocks.sessionRpc).toHaveBeenCalledOnce();
         expect(Modal.alert).toHaveBeenCalledOnce();
         expect(enqueueUserMessage).not.toHaveBeenCalled();
 
-        mocks.sessionRPC.mockResolvedValue({ deferred: true });
+        mocks.sessionRpc.mockResolvedValue({ deferred: true });
         resolveFirst({ deferred: true });
         await first;
         await sync.sendMessage('session-1', 'third', { switchMode: 'when-idle' });
 
-        expect(apiSocket.sessionRPC).toHaveBeenCalledTimes(2);
+        expect(mocks.sessionRpc).toHaveBeenCalledTimes(2);
     });
 
     it('supports upload-before-send callers without sendMessage dispatching upload RPCs', async () => {
         const order: string[] = [];
         mocks.randomUUID.mockReturnValueOnce('local-upload-id');
-        mocks.sessionRPC.mockImplementation(async (_sessionId: string, method: string, params: { path?: string }) => {
+        mocks.sessionRpc.mockImplementation(async (method: string, params: { path?: string }) => {
             order.push(`${method}:${params.path ?? ''}`);
             return { success: true, hash: 'hash-1' };
         });
@@ -457,8 +470,8 @@ describe('sync.sendMessage switch policy', () => {
 
         expect(localId).toBe('local-upload-id');
         expect(order).toEqual([`writeFile:${remotePath}`, 'sendMessage']);
-        expect(mocks.sessionRPC).toHaveBeenCalledTimes(1);
-        expect(mocks.sessionRPC).toHaveBeenCalledWith('session-1', 'writeFile', {
+        expect(mocks.sessionRpc).toHaveBeenCalledTimes(1);
+        expect(mocks.sessionRpc).toHaveBeenCalledWith('writeFile', {
             path: remotePath,
             content: 'bm90ZQ==',
             createParents: true,
@@ -468,7 +481,7 @@ describe('sync.sendMessage switch policy', () => {
 
     it('lets upload-before-send callers stop before sendMessage on upload failure', async () => {
         mocks.randomUUID.mockReturnValueOnce('local-upload-id');
-        mocks.sessionRPC.mockRejectedValueOnce(new Error('upload failed'));
+        mocks.sessionRpc.mockRejectedValueOnce(new Error('upload failed'));
         installSyncHarness();
         const sendSpy = vi.spyOn(sync, 'sendMessage');
 

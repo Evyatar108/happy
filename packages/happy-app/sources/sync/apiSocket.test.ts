@@ -129,7 +129,7 @@ describe('apiSocket multi-machine connections', () => {
         mocks.credentials = [];
 
         await expect(
-            apiSocket.requestForMachine(cred.machineId, '/api/test'),
+            apiSocket.forMachine(cred.machineId).request('/api/test'),
         ).rejects.toThrow(`No credentials found in TokenStorage for machine ${cred.machineId}`);
     });
 
@@ -164,7 +164,7 @@ describe('apiSocket multi-machine connections', () => {
         apiSocket.removeMachine(cred.machineId);
 
         expect(apiSocket.getConnectionCount()).toBe(0);
-        await expect(apiSocket.request('/test')).rejects.toThrow('SyncSocket not initialized');
+        expect(() => apiSocket.forPrimaryMachine()).toThrow('SyncSocket not initialized');
     });
 
     it('removeMachine does not affect primaryMachineId when a non-primary machine is removed', async () => {
