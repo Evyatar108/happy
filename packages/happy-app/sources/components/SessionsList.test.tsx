@@ -223,7 +223,9 @@ describe('SessionsList role pills', () => {
             state: 'waiting',
         });
 
-        expect(renderer.root.findByProps({ testID: 'session-role-pill-flavor' })).toBeTruthy();
+        const flavorPill = renderer.root.findByProps({ testID: 'session-role-pill-flavor' });
+        expect(flavorPill).toBeTruthy();
+        expect(flavorPill.findAllByType('Image')).toHaveLength(1);
         expect(textContent(renderer.root.findByProps({ testID: 'session-role-pill-model' }) as RenderNode)).toBe('codex');
         expect(textContent(renderer.root.findByProps({ testID: 'session-role-pill-permission' }) as RenderNode)).toBe('plan');
         expect(renderer.toJSON()).toMatchSnapshot();
