@@ -14,14 +14,12 @@ import { initialWindowMetrics, SafeAreaProvider, useSafeAreaInsets } from 'react
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SidebarNavigator } from '@/components/SidebarNavigator';
 import { SidebarProvider } from '@/components/SidebarContext';
-import sodium from '@/encryption/libsodium.lib';
 import { View, Platform } from 'react-native';
 import { ModalProvider } from '@/modal';
 import { PostHogProvider } from 'posthog-react-native';
 import { tracking } from '@/track/tracking';
 import { syncRestore } from '@/sync/sync';
 import { useTrackScreens } from '@/track/useTrackScreens';
-import { RealtimeProvider } from '@/realtime/RealtimeProvider';
 import { FaviconPermissionIndicator } from '@/components/web/FaviconPermissionIndicator';
 import { CommandPaletteProvider } from '@/components/CommandPalette/CommandPaletteProvider';
 import { StatusBarProvider } from '@/components/StatusBarProvider';
@@ -32,7 +30,6 @@ import { useUnistyles } from 'react-native-unistyles';
 import { AsyncLock } from '@/utils/lock';
 import { getSessionRouteFromNotificationResponse } from '@/utils/notificationRouting';
 import { navigateToSession } from '@/hooks/useNavigateToSession';
-import { applyVoiceUpsellOverride } from '@/realtime/voiceExperiment';
 import { useTauriZoom } from '@/hooks/useTauriZoom';
 import { useTauriDrag } from '@/hooks/useTauriDrag';
 
@@ -172,14 +169,14 @@ function getDevEnvironmentCredentials(): AuthCredentials | null {
 
     const machineId = process.env.EXPO_PUBLIC_DEV_MACHINE_ID;
     const tunnelUrl = process.env.EXPO_PUBLIC_DEV_TUNNEL_URL;
-    const tunnelClaim = process.env.EXPO_PUBLIC_DEV_TUNNEL_JWT;
-    const pinnedPubkey = process.env.EXPO_PUBLIC_DEV_PINNED_PUBKEY;
-    const sessionKey = process.env.EXPO_PUBLIC_DEV_SESSION_KEY;
-    if (!machineId || !tunnelUrl || !tunnelClaim || !pinnedPubkey || !sessionKey) {
+    const tunnelClaim = process.env.EXPO_PUBLIC_DEV_TUNNEL_CLAIM;
+    const deviceCode = process.env.EXPO_PUBLIC_DEV_DEVICE_CODE;
+    const deviceCodeExpiresAt = Number(process.env.EXPO_PUBLIC_DEV_DEVICE_CODE_EXPIRES_AT ?? 0);
+    if (!machineId || !tunnelUrl || !tunnelClaim || !deviceCode || !deviceCodeExpiresAt) {
         return null;
     }
 
-    return { machineId, tunnelUrl, tunnelClaim, pinnedPubkey, sessionKey, firstSeenAt: Date.now() };
+    return { machineId, tunnelUrl, tunnelClaim, deviceCode, deviceCodeExpiresAt, firstSeenAt: Date.now() };
 }
 
 function getDevWebQueryCredentials(): AuthCredentials | null {
@@ -190,14 +187,14 @@ function getDevWebQueryCredentials(): AuthCredentials | null {
     const params = new URLSearchParams(window.location.search);
     const machineId = params.get('dev_machine_id');
     const tunnelUrl = params.get('dev_tunnel_url');
-    const tunnelClaim = params.get('dev_tunnel_jwt');
-    const pinnedPubkey = params.get('dev_pinned_pubkey');
-    const sessionKey = params.get('dev_session_key');
-    if (!machineId || !tunnelUrl || !tunnelClaim || !pinnedPubkey || !sessionKey) {
+    const tunnelClaim = params.get('dev_tunnel_claim');
+    const deviceCode = params.get('dev_device_code');
+    const deviceCodeExpiresAt = Number(params.get('dev_device_code_expires_at') ?? 0);
+    if (!machineId || !tunnelUrl || !tunnelClaim || !deviceCode || !deviceCodeExpiresAt) {
         return null;
     }
 
-    return { machineId, tunnelUrl, tunnelClaim, pinnedPubkey, sessionKey, firstSeenAt: Date.now() };
+    return { machineId, tunnelUrl, tunnelClaim, deviceCode, deviceCodeExpiresAt, firstSeenAt: Date.now() };
 }
 
 export default function RootLayout() {
@@ -232,7 +229,6 @@ export default function RootLayout() {
         (async () => {
             try {
                 await loadFonts();
-                await sodium.ready;
 
                 let credentials = await TokenStorage.getCredentials();
                 const devCredentials = getDevWebQueryCredentials() ?? getDevEnvironmentCredentials();
@@ -240,7 +236,7 @@ export default function RootLayout() {
                 if (devCredentials) {
                     const credentialsChanged = credentials?.machineId !== devCredentials.machineId
                         || credentials?.tunnelUrl !== devCredentials.tunnelUrl
-                        || credentials?.sessionKey !== devCredentials.sessionKey;
+                        || credentials?.tunnelClaim !== devCredentials.tunnelClaim;
 
                     if (credentialsChanged) {
                         const saved = await TokenStorage.setCredentials(devCredentials);
@@ -359,18 +355,9 @@ export default function RootLayout() {
 
     // Sync console output toggle from Dev screen
     const consoleLoggingEnabled = useLocalSetting('consoleLoggingEnabled');
-    const devModeEnabled = __DEV__ || useLocalSetting('devModeEnabled');
-    const voiceUpsellOverride = useLocalSetting('voiceUpsellOverride');
     React.useEffect(() => {
         setConsoleOutputEnabled(consoleLoggingEnabled);
     }, [consoleLoggingEnabled]);
-
-    React.useEffect(() => {
-        if (!devModeEnabled || !voiceUpsellOverride) {
-            return;
-        }
-        applyVoiceUpsellOverride(voiceUpsellOverride);
-    }, [devModeEnabled, voiceUpsellOverride]);
 
     //
     // Not inited
@@ -393,13 +380,11 @@ export default function RootLayout() {
                             <StatusBarProvider />
                             <ModalProvider>
                                 <CommandPaletteProvider>
-                                    <RealtimeProvider>
-                                        <SidebarProvider>
-                                            <HorizontalSafeAreaWrapper>
-                                                <SidebarNavigator />
-                                            </HorizontalSafeAreaWrapper>
-                                        </SidebarProvider>
-                                    </RealtimeProvider>
+                                    <SidebarProvider>
+                                        <HorizontalSafeAreaWrapper>
+                                            <SidebarNavigator />
+                                        </HorizontalSafeAreaWrapper>
+                                    </SidebarProvider>
                                 </CommandPaletteProvider>
                             </ModalProvider>
                         </ThemeProvider>

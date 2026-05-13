@@ -4,9 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     sessionRPC: vi.fn(),
+    tunnelFetch: vi.fn(),
     alert: vi.fn(),
     storageState: {
         sessions: {} as Record<string, any>,
+        settings: {} as Record<string, any>,
         applySessions: vi.fn(),
         applySettings: vi.fn(),
         applySettingsLocal: vi.fn(),
@@ -30,6 +32,10 @@ vi.mock('./apiSocket', () => ({
         emitWithAck: vi.fn(),
     },
     getHappyClientId: vi.fn(() => 'client-1'),
+}));
+
+vi.mock('@/auth/machineAuth', () => ({
+    tunnelFetch: mocks.tunnelFetch,
 }));
 
 vi.mock('react-native', () => ({
@@ -88,18 +94,6 @@ vi.mock('expo-modules-core', () => ({
     EventEmitter: class { },
 }));
 
-vi.mock('./encryption/encryption', () => ({
-    Encryption: { create: vi.fn() },
-}));
-
-vi.mock('./encryption/encryptionCache', () => ({
-    EncryptionCache: class { },
-}));
-
-vi.mock('./encryption/artifactEncryption', () => ({
-    ArtifactEncryption: class { },
-}));
-
 vi.mock('./pushRegistration', () => ({
     syncCurrentPushToken: vi.fn(),
 }));
@@ -116,18 +110,6 @@ vi.mock('@/config', () => ({
 
 vi.mock('./serverConfig', () => ({
     getServerUrl: vi.fn(() => 'https://example.invalid'),
-}));
-
-vi.mock('@/realtime/hooks/voiceHooks', () => ({
-    voiceHooks: {
-        onSessionFocus: vi.fn(),
-        onSessionOnline: vi.fn(),
-        onSessionOffline: vi.fn(),
-        onNewMessages: vi.fn(),
-        onReady: vi.fn(),
-        onPermissionRequest: vi.fn(),
-        onPermissionRequested: vi.fn(),
-    },
 }));
 
 vi.mock('@/utils/platform', () => ({
@@ -168,15 +150,11 @@ function resetStorageHarness() {
     mocks.storageState.isMutableToolCall.mockReturnValue(false);
 }
 
-function installSyncHarness(options: { session?: StoredSession | null; encryptRawRecord?: ReturnType<typeof vi.fn> } = {}) {
-    const encryptRawRecord = options.encryptRawRecord ?? vi.fn(async () => 'encrypted-record');
+function installSyncHarness(options: { session?: StoredSession | null } = {}) {
     const session = options.session === undefined ? makeSession() : options.session;
     mocks.storageState.sessions = session ? { 'session-1': session } : {};
     mocks.randomUUID.mockReturnValue('local-1');
 
-    (sync as any).encryption = {
-        getSessionEncryption: vi.fn(() => session ? { encryptRawRecord } : undefined),
-    };
     (sync as any).pendingOutbox = new Map();
     (sync as any).sessionMessageQueue = new Map();
     (sync as any).deferredSwitchRequests = new Set();
@@ -184,10 +162,16 @@ function installSyncHarness(options: { session?: StoredSession | null; encryptRa
     vi.spyOn(sync as any, 'getSendSync').mockReturnValue({ invalidate: vi.fn() });
     vi.spyOn(sync as any, 'maybeStartBackgroundSendWatchdog').mockImplementation(() => undefined);
 
-    return { encryptRawRecord };
+    return {};
 }
 
-function makeEncryptedUpdate() {
+function getPendingRecord(sessionId = 'session-1') {
+    const pending = (sync as any).pendingOutbox.get(sessionId);
+    expect(pending).toHaveLength(1);
+    return JSON.parse(pending[0].content);
+}
+
+function makePlainUpdate(content: unknown) {
     return {
         id: 'update-1',
         seq: 1,
@@ -199,7 +183,7 @@ function makeEncryptedUpdate() {
                 id: 'message-1',
                 seq: 1,
                 localId: null,
-                content: { t: 'encrypted', c: 'ciphertext' },
+                content: { t: 'encrypted', c: JSON.stringify(content) },
                 createdAt: 100,
                 updatedAt: 100,
             },
@@ -207,20 +191,8 @@ function makeEncryptedUpdate() {
     };
 }
 
-function installIncomingMessageHarness(content: unknown, session: StoredSession) {
+function installIncomingMessageHarness(_content: unknown, session: StoredSession) {
     mocks.storageState.sessions = { 'session-1': session };
-
-    (sync as any).encryption = {
-        getSessionEncryption: vi.fn(() => ({
-            decryptMessage: vi.fn(async () => ({
-                id: 'message-1',
-                localId: null,
-                createdAt: 100,
-                seq: 1,
-                content,
-            })),
-        })),
-    };
     vi.spyOn(sync as any, 'getMessagesSync').mockReturnValue({ invalidate: vi.fn() });
     vi.spyOn(sync as any, 'onSessionVisible').mockImplementation(() => undefined);
 }
@@ -235,13 +207,12 @@ describe('sync.sendMessage switch policy', () => {
     });
 
     it('defaults to tagless local enqueue without request-switch RPC', async () => {
-        const { encryptRawRecord } = installSyncHarness();
+        installSyncHarness();
 
         await sync.sendMessage('session-1', 'hello');
 
         expect(apiSocket.sessionRPC).not.toHaveBeenCalled();
-        expect(encryptRawRecord).toHaveBeenCalledOnce();
-        expect(encryptRawRecord.mock.calls[0][0].meta.capabilities).toBeUndefined();
+        expect(getPendingRecord().meta.capabilities).toBeUndefined();
         expect((sync as any).pendingOutbox.get('session-1')).toHaveLength(1);
     });
 
@@ -253,7 +224,7 @@ describe('sync.sendMessage switch policy', () => {
     });
 
     it('uses caller-provided localId and preserves attachment refs in message metadata', async () => {
-        const { encryptRawRecord } = installSyncHarness();
+        installSyncHarness();
 
         await sync.sendMessage('session-1', 'hello with file', {
             localId: 'caller-local-id',
@@ -263,23 +234,22 @@ describe('sync.sendMessage switch policy', () => {
         });
 
         expect(mocks.randomUUID).not.toHaveBeenCalled();
-        expect(encryptRawRecord).toHaveBeenCalledOnce();
-        expect(encryptRawRecord.mock.calls[0][0].meta.attachmentRefs).toEqual([
+        expect(getPendingRecord().meta.attachmentRefs).toEqual([
             { remotePath: '.happy/attachments/caller-local-id/file.txt', name: 'file.txt', size: 12 },
         ]);
-        expect(encryptRawRecord.mock.calls[0][0].meta.displayText).toBe('hello');
+        expect(getPendingRecord().meta.displayText).toBe('hello');
         expect((sync as any).pendingOutbox.get('session-1')).toEqual([
-            { localId: 'caller-local-id', content: 'encrypted-record' },
+            { localId: 'caller-local-id', content: expect.any(String) },
         ]);
     });
 
     it("treats switchMode none like now: no RPC and no deferred-switch tag", async () => {
-        const { encryptRawRecord } = installSyncHarness();
+        installSyncHarness();
 
         await sync.sendMessage('session-1', 'hello', { switchMode: 'none', source: 'option' });
 
         expect(apiSocket.sessionRPC).not.toHaveBeenCalled();
-        expect(encryptRawRecord.mock.calls[0][0].meta.capabilities).toBeUndefined();
+        expect(getPendingRecord().meta.capabilities).toBeUndefined();
     });
 
     it('includes image attachments in the encrypted user message content', async () => {
@@ -330,33 +300,25 @@ describe('sync.sendMessage switch policy', () => {
     });
 
     it('requests when-idle before enqueueing and tags only deferred responses', async () => {
-        const order: string[] = [];
         mocks.sessionRPC.mockImplementation(async () => {
-            order.push('rpc');
             return { deferred: true };
         });
-        const { encryptRawRecord } = installSyncHarness({
-            encryptRawRecord: vi.fn(async () => {
-                order.push('encrypt');
-                return 'encrypted-record';
-            }),
-        });
+        installSyncHarness();
 
         await sync.sendMessage('session-1', 'hello', { switchMode: 'when-idle' });
 
-        expect(order).toEqual(['rpc', 'encrypt']);
         expect(apiSocket.sessionRPC).toHaveBeenCalledWith('session-1', 'request-switch', { mode: 'when-idle', messagePreview: 'hello' });
-        expect(encryptRawRecord.mock.calls[0][0].meta.capabilities).toEqual({ deferredSwitch: true });
+        expect(getPendingRecord().meta.capabilities).toEqual({ deferredSwitch: true });
     });
 
     it('omits the tag when when-idle short-circuits to an immediate switch', async () => {
         mocks.sessionRPC.mockResolvedValue({ deferred: false });
-        const { encryptRawRecord } = installSyncHarness();
+        installSyncHarness();
 
         await sync.sendMessage('session-1', 'hello', { switchMode: 'when-idle' });
 
         expect(apiSocket.sessionRPC).toHaveBeenCalledOnce();
-        expect(encryptRawRecord.mock.calls[0][0].meta.capabilities).toBeUndefined();
+        expect(getPendingRecord().meta.capabilities).toBeUndefined();
     });
 
     it.each([
@@ -364,12 +326,12 @@ describe('sync.sendMessage switch policy', () => {
         ['Claude remote', makeSession({ agentState: { controlledByUser: false } })],
         ['Claude unknown mode', makeSession({ agentState: {} })],
     ])('degrades when-idle to tagless enqueue for %s sessions', async (_name, session) => {
-        const { encryptRawRecord } = installSyncHarness({ session });
+        installSyncHarness({ session });
 
         await sync.sendMessage('session-1', 'hello', { switchMode: 'when-idle' });
 
         expect(apiSocket.sessionRPC).not.toHaveBeenCalled();
-        expect(encryptRawRecord.mock.calls[0][0].meta.capabilities).toBeUndefined();
+        expect(getPendingRecord().meta.capabilities).toBeUndefined();
     });
 
     it('surfaces when-idle preflight failure without RPC or enqueue', async () => {
@@ -386,11 +348,12 @@ describe('sync.sendMessage switch policy', () => {
 
     it('surfaces request-switch failure without enqueueing', async () => {
         mocks.sessionRPC.mockRejectedValue(new Error('rpc failed'));
-        const { encryptRawRecord } = installSyncHarness();
+        const enqueueUserMessage = vi.spyOn(sync as any, 'enqueueUserMessage');
+        installSyncHarness();
 
         await expect(sync.sendMessage('session-1', 'hello', { switchMode: 'when-idle' })).rejects.toThrow('rpc failed');
 
-        expect(encryptRawRecord).not.toHaveBeenCalled();
+        expect(enqueueUserMessage).not.toHaveBeenCalled();
         expect(Modal.alert).toHaveBeenCalledOnce();
         expect(Modal.alert).toHaveBeenCalledWith('common.error', 'errors.requestSwitchFailed');
         expect((sync as any).pendingOutbox.get('session-1')).toBeUndefined();
@@ -398,8 +361,8 @@ describe('sync.sendMessage switch policy', () => {
 
     it('does NOT call cancel-pending-switch when request-switch deferred but enqueue fails', async () => {
         mocks.sessionRPC.mockResolvedValueOnce({ deferred: true });
-        const encryptRawRecord = vi.fn().mockRejectedValue(new Error('enqueue failed'));
-        installSyncHarness({ encryptRawRecord });
+        installSyncHarness();
+        vi.spyOn(sync as any, 'enqueueUserMessage').mockRejectedValue(new Error('enqueue failed'));
 
         await expect(sync.sendMessage('session-1', 'hello', { switchMode: 'when-idle' })).rejects.toThrow('enqueue failed');
 
@@ -412,8 +375,8 @@ describe('sync.sendMessage switch policy', () => {
 
     it('does not call cancel-pending-switch when request-switch was not deferred', async () => {
         mocks.sessionRPC.mockResolvedValueOnce({ deferred: false });
-        const encryptRawRecord = vi.fn().mockRejectedValue(new Error('enqueue failed'));
-        installSyncHarness({ encryptRawRecord });
+        installSyncHarness();
+        vi.spyOn(sync as any, 'enqueueUserMessage').mockRejectedValue(new Error('enqueue failed'));
 
         await expect(sync.sendMessage('session-1', 'hello', { switchMode: 'when-idle' })).rejects.toThrow('enqueue failed');
 
@@ -424,8 +387,8 @@ describe('sync.sendMessage switch policy', () => {
     });
 
     it('now send failures do not throw to the caller (fire-and-forget)', async () => {
-        const encryptRawRecord = vi.fn().mockRejectedValue(new Error('enqueue failed'));
-        installSyncHarness({ encryptRawRecord });
+        installSyncHarness();
+        vi.spyOn(sync as any, 'enqueueUserMessage').mockRejectedValue(new Error('enqueue failed'));
 
         await expect(sync.sendMessage('session-1', 'hello')).resolves.toBeUndefined();
         await expect(sync.sendMessage('session-1', 'hello', { switchMode: 'now' })).resolves.toBeUndefined();
@@ -457,14 +420,15 @@ describe('sync.sendMessage switch policy', () => {
     it('latches concurrent when-idle RPCs per session and clears after settlement', async () => {
         let resolveFirst!: (value: { deferred: boolean }) => void;
         mocks.sessionRPC.mockImplementationOnce(() => new Promise(resolve => { resolveFirst = resolve; }));
-        const { encryptRawRecord } = installSyncHarness();
+        const enqueueUserMessage = vi.spyOn(sync as any, 'enqueueUserMessage');
+        installSyncHarness();
 
         const first = sync.sendMessage('session-1', 'first', { switchMode: 'when-idle' });
         await expect(sync.sendMessage('session-1', 'second', { switchMode: 'when-idle' })).rejects.toThrow('request-switch already pending');
 
         expect(apiSocket.sessionRPC).toHaveBeenCalledOnce();
         expect(Modal.alert).toHaveBeenCalledOnce();
-        expect(encryptRawRecord).not.toHaveBeenCalled();
+        expect(enqueueUserMessage).not.toHaveBeenCalled();
 
         mocks.sessionRPC.mockResolvedValue({ deferred: true });
         resolveFirst({ deferred: true });
@@ -481,12 +445,8 @@ describe('sync.sendMessage switch policy', () => {
             order.push(`${method}:${params.path ?? ''}`);
             return { success: true, hash: 'hash-1' };
         });
-        const { encryptRawRecord } = installSyncHarness({
-            encryptRawRecord: vi.fn(async () => {
-                order.push('sendMessage');
-                return 'encrypted-record';
-            }),
-        });
+        installSyncHarness();
+        vi.spyOn(sync as any, 'enqueueUserMessage');
 
         const localId = generateLocalMessageId();
         const remotePath = `.happy/attachments/${localId}/note.txt`;
@@ -495,6 +455,7 @@ describe('sync.sendMessage switch policy', () => {
             localId,
             attachmentRefs: [{ remotePath, name: 'note.txt', size: 4 }],
         });
+        order.push('sendMessage');
 
         expect(localId).toBe('local-upload-id');
         expect(order).toEqual([`writeFile:${remotePath}`, 'sendMessage']);
@@ -504,7 +465,7 @@ describe('sync.sendMessage switch policy', () => {
             content: 'bm90ZQ==',
             createParents: true,
         });
-        expect(encryptRawRecord.mock.calls[0][0].meta.attachmentRefs).toEqual([{ remotePath, name: 'note.txt', size: 4 }]);
+        expect(getPendingRecord().meta.attachmentRefs).toEqual([{ remotePath, name: 'note.txt', size: 4 }]);
     });
 
     it('lets upload-before-send callers stop before sendMessage on upload failure', async () => {
@@ -528,6 +489,84 @@ describe('sync.sendMessage switch policy', () => {
     });
 });
 
+describe('sync settings payload limit', () => {
+    beforeEach(() => {
+        vi.restoreAllMocks();
+        vi.clearAllMocks();
+        resetStorageHarness();
+        (sync as any).credentials = {
+            machineId: 'machine-1',
+            tunnelUrl: 'https://machine.example.test',
+        };
+        mocks.storageState.settings = { theme: 'dark' };
+    });
+
+    it('rejects oversized settings before sending a tunnel request', async () => {
+        mocks.storageState.settings = { large: 'x'.repeat(1024 * 1024) };
+
+        await expect((sync as any).syncSettings()).rejects.toMatchObject({
+            name: 'SettingsPayloadTooLargeError',
+            limit: 1024 * 1024,
+        });
+        expect(mocks.tunnelFetch).not.toHaveBeenCalled();
+    });
+
+    it('maps a 413 PUT response to SettingsPayloadTooLargeError and skips the follow-up GET', async () => {
+        mocks.tunnelFetch.mockResolvedValueOnce({ ok: false, status: 413 });
+
+        await expect((sync as any).syncSettings()).rejects.toMatchObject({
+            name: 'SettingsPayloadTooLargeError',
+        });
+        expect(mocks.tunnelFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('maps a 401 PUT response to SettingsAuthError and skips the follow-up GET', async () => {
+        mocks.tunnelFetch.mockResolvedValueOnce({ ok: false, status: 401 });
+
+        await expect((sync as any).syncSettings()).rejects.toMatchObject({
+            name: 'SettingsAuthError',
+            status: 401,
+        });
+        expect(mocks.tunnelFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('maps a 403 PUT response to SettingsAuthError and skips the follow-up GET', async () => {
+        mocks.tunnelFetch.mockResolvedValueOnce({ ok: false, status: 403 });
+
+        await expect((sync as any).syncSettings()).rejects.toMatchObject({
+            name: 'SettingsAuthError',
+            status: 403,
+        });
+        expect(mocks.tunnelFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws SettingsSyncError on a 5xx PUT response and skips the follow-up GET', async () => {
+        mocks.tunnelFetch.mockResolvedValueOnce({ ok: false, status: 503 });
+
+        await expect((sync as any).syncSettings()).rejects.toMatchObject({
+            name: 'SettingsSyncError',
+            status: 503,
+        });
+        expect(mocks.tunnelFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('proceeds to the follow-up GET when the PUT response is 200', async () => {
+        mocks.tunnelFetch.mockResolvedValueOnce({ ok: true, status: 200 });
+        mocks.tunnelFetch.mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => ({}),
+        });
+        vi.spyOn(sync as any, 'applyServerSettings').mockImplementation(() => undefined);
+
+        await (sync as any).syncSettings();
+
+        expect(mocks.tunnelFetch).toHaveBeenCalledTimes(2);
+        expect(mocks.tunnelFetch.mock.calls[0]?.[2]?.method).toBe('PUT');
+        expect(mocks.tunnelFetch.mock.calls[1]?.[2]?.method).toBeUndefined();
+    });
+});
+
 describe('sync update-session git-status invalidation', () => {
     beforeEach(() => {
         vi.restoreAllMocks();
@@ -543,17 +582,12 @@ describe('sync update-session git-status invalidation', () => {
             agentState: { controlledByUser: true },
         });
         mocks.storageState.sessions = { 'session-1': session };
-        (sync as any).encryption = {
-            getSessionEncryption: vi.fn(() => ({
-                decryptMetadata: vi.fn(async () => metadata),
-                decryptAgentState: vi.fn(),
-            })),
-        };
         vi.spyOn(sync as any, 'applySessions').mockImplementation(() => undefined);
+        return { metadataValue: JSON.stringify(metadata) };
     }
 
     it('invalidates git status when update-session metadata changes only the working directory path', async () => {
-        installUpdateHarness({ flavor: 'claude', path: '/repo/new', host: 'host' });
+        const { metadataValue } = installUpdateHarness({ flavor: 'claude', path: '/repo/new', host: 'host' });
 
         await (sync as any).handleUpdate({
             id: 'update-1',
@@ -562,7 +596,7 @@ describe('sync update-session git-status invalidation', () => {
             body: {
                 t: 'update-session',
                 id: 'session-1',
-                metadata: { version: 2, value: 'encrypted-metadata' },
+                metadata: { version: 2, value: metadataValue },
             },
         });
 
@@ -570,7 +604,7 @@ describe('sync update-session git-status invalidation', () => {
     });
 
     it('does not invalidate git status when update-session leaves agentState and metadata.path unchanged', async () => {
-        installUpdateHarness({ flavor: 'claude', path: '/repo/old', host: 'host' });
+        const { metadataValue } = installUpdateHarness({ flavor: 'claude', path: '/repo/old', host: 'host' });
 
         await (sync as any).handleUpdate({
             id: 'update-1',
@@ -579,7 +613,7 @@ describe('sync update-session git-status invalidation', () => {
             body: {
                 t: 'update-session',
                 id: 'session-1',
-                metadata: { version: 2, value: 'encrypted-metadata' },
+                metadata: { version: 2, value: metadataValue },
             },
         });
 
@@ -606,7 +640,16 @@ describe('sync new-message lifecycle state', () => {
             },
         }, makeSession({ thinking: false }));
 
-        await (sync as any).handleUpdate(makeEncryptedUpdate());
+        await (sync as any).handleUpdate(makePlainUpdate({
+            role: 'session',
+            content: {
+                id: 'env-start',
+                time: 100,
+                role: 'agent',
+                turn: 'turn-1',
+                ev: { t: 'turn-start' },
+            },
+        }));
 
         expect(mocks.storageState.applySessions).toHaveBeenCalledWith([
             expect.objectContaining({ id: 'session-1', thinking: true, updatedAt: 200 }),
@@ -626,7 +669,16 @@ describe('sync new-message lifecycle state', () => {
             },
         }, makeSession({ thinking: true }));
 
-        await (sync as any).handleUpdate(makeEncryptedUpdate());
+        await (sync as any).handleUpdate(makePlainUpdate({
+            role: 'session',
+            content: {
+                id: 'env-end',
+                time: 100,
+                role: 'agent',
+                turn: 'turn-1',
+                ev: { t: 'turn-end', status: 'completed' },
+            },
+        }));
 
         expect(mocks.storageState.applySessions).toHaveBeenCalledWith([
             expect.objectContaining({ id: 'session-1', thinking: false, updatedAt: 200 }),
@@ -666,7 +718,6 @@ describe('sync.sendMessage call-site audit', () => {
             'packages/happy-app/sources/-session/SessionView.tsx',
             'packages/happy-app/sources/app/(app)/new/index.tsx',
             'packages/happy-app/sources/components/MessageView.tsx',
-            'packages/happy-app/sources/realtime/realtimeClientTools.ts',
         ].sort());
     }, 30_000);
 });

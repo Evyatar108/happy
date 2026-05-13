@@ -22,7 +22,7 @@ Control Flow:
    - State persistence: writes PID, version, HTTP port to daemon.state.json
    - HTTP server: starts on random port for local CLI control (list, stop, spawn)
    - WebSocket: establishes persistent connection to backend via `ApiMachineClient`
-   - RPC registration: exposes `spawn-happy-session`, `fork-into-worktree`, `stop-session`, `requestShutdown` handlers
+   - RPC registration: exposes `spawn-happy-session`, `spawn-in-worktree`, `fork-into-worktree`, `stop-session`, `requestShutdown` handlers
    - Heartbeat loop: every 60s (or HAPPY_DAEMON_HEARTBEAT_INTERVAL) checks for version updates and prunes dead sessions
 5. Awaits shutdown promise which resolves when:
    - OS signal received (SIGINT/SIGTERM)
@@ -140,18 +140,56 @@ Local HTTP server (127.0.0.1 only) provides:
 }
 ```
 
+### machine.json
+
+Daemon startup owns the current machine listener state in `machine.json`:
+`{ machineId, tunnelPort, loopbackPort, tunnelId, lastTunnelUrl }`. Older
+files with `{ port, tunnelUrl }` are migrated by reading `port` as
+`tunnelPort`; keep all readers and writers on the new shape when changing
+daemon binding or tunnel startup.
+
+Embedded server startup uses `dualListenerBinding()` to create one tunnel
+listener and one loopback listener from shared Happy server context. Keep
+`loopback-cap.txt` as a per-start regenerated local capability and pass its
+path into loopback auth via `paths.loopbackCap`.
+
+Write `loopback-cap.txt` only after both listeners bind successfully, and stop
+the listeners if capability or `machine.json` persistence fails during startup.
+Bootstrap the embedded Machine row before `ApiMachineClient.connect()` so
+machine-update Socket.IO events can CAS against version 1 immediately.
+
+Local callers that need the embedded listeners should go through
+`daemonClient.ts`: loopback requests use `X-Loopback-Capability`, tunnel
+requests and Socket.IO auth use a freshly minted `tunnel <claim>` value. Do not
+cache signed tunnel claims because the embedded server rejects replayed `jti`s;
+cache only stable key material or rereadable capability state.
+
 ### Lock File
 - Created with O_EXCL flag for atomic acquisition
 - Contains PID for debugging
 - Prevents multiple daemon instances
 - Cleaned up on graceful shutdown
 
+### Worktree Spawn Transactions
+- `spawn-in-worktree` is the atomic worktree-creating spawn RPC used for fan-out across all supported agents (claude, codex, gemini, openclaw); `fork-into-worktree` (Codex-only resume into an existing worktree) is a separate reference pattern. Crash recovery for `spawn-in-worktree` is the "Worktree Spawn Transactions" mechanism described below.
+- Atomic fan-out spawns persist one JSON file per transaction under `<happyHomeDir>/pending-worktrees/`.
+- The daemon records `worktreeCreated`, then `processSpawned` with PID via the `spawnTrackedHappyProcess` PID hook, then `sessionRegistered` after the local `/session-started` webhook.
+- Crash recovery should treat `sessionRegistered` records as hands-off and only clean earlier states.
+- Worktree transaction recovery uses `execFile('git', args)` and OS PID liveness checks (`tasklist` on Win32, `process.kill(pid, 0)` elsewhere); keep cleanup logic shell-free for Windows quoting safety.
+
 ## 6. WebSocket Communication
 
 `ApiMachineClient` handles bidirectional communication:
 - Daemon to Server: machine-alive, machine-update-metadata, machine-update-state
-- Server to Daemon: rpc-request (spawn-happy-session, fork-into-worktree, stop-session, requestShutdown)
-- All data encrypted with TweetNaCl
+- Server to Daemon: rpc-request (spawn-happy-session, spawn-in-worktree, fork-into-worktree, stop-session, requestShutdown)
+- TweetNaCl encryption is scoped to message bodies, metadata, and state fields
+  (e.g. the `metadata` and `daemonState` fields on machine-update-metadata /
+  machine-update-state). rpc-request params and rpc-response ack bodies are
+  plaintext Socket.IO payloads — `RpcHandlerManager` passes `request.params`
+  straight to the handler and returns the handler's plain result (see
+  `packages/happy-cli/src/api/rpc/RpcHandlerManager.ts` and
+  `packages/happy-cli/CLAUDE.md`: "RPC request params and responses are
+  plaintext Socket.IO payloads...").
 
 ## 7. Integration Testing Challenges
 
@@ -212,44 +250,11 @@ Checks if machine ID exists in settings:
 - Does NOT create machine on server - that's daemon's job
 - CLI doesn't manage machine details - all API & schema live in daemon subpackage
 
-## 2. Daemon Startup - Initial Registration
+## 2. Daemon Startup - Local State
 
-### REST Request: `POST /v1/machines`
-```json
-{
-  "id": "machine-uuid-123",
-  "metadata": "base64(encrypted({
-    'host': 'MacBook-Pro.local',
-    'platform': 'darwin',
-    'happyCliVersion': '1.0.0',
-    'homeDir': '/Users/john',
-    'happyHomeDir': '/Users/john/.happy'
-  }))",
-  "daemonState": "base64(encrypted({
-    'status': 'running',
-    'pid': 12345,
-    'httpPort': 8080,
-    'startedAt': 1703001234567
-  }))"
-}
-```
-
-### Server Response:
-```json
-{
-  "machine": {
-    "id": "machine-uuid-123",
-    "metadata": "base64(encrypted(...))",  // echoed back
-    "metadataVersion": 1,
-    "daemonState": "base64(encrypted(...))",  // echoed back
-    "daemonStateVersion": 1,
-    "active": true,
-    "lastActiveAt": 1703001234567,
-    "createdAt": 1703001234567,
-    "updatedAt": 1703001234567
-  }
-}
-```
+The daemon records its own machine state in `daemon.state.json`. The server no
+longer exposes a machine-registration REST route; server-side machine state is
+updated through the socket event stream.
 
 ## 3. WebSocket Connection & Real-time Updates
 
@@ -330,19 +335,23 @@ socket.emit('machine-update-metadata', {
 // Mobile -> Server
 socket.emit('rpc-call', {
   "method": "machine-uuid-123:stop-daemon",
-  "params": "base64(encrypted({
-    'reason': 'user-requested',
-    'force': false
-  }))"
+  "params": {
+    "reason": "user-requested",
+    "force": false
+  }
 }, callback)
 
 // Server forwards to Daemon
 // Daemon -> Server (response)
-callback("base64(encrypted({
-  'message': 'Daemon shutdown initiated',
-  'shutdownAt': 1703001244567
-}))")
+callback({
+  "message": "Daemon shutdown initiated",
+  "shutdownAt": 1703001244567
+})
 ```
+
+Note: rpc-call/rpc-request params and the ack body are plaintext JSON over
+the machine-scoped Socket.IO channel. Encryption only applies to message
+bodies, metadata, and state fields (see Section 6).
 
 ### Flow when daemon receives stop request:
 1. Daemon receives RPC `stop-daemon`
@@ -408,14 +417,8 @@ socket.emit('update', {
 })
 ```
 
-## 7. GET Machine Status (REST)
+## 7. Machine Status Shape
 
-### Request: `GET /v1/machines/machine-uuid-123`
-```http
-Authorization: Bearer <token>
-```
-
-### Response:
 ```json
 {
   "machine": {

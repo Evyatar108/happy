@@ -79,8 +79,6 @@ Only two env vars are required for standalone (both already in `.env.dev`):
 ├── /storage              # Database and storage utilities
 │   ├── db.ts            # Database client
 │   ├── inTx.ts          # Transaction wrapper
-│   ├── repeatKey.ts     # Key utilities
-│   ├── simpleCache.ts   # Caching utility
 │   └── types.ts         # Storage types
 └── main.ts               # Main entry point
 ```
@@ -169,6 +167,12 @@ The project has pending Prisma migrations that need to be applied:
 - Use Fastify with Zod for type-safe route definitions
 - Always validate inputs using Zod
 - **Idempotency**: Design all operations to be idempotent - clients may retry requests automatically and the backend must handle multiple invocations of the same operation gracefully, producing the same result as a single invocation
+
+### Sprint E Route Inventory
+
+The active route surface is intentionally small: `pairRoutes`, `accountRoutes`, `machineSelfRoutes`, `sessionRoutes`, `v3SessionRoutes`, `pushRoutes`, `versionRoutes`, and `devRoutes`. The obsolete artifact, feed, voice, key-value, access-key, user/friends, usage, and machine-directory modules were deleted in Sprint E and must not be re-registered without a new plan.
+
+`HAPPY_TUNNEL_GITHUB_OWNER` is required when `NODE_ENV=production`; `/pair/status` returns `happy_tunnel_github_owner_unset` when it is missing. Keep this documented in `.env.dev` and `docs/deployment.md`.
 
 ## Production Deployment (NOT needed for local standalone dev)
 
@@ -286,8 +290,7 @@ tail -300 .logs/*.log | grep "auth-decorator.*sessions" | tail -10
 
 # Debug machine registration and online status
 tail -500 .logs/*.log | grep -E "(machine-alive|machine-register|update-machine)" | tail -20
-tail -500 .logs/*.log | grep "GET /v1/machines" | tail -10
-tail -500 .logs/*.log | grep "POST /v1/machines" | tail -10
+tail -500 .logs/*.log | grep "GET /v2/me/machine" | tail -10
 
 # Check what mobile app is seeing
 tail -500 .logs/*.log | grep "📊 Storage" | tail -20

@@ -19,16 +19,8 @@ function plural({ count, singular, plural }: { count: number; singular: string; 
 export const zhHans: TranslationStructure = {
     tabs: {
         // Tab navigation labels
-        inbox: '收件箱',
         sessions: '终端',
         settings: '设置',
-    },
-
-    inbox: {
-        // Inbox screen
-        emptyTitle: '收件箱为空',
-        emptyDescription: '与好友建立连接，开始共享会话',
-        updates: '更新',
     },
 
     common: {
@@ -158,8 +150,6 @@ export const zhHans: TranslationStructure = {
     },
 
     connect: {
-        restoreAccount: '恢复账户',
-        enterSecretKey: '请输入密钥',
         invalidSecretKey: '无效的密钥，请检查后重试。',
         enterUrlManually: '手动输入 URL',
     },
@@ -178,14 +168,12 @@ export const zhHans: TranslationStructure = {
         accountSubtitle: '管理您的账户详情',
         appearance: '外观',
         appearanceSubtitle: '自定义应用外观',
-        voiceAssistant: '语音助手',
-        voiceAssistantSubtitle: '配置语音交互偏好',
         featuresTitle: '功能',
         featuresSubtitle: '启用或禁用应用功能',
         developer: '开发者',
         developerTools: '开发者工具',
         about: '关于',
-        aboutFooter: 'Happy Coder 是一个 Codex 和 Claude Code 移动客户端。它采用端到端加密，您的账户仅存储在本地设备上。与 Anthropic 无关联。',
+        aboutFooter: 'Happy Coder is a Codex and Claude Code mobile client that connects through your paired Dev Tunnels machines. Not affiliated with Anthropic.',
         whatsNew: '更新日志',
         whatsNewSubtitle: '查看最新更新和改进',
         reportIssue: '报告问题',
@@ -195,13 +183,10 @@ export const zhHans: TranslationStructure = {
         supportUs: '支持我们',
         supportUsSubtitlePro: '感谢您的支持！',
         supportUsSubtitle: '支持项目开发',
-        scanQrCodeToAuthenticate: '扫描二维码进行认证',
         githubConnected: ({ login }: { login: string }) => `已连接为 @${login}`,
         connectGithubAccount: '连接您的 GitHub 账户',
         claudeAuthSuccess: '成功连接到 Claude',
         exchangingTokens: '正在交换令牌...',
-        usage: '使用情况',
-        usageSubtitle: '查看 API 使用情况和费用',
         // Dynamic settings messages
         accountConnected: ({ service }: { service: string }) => `已连接 ${service} 账户`,
         machineStatus: ({ name, status }: { name: string; status: 'online' | 'offline' }) =>
@@ -306,11 +291,6 @@ export const zhHans: TranslationStructure = {
         tryAgain: '请重试',
         contactSupport: '如果问题持续存在，请联系支持',
         sessionNotFound: '会话未找到',
-        voiceSessionFailed: '启动语音会话失败',
-        voiceServiceUnavailable: '语音服务暂时不可用',
-        voiceLimitReachedTitle: '已达语音上限',
-        voiceHardLimitReached: ({ hours }: { hours: number }) => `您本月已使用超过 ${hours} 小时的语音。这是允许的最大用量。您可以在语音设置中配置自己的 ElevenLabs 代理，以使用您自己的配额。`,
-        voiceConversationLimitReached: '您本月已达到语音对话的最大次数。我们未来可能会添加按需语音使用功能——如果您遇到此限制，请在 github.com/nicepkg/happy/issues 提交 issue。',
         oauthInitializationFailed: '初始化 OAuth 流程失败',
         tokenStorageFailed: '存储认证令牌失败',
         oauthStateMismatch: '安全验证失败。请重试',
@@ -339,16 +319,10 @@ export const zhHans: TranslationStructure = {
             `${seconds} 秒后重试`,
         errorWithCode: ({ message, code }: { message: string; code: number | string }) =>
             `${message} (错误 ${code})`,
-        disconnectServiceFailed: ({ service }: { service: string }) => 
-            `断开连接 ${service} 失败`,
-        connectServiceFailed: ({ service }: { service: string }) =>
-            `连接 ${service} 失败。请重试。`,
-        failedToLoadFriends: '加载好友列表失败',
-        failedToAcceptRequest: '接受好友请求失败',
-        failedToRejectRequest: '拒绝好友请求失败',
-        failedToRemoveFriend: '删除好友失败',
         searchFailed: '搜索失败。请重试。',
-        failedToSendRequest: '发送好友请求失败',
+        deviceCodeExpiredTitle: '机器配对已过期',
+        deviceCodeExpiredMessage: ({ machineId }: { machineId: string }) =>
+            `机器 "${machineId}" 的配对已过期。请重新配对此机器以恢复连接。`,
     },
 
     newSession: {
@@ -755,38 +729,6 @@ export const zhHans: TranslationStructure = {
         deleted: '已删除',
     },
 
-    settingsVoice: {
-        // Voice settings screen
-        languageTitle: '语言',
-        languageDescription: '选择您希望语音助手交互使用的语言。此设置将在您的所有设备间同步。',
-        preferredLanguage: '首选语言',
-        preferredLanguageSubtitle: '语音助手响应使用的语言',
-        language: {
-            searchPlaceholder: '搜索语言...',
-            title: '语言',
-            footer: ({ count }: { count: number }) => `${count} 种可用语言`,
-            autoDetect: '自动检测',
-        },
-        // Bring your own agent
-        byoTitle: '使用自己的代理',
-        byoDescription: '使用您自己的 ElevenLabs 代理代替 Happy 默认代理。无需订阅 — 直接使用您自己的 ElevenLabs 账户连接。您的代理必须定义两个客户端工具：messageClaudeCode（向编码代理发送文本）和 processPermissionRequest（允许或拒绝工具使用）。通过 {{initialConversationContext}} 动态变量接收会话上下文。',
-        customAgentId: 'ElevenLabs Agent ID',
-        customAgentIdNotSet: '未配置',
-        customAgentIdDescription: '输入您的 ElevenLabs Agent ID。留空则使用 Happy 默认代理。',
-        customAgentIdPlaceholder: 'e.g. abc123def456',
-        bypassToken: '直接连接',
-        bypassTokenSubtitle: '跳过 Happy 服务器，直接连接到 ElevenLabs',
-        promptGuideTitle: '代理提示词指南',
-        promptGuideDescription: '您的 ElevenLabs 代理需要：\n\n• 工具：messageClaudeCode — 参数：message (string)。向活跃的编码会话发送消息。\n• 工具：processPermissionRequest — 参数：decision ("allow" 或 "deny")。批准或拒绝待处理的工具权限。\n• 动态变量：{{initialConversationContext}} — 启动时接收会话历史和上下文。\n\n代理充当用户和编码代理之间的语音桥梁。它应该简洁，仅在被呼叫时回应，并在编码代理完成工作时进行报告。',
-        usageTitle: '使用量（过去 30 天）',
-        usageFooter: '过去 30 天使用的语音时间。免费方案: 20 分钟。订阅用户: 5 小时。每月最多 100 次对话。',
-        usageLabel: '语音时间',
-        conversationsLabel: '对话',
-        usageUsed: ({ used, limit }: { used: string; limit: string }) => `已使用 ${used}，共 ${limit}`,
-        supportTitle: '升级语音',
-        supportSubtitle: '获取更多语音时间并支持开发',
-    },
-
     settingsAccount: {
         // Account settings screen
         accountInformation: '账户信息',
@@ -797,20 +739,14 @@ export const zhHans: TranslationStructure = {
         publicId: '公共 ID',
         notAvailable: '不可用',
         linkNewDevice: '链接新设备',
-        linkNewDeviceSubtitle: '扫描二维码来链接设备',
         profile: '个人资料',
         name: '姓名',
         github: 'GitHub',
         tapToDisconnect: '点击断开连接',
         server: '服务器',
         backup: '备份',
-        backupDescription: '您的密钥是恢复账户的唯一方法。请将其保存在安全的地方，比如密码管理器中。',
-        secretKey: '密钥',
         tapToReveal: '点击显示',
         tapToHide: '点击隐藏',
-        secretKeyLabel: '密钥（点击复制）',
-        secretKeyCopied: '密钥已复制到剪贴板。请将其保存在安全的地方！',
-        secretKeyCopyFailed: '复制密钥失败',
         privacy: '隐私',
         privacyDescription: '通过分享匿名使用数据来帮助改进应用。不会收集个人信息。',
         analytics: '分析',
@@ -834,11 +770,6 @@ export const zhHans: TranslationStructure = {
         restartNow: '立即重启',
     },
 
-    connectButton: {
-        authenticate: '认证终端',
-        authenticateWithUrlPaste: '通过 URL 粘贴认证终端',
-        pasteAuthUrl: '粘贴来自您终端的认证 URL',
-    },
 
     updateBanner: {
         updateAvailable: '有可用更新',
@@ -856,29 +787,6 @@ export const zhHans: TranslationStructure = {
         noEntriesAvailable: '没有可用的更新日志条目。',
     },
 
-    terminal: {
-        // Used by terminal connection screens
-        webBrowserRequired: '需要 Web 浏览器',
-        webBrowserRequiredDescription: '出于安全原因，终端连接链接只能在 Web 浏览器中打开。请使用二维码扫描器或在计算机上打开此链接。',
-        processingConnection: '正在处理连接...',
-        invalidConnectionLink: '无效的连接链接',
-        invalidConnectionLinkDescription: '连接链接缺失或无效。请检查 URL 并重试。',
-        connectTerminal: '连接终端',
-        terminalRequestDescription: '有终端正在请求连接到您的 Happy Coder 账户。这将允许终端安全地发送和接收消息。',
-        connectionDetails: '连接详情',
-        publicKey: '公钥',
-        encryption: '加密',
-        endToEndEncrypted: '端到端加密',
-        acceptConnection: '接受连接',
-        connecting: '连接中...',
-        reject: '拒绝',
-        security: '安全',
-        securityFooter: '此连接链接在您的浏览器中安全处理，从未发送到任何服务器。您的私人数据将保持安全，只有您能解密消息。',
-        securityFooterDevice: '此连接在您的设备上安全处理，从未发送到任何服务器。您的私人数据将保持安全，只有您能解密消息。',
-        clientSideProcessing: '客户端处理',
-        linkProcessedLocally: '链接在浏览器中本地处理',
-        linkProcessedOnDevice: '链接在设备上本地处理',
-    },
 
     modals: {
         // Used across connect flows and settings
@@ -892,10 +800,6 @@ export const zhHans: TranslationStructure = {
         developerModeDisabled: '开发者模式已禁用',
         disconnectGithub: '断开 GitHub 连接',
         disconnectGithubConfirm: '您确定要断开 GitHub 账户连接吗？',
-        disconnectService: ({ service }: { service: string }) => 
-            `断开 ${service} 连接`,
-        disconnectServiceConfirm: ({ service }: { service: string }) => 
-            `您确定要断开 ${service} 与您账户的连接吗？`,
         disconnect: '断开连接',
         failedToConnectTerminal: '连接终端失败',
         cameraPermissionsRequiredToConnectTerminal: '连接终端需要相机权限',
@@ -905,26 +809,18 @@ export const zhHans: TranslationStructure = {
 
     navigation: {
         // Navigation titles and screen headers
-        connectTerminal: '连接终端',
         linkNewDevice: '链接新设备', 
-        restoreWithSecretKey: '通过密钥恢复',
         whatsNew: "更新日志",
-        friends: '好友',
     },
 
     welcome: {
         // Main welcome screen for unauthenticated users
         title: 'Codex 和 Claude Code 移动客户端',
-        subtitle: '端到端加密，您的账户仅存储在您的设备上。',
+        subtitle: 'Connect to your paired Dev Tunnels machines and keep your account on this device.',
         createAccount: '创建账户',
         linkOrRestoreAccount: '链接或恢复账户',
         loginWithMobileApp: '使用移动应用登录',
         pairMachine: '配对设备',
-        trustMachine: '信任这台设备？',
-        trust: '信任',
-        ed25519Fingerprint: ({ fingerprint }: { fingerprint: string }) => `Ed25519 指纹:\n${fingerprint}`,
-        pubkeyRotationTitle: '公钥已更改',
-        pubkeyRotationWarning: '这台设备提供的公钥与您之前信任的不同。只有在您重新安装或重置了该电脑上的 Happy 时才继续。',
         noMachinesForIdentity: '没有为此 GitHub 身份返回任何设备',
         deviceAuthorizationExpired: 'GitHub 设备授权已过期',
         pairingFailed: 'Failed to pair machine',
@@ -1028,104 +924,4 @@ export const zhHans: TranslationStructure = {
         copyFailed: '复制失败',
         mermaidRenderFailed: '渲染 mermaid 图表失败',
     },
-
-    artifacts: {
-        title: '工件',
-        countSingular: '1 个工件',
-        countPlural: ({ count }: { count: number }) => `${count} 个工件`,
-        empty: '暂无工件',
-        emptyDescription: '创建您的第一个工件来保存和组织内容',
-        new: '新建工件',
-        edit: '编辑工件',
-        delete: '删除',
-        updateError: '更新工件失败。请重试。',
-        notFound: '未找到工件',
-        discardChanges: '放弃更改？',
-        discardChangesDescription: '您有未保存的更改。确定要放弃它们吗？',
-        deleteConfirm: '删除工件？',
-        deleteConfirmDescription: '此工件将被永久删除。',
-        titlePlaceholder: '工件标题',
-        bodyPlaceholder: '在此输入内容...',
-        save: '保存',
-        saving: '保存中...',
-        loading: '加载中...',
-        error: '加载工件失败',
-        titleLabel: '标题',
-        bodyLabel: '内容',
-        emptyFieldsError: '请输入标题或内容',
-        createError: '创建工件失败。请重试。',
-    },
-
-    friends: {
-        // Friends feature
-        title: '好友',
-        manageFriends: '管理您的好友和连接',
-        searchTitle: '查找好友',
-        pendingRequests: '好友请求',
-        myFriends: '我的好友',
-        noFriendsYet: '您还没有好友',
-        findFriends: '查找好友',
-        remove: '删除',
-        pendingRequest: '待处理',
-        sentOn: ({ date }: { date: string }) => `发送于 ${date}`,
-        accept: '接受',
-        reject: '拒绝',
-        addFriend: '添加好友',
-        alreadyFriends: '已是好友',
-        requestPending: '请求待处理',
-        searchInstructions: '输入用户名搜索好友',
-        searchPlaceholder: '输入用户名...',
-        searching: '搜索中...',
-        userNotFound: '未找到用户',
-        noUserFound: '未找到该用户名的用户',
-        checkUsername: '请检查用户名后重试',
-        howToFind: '如何查找好友',
-        findInstructions: '通过用户名搜索好友。您和您的好友都需要连接 GitHub 才能发送好友请求。',
-        requestSent: '好友请求已发送！',
-        requestAccepted: '好友请求已接受！',
-        requestRejected: '好友请求已拒绝',
-        friendRemoved: '好友已删除',
-        confirmRemove: '删除好友',
-        confirmRemoveMessage: '确定要删除这位好友吗？',
-        cannotAddYourself: '您不能向自己发送好友请求',
-        bothMustHaveGithub: '双方都必须连接 GitHub 才能成为好友',
-        status: {
-            none: '未连接',
-            requested: '请求已发送',
-            pending: '请求待处理',
-            friend: '好友',
-            rejected: '已拒绝',
-        },
-        acceptRequest: '接受请求',
-        removeFriend: '移除好友',
-        removeFriendConfirm: ({ name }: { name: string }) => `确定要将 ${name} 从好友列表中移除吗？`,
-        requestSentDescription: ({ name }: { name: string }) => `您的好友请求已发送给 ${name}`,
-        requestFriendship: '请求加为好友',
-        cancelRequest: '取消好友请求',
-        cancelRequestConfirm: ({ name }: { name: string }) => `取消发送给 ${name} 的好友请求？`,
-        denyRequest: '拒绝请求',
-        nowFriendsWith: ({ name }: { name: string }) => `您现在与 ${name} 是好友了`,
-    },
-
-    usage: {
-        // Usage panel strings
-        today: '今天',
-        last7Days: '过去 7 天',
-        last30Days: '过去 30 天',
-        totalTokens: '总令牌数',
-        totalCost: '总费用',
-        tokens: '令牌',
-        cost: '费用',
-        usageOverTime: '使用趋势',
-        byModel: '按模型',
-        noData: '暂无使用数据',
-    },
-
-    feed: {
-        // Feed notifications for friend requests and acceptances
-        friendRequestFrom: ({ name }: { name: string }) => `${name} 向您发送了好友请求`,
-        friendRequestGeneric: '新的好友请求',
-        friendAccepted: ({ name }: { name: string }) => `您现在与 ${name} 成为了好友`,
-        friendAcceptedGeneric: '好友请求已接受',
-    }
 } as const;

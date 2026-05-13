@@ -11,7 +11,7 @@ import { AsyncLock } from '../utils/lock';
 import {
     PrefetchManager,
     type PrefetchManagerStorage,
-    type PrefetchManagerEncryptionAdapter,
+    type PrefetchManagerMessageAdapter,
     type PrefetchManagerTransport,
     type RunInSessionLock,
     type PrefetchTerminalEvent,
@@ -40,7 +40,7 @@ interface FakeStorageRecord {
 
 interface Harness {
     storage: PrefetchManagerStorage;
-    encryption: PrefetchManagerEncryptionAdapter;
+    messages: PrefetchManagerMessageAdapter;
     transport: PrefetchManagerTransport;
     runInSessionLock: RunInSessionLock;
     record: Record<string, FakeStorageRecord>;
@@ -51,7 +51,7 @@ interface Harness {
      * resolves with (or rejects with). Either by sessionId or a queue.
      */
     transportQueue: Array<(req: SessionMessageRangeRequest) => Promise<SessionMessageRangeResponse>>;
-    decryptQueue: Array<(msgs: ApiMessage[]) => Promise<(DecryptedMessage | null)[]>>;
+    decodeQueue: Array<(msgs: ApiMessage[]) => Promise<(DecryptedMessage | null)[]>>;
     reconnectListeners: Set<() => void>;
     triggerReconnect: () => void;
     /**
@@ -82,7 +82,7 @@ function createHarness(opts?: { fakeCurrentGenerationForCommit?: (sid: string) =
     const terminalEvents: PrefetchTerminalEvent[] = [];
     const reconnectListeners = new Set<() => void>();
     const transportQueue: Harness['transportQueue'] = [];
-    const decryptQueue: Harness['decryptQueue'] = [];
+    const decodeQueue: Harness['decodeQueue'] = [];
 
     const fakeGenerationOverrides = new Map<string, number>();
     const fakeCurrentGenerationForCommit = (sid: string) =>
@@ -142,13 +142,13 @@ function createHarness(opts?: { fakeCurrentGenerationForCommit?: (sid: string) =
         },
     };
 
-    const encryption: PrefetchManagerEncryptionAdapter = {
-        async decryptMessages(_sessionId, messages) {
-            const next = decryptQueue.shift();
+    const messages: PrefetchManagerMessageAdapter = {
+        async decodeMessages(_sessionId, messages) {
+            const next = decodeQueue.shift();
             if (next) {
                 return next(messages);
             }
-            // Default: decrypt happy path returning one DecryptedMessage per
+            // Default: decode happy path returning one DecryptedMessage per
             // input ApiMessage with seq taken from the input.
             return messages.map(m => makeFakeDecryptedMessage(m.seq));
         },
@@ -190,14 +190,14 @@ function createHarness(opts?: { fakeCurrentGenerationForCommit?: (sid: string) =
 
     return {
         storage,
-        encryption,
+        messages,
         transport,
         runInSessionLock,
         record,
         locks,
         terminalEvents,
         transportQueue,
-        decryptQueue,
+        decodeQueue,
         reconnectListeners,
         triggerReconnect() {
             for (const l of reconnectListeners) {
@@ -225,7 +225,7 @@ function makeManager(harness: Harness) {
     let counter = 0;
     return new PrefetchManager({
         storage: harness.storage,
-        encryption: harness.encryption,
+        messages: harness.messages,
         transport: harness.transport,
         runInSessionLock: harness.runInSessionLock,
         now: () => 12345,
@@ -272,7 +272,7 @@ function errorResponse(
 
 describe('PrefetchManager', () => {
     describe('lock-serialized commit, parallel transport/decrypt', () => {
-        it('(a) live new-message decrypt is not blocked by an in-flight prefetch transport/decrypt', async () => {
+        it('(a) live new-message decode is not blocked by an in-flight prefetch transport/decrypt', async () => {
             // Plan AC #4 — verify the prefetch holds the per-session lock
             // ONLY for the commit, not during transport/decrypt. We simulate
             // a slow transport AND a slow decrypt; meanwhile, a `live decrypt`
@@ -287,7 +287,7 @@ describe('PrefetchManager', () => {
             h.transportQueue.push(async (req) => {
                 return transportDeferred.promise.then(() => okResponse(req, { seqs: [10] }));
             });
-            h.decryptQueue.push(async () => {
+            h.decodeQueue.push(async () => {
                 return decryptDeferred.promise.then(() => [makeFakeDecryptedMessage(10)]);
             });
 
@@ -303,7 +303,7 @@ describe('PrefetchManager', () => {
             }).then(() => liveOrder.push('prefetch-resolved'));
 
             // While transport is in flight, a live new-message handler should
-            // be able to do its own decrypt without waiting on us. Simulate by
+            // be able to do its own decode without waiting on us. Simulate by
             // running an unrelated async block.
             await Promise.resolve();
             liveOrder.push('live-decrypt-start');
@@ -317,7 +317,7 @@ describe('PrefetchManager', () => {
 
             await prefetchPromise;
 
-            // The live decrypt completed BEFORE the prefetch resolved, proving
+            // The live decode completed BEFORE the prefetch resolved, proving
             // it was not blocked behind the prefetch's transport/decrypt.
             expect(liveOrder).toEqual(['live-decrypt-start', 'live-decrypt-end', 'prefetch-resolved']);
 
@@ -371,7 +371,7 @@ describe('PrefetchManager', () => {
             };
             m2 = new PrefetchManager({
                 storage: h.storage,
-                encryption: h.encryption,
+                messages: h.messages,
                 transport: h.transport,
                 runInSessionLock: wrappedRun,
                 now: () => 1,
@@ -652,7 +652,7 @@ describe('PrefetchManager', () => {
             // Wrap the onTerminal hook to record an "event" entry.
             const m2 = new PrefetchManager({
                 storage: h.storage,
-                encryption: h.encryption,
+                messages: h.messages,
                 transport: h.transport,
                 runInSessionLock: h.runInSessionLock,
                 now: () => 1,
@@ -719,12 +719,12 @@ describe('PrefetchManager', () => {
             expect(h.terminalEvents.at(-1)!.kind).toBe('transport-error');
         });
 
-        it('decrypt failure clears exactly once', async () => {
+        it('decode failure clears exactly once', async () => {
             const h = createHarness();
             const manager = makeManager(h);
             h.transportQueue.push(async (req) => okResponse(req, { seqs: [10] }));
-            h.decryptQueue.push(async () => {
-                throw new Error('decrypt failed');
+            h.decodeQueue.push(async () => {
+                throw new Error('decode failed');
             });
 
             await manager.requestSessionMessageRange({
@@ -734,14 +734,14 @@ describe('PrefetchManager', () => {
             expect(r.activePrefetch).toBeUndefined();
             expect(r.clearCalls.length).toBe(1);
             expect(r.clearCalls[0]!.effective).toBe(true);
-            expect(h.terminalEvents.at(-1)!.kind).toBe('decrypt-error');
+            expect(h.terminalEvents.at(-1)!.kind).toBe('decode-error');
         });
 
         it('closure-mismatch staleness discard inside the lock clears exactly once', async () => {
             const h = createHarness();
             h.transportQueue.push(async (req) => okResponse(req, { seqs: [10] }));
 
-            // Force staleness by bumping generation between decrypt and commit.
+            // Force staleness by bumping generation between decode and commit.
             let m2!: PrefetchManager;
             const origRun = h.runInSessionLock;
             const wrappedRun: RunInSessionLock = async (sid, body) => {
@@ -750,7 +750,7 @@ describe('PrefetchManager', () => {
             };
             m2 = new PrefetchManager({
                 storage: h.storage,
-                encryption: h.encryption,
+                messages: h.messages,
                 transport: h.transport,
                 runInSessionLock: wrappedRun,
                 now: () => 1,
@@ -858,7 +858,7 @@ describe('PrefetchManager', () => {
                 sessionId: 's1', fromSeq: 1, toSeq: 50, limit: 50, direction: 'older',
             });
             // Second concurrent: must bail synchronously and resolve before p1
-            // (because no transport / decrypt / lock work happens for it).
+            // (because no transport / decode / lock work happens for it).
             const p2 = manager.requestSessionMessageRange({
                 sessionId: 's1', fromSeq: 1, toSeq: 50, limit: 50, direction: 'older',
             });

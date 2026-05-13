@@ -11,7 +11,6 @@ import { randomUUID } from 'node:crypto';
 import { execSync } from 'node:child_process';
 import { logger } from '@/ui/logger';
 import { Credentials, readSettings } from '@/persistence';
-import { initialMachineMetadata } from '@/daemon/run';
 import { configuration } from '@/configuration';
 import packageJson from '../../package.json';
 import { MessageQueue2 } from '@/utils/MessageQueue2';
@@ -32,6 +31,7 @@ import { registerKillSessionHandler } from "@/claude/registerKillSessionHandler"
 import { connectionState } from '@/utils/serverConnectionErrors';
 import { setupOfflineReconnection } from '@/utils/setupOfflineReconnection';
 import { publishAgentConfigurationMetadataIfChanged, publishPermissionModeIfChanged } from '@/utils/publishPermissionMode';
+import { appendLedgerRecord } from '@/ledger/writer';
 import type { AgentConfiguration, ApiSessionClient } from '@/api/apiSession';
 import { resolveCodexExecutionPolicy } from './executionPolicy';
 import { mapCodexMcpMessageToSessionEnvelopes, mapCodexProcessorMessageToSessionEnvelopes } from './utils/sessionProtocolMapper';
@@ -40,6 +40,7 @@ import { emitReadyIfIdle } from './emitReadyIfIdle';
 import type { ReasoningEffort } from './codexAppServerTypes';
 import { HAPPY_FORKED_FROM_SESSION_ID } from '@/utils/envNames';
 import { createCodexPatchApprovalInput } from './codexApprovalSnapshot';
+import type { LedgerRecord } from '@slopus/happy-wire';
 
 function getMessageDelivery(message: { messageId?: string; seq?: number }): MessageDelivery | undefined {
     return typeof message.messageId === 'string' && typeof message.seq === 'number'
@@ -124,11 +125,6 @@ export async function runCodex(opts: {
         process.exit(1);
     }
     logger.debug(`Using machineId: ${machineId}`);
-    await api.getOrCreateMachine({
-        machineId,
-        metadata: initialMachineMetadata
-    });
-
     //
     // Create session
     //
@@ -190,6 +186,14 @@ export async function runCodex(opts: {
         }
     });
     session = initialSession;
+    const ledgerRunId = metadata.runId;
+    const ledgerSessionId = response?.id ?? session.sessionId;
+    const appendSessionLedgerRecord = (record: LedgerRecord): void => {
+        if (!ledgerRunId) return;
+        void appendLedgerRecord(ledgerRunId, ledgerSessionId, record).catch((error) => {
+            logger.debug('[ledger] Failed to append Codex ledger record', error);
+        });
+    };
     const lastPublishedPermissionModeCode = { current: undefined as string | undefined };
 
     // On reconnect, un-archive the session and skip replaying old messages.
@@ -315,6 +319,18 @@ export async function runCodex(opts: {
             thinkingLevel: messageThinkingLevel,
         };
         messageQueue.push(message.content.text, enhancedMode, getMessageDelivery(message));
+        if (ledgerRunId) {
+            appendSessionLedgerRecord({
+                runId: ledgerRunId,
+                sessionId: ledgerSessionId,
+                timestamp: new Date().toISOString(),
+                eventType: 'message-sent',
+                direction: 'user-to-agent',
+                messageId: message.messageId,
+                seqWithinSession: message.seq,
+                messagePreview: message.content.text,
+            });
+        }
     });
     let thinking = false;
     let currentTurnId: string | null = null;
@@ -817,6 +833,16 @@ export async function runCodex(opts: {
                     queueSize: () => messageQueue.size(),
                     shouldExit,
                     sendReady,
+                    notify: () => {
+                        if (!ledgerRunId) return;
+                        appendSessionLedgerRecord({
+                            runId: ledgerRunId,
+                            sessionId: ledgerSessionId,
+                            timestamp: new Date().toISOString(),
+                            eventType: 'idle-reached',
+                            queueDepth: messageQueue.size(),
+                        });
+                    },
                 });
                 logActiveHandles('after-turn');
             }

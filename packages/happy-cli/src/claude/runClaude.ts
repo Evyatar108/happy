@@ -14,7 +14,7 @@ import { parseSpecialCommand } from '@/parsers/specialCommands';
 import { getEnvironmentInfo } from '@/ui/doctor';
 import { configuration } from '@/configuration';
 import { notifyDaemonSessionStarted } from '@/daemon/controlClient';
-import { initialMachineMetadata } from '@/daemon/run';
+import * as daemonClient from '@/daemon/daemonClient';
 import { startHappyServer } from '@/claude/utils/startHappyServer';
 import { startHookServer } from '@/claude/utils/startHookServer';
 import { generateHookSettingsFile, cleanupHookSettingsFile } from '@/claude/utils/generateHookSettings';
@@ -28,9 +28,11 @@ import { Session } from './session';
 import { applySandboxPermissionPolicy, resolveInitialClaudePermissionMode } from './utils/permissionMode';
 import { publishAgentConfigurationMetadataIfChanged, publishPermissionModeIfChanged } from '@/utils/publishPermissionMode';
 import { decodeBase64, encodeBase64 } from '@/api/encryption';
+import { appendLedgerRecord } from '@/ledger/writer';
 import type { Session as ApiSession } from '@/api/types';
 import type { AgentConfiguration } from '@/api/apiSession';
 import type { MessageDelivery } from '@/utils/MessageQueue2';
+import type { LedgerRecord } from '@slopus/happy-wire';
 
 /** JavaScript runtime to use for spawning Claude Code */
 export type JsRuntime = 'node' | 'bun'
@@ -104,12 +106,6 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
     }
     logger.debug(`Using machineId: ${machineId}`);
 
-    // Create machine if it doesn't exist
-    await api.getOrCreateMachine({
-        machineId,
-        metadata: initialMachineMetadata
-    });
-
     let metadata: Metadata = {
         path: workingDirectory,
         host: os.hostname(),
@@ -163,7 +159,14 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         let offlineSessionId: string | null = null;
 
         const reconnection = startOfflineReconnection({
-            serverUrl: configuration.serverUrl,
+            healthCheck: async () => {
+                try {
+                    const response = await daemonClient.loopbackFetch('/v2/me/settings', { method: 'HEAD' });
+                    return response.ok;
+                } catch {
+                    return false;
+                }
+            },
             onReconnected: async () => {
                 const resp = await api.getOrCreateSession({ tag: randomUUID(), metadata, state });
                 if (!resp) throw new Error('Server unavailable');
@@ -229,6 +232,14 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
 
     // Create realtime session
     const session = api.sessionSyncClient(response);
+    const ledgerRunId = metadata.runId;
+    const ledgerSessionId = response.id;
+    const appendSessionLedgerRecord = (record: LedgerRecord): void => {
+        if (!ledgerRunId) return;
+        void appendLedgerRecord(ledgerRunId, ledgerSessionId, record).catch((error) => {
+            logger.debug('[ledger] Failed to append Claude ledger record', error);
+        });
+    };
 
     // On reconnect, un-archive the session and skip replaying old messages.
     if (reconnectSessionId) {
@@ -331,6 +342,29 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         allowedTools: mode.allowedTools,
         disallowedTools: mode.disallowedTools
     }));
+    const recordMessageSent = (message: { content?: { text?: string }; messageId?: string; seq?: number }): void => {
+        if (!ledgerRunId) return;
+        appendSessionLedgerRecord({
+            runId: ledgerRunId,
+            sessionId: ledgerSessionId,
+            timestamp: new Date().toISOString(),
+            eventType: 'message-sent',
+            direction: 'user-to-agent',
+            messageId: message.messageId,
+            seqWithinSession: message.seq,
+            messagePreview: message.content?.text,
+        });
+    };
+    const recordIdleReached = (): void => {
+        if (!ledgerRunId) return;
+        appendSessionLedgerRecord({
+            runId: ledgerRunId,
+            sessionId: ledgerSessionId,
+            timestamp: new Date().toISOString(),
+            eventType: 'idle-reached',
+            queueDepth: messageQueue.size(),
+        });
+    };
 
     // Forward messages to the queue
     // Permission modes: Use the unified 7-mode type, mapping happens at SDK boundary in claudeRemote.ts
@@ -519,6 +553,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
                 disallowedTools: messageDisallowedTools
             };
             messageQueue.pushIsolateAndClear(specialCommand.originalMessage || message.content.text, enhancedMode, getMessageDelivery(message));
+            recordMessageSent(message);
             logger.debugLargeJson('[start] /compact command pushed to queue:', redactUserMessageForLog(message));
             return;
         }
@@ -536,6 +571,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
                 disallowedTools: messageDisallowedTools
             };
             messageQueue.pushIsolateAndClear(specialCommand.originalMessage || message.content.text, enhancedMode, getMessageDelivery(message));
+            recordMessageSent(message);
             logger.debugLargeJson('[start] /compact command pushed to queue:', redactUserMessageForLog(message));
             return;
         }
@@ -594,6 +630,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
             disallowedTools: messageDisallowedTools
         };
         messageQueue.pushWithAttachments(message.content.text, enhancedMode, message.content.attachments, getMessageDelivery(message));
+        recordMessageSent(message);
         logger.debugLargeJson('User message pushed to queue:', redactUserMessageForLog(message))
     });
 
@@ -681,6 +718,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         onSessionReady: (sessionInstance) => {
             // Store reference for hook server callback
             currentSession = sessionInstance;
+            sessionInstance.setLedgerIdleReachedHandler(recordIdleReached);
         },
         mcpServers: {
             'happy': {

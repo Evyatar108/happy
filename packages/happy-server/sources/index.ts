@@ -1,6 +1,12 @@
 import fastify, { type FastifyInstance } from "fastify";
 import { mkdir } from "fs/promises";
 import path from "path";
+import type { EventRouter } from "./app/events/eventRouter";
+import type { ApiPaths, MachineStateGetter } from "./app/api/api";
+import { decodeBase64 } from "privacy-kit";
+import { db, getPGlite } from "./storage/db";
+
+export { encodeTunnelClaim } from "./app/api/auth/tunnelClaim";
 
 export interface TofuPublicKeys {
     ed25519PublicKey: string | Uint8Array;
@@ -18,13 +24,62 @@ export interface HappyServerConfig {
     tofuPublicKeys?: TofuPublicKeys;
     host?: string;
     publicUrl?: string;
+    auth?: "tunnel" | "loopback";
+    paths?: ApiPaths;
+    machineState?: MachineStateGetter;
     enablePrettyLogs?: boolean;
+}
+
+export interface HappyServerSharedContext {
+    dataDir: string;
+    machineKey: string | Uint8Array;
+    localUserId?: string;
+    tofuPublicKeys?: TofuPublicKeys;
+    publicUrl?: string;
+    enablePrettyLogs?: boolean;
+}
+
+export interface CreateAppConfig extends HappyServerSharedContext {
+    port: number;
+    host?: string;
+    auth?: "tunnel" | "loopback";
+    paths?: ApiPaths;
+    machineState?: MachineStateGetter;
 }
 
 export interface HappyServerHandle {
     app: FastifyInstance;
+    eventRouter: EventRouter;
     start: () => Promise<void>;
     stop: () => Promise<void>;
+}
+
+export interface BootstrapMachineForEmbeddedInput {
+    machineId: string;
+    metadata: string;
+    daemonState: string | null;
+    dataEncryptionKeyBase64?: string | null;
+}
+
+export async function bootstrapMachineForEmbedded(input: BootstrapMachineForEmbeddedInput): Promise<void> {
+    if (!getPGlite()) {
+        throw new Error("Embedded PGlite database is not configured; call createApp(...).start() before bootstrapMachineForEmbedded().");
+    }
+
+    await db.machine.upsert({
+        where: { id: input.machineId },
+        create: {
+            id: input.machineId,
+            metadata: input.metadata,
+            metadataVersion: 1,
+            daemonState: input.daemonState,
+            daemonStateVersion: 1,
+            dataEncryptionKey: input.dataEncryptionKeyBase64
+                ? decodeBase64(input.dataEncryptionKeyBase64)
+                : null,
+        },
+        update: {},
+    });
 }
 
 function machineKeyToSeed(machineKey: string | Uint8Array) {
@@ -41,10 +96,11 @@ function publicKeyToBase64(publicKey: string | Uint8Array): string {
     return Buffer.from(publicKey).toString("base64");
 }
 
-export function createHappyServer(config: HappyServerConfig): HappyServerHandle {
+export function createApp(config: CreateAppConfig): HappyServerHandle {
     const app = fastify({ logger: false });
     let isConfigured = false;
     let isStarted = false;
+    let eventRouter: EventRouter | null = null;
 
     async function configure() {
         if (isConfigured) {
@@ -93,12 +149,25 @@ export function createHappyServer(config: HappyServerConfig): HappyServerHandle 
             } : undefined,
             ed25519SecretKey: config.tofuPublicKeys?.ed25519SecretKey,
             x25519SecretKey: config.tofuPublicKeys?.x25519SecretKey,
+        }, {
+            auth: config.auth,
+            paths: config.paths,
+            machineState: config.machineState,
+            onEventRouter: (router) => {
+                eventRouter = router;
+            },
         });
         isConfigured = true;
     }
 
     return {
         app,
+        get eventRouter() {
+            if (!eventRouter) {
+                throw new Error("Happy server event router is not configured yet");
+            }
+            return eventRouter;
+        },
         async start() {
             if (isStarted) {
                 return;
@@ -125,4 +194,8 @@ export function createHappyServer(config: HappyServerConfig): HappyServerHandle 
             isStarted = false;
         },
     };
+}
+
+export function createHappyServer(config: HappyServerConfig): HappyServerHandle {
+    return createApp(config);
 }

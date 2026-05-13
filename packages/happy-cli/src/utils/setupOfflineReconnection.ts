@@ -10,7 +10,7 @@
 import type { ApiClient } from '@/api/api';
 import type { ApiSessionClient } from '@/api/apiSession';
 import type { AgentState, Metadata, Session } from '@/api/types';
-import { configuration } from '@/configuration';
+import * as daemonClient from '@/daemon/daemonClient';
 import { createOfflineSessionStub } from '@/utils/offlineSessionStub';
 import { startOfflineReconnection } from '@/utils/serverConnectionErrors';
 
@@ -87,7 +87,14 @@ export function setupOfflineReconnection(opts: SetupOfflineReconnectionOptions):
 
         // Start background reconnection
         reconnectionHandle = startOfflineReconnection<ApiSessionClient>({
-            serverUrl: configuration.serverUrl,
+            healthCheck: async () => {
+                try {
+                    const r = await daemonClient.loopbackFetch('/v2/me/settings', { method: 'HEAD' });
+                    return r.ok;
+                } catch {
+                    return false;
+                }
+            },
             onReconnected: async () => {
                 const resp = await api.getOrCreateSession({ tag: sessionTag, metadata, state });
                 if (!resp) throw new Error('Server unavailable');

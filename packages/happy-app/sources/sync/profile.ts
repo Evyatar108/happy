@@ -13,6 +13,14 @@ export const GitHubProfileSchema = z.object({
     bio: z.string().nullable()
 });
 
+const V2ProfileSchema = z.object({
+    githubUserId: z.number(),
+    githubLogin: z.string(),
+    name: z.string().nullable(),
+    avatarUrl: z.string().nullable(),
+    updatedAt: z.string(),
+});
+
 export const ImageRefSchema = z.object({
     width: z.number(),
     height: z.number(),
@@ -55,12 +63,32 @@ Object.freeze(profileDefaults);
 //
 
 export function profileParse(profile: unknown): Profile {
-    const parsed = ProfileSchema.safeParse(profile);
-    if (!parsed.success) {
-        console.error('Failed to parse profile:', parsed.error);
-        return { ...profileDefaults };
+    const v2 = V2ProfileSchema.safeParse(profile);
+    if (v2.success) {
+        const [firstName, ...rest] = (v2.data.name ?? '').trim().split(/\s+/).filter(Boolean);
+        return {
+            id: String(v2.data.githubUserId),
+            timestamp: Date.parse(v2.data.updatedAt) || Date.now(),
+            firstName: firstName ?? null,
+            lastName: rest.length > 0 ? rest.join(' ') : null,
+            avatar: v2.data.avatarUrl ? {
+                width: 0,
+                height: 0,
+                thumbhash: '',
+                path: v2.data.avatarUrl,
+                url: v2.data.avatarUrl,
+            } : null,
+            github: {
+                id: v2.data.githubUserId,
+                login: v2.data.githubLogin,
+                name: v2.data.name ?? '',
+                avatar_url: v2.data.avatarUrl ?? '',
+                bio: null,
+            },
+            connectedServices: [],
+        };
     }
-    return parsed.data;
+    throw new Error(`Failed to parse /v2/me/profile response: ${v2.error.message}`);
 }
 
 //

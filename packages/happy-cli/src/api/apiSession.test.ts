@@ -9,29 +9,55 @@ const {
     mockAxiosPost,
     mockBackoff,
     mockDelay,
+    mockTunnelSocketIOOptions,
+    mockTunnelFetch,
     mockLoggerDebug,
     mockLoggerDebugLargeJson,
     mockMapClaudeLogMessageToSessionEnvelopes
-} = vi.hoisted(() => ({
-    mockIo: vi.fn(),
-    mockAxiosGet: vi.fn(),
-    mockAxiosPost: vi.fn(),
-    mockBackoff: vi.fn(async <T>(callback: () => Promise<T>) => {
-        let lastError: unknown;
-        for (let i = 0; i < 20; i += 1) {
-            try {
-                return await callback();
-            } catch (error) {
-                lastError = error;
+} = vi.hoisted(() => {
+    const mockAxiosGet = vi.fn();
+    const mockAxiosPost = vi.fn();
+    return {
+        mockIo: vi.fn(),
+        mockAxiosGet,
+        mockAxiosPost,
+        mockBackoff: vi.fn(async <T>(callback: () => Promise<T>) => {
+            let lastError: unknown;
+            for (let i = 0; i < 20; i += 1) {
+                try {
+                    return await callback();
+                } catch (error) {
+                    lastError = error;
+                }
             }
-        }
-        throw lastError;
-    }),
-    mockDelay: vi.fn(async () => undefined),
-    mockLoggerDebug: vi.fn(),
-    mockLoggerDebugLargeJson: vi.fn(),
-    mockMapClaudeLogMessageToSessionEnvelopes: vi.fn()
-}));
+            throw lastError;
+        }),
+        mockDelay: vi.fn(async () => undefined),
+        mockTunnelSocketIOOptions: vi.fn(async () => ({
+            url: 'http://127.0.0.1:7010',
+            auth: { tunnelAuthorization: 'tunnel test.claim' }
+        })),
+        mockTunnelFetch: vi.fn(async (path: string, init: RequestInit = {}) => {
+            const url = new URL(path, 'https://server.test');
+            const method = init.method ?? 'GET';
+            const axiosResponse = method === 'POST'
+                ? await mockAxiosPost(url.origin + url.pathname, init.body ? JSON.parse(String(init.body)) : undefined, { headers: init.headers })
+                : await mockAxiosGet(url.origin + url.pathname, {
+                    params: Object.fromEntries([...url.searchParams.entries()].map(([key, value]) => [key, Number(value)])),
+                    headers: init.headers,
+                });
+            const status = axiosResponse.status ?? 200;
+            return {
+                ok: status >= 200 && status < 300,
+                status,
+                json: async () => axiosResponse.data,
+            };
+        }),
+        mockLoggerDebug: vi.fn(),
+        mockLoggerDebugLargeJson: vi.fn(),
+        mockMapClaudeLogMessageToSessionEnvelopes: vi.fn()
+    };
+});
 
 vi.mock('socket.io-client', () => ({
     io: mockIo
@@ -46,8 +72,14 @@ vi.mock('axios', () => ({
 
 vi.mock('@/configuration', () => ({
     configuration: {
-        serverUrl: 'https://server.test'
+        serverUrl: 'https://server.test',
+        currentCliVersion: '1.2.3'
     }
+}));
+
+vi.mock('@/daemon/daemonClient', () => ({
+    tunnelSocketIOOptions: mockTunnelSocketIOOptions,
+    tunnelFetch: mockTunnelFetch,
 }));
 
 vi.mock('@/ui/logger', () => ({
@@ -176,6 +208,10 @@ async function waitForCheck(check: () => void, timeoutMs = 2000) {
     throw lastError;
 }
 
+async function waitForSocketInit(mockSocket: any) {
+    await waitForCheck(() => expect(mockSocket.on).toHaveBeenCalled());
+}
+
 describe('ApiSessionClient v3 messages API migration', () => {
     let socketHandlers: SocketHandlers;
     let mockSocket: any;
@@ -192,6 +228,8 @@ describe('ApiSessionClient v3 messages API migration', () => {
         session = makeSession();
         mockSocket = {
             connected: true,
+            auth: {},
+            io: { uri: '', opts: {} },
             connect: vi.fn(),
             on: vi.fn((event: string, handler: SocketHandler) => {
                 if (!socketHandlers[event]) {
@@ -205,7 +243,9 @@ describe('ApiSessionClient v3 messages API migration', () => {
             volatile: {
                 emit: vi.fn()
             },
-            close: vi.fn()
+            close: vi.fn(),
+            disconnect: vi.fn(),
+            removeAllListeners: vi.fn(() => { socketHandlers = {}; })
         };
 
         mockIo.mockReturnValue(mockSocket);
@@ -215,16 +255,19 @@ describe('ApiSessionClient v3 messages API migration', () => {
         vi.restoreAllMocks();
     });
 
-    it('registers core socket handlers and connects', () => {
+    it('registers core socket handlers and connects', async () => {
         new ApiSessionClient('fake-token', session);
 
+        await waitForSocketInit(mockSocket);
         expect(mockSocket.on).toHaveBeenCalledWith('connect', expect.any(Function));
         expect(mockSocket.on).toHaveBeenCalledWith('disconnect', expect.any(Function));
         expect(mockSocket.on).toHaveBeenCalledWith('update', expect.any(Function));
-        expect(mockSocket.connect).toHaveBeenCalledTimes(1);
+        await waitForCheck(() => {
+            expect(mockSocket.connect).toHaveBeenCalledTimes(1);
+        });
     });
 
-    it('queues agent configuration metadata diffs until a runner subscribes', () => {
+    it('queues agent configuration metadata diffs until a runner subscribes', async () => {
         const client = new ApiSessionClient('fake-token', session);
         const nextMetadata = {
             ...session.metadata,
@@ -233,6 +276,7 @@ describe('ApiSessionClient v3 messages API migration', () => {
             currentThoughtLevelCode: 'high',
         };
 
+        await waitForSocketInit(mockSocket);
         emitSocketEvent('update', createUpdateSessionUpdate(session, 1, nextMetadata));
 
         const received: unknown[] = [];
@@ -247,7 +291,7 @@ describe('ApiSessionClient v3 messages API migration', () => {
         ]);
     });
 
-    it('does not emit agent configuration when update-session metadata is unchanged', () => {
+    it('does not emit agent configuration when update-session metadata is unchanged', async () => {
         session.metadata = {
             ...session.metadata,
             currentModelCode: 'claude-sonnet',
@@ -258,6 +302,7 @@ describe('ApiSessionClient v3 messages API migration', () => {
         const received: unknown[] = [];
         client.onAgentConfiguration((configuration) => received.push(configuration));
 
+        await waitForSocketInit(mockSocket);
         emitSocketEvent('update', createUpdateSessionUpdate(session, 1, { ...session.metadata }));
 
         expect(received).toEqual([]);
@@ -283,6 +328,7 @@ describe('ApiSessionClient v3 messages API migration', () => {
 
         await waitForCheck(() => {
             expect(mockAxiosPost).toHaveBeenCalledTimes(1);
+            expect((client as any).pendingOutbox).toHaveLength(0);
         });
 
         const payload = mockAxiosPost.mock.calls[0][1];
@@ -1224,11 +1270,12 @@ describe('ApiSessionClient v3 messages API migration', () => {
         expect(onMessage).toHaveBeenCalledWith(agentMessage);
     });
 
-    it('applies consecutive new-message updates directly (fast path)', () => {
+    it('applies consecutive new-message updates directly (fast path)', async () => {
         const client = new ApiSessionClient('fake-token', session);
         const onUserMessage = vi.fn();
         client.onUserMessage(onUserMessage);
 
+        await waitForSocketInit(mockSocket);
         (client as any).lastSeq = 1;
         const userMessage = {
             role: 'user',
@@ -1245,6 +1292,7 @@ describe('ApiSessionClient v3 messages API migration', () => {
 
     it('invalidates receive sync and fetches on seq gap', async () => {
         const client = new ApiSessionClient('fake-token', session);
+        await waitForSocketInit(mockSocket);
         (client as any).lastSeq = 1;
 
         mockAxiosGet.mockResolvedValueOnce({
@@ -1267,6 +1315,7 @@ describe('ApiSessionClient v3 messages API migration', () => {
 
     it('invalidates receive sync on first message when lastSeq is 0', async () => {
         const client = new ApiSessionClient('fake-token', session);
+        await waitForSocketInit(mockSocket);
 
         mockAxiosGet.mockResolvedValueOnce({
             data: {
@@ -1288,6 +1337,7 @@ describe('ApiSessionClient v3 messages API migration', () => {
 
     it('invalidates receive sync for duplicate and stale seq values', async () => {
         const client = new ApiSessionClient('fake-token', session);
+        await waitForSocketInit(mockSocket);
         (client as any).lastSeq = 5;
 
         mockAxiosGet.mockResolvedValue({
@@ -1353,14 +1403,15 @@ describe('ApiSessionClient v3 messages API migration', () => {
         client.sendCodexMessage({ type: 'no-messages-field' });
         await waitForCheck(() => {
             expect(mockAxiosPost).toHaveBeenCalledTimes(1);
+            expect((client as any).pendingOutbox).toHaveLength(0);
         });
 
         expect((client as any).lastSeq).toBe(7);
-        expect((client as any).pendingOutbox).toHaveLength(0);
     });
 
     it('triggers receive catch-up fetch on socket reconnect', async () => {
         new ApiSessionClient('fake-token', session);
+        await waitForSocketInit(mockSocket);
 
         mockAxiosGet.mockResolvedValueOnce({
             data: {
@@ -1379,6 +1430,7 @@ describe('ApiSessionClient v3 messages API migration', () => {
 
     it('stops send and receive sync loops on close', async () => {
         const client = new ApiSessionClient('fake-token', session);
+        await waitForSocketInit(mockSocket);
         await client.close();
 
         mockAxiosGet.mockResolvedValue({

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { TokenStorage, AuthCredentials } from '@/auth/tokenStorage';
-import { syncCreate } from '@/sync/sync';
+import { isSyncInitialized, syncAppendMachine, syncCreate } from '@/sync/sync';
 import * as Updates from 'expo-updates';
 import { clearPersistence, loadRegisteredPushToken } from '@/sync/persistence';
 import { unregisterPushToken } from '@/sync/apiPush';
@@ -12,6 +12,7 @@ interface AuthContextType {
     credentials: AuthCredentials | null;
     login: (credentials: AuthCredentials) => Promise<void>;
     logout: () => Promise<void>;
+    refreshCredentials: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,18 +23,28 @@ export function AuthProvider({ children, initialCredentials }: { children: React
 
     // Update global auth state when local state changes
     useEffect(() => {
-        setCurrentAuth(credentials ? { isAuthenticated, credentials, login, logout } : null);
+        setCurrentAuth(credentials ? { isAuthenticated, credentials, login, logout, refreshCredentials } : null);
     }, [isAuthenticated, credentials]);
 
     const login = async (newCredentials: AuthCredentials) => {
         const success = await TokenStorage.setCredentials(newCredentials);
         if (success) {
-            await syncCreate(newCredentials);
+            if (isSyncInitialized()) {
+                await syncAppendMachine(newCredentials);
+            } else {
+                await syncCreate(newCredentials);
+            }
             setCredentials(newCredentials);
             setIsAuthenticated(true);
         } else {
             throw new Error('Failed to save credentials');
         }
+    };
+
+    const refreshCredentials = async () => {
+        const updated = await TokenStorage.getCredentials();
+        setCredentials(updated);
+        setIsAuthenticated(!!updated);
     };
 
     const logout = async () => {
@@ -72,6 +83,7 @@ export function AuthProvider({ children, initialCredentials }: { children: React
                 credentials,
                 login,
                 logout,
+                refreshCredentials,
             }}
         >
             {children}

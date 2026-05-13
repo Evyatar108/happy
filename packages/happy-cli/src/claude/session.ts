@@ -43,6 +43,7 @@ export class Session {
     private turnStartCallbacks: (() => void | Promise<void>)[] = [];
     private turnCompleteCallbacks: (() => void | Promise<void>)[] = [];
     private notificationCallbacks: (() => void | Promise<void>)[] = [];
+    private ledgerIdleReachedHandler: (() => void) | null = null;
     
     /** Keep alive interval reference for cleanup */
     private keepAliveInterval: NodeJS.Timeout;
@@ -156,6 +157,15 @@ export class Session {
     onTurnCompleted = async (): Promise<void> => {
         this.setTurnActive(false);
         await Promise.all(this.turnCompleteCallbacks.map((callback) => callback()));
+        this.ledgerIdleReachedHandler?.();
+    }
+
+    setLedgerIdleReachedHandler = (handler: (() => void) | null): void => {
+        this.ledgerIdleReachedHandler = handler;
+    }
+
+    recordIdleReached = (): void => {
+        this.ledgerIdleReachedHandler?.();
     }
 
     addTurnStartCallback = (callback: () => void | Promise<void>): void => {

@@ -1,5 +1,8 @@
 # ElevenLabs Voice Usage Gating
 
+> **Status: historical — full rebuild required before reactivating.**
+> Sprint D removed the happy-app voice surface this plan targeted (commit `db96a40f`, US-005 / US-D4), and Sprint E US-001 then deleted the server-side voice surface as well: `packages/happy-server/sources/app/api/routes/voiceRoutes.ts` and the `VoiceConversation` Prisma model are gone, and `docs/deployment.md` no longer documents `ELEVENLABS_API_KEY` as a required production secret. The app-side files this plan referenced — `sync/apiVoice.ts`, `realtime/RealtimeSession.ts`, `realtime/RealtimeVoiceSession.tsx`, `realtime/RealtimeVoiceSession.web.tsx`, `realtime/types.ts`, plus the rest of `realtime/` and the voice settings screens — also no longer exist. Treat this document as prior-art only: no actionable code path in this plan currently resolves to a file in the repo. Reviving voice would require re-creating the server route module and Prisma model before any of the gating logic below could be applied.
+
 ## Problem
 
 We want to require a subscription after a user has consumed 1 hour of ElevenLabs conversation time.
@@ -15,31 +18,38 @@ That means the gate runs only when a new voice session starts. If a user crosses
 
 ## Current Repo State
 
-The current `main` implementation does not reliably gate voice usage:
+Sprint D US-005 (commit `db96a40f`) deleted the happy-app voice surface this plan was written against, and Sprint E US-001 then deleted the matching server surface. As of this revision:
 
-- With `experiments=false`, the app starts ElevenLabs directly with `agentId` and bypasses billing/auth entirely.
-- With `experiments=true`, the app calls `/v1/voice/token`, but the app no longer sends `revenueCatPublicKey`.
-- The server still expects `revenueCatPublicKey` in production.
-- The client treats `400` from `/v1/voice/token` as `allowed:true`, which bypasses the paywall path.
+App-side (Sprint D, `db96a40f`):
 
-Relevant files:
+- `packages/happy-app/sources/sync/apiVoice.ts` — **deleted**.
+- `packages/happy-app/sources/realtime/RealtimeSession.ts` — **deleted**.
+- `packages/happy-app/sources/realtime/RealtimeVoiceSession.tsx` — **deleted**.
+- `packages/happy-app/sources/realtime/RealtimeVoiceSession.web.tsx` — **deleted**.
+- `packages/happy-app/sources/realtime/types.ts` and the rest of `packages/happy-app/sources/realtime/` — **deleted**.
+- `packages/happy-app/sources/app/(app)/settings/voice.tsx` and the voice settings sub-routes — **deleted**.
+- The `experiments=true|false` voice branches and the `revenueCatPublicKey` client payload no longer exist on the app side.
 
-- Server token route: `packages/happy-server/sources/app/api/routes/voiceRoutes.ts`
-- Client token fetch: `packages/happy-app/sources/sync/apiVoice.ts`
-- Voice start decision: `packages/happy-app/sources/realtime/RealtimeSession.ts`
-- ElevenLabs client session start:
-  - `packages/happy-app/sources/realtime/RealtimeVoiceSession.tsx`
-  - `packages/happy-app/sources/realtime/RealtimeVoiceSession.web.tsx`
+Server-side (Sprint E US-001):
+
+- `packages/happy-server/sources/app/api/routes/voiceRoutes.ts` — **deleted**. The route is no longer registered in `api.ts`.
+- The `VoiceConversation` Prisma model has been removed from `packages/happy-server/prisma/schema.prisma`.
+- `docs/deployment.md` no longer documents `ELEVENLABS_API_KEY` as a required production secret.
+- `packages/happy-server/deploy/handy.yaml` still extracts `/handy-elevenlabs` and `/handy-revenuecat`, but the consuming server code is gone, so those secrets are now orphaned plumbing pending a future cleanup or revival.
+
+Before any of the changes below can land, both a new app-side voice surface and the server-side route module need to be re-created. The historical client-side notes (paywall flow, `experiments` flag, `400 => allowed:true` fallback) are retained only as a record of what previously existed.
 
 ## Existing Secret Assumptions
 
-The repo already assumes ElevenLabs API access exists on the server:
+Historically (pre-Sprint E) the repo assumed ElevenLabs API access existed on the server. As of Sprint E US-001 that is no longer true at the code level:
 
-- `packages/happy-server/sources/app/api/routes/voiceRoutes.ts` reads `process.env.ELEVENLABS_API_KEY`.
-- `packages/happy-server/deploy/handy.yaml` extracts `/handy-elevenlabs`.
-- `docs/deployment.md` documents `ELEVENLABS_API_KEY` as required for `/v1/voice/token` in production.
+- `packages/happy-server/sources/app/api/routes/voiceRoutes.ts` — **deleted**. No server file currently reads `process.env.ELEVENLABS_API_KEY`.
+- `packages/happy-server/deploy/handy.yaml` still extracts `/handy-elevenlabs`, but the deployed secret has no consumer in-tree.
+- `docs/deployment.md` no longer documents `ELEVENLABS_API_KEY` as a required production secret.
 
 The app does not currently have an ElevenLabs API secret. Client config only carries public values such as RevenueCat public keys and ElevenLabs agent IDs.
+
+Any future revival of this plan must re-establish the server-side `ELEVENLABS_API_KEY` consumer before relying on it.
 
 ## Decision
 
@@ -90,7 +100,7 @@ startRealtimeSession(sessionId, initialContext)
   +--> determine agentId from app config
   |
   v
-POST /v1/voice/token
+POST [deleted voice route]
   Authorization: Bearer <jwt>
   body: { sessionId, agentId }
   |
@@ -172,7 +182,13 @@ Next mic tap repeats the same preflight check
 
 ### Server
 
-Update `packages/happy-server/sources/app/api/routes/voiceRoutes.ts` to:
+**Blocked.** Sprint E US-001 deleted `packages/happy-server/sources/app/api/routes/voiceRoutes.ts` and removed the `VoiceConversation` Prisma model. There is no current server-side voice surface to modify. Before any of the behaviours below can be implemented, the implementer must first:
+
+- re-create a `voiceRoutes.ts` (or equivalent) module and register it in `packages/happy-server/sources/app/api/api.ts`
+- re-introduce whatever Prisma model (if any) is needed for usage accounting, and run the corresponding migration via the operator-only flow described in `packages/happy-server/prisma/migrations/README.md`
+- restore `ELEVENLABS_API_KEY` documentation in `docs/deployment.md` once a consumer exists again
+
+Once the route module exists again, the original behavioural goals were:
 
 - derive and return `elevenUserId`
 - query ElevenLabs conversation history before minting a token
@@ -204,21 +220,21 @@ type VoiceTokenResponse =
 
 ### Client
 
-Update:
+**Blocked.** The files this section previously enumerated were deleted in Sprint D US-005 (`db96a40f`):
 
-- `packages/happy-app/sources/realtime/types.ts`
-- `packages/happy-app/sources/realtime/RealtimeVoiceSession.tsx`
-- `packages/happy-app/sources/realtime/RealtimeVoiceSession.web.tsx`
-- `packages/happy-app/sources/realtime/RealtimeSession.ts`
-- `packages/happy-app/sources/sync/apiVoice.ts`
+- `packages/happy-app/sources/realtime/types.ts` — deleted
+- `packages/happy-app/sources/realtime/RealtimeVoiceSession.tsx` — deleted
+- `packages/happy-app/sources/realtime/RealtimeVoiceSession.web.tsx` — deleted
+- `packages/happy-app/sources/realtime/RealtimeSession.ts` — deleted
+- `packages/happy-app/sources/sync/apiVoice.ts` — deleted
 
-Changes needed:
+There is no current happy-app voice client to modify. A future re-implementation would need to recreate an equivalent surface (token fetch, session start, paywall handling) before applying the behavioural changes that were originally planned:
 
-- add `userId?: string` to `VoiceSessionConfig`
-- pass `userId` into `conversationInstance.startSession(...)`
-- remove the `400 => allowed:true` fallback
-- remove or redesign the `experiments=false` bypass if voice gating should apply to all users
-- retry the token request after successful purchase
+- add a `userId?: string` field to whatever replaces `VoiceSessionConfig`
+- pass `userId` into `conversationInstance.startSession(...)` on the new ElevenLabs client wrapper
+- do not reintroduce a `400 => allowed:true` fallback when fetching the token
+- decide up front whether voice gating applies to all users or only an experimental cohort, instead of reintroducing an `experiments=false` bypass
+- retry the token request after a successful purchase
 
 ## Subscription Check
 

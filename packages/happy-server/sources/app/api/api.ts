@@ -1,6 +1,4 @@
 import fastify from "fastify";
-import * as ed from "@noble/ed25519";
-import { sha512 } from "@noble/hashes/sha2.js";
 import { log, logger } from "@/utils/log";
 import { serializerCompiler, validatorCompiler, ZodTypeProvider } from "fastify-type-provider-zod";
 import { onShutdown } from "@/utils/shutdown";
@@ -9,23 +7,27 @@ import { pushRoutes } from "./routes/pushRoutes";
 import { sessionRoutes } from "./routes/sessionRoutes";
 import { pairRoutes } from "./routes/pairRoutes";
 import { startSocket } from "./socket";
-import { machinesRoutes } from "./routes/machinesRoutes";
 import { devRoutes } from "./routes/devRoutes";
 import { versionRoutes } from "./routes/versionRoutes";
-import { voiceRoutes } from "./routes/voiceRoutes";
-import { artifactsRoutes } from "./routes/artifactsRoutes";
-import { accessKeysRoutes } from "./routes/accessKeysRoutes";
 import { enableMonitoring } from "./utils/enableMonitoring";
 import { enableErrorHandlers } from "./utils/enableErrorHandlers";
-import { userRoutes } from "./routes/userRoutes";
-import { feedRoutes } from "./routes/feedRoutes";
-import { kvRoutes } from "./routes/kvRoutes";
+import { parseCorsOrigins } from "./utils/parseCorsOrigins";
 import { v3SessionRoutes } from "./routes/v3SessionRoutes";
+import { accountRoutes } from "./routes/accountRoutes";
+import { machineSelfRoutes, type MachineSelfState } from "./routes/machineSelfRoutes";
 import { isLocalStorage, getLocalFilesDir } from "@/storage/files";
+import type { EventRouter } from "@/app/events/eventRouter";
+import { verifyLoopbackCapability, type LoopbackCapabilityPaths } from "./auth/loopbackCapability";
+import { verifyTunnelClaim, type TunnelClaimResult } from "./auth/tunnelClaim";
 import * as path from "path";
 import * as fs from "fs";
 
-ed.hashes.sha512 = (message: Uint8Array) => sha512(message);
+export interface ApiPaths extends LoopbackCapabilityPaths {
+    profile?: string;
+    accountSettings?: string;
+}
+
+export type MachineStateGetter = () => MachineSelfState | Promise<MachineSelfState>;
 
 export interface TofuHandshakeConfig {
     localUserId: string;
@@ -39,66 +41,7 @@ export interface TofuHandshakeConfig {
     publicUrl?: string;
 }
 
-export type TunnelClaimResult =
-    | { ok: true; payload: { sub: string; iat: number } }
-    | { ok: false; reason: 'missing_tunnel_authorization' | 'invalid_tunnel_claim' | 'tunnel_claim_expired' | 'tunnel_verification_unavailable' };
-
-export async function verifyTunnelClaim(
-    authHeader: string | undefined,
-    tofuConfig: TofuHandshakeConfig
-): Promise<TunnelClaimResult> {
-    if (!authHeader || !authHeader.startsWith('tunnel ')) {
-        return { ok: false, reason: 'missing_tunnel_authorization' };
-    }
-    const encoded = authHeader.slice('tunnel '.length);
-    let envelope: unknown;
-    try {
-        envelope = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf-8'));
-    } catch {
-        return { ok: false, reason: 'invalid_tunnel_claim' };
-    }
-    if (!envelope || typeof envelope !== 'object') {
-        return { ok: false, reason: 'invalid_tunnel_claim' };
-    }
-    const { p: payloadEncoded, s: signatureHex } = envelope as Record<string, unknown>;
-    if (typeof payloadEncoded !== 'string' || typeof signatureHex !== 'string') {
-        return { ok: false, reason: 'invalid_tunnel_claim' };
-    }
-    const ed25519PublicKeyBase64 = tofuConfig.tofuPublicKeys?.ed25519PublicKey;
-    if (!ed25519PublicKeyBase64) {
-        return { ok: false, reason: 'tunnel_verification_unavailable' };
-    }
-    let signatureValid = false;
-    try {
-        const payloadBytes = Buffer.from(payloadEncoded, 'base64url');
-        const signatureBytes = Buffer.from(signatureHex, 'hex');
-        const publicKeyBytes = Buffer.from(ed25519PublicKeyBase64, 'base64');
-        signatureValid = await ed.verifyAsync(signatureBytes, payloadBytes, publicKeyBytes);
-    } catch {
-        return { ok: false, reason: 'invalid_tunnel_claim' };
-    }
-    if (!signatureValid) {
-        return { ok: false, reason: 'invalid_tunnel_claim' };
-    }
-    let payload: unknown;
-    try {
-        payload = JSON.parse(Buffer.from(payloadEncoded, 'base64url').toString('utf-8'));
-    } catch {
-        return { ok: false, reason: 'invalid_tunnel_claim' };
-    }
-    if (
-        !payload ||
-        typeof payload !== 'object' ||
-        (payload as Record<string, unknown>).sub !== tofuConfig.localUserId
-    ) {
-        return { ok: false, reason: 'invalid_tunnel_claim' };
-    }
-    const iat = (payload as Record<string, unknown>).iat;
-    if (typeof iat !== 'number' || Math.floor(Date.now() / 1000) - iat > 86400) {
-        return { ok: false, reason: 'tunnel_claim_expired' };
-    }
-    return { ok: true, payload: { sub: tofuConfig.localUserId, iat } };
-}
+export { verifyTunnelClaim, type TunnelClaimResult };
 
 export function createApi() {
     return fastify({
@@ -107,21 +50,20 @@ export function createApi() {
     });
 }
 
-function parseCorsOrigins(): string[] {
-    const raw = process.env.HAPPY_CORS_ORIGINS;
-    if (!raw) {
-        return [];
-    }
-    return raw.split(',').map(o => o.trim()).filter(o => o.length > 0);
+export interface ConfigureApiOptions {
+    auth?: "tunnel" | "loopback";
+    paths?: ApiPaths;
+    machineState?: MachineStateGetter;
+    onEventRouter?: (eventRouter: EventRouter) => void;
 }
 
-export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { localUserId: "local-user" }) {
+export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { localUserId: "local-user" }, options: ConfigureApiOptions = {}) {
     const fastifyApp = app as ReturnType<typeof createApi>;
     const allowedOrigins = parseCorsOrigins();
     fastifyApp.register(import('@fastify/cors'), {
         origin: allowedOrigins.length === 0 ? false : allowedOrigins,
-        allowedHeaders: ['X-Tunnel-Authorization', 'X-Happy-Client', 'Content-Type'],
-        methods: ['GET', 'POST', 'DELETE']
+        allowedHeaders: ['X-Tunnel-Authorization', 'X-Loopback-Capability', 'X-Happy-Client', 'Content-Type', 'X-Tunnel-Connect'],
+        methods: ['GET', 'POST', 'PUT', 'DELETE']
     });
     fastifyApp.get('/', function (request, reply) {
         reply.send('Welcome to Happy Server!');
@@ -135,7 +77,8 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
     // Enable features
     enableMonitoring(typed);
     enableErrorHandlers(typed);
-    typed.decorate('authenticate', async function (request: any, reply: any) {
+    typed.decorate('verifyLoopbackCapability', verifyLoopbackCapability(options.paths, tofuConfig.localUserId));
+    typed.decorate('authenticateTunnelClaim', async function (request: any, reply: any) {
         const authHeader = request.headers['x-tunnel-authorization'] as string | undefined;
         const result = await verifyTunnelClaim(authHeader, tofuConfig);
         if (!result.ok) {
@@ -143,7 +86,9 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
             return reply.code(status).send({ error: result.reason });
         }
         request.userId = result.payload.sub;
+        request.accountId = result.payload.accountId;
     });
+    typed.decorate('authenticate', options.auth === "loopback" ? typed.verifyLoopbackCapability : typed.authenticateTunnelClaim);
 
     // Serve local files when using local storage
     if (isLocalStorage()) {
@@ -164,23 +109,22 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
         });
     }
 
-    // Routes
-    pairRoutes(typed, tofuConfig);
-    pushRoutes(typed, tofuConfig);
-    sessionRoutes(typed);
-    machinesRoutes(typed);
-    artifactsRoutes(typed);
-    accessKeysRoutes(typed);
-    devRoutes(typed);
-    versionRoutes(typed);
-    voiceRoutes(typed);
-    userRoutes(typed);
-    feedRoutes(typed);
-    kvRoutes(typed);
-    v3SessionRoutes(typed);
+    const eventRouter = startSocket(typed, tofuConfig, { auth: options.auth, paths: options.paths });
+    options.onEventRouter?.(eventRouter);
 
-    // Start Socket
-    startSocket(typed, tofuConfig);
+    // Routes available on both tunnel and loopback listeners
+    accountRoutes(typed, { auth: options.auth ?? "tunnel", paths: options.paths });
+    machineSelfRoutes(typed, { auth: options.auth ?? "tunnel", machineState: options.machineState });
+
+    // Routes only available on the tunnel listener (not loopback)
+    if (options.auth !== "loopback") {
+        pairRoutes(typed, tofuConfig, options.paths);
+        pushRoutes(typed, tofuConfig);
+        sessionRoutes(typed, eventRouter);
+        devRoutes(typed);
+        versionRoutes(typed);
+        v3SessionRoutes(typed, eventRouter);
+    }
 
     return typed;
 }

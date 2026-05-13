@@ -167,6 +167,8 @@ The fork's mobile distribution is split into two paths:
 - **Inner-loop dev / verification** → Metro+USB to the maintainer's primary BOOX e-ink dev tablet (described in this section). The dev-client APK pulls JS over `adb reverse` from a local Metro server.
 - **Cross-device propagation (Android)** → a signed APK pushed via **Firebase App Distribution** to the maintainer's personal Google account `evyatar109@gmail.com` (package id `com.evyatar109.happy`). Google Play Internal Testing is the planned long-term channel under the same account but is currently blocked by the developer account being locked for inactivity (as of 2026-04-30); the same pipeline targets either channel by swapping `assembleRelease` ↔ `bundleRelease`. See `.agents/skills/happy-app-playstore-release/SKILL.md` for the full procedure (one-time prerequisites, `pnpm release:android` build script, App Tester install on each tablet, channel-swap notes). iOS App Store remains out of scope.
 
+Before validating a release against Sprint E private-tunnel pairing, verify the Microsoft Dev Tunnels CLI is installed with `devtunnel --version`. Pairing uses private tunnels plus `X-Tunnel-Connect`; do not add anonymous tunnel access as a release workaround.
+
 ### What "release the app" actually means on the fork
 
 For an app-only change to reach the dev tablet:

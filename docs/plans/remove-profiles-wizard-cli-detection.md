@@ -226,7 +226,7 @@ APP (wizard)                          DAEMON
 DAEMON BOOT
 ├─ detectCLIAvailability()
 ├─ include in MachineMetadata
-├─ POST /v1/machines (or update)
+├─ POST [deleted machine directory route] (or update)
 │
 DAEMON KEEP-ALIVE (every 20s)
 ├─ emit machine-alive

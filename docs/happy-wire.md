@@ -51,6 +51,7 @@ Current session wire payload shape (decrypted message body):
 ### 3. TOFU handshake schemas
 
 Shared from `@slopus/happy-wire` (re-exported from `tofu.ts`):
+- `MachineTunnelSchema` / `MachineTunnel`: the persisted Dev Tunnels machine descriptor used by app and agent code when discovering locally known machines.
 - `TofuPublicKeysSchema` / `TofuPublicKeys`: the embedded server's pinned long-term keys (`ed25519PublicKey`, `x25519PublicKey`, optional `ed25519Fingerprint`)
 - `TofuPubkeysEventSchema` / `TofuPubkeysEvent`: the `t: 'tofu-pubkeys'` socket event the server emits on connect so mobile can pin keys on first contact
 - `TofuSessionKeyExchangeSchema` / `TofuSessionKeyExchange`: the `t: 'tofu-session-key'` record produced by the X25519 ECDH session-key exchange (`machineId`, `mobileX25519PublicKey`, `serverX25519PublicKey`, `sessionKey`, `firstSeenAt`)
@@ -77,6 +78,25 @@ Notes on the registry shape:
 - Extended thinking blocks are renderable user value and MUST stay on the wire — there is an explicit no-op comment in `nonRenderablePolicy.ts` forbidding a thinking-block entry, paired with a unit test (see also `docs/plans/render-extended-thinking-optional.md`).
 
 For consumer-side details see `packages/happy-cli/CLAUDE.md` and `packages/happy-wire/README.md`.
+
+### 5. Ledger record schemas
+
+Shared from `@slopus/happy-wire` (re-exported from `ledger.ts`):
+- error code enum: `LedgerErrorCodeSchema` / `LedgerErrorCode` (`'spawn-failed' | 'wrong-account' | 'timeout' | 'crash' | 'ledger-write-failed' | 'monitor-failure'`)
+- per-event record schemas, each extending a common `{ runId, sessionId, timestamp, seqWithinSession? }` base:
+  - `SpawnLedgerRecordSchema` (`eventType: 'spawn'`)
+  - `MessageSentLedgerRecordSchema` (`eventType: 'message-sent'`)
+  - `IdleReachedLedgerRecordSchema` (`eventType: 'idle-reached'`)
+  - `PendingPermissionLedgerRecordSchema` (`eventType: 'pending-permission'`)
+  - `LastOutputSummaryLedgerRecordSchema` (`eventType: 'last-output-summary'`)
+  - `ValidationAttachedLedgerRecordSchema` (`eventType: 'validation-attached'`)
+  - `DoneLedgerRecordSchema` (`eventType: 'done'`)
+  - `ErrorLedgerRecordSchema` (`eventType: 'error'`)
+- discriminated union and inferred type: `LedgerRecordSchema` (discriminated on `eventType`) and `LedgerRecord`
+
+The schema lives at `packages/happy-wire/src/ledger.ts` and is consumed by the happy-cli ledger writer (`packages/happy-cli/src/ledger/writer.ts`) and the happy-agent ledger writer (`packages/happy-agent/src/ledger/writer.ts`), so both producers stay structurally consistent for the on-disk `.ralph/state/<runId>/<sessionId>.jsonl` files. `runId` and `sessionId` are validated against `^[A-Za-z0-9_-]+$` so they remain safe path components for that file location.
+
+For the deeper per-field schema reference see `packages/happy-wire/README.md` (`### ledger.ts exports`).
 
 ## Migration in this repository
 

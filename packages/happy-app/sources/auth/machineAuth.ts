@@ -1,58 +1,72 @@
-import { AuthCredentials, TokenStorage } from './tokenStorage';
+import { AuthCredentials } from './tokenStorage';
+import { refreshTunnelClaim, DeviceCodeExpired } from '@/sync/refreshClaim';
+import { ensureFreshConnectToken } from './connectTokenRefresh';
+
+export { DeviceCodeExpired };
+
+export class ClaimExpired extends Error {
+    readonly machineId: string;
+
+    constructor(machineId: string) {
+        super(`Tunnel claim expired for machine ${machineId}.`);
+        this.name = 'ClaimExpired';
+        this.machineId = machineId;
+    }
+}
 
 export function getTunnelAuthorization(credentials: AuthCredentials): string {
-    // Prefer real Dev Tunnels connect JWT; fall back to server-generated Ed25519 claim
-    const token = (credentials.connectToken && credentials.connectTokenExpiry && credentials.connectTokenExpiry > Date.now())
-        ? credentials.connectToken
-        : credentials.tunnelClaim;
-    return `tunnel ${token}`;
+    return `tunnel ${credentials.tunnelClaim}`;
+}
+
+type DeviceCodeExpiredHandler = (machineId: string) => void;
+const deviceCodeExpiredHandlers = new Set<DeviceCodeExpiredHandler>();
+
+export function registerDeviceCodeExpiredHandler(handler: DeviceCodeExpiredHandler): () => void {
+    deviceCodeExpiredHandlers.add(handler);
+    return () => deviceCodeExpiredHandlers.delete(handler);
 }
 
 /**
- * fetch() wrapper that injects X-Tunnel-Authorization and retries once on 401
- * by force-refreshing the connect token. Drop-in replacement for fetch() at
- * tunnel call sites — pass extra headers separately, not inside getMachineAuthHeaders.
+ * fetch() wrapper that injects X-Tunnel-Authorization. Drop-in replacement for
+ * fetch() at tunnel call sites; pass extra headers separately.
+ *
+ * When the server signals DeviceCodeExpired or a ClaimExpired is thrown,
+ * all registered handlers are invoked before re-throwing so every call site
+ * benefits from the centralized disconnect-and-notify contract without
+ * duplicating catch blocks.
  */
 export async function tunnelFetch(
     url: string,
     credentials: AuthCredentials,
     init?: Omit<RequestInit, 'headers'> & { headers?: Record<string, string> },
 ): Promise<Response> {
-    const makeHeaders = (creds: AuthCredentials): Record<string, string> => ({
+    const makeHeaders = async (creds: AuthCredentials): Promise<Record<string, string>> => ({
         ...(init?.headers ?? {}),
-        ...getMachineAuthHeaders(creds),
+        ...await getMachineAuthHeaders(creds),
     });
 
-    const response = await fetch(url, { ...init, headers: makeHeaders(credentials) });
-    if (response.status !== 401) return response;
-
-    // Force refresh (zero expiry so refreshConnectTokenIfNeeded always refreshes)
-    const refreshed = await refreshConnectTokenIfNeeded({ ...credentials, connectTokenExpiry: 0 });
-    if (refreshed.connectToken !== credentials.connectToken) {
-        await TokenStorage.setCredentials(refreshed);
-    }
-    return fetch(url, { ...init, headers: makeHeaders(refreshed) });
-}
-
-export async function refreshConnectTokenIfNeeded(credentials: AuthCredentials): Promise<AuthCredentials> {
-    if (!credentials.connectToken || !credentials.connectTokenExpiry || !credentials.githubToken || !credentials.tunnelId) {
-        return credentials;
-    }
-    const REFRESH_BEFORE_MS = 5 * 60 * 1000; // refresh 5 min before expiry
-    if (credentials.connectTokenExpiry - Date.now() > REFRESH_BEFORE_MS) {
-        return credentials;
-    }
     try {
-        const { fetchTunnelConnectToken } = await import('@/auth/pairing');
-        const { connectToken, connectTokenExpiry } = await fetchTunnelConnectToken(credentials.tunnelId, credentials.githubToken);
-        return { ...credentials, connectToken, connectTokenExpiry };
-    } catch {
-        return credentials;
+        const response = await fetch(url, { ...init, headers: await makeHeaders(credentials) });
+        if (response.status === 401) {
+            const body = await response.clone().json().catch(() => null) as { error?: unknown } | null;
+            if (body?.error === 'tunnel_claim_expired') {
+                throw new ClaimExpired(credentials.machineId);
+            }
+        }
+        return response;
+    } catch (error) {
+        if (error instanceof DeviceCodeExpired || error instanceof ClaimExpired) {
+            deviceCodeExpiredHandlers.forEach(handler => handler(credentials.machineId));
+        }
+        throw error;
     }
 }
 
-export function getMachineAuthHeaders(credentials: AuthCredentials): Record<string, string> {
+export async function getMachineAuthHeaders(credentials: AuthCredentials, machineId = credentials.machineId): Promise<Record<string, string>> {
+    const { connectToken, connectTokenExpiry } = await ensureFreshConnectToken(credentials, machineId);
+    const freshClaim = await refreshTunnelClaim({ ...credentials, connectToken, connectTokenExpiry }, machineId);
     return {
-        'X-Tunnel-Authorization': getTunnelAuthorization(credentials),
+        'X-Tunnel-Authorization': `tunnel ${freshClaim}`,
+        'X-Tunnel-Connect': connectToken,
     };
 }

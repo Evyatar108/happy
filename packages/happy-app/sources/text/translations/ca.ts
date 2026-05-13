@@ -17,16 +17,8 @@ function plural({ count, singular, plural }: { count: number; singular: string; 
 export const ca: TranslationStructure = {
     tabs: {
         // Tab navigation labels
-        inbox: 'Safata',
         sessions: 'Terminals',
         settings: 'Configuració',
-    },
-
-    inbox: {
-        // Inbox screen
-        emptyTitle: 'Safata buida',
-        emptyDescription: 'Connecta\'t amb amics per començar a compartir sessions',
-        updates: 'Actualitzacions',
     },
 
     common: {
@@ -156,8 +148,6 @@ export const ca: TranslationStructure = {
     },
 
     connect: {
-        restoreAccount: 'Restaura el compte',
-        enterSecretKey: 'Introdueix la teva clau secreta',
         invalidSecretKey: 'Clau secreta no vàlida. Comprova-ho i torna-ho a provar.',
         enterUrlManually: 'Introdueix l\'URL manualment',
     },
@@ -176,14 +166,12 @@ export const ca: TranslationStructure = {
         accountSubtitle: 'Gestiona els detalls del teu compte',
         appearance: 'Aparença',
         appearanceSubtitle: 'Personalitza l\'aspecte de l\'aplicació',
-        voiceAssistant: 'Assistent de veu',
-        voiceAssistantSubtitle: 'Configura les preferències d\'interacció per veu',
         featuresTitle: 'Funcions',
         featuresSubtitle: 'Activa o desactiva les funcions de l\'aplicació',
         developer: 'Desenvolupador',
         developerTools: 'Eines de desenvolupador',
         about: 'Quant a',
-        aboutFooter: 'Happy Coder és un client mòbil de Codex i Claude Code. Tot està xifrat punt a punt i el teu compte es guarda només al teu dispositiu. No està afiliat amb Anthropic.',
+        aboutFooter: 'Happy Coder is a Codex and Claude Code mobile client that connects through your paired Dev Tunnels machines. Not affiliated with Anthropic.',
         whatsNew: 'Novetats',
         whatsNewSubtitle: 'Mira les últimes actualitzacions i millores',
         reportIssue: 'Informa d\'un problema',
@@ -193,13 +181,10 @@ export const ca: TranslationStructure = {
         supportUs: 'Dona\'ns suport',
         supportUsSubtitlePro: 'Gràcies pel teu suport!',
         supportUsSubtitle: 'Dona suport al desenvolupament del projecte',
-        scanQrCodeToAuthenticate: 'Escaneja el codi QR per autenticar-te',
         githubConnected: ({ login }: { login: string }) => `Connectat com a @${login}`,
         connectGithubAccount: 'Connecta el teu compte de GitHub',
         claudeAuthSuccess: 'Connexió amb Claude realitzada amb èxit',
         exchangingTokens: 'Intercanviant tokens...',
-        usage: 'Ús',
-        usageSubtitle: "Veure l'ús de l'API i costos",
 
         // Dynamic settings messages
         accountConnected: ({ service }: { service: string }) => `Compte de ${service} connectat`,
@@ -305,11 +290,6 @@ export const ca: TranslationStructure = {
         tryAgain: 'Torna-ho a provar',
         contactSupport: 'Contacta amb el suport si el problema persisteix',
         sessionNotFound: 'Sessió no trobada',
-        voiceSessionFailed: 'Ha fallat l\'inici de la sessió de veu',
-        voiceServiceUnavailable: 'El servei de veu no està disponible temporalment',
-        voiceLimitReachedTitle: 'Límit de veu assolit',
-        voiceHardLimitReached: ({ hours }: { hours: number }) => `Has utilitzat ${hours}+ hores de veu aquest mes. Aquest és el màxim permès. Pots configurar el teu propi agent ElevenLabs a la configuració de veu per utilitzar la teva pròpia quota.`,
-        voiceConversationLimitReached: 'Has assolit el nombre màxim de converses de veu aquest mes. És possible que en el futur afegim ús de veu sota demanda — si us plau, crea un issue a github.com/nicepkg/happy/issues si arribes a aquest límit.',
         oauthInitializationFailed: 'Ha fallat la inicialització del flux OAuth',
         tokenStorageFailed: 'Ha fallat l\'emmagatzematge dels tokens d\'autenticació',
         oauthStateMismatch: 'Ha fallat la validació de seguretat. Si us plau, torna-ho a provar',
@@ -338,16 +318,10 @@ export const ca: TranslationStructure = {
             `Torna-ho a provar en ${seconds} ${seconds === 1 ? 'segon' : 'segons'}`,
         errorWithCode: ({ message, code }: { message: string; code: number | string }) =>
             `${message} (Error ${code})`,
-        disconnectServiceFailed: ({ service }: { service: string }) => 
-            `Ha fallat la desconnexió de ${service}`,
-        connectServiceFailed: ({ service }: { service: string }) =>
-            `No s'ha pogut connectar ${service}. Si us plau, torna-ho a provar.`,
-        failedToLoadFriends: 'No s\'ha pogut carregar la llista d\'amics',
-        failedToAcceptRequest: 'No s\'ha pogut acceptar la sol·licitud d\'amistat',
-        failedToRejectRequest: 'No s\'ha pogut rebutjar la sol·licitud d\'amistat',
-        failedToRemoveFriend: 'No s\'ha pogut eliminar l\'amic',
         searchFailed: 'La cerca ha fallat. Si us plau, torna-ho a provar.',
-        failedToSendRequest: 'No s\'ha pogut enviar la sol·licitud d\'amistat',
+        deviceCodeExpiredTitle: 'L\'associació de la màquina ha caducat',
+        deviceCodeExpiredMessage: ({ machineId }: { machineId: string }) =>
+            `L\'associació de la màquina "${machineId}" ha caducat. Torneu a associar aquesta màquina per restaurar la connexió.`,
     },
 
     newSession: {
@@ -754,38 +728,6 @@ export const ca: TranslationStructure = {
         deleted: 'Eliminat',
     },
 
-    settingsVoice: {
-        // Voice settings screen
-        languageTitle: 'Idioma',
-        languageDescription: 'Tria el teu idioma preferit per a les interaccions amb l\'assistent de veu. Aquesta configuració es sincronitza a tots els teus dispositius.',
-        preferredLanguage: 'Idioma preferit',
-        preferredLanguageSubtitle: 'Idioma utilitzat per a les respostes de l\'assistent de veu',
-        language: {
-            searchPlaceholder: 'Cerca idiomes...',
-            title: 'Idiomes',
-            footer: ({ count }: { count: number }) => `${count} ${plural({ count, singular: 'idioma', plural: 'idiomes' })} disponibles`,
-            autoDetect: 'Detecta automàticament',
-        },
-        // Bring your own agent
-        byoTitle: 'Porta el teu propi agent',
-        byoDescription: 'Utilitza el teu propi agent d\'ElevenLabs en lloc del predeterminat de Happy. No cal subscripció — connecta directament amb el teu propi compte d\'ElevenLabs. El teu agent ha de definir dues eines de client: messageClaudeCode (envia text a l\'agent de codi) i processPermissionRequest (permet o denega l\'ús d\'eines). Rep el context de la sessió a través de la variable dinàmica {{initialConversationContext}}.',
-        customAgentId: 'ElevenLabs Agent ID',
-        customAgentIdNotSet: 'No configurat',
-        customAgentIdDescription: 'Introdueix el teu ElevenLabs Agent ID. Deixa-ho buit per utilitzar el predeterminat de Happy.',
-        customAgentIdPlaceholder: 'e.g. abc123def456',
-        bypassToken: 'Connexió directa',
-        bypassTokenSubtitle: 'Omet el servidor de Happy, connecta directament a ElevenLabs',
-        promptGuideTitle: 'Guia de prompt de l\'agent',
-        promptGuideDescription: 'El teu agent d\'ElevenLabs necessita:\n\n• Eina: messageClaudeCode — paràmetre: message (string). Envia un missatge a la sessió de codi activa.\n• Eina: processPermissionRequest — paràmetre: decision ("allow" o "deny"). Aprova o denega un permís d\'eina pendent.\n• Variable dinàmica: {{initialConversationContext}} — rep l\'historial i el context de la sessió en iniciar.\n\nL\'agent actua com a pont de veu entre l\'usuari i els agents de codi. Ha de ser concís, respondre només quan se li parla i informar quan un agent de codi acaba la feina.',
-        usageTitle: 'Ús (últims 30 dies)',
-        usageFooter: 'Temps de veu utilitzat en els últims 30 dies. Nivell gratuït: 20 min. Subscrit: 5 hores. Màx. 100 converses al mes.',
-        usageLabel: 'Temps de veu',
-        conversationsLabel: 'Converses',
-        usageUsed: ({ used, limit }: { used: string; limit: string }) => `${used} utilitzat de ${limit}`,
-        supportTitle: 'Millorar veu',
-        supportSubtitle: 'Més temps de veu i suport al desenvolupament',
-    },
-
     settingsAccount: {
         // Account settings screen
         accountInformation: 'Informació del compte',
@@ -796,20 +738,14 @@ export const ca: TranslationStructure = {
         publicId: 'ID públic',
         notAvailable: 'No disponible',
         linkNewDevice: 'Enllaça un nou dispositiu',
-        linkNewDeviceSubtitle: 'Escaneja el codi QR per enllaçar el dispositiu',
         profile: 'Perfil',
         name: 'Nom',
         github: 'GitHub',
         tapToDisconnect: 'Toca per desconnectar',
         server: 'Servidor',
         backup: 'Còpia de seguretat',
-        backupDescription: 'La teva clau secreta és l\'única manera de recuperar el teu compte. Desa-la en un lloc segur com un gestor de contrasenyes.',
-        secretKey: 'Clau secreta',
         tapToReveal: 'Toca per revelar',
         tapToHide: 'Toca per ocultar',
-        secretKeyLabel: 'CLAU SECRETA (TOCA PER COPIAR)',
-        secretKeyCopied: 'Clau secreta copiada al porta-retalls. Desa-la en un lloc segur!',
-        secretKeyCopyFailed: 'Ha fallat copiar la clau secreta',
         privacy: 'Privadesa',
         privacyDescription: 'Ajuda a millorar l\'aplicació compartint dades d\'ús anònimes. No es recopila informació personal.',
         analytics: 'Analítiques',
@@ -833,11 +769,6 @@ export const ca: TranslationStructure = {
         restartNow: 'Reinicia ara',
     },
 
-    connectButton: {
-        authenticate: 'Autentica el terminal',
-        authenticateWithUrlPaste: 'Autentica el terminal amb enganxat d\'URL',
-        pasteAuthUrl: 'Enganxa l\'URL d\'autenticació del teu terminal',
-    },
 
     updateBanner: {
         updateAvailable: 'Actualització disponible',
@@ -855,29 +786,6 @@ export const ca: TranslationStructure = {
         noEntriesAvailable: 'No hi ha entrades de registre de canvis disponibles.',
     },
 
-    terminal: {
-        // Used by terminal connection screens
-        webBrowserRequired: 'Es requereix un navegador web',
-        webBrowserRequiredDescription: 'Els enllaços de connexió de terminal només es poden obrir en un navegador web per raons de seguretat. Utilitza l\'escàner de codi QR o obre aquest enllaç en un ordinador.',
-        processingConnection: 'Processant la connexió...',
-        invalidConnectionLink: 'Enllaç de connexió no vàlid',
-        invalidConnectionLinkDescription: 'L\'enllaç de connexió falta o no és vàlid. Comprova l\'URL i torna-ho a provar.',
-        connectTerminal: 'Connecta el terminal',
-        terminalRequestDescription: 'Un terminal està sol·licitant connectar-se al teu compte de Happy Coder. Això permetrà al terminal enviar i rebre missatges de forma segura.',
-        connectionDetails: 'Detalls de la connexió',
-        publicKey: 'Clau pública',
-        encryption: 'Xifratge',
-        endToEndEncrypted: 'Xifrat punt a punt',
-        acceptConnection: 'Accepta la connexió',
-        connecting: 'Connectant...',
-        reject: 'Rebutja',
-        security: 'Seguretat',
-        securityFooter: 'Aquest enllaç de connexió s\'ha processat de forma segura al teu navegador i mai s\'ha enviat a cap servidor. Les teves dades privades es mantindran segures i només tu pots desxifrar els missatges.',
-        securityFooterDevice: 'Aquesta connexió s\'ha processat de forma segura al teu dispositiu i mai s\'ha enviat a cap servidor. Les teves dades privades es mantindran segures i només tu pots desxifrar els missatges.',
-        clientSideProcessing: 'Processament del costat del client',
-        linkProcessedLocally: 'Enllaç processat localment al navegador',
-        linkProcessedOnDevice: 'Enllaç processat localment al dispositiu',
-    },
 
     modals: {
         // Used across connect flows and settings
@@ -891,10 +799,6 @@ export const ca: TranslationStructure = {
         developerModeDisabled: 'Mode desenvolupador desactivat',
         disconnectGithub: 'Desconnecta GitHub',
         disconnectGithubConfirm: 'Segur que vols desconnectar el teu compte de GitHub?',
-        disconnectService: ({ service }: { service: string }) => 
-            `Desconnecta ${service}`,
-        disconnectServiceConfirm: ({ service }: { service: string }) => 
-            `Segur que vols desconnectar ${service} del teu compte?`,
         disconnect: 'Desconnecta',
         failedToConnectTerminal: 'Ha fallat connectar el terminal',
         cameraPermissionsRequiredToConnectTerminal: 'Es requereixen permisos de càmera per connectar el terminal',
@@ -904,26 +808,18 @@ export const ca: TranslationStructure = {
 
     navigation: {
         // Navigation titles and screen headers
-        connectTerminal: 'Connecta el terminal',
         linkNewDevice: 'Enllaça un nou dispositiu', 
-        restoreWithSecretKey: 'Restaura amb clau secreta',
         whatsNew: 'Novetats',
-        friends: 'Amics',
     },
 
     welcome: {
         // Main welcome screen for unauthenticated users
         title: 'Client mòbil de Codex i Claude Code',
-        subtitle: 'Xifrat punt a punt i el teu compte s\'emmagatzema només al teu dispositiu.',
+        subtitle: 'Connect to your paired Dev Tunnels machines and keep your account on this device.',
         createAccount: 'Crea un compte',
         linkOrRestoreAccount: 'Enllaça o restaura un compte',
         loginWithMobileApp: 'Inicia sessió amb l\'aplicació mòbil',
         pairMachine: 'Aparella la màquina',
-        trustMachine: 'Confies en aquesta màquina?',
-        trust: 'Confia',
-        ed25519Fingerprint: ({ fingerprint }: { fingerprint: string }) => `Empremta Ed25519:\n${fingerprint}`,
-        pubkeyRotationTitle: 'La clau pública ha canviat',
-        pubkeyRotationWarning: 'Aquesta màquina presenta una clau pública diferent de la que havies confiat. Continua només si has reinstal·lat o restablert Happy en aquest ordinador.',
         noMachinesForIdentity: 'No s\'ha retornat cap màquina per a aquesta identitat de GitHub',
         deviceAuthorizationExpired: 'L\'autorització del dispositiu de GitHub ha caducat',
         pairingFailed: 'Failed to pair machine',
@@ -1027,106 +923,6 @@ export const ca: TranslationStructure = {
         copyFailed: 'Error al copiar',
         mermaidRenderFailed: 'Error al renderitzar el diagrama mermaid',
     },
-
-    artifacts: {
-        title: 'Artefactes',
-        countSingular: '1 artefacte',
-        countPlural: ({ count }: { count: number }) => `${count} artefactes`,
-        empty: 'Encara no hi ha artefactes',
-        emptyDescription: 'Crea el teu primer artefacte per desar i organitzar contingut',
-        new: 'Nou artefacte',
-        edit: 'Edita artefacte',
-        delete: 'Elimina',
-        updateError: 'No s\'ha pogut actualitzar l\'artefacte. Si us plau, torna-ho a provar.',
-        notFound: 'Artefacte no trobat',
-        discardChanges: 'Descartar els canvis?',
-        discardChangesDescription: 'Tens canvis sense desar. Estàs segur que vols descartar-los?',
-        deleteConfirm: 'Eliminar artefacte?',
-        deleteConfirmDescription: 'Aquest artefacte s\'eliminarà permanentment.',
-        titlePlaceholder: 'Títol de l\'artefacte',
-        bodyPlaceholder: 'Escriu aquí el contingut...',
-        save: 'Desa',
-        saving: 'Desant...',
-        loading: 'Carregant...',
-        error: 'Error en carregar els artefactes',
-        titleLabel: 'TÍTOL',
-        bodyLabel: 'CONTINGUT',
-        emptyFieldsError: 'Si us plau, introdueix un títol o contingut',
-        createError: 'No s\'ha pogut crear l\'artefacte. Si us plau, torna-ho a provar.',
-    },
-
-    friends: {
-        // Friends feature
-        title: 'Amics',
-        manageFriends: 'Gestiona els teus amics i connexions',
-        searchTitle: 'Buscar amics',
-        pendingRequests: 'Sol·licituds d\'amistat',
-        myFriends: 'Els meus amics',
-        noFriendsYet: 'Encara no tens amics',
-        findFriends: 'Buscar amics',
-        remove: 'Eliminar',
-        pendingRequest: 'Pendent',
-        sentOn: ({ date }: { date: string }) => `Enviat el ${date}`,
-        accept: 'Acceptar',
-        reject: 'Rebutjar',
-        addFriend: 'Afegir amic',
-        alreadyFriends: 'Ja sou amics',
-        requestPending: 'Sol·licitud pendent',
-        searchInstructions: 'Introdueix un nom d\'usuari per buscar amics',
-        searchPlaceholder: 'Introdueix nom d\'usuari...',
-        searching: 'Buscant...',
-        userNotFound: 'Usuari no trobat',
-        noUserFound: 'No s\'ha trobat cap usuari amb aquest nom',
-        checkUsername: 'Si us plau, verifica el nom d\'usuari i torna-ho a provar',
-        howToFind: 'Com trobar amics',
-        findInstructions: 'Cerca amics pel seu nom d\'usuari. Tant tu com el teu amic heu de tenir GitHub connectat per enviar sol·licituds d\'amistat.',
-        requestSent: 'Sol·licitud d\'amistat enviada!',
-        requestAccepted: 'Sol·licitud d\'amistat acceptada!',
-        requestRejected: 'Sol·licitud d\'amistat rebutjada',
-        friendRemoved: 'Amic eliminat',
-        confirmRemove: 'Eliminar amic',
-        confirmRemoveMessage: 'Estàs segur que vols eliminar aquest amic?',
-        cannotAddYourself: 'No pots enviar-te una sol·licitud d\'amistat a tu mateix',
-        bothMustHaveGithub: 'Ambdós usuaris han de tenir GitHub connectat per ser amics',
-        status: {
-            none: 'No connectat',
-            requested: 'Sol·licitud enviada',
-            pending: 'Sol·licitud pendent',
-            friend: 'Amics',
-            rejected: 'Rebutjada',
-        },
-        acceptRequest: 'Acceptar sol·licitud',
-        removeFriend: 'Eliminar dels amics',
-        removeFriendConfirm: ({ name }: { name: string }) => `Estàs segur que vols eliminar ${name} dels teus amics?`,
-        requestSentDescription: ({ name }: { name: string }) => `La teva sol·licitud d\'amistat ha estat enviada a ${name}`,
-        requestFriendship: 'Sol·licitar amistat',
-        cancelRequest: 'Cancel·lar sol·licitud d\'amistat',
-        cancelRequestConfirm: ({ name }: { name: string }) => `Cancel·lar la teva sol·licitud d\'amistat a ${name}?`,
-        denyRequest: 'Rebutjar sol·licitud',
-        nowFriendsWith: ({ name }: { name: string }) => `Ara ets amic de ${name}`,
-    },
-
-    usage: {
-        // Usage panel strings
-        today: 'Avui',
-        last7Days: 'Últims 7 dies',
-        last30Days: 'Últims 30 dies',
-        totalTokens: 'Tokens totals',
-        totalCost: 'Cost total',
-        tokens: 'Tokens',
-        cost: 'Cost',
-        usageOverTime: 'Ús al llarg del temps',
-        byModel: 'Per model',
-        noData: "No hi ha dades d'ús disponibles",
-    },
-
-    feed: {
-        // Feed notifications for friend requests and acceptances
-        friendRequestFrom: ({ name }: { name: string }) => `${name} t'ha enviat una sol·licitud d'amistat`,
-        friendRequestGeneric: 'Nova sol·licitud d\'amistat',
-        friendAccepted: ({ name }: { name: string }) => `Ara ets amic de ${name}`,
-        friendAcceptedGeneric: 'Sol·licitud d\'amistat acceptada',
-    }
 } as const;
 
 export type TranslationsCa = typeof ca;

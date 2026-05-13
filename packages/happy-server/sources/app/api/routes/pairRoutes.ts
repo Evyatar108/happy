@@ -1,11 +1,12 @@
 import { z } from "zod";
 import nacl from "tweetnacl";
-import * as ed from "@noble/ed25519";
-import { sha512 } from "@noble/hashes/sha2.js";
+import * as os from "os";
+import * as path from "path";
+import { randomUUID } from "crypto";
+import { writeJsonAtomically } from "@slopus/happy-wire/node";
 import { type Fastify } from "../types";
 import { type TofuHandshakeConfig } from "../api";
-
-ed.hashes.sha512 = (message: Uint8Array) => sha512(message);
+import { encodeTunnelClaim } from "../auth/tunnelClaim";
 
 type DeviceCodeResponse = {
     device_code: string;
@@ -21,9 +22,14 @@ type AccessTokenResponse = {
     error?: string;
 };
 
-type GitHubUser = {
-    login: string;
-};
+const GitHubUserSchema = z.object({
+    login: z.string(),
+    id: z.number().optional(),
+    name: z.string().nullable().optional(),
+    avatar_url: z.string().nullable().optional(),
+}).passthrough();
+
+type GitHubUser = z.infer<typeof GitHubUserSchema>;
 
 type DevTunnelItem = {
     clusterId: string;
@@ -31,10 +37,78 @@ type DevTunnelItem = {
     status?: { value: string };
 };
 
+export interface PairRoutePaths {
+    profile?: string;
+}
+
+// Hard-coded upstream endpoints; not user-controlled (no SSRF surface).
+const HAPPY_TUNNELS_LIST_URL = "https://global.rel.tunnels.api.visualstudio.com/tunnels?includePorts=true&global=true&labels=happy-machine&api-version=2023-09-27-preview";
+const GITHUB_USER_URL = "https://api.github.com/user";
+
+// Response-size bounds to prevent DoS via large upstream bodies.
+const HAPPY_TUNNELS_MAX_BYTES = 1_000_000; // 1MB; typical tunnel list is KBs.
+const GITHUB_USER_MAX_BYTES = 100_000;     // 100KB; GitHub user payload is small.
+
+async function readJsonWithLimit(response: Response, maxBytes: number): Promise<unknown> {
+    const contentLengthHeader = response.headers?.get?.("content-length");
+    if (contentLengthHeader) {
+        const declared = Number(contentLengthHeader);
+        if (Number.isFinite(declared) && declared > maxBytes) {
+            throw new Error(`response_body_too_large:declared=${declared}:limit=${maxBytes}`);
+        }
+    }
+    const body = (response as { body?: ReadableStream<Uint8Array> | null }).body;
+    if (!body || typeof body.getReader !== "function") {
+        return await response.json();
+    }
+    const reader = body.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    try {
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            if (!value) continue;
+            total += value.byteLength;
+            if (total > maxBytes) {
+                throw new Error(`response_body_too_large:received=${total}:limit=${maxBytes}`);
+            }
+            chunks.push(value);
+        }
+    } finally {
+        reader.releaseLock?.();
+    }
+    const buffer = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+        buffer.set(chunk, offset);
+        offset += chunk.byteLength;
+    }
+    const text = new TextDecoder("utf-8").decode(buffer);
+    return text.length === 0 ? undefined : JSON.parse(text);
+}
+
+function defaultProfilePath(): string {
+    return path.join(os.homedir(), ".happy", "profile.json");
+}
+
+/** Build the payload for a signed tunnel claim. Providing `accountId` links the
+ *  claim to a GitHub account (present after a GitHub device-flow grant). */
+function buildTunnelClaimPayload(localUserId: string, accountId?: number): {
+    sub: string;
+    iat: number;
+    exp: number;
+    jti: string;
+    accountId?: number;
+} {
+    const iat = Math.floor(Date.now() / 1000);
+    return { sub: localUserId, iat, exp: iat + 3600, jti: randomUUID(), ...(accountId !== undefined ? { accountId } : {}) };
+}
+
 async function fetchHappyTunnels(githubToken: string, excludeTunnelId: string | null): Promise<DevTunnelItem[]> {
     try {
         const response = await fetch(
-            "https://global.rel.tunnels.api.visualstudio.com/tunnels?includePorts=true&global=true&api-version=2023-09-27-preview",
+            HAPPY_TUNNELS_LIST_URL,
             {
                 headers: {
                     // GitHub OAuth token from device flow; not a Happy relay credential.
@@ -45,11 +119,10 @@ async function fetchHappyTunnels(githubToken: string, excludeTunnelId: string | 
             }
         );
         if (!response.ok) return [];
-        const tunnels = await response.json() as DevTunnelItem[];
+        const tunnels = await readJsonWithLimit(response, HAPPY_TUNNELS_MAX_BYTES) as DevTunnelItem[];
         if (!Array.isArray(tunnels)) return [];
         return tunnels.filter(
             t => typeof t.tunnelId === "string"
-                && t.tunnelId.startsWith("happy-")
                 && t.tunnelId !== excludeTunnelId
         );
     } catch {
@@ -81,41 +154,55 @@ function getGitHubClientId(): string {
     return clientId;
 }
 
-const PAIR_RATE_LIMIT_MAX = 5;
+const PAIR_START_RATE_LIMIT_MAX = 2;
+const PAIR_STATUS_RATE_LIMIT_MAX = 5;
 const PAIR_RATE_LIMIT_WINDOW_MS = 60_000;
-const pairRateBuckets = new Map<string, { count: number; windowStart: number }>();
+const pairStartRateBuckets = new Map<string, { count: number; windowStart: number }>();
+const pairStatusRateBuckets = new Map<string, { count: number; windowStart: number }>();
 
-function isPairRateLimited(ip: string, now: number): boolean {
-    const bucket = pairRateBuckets.get(ip);
+function isRateLimited(
+    buckets: Map<string, { count: number; windowStart: number }>,
+    key: string,
+    max: number,
+    now: number,
+): boolean {
+    const bucket = buckets.get(key);
     if (!bucket || now - bucket.windowStart >= PAIR_RATE_LIMIT_WINDOW_MS) {
-        pairRateBuckets.set(ip, { count: 1, windowStart: now });
-        if (pairRateBuckets.size > 1024) {
-            for (const [key, value] of pairRateBuckets) {
+        buckets.set(key, { count: 1, windowStart: now });
+        if (buckets.size > 1024) {
+            for (const [k, value] of buckets) {
                 if (now - value.windowStart >= PAIR_RATE_LIMIT_WINDOW_MS) {
-                    pairRateBuckets.delete(key);
+                    buckets.delete(k);
                 }
             }
         }
         return false;
     }
-    if (bucket.count >= PAIR_RATE_LIMIT_MAX) {
+    if (bucket.count >= max) {
         return true;
     }
     bucket.count += 1;
     return false;
 }
 
-// Produces a signed claim envelope: base64url(JSON({ p: base64url(payload), s: hex(signature) })).
-// The Ed25519 signature binds the claim to the embedded server's TOFU keypair.
-async function encodeTunnelClaim(payload: unknown, ed25519SecretKey: Uint8Array): Promise<string> {
-    const payloadEncoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
-    const signature = await ed.signAsync(Buffer.from(payloadEncoded), ed25519SecretKey);
-    const envelope = { p: payloadEncoded, s: Buffer.from(signature).toString("hex") };
-    return Buffer.from(JSON.stringify(envelope)).toString("base64url");
+function isPairStartRateLimited(ip: string, now: number): boolean {
+    return isRateLimited(pairStartRateBuckets, ip, PAIR_START_RATE_LIMIT_MAX, now);
+}
+
+function isPairStatusRateLimited(deviceCode: string, now: number): boolean {
+    return isRateLimited(pairStatusRateBuckets, deviceCode, PAIR_STATUS_RATE_LIMIT_MAX, now);
+}
+
+function isOwnerRequired(): boolean {
+    const explicit = process.env.HAPPY_REQUIRE_OWNER;
+    if (typeof explicit === "string" && explicit.length > 0) {
+        return explicit === "1" || explicit.toLowerCase() === "true";
+    }
+    return process.env.NODE_ENV === "production";
 }
 
 async function fetchGitHubUser(accessToken: string): Promise<GitHubUser> {
-    const response = await fetch("https://api.github.com/user", {
+    const response = await fetch(GITHUB_USER_URL, {
         headers: {
             // GitHub device-flow OAuth access token; not a Happy relay credential.
             Authorization: `Bearer ${accessToken}`,
@@ -125,10 +212,10 @@ async function fetchGitHubUser(accessToken: string): Promise<GitHubUser> {
     if (!response.ok) {
         throw new Error(`GitHub user fetch failed: ${response.status}`);
     }
-    return await response.json() as GitHubUser;
+    return GitHubUserSchema.parse(await readJsonWithLimit(response, GITHUB_USER_MAX_BYTES));
 }
 
-export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
+export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig, paths: PairRoutePaths = {}) {
     app.get('/pair/start', {
         schema: {
             response: {
@@ -144,7 +231,7 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
             },
         },
     }, async (request, reply) => {
-        if (isPairRateLimited(request.ip, Date.now())) {
+        if (isPairStartRateLimited(request.ip, Date.now())) {
             return reply.code(429).send({ error: "rate_limited" });
         }
         const body = new URLSearchParams({
@@ -171,10 +258,46 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
                 device_code: z.string(),
                 mobileEcdhPublicKey: z.string().optional(),
             }),
+            response: {
+                200: z.union([
+                    z.object({ status: z.literal("pending") }),
+                    z.object({
+                        status: z.literal("authorized"),
+                        githubLogin: z.string(),
+                        machines: z.array(z.object({
+                            machineId: z.string(),
+                            tunnelUrl: z.string(),
+                            ed25519PublicKey: z.string(),
+                            x25519PublicKey: z.string(),
+                            ed25519Fingerprint: z.string().optional(),
+                            tunnelClaim: z.string(),
+                            mobileSharedSecret: z.string().optional(),
+                        })),
+                        discoveredMachines: z.array(z.object({
+                            tunnelId: z.string(),
+                            tunnelUrl: z.string(),
+                            displayName: z.string(),
+                            isOnline: z.boolean(),
+                        })),
+                    }),
+                ]),
+                401: z.object({ error: z.string() }),
+                403: z.object({ error: z.string() }),
+                429: z.object({ error: z.string() }),
+                502: z.object({ error: z.string() }),
+                503: z.object({ error: z.string() }),
+            },
         },
     }, async (request, reply) => {
-        if (isPairRateLimited(request.ip, Date.now())) {
+        if (isPairStatusRateLimited(request.body.device_code, Date.now())) {
             return reply.code(429).send({ error: "rate_limited" });
+        }
+        const expectedOwnerEnv = process.env.HAPPY_TUNNEL_GITHUB_OWNER;
+        if (!expectedOwnerEnv || expectedOwnerEnv.length === 0) {
+            if (isOwnerRequired()) {
+                return reply.code(503).send({ error: "happy_tunnel_github_owner_unset" });
+            }
+            request.log.warn("HAPPY_TUNNEL_GITHUB_OWNER is unset; allowing any GitHub identity (non-production mode)");
         }
         const githubBody = new URLSearchParams({
             client_id: getGitHubClientId(),
@@ -202,8 +325,10 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
         }
 
         const githubUser = await fetchGitHubUser(tokenData.access_token);
-        const expectedOwner = process.env.HAPPY_TUNNEL_GITHUB_OWNER;
-        if (expectedOwner && expectedOwner.toLowerCase() !== githubUser.login.toLowerCase()) {
+        if (typeof githubUser.id !== "number") {
+            return reply.code(502).send({ error: "github_identity_missing_id" });
+        }
+        if (expectedOwnerEnv && expectedOwnerEnv.toLowerCase() !== githubUser.login.toLowerCase()) {
             return reply.code(403).send({ error: "github_identity_does_not_own_tunnel" });
         }
 
@@ -222,10 +347,15 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
         }
 
         const tunnelUrl = tofuConfig.publicUrl || process.env.PUBLIC_URL || `http://127.0.0.1:${process.env.PORT ?? "3005"}`;
-        const tunnelClaim = await encodeTunnelClaim(
-            { sub: tofuConfig.localUserId, gh: githubUser.login, iat: Math.floor(Date.now() / 1000) },
-            tofuConfig.ed25519SecretKey,
-        );
+        const claimPayload = buildTunnelClaimPayload(tofuConfig.localUserId, githubUser.id);
+        const tunnelClaim = await encodeTunnelClaim(claimPayload, tofuConfig.ed25519SecretKey);
+        await writeJsonAtomically(paths.profile ?? defaultProfilePath(), {
+            githubUserId: githubUser.id,
+            githubLogin: githubUser.login,
+            name: githubUser.name ?? null,
+            avatarUrl: githubUser.avatar_url ?? null,
+            updatedAt: new Date(claimPayload.iat * 1000).toISOString(),
+        });
 
         const currentTunnelId = parseTunnelIdFromUrl(tunnelUrl);
         const otherTunnels = await fetchHappyTunnels(tokenData.access_token, currentTunnelId);
@@ -239,7 +369,6 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
         return {
             status: "authorized" as const,
             githubLogin: githubUser.login,
-            githubToken: tokenData.access_token,
             machines: [{
                 machineId: tofuConfig.localUserId,
                 tunnelUrl,
@@ -275,7 +404,7 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig) {
 
         const tunnelUrl = tofuConfig.publicUrl || process.env.PUBLIC_URL || `http://127.0.0.1:${process.env.PORT ?? "3005"}`;
         const tunnelClaim = await encodeTunnelClaim(
-            { sub: tofuConfig.localUserId, iat: Math.floor(Date.now() / 1000) },
+            buildTunnelClaimPayload(tofuConfig.localUserId),
             tofuConfig.ed25519SecretKey,
         );
         return {

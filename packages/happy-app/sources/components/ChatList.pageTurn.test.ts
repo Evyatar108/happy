@@ -20,7 +20,7 @@ import { computeRenderWindow, computePrefetchOlderRange, shouldPrefetchOlder } f
 import { PrefetchManager } from '@/sync/prefetchManager';
 import type {
     PrefetchManagerStorage,
-    PrefetchManagerEncryptionAdapter,
+    PrefetchManagerMessageAdapter,
     PrefetchManagerTransport,
     RunInSessionLock,
     PrefetchTerminalEvent,
@@ -404,7 +404,7 @@ function createFakeBridgeStorage(initial: { sessions: Record<string, FakeSession
 
 interface ManagerHarness {
     storage: PrefetchManagerStorage;
-    encryption: PrefetchManagerEncryptionAdapter;
+    messages: PrefetchManagerMessageAdapter;
     transport: PrefetchManagerTransport;
     runInSessionLock: RunInSessionLock;
     transportSpy: ReturnType<typeof vi.fn>;
@@ -461,8 +461,8 @@ function createManagerHarness(): ManagerHarness {
         onReconnected: () => () => { /* no-op */ },
     };
 
-    const encryption: PrefetchManagerEncryptionAdapter = {
-        async decryptMessages() {
+    const messages: PrefetchManagerMessageAdapter = {
+        async decodeMessages() {
             return [];
         },
     };
@@ -481,7 +481,7 @@ function createManagerHarness(): ManagerHarness {
 
     return {
         storage,
-        encryption,
+        messages,
         transport,
         runInSessionLock,
         transportSpy,
@@ -542,7 +542,7 @@ describe('ChatList page-turn-mode debounce (US-007 / Plan AC #10)', () => {
         const harness = createManagerHarness();
         const manager = new PrefetchManager({
             storage: harness.storage,
-            encryption: harness.encryption,
+            messages: harness.messages,
             transport: harness.transport,
             runInSessionLock: harness.runInSessionLock,
             now: () => 0,
@@ -639,7 +639,7 @@ describe('ChatList page-turn-mode debounce (US-007 / Plan AC #10)', () => {
 
         const manager = new PrefetchManager({
             storage: storageAdapter,
-            encryption: { async decryptMessages() { return []; } },
+            messages: { async decodeMessages() { return []; } },
             transport: {
                 requestSessionMessageRange: transportSpy,
                 onReconnected: () => () => { /* no-op */ },

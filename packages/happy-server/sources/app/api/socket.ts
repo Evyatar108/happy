@@ -1,37 +1,126 @@
 import { onShutdown } from "@/utils/shutdown";
 import { Fastify } from "./types";
-import { buildMachineActivityEphemeral, ClientConnection, eventRouter } from "@/app/events/eventRouter";
+import { buildMachineActivityEphemeral, ClientConnection, createEventRouter } from "@/app/events/eventRouter";
 import { Server } from "socket.io";
 import { createAdapter } from "@socket.io/redis-streams-adapter";
 import { Redis } from "ioredis";
 import { log } from "@/utils/log";
 import { getMetricsLabelsFromSocket, redisStreamLagMsGauge, websocketConnectionsGauge, websocketEventsCounter } from "../monitoring/metrics2";
-import { usageHandler } from "./socket/usageHandler";
 import { rpcHandler } from "./socket/rpcHandler";
 import { pingHandler } from "./socket/pingHandler";
 import { sessionUpdateHandler } from "./socket/sessionUpdateHandler";
 import { machineUpdateHandler } from "./socket/machineUpdateHandler";
-import { artifactUpdateHandler } from "./socket/artifactUpdateHandler";
-import { accessKeyHandler } from "./socket/accessKeyHandler";
 import { sessionMessageRangeHandler } from "./socket/sessionMessageRangeHandler";
-import { verifyTunnelClaim, type TofuHandshakeConfig } from "./api";
+import type { TofuHandshakeConfig } from "./api";
+import { verifyTunnelClaim } from "./auth/tunnelClaim";
+import { makeLoopbackTokenReader, type LoopbackCapabilityPaths } from "./auth/loopbackCapability";
+import { parseCorsOrigins } from "./utils/parseCorsOrigins";
 
-function parseCorsOrigins(): string[] {
-    const raw = process.env.HAPPY_CORS_ORIGINS;
-    if (!raw) {
-        return [];
-    }
-    return raw.split(',').map(o => o.trim()).filter(o => o.length > 0);
+export interface StartSocketOptions {
+    auth?: "tunnel" | "loopback";
+    paths?: LoopbackCapabilityPaths;
 }
 
-export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { localUserId: "local-user" }) {
+export function configureRedisStreamsAdapter(io: Server): Redis | undefined {
+    const redisUrl = process.env.REDIS_URL;
+    if (!redisUrl) {
+        return undefined;
+    }
+
+    const streamClient = new Redis(redisUrl);
+    io.adapter(createAdapter(streamClient, { maxLen: 200000, readCount: 2000 }));
+    log({ module: 'websocket' }, 'Redis streams adapter enabled for multi-process support');
+
+    // Track stream reader lag: wrap onRawMessage to capture last-read offset,
+    // then periodically compare against stream HEAD.
+    let lastReadOffset = "0-0";
+    const adapter = io.of("/").adapter as any;
+    const origOnRawMessage = adapter.onRawMessage.bind(adapter);
+    adapter.onRawMessage = (msg: any, offset: string) => {
+        lastReadOffset = offset;
+        return origOnRawMessage(msg, offset);
+    };
+    const interval = setInterval(async () => {
+        try {
+            const info = await streamClient.xinfo("STREAM", "socket.io") as any[];
+            const headId = String(info[info.indexOf("last-generated-id") + 1]);
+            const headMs = parseInt(headId.split("-")[0]);
+            const readMs = parseInt(lastReadOffset.split("-")[0]);
+            redisStreamLagMsGauge.set(headMs - readMs);
+        } catch { /* stream may not exist yet */ }
+    }, 5000) as unknown as { unref?: () => void };
+    interval.unref?.();
+
+    return streamClient;
+}
+
+export function createSocketAuthMiddleware(tofuConfig: TofuHandshakeConfig, socketOptions: StartSocketOptions = {}) {
+    const readLoopbackToken = socketOptions.auth === 'loopback'
+        ? makeLoopbackTokenReader(socketOptions.paths ?? {})
+        : null;
+
+    return async function socketAuthMiddleware(socket: any, next: (err?: Error) => void) {
+        let accountId: number | null = null;
+
+        if (socketOptions.auth === 'loopback') {
+            const capHeader = socket.handshake.headers['x-loopback-capability'] as string | undefined;
+            const expectedToken = await readLoopbackToken!();
+            if (!expectedToken || !capHeader || capHeader !== expectedToken) {
+                next(new Error('Unauthorized'));
+                return;
+            }
+            socket.data.userId = tofuConfig.localUserId;
+        } else {
+            const authHeader = (
+                socket.handshake.headers['x-tunnel-authorization'] as string | undefined
+            ) || (socket.handshake.auth.tunnelAuthorization as string | undefined);
+
+            const claim = await verifyTunnelClaim(authHeader, tofuConfig);
+            if (!claim.ok) {
+                next(new Error('Unauthorized'));
+                return;
+            }
+            accountId = claim.payload.accountId ?? null;
+        }
+
+        const clientType = socket.handshake.auth.clientType as 'session-scoped' | 'user-scoped' | 'machine-scoped' | undefined;
+        const sessionId = socket.handshake.auth.sessionId as string | undefined;
+        const machineId = socket.handshake.auth.machineId as string | undefined;
+        const userId = socket.handshake.auth.userId as string | undefined;
+
+        if (clientType === 'session-scoped' && !sessionId) {
+            log({ module: 'websocket' }, `Session-scoped client missing sessionId`);
+            next(new Error('Session ID required for session-scoped clients'));
+            return;
+        }
+
+        if (clientType === 'machine-scoped' && !machineId) {
+            log({ module: 'websocket' }, `Machine-scoped client missing machineId`);
+            next(new Error('Machine ID required for machine-scoped clients'));
+            return;
+        }
+
+        socket.data.userId = socketOptions.auth === 'loopback' ? tofuConfig.localUserId : (userId || tofuConfig.localUserId);
+        socket.data.clientType = clientType;
+        socket.data.sessionId = sessionId;
+        socket.data.machineId = machineId;
+        socket.data.accountId = accountId;
+        socket.data.tofuPublicKeys = tofuConfig.tofuPublicKeys;
+        socket.data.happyClient = socket.handshake.auth.happyClient as string
+            || socket.handshake.headers['x-happy-client'] as string
+            || undefined;
+        next();
+    };
+}
+
+export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { localUserId: "local-user" }, socketOptions: StartSocketOptions = {}) {
     const allowedOrigins = parseCorsOrigins();
     const io = new Server(app.server, {
         cors: {
             origin: allowedOrigins.length === 0 ? false : allowedOrigins,
             methods: ["GET", "POST", "OPTIONS"],
             credentials: true,
-            allowedHeaders: ["X-Tunnel-Authorization", "X-Happy-Client", "Content-Type"]
+            allowedHeaders: ["X-Tunnel-Authorization", "X-Loopback-Capability", "X-Happy-Client", "Content-Type", "X-Tunnel-Connect"]
         },
         transports: ['websocket', 'polling'],
         pingTimeout: 45000,
@@ -56,75 +145,13 @@ export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { lo
         // },
     });
 
-    // Multi-process support: attach Redis streams adapter when REDIS_URL is set
-    if (process.env.REDIS_URL) {
-        const streamClient = new Redis(process.env.REDIS_URL);
-        io.adapter(createAdapter(streamClient, { maxLen: 200000, readCount: 2000 }));
-        log({ module: 'websocket' }, 'Redis streams adapter enabled for multi-process support');
+    configureRedisStreamsAdapter(io);
 
-        // Track stream reader lag: wrap onRawMessage to capture last-read offset,
-        // then periodically compare against stream HEAD.
-        let lastReadOffset = "0-0";
-        const adapter = io.of("/").adapter as any;
-        const origOnRawMessage = adapter.onRawMessage.bind(adapter);
-        adapter.onRawMessage = (msg: any, offset: string) => {
-            lastReadOffset = offset;
-            return origOnRawMessage(msg, offset);
-        };
-        setInterval(async () => {
-            try {
-                const info = await streamClient.xinfo("STREAM", "socket.io") as any[];
-                const headId = String(info[info.indexOf("last-generated-id") + 1]);
-                const headMs = parseInt(headId.split("-")[0]);
-                const readMs = parseInt(lastReadOffset.split("-")[0]);
-                redisStreamLagMsGauge.set(headMs - readMs);
-            } catch { /* stream may not exist yet */ }
-        }, 5000);
-    }
-
-    // Initialize event router with Socket.IO server instance
-    eventRouter.init(io);
+    const eventRouter = createEventRouter(io);
 
     // Handshake metadata is captured in middleware so it is available before
     // client events can reach the connection handlers.
-    io.use(async (socket, next) => {
-        const authHeader = (
-            socket.handshake.headers['x-tunnel-authorization'] as string | undefined
-        ) || (socket.handshake.auth.tunnelAuthorization as string | undefined);
-
-        const claim = await verifyTunnelClaim(authHeader, tofuConfig);
-        if (!claim.ok) {
-            next(new Error('Unauthorized'));
-            return;
-        }
-
-        const clientType = socket.handshake.auth.clientType as 'session-scoped' | 'user-scoped' | 'machine-scoped' | undefined;
-        const sessionId = socket.handshake.auth.sessionId as string | undefined;
-        const machineId = socket.handshake.auth.machineId as string | undefined;
-        const userId = socket.handshake.auth.userId as string | undefined;
-
-        if (clientType === 'session-scoped' && !sessionId) {
-            log({ module: 'websocket' }, `Session-scoped client missing sessionId`);
-            next(new Error('Session ID required for session-scoped clients'));
-            return;
-        }
-
-        if (clientType === 'machine-scoped' && !machineId) {
-            log({ module: 'websocket' }, `Machine-scoped client missing machineId`);
-            next(new Error('Machine ID required for machine-scoped clients'));
-            return;
-        }
-
-        socket.data.userId = userId || tofuConfig.localUserId;
-        socket.data.clientType = clientType;
-        socket.data.sessionId = sessionId;
-        socket.data.machineId = machineId;
-        socket.data.tofuPublicKeys = tofuConfig.tofuPublicKeys;
-        socket.data.happyClient = socket.handshake.auth.happyClient as string
-            || socket.handshake.headers['x-happy-client'] as string
-            || undefined;
-        next();
-    });
+    io.use(createSocketAuthMiddleware(tofuConfig, socketOptions));
 
     io.on("connection", (socket) => {
         const userId = socket.data.userId as string;
@@ -199,12 +226,9 @@ export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { lo
 
         // Handlers
         rpcHandler(userId, socket, io);
-        usageHandler(userId, socket);
-        sessionUpdateHandler(userId, socket, connection);
+        sessionUpdateHandler(userId, socket, connection, eventRouter);
         pingHandler(socket);
-        machineUpdateHandler(userId, socket);
-        artifactUpdateHandler(userId, socket);
-        accessKeyHandler(userId, socket);
+        machineUpdateHandler(userId, socket, eventRouter);
         sessionMessageRangeHandler(userId, socket);
 
         // Ready
@@ -212,6 +236,9 @@ export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { lo
     });
 
     onShutdown('api', async () => {
+        eventRouter.close();
         await io.close();
     });
+
+    return eventRouter;
 }

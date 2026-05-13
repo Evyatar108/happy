@@ -30,13 +30,12 @@ export interface PrefetchManagerStorage {
     clearActivePrefetch(sessionId: string, expectedRequestId: string): void;
 }
 
-export interface PrefetchManagerEncryptionAdapter {
+export interface PrefetchManagerMessageAdapter {
     /**
-     * Decrypt a batch of encrypted blobs for the given session. Returns
-     * null entries for un-decryptable messages, mirroring
-     * `SessionEncryption.decryptMessages`.
+     * Decode a batch of API message payloads for the given session. Returns
+     * null entries for malformed messages.
      */
-    decryptMessages(sessionId: string, messages: ApiMessage[]): Promise<(DecryptedMessage | null)[]>;
+    decodeMessages(sessionId: string, messages: ApiMessage[]): Promise<(DecryptedMessage | null)[]>;
 }
 
 export interface PrefetchManagerTransport {
@@ -63,7 +62,7 @@ export type RunInSessionLock = (
 
 export interface PrefetchManagerOptions {
     storage: PrefetchManagerStorage;
-    encryption: PrefetchManagerEncryptionAdapter;
+    messages: PrefetchManagerMessageAdapter;
     transport: PrefetchManagerTransport;
     runInSessionLock: RunInSessionLock;
     /**
@@ -88,7 +87,7 @@ export type PrefetchTerminalKind =
     | 'commit'
     | 'ack-error'
     | 'transport-error'
-    | 'decrypt-error'
+    | 'decode-error'
     | 'stale-discard'
     | 'sync-bail'
     | 'abandon-on-reconnect'
@@ -143,18 +142,18 @@ function defaultRequestId(): string {
  *    when another prefetch is already in flight (the storage `activePrefetch`
  *    is the durable record; this Map is just a fast pre-check)
  *
- * Lock model: emitWithAck transport AND `encryption.decryptMessages` run
+ * Lock model: emitWithAck transport AND message decoding run
  * OUTSIDE any per-session lock. Only the final `storage.applyPrefetchedRange`
  * commit runs INSIDE the lock. This is the entire reason the manager exists —
- * it lets live `new-message` decrypt continue in parallel while a slow
- * older-page transport/decrypt is in flight.
+ * it lets live `new-message` handling continue in parallel while a slow
+ * older-page transport/decode is in flight.
  *
  * Per-request terminal Promise<void>: `requestSessionMessageRange` returns a
  * Promise that resolves after EXACTLY ONE of (i) the in-lock commit completes,
  * (ii) a closure-mismatch staleness discard inside the lock terminally
  * discards the request, (iii) a synchronous bail (another prefetch already in
  * flight) before transport, or (iv) a non-commit terminal exit
- * (ack-error / transport-error / decrypt-error). The commit/discard/clear
+ * (ack-error / transport-error / decode-error). The commit/discard/clear
  * happens BEFORE the Promise resolves.
  *
  * Failure-clear contract: for each non-commit terminal exit the manager calls
@@ -166,7 +165,7 @@ function defaultRequestId(): string {
  */
 export class PrefetchManager {
     private readonly storage: PrefetchManagerStorage;
-    private readonly encryption: PrefetchManagerEncryptionAdapter;
+    private readonly messages: PrefetchManagerMessageAdapter;
     private readonly transport: PrefetchManagerTransport;
     private readonly runInSessionLock: RunInSessionLock;
     private readonly now: () => number;
@@ -179,7 +178,7 @@ export class PrefetchManager {
 
     constructor(options: PrefetchManagerOptions) {
         this.storage = options.storage;
-        this.encryption = options.encryption;
+        this.messages = options.messages;
         this.transport = options.transport;
         this.runInSessionLock = options.runInSessionLock;
         this.now = options.now ?? (() => Date.now());
@@ -447,11 +446,11 @@ export class PrefetchManager {
         // OK ack. Decrypt OUTSIDE the lock.
         let decrypted: (DecryptedMessage | null)[];
         try {
-            decrypted = await this.encryption.decryptMessages(sessionId, response.messages);
+            decrypted = await this.messages.decodeMessages(sessionId, response.messages);
         } catch (_err) {
             this.inFlight.delete(sessionId);
             this.storage.clearActivePrefetch(sessionId, requestId);
-            this.fireTerminal({ sessionId, requestId, kind: 'decrypt-error' });
+            this.fireTerminal({ sessionId, requestId, kind: 'decode-error' });
             settle();
             return;
         }

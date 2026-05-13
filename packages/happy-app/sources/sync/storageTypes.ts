@@ -28,6 +28,9 @@ export const MetadataSchema = z.object({
     })).optional(),
     currentThoughtLevelCode: z.string().optional(),
     path: z.string(),
+    projectPath: z.string().optional(),
+    worktreePath: z.string().optional(),
+    runId: z.string().optional(),
     host: z.string(),
     version: z.string().optional(),
     name: z.string().optional(),
@@ -214,9 +217,9 @@ export interface Machine {
     active: boolean;
     activeAt: number;  // Changed from lastActiveAt to activeAt for consistency
     metadata: MachineMetadata | null;
-    metadataVersion: number;
-    daemonState: any | null;  // Dynamic daemon state (runtime info)
-    daemonStateVersion: number;
+    metadataVersion?: number;
+    daemonState?: any | null;  // Dynamic daemon state (runtime info)
+    daemonStateVersion?: number;
 }
 
 //

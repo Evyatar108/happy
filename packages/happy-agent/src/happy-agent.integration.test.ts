@@ -1,9 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { decodeBase64, encodeBase64, libsodiumEncryptForPublicKey } from './encryption';
+import type { PersistedCredentials, PersistedMachineCredentials } from './credentials';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageDir = resolve(__dirname, '..');
@@ -29,6 +31,7 @@ let integrationEnvName: string | null = null;
 let integrationEnvDir: string | null = null;
 let integrationConfig: EnvironmentConfig | null = null;
 let agentHomeDir: string | null = null;
+let legacyHomeDir: string | null = null;
 let activeMachineId: string | null = null;
 let testProjectDir: string | null = null;
 let testWorktreeDir: string | null = null;
@@ -73,8 +76,13 @@ function readEnvironmentConfig(envName: string): EnvironmentConfig {
     ) as EnvironmentConfig;
 }
 
-function readSeededCliCredentials(envDir: string): { token: string; secret: Uint8Array } {
-    const credentialPath = join(envDir, 'cli', 'home', 'access.key');
+function readSeededAgentCredentials(envDir: string): PersistedCredentials {
+    const credentialPath = join(envDir, 'agent', 'home', 'credentials.json');
+    return JSON.parse(readFileSync(credentialPath, 'utf-8')) as PersistedCredentials;
+}
+
+function readSeededLegacyCredentials(envDir: string): { token: string; secret: Uint8Array } {
+    const credentialPath = join(envDir, 'agent', 'legacy-home', 'agent.key');
     const parsed = JSON.parse(readFileSync(credentialPath, 'utf-8')) as { token: string; secret: string };
     return {
         token: parsed.token,
@@ -90,12 +98,70 @@ function readDaemonState(envDir: string): DaemonState | null {
     return JSON.parse(readFileSync(daemonStatePath, 'utf-8')) as DaemonState;
 }
 
-function agentEnvVars(serverPort: number, homeDir: string): NodeJS.ProcessEnv {
+function agentEnvVars(serverPort: number, homeDir: string, legacyDir: string): NodeJS.ProcessEnv {
     return {
         ...process.env,
         HAPPY_SERVER_URL: `http://localhost:${serverPort}`,
-        HAPPY_HOME_DIR: homeDir,
+        HAPPY_AGENT_HOME_DIR: homeDir,
+        HAPPY_HOME_DIR: legacyDir,
     };
+}
+
+function readDaemonMachineId(envDir: string): string | null {
+    const settingsPath = join(envDir, 'cli', 'home', 'settings.json');
+    if (!existsSync(settingsPath)) {
+        return null;
+    }
+    const parsed = JSON.parse(readFileSync(settingsPath, 'utf-8')) as { machineId?: string };
+    return typeof parsed.machineId === 'string' && parsed.machineId.length > 0 ? parsed.machineId : null;
+}
+
+function buildTestTunnelClaim(accountId: number): string {
+    const iat = Math.floor(Date.now() / 1000);
+    const payload = { sub: 'integration-test', iat, exp: iat + 3600, jti: randomUUID(), accountId };
+    const p = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const envelope = { p, s: 'integration-test-signature' };
+    return Buffer.from(JSON.stringify(envelope)).toString('base64url');
+}
+
+function seedAgentCredentialFiles(envDir: string, agentDir: string, legacyDir: string, serverPort: number): void {
+    mkdirSync(agentDir, { recursive: true });
+    mkdirSync(legacyDir, { recursive: true });
+
+    const oldCliCredentialPath = join(envDir, 'cli', 'home', 'access.key');
+    const legacyCredentialPath = join(legacyDir, 'agent.key');
+    if (!existsSync(legacyCredentialPath) && existsSync(oldCliCredentialPath)) {
+        writeFileSync(legacyCredentialPath, readFileSync(oldCliCredentialPath, 'utf-8'), 'utf-8');
+    }
+
+    const agentCredentialPath = join(agentDir, 'credentials.json');
+    if (!existsSync(agentCredentialPath)) {
+        const legacy = existsSync(legacyCredentialPath)
+            ? JSON.parse(readFileSync(legacyCredentialPath, 'utf-8')) as { token?: string; secret?: string }
+            : {};
+
+        const daemonMachineId = readDaemonMachineId(envDir);
+        const machines: PersistedMachineCredentials[] = daemonMachineId !== null
+            ? [{
+                machineId: daemonMachineId,
+                tunnelUrl: `http://localhost:${serverPort}`,
+                tunnelClaim: buildTestTunnelClaim(1),
+                accountId: 1,
+                ed25519PublicKey: Buffer.alloc(32).toString('base64'),
+                x25519PublicKey: Buffer.alloc(32).toString('base64'),
+            }]
+            : [];
+
+        const persisted: PersistedCredentials = {
+            githubLogin: 'integration-seeded',
+            deviceCode: 'integration-seeded-device-code',
+            deviceCodeExpiresAt: Math.floor(Date.now() / 1000) + 86_400,
+            pairingBaseUrl: `http://localhost:${serverPort}`,
+            machines,
+            ...(legacy.token && legacy.secret ? { legacyToken: legacy.token, legacySecret: legacy.secret } : {}),
+        };
+        writeFileSync(agentCredentialPath, `${JSON.stringify(persisted, null, 2)}\n`, 'utf-8');
+    }
 }
 
 function runAgentCli(args: string[], env: NodeJS.ProcessEnv): string {
@@ -352,7 +418,9 @@ describe('happy-agent integration', { timeout: 180_000 }, () => {
 
         integrationEnvDir = join(environmentsDir, integrationEnvName);
         integrationConfig = readEnvironmentConfig(integrationEnvName);
-        agentHomeDir = join(integrationEnvDir, 'cli', 'home');
+        agentHomeDir = join(integrationEnvDir, 'agent', 'home');
+        legacyHomeDir = join(integrationEnvDir, 'agent', 'legacy-home');
+        seedAgentCredentialFiles(integrationEnvDir, agentHomeDir, legacyHomeDir, integrationConfig.serverPort);
 
         const testProject = createGitProject(integrationEnvDir);
         testProjectDir = testProject.projectDir;
@@ -408,22 +476,28 @@ describe('happy-agent integration', { timeout: 180_000 }, () => {
     });
 
     it('authenticates, lists machines, and spawns a session through the real daemon RPC path', async () => {
-        if (!integrationEnvDir || !integrationConfig || !agentHomeDir || !testProjectDir || !testWorktreeDir) {
+        if (!integrationEnvDir || !integrationConfig || !agentHomeDir || !legacyHomeDir || !testProjectDir || !testWorktreeDir) {
             throw new Error('Integration environment not initialized');
         }
 
-        const serverUrl = `http://localhost:${integrationConfig.serverPort}`;
-        const seededCredentials = readSeededCliCredentials(integrationEnvDir);
-        const agentEnv = agentEnvVars(integrationConfig.serverPort, agentHomeDir);
+        const seededAgentCredentials = readSeededAgentCredentials(integrationEnvDir);
+        const seededLegacyCredentials = readSeededLegacyCredentials(integrationEnvDir);
+        const agentEnv = agentEnvVars(integrationConfig.serverPort, agentHomeDir, legacyHomeDir);
 
-        const authOutput = await runAgentAuthLogin(agentEnv, {
-            serverUrl,
-            token: seededCredentials.token,
-            secret: seededCredentials.secret,
-        });
+        const authOutput = runAgentCli(['auth', 'status'], agentEnv);
 
         expect(authOutput).toContain('- Status: Authenticated');
-        expect(existsSync(join(agentHomeDir, 'agent.key'))).toBe(true);
+        expect(existsSync(join(agentHomeDir, 'credentials.json'))).toBe(true);
+        expect(existsSync(join(legacyHomeDir, 'agent.key'))).toBe(true);
+        // Legacy-merge path: seeded credentials carry legacy token and secret (AC-C27 legacy path).
+        expect(seededAgentCredentials.legacyToken).toBeTruthy();
+        expect(seededLegacyCredentials.secret).toBeInstanceOf(Uint8Array);
+        // New credentials path: seeded credentials carry at least one persisted machine entry so
+        // refreshKnownTunnelClaim can pass discoverMachineTunnels without throwing MachineNotKnownError
+        // (AC-C27 new path).
+        expect(seededAgentCredentials.machines.length).toBeGreaterThan(0);
+        expect(seededAgentCredentials.machines[0].machineId).toBeTruthy();
+        expect(seededAgentCredentials.machines[0].tunnelUrl).toBeTruthy();
 
         const machineOutput = runAgentCli(['machines'], agentEnv);
         expect(machineOutput).toContain('## Machines');
@@ -507,11 +581,11 @@ describe('happy-agent integration', { timeout: 180_000 }, () => {
     });
 
     it('spawns in the test project root and sends a message through happy-agent CLI', async () => {
-        if (!activeMachineId || !integrationConfig || !agentHomeDir || !testProjectDir) {
+        if (!activeMachineId || !integrationConfig || !agentHomeDir || !legacyHomeDir || !testProjectDir) {
             throw new Error('Integration environment not initialized');
         }
 
-        const agentEnv = agentEnvVars(integrationConfig.serverPort, agentHomeDir);
+        const agentEnv = agentEnvVars(integrationConfig.serverPort, agentHomeDir, legacyHomeDir);
         const prompt = 'happy-agent root message';
         const spawnResult = parseJson<{
             type: 'success' | 'requestToApproveDirectoryCreation' | 'error';
@@ -558,11 +632,11 @@ describe('happy-agent integration', { timeout: 180_000 }, () => {
     });
 
     it('spawns in a git worktree and sends a message through happy-agent CLI', async () => {
-        if (!activeMachineId || !integrationConfig || !agentHomeDir || !testWorktreeDir) {
+        if (!activeMachineId || !integrationConfig || !agentHomeDir || !legacyHomeDir || !testWorktreeDir) {
             throw new Error('Integration environment not initialized');
         }
 
-        const agentEnv = agentEnvVars(integrationConfig.serverPort, agentHomeDir);
+        const agentEnv = agentEnvVars(integrationConfig.serverPort, agentHomeDir, legacyHomeDir);
         const prompt = 'happy-agent worktree message';
         const spawnResult = parseJson<{
             type: 'success' | 'requestToApproveDirectoryCreation' | 'error';
@@ -609,11 +683,11 @@ describe('happy-agent integration', { timeout: 180_000 }, () => {
     });
 
     it('resumes an existing Codex session through the same daemon RPC used by the app', async () => {
-        if (!activeMachineId || !integrationConfig || !agentHomeDir || !testProjectDir) {
+        if (!activeMachineId || !integrationConfig || !agentHomeDir || !legacyHomeDir || !testProjectDir) {
             throw new Error('Integration environment not initialized');
         }
 
-        const agentEnv = agentEnvVars(integrationConfig.serverPort, agentHomeDir);
+        const agentEnv = agentEnvVars(integrationConfig.serverPort, agentHomeDir, legacyHomeDir);
         const prompt = 'Reply with exactly: codex resume ready';
         const spawnResult = parseJson<{
             type: 'success' | 'requestToApproveDirectoryCreation' | 'error';
@@ -702,11 +776,11 @@ describe('happy-agent integration', { timeout: 180_000 }, () => {
     });
 
     it('spawns Codex, applies yolo permissions via message metadata, and creates a file in the test project', async () => {
-        if (!activeMachineId || !integrationConfig || !agentHomeDir || !testProjectDir) {
+        if (!activeMachineId || !integrationConfig || !agentHomeDir || !legacyHomeDir || !testProjectDir) {
             throw new Error('Integration environment not initialized');
         }
 
-        const agentEnv = agentEnvVars(integrationConfig.serverPort, agentHomeDir);
+        const agentEnv = agentEnvVars(integrationConfig.serverPort, agentHomeDir, legacyHomeDir);
         const proofFile = join(testProjectDir, 'codex-yolo-proof.txt');
         const prompt = 'Run a shell command to create ./codex-yolo-proof.txt with the exact contents yolo-codex-ok, then finish.';
 

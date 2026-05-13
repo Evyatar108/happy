@@ -1,5 +1,9 @@
 # happy-agent CLI Tool
 
+> **Status: Historical — Superseded.** This document captures the original `happy-agent` implementation plan (QR-code account auth, `~/.happy/agent.key`, `HAPPY_HOME_DIR`, `qrcode-terminal` dependency) and is preserved as a historical record. The Sprint C Dev Tunnels migration has replaced that flow with GitHub device-flow authentication, per-machine Dev Tunnel pairing data, `~/.happy-agent/credentials.json`, and the `HAPPY_AGENT_HOME_DIR` environment variable.
+>
+> For the current authentication, credential storage, and environment-variable story, see `packages/happy-agent/README.md`. For the migration design, see the Sprint C Dev Tunnels migration plan.
+
 ## Overview
 A new standalone CLI tool (`happy-agent`) in `packages/happy-agent` that acts as a dedicated client for controlling Happy Coder agents remotely. Unlike `happy-cli` which both runs and controls agents, `happy-agent` only controls them — listing machines, spawning sessions on a machine, creating sessions, sending messages, reading history, monitoring state, and stopping sessions.
 

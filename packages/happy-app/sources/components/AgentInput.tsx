@@ -1,7 +1,6 @@
 import { Ionicons, Octicons } from '@expo/vector-icons';
 import * as React from 'react';
 import { View, Platform, useWindowDimensions, ViewStyle, Text, ActivityIndicator, TouchableWithoutFeedback, Image as RNImage, Pressable } from 'react-native';
-import { Image } from 'expo-image';
 import { MultiTextInput, KeyPressEvent } from './MultiTextInput';
 import { Typography } from '@/constants/Typography';
 import { PermissionMode, ModelMode } from './PermissionModeSelector';
@@ -44,8 +43,6 @@ interface AgentInputProps {
     sessionId?: string;
     onSend: (switchMode: 'now' | 'when-idle', attachments: readonly FileAttachment[]) => void | boolean | Promise<void | boolean>;
     sendIcon?: React.ReactNode;
-    onMicPress?: () => void;
-    isMicActive?: boolean;
     permissionMode?: PermissionMode | null;
     availableModes?: PermissionMode[];
     onPermissionModeChange?: (mode: PermissionMode) => void;
@@ -549,7 +546,6 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
 
     const hasText = props.value.trim().length > 0;
     const hasSendableContent = hasText || attachmentCount > 0;
-    const canUseMic = renderConfig.showActiveToolbarControls && !!props.onMicPress;
 
     // Check if this is a Codex, Gemini, or OpenClaw session
     // Use metadata.flavor for existing sessions, agentType prop for new sessions
@@ -609,7 +605,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
     const canPressSendButton = !props.isSending
         && !props.isSendDisabled
         && !isSendPending
-        && (isSendBlocked ? hasSendableContent : (hasSendableContent || renderConfig.allowEmptySend || canUseMic));
+        && (isSendBlocked ? hasSendableContent : hasSendableContent);
 
     // Abort button state
     const [isAborting, setIsAborting] = React.useState(false);
@@ -788,10 +784,10 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
         hapticsLight();
         if (hasSendableContent || renderConfig.allowEmptySend) {
             submitSend('now');
-        } else if (canUseMic) {
-            props.onMicPress?.();
+        } else {
+            return;
         }
-    }, [canUseMic, handleBlockedSendAttempt, hasSendableContent, isSendBlocked, props, renderConfig.allowEmptySend, submitSend]);
+    }, [handleBlockedSendAttempt, hasSendableContent, isSendBlocked, props, renderConfig.allowEmptySend, submitSend]);
 
     const handleSendWhenIdlePress = React.useCallback(() => {
         if (isSendBlocked) {
@@ -1837,12 +1833,12 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                 )}
                                 </View>
 
-                                {/* Send/Voice button - aligned with first row */}
+                                {/* Send button - aligned with first row */}
                                 <View
                                     style={[
                                         styles.sendButton,
                                         isSendBlocked ? styles.sendButtonLocked :
-                                        (hasSendableContent || props.isSending || (canUseMic && !props.isMicActive))
+                                        (hasSendableContent || props.isSending)
                                             ? styles.sendButtonActive
                                             : styles.sendButtonInactive
                                     ]}
@@ -1858,7 +1854,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                         hitSlop={{ top: 5, bottom: 10, left: 0, right: 0 }}
                                         onPress={handleSendPress}
                                         disabled={!canPressSendButton}
-                                        testID={!hasSendableContent && canUseMic && !props.isMicActive ? 'agent-input-voice-mic' : 'agent-input-send'}
+                                        testID="agent-input-send"
                                     >
                                         {props.isSending ? (
                                             <ActivityIndicator
@@ -1881,17 +1877,6 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                                     { marginTop: Platform.OS === 'web' ? 2 : 0 }
                                                 ]}
                                             />
-                                        ) : canUseMic && !props.isMicActive ? (
-                                            props.sendIcon ?? (
-                                                <Image
-                                                    source={require('@/assets/images/icon-voice-white.png')}
-                                                    style={{
-                                                        width: 24,
-                                                        height: 24,
-                                                    }}
-                                                    tintColor={theme.colors.button.primary.tint}
-                                                />
-                                            )
                                         ) : (
                                             <Octicons
                                                 name="arrow-up"

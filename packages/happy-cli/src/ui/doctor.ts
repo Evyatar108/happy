@@ -7,7 +7,7 @@
 
 import chalk from 'chalk'
 import { configuration } from '@/configuration'
-import { readSettings, readCredentials } from '@/persistence'
+import { readSettings, readCredentials, readMachineState } from '@/persistence'
 import { checkIfDaemonRunningAndCleanupStaleState } from '@/daemon/controlClient'
 import { findAllHappyProcesses } from '@/daemon/doctor'
 import { readDaemonState } from '@/persistence'
@@ -32,7 +32,6 @@ export function getEnvironmentInfo(): Record<string, any> {
         workingDirectory: process.cwd(),
         processArgv: process.argv,
         happyDir: configuration?.happyHomeDir,
-        serverUrl: configuration?.serverUrl,
         logsDir: configuration?.logsDir,
         processPid: process.pid,
         nodeVersion: process.version,
@@ -68,33 +67,42 @@ function getLogFiles(logDir: string): { file: string, path: string, modified: Da
  * Slim daemon status output for `happy daemon status`
  */
 export async function runDoctorDaemon(): Promise<void> {
-    console.log(chalk.bold('\n🤖 Daemon Status'));
     try {
         const isRunning = await checkIfDaemonRunningAndCleanupStaleState();
         const state = await readDaemonState();
 
         if (isRunning && state) {
-            console.log(chalk.green('✓ Daemon is running'));
-            console.log(`  PID:     ${state.pid}`);
-            console.log(`  Port:    ${state.httpPort}`);
-            console.log(`  Started: ${new Date(state.startTime).toLocaleString()}`);
+            const machineState = await readMachineState();
+            const uptime = Number.isNaN(Date.parse(state.startTime))
+                ? '<unknown>'
+                : formatDuration(Date.now() - Date.parse(state.startTime));
+            console.log(chalk.green(`Daemon running (PID: ${state.pid})`));
             console.log(`  Version: ${state.startedWithCliVersion}`);
+            console.log(`  Uptime: ${uptime}`);
+            console.log(`  Machine ID: ${machineState?.machineId ?? '<unknown>'}`);
+            console.log(`  Tunnel Port: ${machineState?.tunnelPort ?? '<unknown>'}`);
+            console.log(`  Loopback Port: ${machineState?.loopbackPort ?? '<unknown>'}`);
+            console.log(`  Tunnel URL: ${machineState != null ? (machineState.lastTunnelUrl ?? '<none>') : '<unknown>'}`);
+            console.log(`  HTTP Control Port: ${state.httpPort}`);
+            console.log(`  Log: ${state.daemonLogPath ?? '<unknown>'}`);
         } else if (state && !isRunning) {
             console.log(chalk.yellow('⚠️  Daemon state exists but process not running (stale)'));
         } else {
             console.log(chalk.red('❌ Daemon is not running'));
         }
-
-        if (state) {
-            console.log(chalk.bold('\n📄 Daemon State:'));
-            console.log(chalk.blue(`Location: ${configuration.daemonStateFile}`));
-            console.log(chalk.gray(JSON.stringify(state, null, 2)));
-        }
     } catch (error) {
         console.log(chalk.red('❌ Error checking daemon status'));
     }
+}
 
-    console.log(chalk.gray('\nRun `happy doctor` for full diagnostics.\n'));
+function formatDuration(ms: number): string {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+    if (minutes > 0) return `${minutes}m ${seconds}s`;
+    return `${seconds}s`;
 }
 
 /**
@@ -235,7 +243,8 @@ export async function runDoctorCommand(): Promise<void> {
     // Configuration
     console.log(chalk.bold('\n⚙️  Configuration'));
     console.log(`Happy Home: ${chalk.blue(configuration.happyHomeDir)}`);
-    console.log(`Server URL: ${chalk.blue(configuration.serverUrl)}`);
+    const machineState = await readMachineState();
+    console.log(`Daemon Tunnel URL: ${chalk.blue(machineState?.lastTunnelUrl ?? '<unknown>')}`);
     console.log(`Logs Dir: ${chalk.blue(configuration.logsDir)}`);
 
     // Authentication

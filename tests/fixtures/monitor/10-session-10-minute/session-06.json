@@ -1,0 +1,149 @@
+{
+  "sessionId": "session-06",
+  "samples": [
+    {
+      "timestamp": "2026-05-10T20:00:00.000Z",
+      "expectedSignals": {
+        "active": true,
+        "pendingPermission": false,
+        "hasValidationEvidence": false
+      },
+      "metadata": {
+        "turnActive": true,
+        "summary": "stale summary 06"
+      },
+      "agentState": {
+        "controlledByUser": false,
+        "requests": {}
+      },
+      "messages": [
+        {
+          "content": {
+            "role": "tool",
+            "content": {
+              "type": "tool-result",
+              "result": "stale tool 06"
+            }
+          }
+        },
+        {
+          "content": {
+            "role": "assistant",
+            "content": {
+              "type": "text",
+              "text": "active output 06"
+            }
+          }
+        }
+      ],
+      "expectedLastOutput": "active output 06"
+    },
+    {
+      "timestamp": "2026-05-10T20:03:00.000Z",
+      "expectedSignals": {
+        "active": false,
+        "pendingPermission": false,
+        "hasValidationEvidence": false
+      },
+      "metadata": {
+        "turnActive": false,
+        "summary": "stale summary 06"
+      },
+      "agentState": {
+        "controlledByUser": false,
+        "requests": {}
+      },
+      "messages": [
+        {
+          "content": {
+            "role": "assistant",
+            "content": {
+              "type": "text",
+              "text": "idle output 06"
+            }
+          }
+        }
+      ],
+      "expectedLastOutput": "idle output 06"
+    },
+    {
+      "timestamp": "2026-05-10T20:06:00.000Z",
+      "expectedSignals": {
+        "active": true,
+        "pendingPermission": true,
+        "hasValidationEvidence": false
+      },
+      "metadata": {
+        "turnActive": false,
+        "summary": "stale summary 06"
+      },
+      "agentState": {
+        "controlledByUser": false,
+        "requests": {
+          "approve-06": {}
+        }
+      },
+      "messages": [
+        {
+          "content": {
+            "role": "tool",
+            "content": {
+              "type": "tool-result",
+              "result": "permission tool 06"
+            }
+          }
+        },
+        {
+          "content": {
+            "role": "assistant",
+            "content": {
+              "type": "text",
+              "text": "permission output 06"
+            }
+          }
+        }
+      ],
+      "expectedLastOutput": "permission output 06"
+    },
+    {
+      "timestamp": "2026-05-10T20:09:00.000Z",
+      "expectedSignals": {
+        "active": false,
+        "pendingPermission": false,
+        "hasValidationEvidence": true
+      },
+      "metadata": {
+        "turnActive": false,
+        "summary": "stale summary 06"
+      },
+      "agentState": {
+        "controlledByUser": false,
+        "requests": {}
+      },
+      "ledgerRecords": [
+        {
+          "runId": "run-fixture",
+          "sessionId": "session-06",
+          "timestamp": "2026-05-10T20:09:00.000Z",
+          "eventType": "done",
+          "scopeSummary": "done",
+          "testReference": "fixture",
+          "verificationUrl": "https://example.com/session-06",
+          "caveats": []
+        }
+      ],
+      "messages": [
+        {
+          "content": {
+            "role": "assistant",
+            "content": {
+              "type": "text",
+              "text": "validated output 06"
+            }
+          }
+        }
+      ],
+      "expectedLastOutput": "validated output 06"
+    }
+  ]
+}

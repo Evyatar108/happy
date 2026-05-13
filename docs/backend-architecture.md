@@ -49,7 +49,7 @@ graph TB
 - Database: PGlite (embedded Postgres) by default via Prisma; external Postgres is opt-in for the standalone deployment shape.
 - Cache/bus: Redis is optional. When `REDIS_URL` is set, the Socket.IO Redis-streams adapter is enabled for multi-process fan-out. In the embedded per-machine deployment Redis is not used.
 - Blob storage: local filesystem (`<dataDir>/files`) by default; S3-compatible storage is opt-in when `S3_HOST` and friends are set.
-- Auth: TOFU handshake middleware that verifies a `X-Tunnel-Authorization: tunnel <base64url-claim>` header against the `localUserId` and `iat` from the embedded server's configuration.
+- Auth: TOFU handshake middleware verifies `X-Tunnel-Authorization: tunnel <base64url-claim>` against the embedded server identity, one-hour `exp`, and replay-protected `jti`. Private Dev Tunnels gateway access is carried separately by `X-Tunnel-Connect`.
 - Crypto: privacy-kit `KeyTree` derived from the per-machine `HANDY_MASTER_SECRET` (set by `createHappyServer()` from the configured `machineKey`). Used only for server-side service-token storage.
 - Push: Expo push notifications are delivered directly from happy-server via `sendSessionPushEvent` to tokens stored per (machineId, deviceId).
 - Metrics: Prometheus-style `/metrics` server + per-request HTTP metrics.
@@ -99,7 +99,7 @@ Startup sequence (inside `handle.start()` → `configure()`):
    - `initEncrypt()` derives a KeyTree from `HANDY_MASTER_SECRET` for service-token encryption.
    - `initGithub()` configures the GitHub App / device-flow integration if env vars exist.
    - `loadFiles()` ensures the local files directory exists (or verifies S3 bucket access when S3 is configured).
-   - `auth.init()` prepares the legacy persistent token generator/verifier still used internally by feed/social helpers; it no longer authenticates HTTP requests.
+   - `auth.init()` prepares legacy internal auth helpers; it no longer authenticates HTTP requests.
 5. `startActivityCache()` starts the in-memory presence cache and its batch/cleanup timers.
 6. `configureApi(app, tofuConfig)` registers all routes, sockets, and the TOFU `authenticate` decorator on the Fastify instance.
 7. `app.listen({ port, host })` binds to the configured loopback address (default `127.0.0.1`).
@@ -128,15 +128,11 @@ graph LR
             direction TB
             R1[pairRoutes]
             R2[sessionRoutes]
-            R3[machinesRoutes]
-            R4[artifactsRoutes]
-            R5[accessKeysRoutes]
-            R6[kvRoutes]
-            R7[userRoutes / feedRoutes]
-            R8[pushRoutes]
-            R9[voiceRoutes]
-            R10[v3SessionRoutes]
-            R11[versionRoutes / devRoutes]
+            R3[accountRoutes]
+            R4[machineSelfRoutes]
+            R5[pushRoutes]
+            R6[v3SessionRoutes]
+            R7[versionRoutes / devRoutes]
         end
     end
 
@@ -147,19 +143,14 @@ graph LR
 ```
 
 HTTP routes are organized by domain:
-- Pairing (`pairRoutes`) — GitHub device-flow + TOFU handshake replacement for the old auth/connect flow
-- Sessions + messages (`sessionRoutes`, `v3SessionRoutes`)
-- Machines (`machinesRoutes`)
-- Artifacts (`artifactsRoutes`)
-- Access keys (`accessKeysRoutes`)
-- Key-value store (`kvRoutes`)
-- Social + feed (`userRoutes`, `feedRoutes`)
-- Push tokens (`pushRoutes`)
-- Voice (`voiceRoutes`)
-- Version checks (`versionRoutes`)
-- Dev-only logging (`devRoutes`)
+- Pairing (`pairRoutes`) - GitHub device-flow + TOFU handshake replacement for the old auth/connect flow.
+- Self/account state (`accountRoutes`, `machineSelfRoutes`) - paired profile, local settings, and current machine state under `/v2/me/*`.
+- Sessions + messages (`sessionRoutes`, `v3SessionRoutes`).
+- Push tokens (`pushRoutes`).
+- Version checks (`versionRoutes`).
+- Dev-only logging (`devRoutes`).
 
-The old `authRoutes`, `connectRoutes`, and `accountRoutes` have been removed entirely. Multi-tenant account creation, GitHub OAuth-via-server callback, and challenge-based Bearer issuance no longer exist on the server.
+Sprint E removed the obsolete route modules for artifacts, access keys, key-value store, users/friends/feed, voice, and the server-side machine directory. Multi-tenant account creation, GitHub OAuth-via-server callback, and challenge-based Bearer issuance no longer exist on the server.
 
 ## Authentication and pairing
 
@@ -176,30 +167,31 @@ sequenceDiagram
 
     Note over Mobile: User enters user_code on github.com
 
-    Mobile->>Server: POST /pair/status (device_code, mobileEcdhPublicKey)
+    Mobile->>Server: POST /pair/status (device_code)
     Server->>GH: POST /login/oauth/access_token
     GH-->>Server: access_token (or pending)
     Server->>GH: GET /user
     GH-->>Server: { login }
     Server->>Server: Optional: enforce HAPPY_TUNNEL_GITHUB_OWNER match
-    Server->>Server: ECDH: nacl.box.before(mobilePub, x25519SecretKey)
-    Server-->>Mobile: machines[{ machineId, tunnelUrl, ed25519PublicKey, x25519PublicKey, ed25519Fingerprint, tunnelClaim }]
+    Server->>Server: Sign Happy envelope: ed25519.sign(payload{sub,iat,exp,jti})
+    Server-->>Mobile: machines[{ machineId, tunnelUrl, ed25519PublicKey, ed25519Fingerprint, tunnelClaim }]
 
     Note over Mobile,Server: Subsequent requests
 
     Mobile->>Server: Request + X-Tunnel-Authorization: tunnel <base64url-claim>
-    Server->>Server: authenticate decorator: parse claim, check sub == localUserId, iat within 24h
+    Server->>Server: authenticate decorator: verify ed25519 sig, check sub == localUserId, exp + jti replay protection, 1h max TTL
     Server-->>Mobile: Response
 ```
 
 The backend does not store accounts or passwords. Pairing happens entirely through GitHub's device flow plus TOFU pubkey pinning:
 
 - `GET /pair/start` proxies to GitHub's `/login/device/code` and returns the user code + verification URI.
-- `POST /pair/status` polls GitHub for the access token, fetches the GitHub user, optionally enforces `HAPPY_TUNNEL_GITHUB_OWNER`, and returns the embedded server's TOFU public keys (Ed25519 + X25519) along with an unsigned `tunnelClaim` (base64url-encoded JSON of `{ sub, gh, iat }`). The mobile client trust-on-first-use pins the Ed25519 key and stores the claim.
-- If the mobile client supplied an X25519 ECDH public key, the server completes `nacl.box.before` against its own `x25519SecretKey` and returns the resulting shared secret in the response body as `machines[0].mobileSharedSecret` (base64). The mobile client stores it locally per-pairing; the server keeps no per-pairing state in the singleton `tofuConfig`.
-- All subsequent HTTP and WebSocket calls present `X-Tunnel-Authorization: tunnel <claim>`. The `authenticate` decorator and Socket.IO middleware base64url-decode the claim, require `payload.sub === tofuConfig.localUserId`, and reject claims older than 86400 seconds.
+- `POST /pair/status` polls GitHub for the access token, fetches the GitHub user, optionally enforces `HAPPY_TUNNEL_GITHUB_OWNER`, and returns the embedded server's TOFU public keys (Ed25519 + X25519) along with a signed `tunnelClaim` - a base64url-encoded envelope `{ p: base64url(payload), s: hex(ed25519-signature) }` where payload is `{ sub, iat, exp, jti, accountId? }`. The mobile client trust-on-first-use pins the Ed25519 key and stores the claim.
+- All subsequent HTTP and WebSocket calls present `X-Tunnel-Authorization: tunnel <claim>`. The `authenticate` decorator and Socket.IO middleware base64url-decode the claim, require `payload.sub === tofuConfig.localUserId`, enforce `exp`, and reject replayed `jti` values.
 
-The TOFU claim is deliberately unsigned. The transport security boundary is the Microsoft Dev Tunnel + the pinned TOFU public key on the mobile side; the claim is an identity assertion bound to a specific embedded server instance.
+The claim is Ed25519-signed by the embedded server. Tunnel-facing routes and Socket.IO middleware base64url-decode the envelope, verify the signature against the configured Ed25519 public key, then check `sub === localUserId`, enforce `exp`, and reject replayed `jti` values from the in-memory cache. Optional `accountId` carries the GitHub numeric user id.
+
+The refresh-per-request model is intentional: app and agent callers refresh the Happy claim before protected HTTP calls and Socket.IO handshakes, while `X-Tunnel-Connect` carries the private-tunnel gateway token independently.
 
 The legacy `auth` module (`sources/app/auth/auth.ts`) still exists and is initialized at startup, but it is no longer used to authenticate HTTP requests. It is retained for internal helpers (e.g., the GitHub ephemeral token used by integrations) and for the standalone deployment shape.
 
@@ -245,13 +237,13 @@ The Socket.IO middleware in `sources/app/api/socket.ts` enforces the same TOFU c
 ### Event router
 `EventRouter` (`sources/app/events/eventRouter.ts`) maintains per-user connection sets and routes:
 - **Persistent `update` events**: database-backed changes with a user-level monotonic `seq`.
-- **Ephemeral events**: presence/usage signals that are not persisted.
+- **Ephemeral events**: presence signals that are not persisted.
 
 The router implements recipient filters so updates go only to interested connections (e.g., all session listeners or a specific machine).
 
 ### Update sequence numbers
 - A per-user `seq` counter is allocated by `allocateUserSeq` and used as `UpdatePayload.seq`. There is no longer an `Account` row backing it; in the single-tenant schema the counter is maintained by the seq helper.
-- Sessions, machines, and artifacts maintain their own `seq` for per-object ordering.
+- Sessions and machines maintain their own `seq` for per-object ordering.
 
 ### Multi-process Redis adapter (optional)
 When `REDIS_URL` is set, `startSocket()` attaches `@socket.io/redis-streams-adapter` so multiple server processes can share Socket.IO state and a `redisStreamLagMsGauge` metric tracks reader lag. The embedded per-machine deployment never sets `REDIS_URL`, so this code path is dormant.
@@ -299,9 +291,6 @@ The schema in `prisma/schema.prisma` is single-tenant — there is no `Account`,
 ```mermaid
 erDiagram
     Session ||--o{ SessionMessage : contains
-    Session ||--o{ AccessKey : grants
-    Session ||--o{ UsageReport : tracks
-    Machine ||--o{ AccessKey : receives
     Machine ||--o{ PushToken : has
 
     Session {
@@ -338,55 +327,12 @@ erDiagram
         string expoPushToken
     }
 
-    Artifact {
-        string id
-        bytes header
-        bytes body
-        bytes dataEncryptionKey
-        int seq
-    }
-
-    AccessKey {
-        string id
-        string machineId
-        string sessionId
-        string data
-    }
-
-    UserKVStore {
-        string id
-        string key
-        bytes value
-        int version
-    }
-
-    UserFeedItem {
-        string id
-        bigint counter
-        string repeatKey
-        json body
-    }
-
-    UsageReport {
-        string id
-        string key
-        string sessionId
-        json data
-    }
 ```
 
 Key tables:
 - `Session` + `SessionMessage`: encrypted session metadata and message blobs.
 - `Machine`: encrypted machine metadata + daemon state for the local machine and any peer machines.
 - `PushToken`: per-`(machineId, deviceId)` Expo push tokens. The previous `AccountPushToken` model has been replaced by this single-tenant table.
-- `Artifact`: encrypted header/body + per-artifact key.
-- `AccessKey`: encrypted per-session-per-machine access keys.
-- `UserKVStore`: encrypted values with optimistic versions.
-- `UserFeedItem`: feed entries (still used for social/feed updates within the single-tenant scope).
-- `UsageReport`: usage aggregation per session/key.
-- `TerminalAuthRequest` / `AccountAuthRequest`: legacy challenge tables retained for backward compatibility with older CLI flows; no longer participate in mobile pairing.
-- `ServiceAccountToken`: encrypted vendor tokens (OpenAI, Anthropic, Gemini, GitHub) keyed by vendor.
-- `GithubOrganization`: per-org metadata used by the GitHub integration.
 
 ### Transactions and retries
 
@@ -410,13 +356,12 @@ flowchart TD
 - Automatic retry on `P2034` (serialization failures).
 - `afterTx()` to emit socket updates after commit.
 
-This pattern is used for multi-write operations like batch KV mutation and session deletion.
+This pattern is used for multi-write operations like session deletion.
 
 ### Blob storage (local-first)
 The default storage backend is the local filesystem under `<dataDir>/files`:
 - `storage/files.ts` exposes `configureFiles({ dataDir, publicUrl, s3? })`. With no `s3` config, `useLocalStorage` is `true` and `loadFiles()` simply ensures the local directory exists.
 - A `/files/*` route is registered on the Fastify instance when local storage is in use, serving files within the configured directory.
-- `uploadImage` writes assets to disk and records metadata in `UploadedFile`.
 
 S3-compatible storage is opt-in. Provide an `s3` block (or set `S3_HOST`/`S3_BUCKET`/`S3_PUBLIC_URL`/etc.) and the same module switches to MinIO-style uploads with public URLs derived from `S3_PUBLIC_URL`.
 
@@ -441,40 +386,27 @@ graph TB
         C2[Agent state]
         C3[Daemon state]
         C4[Message content]
-        C5[Artifacts]
-        C6[KV values]
     end
 
     subgraph "Server-side Encryption"
         S1[GitHub OAuth tokens]
-        S2[OpenAI tokens]
-        S3[Anthropic tokens]
-        S4[Gemini tokens]
     end
 
-    C1 & C2 & C3 & C4 & C5 & C6 --> |opaque blobs| DB[(PGlite)]
-    S1 & S2 & S3 & S4 --> |KeyTree from HANDY_MASTER_SECRET| DB
+    C1 & C2 & C3 & C4 --> |opaque blobs| DB[(PGlite)]
+    S1 --> |KeyTree from HANDY_MASTER_SECRET| DB
 
     style C1 fill:#e1f5fe
     style C2 fill:#e1f5fe
     style C3 fill:#e1f5fe
     style C4 fill:#e1f5fe
-    style C5 fill:#e1f5fe
-    style C6 fill:#e1f5fe
     style S1 fill:#fff3e0
-    style S2 fill:#fff3e0
-    style S3 fill:#fff3e0
-    style S4 fill:#fff3e0
 ```
 
 - Session metadata, agent state, daemon state, and message content are stored as opaque encrypted strings or blobs.
-- Artifacts and KV values are stored encrypted and encoded as base64 on the wire.
-- The server only encrypts/decrypts **service tokens** (GitHub OAuth tokens, vendor tokens) using the KeyTree derived from `HANDY_MASTER_SECRET`. In the embedded deployment that secret is the per-machine `machineKey` configured by `happy-cli`, not a shared cloud master.
+- The server only encrypts/decrypts GitHub OAuth material it owns using the KeyTree derived from `HANDY_MASTER_SECRET`. In the embedded deployment that secret is the per-machine `machineKey` configured by `happy-cli`, not a shared cloud master.
 
 ## Integrations
 - **GitHub**: device-flow OAuth used inside `pairRoutes` to authenticate the operator and (optionally) enforce ownership via `HAPPY_TUNNEL_GITHUB_OWNER`. The legacy multi-tenant GitHub callback / connect flow is no longer wired into HTTP routes.
-- **AI vendors**: encrypted token storage for `openai`, `anthropic`, `gemini` via `ServiceAccountToken`.
-- **Voice**: RevenueCat subscription check + ElevenLabs token minting (still bearer-based against the upstream services because those credentials are not Happy-relay credentials).
 - **Push tokens**: stored per `(machineId, deviceId)` for direct Expo delivery.
 
 ## Observability

@@ -2,11 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Session } from './storageTypes';
 import type { NormalizedMessage } from './typesRaw';
 
-vi.mock('@/realtime/RealtimeSession', () => ({
-    getCurrentRealtimeSessionId: () => null,
-    getVoiceSession: () => null,
-}));
-
 vi.mock('@/utils/sessionUtils', () => ({
     getSessionName: () => 'Test Session',
     getSessionSubtitle: () => 'Test Project',
@@ -32,7 +27,6 @@ vi.mock('./projectManager', () => ({
 
 vi.mock('./sync', () => ({
     sync: {
-        assumeUsers: vi.fn(async () => undefined),
         applySettings: vi.fn(),
     },
 }));

@@ -198,7 +198,7 @@ Both `ghu_` (GitHub App device flow) and `gho_` (OAuth App, `gh` CLI) accepted b
 Every HTTP request made by happy-app to `getServerUrl()` must carry `X-Tunnel-Authorization: tunnel <JWT>` when the endpoint is a tunnel URL. This includes:
 
 - `authQRStart.ts:30`, `authQRWait.ts:23`, `authGetToken.ts:10` — pairing/QR auth flow
-- All REST calls in `sync.ts` (`/v1/sessions`, `/v1/machines`, `/v1/kv`, etc.)
+- All REST calls in `sync.ts` (`/v1/sessions`, `[deleted machine directory route]`, `[deleted key-value route]`, etc.)
 - Socket.IO handshake (already handled via `extraHeaders`)
 
 **Required addition:** a transport state model and header injection layer.

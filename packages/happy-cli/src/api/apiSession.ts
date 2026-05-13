@@ -5,12 +5,12 @@ import { AgentState, ClientToServerEvents, MessageMeta, Metadata, ServerToClient
 import { decodeBase64, decrypt, encodeBase64, encrypt } from './encryption';
 import { backoff, delay } from '@/utils/time';
 import { configuration } from '@/configuration';
+import * as daemonClient from '@/daemon/daemonClient';
 import { RawJSONLines } from '@/claude/types';
 import { randomUUID } from 'node:crypto';
 import { AsyncLock } from '@/utils/lock';
 import { RpcHandlerManager } from './rpc/RpcHandlerManager';
 import { registerCommonHandlers } from '../modules/common/registerCommonHandlers';
-import { calculateCost } from '@/utils/pricing';
 import { shouldReconnect } from '@/utils/lidState';
 import {
     createEnvelope,
@@ -27,7 +27,7 @@ import {
 } from '@/claude/utils/sessionProtocolMapper';
 import { normalizeSessionLogMessage } from '@/claude/utils/normalizeSessionLogMessage';
 import { InvalidateSync } from '@/utils/sync';
-import axios from 'axios';
+
 
 const CONSUMPTION_ACK_TIMEOUT_MS = (() => {
     const raw = process.env.HAPPY_CONSUMPTION_ACK_TIMEOUT_MS;
@@ -184,7 +184,8 @@ export class ApiSessionClient extends EventEmitter {
     private metadataVersion: number;
     private agentState: AgentState | null;
     private agentStateVersion: number;
-    private socket: Socket<ServerToClientEvents, ClientToServerEvents>;
+    private socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
+    private socketReady: Promise<void>;
     private pendingMessages: UserMessage[] = [];
     private pendingMessageCallback: ((message: UserMessage) => void) | null = null;
     private pendingAgentConfigurations: AgentConfiguration[] = [];
@@ -217,6 +218,15 @@ export class ApiSessionClient extends EventEmitter {
     private readonly sendSync: InvalidateSync;
     private readonly receiveSync: InvalidateSync;
 
+    private socketAuthBase() {
+        return {
+            token: this.token,
+            clientType: 'session-scoped' as const,
+            sessionId: this.sessionId,
+            happyClient: `cli-coding-session/${configuration.currentCliVersion}`
+        };
+    }
+
     constructor(token: string, session: Session) {
         super()
         this.token = token;
@@ -234,23 +244,22 @@ export class ApiSessionClient extends EventEmitter {
         // Initialize RPC handler manager
         this.rpcHandlerManager = new RpcHandlerManager({
             scopePrefix: this.sessionId,
-            encryptionKey: this.encryptionKey,
-            encryptionVariant: this.encryptionVariant,
             logger: (msg, data) => logger.debug(msg, data)
         });
         registerCommonHandlers(this.rpcHandlerManager, this.metadata.path);
 
         //
-        // Create socket
+        // Connect (deferred until tunnel URL is resolved)
         //
 
-        this.socket = io(configuration.serverUrl, {
-            auth: {
-                token: this.token,
-                clientType: 'session-scoped' as const,
-                sessionId: this.sessionId,
-                happyClient: `cli-coding-session/${configuration.currentCliVersion}`
-            },
+        this.socketReady = this.connectWithFreshTunnelAuth().catch((error) => {
+            logger.debug('[API] Failed to prepare initial tunnel socket auth:', error);
+        });
+    }
+
+    private buildSocket(url: string, auth: object): Socket<ServerToClientEvents, ClientToServerEvents> {
+        const socket = io(url, {
+            auth,
             path: '/v1/updates',
             reconnection: false,
             transports: ['websocket'],
@@ -258,38 +267,33 @@ export class ApiSessionClient extends EventEmitter {
             autoConnect: false
         });
 
-        //
-        // Handlers
-        //
-
-        this.socket.on('connect', () => {
+        socket.on('connect', () => {
             logger.debug('Socket connected successfully');
             if (this.reconnectInterval) {
                 clearInterval(this.reconnectInterval);
                 this.reconnectInterval = null;
             }
-            this.rpcHandlerManager.onSocketConnect(this.socket);
+            this.rpcHandlerManager.onSocketConnect(socket);
             this.receiveSync.invalidate();
-        })
+        });
 
-        // Set up global RPC request handler
-        this.socket.on('rpc-request', async (data: { method: string, params: string }, callback: (response: string) => void) => {
+        socket.on('rpc-request', async (data: { method: string, params: unknown }, callback: (response: unknown) => void) => {
             callback(await this.rpcHandlerManager.handleRequest(data));
-        })
+        });
 
-        this.socket.on('disconnect', (reason) => {
+        socket.on('disconnect', (reason) => {
             logger.debug(`[API] Socket disconnected: ${reason}`);
             this.rpcHandlerManager.onSocketDisconnect();
             this.startSmartReconnect();
-        })
+        });
 
-        this.socket.on('connect_error', (error) => {
+        socket.on('connect_error', (error) => {
             logger.debug('[API] Socket connection error:', error);
             this.rpcHandlerManager.onSocketDisconnect();
-        })
+            this.startSmartReconnect();
+        });
 
-        // Server events
-        this.socket.on('update', (data: Update) => {
+        socket.on('update', (data: Update) => {
             try {
                 logger.debugLargeJson('[SOCKET] [UPDATE] Received update:', data);
 
@@ -321,7 +325,6 @@ export class ApiSessionClient extends EventEmitter {
                         this.metadata = nextMetadata;
                         this.metadataVersion = data.body.metadata.version;
                         this.routeAgentConfigurationIfChanged(nextMetadata);
-                        // Check if session was archived from web/mobile
                         const meta = this.metadata as any;
                         if (meta?.lifecycleState === 'archiveRequested' || meta?.lifecycleState === 'archived') {
                             if (this.ignoreArchiveSignal) {
@@ -339,10 +342,8 @@ export class ApiSessionClient extends EventEmitter {
                         this.agentStateVersion = data.body.agentState.version;
                     }
                 } else if (data.body.t === 'update-machine') {
-                    // Session clients shouldn't receive machine updates - log warning
                     logger.debug(`[SOCKET] WARNING: Session client received unexpected machine update - ignoring`);
                 } else {
-                    // If not a user message, it might be a permission response or other message type
                     this.emit('message', data.body);
                 }
             } catch (error) {
@@ -350,15 +351,24 @@ export class ApiSessionClient extends EventEmitter {
             }
         });
 
-        // DEATH
-        this.socket.on('error', (error) => {
+        socket.on('error', (error) => {
             logger.debug('[API] Socket error:', error);
         });
 
-        //
-        // Connect (after short delay to give a time to add handlers)
-        //
+        return socket;
+    }
 
+    private async connectWithFreshTunnelAuth(): Promise<void> {
+        const options = await daemonClient.tunnelSocketIOOptions();
+        const auth = {
+            ...this.socketAuthBase(),
+            ...options.auth,
+        };
+        if (this.socket) {
+            this.socket.removeAllListeners();
+            this.socket.disconnect();
+        }
+        this.socket = this.buildSocket(options.url, auth);
         this.socket.connect();
     }
 
@@ -533,19 +543,20 @@ export class ApiSessionClient extends EventEmitter {
 
         let afterSeq = this.lastSeq;
         while (true) {
-            const response = await axios.get<V3GetSessionMessagesResponse>(
-                `${configuration.serverUrl}/v3/sessions/${encodeURIComponent(this.sessionId)}/messages`,
-                {
-                    params: {
-                        after_seq: afterSeq,
-                        limit: 100
-                    },
-                    headers: this.authHeaders(),
-                    timeout: 60000
-                }
+            const params = new URLSearchParams({
+                after_seq: String(afterSeq),
+                limit: '100',
+            });
+            const response = await daemonClient.tunnelFetch(
+                `/v3/sessions/${encodeURIComponent(this.sessionId)}/messages?${params.toString()}`,
+                { headers: this.authHeaders() }
             );
+            if (!response.ok) {
+                throw new Error(`Failed to fetch session messages: ${response.status}`);
+            }
+            const data = await response.json() as V3GetSessionMessagesResponse;
 
-            const messages = Array.isArray(response.data.messages) ? response.data.messages : [];
+            const messages = Array.isArray(data.messages) ? data.messages : [];
             let maxSeq = afterSeq;
 
             for (const message of messages) {
@@ -575,7 +586,7 @@ export class ApiSessionClient extends EventEmitter {
             }
 
             this.lastSeq = Math.max(this.lastSeq, maxSeq);
-            const hasMore = !!response.data.hasMore;
+            const hasMore = !!data.hasMore;
             if (hasMore && maxSeq === afterSeq) {
                 logger.debug('[API] fetchMessages pagination stalled, stopping to avoid infinite loop', {
                     sessionId: this.sessionId,
@@ -600,18 +611,22 @@ export class ApiSessionClient extends EventEmitter {
             const batchStart = this.pendingOutbox.length - batchSize;
             const batch = this.pendingOutbox.slice(batchStart);
 
-            const response = await axios.post<V3PostSessionMessagesResponse>(
-                `${configuration.serverUrl}/v3/sessions/${encodeURIComponent(this.sessionId)}/messages`,
+            const response = await daemonClient.tunnelFetch(
+                `/v3/sessions/${encodeURIComponent(this.sessionId)}/messages`,
                 {
-                    messages: batch
-                },
-                {
+                    method: 'POST',
                     headers: this.authHeaders(),
-                    timeout: 60000
+                    body: JSON.stringify({
+                        messages: batch
+                    }),
                 }
             );
+            if (!response.ok) {
+                throw new Error(`Failed to flush session outbox: ${response.status}`);
+            }
+            const data = await response.json() as V3PostSessionMessagesResponse;
 
-            const messages = Array.isArray(response.data.messages) ? response.data.messages : [];
+            const messages = Array.isArray(data.messages) ? data.messages : [];
             const maxSeq = messages.reduce((acc, message) => (
                 message.seq > acc ? message.seq : acc
             ), this.lastSeq);
@@ -898,6 +913,7 @@ export class ApiSessionClient extends EventEmitter {
         kind: 'done' | 'permission' | 'question';
         data?: Record<string, unknown>;
     }) {
+        if (!this.socket) return;
         const mappedKind: 'status-change' | 'codex-finish' = event.kind === 'done' ? 'codex-finish' : 'status-change';
         const payload = {
             sid: this.sessionId,
@@ -916,6 +932,7 @@ export class ApiSessionClient extends EventEmitter {
      * Send a ping message to keep the connection alive
      */
     keepAlive(thinking: boolean, mode: 'local' | 'remote') {
+        if (!this.socket) return;
         if (process.env.DEBUG) { // too verbose for production
             logger.debug(`[API] Sending keep alive message: ${thinking}`);
         }
@@ -932,6 +949,7 @@ export class ApiSessionClient extends EventEmitter {
      */
     sendSessionDeath() {
         this.rejectPendingConsumptionAcks(new Error('Session ended before message consumption was observed'));
+        if (!this.socket) return;
         this.socket.emit('session-end', { sid: this.sessionId, time: Date.now() });
     }
 
@@ -939,30 +957,8 @@ export class ApiSessionClient extends EventEmitter {
      * Send usage data to the server
      */
     sendUsageData(usage: Usage, model?: string) {
-        // Calculate total tokens
-        const totalTokens = usage.input_tokens + usage.output_tokens + (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0);
-
-        const costs = calculateCost(usage, model);
-
-        // Transform Claude usage format to backend expected format
-        const usageReport = {
-            key: 'claude-session',
-            sessionId: this.sessionId,
-            tokens: {
-                total: totalTokens,
-                input: usage.input_tokens,
-                output: usage.output_tokens,
-                cache_creation: usage.cache_creation_input_tokens || 0,
-                cache_read: usage.cache_read_input_tokens || 0
-            },
-            cost: {
-                total: costs.total,
-                input: costs.input,
-                output: costs.output
-            }
-        }
-        logger.debugLargeJson('[SOCKET] Sending usage data:', usageReport)
-        this.socket.emit('usage-report', usageReport);
+        void usage;
+        void model;
     }
 
     /**
@@ -990,9 +986,12 @@ export class ApiSessionClient extends EventEmitter {
 
     updateMetadata(handler: (metadata: Metadata) => Metadata): Promise<void> {
         return this.metadataLock.inLock(async () => {
+            await this.socketReady;
             await backoff(async () => {
+                const socket = this.socket;
+                if (!socket) { throw new Error('socket not yet constructed'); }
                 let updated = handler(this.metadata!); // Weird state if metadata is null - should never happen but here we are
-                const answer = await this.socket.emitWithAck('update-metadata', { sid: this.sessionId, expectedVersion: this.metadataVersion, metadata: encodeBase64(encrypt(this.encryptionKey, this.encryptionVariant, updated)) });
+                const answer = await socket.emitWithAck('update-metadata', { sid: this.sessionId, expectedVersion: this.metadataVersion, metadata: encodeBase64(encrypt(this.encryptionKey, this.encryptionVariant, updated)) });
                 if (answer.result === 'success') {
                     this.metadata = decrypt(this.encryptionKey, this.encryptionVariant, decodeBase64(answer.metadata));
                     this.metadataVersion = answer.version;
@@ -1018,9 +1017,12 @@ export class ApiSessionClient extends EventEmitter {
     updateAgentState(handler: (metadata: AgentState) => AgentState) {
         logger.debugLargeJson('Updating agent state', this.agentState);
         this.agentStateLock.inLock(async () => {
+            await this.socketReady;
             await backoff(async () => {
+                const socket = this.socket;
+                if (!socket) { throw new Error('socket not yet constructed'); }
                 let updated = handler(this.agentState || {});
-                const answer = await this.socket.emitWithAck('update-state', { sid: this.sessionId, expectedVersion: this.agentStateVersion, agentState: updated ? encodeBase64(encrypt(this.encryptionKey, this.encryptionVariant, updated)) : null });
+                const answer = await socket.emitWithAck('update-state', { sid: this.sessionId, expectedVersion: this.agentStateVersion, agentState: updated ? encodeBase64(encrypt(this.encryptionKey, this.encryptionVariant, updated)) : null });
                 if (answer.result === 'success') {
                     this.agentState = answer.agentState ? decrypt(this.encryptionKey, this.encryptionVariant, decodeBase64(answer.agentState)) : null;
                     this.agentStateVersion = answer.version;
@@ -1047,11 +1049,12 @@ export class ApiSessionClient extends EventEmitter {
             this.sendSync.invalidateAndAwait(),
             delay(10000)
         ]);
-        if (!this.socket.connected) {
+        if (!this.socket || !this.socket.connected) {
             return;
         }
+        const socket = this.socket;
         return new Promise((resolve) => {
-            this.socket.emit('ping', () => {
+            socket.emit('ping', () => {
                 resolve();
             });
             setTimeout(() => {
@@ -1073,14 +1076,16 @@ export class ApiSessionClient extends EventEmitter {
             clearInterval(this.reconnectInterval);
             this.reconnectInterval = null;
         }
-        this.socket.close();
+        if (this.socket) {
+            this.socket.close();
+        }
     }
 
     private startSmartReconnect() {
         if (this.reconnectInterval) return;
 
         this.reconnectInterval = setInterval(() => {
-            if (this.socket.connected) {
+            if (this.socket?.connected) {
                 clearInterval(this.reconnectInterval!);
                 this.reconnectInterval = null;
                 return;
@@ -1090,12 +1095,20 @@ export class ApiSessionClient extends EventEmitter {
                 return;
             }
             logger.debug('[API] Attempting reconnect');
-            this.socket.connect();
+            void this.connectWithFreshTunnelAuth().catch((error) => {
+                logger.debug('[API] Failed to refresh tunnel auth before reconnect:', error);
+            });
         }, 3000);
 
         if (shouldReconnect()) {
             logger.debug('[API] Network up + lid open — reconnecting in 1s');
-            setTimeout(() => { if (!this.socket.connected) this.socket.connect() }, 1000);
+            setTimeout(() => {
+                if (!this.socket?.connected) {
+                    void this.connectWithFreshTunnelAuth().catch((error) => {
+                        logger.debug('[API] Failed to refresh tunnel auth before reconnect:', error);
+                    });
+                }
+            }, 1000);
         }
     }
 }

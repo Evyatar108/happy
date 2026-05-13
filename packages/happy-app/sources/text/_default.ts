@@ -17,16 +17,8 @@ function plural({ count, singular, plural }: { count: number; singular: string; 
 export const en = {
     tabs: {
         // Tab navigation labels
-        inbox: 'Inbox',
         sessions: 'Terminals',
         settings: 'Settings',
-    },
-
-    inbox: {
-        // Inbox screen
-        emptyTitle: 'Empty Inbox',
-        emptyDescription: 'Connect with friends to start sharing sessions',
-        updates: 'Updates',
     },
 
     common: {
@@ -155,8 +147,6 @@ export const en = {
     },
 
     connect: {
-        restoreAccount: 'Restore Account',
-        enterSecretKey: 'Please enter a secret key',
         invalidSecretKey: 'Invalid secret key. Please check and try again.',
         enterUrlManually: 'Enter URL manually',
     },
@@ -175,14 +165,12 @@ export const en = {
         accountSubtitle: 'Manage your account details',
         appearance: 'Appearance',
         appearanceSubtitle: 'Customize how the app looks',
-        voiceAssistant: 'Voice Assistant',
-        voiceAssistantSubtitle: 'Configure voice interaction preferences',
         featuresTitle: 'Features',
         featuresSubtitle: 'Enable or disable app features',
         developer: 'Developer',
         developerTools: 'Developer Tools',
         about: 'About',
-        aboutFooter: 'Happy Coder is a Codex and Claude Code mobile client. It\'s fully end-to-end encrypted and your account is stored only on your device. Not affiliated with Anthropic.',
+        aboutFooter: 'Happy Coder is a Codex and Claude Code mobile client that connects through your paired Dev Tunnels machines. Not affiliated with Anthropic.',
         whatsNew: 'What\'s New',
         whatsNewSubtitle: 'See the latest updates and improvements',
         reportIssue: 'Report an Issue',
@@ -192,13 +180,10 @@ export const en = {
         supportUs: 'Support us',
         supportUsSubtitlePro: 'Thank you for your support!',
         supportUsSubtitle: 'Support project development',
-        scanQrCodeToAuthenticate: 'Scan QR code to authenticate',
         githubConnected: ({ login }: { login: string }) => `Connected as @${login}`,
         connectGithubAccount: 'Connect your GitHub account',
         claudeAuthSuccess: 'Successfully connected to Claude',
         exchangingTokens: 'Exchanging tokens...',
-        usage: 'Usage',
-        usageSubtitle: 'View your API usage and costs',
         // Dynamic settings messages
         accountConnected: ({ service }: { service: string }) => `${service} account connected`,
         machineStatus: ({ name, status }: { name: string; status: 'online' | 'offline' }) =>
@@ -303,11 +288,6 @@ export const en = {
         tryAgain: 'Please try again',
         contactSupport: 'Contact support if the problem persists',
         sessionNotFound: 'Session not found',
-        voiceSessionFailed: 'Failed to start voice session',
-        voiceServiceUnavailable: 'Voice service is temporarily unavailable',
-        voiceLimitReachedTitle: 'Voice Limit Reached',
-        voiceHardLimitReached: ({ hours }: { hours: number }) => `You've used ${hours}+ hours of voice this month. This is the maximum allowed. You can configure your own ElevenLabs agent in Voice settings to use your own quota.`,
-        voiceConversationLimitReached: 'You\'ve reached the maximum number of voice conversations this month. We may add on-demand voice usage in the future — please file an issue at github.com/nicepkg/happy/issues if you hit this limit.',
         oauthInitializationFailed: 'Failed to initialize OAuth flow',
         tokenStorageFailed: 'Failed to store authentication tokens',
         oauthStateMismatch: 'Security validation failed. Please try again',
@@ -336,16 +316,10 @@ export const en = {
             `Retry in ${seconds} ${seconds === 1 ? 'second' : 'seconds'}`,
         errorWithCode: ({ message, code }: { message: string; code: number | string }) =>
             `${message} (Error ${code})`,
-        disconnectServiceFailed: ({ service }: { service: string }) => 
-            `Failed to disconnect ${service}`,
-        connectServiceFailed: ({ service }: { service: string }) =>
-            `Failed to connect ${service}. Please try again.`,
-        failedToLoadFriends: 'Failed to load friends list',
-        failedToAcceptRequest: 'Failed to accept friend request',
-        failedToRejectRequest: 'Failed to reject friend request',
-        failedToRemoveFriend: 'Failed to remove friend',
         searchFailed: 'Search failed. Please try again.',
-        failedToSendRequest: 'Failed to send friend request',
+        deviceCodeExpiredTitle: 'Machine pairing expired',
+        deviceCodeExpiredMessage: ({ machineId }: { machineId: string }) =>
+            `The pairing for machine "${machineId}" has expired. Please re-pair this machine to restore the connection.`,
     },
 
     newSession: {
@@ -751,39 +725,6 @@ export const en = {
         deleted: 'Deleted',
     },
 
-    settingsVoice: {
-        // Voice settings screen
-        languageTitle: 'Language',
-        languageDescription: 'Choose your preferred language for voice assistant interactions. This setting syncs across all your devices.',
-        preferredLanguage: 'Preferred Language',
-        preferredLanguageSubtitle: 'Language used for voice assistant responses',
-        language: {
-            searchPlaceholder: 'Search languages...',
-            title: 'Languages',
-            footer: ({ count }: { count: number }) => `${count} ${plural({ count, singular: 'language', plural: 'languages' })} available`,
-            autoDetect: 'Auto-detect',
-        },
-        // Bring your own agent
-        byoTitle: 'Bring Your Own Agent',
-        byoDescription: 'Use your own ElevenLabs agent instead of the Happy default. No subscription required — connect directly with your own ElevenLabs account. Your agent must define two client tools: messageClaudeCode (sends text to the coding agent) and processPermissionRequest (allows or denies tool use). It receives session context via the {{initialConversationContext}} dynamic variable.',
-        customAgentId: 'ElevenLabs Agent ID',
-        customAgentIdNotSet: 'Not configured',
-        customAgentIdDescription: 'Enter your ElevenLabs agent ID. Leave empty to use the Happy default.',
-        customAgentIdPlaceholder: 'e.g. abc123def456',
-        bypassToken: 'Direct Connection',
-        bypassTokenSubtitle: 'Skip Happy server, connect straight to ElevenLabs',
-        promptGuideTitle: 'Agent Prompt Guide',
-        promptGuideDescription: 'Your ElevenLabs agent needs:\n\n• Tool: messageClaudeCode — parameter: message (string). Sends a message to the active coding session.\n• Tool: processPermissionRequest — parameter: decision ("allow" or "deny"). Approves or denies a pending tool permission.\n• Dynamic variable: {{initialConversationContext}} — receives session history and context on start.\n\nThe agent acts as a voice bridge between the user and coding agents. It should be concise, only respond when addressed, and report when a coding agent finishes work.',
-        // Voice usage
-        usageTitle: 'Usage (Last 30 Days)',
-        usageFooter: 'Voice time used in the last 30 days. Free tier: 20 min. Subscribed: 5 hours. Max 100 conversations per month.',
-        usageLabel: 'Voice Time',
-        conversationsLabel: 'Conversations',
-        usageUsed: ({ used, limit }: { used: string; limit: string }) => `${used} used of ${limit}`,
-        supportTitle: 'Upgrade Voice',
-        supportSubtitle: 'Get more voice time and support development',
-    },
-
     settingsAccount: {
         // Account settings screen
         accountInformation: 'Account Information',
@@ -794,20 +735,14 @@ export const en = {
         publicId: 'Public ID',
         notAvailable: 'Not available',
         linkNewDevice: 'Link New Device',
-        linkNewDeviceSubtitle: 'Scan QR code to link device',
         profile: 'Profile',
         name: 'Name',
         github: 'GitHub',
         tapToDisconnect: 'Tap to disconnect',
         server: 'Server',
         backup: 'Backup',
-        backupDescription: 'Your secret key is the only way to recover your account. Save it in a secure place like a password manager.',
-        secretKey: 'Secret Key',
         tapToReveal: 'Tap to reveal',
         tapToHide: 'Tap to hide',
-        secretKeyLabel: 'SECRET KEY (TAP TO COPY)',
-        secretKeyCopied: 'Secret key copied to clipboard. Store it in a safe place!',
-        secretKeyCopyFailed: 'Failed to copy secret key',
         privacy: 'Privacy',
         privacyDescription: 'Help improve the app by sharing anonymous usage data. No personal information is collected.',
         analytics: 'Analytics',
@@ -831,11 +766,6 @@ export const en = {
         restartNow: 'Restart Now',
     },
 
-    connectButton: {
-        authenticate: 'Authenticate Terminal',
-        authenticateWithUrlPaste: 'Authenticate Terminal with URL paste',
-        pasteAuthUrl: 'Paste the auth URL from your terminal',
-    },
 
     updateBanner: {
         updateAvailable: 'Update available',
@@ -853,29 +783,6 @@ export const en = {
         noEntriesAvailable: 'No changelog entries available.',
     },
 
-    terminal: {
-        // Used by terminal connection screens
-        webBrowserRequired: 'Web Browser Required',
-        webBrowserRequiredDescription: 'Terminal connection links can only be opened in a web browser for security reasons. Please use the QR code scanner or open this link on a computer.',
-        processingConnection: 'Processing connection...',
-        invalidConnectionLink: 'Invalid Connection Link',
-        invalidConnectionLinkDescription: 'The connection link is missing or invalid. Please check the URL and try again.',
-        connectTerminal: 'Connect Terminal',
-        terminalRequestDescription: 'A terminal is requesting to connect to your Happy Coder account. This will allow the terminal to send and receive messages securely.',
-        connectionDetails: 'Connection Details',
-        publicKey: 'Public Key',
-        encryption: 'Encryption',
-        endToEndEncrypted: 'End-to-end encrypted',
-        acceptConnection: 'Accept Connection',
-        connecting: 'Connecting...',
-        reject: 'Reject',
-        security: 'Security',
-        securityFooter: 'This connection link was processed securely in your browser and was never sent to any server. Your private data will remain secure and only you can decrypt the messages.',
-        securityFooterDevice: 'This connection was processed securely on your device and was never sent to any server. Your private data will remain secure and only you can decrypt the messages.',
-        clientSideProcessing: 'Client-Side Processing',
-        linkProcessedLocally: 'Link processed locally in browser',
-        linkProcessedOnDevice: 'Link processed locally on device',
-    },
 
     modals: {
         // Used across connect flows and settings
@@ -889,10 +796,6 @@ export const en = {
         developerModeDisabled: 'Developer mode disabled',
         disconnectGithub: 'Disconnect GitHub',
         disconnectGithubConfirm: 'Are you sure you want to disconnect your GitHub account?',
-        disconnectService: ({ service }: { service: string }) => 
-            `Disconnect ${service}`,
-        disconnectServiceConfirm: ({ service }: { service: string }) => 
-            `Are you sure you want to disconnect ${service} from your account?`,
         disconnect: 'Disconnect',
         failedToConnectTerminal: 'Failed to connect terminal',
         cameraPermissionsRequiredToConnectTerminal: 'Camera permissions are required to connect terminal',
@@ -902,26 +805,18 @@ export const en = {
 
     navigation: {
         // Navigation titles and screen headers
-        connectTerminal: 'Connect Terminal',
         linkNewDevice: 'Link New Device', 
-        restoreWithSecretKey: 'Restore with Secret Key',
         whatsNew: "What's New",
-        friends: 'Friends',
     },
 
     welcome: {
         // Main welcome screen for unauthenticated users
         title: 'Codex and Claude Code mobile client',
-        subtitle: 'End-to-end encrypted and your account is stored only on your device.',
+        subtitle: 'Connect to your paired Dev Tunnels machines and keep your account on this device.',
         createAccount: 'Create account',
         linkOrRestoreAccount: 'Link or restore account',
         loginWithMobileApp: 'Login with mobile app',
         pairMachine: 'Pair machine',
-        trustMachine: 'Trust this machine?',
-        trust: 'Trust',
-        ed25519Fingerprint: ({ fingerprint }: { fingerprint: string }) => `Ed25519 fingerprint:\n${fingerprint}`,
-        pubkeyRotationTitle: 'Public key changed',
-        pubkeyRotationWarning: 'This machine is presenting a different public key than the one you trusted before. Only continue if you reinstalled or reset Happy on that computer.',
         noMachinesForIdentity: 'No machines returned for this GitHub identity',
         deviceAuthorizationExpired: 'GitHub device authorization expired',
         pairingFailed: 'Failed to pair machine',
@@ -1024,107 +919,6 @@ export const en = {
         codeCopied: 'Code copied',
         copyFailed: 'Copy failed',
         mermaidRenderFailed: 'Failed to render mermaid diagram',
-    },
-
-    artifacts: {
-        // Artifacts feature
-        title: 'Artifacts',
-        countSingular: '1 artifact',
-        countPlural: ({ count }: { count: number }) => `${count} artifacts`,
-        empty: 'No artifacts yet',
-        emptyDescription: 'Create your first artifact to get started',
-        new: 'New Artifact',
-        edit: 'Edit Artifact',
-        delete: 'Delete',
-        updateError: 'Failed to update artifact. Please try again.',
-        notFound: 'Artifact not found',
-        discardChanges: 'Discard changes?',
-        discardChangesDescription: 'You have unsaved changes. Are you sure you want to discard them?',
-        deleteConfirm: 'Delete artifact?',
-        deleteConfirmDescription: 'This action cannot be undone',
-        titleLabel: 'TITLE',
-        titlePlaceholder: 'Enter a title for your artifact',
-        bodyLabel: 'CONTENT',
-        bodyPlaceholder: 'Write your content here...',
-        emptyFieldsError: 'Please enter a title or content',
-        createError: 'Failed to create artifact. Please try again.',
-        save: 'Save',
-        saving: 'Saving...',
-        loading: 'Loading artifacts...',
-        error: 'Failed to load artifact',
-    },
-
-    friends: {
-        // Friends feature
-        title: 'Friends',
-        manageFriends: 'Manage your friends and connections',
-        searchTitle: 'Find Friends',
-        pendingRequests: 'Friend Requests',
-        myFriends: 'My Friends',
-        noFriendsYet: "You don't have any friends yet",
-        findFriends: 'Find Friends',
-        remove: 'Remove',
-        pendingRequest: 'Pending',
-        sentOn: ({ date }: { date: string }) => `Sent on ${date}`,
-        accept: 'Accept',
-        reject: 'Reject',
-        addFriend: 'Add Friend',
-        alreadyFriends: 'Already Friends',
-        requestPending: 'Request Pending',
-        searchInstructions: 'Enter a username to search for friends',
-        searchPlaceholder: 'Enter username...',
-        searching: 'Searching...',
-        userNotFound: 'User not found',
-        noUserFound: 'No user found with that username',
-        checkUsername: 'Please check the username and try again',
-        howToFind: 'How to Find Friends',
-        findInstructions: 'Search for friends by their username. Both you and your friend need to have GitHub connected to send friend requests.',
-        requestSent: 'Friend request sent!',
-        requestAccepted: 'Friend request accepted!',
-        requestRejected: 'Friend request rejected',
-        friendRemoved: 'Friend removed',
-        confirmRemove: 'Remove Friend',
-        confirmRemoveMessage: 'Are you sure you want to remove this friend?',
-        cannotAddYourself: 'You cannot send a friend request to yourself',
-        bothMustHaveGithub: 'Both users must have GitHub connected to become friends',
-        status: {
-            none: 'Not connected',
-            requested: 'Request sent',
-            pending: 'Request pending',
-            friend: 'Friends',
-            rejected: 'Rejected',
-        },
-        acceptRequest: 'Accept Request',
-        removeFriend: 'Remove Friend',
-        removeFriendConfirm: ({ name }: { name: string }) => `Are you sure you want to remove ${name} as a friend?`,
-        requestSentDescription: ({ name }: { name: string }) => `Your friend request has been sent to ${name}`,
-        requestFriendship: 'Request friendship',
-        cancelRequest: 'Cancel friendship request',
-        cancelRequestConfirm: ({ name }: { name: string }) => `Cancel your friendship request to ${name}?`,
-        denyRequest: 'Deny friendship',
-        nowFriendsWith: ({ name }: { name: string }) => `You are now friends with ${name}`,
-    },
-
-    usage: {
-        // Usage panel strings
-        today: 'Today',
-        last7Days: 'Last 7 days',
-        last30Days: 'Last 30 days',
-        totalTokens: 'Total Tokens',
-        totalCost: 'Total Cost',
-        tokens: 'Tokens',
-        cost: 'Cost',
-        usageOverTime: 'Usage over time',
-        byModel: 'By Model',
-        noData: 'No usage data available',
-    },
-
-    feed: {
-        // Feed notifications for friend requests and acceptances
-        friendRequestFrom: ({ name }: { name: string }) => `${name} sent you a friend request`,
-        friendRequestGeneric: 'New friend request',
-        friendAccepted: ({ name }: { name: string }) => `You are now friends with ${name}`,
-        friendAcceptedGeneric: 'Friend request accepted',
     },
 
 } as const;

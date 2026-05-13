@@ -158,6 +158,23 @@ function isPortInUse(port: number): boolean {
     }
 }
 
+function probePort(port: number): Promise<boolean> {
+    return new Promise(resolve => {
+        const socket = net.createConnection({ host: "127.0.0.1", port });
+        let settled = false;
+        const finish = (value: boolean) => {
+            if (settled) return;
+            settled = true;
+            socket.destroy();
+            resolve(value);
+        };
+        socket.setTimeout(500);
+        socket.once("connect", () => finish(true));
+        socket.once("timeout", () => finish(false));
+        socket.once("error", () => finish(false));
+    });
+}
+
 function readDevAuth(envDir: string): { secret: string; token: string } | null {
     const accessKeyPath = path.join(envDir, "cli", "home", "access.key");
     if (!fs.existsSync(accessKeyPath)) {
@@ -222,6 +239,28 @@ function killProcess(pid: number): void {
     } catch {
         try { process.kill(pid, "SIGTERM"); } catch {}
     }
+}
+
+function sleepSync(ms: number): void {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function waitForProcessExit(pid: number, timeoutMs: number): void {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        if (!isProcessAlive(pid)) return;
+        sleepSync(100);
+    }
+}
+
+function grantCurrentUserDeleteRights(targetPath: string): void {
+    if (process.platform !== "win32") return;
+    const userDomain = process.env.USERDOMAIN;
+    const username = process.env.USERNAME;
+    if (!userDomain || !username) return;
+    spawnSync("icacls", [targetPath, "/grant", `${userDomain}\\${username}:(OI)(CI)(F)`, "/T", "/Q"], {
+        stdio: "ignore",
+    });
 }
 
 async function waitFor(check: () => boolean | Promise<boolean>, timeoutMs: number, label: string): Promise<void> {
@@ -346,11 +385,12 @@ export async function createEnvironment(opts?: { noSwitch?: boolean }): Promise<
     return name;
 }
 
-export async function startEnvironmentServices(name: string, opts?: { web?: boolean }): Promise<void> {
+export async function startEnvironmentServices(name: string, options: { web?: boolean } = {}): Promise<void> {
     const envDir = getEnvironmentDir(name);
     const config = readEnvironmentConfig(name);
     const envVars = buildEnvVars(envDir, config.serverPort, config.expoPort);
     const mergedEnv: Record<string, string | undefined> = { ...process.env, ...envVars };
+    const startWeb = options.web ?? true;
 
     const serverLogFile = path.join(envDir, "server", "stdout.log");
     console.log(`Starting server on port ${config.serverPort}...`);
@@ -372,7 +412,7 @@ export async function startEnvironmentServices(name: string, opts?: { web?: bool
     }
     console.log(`  Server is healthy.`);
 
-    if (opts?.web === false) {
+    if (!startWeb) {
         return;
     }
 
@@ -387,7 +427,7 @@ export async function startEnvironmentServices(name: string, opts?: { web?: bool
     writePidFile(envDir, "web", webPid);
 
     try {
-        await waitFor(() => isPortInUse(config.expoPort), 30_000, "web");
+        await waitFor(() => probePort(config.expoPort), 30_000, "web");
     } catch {
         throw new Error(`Web failed to start. Check logs: ${webLogFile}`);
     }
@@ -406,30 +446,8 @@ export async function seedEnvironment(name: string): Promise<void> {
         throw new Error(`Server not reachable at ${serverUrl}. Start it first: pnpm env:server`);
     }
 
-    const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
-    const jwk = publicKey.export({ format: "jwk" }) as { x?: string };
-    const rawPublicKey = Buffer.from(jwk.x || "", "base64url");
-
-    const challenge = crypto.randomBytes(32);
-    const signature = crypto.sign(null, challenge, privateKey);
-
     const toBase64 = (buf: Buffer | Uint8Array) => Buffer.from(buf).toString("base64");
-    const toBase64Url = (buf: Buffer | Uint8Array) =>
-        Buffer.from(buf).toString("base64url");
-
-    const authRes = await fetch(`${serverUrl}/v1/auth`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            publicKey: toBase64(rawPublicKey),
-            challenge: toBase64(challenge),
-            signature: toBase64(signature),
-        }),
-    });
-    if (!authRes.ok) {
-        throw new Error(`Auth failed: ${authRes.status} ${await authRes.text()}`);
-    }
-    const { token } = (await authRes.json()) as { token: string };
+    const token = crypto.randomBytes(32).toString("base64url");
 
     const secret = crypto.randomBytes(32);
     const secretBase64 = toBase64(secret);
@@ -480,15 +498,19 @@ export async function seedEnvironment(name: string): Promise<void> {
         stdio: "ignore",
         detached: true,
     });
+    if (daemon.pid != null) {
+        writePidFile(envDir, "daemon", daemon.pid);
+    }
     daemon.unref();
 
     const machineRegistered = await waitFor(async () => {
-        const res = await fetch(`${serverUrl}/v1/machines`, {
-            headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) return false;
-        const machines = (await res.json()) as unknown[];
-        return machines.length > 0;
+        if (!fs.existsSync(daemonStatePath)) return false;
+        const daemonState = JSON.parse(fs.readFileSync(daemonStatePath, "utf-8")) as {
+            machineId?: unknown;
+            lastHeartbeat?: unknown;
+        };
+        return typeof daemonState.machineId === "string" && daemonState.machineId.length > 0
+            && daemonState.lastHeartbeat != null;
     }, 10_000, "machine registration").then(() => true, () => false);
 
     console.log(`  Seeded: credentials written, daemon ${machineRegistered ? "registered" : "starting"}`);
@@ -499,12 +521,13 @@ export function stopEnvironment(name: string): void {
     const envDir = getEnvironmentDir(name);
     let killed = 0;
 
-    for (const service of ["server", "web"] as const) {
+    for (const service of ["server", "web", "daemon"] as const) {
         const pid = readPidFile(envDir, service);
         if (pid !== null) {
             if (isProcessAlive(pid)) {
                 console.log(`Stopping ${service} (PID ${pid})...`);
                 killProcess(pid);
+                waitForProcessExit(pid, 5_000);
                 killed++;
             } else {
                 console.log(`${service} PID ${pid} already dead.`);
@@ -520,6 +543,7 @@ export function stopEnvironment(name: string): void {
             if (daemonState.pid && isProcessAlive(daemonState.pid)) {
                 console.log(`Stopping daemon (PID ${daemonState.pid})...`);
                 killProcess(daemonState.pid);
+                waitForProcessExit(daemonState.pid, 5_000);
                 killed++;
             }
         } catch {}
@@ -544,6 +568,7 @@ export function removeEnvironment(name: string): void {
     if (resolvedCwd === resolvedEnvDir || resolvedCwd.startsWith(resolvedEnvDir + path.sep)) {
         process.chdir(REPO_ROOT);
     }
+    grantCurrentUserDeleteRights(envDir);
 
     let lastError: unknown = null;
     // stopEnvironment() sends SIGTERM without waiting, while spawnService creates
@@ -551,11 +576,10 @@ export function removeEnvironment(name: string): void {
     // moving cwd back to REPO_ROOT above, Windows can briefly report
     // EBUSY/ENOTEMPTY/EPERM while those handles drain. removeEnvironment is
     // synchronous, including its destroyIntegrationEnvironment consumer in
-    // packages/happy-cli/src/testing/integrationEnvironment.ts, so Atomics.wait on
-    // a throwaway SharedArrayBuffer is the bounded sleep primitive here instead of
-    // converting every CLI env command to async. Retry at most 5 times, sleeping
-    // 100..500ms.
-    for (let attempt = 0; attempt < 5; attempt++) {
+    // packages/happy-cli/src/testing/integrationEnvironment.ts, so sleepSync is
+    // the bounded sleep primitive here instead of converting every CLI env
+    // command to async. Retry for up to roughly 15 seconds.
+    for (let attempt = 0; attempt < 60; attempt++) {
         try {
             fs.rmSync(envDir, { recursive: true, force: true });
             lastError = null;
@@ -566,7 +590,7 @@ export function removeEnvironment(name: string): void {
             if (code !== "EBUSY" && code !== "ENOTEMPTY" && code !== "EPERM") {
                 throw error;
             }
-            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100 * (attempt + 1));
+            sleepSync(250);
         }
     }
     if (lastError) {

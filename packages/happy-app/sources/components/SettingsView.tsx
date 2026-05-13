@@ -6,12 +6,22 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useAuth } from '@/auth/AuthContext';
+import {
+    credentialsFromPairMachine,
+    acquireConnectTokenForPair,
+    fetchGitHubUserProfile,
+    loginInteractive,
+    openGitHubDeviceFlow,
+    startPairFlow,
+    waitForPairStatus,
+} from '@/auth/pairing';
+import { deriveConnectTokenExpiry } from '@/auth/connectTokenRefresh';
+import { TokenStorage } from '@/auth/tokenStorage';
 import { Typography } from "@/constants/Typography";
 import { Item } from '@/components/Item';
 import { ItemGroup } from '@/components/ItemGroup';
 import { ItemList } from '@/components/ItemList';
-import { useConnectTerminal } from '@/hooks/useConnectTerminal';
-import { useEntitlement, useLocalSettingMutable, useSetting } from '@/sync/storage';
+import { useEntitlement, useLocalSettingMutable } from '@/sync/storage';
 import { sync } from '@/sync/sync';
 import { isUsingCustomServer } from '@/sync/serverConfig';
 import { trackPaywallButtonClicked, trackWhatsNewClicked } from '@/track';
@@ -22,8 +32,7 @@ import { isMachineOnline } from '@/utils/machineUtils';
 import { useUnistyles } from 'react-native-unistyles';
 import { layout } from '@/components/layout';
 import { useHappyAction } from '@/hooks/useHappyAction';
-import { getGitHubOAuthParams, disconnectGitHub } from '@/sync/apiGithub';
-import { disconnectService } from '@/sync/apiServices';
+import { DevTunnelsClientProvider, type MachineTunnel } from '@/sync/tunnelProvider';
 import { useProfile } from '@/sync/storage';
 import { getDisplayName, getAvatarUrl, getBio } from '@/sync/profile';
 import { Avatar } from '@/components/Avatar';
@@ -36,7 +45,6 @@ export const SettingsView = React.memo(function SettingsView() {
     const auth = useAuth();
     const [devModeEnabled, setDevModeEnabled] = useLocalSettingMutable('devModeEnabled');
     const isPro = __DEV__ || useEntitlement('pro');
-    const experiments = useSetting('experiments');
     const isCustomServer = isUsingCustomServer();
     const [showOfflineMachines, setShowOfflineMachines] = React.useState(false);
     const allMachinesWithOffline = useAllMachines({ includeOffline: true });
@@ -54,8 +62,6 @@ export const SettingsView = React.memo(function SettingsView() {
     const displayName = getDisplayName(profile);
     const avatarUrl = getAvatarUrl(profile);
     const bio = getBio(profile);
-
-    const { connectTerminal, connectWithUrl, isLoading } = useConnectTerminal();
 
     const handleGitHub = async () => {
         const url = 'https://github.com/slopus/happy';
@@ -97,44 +103,61 @@ export const SettingsView = React.memo(function SettingsView() {
         resetTimeout: 2000
     });
 
-    // Connection status
-    const isGitHubConnected = !!profile.github;
-    const isAnthropicConnected = profile.connectedServices?.includes('anthropic') || false;
-
-    // GitHub connection
-    const [connectingGitHub, connectGitHub] = useHappyAction(async () => {
-        const params = await getGitHubOAuthParams(auth.credentials!);
-        await Linking.openURL(params.url);
-    });
-
-    // GitHub disconnection
-    const [disconnectingGitHub, handleDisconnectGitHub] = useHappyAction(async () => {
-        const confirmed = await Modal.confirm(
-            t('modals.disconnectGithub'),
-            t('modals.disconnectGithubConfirm'),
-            { confirmText: t('modals.disconnect'), destructive: true }
-        );
-        if (confirmed) {
-            await disconnectGitHub(auth.credentials!);
+    const [pairingMachine, handleAddMachine] = useHappyAction(async () => {
+        const provider = new DevTunnelsClientProvider({
+            credentials: TokenStorage,
+            loginInteractive,
+        });
+        if (!(await provider.isLoggedIn())) {
+            await provider.loginInteractive();
         }
-    });
 
-    // Anthropic connection
-    const [connectingAnthropic, connectAnthropic] = useHappyAction(async () => {
-        router.push('/settings/connect/claude');
-    });
-
-    // Anthropic disconnection
-    const [disconnectingAnthropic, handleDisconnectAnthropic] = useHappyAction(async () => {
-        const confirmed = await Modal.confirm(
-            t('modals.disconnectService', { service: 'Claude' }),
-            t('modals.disconnectServiceConfirm', { service: 'Claude' }),
-            { confirmText: t('modals.disconnect'), destructive: true }
-        );
-        if (confirmed) {
-            await disconnectService(auth.credentials!, 'anthropic');
-            await sync.refreshProfile();
+        const githubToken = await TokenStorage.getDevTunnelsToken();
+        const githubProfile = githubToken
+            ? await fetchGitHubUserProfile(githubToken)
+            : { login: '', avatarUrl: '' };
+        const pairedMachineIds = new Set(allMachinesWithOffline.map(machine => machine.id));
+        const availableMachines = (await provider.listMachineTunnels())
+            .filter(machine => !pairedMachineIds.has(machine.machineId));
+        if (availableMachines.length === 0) {
+            throw new Error(t('welcome.noMachinesForIdentity'));
         }
+
+        let selectedMachine: MachineTunnel | undefined = availableMachines[0];
+        if (availableMachines.length > 1) {
+            const selection = await Modal.prompt(
+                t('welcome.pairMachine'),
+                availableMachines.map(machine => machine.machineId).join('\n'),
+                { placeholder: availableMachines[0].machineId, confirmText: t('common.continue') }
+            );
+            if (!selection?.trim()) {
+                return;
+            }
+            selectedMachine = availableMachines.find(machine => machine.machineId === selection.trim());
+            if (!selectedMachine) {
+                throw new Error(t('welcome.pairingFailed'));
+            }
+        }
+
+        const { connectToken } = await acquireConnectTokenForPair(selectedMachine);
+        const flow = await startPairFlow(selectedMachine, connectToken);
+        const deviceCodeExpiresAt = Date.now() + (flow.expires_in ?? 15 * 60) * 1000;
+        await openGitHubDeviceFlow(flow);
+        const status = await waitForPairStatus(selectedMachine, flow, connectToken);
+        const connectTokenExpiry = deriveConnectTokenExpiry();
+        const paired = status.machines?.[0];
+        if (!paired) {
+            throw new Error(t('welcome.pairingFailed'));
+        }
+
+        await auth.login(credentialsFromPairMachine(selectedMachine, paired, {
+            login: githubProfile.login,
+            avatarUrl: githubProfile.avatarUrl,
+            deviceCode: flow.device_code,
+            deviceCodeExpiresAt,
+            connectToken,
+            connectTokenExpiry,
+        }));
     });
 
 
@@ -177,37 +200,6 @@ export const SettingsView = React.memo(function SettingsView() {
                 </View>
             </View>
 
-            {/* Connect Terminal - Only show on native platforms */}
-            {Platform.OS !== 'web' && (
-                <ItemGroup>
-                    <Item
-                        title={t('settings.scanQrCodeToAuthenticate')}
-                        icon={<Ionicons name="qr-code-outline" size={29} color="#007AFF" />}
-                        onPress={connectTerminal}
-                        loading={isLoading}
-                        showChevron={false}
-                    />
-                    <Item
-                        title={t('connect.enterUrlManually')}
-                        icon={<Ionicons name="link-outline" size={29} color="#007AFF" />}
-                        onPress={async () => {
-                            const url = await Modal.prompt(
-                                t('modals.authenticateTerminal'),
-                                t('modals.pasteUrlFromTerminal'),
-                                {
-                                    placeholder: 'happy://terminal?...',
-                                    confirmText: t('common.authenticate')
-                                }
-                            );
-                            if (url?.trim()) {
-                                connectWithUrl(url.trim());
-                            }
-                        }}
-                        showChevron={false}
-                    />
-                </ItemGroup>
-            )}
-
             {/* Support Us */}
             <ItemGroup>
                 <Item
@@ -219,56 +211,16 @@ export const SettingsView = React.memo(function SettingsView() {
                 />
             </ItemGroup>
 
-            <ItemGroup title={t('settings.connectedAccounts')}>
-                <Item
-                    title="Claude Code"
-                    subtitle={isAnthropicConnected
-                        ? t('settingsAccount.statusActive')
-                        : t('settings.connectAccount')
-                    }
-                    icon={
-                        <Image
-                            source={require('@/assets/images/icon-claude.png')}
-                            style={{ width: 29, height: 29 }}
-                            contentFit="contain"
-                        />
-                    }
-                    onPress={isAnthropicConnected ? handleDisconnectAnthropic : connectAnthropic}
-                    loading={connectingAnthropic || disconnectingAnthropic}
-                    showChevron={false}
-                />
-                <Item
-                    title={t('settings.github')}
-                    subtitle={isGitHubConnected
-                        ? t('settings.githubConnected', { login: profile.github?.login! })
-                        : t('settings.connectGithubAccount')
-                    }
-                    icon={
-                        <Ionicons
-                            name="logo-github"
-                            size={29}
-                            color={isGitHubConnected ? theme.colors.status.connected : theme.colors.textSecondary}
-                        />
-                    }
-                    onPress={isGitHubConnected ? handleDisconnectGitHub : connectGitHub}
-                    loading={connectingGitHub || disconnectingGitHub}
-                    showChevron={false}
-                />
-            </ItemGroup>
-
-            {/* Social */}
-            {/* <ItemGroup title={t('settings.social')}>
-                <Item
-                    title={t('navigation.friends')}
-                    subtitle={t('friends.manageFriends')}
-                    icon={<Ionicons name="people-outline" size={29} color="#007AFF" />}
-                    onPress={() => router.push('/friends')}
-                />
-            </ItemGroup> */}
-
             {/* Machines (sorted: online first, then last seen desc) */}
             {allMachinesWithOffline.length > 0 && (
                 <ItemGroup title={t('settings.machines')}>
+                    <Item
+                        title={t('welcome.pairMachine')}
+                        icon={<Ionicons name="add-circle-outline" size={29} color="#007AFF" />}
+                        onPress={handleAddMachine}
+                        loading={pairingMachine}
+                        showChevron={false}
+                    />
                     {visibleMachines.map((machine) => {
                         const isOnline = isMachineOnline(machine);
                         const host = machine.metadata?.host || 'Unknown';
@@ -329,25 +281,11 @@ export const SettingsView = React.memo(function SettingsView() {
                     onPress={() => router.push('/settings/appearance')}
                 />
                 <Item
-                    title={t('settings.voiceAssistant')}
-                    subtitle={t('settings.voiceAssistantSubtitle')}
-                    icon={<Ionicons name="mic-outline" size={29} color="#34C759" />}
-                    onPress={() => router.push('/settings/voice')}
-                />
-                <Item
                     title={t('settings.featuresTitle')}
                     subtitle={t('settings.featuresSubtitle')}
                     icon={<Ionicons name="flask-outline" size={29} color="#FF9500" />}
                     onPress={() => router.push('/settings/features')}
                 />
-                {experiments && (
-                    <Item
-                        title={t('settings.usage')}
-                        subtitle={t('settings.usageSubtitle')}
-                        icon={<Ionicons name="analytics-outline" size={29} color="#007AFF" />}
-                        onPress={() => router.push('/settings/usage')}
-                    />
-                )}
             </ItemGroup>
 
             {/* Developer */}

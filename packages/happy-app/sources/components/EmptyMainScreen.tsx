@@ -1,11 +1,8 @@
 import React from 'react';
-import { View, Text, Platform } from 'react-native';
+import { View, Text } from 'react-native';
 import { Typography } from '@/constants/Typography';
-import { RoundButton } from '@/components/RoundButton';
-import { useConnectTerminal } from '@/hooks/useConnectTerminal';
-import { Modal } from '@/modal';
 import { t } from '@/text';
-import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { StyleSheet } from 'react-native-unistyles';
 
 const stylesheet = StyleSheet.create((theme) => ({
     container: {
@@ -86,8 +83,6 @@ const stylesheet = StyleSheet.create((theme) => ({
 }));
 
 export function EmptyMainScreen() {
-    const { connectTerminal, connectWithUrl, isLoading } = useConnectTerminal();
-    const { theme } = useUnistyles();
     const styles = stylesheet;
 
     return (
@@ -104,68 +99,20 @@ export function EmptyMainScreen() {
             </View>
 
 
-            {Platform.OS !== 'web' && (
-                <>
-                    <View style={styles.stepsContainer}>
-                        <View style={styles.stepRow}>
-                            <View style={styles.stepNumber}>
-                                <Text style={styles.stepNumberText}>1</Text>
-                            </View>
-                            <Text style={styles.stepText}>
-                                {t('components.emptyMainScreen.installCli')}
-                            </Text>
-                        </View>
-                        <View style={styles.stepRow}>
-                            <View style={styles.stepNumber}>
-                                <Text style={styles.stepNumberText}>2</Text>
-                            </View>
-                            <Text style={styles.stepText}>
-                                {t('components.emptyMainScreen.runIt')}
-                            </Text>
-                        </View>
-                        <View style={styles.stepRowLast}>
-                            <View style={styles.stepNumber}>
-                                <Text style={styles.stepNumberText}>3</Text>
-                            </View>
-                            <Text style={styles.stepText}>
-                                {t('components.emptyMainScreen.scanQrCode')}
-                            </Text>
-                        </View>
+            <View style={styles.stepsContainer}>
+                <View style={styles.stepRow}>
+                    <View style={styles.stepNumber}>
+                        <Text style={styles.stepNumberText}>1</Text>
                     </View>
-                    <View style={styles.buttonsContainer}>
-                        <View style={styles.buttonWrapper}>
-                            <RoundButton
-                                title={t('components.emptyMainScreen.openCamera')}
-                                size="large"
-                                loading={isLoading}
-                                onPress={connectTerminal}
-                            />
-                        </View>
-                        <View style={styles.buttonWrapperSecondary}>
-                            <RoundButton
-                                title={t('connect.enterUrlManually')}
-                                size="normal"
-                                display="inverted"
-                                onPress={async () => {
-                                    const url = await Modal.prompt(
-                                        t('modals.authenticateTerminal'),
-                                        t('modals.pasteUrlFromTerminal'),
-                                        {
-                                            placeholder: 'happy://terminal?...',
-                                            cancelText: t('common.cancel'),
-                                            confirmText: t('common.authenticate')
-                                        }
-                                    );
-
-                                    if (url?.trim()) {
-                                        connectWithUrl(url.trim());
-                                    }
-                                }}
-                            />
-                        </View>
+                    <Text style={styles.stepText}>{t('components.emptyMainScreen.installCli')}</Text>
+                </View>
+                <View style={styles.stepRowLast}>
+                    <View style={styles.stepNumber}>
+                        <Text style={styles.stepNumberText}>2</Text>
                     </View>
-                </>
-            )}
+                    <Text style={styles.stepText}>{t('components.emptyMainScreen.runIt')}</Text>
+                </View>
+            </View>
         </View>
     );
 }

@@ -2,16 +2,16 @@
 
 import { Command } from 'commander';
 import { hostname } from 'node:os';
-import { join } from 'node:path';
 import { loadConfig } from './config';
 import type { Config } from './config';
-import { requireCredentials } from './credentials';
+import { loadCredentials } from './credentials';
 import type { Credentials } from './credentials';
 import { authLogin, authLogout, authStatus } from './auth';
-import { listSessions, listActiveSessions, createSession, getSessionMessages, listMachines } from './api';
-import type { DecryptedMachine, DecryptedSession } from './api';
-import { resumeSessionOnMachine, spawnSessionOnMachine, type SupportedAgent } from './machineRpc';
+import { listSessions, listActiveSessions, createSession, getSessionMessages, listKnownMachines, discoverMachineTunnels, refreshTunnelClaim, MachineNotKnownError } from './api';
+import type { DecryptedSession, MachineSummary } from './api';
+import { resumeSessionOnMachine, spawnInWorktreeOnMachine, spawnSessionOnMachine, type SupportedAgent } from './machineRpc';
 import { SessionClient } from './session';
+import { runMonitorOnce, runMonitorWatch } from './monitor';
 import { formatMachineTable, formatSessionTable, formatSessionStatus, formatMessageHistory, formatJson } from './output';
 
 // --- Helpers ---
@@ -37,8 +37,8 @@ async function resolveSession(config: Config, creds: Credentials, sessionId: str
     return resolveByPrefix(sessions, sessionId, 'Session ID');
 }
 
-async function resolveMachine(config: Config, creds: Credentials, machineId: string): Promise<DecryptedMachine> {
-    const machines = await listMachines(config, creds);
+async function resolveMachine(config: Config, creds: Credentials, machineId: string): Promise<MachineSummary> {
+    const machines = await listKnownMachines(config, creds);
     return resolveByPrefix(machines, machineId, 'Machine ID');
 }
 
@@ -48,41 +48,16 @@ function createClient(session: DecryptedSession, creds: Credentials, config: Con
         encryptionKey: session.encryption.key,
         encryptionVariant: session.encryption.variant,
         token: creds.token,
-        serverUrl: config.serverUrl,
+        serverUrl: config.legacyServerUrl,
         initialAgentState: session.agentState ?? null,
     });
 }
 
-function resolveRemotePath(rawPath: string | undefined, machine: DecryptedMachine): string {
-    const metadata = (machine.metadata ?? {}) as { homeDir?: unknown };
-    const homeDir = typeof metadata.homeDir === 'string' && metadata.homeDir.trim().length > 0
-        ? metadata.homeDir
-        : undefined;
-    const path = rawPath ?? homeDir;
-
-    if (!path) {
-        throw new Error('Machine metadata does not include a home directory. Pass --path explicitly.');
+function resolveRemotePath(rawPath: string | undefined): string {
+    if (!rawPath || rawPath.trim().length === 0) {
+        throw new Error('Pass --path explicitly - machine homeDir is no longer auto-discovered.');
     }
-
-    if (path === '~') {
-        if (!homeDir) {
-            throw new Error('Machine metadata does not include a home directory, so `~` cannot be resolved. Pass an absolute --path.');
-        }
-        return homeDir;
-    }
-    if (path.startsWith('~/')) {
-        if (!homeDir) {
-            throw new Error('Machine metadata does not include a home directory, so `~/...` cannot be resolved. Pass an absolute --path.');
-        }
-        const normalizedHome = homeDir.endsWith('/') || homeDir.endsWith('\\')
-            ? homeDir.slice(0, -1)
-            : homeDir;
-        const separator = normalizedHome.includes('\\') && !normalizedHome.includes('/')
-            ? '\\'
-            : '/';
-        return join(normalizedHome, path.slice(2)).replaceAll('/', separator);
-    }
-    return path;
+    return rawPath;
 }
 
 function resolveSessionMachineId(session: DecryptedSession): string {
@@ -93,23 +68,12 @@ function resolveSessionMachineId(session: DecryptedSession): string {
     return metadata.machineId;
 }
 
-function ensureMachineCanResume(machine: DecryptedMachine): void {
-    const metadata = (machine.metadata ?? {}) as {
-        resumeSupport?: {
-            rpcAvailable?: unknown;
-            happyAgentAuthenticated?: unknown;
-        };
-    };
-
-    if (metadata.resumeSupport?.rpcAvailable === true) {
-        return;
+async function refreshKnownTunnelClaim(config: Config, creds: Credentials, machineId: string): Promise<{ tunnelUrl: string; tunnelClaim: string; connectToken: string }> {
+    const tunnels = discoverMachineTunnels(creds);
+    if (!tunnels.find(tunnel => tunnel.machineId === machineId)) {
+        throw new MachineNotKnownError(machineId);
     }
-
-    if (metadata.resumeSupport?.happyAgentAuthenticated === false) {
-        throw new Error('Resume is unavailable on this machine. Run `happy-agent auth login` in that machine environment first.');
-    }
-
-    throw new Error('Resume RPC is unavailable on this machine right now.');
+    return refreshTunnelClaim(config, creds, machineId);
 }
 
 // --- CLI ---
@@ -125,7 +89,7 @@ program
     .command('auth')
     .description('Manage authentication')
     .addCommand(
-        new Command('login').description('Authenticate via QR code').action(async () => {
+        new Command('login').description('Authenticate via GitHub device flow').action(async () => {
             const config = loadConfig();
             await authLogin(config);
         })
@@ -146,17 +110,15 @@ program
 program
     .command('machines')
     .description('List all machines')
-    .option('--active', 'Show only active machines')
     .option('--json', 'Output as JSON')
-    .action(async (opts: { active?: boolean; json?: boolean }) => {
+    .action(async (opts: { json?: boolean }) => {
         const config = loadConfig();
-        const creds = requireCredentials(config);
-        const machines = await listMachines(config, creds);
-        const filtered = opts.active ? machines.filter(machine => machine.active) : machines;
+        const creds = loadCredentials(config);
+        const machines = await listKnownMachines(config, creds);
         if (opts.json) {
-            console.log(formatJson(filtered));
+            console.log(formatJson(machines));
         } else {
-            console.log(formatMachineTable(filtered));
+            console.log(formatMachineTable(machines));
         }
     });
 
@@ -167,7 +129,7 @@ program
     .option('--json', 'Output as JSON')
     .action(async (opts: { active?: boolean; json?: boolean }) => {
         const config = loadConfig();
-        const creds = requireCredentials(config);
+        const creds = loadCredentials(config);
         const sessions = opts.active
             ? await listActiveSessions(config, creds)
             : await listSessions(config, creds);
@@ -179,13 +141,51 @@ program
     });
 
 program
+    .command('monitor')
+    .description('Monitor active sessions for a fan-out run')
+    .requiredOption('--runId <id>', 'Fan-out run ID')
+    .option('--watch', 'Keep polling and subscribing to active sessions')
+    .option('--json', 'Output as JSON')
+    .action(async (opts: { runId: string; watch?: boolean; json?: boolean }) => {
+        const config = loadConfig();
+        const creds = loadCredentials(config);
+
+        if (opts.watch) {
+            const teardown = await runMonitorWatch(config, creds, opts.runId);
+            console.log(`Monitoring run ${opts.runId}. Press Ctrl+C to stop.`);
+            process.once('SIGINT', () => { teardown(); process.exit(0); });
+            process.once('SIGTERM', () => { teardown(); process.exit(0); });
+            return;
+        }
+
+        const snapshots = await runMonitorOnce(config, creds, opts.runId);
+        if (opts.json) {
+            console.log(formatJson({ runId: opts.runId, sessions: snapshots }));
+            return;
+        }
+        console.log([
+            '## Monitor Snapshot',
+            '',
+            `- Run ID: ${opts.runId}`,
+            `- Sessions: ${snapshots.length}`,
+            '',
+            ...snapshots.map(snapshot => [
+                `### ${snapshot.sessionId}`,
+                `- Active: ${snapshot.state.active}, Pending Permission: ${snapshot.state.pendingPermission}, Validation Evidence: ${snapshot.state.hasValidationEvidence}`,
+                `- Pending Requests: ${snapshot.requestIds.length}`,
+                `- Last Output: ${snapshot.lastOutputSummary ?? '-'}`,
+            ].join('\n')),
+        ].join('\n'));
+    });
+
+program
     .command('status')
     .description('Get live session state')
-    .argument('<session-id>', 'Session ID or prefix')
+    .arguments('<session-id>')
     .option('--json', 'Output as JSON')
     .action(async (sessionId: string, opts: { json?: boolean }) => {
         const config = loadConfig();
-        const creds = requireCredentials(config);
+        const creds = loadCredentials(config);
         const session = await resolveSession(config, creds, sessionId);
 
         const client = createClient(session, creds, config);
@@ -235,28 +235,104 @@ program
     .command('spawn')
     .description('Spawn a new session on a machine')
     .requiredOption('--machine <machine-id>', 'Machine ID or prefix')
-    .option('--path <path>', 'Working directory path (defaults to machine home directory)')
+    .option('--path <path>', 'Legacy working directory path (defaults to machine home directory)')
+    .option('--new-worktree', 'Create a git worktree through the daemon before spawning')
+    .option('--repo <path>', 'Repository root for --new-worktree')
+    .option('--worktree <path>', 'Optional explicit worktree path for --new-worktree')
     .option('--agent <agent>', `Agent to start (${SUPPORTED_AGENTS.join(', ')})`, (value: string) => {
         if (!SUPPORTED_AGENTS.includes(value as SupportedAgent)) {
             throw new Error(`--agent must be one of: ${SUPPORTED_AGENTS.join(', ')}`);
         }
         return value as SupportedAgent;
     })
+    .option('--run-id <id>', 'Batch run ID to group concurrent spawns under a single rendered region')
     .option('--create-dir', 'Allow creating the directory if it does not exist')
     .option('--json', 'Output as JSON')
     .action(async (opts: {
         machine: string;
         path?: string;
+        newWorktree?: boolean;
+        repo?: string;
+        worktree?: string;
+        runId?: string;
         agent?: SupportedAgent;
         createDir?: boolean;
         json?: boolean;
     }) => {
         const config = loadConfig();
-        const creds = requireCredentials(config);
+        const creds = loadCredentials(config);
         const machine = await resolveMachine(config, creds, opts.machine);
-        const directory = resolveRemotePath(opts.path, machine);
 
-        const result = await spawnSessionOnMachine(config, machine, creds.token, {
+        if (opts.newWorktree) {
+            if (!opts.repo) {
+                throw new Error('--repo is required with --new-worktree');
+            }
+            if (!opts.agent) {
+                throw new Error('--agent is required with --new-worktree');
+            }
+            if (opts.path) {
+                throw new Error('--path is the legacy spawn path and cannot be used with --new-worktree. Use --repo and optional --worktree.');
+            }
+            if (opts.createDir) {
+                throw new Error('--create-dir is only supported by the legacy --path flow.');
+            }
+
+            const { tunnelUrl, tunnelClaim, connectToken } = await refreshKnownTunnelClaim(config, creds, machine.id);
+            const result = await spawnInWorktreeOnMachine(tunnelUrl, tunnelClaim, connectToken, {
+                machineId: machine.id,
+                repoPath: opts.repo,
+                worktreePath: opts.worktree,
+                runId: opts.runId,
+                agent: opts.agent,
+            });
+
+            const payload = {
+                machineId: machine.id,
+                repoPath: opts.repo,
+                requestedWorktreePath: opts.worktree ?? null,
+                agent: opts.agent,
+                ...result,
+            };
+
+            if (opts.json) {
+                console.log(formatJson(payload));
+                if (result.type !== 'success') {
+                    process.exitCode = 1;
+                }
+                return;
+            }
+
+            switch (result.type) {
+                case 'success':
+                    console.log([
+                        '## Session Spawned',
+                        '',
+                        `- Machine ID: \`${machine.id}\``,
+                        `- Session ID: \`${result.sessionId}\``,
+                        `- Project Path: ${opts.repo}`,
+                        `- Worktree Path: ${result.worktreePath ?? opts.worktree ?? '(daemon did not return worktree path)'}`,
+                        `- Branch: ${result.branchName ?? '(daemon did not return branch name)'}`,
+                        `- Run ID: ${result.runId ?? '(daemon did not return run ID)'}`,
+                        `- Agent: ${opts.agent}`,
+                    ].join('\n'));
+                    break;
+                case 'requestToApproveDirectoryCreation':
+                    throw new Error(`Spawn-in-worktree unexpectedly requested directory creation for '${result.directory}'.`);
+                case 'error':
+                    throw new Error(result.errorMessage);
+            }
+            return;
+        }
+
+        if (opts.repo || opts.worktree) {
+            throw new Error('--repo and --worktree require --new-worktree');
+        }
+
+        const directory = resolveRemotePath(opts.path);
+
+        const { tunnelUrl, tunnelClaim, connectToken } = await refreshKnownTunnelClaim(config, creds, machine.id);
+        const result = await spawnSessionOnMachine(tunnelUrl, tunnelClaim, connectToken, {
+            machineId: machine.id,
             directory,
             approvedNewDirectoryCreation: opts.createDir,
             agent: opts.agent,
@@ -298,17 +374,17 @@ program
 program
     .command('resume')
     .description('Resume a session on its original machine')
-    .argument('<session-id>', 'Session ID or prefix')
+    .arguments('<session-id>')
     .option('--json', 'Output as JSON')
     .action(async (sessionId: string, opts: { json?: boolean }) => {
         const config = loadConfig();
-        const creds = requireCredentials(config);
+        const creds = loadCredentials(config);
         const session = await resolveSession(config, creds, sessionId);
         const machineId = resolveSessionMachineId(session);
         const machine = await resolveMachine(config, creds, machineId);
-        ensureMachineCanResume(machine);
 
-        const result = await resumeSessionOnMachine(config, machine, creds.token, session.id);
+        const { tunnelUrl, tunnelClaim, connectToken } = await refreshKnownTunnelClaim(config, creds, machine.id);
+        const result = await resumeSessionOnMachine(tunnelUrl, tunnelClaim, connectToken, { machineId: machine.id, sessionId: session.id });
         const payload = {
             sourceSessionId: session.id,
             machineId: machine.id,
@@ -348,7 +424,7 @@ program
     .option('--json', 'Output as JSON')
     .action(async (opts: { tag: string; path?: string; json?: boolean }) => {
         const config = loadConfig();
-        const creds = requireCredentials(config);
+        const creds = loadCredentials(config);
         const metadata = {
             tag: opts.tag,
             path: opts.path ?? process.cwd(),
@@ -372,14 +448,13 @@ program
 program
     .command('send')
     .description('Send a message to a session')
-    .argument('<session-id>', 'Session ID or prefix')
-    .argument('<message>', 'Message text')
+    .arguments('<session-id> <message>')
     .option('--yolo', 'Send with permissionMode=yolo')
     .option('--wait', 'Wait for agent to become idle')
     .option('--json', 'Output as JSON')
     .action(async (sessionId: string, message: string, opts: { yolo?: boolean; wait?: boolean; json?: boolean }) => {
         const config = loadConfig();
-        const creds = requireCredentials(config);
+        const creds = loadCredentials(config);
         const session = await resolveSession(config, creds, sessionId);
         const permissionMode = opts.yolo ? 'yolo' : null;
 
@@ -415,7 +490,7 @@ program
 program
     .command('history')
     .description('Read message history')
-    .argument('<session-id>', 'Session ID or prefix')
+    .arguments('<session-id>')
     .option('--limit <n>', 'Limit number of messages', (v: string) => {
         const n = parseInt(v, 10);
         if (isNaN(n) || n <= 0) throw new Error('--limit must be a positive integer');
@@ -424,7 +499,7 @@ program
     .option('--json', 'Output as JSON')
     .action(async (sessionId: string, opts: { limit?: number; json?: boolean }) => {
         const config = loadConfig();
-        const creds = requireCredentials(config);
+        const creds = loadCredentials(config);
         const session = await resolveSession(config, creds, sessionId);
         let messages = await getSessionMessages(config, creds, session.id, session.encryption);
 
@@ -446,10 +521,10 @@ program
 program
     .command('stop')
     .description('Stop a session')
-    .argument('<session-id>', 'Session ID or prefix')
+    .arguments('<session-id>')
     .action(async (sessionId: string) => {
         const config = loadConfig();
-        const creds = requireCredentials(config);
+        const creds = loadCredentials(config);
         const session = await resolveSession(config, creds, sessionId);
 
         const client = createClient(session, creds, config);
@@ -473,7 +548,7 @@ program
 program
     .command('wait')
     .description('Wait for agent to become idle')
-    .argument('<session-id>', 'Session ID or prefix')
+    .arguments('<session-id>')
     .option('--timeout <seconds>', 'Timeout in seconds', (v: string) => {
         const n = parseInt(v, 10);
         if (isNaN(n) || n <= 0) throw new Error('--timeout must be a positive integer');
@@ -481,7 +556,7 @@ program
     }, 300)
     .action(async (sessionId: string, opts: { timeout: number }) => {
         const config = loadConfig();
-        const creds = requireCredentials(config);
+        const creds = loadCredentials(config);
         const session = await resolveSession(config, creds, sessionId);
 
         const client = createClient(session, creds, config);

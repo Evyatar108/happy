@@ -2,6 +2,7 @@
  * Git worktree operations: create, list, remove
  */
 
+import { randomUUID } from 'expo-crypto';
 import { machineBash } from '@/sync/ops';
 
 /** Relative path prefix where worktrees are stored inside a repo */
@@ -12,22 +13,8 @@ export const WORKTREE_PATH_MARKER = `/${WORKTREE_DIR}/`;
 
 // --- Name generation ---
 
-const adjectives = [
-    'clever', 'happy', 'swift', 'bright', 'calm',
-    'bold', 'quiet', 'brave', 'wise', 'eager',
-    'gentle', 'quick', 'sharp', 'smooth', 'fresh'
-];
-
-const nouns = [
-    'ocean', 'forest', 'cloud', 'star', 'river',
-    'mountain', 'valley', 'bridge', 'beacon', 'harbor',
-    'garden', 'meadow', 'canyon', 'island', 'desert'
-];
-
-function generateWorktreeName(): string {
-    const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
-    const noun = nouns[Math.floor(Math.random() * nouns.length)];
-    return `${adjective}-${noun}`;
+export function generateWorktreeName(): string {
+    return `ralph-${randomUUID().replace(/-/g, '').slice(0, 8)}`;
 }
 
 // --- Operations ---
@@ -41,8 +28,6 @@ export async function createWorktree(
     branchName: string;
     error?: string;
 }> {
-    const name = generateWorktreeName();
-
     // Check if it's a git repository
     const gitCheck = await machineBash(
         machineId,
@@ -64,51 +49,35 @@ export async function createWorktree(
         };
     }
 
-    // Create the worktree with new branch
-    const worktreePath = `${WORKTREE_DIR}/${name}`;
-    let result = await machineBash(
-        machineId,
-        `git worktree add -b ${name} ${worktreePath}`,
-        basePath
-    );
+    let result: Awaited<ReturnType<typeof machineBash>> | null = null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+        const name = generateWorktreeName();
+        const worktreePath = `${WORKTREE_DIR}/${name}`;
+        result = await machineBash(
+            machineId,
+            `git worktree add -b ${name} ${worktreePath}`,
+            basePath
+        );
 
-    // If worktree exists, try with a different name
-    if (!result.success && result.stderr.includes('already exists')) {
-        // Try up to 3 times with numbered suffixes
-        for (let i = 2; i <= 4; i++) {
-            const newName = `${name}-${i}`;
-            const newWorktreePath = `${WORKTREE_DIR}/${newName}`;
-            result = await machineBash(
-                machineId,
-                `git worktree add -b ${newName} ${newWorktreePath}`,
-                basePath
-            );
-
-            if (result.success) {
-                return {
-                    success: true,
-                    worktreePath: `${basePath}/${newWorktreePath}`,
-                    branchName: newName,
-                    error: undefined
-                };
-            }
+        if (result.success) {
+            return {
+                success: true,
+                worktreePath: `${basePath}/${worktreePath}`,
+                branchName: name,
+                error: undefined
+            };
         }
-    }
 
-    if (result.success) {
-        return {
-            success: true,
-            worktreePath: `${basePath}/${worktreePath}`,
-            branchName: name,
-            error: undefined
-        };
+        if (!result.stderr.includes('already exists')) {
+            break;
+        }
     }
 
     return {
         success: false,
         worktreePath: '',
         branchName: '',
-        error: result.stderr || 'Failed to create worktree'
+        error: result?.stderr || 'Failed to create worktree'
     };
 }
 

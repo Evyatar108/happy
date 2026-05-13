@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { formatSessionTable, formatSessionStatus, formatMessageHistory, formatJson } from './output';
-import type { DecryptedSession, DecryptedMessage } from './api';
+import { formatSessionTable, formatMachineTable, formatSessionStatus, formatMessageHistory, formatJson } from './output';
+import type { DecryptedSession, DecryptedMessage, MachineSummary } from './api';
 
 function makeSession(overrides: Partial<DecryptedSession> = {}): DecryptedSession {
     return {
@@ -14,6 +14,20 @@ function makeSession(overrides: Partial<DecryptedSession> = {}): DecryptedSessio
         agentState: null,
         dataEncryptionKey: null,
         encryption: { key: new Uint8Array(32), variant: 'dataKey' as const },
+        ...overrides,
+    };
+}
+
+function makeMachine(overrides: Partial<MachineSummary> = {}): MachineSummary {
+    return {
+        id: 'machine-1',
+        machineId: 'machine-1',
+        tunnelUrl: 'https://machine-1.devtunnels.ms',
+        hostname: 'laptop',
+        tunnelPort: 443,
+        loopbackPort: 3005,
+        lastSeenAt: Date.now() - 60_000,
+        owner: 'octocat',
         ...overrides,
     };
 }
@@ -204,6 +218,36 @@ describe('formatSessionStatus', () => {
         expect(output).not.toContain('Summary:');
         expect(output).not.toContain('Path:');
         expect(output).not.toContain('Host:');
+    });
+});
+
+describe('formatMachineTable', () => {
+    it('should return markdown summary when machines array is empty', () => {
+        const output = formatMachineTable([]);
+        expect(output).toContain('## Machines');
+        expect(output).toContain('- Total: 0');
+    });
+
+    it('should display the narrowed machine summary fields', () => {
+        const machine = makeMachine();
+
+        const output = formatMachineTable([machine]);
+
+        expect(output).toContain('### Machine 1');
+        expect(output).toContain('- ID: `machine-1`');
+        expect(output).toContain('- Tunnel URL: https://machine-1.devtunnels.ms');
+        expect(output).toContain('- Hostname: laptop');
+        expect(output).toContain('- Tunnel Port: 443');
+        expect(output).toContain('- Owner: octocat');
+    });
+
+    it('should display dash when optional self-state fields are missing', () => {
+        const output = formatMachineTable([makeMachine({ hostname: undefined, tunnelPort: undefined, lastSeenAt: undefined, owner: undefined })]);
+
+        expect(output).toContain('- Hostname: -');
+        expect(output).toContain('- Tunnel Port: -');
+        expect(output).toContain('- Last Seen: -');
+        expect(output).toContain('- Owner: -');
     });
 });
 

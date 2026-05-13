@@ -3,13 +3,13 @@ import os from 'os';
 import { execFile } from 'node:child_process';
 import * as tmp from 'tmp';
 import axios from 'axios';
-import { createHappyServer, type HappyServerHandle } from 'happy-server';
 
 import { ApiClient } from '@/api/api';
+import { bootstrapMachineForEmbedded } from 'happy-server';
 import type { ForkSessionOptions } from '@/api/apiMachine';
 import { TrackedSession, SessionEncryptionData } from './types';
 import { MachineMetadata, DaemonState, Metadata } from '@/api/types';
-import { SpawnSessionOptions, SpawnSessionResult } from '@/modules/common/registerCommonHandlers';
+import { SpawnInWorktreeOptions, SpawnSessionOptions, SpawnSessionResult } from '@/modules/common/registerCommonHandlers';
 import { logger } from '@/ui/logger';
 import { authAndSetupMachineIfNeeded } from '@/ui/auth';
 import { configuration } from '@/configuration';
@@ -17,7 +17,7 @@ import { startCaffeinate, stopCaffeinate } from '@/utils/caffeinate';
 import packageJson from '../../package.json';
 import { getEnvironmentInfo } from '@/ui/doctor';
 import { spawnHappyCLI } from '@/utils/spawnHappyCLI';
-import { writeDaemonState, DaemonLocallyPersistedState, readDaemonState, acquireDaemonLock, releaseDaemonLock, readPersistedSessions, persistSession, readMachineState, writeMachineState } from '@/persistence';
+import { writeDaemonState, DaemonLocallyPersistedState, readDaemonState, acquireDaemonLock, releaseDaemonLock, readPersistedSessions, persistSession, readMachineState, writeMachineState, type MachineLocallyPersistedState } from '@/persistence';
 import type { PersistedSession } from '@/persistence';
 
 import { cleanupDaemonState, isDaemonRunningCurrentlyInstalledHappyVersion, stopDaemon } from './controlClient';
@@ -34,8 +34,15 @@ import { encodeBase64, decodeBase64, decrypt } from '@/api/encryption';
 import { pickFreeLoopbackPort } from '@/utils/pickFreeLoopbackPort';
 import { loadOrCreateTofuKeypairs } from '@/tofu/keypairManager';
 import { TunnelManager } from '@/tunnel/tunnelManager';
+import { DevTunnelsDaemonProvider } from '@/tunnel/devTunnelsDaemonProvider';
 import { forkSession } from './forkSession';
+import { spawnInWorktree } from './spawnInWorktree';
+import { recoverPending } from './worktreeTransactions';
 import { stopTrackedSession } from './stopTrackedSession';
+import { loopbackCapabilityPath } from './loopbackCapability';
+import { getLocalTunnelClaim } from './getLocalTunnelClaim';
+import { getLocalMachine } from './getLocalMachine';
+import { bindListenersAndWriteCapability } from './bindListenersAndWriteCapability';
 
 // Prepare initial metadata
 // Suffix host with `-dev` for the HAPPY_VARIANT=dev variant so the dev daemon
@@ -53,15 +60,31 @@ export const initialMachineMetadata: MachineMetadata = {
   resumeSupport: { ...detectResumeSupport(), rpcAvailable: true, forkRpcAvailable: true },
 };
 
-async function resolveEmbeddedServerPort(): Promise<number> {
-  const machineState = await readMachineState();
+async function resolveMachineState(machineId: string): Promise<MachineLocallyPersistedState> {
+  const machineState = await readMachineState(machineId);
   if (machineState) {
-    return machineState.port;
+    if (machineState.machineId !== machineId) {
+      const updated = { ...machineState, machineId };
+      await writeMachineState(updated);
+      return updated;
+    }
+    if (machineState.tunnelPort !== machineState.loopbackPort) {
+      return machineState;
+    }
+    const loopbackPort = await pickFreeLoopbackPort();
+    const updated = { ...machineState, loopbackPort };
+    await writeMachineState(updated);
+    return updated;
   }
 
-  const port = await pickFreeLoopbackPort();
-  writeMachineState({ port });
-  return port;
+  const tunnelPort = await pickFreeLoopbackPort();
+  let loopbackPort = await pickFreeLoopbackPort();
+  while (loopbackPort === tunnelPort) {
+    loopbackPort = await pickFreeLoopbackPort();
+  }
+  const created = { machineId, tunnelPort, loopbackPort, tunnelId: '', lastTunnelUrl: null };
+  await writeMachineState(created);
+  return created;
 }
 
 export async function startDaemon(): Promise<void> {
@@ -168,14 +191,16 @@ export async function startDaemon(): Promise<void> {
     const { credentials, machineId } = await authAndSetupMachineIfNeeded();
     logger.debug('[DAEMON RUN] Auth and machine setup complete');
 
+    await recoverPending(configuration.happyHomeDir);
+    logger.debug('[DAEMON RUN] Pending worktree transaction recovery complete');
+
     const tofuKeypairs = await loadOrCreateTofuKeypairs(configuration.happyHomeDir);
     if (tofuKeypairs.createdEd25519) {
       console.log(`Happy server Ed25519 fingerprint: ${tofuKeypairs.ed25519Fingerprint}`);
     }
 
-    const embeddedServerPort = await resolveEmbeddedServerPort();
-    const tunnelManager = new TunnelManager();
-    const tunnelConfig = await tunnelManager.loadForDaemon(embeddedServerPort);
+    let machineState = await resolveMachineState(machineId);
+    const tunnelProvider = new DevTunnelsDaemonProvider({ manager: new TunnelManager() });
     const tofuPublicKeysConfig = {
       ed25519PublicKey: tofuKeypairs.ed25519PublicKey,
       ed25519SecretKey: tofuKeypairs.ed25519PrivateKey,
@@ -183,18 +208,40 @@ export async function startDaemon(): Promise<void> {
       x25519SecretKey: tofuKeypairs.ecdhPrivateKey,
       ed25519Fingerprint: tofuKeypairs.ed25519Fingerprint,
     };
-    const embeddedServer: HappyServerHandle = createHappyServer({
-      dataDir: configuration.happyHomeDir,
-      port: embeddedServerPort,
-      machineKey: tofuKeypairs.ed25519PublicKey,
-      localUserId: machineId,
-      publicUrl: tunnelConfig.tunnelUrl,
-      tofuPublicKeys: tofuPublicKeysConfig,
-    });
-    await embeddedServer.start();
-    logger.debug(`[DAEMON RUN] Embedded happy-server started on 127.0.0.1:${embeddedServerPort}`);
-
-    tunnelManager.startHost(tunnelConfig, embeddedServerPort);
+    const listenerBinding = await bindListenersAndWriteCapability({
+      sharedContext: {
+        dataDir: configuration.happyHomeDir,
+        machineKey: tofuKeypairs.ed25519PublicKey,
+        localUserId: machineId,
+        tofuPublicKeys: tofuPublicKeysConfig,
+      },
+      tunnelProvider,
+      paths: {
+        profile: join(configuration.happyHomeDir, 'profile.json'),
+        accountSettings: join(configuration.happyHomeDir, 'account-settings.json'),
+        loopbackCap: loopbackCapabilityPath(configuration.happyHomeDir),
+      },
+      machineState: () => machineState,
+      machineInfo: {
+        hostname: initialMachineMetadata.host,
+        owner: machineId,
+      },
+    }, configuration.happyHomeDir);
+    const tunnelConfig = listenerBinding.tunnelConfig;
+    machineState = {
+      ...machineState,
+      tunnelId: tunnelConfig.tunnelId,
+      lastTunnelUrl: tunnelConfig.tunnelUrl,
+    };
+    try {
+      await writeMachineState(machineState);
+    } catch (writeError) {
+      await listenerBinding.stop();
+      throw writeError;
+    }
+    const embeddedServerPort = machineState.tunnelPort;
+    logger.debug(`[DAEMON RUN] Embedded happy-server tunnel listener started on 127.0.0.1:${machineState.tunnelPort}`);
+    logger.debug(`[DAEMON RUN] Embedded happy-server loopback listener started on 127.0.0.1:${machineState.loopbackPort}`);
     logger.debug(`[DAEMON RUN] Dev Tunnel host started for ${tunnelConfig.tunnelUrl}`);
 
     // Setup state - key by PID
@@ -569,18 +616,20 @@ export async function startDaemon(): Promise<void> {
       }
     };
 
-    const spawnTrackedHappyProcess = ({
+    const spawnTrackedHappyProcess = async ({
       args,
       cwd,
       env,
       directoryCreated = false,
       message,
+      onProcessSpawned,
     }: {
       args: string[];
       cwd: string;
       env: NodeJS.ProcessEnv;
       directoryCreated?: boolean;
       message?: string;
+      onProcessSpawned?: (pid: number) => void | Promise<void>;
     }): Promise<SpawnSessionResult> => {
       const happyProcess = spawnHappyCLI(args, {
         cwd,
@@ -623,6 +672,16 @@ export async function startDaemon(): Promise<void> {
         }
       });
 
+      try {
+        await onProcessSpawned?.(happyProcess.pid);
+      } catch (error) {
+        logger.debug(`[DAEMON RUN] onProcessSpawned hook failed for PID ${happyProcess.pid}: ${error instanceof Error ? error.message : error}`);
+        return {
+          type: 'error',
+          errorMessage: `Failed to record spawned process ${happyProcess.pid}: ${error instanceof Error ? error.message : error}`,
+        };
+      }
+
       logger.debug(`[DAEMON RUN] Waiting for session webhook for PID ${happyProcess.pid}`);
 
       return new Promise((resolve) => {
@@ -653,13 +712,12 @@ export async function startDaemon(): Promise<void> {
       return sessionIdToFinishedSession.get(happySessionId);
     };
 
-    const getLocalTunnelClaim = () => `tunnel ${Buffer.from(JSON.stringify({ sub: machineId, iat: Math.floor(Date.now() / 1000) })).toString('base64url')}`;
-
     const fetchServerSessionMetadata = async (sessionId: string, encryptionKey: Uint8Array, encryptionVariant: 'legacy' | 'dataKey'): Promise<Metadata | null> => {
       try {
+        const signedClaim = await getLocalTunnelClaim({ machineId, ed25519PrivateKey: tofuKeypairs.ed25519PrivateKey });
         const response = await axios.get(`http://127.0.0.1:${embeddedServerPort}/v1/sessions`, {
           timeout: 10_000,
-          headers: { 'X-Tunnel-Authorization': getLocalTunnelClaim() },
+          headers: { 'X-Tunnel-Authorization': signedClaim },
         });
         const sessions = (response.data as { sessions: { id: string; metadata: string }[] }).sessions;
         const matched = sessions.find(s => s.id === sessionId);
@@ -751,6 +809,25 @@ export async function startDaemon(): Promise<void> {
       baseEnv: process.env,
     });
 
+    const spawnInWorktreeHandler = (options: SpawnInWorktreeOptions): Promise<SpawnSessionResult> => spawnInWorktree(options, {
+      daemonHome: configuration.happyHomeDir,
+      machineId,
+      baseEnv: process.env,
+      stat: fs.stat,
+      realpath: fs.realpath,
+      runGit: (cwd, args) => new Promise<string>((resolve, reject) => {
+        execFile('git', args, { cwd, encoding: 'utf8', windowsHide: true }, (err, stdout, stderr) => {
+          if (err) {
+            reject(new Error(stderr || err.message));
+          } else {
+            resolve(stdout);
+          }
+        });
+      }),
+      spawnTrackedHappyProcess,
+      killProcess: (pid) => process.kill(pid),
+    });
+
     // Stop a session by sessionId or PID fallback
     const stopSession = async (sessionId: string): Promise<boolean> => {
       logger.debug(`[DAEMON RUN] Attempting to stop session ${sessionId}`);
@@ -826,19 +903,26 @@ export async function startDaemon(): Promise<void> {
       startedAt: Date.now()
     };
 
-    // Create API client
-    const api = await ApiClient.create(credentials);
-
-    // Get or create machine
-    const machine = await api.getOrCreateMachine({
+    const localMachine = getLocalMachine({
+      credentials,
       machineId,
       metadata: {
         ...initialMachineMetadata,
         tunnelUrl: tunnelConfig.tunnelUrl,
       },
-      daemonState: initialDaemonState
+      daemonState: initialDaemonState,
     });
+    await bootstrapMachineForEmbedded({
+      machineId,
+      metadata: localMachine.encryptedMetadata,
+      daemonState: localMachine.encryptedDaemonState,
+      dataEncryptionKeyBase64: localMachine.dataEncryptionKeyBase64,
+    });
+    const machine = localMachine.machine;
     logger.debug(`[DAEMON RUN] Machine registered: ${machine.id}`);
+
+    // Create API client
+    const api = await ApiClient.create(credentials);
 
     // Create realtime machine session
     const apiMachine = api.machineSyncClient(machine);
@@ -846,6 +930,7 @@ export async function startDaemon(): Promise<void> {
     // Set RPC handlers
     apiMachine.setRPCHandlers({
       spawnSession,
+      spawnInWorktree: spawnInWorktreeHandler,
       resumeSession,
       forkSession: forkSessionHandler,
       stopSession,
@@ -909,8 +994,7 @@ export async function startDaemon(): Promise<void> {
         // isDaemonRunningCurrentlyInstalledHappyVersion() === true, and exits —
         // leaving nothing running once we also exit.
         apiMachine.shutdown();
-        tunnelManager.stop();
-        await embeddedServer.stop();
+        await listenerBinding.stop();
         await stopControlServer();
         await cleanupDaemonState();
         await releaseDaemonLock(daemonLockHandle);
@@ -979,8 +1063,7 @@ export async function startDaemon(): Promise<void> {
       await new Promise(resolve => setTimeout(resolve, 100));
 
       apiMachine.shutdown();
-      tunnelManager.stop();
-      await embeddedServer.stop();
+      await listenerBinding.stop();
       await stopControlServer();
       await cleanupDaemonState();
       await stopCaffeinate();

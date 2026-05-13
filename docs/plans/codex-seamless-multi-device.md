@@ -27,11 +27,15 @@
 >     re-author the 7-step scenario against tunnel-direct WS.
 >
 > - **Hard pause point:** sub-tasks 3+ are blocked on the tunnels Phase 0
->   spike result (`docs/spikes/devtunnel-auth-result.md` — does not exist
->   yet) AND on tunnels' pre-implementation decisions (OAuth-app-vs-
->   GitHub-app, token contract, access path (a)/(b), local WS port
->   policy). Sub-tasks 1 and 2 do NOT depend on any of these and can ship
->   first.
+>   spike result (`docs/spikes/devtunnel-api-discovery-result.md` —
+>   discovery + identity portion resolved in Sprint A foundation branch
+>   `ralph/devtunnels-A-foundation`; the live RN-to-tunnel WebSocket
+>   round-trip remains a follow-up, tracked in
+>   `docs/plans/github-auth-via-vscode-tunnels.md` §"Sprint A
+>   reconciliation") AND on tunnels' pre-implementation decisions
+>   (OAuth-app-vs-GitHub-app, token contract, access path (a)/(b), local
+>   WS port policy). Sub-tasks 1 and 2 do NOT depend on any of these and
+>   can ship first.
 >
 > - **Line numbers cited in this doc are stale** after the upstream
 >   merge (2026-05-03, `25fe2cf3`). Use `grep` rather than line numbers

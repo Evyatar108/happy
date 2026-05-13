@@ -1,313 +1,389 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import tweetnacl from 'tweetnacl';
-import { encodeBase64, getRandomBytes, libsodiumEncryptForPublicKey } from './encryption';
-import { readCredentials, writeCredentials } from './credentials';
+import { encodeBase64, getRandomBytes } from './encryption';
+import { loadCredentials, saveCredentials, type PersistedCredentials } from './credentials';
 import type { Config } from './config';
 
-// Mock axios
 vi.mock('axios', () => {
-    const fn = vi.fn();
+    const fn = { get: vi.fn(), post: vi.fn() };
     return {
-        default: { post: fn },
+        default: fn,
         AxiosError: class AxiosError extends Error {
-            constructor(message: string) {
+            response?: { status: number };
+            constructor(message: string, opts?: { response?: { status: number } }) {
                 super(message);
                 this.name = 'AxiosError';
+                this.response = opts?.response;
             }
         },
     };
 });
 
-// Mock qrcode-terminal
-vi.mock('qrcode-terminal', () => ({
-    default: {
-        generate: vi.fn((_data: string, _opts: unknown, cb: (code: string) => void) => {
-            cb('[QR CODE]');
-        }),
-    },
-}));
-
-// Mock chalk to pass-through
-vi.mock('chalk', () => ({
-    default: {
-        bold: (s: string) => s,
-        dim: (s: string) => s,
-        green: (s: string) => s,
-        yellow: (s: string) => s,
-    },
-}));
-
 import axios from 'axios';
 import { authLogin, authLogout, authStatus } from './auth';
 
-const mockedAxiosPost = vi.mocked(axios.post);
+const mockedAxios = axios as unknown as {
+    get: ReturnType<typeof vi.fn>;
+    post: ReturnType<typeof vi.fn>;
+};
 
 function makeTestConfig(): Config {
     const homeDir = mkdtempSync(join(tmpdir(), 'happy-agent-auth-test-'));
     return {
-        serverUrl: 'https://test-server.example.com',
+        legacyServerUrl: 'https://legacy.example.com',
+        pairingBaseUrl: 'https://pairing.example.com',
         homeDir,
-        credentialPath: join(homeDir, 'agent.key'),
+        credentialPath: join(homeDir, 'credentials.json'),
+    };
+}
+
+function encodeTunnelClaim(payload: unknown): string {
+    const p = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    return Buffer.from(JSON.stringify({ p, s: 'signature' })).toString('base64url');
+}
+
+function machine(overrides: Partial<PersistedCredentials['machines'][number]> = {}): PersistedCredentials['machines'][number] {
+    const now = Math.floor(Date.now() / 1000);
+    return {
+        machineId: 'machine-1',
+        tunnelUrl: 'https://machine-1.devtunnels.ms',
+        tunnelClaim: encodeTunnelClaim({ accountId: 123, iat: now, exp: now + 600, jti: 'jti-1' }),
+        accountId: 999,
+        ed25519PublicKey: 'ed',
+        x25519PublicKey: 'x',
+        ...overrides,
     };
 }
 
 describe('auth', () => {
     let config: Config;
-    let consoleSpy: ReturnType<typeof vi.spyOn>;
+    let legacyHome: string;
+    let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+    let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+    const originalEnv = { ...process.env };
 
     beforeEach(() => {
         config = makeTestConfig();
-        consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-        mockedAxiosPost.mockReset();
+        legacyHome = mkdtempSync(join(tmpdir(), 'happy-agent-legacy-'));
+        process.env.HAPPY_HOME_DIR = legacyHome;
+        consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+        consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        mockedAxios.get.mockReset();
+        mockedAxios.post.mockReset();
+        mockedAxios.get.mockResolvedValue({ data: { accessTokens: { connect: 'connect-jwt' } } });
+        process.env.HAPPY_DEVTUNNELS_TOKEN = 'ghu-devtunnels';
+        vi.useFakeTimers({ now: new Date('2026-05-11T12:00:00.000Z') });
     });
 
     afterEach(() => {
+        vi.useRealTimers();
         rmSync(config.homeDir, { recursive: true, force: true });
-        consoleSpy.mockRestore();
+        rmSync(legacyHome, { recursive: true, force: true });
+        process.env = { ...originalEnv };
+        consoleLogSpy.mockRestore();
+        consoleWarnSpy.mockRestore();
     });
 
     describe('authLogin', () => {
-        it('completes the auth flow on first poll response', async () => {
-            // The auth flow makes two POST calls:
-            // 1. Initial request to register the public key
-            // 2. Poll that returns authorized state
-
-            const accountSecret = getRandomBytes(32);
-
-            // We need to intercept the publicKey from the first call
-            // to encrypt the secret with it for the response
-            let capturedPublicKey: Uint8Array | null = null;
-
-            mockedAxiosPost.mockImplementation(async (_url: string, data?: unknown) => {
-                const body = data as { publicKey: string };
-                if (!capturedPublicKey) {
-                    // First call - initial request
-                    capturedPublicKey = new Uint8Array(Buffer.from(body.publicKey, 'base64'));
-                    return { data: { state: 'pending' } };
-                }
-
-                // Second call - poll returns authorized
-                // Encrypt the account secret using the ephemeral public key
-                const encryptedSecret = libsodiumEncryptForPublicKey(accountSecret, capturedPublicKey);
-
-                return {
-                    data: {
-                        state: 'authorized',
-                        token: 'test-jwt-token',
-                        response: encodeBase64(encryptedSecret),
-                    },
-                };
+        it('uses GitHub device flow and saves audited machine credentials', async () => {
+            mkdirSync(legacyHome, { recursive: true });
+            const legacySecret = getRandomBytes(32);
+            writeFileSync(join(legacyHome, 'agent.key'), JSON.stringify({ token: 'legacy-token', secret: encodeBase64(legacySecret) }));
+            mockedAxios.get.mockResolvedValueOnce({
+                data: { device_code: 'device-code', user_code: 'ABCD-EFGH', verification_uri: 'https://github.com/login/device', expires_in: 900, interval: 1 },
+            });
+            mockedAxios.post.mockResolvedValueOnce({
+                data: {
+                    status: 'authorized',
+                    githubLogin: 'octocat',
+                    machines: [machine()],
+                    discoveredMachines: [],
+                },
             });
 
-            await authLogin(config);
+            const promise = authLogin(config);
+            await vi.advanceTimersByTimeAsync(1000);
+            await promise;
 
-            // Verify credentials were saved
-            const creds = readCredentials(config);
-            expect(creds).not.toBeNull();
-            expect(creds!.token).toBe('test-jwt-token');
-            expect(creds!.secret).toEqual(accountSecret);
-
-            // Verify axios was called with correct URL
-            expect(mockedAxiosPost).toHaveBeenCalledWith(
-                'https://test-server.example.com/v1/auth/account/request',
-                expect.objectContaining({ publicKey: expect.any(String) })
-            );
+            const creds = loadCredentials(config);
+            expect(mockedAxios.get).toHaveBeenCalledWith('https://pairing.example.com/pair/start', expect.any(Object));
+            expect(mockedAxios.post).toHaveBeenCalledWith('https://pairing.example.com/pair/status', { device_code: 'device-code' }, expect.any(Object));
+            expect(creds.githubLogin).toBe('octocat');
+            expect(creds.machines).toHaveLength(1);
+            expect(creds.machines[0].accountId).toBe(123);
+            expect(creds.legacyToken).toBe('legacy-token');
+            expect(creds.secret).toEqual(legacySecret);
         });
 
-        it('polls multiple times before success', async () => {
-            const accountSecret = getRandomBytes(32);
-            let capturedPublicKey: Uint8Array | null = null;
-            let callCount = 0;
-
-            mockedAxiosPost.mockImplementation(async (_url: string, data?: unknown) => {
-                callCount++;
-                const body = data as { publicKey: string };
-
-                if (callCount === 1) {
-                    // Initial request
-                    capturedPublicKey = new Uint8Array(Buffer.from(body.publicKey, 'base64'));
-                    return { data: { state: 'pending' } };
-                }
-
-                if (callCount <= 3) {
-                    // Polls 2 and 3 return pending
-                    return { data: { state: 'pending' } };
-                }
-
-                // Poll 4 returns authorized
-                const encryptedSecret = libsodiumEncryptForPublicKey(accountSecret, capturedPublicKey!);
-                return {
-                    data: {
-                        state: 'authorized',
-                        token: 'multi-poll-token',
-                        response: encodeBase64(encryptedSecret),
-                    },
-                };
+        it('saves credentials without legacy fields when no legacy agent key exists', async () => {
+            mockedAxios.get.mockResolvedValueOnce({
+                data: { device_code: 'device-code', user_code: 'ABCD-EFGH', verification_uri: 'https://github.com/login/device', expires_in: 900, interval: 1 },
+            });
+            mockedAxios.post.mockResolvedValueOnce({
+                data: {
+                    status: 'authorized',
+                    githubLogin: 'octocat',
+                    machines: [machine()],
+                    discoveredMachines: [],
+                },
             });
 
-            await authLogin(config);
+            const promise = authLogin(config);
+            await vi.advanceTimersByTimeAsync(1000);
+            await promise;
 
-            const creds = readCredentials(config);
-            expect(creds).not.toBeNull();
-            expect(creds!.token).toBe('multi-poll-token');
-            expect(creds!.secret).toEqual(accountSecret);
-            expect(callCount).toBe(4); // 1 initial + 3 polls
+            const raw = JSON.parse(readFileSync(config.credentialPath, 'utf-8')) as PersistedCredentials;
+            expect(raw.legacyToken).toBeUndefined();
+            expect(raw.legacySecret).toBeUndefined();
         });
 
-        it('throws when initial request fails', async () => {
+        it('aborts without writing new credentials when the legacy agent key is malformed', async () => {
+            mkdirSync(legacyHome, { recursive: true });
+            writeFileSync(join(legacyHome, 'agent.key'), JSON.stringify({ token: 'legacy-token' }));
+            mockedAxios.get.mockResolvedValueOnce({
+                data: { device_code: 'device-code', user_code: 'ABCD-EFGH', verification_uri: 'https://github.com/login/device', expires_in: 900, interval: 1 },
+            });
+            mockedAxios.post.mockResolvedValueOnce({
+                data: {
+                    status: 'authorized',
+                    githubLogin: 'octocat',
+                    machines: [machine()],
+                    discoveredMachines: [],
+                },
+            });
+
+            const assertion = expect(authLogin(config)).rejects.toThrow(`Legacy credentials file ${join(legacyHome, 'agent.key')} is malformed`);
+            await vi.advanceTimersByTimeAsync(1000);
+
+            await assertion;
+            expect(existsSync(config.credentialPath)).toBe(false);
+        });
+
+        it('aborts without writing new credentials when the legacy secret is not valid base64', async () => {
+            mkdirSync(legacyHome, { recursive: true });
+            writeFileSync(join(legacyHome, 'agent.key'), JSON.stringify({ token: 'legacy-token', secret: 'not-real-base64!!' }));
+            mockedAxios.get.mockResolvedValueOnce({
+                data: { device_code: 'device-code', user_code: 'ABCD-EFGH', verification_uri: 'https://github.com/login/device', expires_in: 900, interval: 1 },
+            });
+            mockedAxios.post.mockResolvedValueOnce({
+                data: {
+                    status: 'authorized',
+                    githubLogin: 'octocat',
+                    machines: [machine()],
+                    discoveredMachines: [],
+                },
+            });
+
+            const assertion = expect(authLogin(config)).rejects.toThrow(`Legacy credentials file ${join(legacyHome, 'agent.key')} is malformed`);
+            await vi.advanceTimersByTimeAsync(1000);
+
+            await assertion;
+            expect(existsSync(config.credentialPath)).toBe(false);
+        });
+
+        it('backs off on polling 429 and resets to the configured interval after a 200 response', async () => {
             const { AxiosError } = await import('axios');
-            mockedAxiosPost.mockRejectedValueOnce(new AxiosError('Network Error'));
+            const rateLimit = new AxiosError('rate limited') as any;
+            rateLimit.response = { status: 429 };
+            mockedAxios.get.mockResolvedValueOnce({ data: { device_code: 'device-code', user_code: 'CODE', verification_uri: 'https://github.com/login/device', expires_in: 900, interval: 1 } });
+            mockedAxios.post
+                .mockRejectedValueOnce(rateLimit)
+                .mockResolvedValueOnce({ data: { status: 'pending' } })
+                .mockResolvedValueOnce({ data: { status: 'authorized', githubLogin: 'octocat', machines: [machine()], discoveredMachines: [] } });
 
-            await expect(authLogin(config)).rejects.toThrow('Failed to initiate auth: Network Error');
+            const promise = authLogin(config);
+            await vi.advanceTimersByTimeAsync(1000);
+            expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+            await vi.advanceTimersByTimeAsync(1000);
+            await promise;
+
+            expect(mockedAxios.post).toHaveBeenCalledTimes(3);
+            expect(loadCredentials(config).machines).toHaveLength(1);
         });
 
-        it('throws when polling fails', async () => {
+        it('skips offline targets before issuing per-target HTTP calls', async () => {
+            mockedAxios.get.mockResolvedValueOnce({ data: { device_code: 'device-code', user_code: 'CODE', verification_uri: 'https://github.com/login/device', expires_in: 900, interval: 1 } });
+            mockedAxios.post.mockResolvedValueOnce({
+                data: {
+                    status: 'authorized',
+                    githubLogin: 'octocat',
+                    machines: [],
+                    discoveredMachines: [{ tunnelId: 'offline', tunnelUrl: 'https://offline.devtunnels.ms', displayName: 'offline', isOnline: false }],
+                },
+            });
+
+            const promise = authLogin(config);
+            await vi.advanceTimersByTimeAsync(1000);
+            await promise;
+
+            expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+            expect(consoleWarnSpy).toHaveBeenCalledWith('Skipping offline tunnel: offline');
+        });
+
+        it('retries a per-target 429 once and omits the target after a second 429', async () => {
             const { AxiosError } = await import('axios');
+            const firstRateLimit = new AxiosError('rate limited') as any;
+            firstRateLimit.response = { status: 429 };
+            const secondRateLimit = new AxiosError('rate limited') as any;
+            secondRateLimit.response = { status: 429 };
+            mockedAxios.get.mockResolvedValueOnce({ data: { device_code: 'device-code', user_code: 'CODE', verification_uri: 'https://github.com/login/device', expires_in: 900, interval: 1 } });
+            mockedAxios.post
+                .mockResolvedValueOnce({ data: { status: 'authorized', githubLogin: 'octocat', machines: [], discoveredMachines: [{ tunnelId: 't1', tunnelUrl: 'https://t1.devtunnels.ms', displayName: 't1', isOnline: true }] } })
+                .mockRejectedValueOnce(firstRateLimit)
+                .mockRejectedValueOnce(secondRateLimit);
 
-            let callCount = 0;
-            mockedAxiosPost.mockImplementation(async () => {
-                callCount++;
-                if (callCount === 1) {
-                    return { data: { state: 'pending' } };
-                }
-                throw new AxiosError('Connection refused');
-            });
+            const promise = authLogin(config);
+            await vi.advanceTimersByTimeAsync(1000);
+            await vi.advanceTimersByTimeAsync(2000);
+            await promise;
 
-            await expect(authLogin(config)).rejects.toThrow('Auth polling failed: Connection refused');
+            expect(consoleWarnSpy).toHaveBeenCalledWith('Skipping rate-limited tunnel https://t1.devtunnels.ms after retry');
+            expect(loadCredentials(config).machines).toHaveLength(0);
         });
 
-        it('throws when decryption fails (wrong key)', async () => {
-            // Encrypt with a different public key so decryption fails
-            const wrongKeyPair = tweetnacl.box.keyPair();
-            const accountSecret = getRandomBytes(32);
-            const encryptedWithWrongKey = libsodiumEncryptForPublicKey(accountSecret, wrongKeyPair.publicKey);
+        it('keeps a per-target tunnel when its one-shot 429 retry succeeds', async () => {
+            const { AxiosError } = await import('axios');
+            const rateLimit = new AxiosError('rate limited') as any;
+            rateLimit.response = { status: 429 };
+            mockedAxios.get.mockResolvedValueOnce({ data: { device_code: 'device-code', user_code: 'CODE', verification_uri: 'https://github.com/login/device', expires_in: 900, interval: 1 } });
+            mockedAxios.post
+                .mockResolvedValueOnce({ data: { status: 'authorized', githubLogin: 'octocat', machines: [], discoveredMachines: [{ tunnelId: 't1', tunnelUrl: 'https://t1.devtunnels.ms', displayName: 't1', isOnline: true }] } })
+                .mockRejectedValueOnce(rateLimit)
+                .mockResolvedValueOnce({ data: { status: 'authorized', githubLogin: 'octocat', machines: [machine({ machineId: 'machine-2' })], discoveredMachines: [] } });
 
-            let callCount = 0;
-            mockedAxiosPost.mockImplementation(async () => {
-                callCount++;
-                if (callCount === 1) {
-                    return { data: { state: 'pending' } };
-                }
-                return {
-                    data: {
-                        state: 'authorized',
-                        token: 'bad-token',
-                        response: encodeBase64(encryptedWithWrongKey),
-                    },
-                };
+            const promise = authLogin(config);
+            await vi.advanceTimersByTimeAsync(1000);
+            await vi.advanceTimersByTimeAsync(2000);
+            await promise;
+
+            expect(loadCredentials(config).machines.map(item => item.machineId)).toEqual(['machine-2']);
+            expect(loadCredentials(config).machines[0]).toMatchObject({
+                tunnelId: 't1',
+                connectToken: 'connect-jwt',
             });
-
-            await expect(authLogin(config)).rejects.toThrow('Failed to decrypt auth response');
         });
 
-        it('sends publicKey as base64 in request body', async () => {
-            const accountSecret = getRandomBytes(32);
+        it('omits unreachable per-target tunnels with a warning', async () => {
+            mockedAxios.get.mockResolvedValueOnce({ data: { device_code: 'device-code', user_code: 'CODE', verification_uri: 'https://github.com/login/device', expires_in: 900, interval: 1 } });
+            mockedAxios.post
+                .mockResolvedValueOnce({ data: { status: 'authorized', githubLogin: 'octocat', machines: [], discoveredMachines: [{ tunnelId: 't1', tunnelUrl: 'https://t1.devtunnels.ms', displayName: 't1', isOnline: true }] } })
+                .mockRejectedValueOnce(new Error('getaddrinfo ENOTFOUND'));
 
-            mockedAxiosPost.mockImplementation(async (_url: string, data?: unknown) => {
-                const body = data as { publicKey: string };
+            const promise = authLogin(config);
+            await vi.advanceTimersByTimeAsync(1000);
+            await promise;
 
-                // Verify publicKey is valid base64
-                const decoded = Buffer.from(body.publicKey, 'base64');
-                expect(decoded.length).toBe(32); // NaCl public key is 32 bytes
+            expect(loadCredentials(config).machines).toHaveLength(0);
+            expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping unreachable tunnel https://t1.devtunnels.ms: getaddrinfo ENOTFOUND'));
+        });
 
-                // Return authorized immediately
-                const pubKey = new Uint8Array(decoded);
-                const encryptedSecret = libsodiumEncryptForPublicKey(accountSecret, pubKey);
-                return {
-                    data: {
-                        state: 'authorized',
-                        token: 'token',
-                        response: encodeBase64(encryptedSecret),
-                    },
-                };
+        it('omits machines whose tunnel claim fails audit', async () => {
+            mockedAxios.get.mockResolvedValueOnce({ data: { device_code: 'device-code', user_code: 'CODE', verification_uri: 'https://github.com/login/device', expires_in: 900, interval: 1 } });
+            mockedAxios.post.mockResolvedValueOnce({
+                data: { status: 'authorized', githubLogin: 'octocat', machines: [machine({ tunnelClaim: encodeTunnelClaim({ accountId: 'bad', iat: 1, exp: 2, jti: 'jti' }) })], discoveredMachines: [] },
             });
 
-            // First call is initial, which returns pending above... but our mock
-            // always returns authorized. Let me fix the mock.
-            let callCount = 0;
-            mockedAxiosPost.mockImplementation(async (_url: string, data?: unknown) => {
-                callCount++;
-                const body = data as { publicKey: string };
+            const promise = authLogin(config);
+            await vi.advanceTimersByTimeAsync(1000);
+            await promise;
 
-                // Verify publicKey is valid base64 and 32 bytes
-                const decoded = Buffer.from(body.publicKey, 'base64');
-                expect(decoded.length).toBe(32);
+            expect(loadCredentials(config).machines).toHaveLength(0);
+            expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping machine machine-1 with invalid tunnel claim'));
+        });
 
-                if (callCount === 1) {
-                    return { data: { state: 'pending' } };
-                }
-
-                const pubKey = new Uint8Array(decoded);
-                const encryptedSecret = libsodiumEncryptForPublicKey(accountSecret, pubKey);
-                return {
-                    data: {
-                        state: 'authorized',
-                        token: 'token',
-                        response: encodeBase64(encryptedSecret),
-                    },
-                };
+        it('enriches primary machine with tunnelId and connectToken on primary-only login', async () => {
+            mockedAxios.get.mockResolvedValueOnce({
+                data: { device_code: 'device-code', user_code: 'ABCD-EFGH', verification_uri: 'https://github.com/login/device', expires_in: 900, interval: 1 },
+            });
+            mockedAxios.post.mockResolvedValueOnce({
+                data: {
+                    status: 'authorized',
+                    githubLogin: 'octocat',
+                    machines: [machine({ tunnelUrl: 'https://primary-tunnel.devtunnels.ms' })],
+                    discoveredMachines: [],
+                },
             });
 
-            await authLogin(config);
+            const promise = authLogin(config);
+            await vi.advanceTimersByTimeAsync(1000);
+            await promise;
+
+            const creds = loadCredentials(config);
+            expect(creds.machines).toHaveLength(1);
+            expect(creds.machines[0].tunnelId).toBe('primary-tunnel');
+            expect(creds.machines[0].connectToken).toBe('connect-jwt');
+            expect(typeof creds.machines[0].connectTokenExpiry).toBe('number');
+        });
+
+        it('omits machines whose tunnel claim is already expired', async () => {
+            const now = Math.floor(Date.now() / 1000);
+            mockedAxios.get.mockResolvedValueOnce({ data: { device_code: 'device-code', user_code: 'CODE', verification_uri: 'https://github.com/login/device', expires_in: 900, interval: 1 } });
+            mockedAxios.post.mockResolvedValueOnce({
+                data: { status: 'authorized', githubLogin: 'octocat', machines: [machine({ tunnelClaim: encodeTunnelClaim({ accountId: 123, iat: now - 600, exp: now - 1, jti: 'jti-expired' }) })], discoveredMachines: [] },
+            });
+
+            const promise = authLogin(config);
+            await vi.advanceTimersByTimeAsync(1000);
+            await promise;
+
+            expect(loadCredentials(config).machines).toHaveLength(0);
+            expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('claim expired'));
         });
     });
 
     describe('authLogout', () => {
-        it('clears stored credentials', async () => {
-            // First write some credentials
-            writeCredentials(config, 'some-token', getRandomBytes(32));
-            expect(existsSync(config.credentialPath)).toBe(true);
+        it('deletes new credentials and preserves legacy agent.key', async () => {
+            mkdirSync(legacyHome, { recursive: true });
+            const legacyPath = join(legacyHome, 'agent.key');
+            writeFileSync(legacyPath, JSON.stringify({ token: 'legacy-token', secret: encodeBase64(getRandomBytes(32)) }));
+            await saveCredentials(config, { githubLogin: 'octocat', deviceCode: 'device-code', deviceCodeExpiresAt: 1, pairingBaseUrl: config.pairingBaseUrl, machines: [] });
 
             await authLogout(config);
 
             expect(existsSync(config.credentialPath)).toBe(false);
+            expect(existsSync(legacyPath)).toBe(true);
         });
 
         it('does not throw when no credentials exist', async () => {
             await expect(authLogout(config)).resolves.toBeUndefined();
         });
-
-        it('prints logout message', async () => {
-            await authLogout(config);
-            const calls = consoleSpy.mock.calls.map(c => String(c[0]));
-            expect(calls).toContain('## Authentication');
-            expect(calls).toContain('- Status: Logged out');
-            expect(calls).toContain('- Credentials: Cleared');
-        });
     });
 
     describe('authStatus', () => {
-        it('shows authenticated status when credentials exist', async () => {
-            writeCredentials(config, 'test-token', getRandomBytes(32));
+        it('shows persisted device-flow status without adapter getters', async () => {
+            await saveCredentials(config, {
+                githubLogin: 'octocat',
+                deviceCode: 'device-code',
+                deviceCodeExpiresAt: Math.floor(Date.now() / 1000) + 60,
+                pairingBaseUrl: config.pairingBaseUrl,
+                machines: [machine()],
+            });
 
             await authStatus(config);
 
-            const calls = consoleSpy.mock.calls.map(c => String(c[0]));
-            expect(calls).toContain('## Authentication');
-            expect(calls).toContain('- Status: Authenticated');
+            const calls = consoleLogSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+            expect(calls).toContain('- GitHub: octocat');
+            expect(calls).toContain('- Machines: 1');
+            expect(calls).toContain('- Device Code Expires In: 60s');
+            expect(calls).toContain('- Has Legacy Credentials: no');
+            expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Legacy credentials were not found'));
         });
 
-        it('shows not authenticated when no credentials', async () => {
+        it('shows not authenticated when no credentials exist', async () => {
             await authStatus(config);
 
-            const calls = consoleSpy.mock.calls.map(c => String(c[0]));
-            expect(calls).toContain('## Authentication');
+            const calls = consoleLogSpy.mock.calls.map((c: unknown[]) => String(c[0]));
             expect(calls).toContain('- Status: Not authenticated');
         });
 
-        it('shows public key when authenticated', async () => {
-            const secret = getRandomBytes(32);
-            writeCredentials(config, 'test-token', secret);
-
+        it('prints no QR output', async () => {
             await authStatus(config);
-
-            // Should include a call with the public key
-            const calls = consoleSpy.mock.calls.map(c => String(c[0]));
-            const pubKeyCall = calls.find(c => c.includes('- Public Key: `'));
-            expect(pubKeyCall).toBeDefined();
+            const joined = consoleLogSpy.mock.calls.map((c: unknown[]) => String(c[0])).join('\n');
+            expect(joined).not.toContain('QR');
         });
     });
 });

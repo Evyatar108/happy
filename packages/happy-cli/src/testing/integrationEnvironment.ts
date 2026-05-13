@@ -30,7 +30,7 @@ type EnvironmentsModule = {
     removeEnvironment: (name: string) => void;
     seedEnvironment: (name: string) => Promise<void>;
     setEnvironmentTemplate: (name: string, template: EnvironmentTemplate) => void;
-    startEnvironmentServices: (name: string, opts?: { web?: boolean }) => Promise<void>;
+    startEnvironmentServices: (name: string, options?: { web?: boolean }) => Promise<void>;
     stopEnvironment: (name: string) => void;
 };
 

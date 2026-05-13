@@ -1,5 +1,17 @@
 # Changelog
 
+## Version 31 - 2026-05-12
+
+Pairing is now done by signing in with your GitHub account instead of scanning a QR code, and you can pair multiple computers and switch between them right from the machine picker in chat. We also retired the experimental voice and realtime features and tightened how the app authenticates each request, so reconnects are quicker and the app re-pairs cleanly if your GitHub token is ever revoked.
+
+- Added GitHub sign-in pairing — pick a computer running happy-cli and authorize the app with a one-time GitHub device code, no QR code or shared secret needed.
+- Added multi-computer support — pair as many machines as you like, switch between them in the chat picker, and see live status for each one.
+- Added automatic session re-auth — the app silently refreshes its credentials on every request, so idle sessions no longer drop and recovering from network blips is immediate.
+- Added a "session expired" prompt with a one-tap re-pair button for when your GitHub token gets revoked or expires.
+- Improved cold-start performance and reduced app size by removing client-side message encryption; messages still travel over an authenticated private tunnel.
+- Removed the experimental voice assistant, realtime audio sessions, and microphone permission request — the app no longer asks for the microphone on first launch.
+- Removed QR-code pairing entirely; the camera permission is no longer requested for pairing.
+
 ## Version 30 - 2026-05-10
 
 Session avatars can now use a topic-aware brutalist style. Sessions about the same topic pick the same kind of brutalist icon, and a new pin toggle in the chat drawer lets you freeze that icon so the session stays visually fixed even if its topic changes. The pin control appears in the drawer when the topic-aware brutalist style is active.

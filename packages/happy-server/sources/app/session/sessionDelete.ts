@@ -1,6 +1,6 @@
 import { Context } from "@/context";
 import { inTx, afterTx } from "@/storage/inTx";
-import { eventRouter, buildDeleteSessionUpdate } from "@/app/events/eventRouter";
+import { buildDeleteSessionUpdate, type EventRouter } from "@/app/events/eventRouter";
 import { allocateUserSeq } from "@/storage/seq";
 import { randomKeyNaked } from "@/utils/randomKeyNaked";
 import { log } from "@/utils/log";
@@ -9,8 +9,6 @@ import { log } from "@/utils/log";
  * Delete a session and all its related data.
  * Handles:
  * - Deleting all session messages
- * - Deleting all usage reports for the session
- * - Deleting all access keys for the session
  * - Deleting the session itself
  * - Sending socket notification to all connected clients
  *
@@ -18,7 +16,7 @@ import { log } from "@/utils/log";
  * @param sessionId - ID of the session to delete
  * @returns true if deletion was successful, false if the session was not found
  */
-export async function sessionDelete(ctx: Context, sessionId: string): Promise<boolean> {
+export async function sessionDelete(ctx: Context, sessionId: string, eventRouter: EventRouter): Promise<boolean> {
     return await inTx(async (tx) => {
         // Verify session exists and belongs to the user
         const session = await tx.session.findFirst({
@@ -48,27 +46,7 @@ export async function sessionDelete(ctx: Context, sessionId: string): Promise<bo
             deletedCount: deletedMessages.count
         }, `Deleted ${deletedMessages.count} session messages`);
 
-        // 2. Delete usage reports
-        const deletedReports = await tx.usageReport.deleteMany({
-            where: { sessionId }
-        });
-        log({
-            module: 'session-delete',
-            sessionId,
-            deletedCount: deletedReports.count
-        }, `Deleted ${deletedReports.count} usage reports`);
-
-        // 3. Delete access keys
-        const deletedAccessKeys = await tx.accessKey.deleteMany({
-            where: { sessionId }
-        });
-        log({
-            module: 'session-delete',
-            sessionId,
-            deletedCount: deletedAccessKeys.count
-        }, `Deleted ${deletedAccessKeys.count} access keys`);
-
-        // 4. Delete the session itself
+        // 2. Delete the session itself
         await tx.session.delete({
             where: { id: sessionId }
         });

@@ -20,7 +20,6 @@ import { getLatestDaemonLog } from './ui/logger'
 import { killRunawayHappyProcesses } from './daemon/doctor'
 import { install } from './daemon/install'
 import { uninstall } from './daemon/uninstall'
-import { ApiClient } from './api/api'
 import { runDoctorCommand, runDoctorDaemon } from './ui/doctor'
 import { listDaemonSessions, stopDaemonSession } from './daemon/controlClient'
 import { handleAuthCommand } from './commands/auth'
@@ -235,22 +234,17 @@ import { runInitCommand } from '@/tunnel/tunnelManager'
       
       try {
         const { saveGoogleCloudProjectToConfig } = await import('@/gemini/utils/config');
-        const { readCredentials } = await import('@/persistence');
-        const { ApiClient } = await import('@/api/api');
+        const { readVendorToken } = await import('@/vendorTokens');
         
-        // Try to get current user email from Happy cloud token
+        // Try to get current user email from the local Happy vendor token.
         let userEmail: string | undefined = undefined;
         try {
-          const credentials = await readCredentials();
-          if (credentials) {
-            const api = await ApiClient.create(credentials);
-            const vendorToken = await api.getVendorToken('gemini');
-            if (vendorToken?.oauth?.id_token) {
-              const parts = vendorToken.oauth.id_token.split('.');
-              if (parts.length === 3) {
-                const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-                userEmail = payload.email;
-              }
+          const vendorToken = await readVendorToken('gemini');
+          if (vendorToken?.oauth?.id_token) {
+            const parts = vendorToken.oauth.id_token.split('.');
+            if (parts.length === 3) {
+              const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+              userEmail = payload.email;
             }
           }
         } catch {

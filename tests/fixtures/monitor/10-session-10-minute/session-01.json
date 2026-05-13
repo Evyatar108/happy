@@ -1,0 +1,208 @@
+{
+  "sessionId": "session-01",
+  "samples": [
+    {
+      "timestamp": "2026-05-10T20:00:00.000Z",
+      "expectedSignals": {
+        "active": true,
+        "pendingPermission": false,
+        "hasValidationEvidence": false
+      },
+      "metadata": {
+        "turnActive": true,
+        "summary": "stale summary 01"
+      },
+      "agentState": {
+        "controlledByUser": false,
+        "requests": {}
+      },
+      "messages": [
+        {
+          "content": {
+            "role": "session",
+            "content": {
+              "ev": {
+                "t": "turn-start"
+              }
+            }
+          }
+        },
+        {
+          "content": {
+            "role": "tool",
+            "content": {
+              "type": "tool-result",
+              "result": "stale tool 01"
+            }
+          }
+        },
+        {
+          "content": {
+            "role": "assistant",
+            "content": {
+              "type": "text",
+              "text": "active output 01"
+            }
+          }
+        }
+      ],
+      "expectedLastOutput": "active output 01"
+    },
+    {
+      "timestamp": "2026-05-10T20:03:00.000Z",
+      "expectedSignals": {
+        "active": false,
+        "pendingPermission": false,
+        "hasValidationEvidence": false
+      },
+      "metadata": {
+        "turnActive": false,
+        "summary": "stale summary 01"
+      },
+      "agentState": {
+        "controlledByUser": false,
+        "requests": {}
+      },
+      "messages": [
+        {
+          "content": {
+            "role": "agent",
+            "content": {
+              "type": "event",
+              "data": {
+                "type": "ready"
+              }
+            }
+          }
+        },
+        {
+          "content": {
+            "role": "assistant",
+            "content": {
+              "type": "text",
+              "text": "idle output 01"
+            }
+          }
+        }
+      ],
+      "expectedLastOutput": "idle output 01"
+    },
+    {
+      "timestamp": "2026-05-10T20:06:00.000Z",
+      "expectedSignals": {
+        "active": true,
+        "pendingPermission": true,
+        "hasValidationEvidence": false
+      },
+      "metadata": {
+        "turnActive": false,
+        "summary": "stale summary 01"
+      },
+      "agentState": {
+        "controlledByUser": false,
+        "requests": {
+          "approve-01": {}
+        }
+      },
+      "messages": [
+        {
+          "content": {
+            "role": "tool",
+            "content": {
+              "type": "tool-result",
+              "result": "permission tool 01"
+            }
+          }
+        },
+        {
+          "content": {
+            "role": "assistant",
+            "content": {
+              "type": "text",
+              "text": "permission output 01"
+            }
+          }
+        }
+      ],
+      "expectedLastOutput": "permission output 01"
+    },
+    {
+      "timestamp": "2026-05-10T20:09:00.000Z",
+      "expectedSignals": {
+        "active": false,
+        "pendingPermission": false,
+        "hasValidationEvidence": true
+      },
+      "metadata": {
+        "turnActive": false,
+        "summary": "stale summary 01"
+      },
+      "agentState": {
+        "controlledByUser": false,
+        "requests": {}
+      },
+      "ledgerRecords": [
+        {
+          "runId": "run-fixture",
+          "sessionId": "session-01",
+          "timestamp": "2026-05-10T20:09:00.000Z",
+          "eventType": "validation-attached",
+          "testReference": "fixture",
+          "verificationUrl": "https://example.com/session-01"
+        }
+      ],
+      "messages": [
+        {
+          "content": {
+            "role": "assistant",
+            "content": {
+              "type": "text",
+              "text": "validated output 01"
+            }
+          }
+        }
+      ],
+      "expectedLastOutput": "validated output 01"
+    },
+    {
+      "timestamp": "2026-05-10T20:12:00.000Z",
+      "expectedSignals": {
+        "active": true,
+        "pendingPermission": true,
+        "hasValidationEvidence": true
+      },
+      "metadata": {
+        "turnActive": false,
+        "summary": "stale summary 01"
+      },
+      "agentState": {
+        "controlledByUser": false,
+        "requests": {
+          "approve-01b": {}
+        }
+      },
+      "ledgerRecords": [
+        {
+          "runId": "run-fixture",
+          "sessionId": "session-01",
+          "timestamp": "2026-05-10T20:09:00.000Z",
+          "eventType": "validation-attached",
+          "testReference": "fixture",
+          "verificationUrl": "https://example.com/session-01"
+        }
+      ],
+      "messages": [
+        {
+          "content": {
+            "role": "assistant",
+            "content": {
+              "type": "text",
+              "text": "multi-signal output 01"
+            }
+          }
+        }
+      ],
+      "expectedLastOutput": "multi-signal output 01"
+    }
+  ]
+}

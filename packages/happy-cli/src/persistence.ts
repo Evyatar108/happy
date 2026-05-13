@@ -4,10 +4,11 @@
  * Handles settings and private key storage in ~/.happy/ or local .happy/
  */
 
-import { FileHandle } from 'node:fs/promises'
-import { readFile, writeFile, mkdir, open, unlink, rename, stat } from 'node:fs/promises'
-import { existsSync, writeFileSync, readFileSync, unlinkSync, renameSync } from 'node:fs'
+import { readFile, writeFile, mkdir, open, unlink, stat } from 'node:fs/promises'
+import type { FileHandle } from 'node:fs/promises'
+import { chmodSync, existsSync, writeFileSync, readFileSync, unlinkSync, renameSync } from 'node:fs'
 import { constants } from 'node:fs'
+import { writeJsonAtomically } from '@slopus/happy-wire/node';
 import { configuration } from '@/configuration'
 import * as z from 'zod';
 import { encodeBase64, decodeBase64 } from '@/api/encryption';
@@ -78,8 +79,15 @@ export interface DaemonLocallyPersistedState {
 }
 
 export interface MachineLocallyPersistedState {
-  port: number;
-  tunnelUrl?: string;
+  machineId: string;
+  tunnelPort: number;
+  loopbackPort: number;
+  tunnelId: string;
+  lastTunnelUrl: string | null;
+}
+
+function isValidPort(port: unknown): port is number {
+  return typeof port === 'number' && Number.isInteger(port) && port > 0 && port <= 65535;
 }
 
 export async function readSettings(): Promise<Settings> {
@@ -135,7 +143,7 @@ export async function writeSettings(settings: Settings): Promise<void> {
     schemaVersion: settings.schemaVersion ?? SUPPORTED_SCHEMA_VERSION
   };
 
-  await writeFile(configuration.settingsFile, JSON.stringify(settingsWithVersion, null, 2))
+  await writeJsonAtomically(configuration.settingsFile, settingsWithVersion)
 }
 
 /**
@@ -152,7 +160,6 @@ export async function updateSettings(
   const STALE_LOCK_TIMEOUT_MS = 10000; // Consider lock stale after 10 seconds
 
   const lockFile = configuration.settingsFile + '.lock';
-  const tmpFile = configuration.settingsFile + '.tmp';
   let fileHandle;
   let attempts = 0;
 
@@ -197,9 +204,7 @@ export async function updateSettings(
       await mkdir(configuration.happyHomeDir, { recursive: true });
     }
 
-    // Write atomically using rename
-    await writeFile(tmpFile, JSON.stringify(updated, null, 2));
-    await rename(tmpFile, configuration.settingsFile); // Atomic on POSIX
+    await writeJsonAtomically(configuration.settingsFile, updated)
 
     return updated;
   } finally {
@@ -238,15 +243,7 @@ export async function readCredentials(): Promise<Credentials | null> {
   try {
     const keyBase64 = (await readFile(configuration.privateKeyFile, 'utf8'));
     const credentials = credentialsSchema.parse(JSON.parse(keyBase64));
-    if (credentials.secret) {
-      return {
-        token: credentials.token,
-        encryption: {
-          type: 'legacy',
-          secret: new Uint8Array(Buffer.from(credentials.secret, 'base64'))
-        }
-      };
-    } else if (credentials.encryption) {
+    if (credentials.encryption) {
       return {
         token: credentials.token,
         encryption: {
@@ -255,6 +252,14 @@ export async function readCredentials(): Promise<Credentials | null> {
           machineKey: new Uint8Array(Buffer.from(credentials.encryption.machineKey, 'base64'))
         }
       }
+    } else if (credentials.secret) {
+      return {
+        token: credentials.token,
+        encryption: {
+          type: 'legacy',
+          secret: new Uint8Array(Buffer.from(credentials.secret, 'base64'))
+        }
+      };
     }
   } catch {
     return null
@@ -266,20 +271,20 @@ export async function writeCredentialsLegacy(credentials: { secret: Uint8Array, 
   if (!existsSync(configuration.happyHomeDir)) {
     await mkdir(configuration.happyHomeDir, { recursive: true })
   }
-  await writeFile(configuration.privateKeyFile, JSON.stringify({
+  await writeJsonAtomically(configuration.privateKeyFile, {
     secret: encodeBase64(credentials.secret),
     token: credentials.token
-  }, null, 2));
+  });
 }
 
 export async function writeCredentialsDataKey(credentials: { publicKey: Uint8Array, machineKey: Uint8Array, token: string }): Promise<void> {
   if (!existsSync(configuration.happyHomeDir)) {
     await mkdir(configuration.happyHomeDir, { recursive: true })
   }
-  await writeFile(configuration.privateKeyFile, JSON.stringify({
+  await writeJsonAtomically(configuration.privateKeyFile, {
     encryption: { publicKey: encodeBase64(credentials.publicKey), machineKey: encodeBase64(credentials.machineKey) },
     token: credentials.token
-  }, null, 2));
+  });
 }
 
 export async function clearCredentials(): Promise<void> {
@@ -295,27 +300,46 @@ export async function clearMachineId(): Promise<void> {
   }));
 }
 
-export async function readMachineState(): Promise<MachineLocallyPersistedState | null> {
+export async function readMachineState(machineIdFallback?: string): Promise<MachineLocallyPersistedState | null> {
   try {
     if (!existsSync(configuration.machineFile)) {
       return null;
     }
     const content = await readFile(configuration.machineFile, 'utf-8');
-    const parsed = JSON.parse(content) as Partial<MachineLocallyPersistedState>;
-    if (typeof parsed.port !== 'number' || !Number.isInteger(parsed.port) || parsed.port <= 0 || parsed.port > 65535) {
+    const parsed = JSON.parse(content) as Partial<MachineLocallyPersistedState> & { port?: unknown; tunnelUrl?: unknown };
+    const tunnelPort = isValidPort(parsed.tunnelPort) ? parsed.tunnelPort : parsed.port;
+    if (!isValidPort(tunnelPort)) {
       return null;
     }
-    return {
-      port: parsed.port,
-      tunnelUrl: typeof parsed.tunnelUrl === 'string' ? parsed.tunnelUrl : undefined,
+    const loopbackPort = isValidPort(parsed.loopbackPort) ? parsed.loopbackPort : tunnelPort;
+    const machineId = typeof parsed.machineId === 'string' && parsed.machineId.length > 0
+      ? parsed.machineId
+      : machineIdFallback;
+    if (!machineId) {
+      return null;
+    }
+    const migrated = {
+      machineId,
+      tunnelPort,
+      loopbackPort,
+      tunnelId: typeof parsed.tunnelId === 'string' ? parsed.tunnelId : '',
+      lastTunnelUrl: typeof parsed.lastTunnelUrl === 'string'
+        ? parsed.lastTunnelUrl
+        : typeof parsed.tunnelUrl === 'string'
+          ? parsed.tunnelUrl
+          : null,
     };
+    if (!isValidPort(parsed.tunnelPort) || !isValidPort(parsed.loopbackPort) || parsed.machineId !== migrated.machineId || parsed.tunnelUrl !== undefined) {
+      await writeMachineState(migrated);
+    }
+    return migrated;
   } catch {
     return null;
   }
 }
 
-export function writeMachineState(state: MachineLocallyPersistedState): void {
-  writeFileSync(configuration.machineFile, JSON.stringify(state, null, 2), 'utf-8');
+export async function writeMachineState(state: MachineLocallyPersistedState): Promise<void> {
+  await writeJsonAtomically(configuration.machineFile, state);
 }
 
 /**

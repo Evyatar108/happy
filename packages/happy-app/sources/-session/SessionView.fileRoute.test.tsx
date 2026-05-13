@@ -102,7 +102,6 @@ vi.mock('@/components/SessionContextDrawer', () => ({
     ResumeCommandCopyBlock: 'ResumeCommandCopyBlock',
     SessionContextDrawer: 'SessionContextDrawer',
 }));
-vi.mock('@/components/VoiceAssistantStatusBar', () => ({ VoiceAssistantStatusBar: 'VoiceAssistantStatusBar' }));
 vi.mock('@/components/SidebarContext', () => ({ useSidebar: () => ({ isExpanded: false }) }));
 vi.mock('@/components/diff/PierreDiffView', () => ({ prefetchPierreDiff: vi.fn() }));
 vi.mock('@/components/modelModeOptions', () => ({
@@ -120,13 +119,6 @@ vi.mock('@/hooks/useDraft', () => ({ useDraft: () => ({ clearDraft: vi.fn() }) }
 vi.mock('@/hooks/usePreSendCommand', () => ({ usePreSendCommand: () => () => ({ intercepted: false, execute: vi.fn() }) }));
 vi.mock('@/hooks/useSessionQuickActions', () => ({ useSessionQuickActions: () => ({ canResume: false, resumeAvailability: null, resumeSession: vi.fn(), resumeSessionInline: vi.fn(), resumingSession: false }) }));
 vi.mock('@/modal', () => ({ Modal: { alert: modalAlert } }));
-vi.mock('@/realtime/hooks/voiceHooks', () => ({ voiceHooks: { onVoiceStarted: vi.fn(), onVoiceStopped: vi.fn() } }));
-vi.mock('@/realtime/RealtimeSession', () => ({
-    getCurrentVoiceConversationId: () => null,
-    getCurrentVoiceSessionDurationSeconds: () => 0,
-    startRealtimeSession: vi.fn(),
-    stopRealtimeSession: vi.fn(),
-}));
 vi.mock('./composeBoundaryAdvisory', () => ({ shouldShowBoundaryAdvisory: () => false, updateComposeStartAt: (_current: unknown, _prev: string, next: string, now: number) => next ? now : null }));
 vi.mock('@/sync/gitStatusSync', () => ({ gitStatusSync: { getSync: vi.fn(), invalidate: vi.fn() } }));
 vi.mock('@/sync/ops', () => ({

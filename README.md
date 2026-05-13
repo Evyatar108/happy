@@ -21,8 +21,7 @@ Codexu is the consumer-facing surface for a personal AI-coding stack:
   talks to a codex app-server over stdio/ws.
 - **happy-app** — mobile + web client (Expo / React Native) that
   attaches to the same app-server from any device.
-- **happy-server** — backend for cross-device sync, push, voice,
-  artifacts.
+- **happy-server** — backend for cross-device sync and push.
 - **happy-agent** — remote agent control CLI (create, send, monitor
   sessions).
 - **happy-wire** (npm: `@slopus/happy-wire`) — shared zod schemas +

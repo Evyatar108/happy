@@ -1,4 +1,4 @@
-import type { DecryptedMachine, DecryptedSession, DecryptedMessage } from './api';
+import type { DecryptedSession, DecryptedMessage, MachineSummary } from './api';
 
 // --- Types ---
 
@@ -14,19 +14,6 @@ type SessionMetadata = {
 type AgentState = {
     controlledByUser?: boolean;
     requests?: Record<string, unknown>;
-    [key: string]: unknown;
-};
-
-type MachineMetadata = {
-    host?: string;
-    platform?: string;
-    homeDir?: string;
-    happyCliVersion?: string;
-    [key: string]: unknown;
-};
-
-type MachineState = {
-    status?: string;
     [key: string]: unknown;
 };
 
@@ -113,27 +100,28 @@ export function formatSessionTable(sessions: DecryptedSession[]): string {
     return `## Sessions\n\n- Total: ${sessions.length}\n\n${sections.join('\n\n')}`;
 }
 
-export function formatMachineTable(machines: DecryptedMachine[]): string {
+export function formatMachineTable(machines: MachineSummary[]): string {
     if (machines.length === 0) {
         return '## Machines\n\n- Total: 0\n- Items: none';
     }
 
     const sections = machines.map((machine, index) => {
-        const metadata = (machine.metadata ?? {}) as MachineMetadata;
-        const daemonState = (machine.daemonState ?? null) as MachineState | null;
-        const host = normalizeListValue(toNonEmptyString(metadata.host) ?? '-');
-        const platform = normalizeListValue(toNonEmptyString(metadata.platform) ?? '-');
-        const status = machine.active ? (toNonEmptyString(daemonState?.status) ?? 'online') : 'offline';
-        const homeDir = normalizeListValue(toNonEmptyString(metadata.homeDir) ?? '-');
+        const hostname = normalizeListValue(toNonEmptyString(machine.hostname) ?? '-');
+        const tunnelPort = typeof machine.tunnelPort === 'number' ? String(machine.tunnelPort) : '-';
+        const lastSeenAt = typeof machine.lastSeenAt === 'number'
+            ? formatLastActive(machine.lastSeenAt)
+            : normalizeListValue(toNonEmptyString(machine.lastSeenAt) ?? '-');
+        const owner = normalizeListValue(toNonEmptyString(machine.owner) ?? '-');
+        const tunnelUrl = normalizeListValue(machine.tunnelUrl ?? '-');
 
         return [
             `### Machine ${index + 1}`,
             `- ID: ${toMarkdownInline(machine.id)}`,
-            `- Host: ${host}`,
-            `- Platform: ${platform}`,
-            `- Status: ${status}`,
-            `- Home: ${homeDir}`,
-            `- Last Active: ${normalizeListValue(formatLastActive(machine.activeAt))}`,
+            `- Tunnel URL: ${tunnelUrl}`,
+            `- Hostname: ${hostname}`,
+            `- Tunnel Port: ${tunnelPort}`,
+            `- Last Seen: ${normalizeListValue(lastSeenAt)}`,
+            `- Owner: ${owner}`,
         ].join('\n');
     });
 

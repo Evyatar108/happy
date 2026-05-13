@@ -420,6 +420,7 @@ export async function claudeRemoteLauncher(session: Session): Promise<'switch' |
                     onReady: () => {
                         session.client.closeClaudeSessionTurn('completed');
                         if (!pending && session.queue.size() === 0) {
+                            session.recordIdleReached();
                             session.client.sendPushEvent({
                                 kind: 'done',
                                 data: {

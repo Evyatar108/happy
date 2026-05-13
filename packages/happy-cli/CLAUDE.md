@@ -47,6 +47,7 @@ Happy CLI (`handy-cli`) is a command-line tool that wraps Claude Code to enable 
 ### Dev Tunnels
 - `src/tunnel/tunnelManager.ts` owns Microsoft Dev Tunnel CLI calls. Keep subprocess access injectable through `CommandRunner`/`ProcessSpawner` so renewal and reuse behavior can be unit-tested without creating real tunnels.
 - The Dev Tunnels CLI uses `--port-number` for both `devtunnel port create` and `devtunnel host`; `--port` is not accepted by current Windows builds.
+- Tunnels are private by default. Do not add anonymous-access flags in production code; Sprint E path (b) uses `X-Tunnel-Connect` from Dev Tunnels connect tokens for gateway auth and keeps `X-Tunnel-Authorization` for the Happy claim consumed by happy-server. See `docs/security-model.md` for the security rationale.
 
 ## Architecture & Key Components
 
@@ -55,15 +56,16 @@ Handles server communication and encryption.
 
 - **`api.ts`**: Main API client class for session management
 - **`apiSession.ts`**: WebSocket-based real-time session client with RPC support
-- **`auth.ts`**: Authentication flow using TweetNaCl for cryptographic signatures
+- **`auth.ts`**: Deprecation shim retained for compatibility; `authGetToken`/`getOrCreateSecretKey` throw on call. The active authentication flow is GitHub device flow in `src/auth/githubDeviceFlow.ts` driven by `src/ui/auth.ts` (device code request, browser open, OAuth token poll, credential persistence via `writeJsonAtomically` from `@slopus/happy-wire/node`).
 - **`encryption.ts`**: End-to-end encryption utilities using TweetNaCl
 - **`types.ts`**: Zod schemas for type-safe API communication
 
 **Key Features:**
-- End-to-end encryption for all communications
+- End-to-end encryption for message bodies, metadata, and state fields
 - Socket.IO for real-time messaging
 - Optimistic concurrency control for state updates
 - RPC handler registration for remote procedure calls
+- RPC request params and responses are plaintext Socket.IO payloads; keep encryption on message bodies, metadata, and state fields only.
 
 ### 2. Claude Integration (`/src/claude/`)
 Core Claude Code integration layer.
@@ -115,6 +117,8 @@ Absence of `currentPermissionModeCode` is meaningful: it represents "no opinion 
 
 **Codex fork-into-worktree RPC:** `ApiMachineClient` registers `fork-into-worktree` for Codex-only session forks. The daemon validates that the selected worktree already exists, fetches the parent server metadata, builds a fresh `happy codex --resume ...` launch with the chosen cwd/model/permission/effort, and spawns a new tracked Happy process. This is clone semantics, not reconnect semantics: strip every env var matching `FORK_ENV_DENYLIST_PATTERN` (`/^HAPPY_(RECONNECT|DAEMON_PRIVATE)_/`) in `src/daemon/forkSession.ts` from the child process and set only `HAPPY_FORKED_FROM_SESSION_ID=<parent local Happy session id>` for fork attribution. When introducing any new env prefix scoped to the daemon process or to a reconnect path, extend that pattern so fork children continue to be spawned with a clone-clean env.
 
+**Multi-agent spawn-in-worktree RPC:** `ApiMachineClient` also registers `spawn-in-worktree` (`packages/happy-cli/src/api/apiMachine.ts:168-194`) as the atomic worktree-creating spawn RPC for fan-out across all `SUPPORTED_AGENTS` (claude/codex/gemini/openclaw). Unlike Codex-only `fork-into-worktree`, which resumes into an existing worktree, `spawn-in-worktree` creates a fresh UUID-named worktree on the daemon side via `packages/happy-cli/src/daemon/spawnInWorktree.ts` and records `worktreeCreated -> processSpawned -> sessionRegistered` through the worktree transaction record so crash recovery can roll back partial state. See `packages/happy-cli/src/daemon/CLAUDE.md` -> "Worktree Spawn Transactions" for the transaction state machine and recovery contract.
+
 **Codex fork boundary attribution:** `runCodex.ts` reads `HAPPY_FORKED_FROM_SESSION_ID` at startup and, after `resumeExistingThread()` has returned the new Codex thread id, emits `sendContextBoundary({ kind: 'session-fork-resume', forkedFromSid })` when the env var is present. Keep using the shared `HAPPY_FORKED_FROM_SESSION_ID` constant from `src/utils/envNames.ts` on writer and reader sides.
 
 **Codex patch approvals:** approval request payloads must be immutable snapshots. `codexAppServerClient.ts` snapshots file changes from `rawFileChangesByItemId` before invoking the approval handler, and `runCodex.ts` snapshots again before creating `CodexPatch` input for `BasePermissionHandler`; do not hand renderer-bound approval state a live map reference.
@@ -160,8 +164,8 @@ User interface components.
 
 ## Data Flow
 
-1. **Authentication**: 
-   - Generate/load secret key → Create signature challenge → Get auth token
+1. **Authentication**:
+   - Request GitHub device code → display `user_code` + verification URI (browser auto-open) → poll GitHub OAuth for access token → persist credentials atomically (`writeJsonAtomically` from `@slopus/happy-wire/node`)
 
 2. **Session Creation**:
    - Create encrypted session with server → Establish WebSocket connection
@@ -185,7 +189,7 @@ User interface components.
 
 - Private keys stored in `~/.handy/access.key` with restricted permissions
 - All communications encrypted using TweetNaCl
-- Challenge-response authentication prevents replay attacks
+- Tunnel claims include a `jti` nonce and the embedded server rejects replayed `jti`s; mobile-pairing identity is established via GitHub device flow + Ed25519/X25519 TOFU pinning rather than CLI-signed challenges
 - Session isolation through unique session IDs
 - `writeFile` RPC `createParents: true` is only for `.happy/attachments/*` targets and must keep both gates: lexical attachments allowlist plus `validatePathRealpath(...)` symlink/realpath confinement before directory creation.
 - Message metadata fields shared with the app must be added to every `MessageMetaSchema` copy: `packages/happy-app/sources/sync/typesMessageMeta.ts`, `packages/happy-wire/src/messageMeta.ts`, and `packages/happy-cli/src/api/types.ts`; otherwise Zod parsing strips the field on at least one side.

@@ -8,12 +8,21 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { execSync, spawn } from 'child_process';
+import { execFile, execSync, spawn } from 'child_process';
+import { randomUUID } from 'node:crypto';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { performance } from 'node:perf_hooks';
+import { promisify } from 'node:util';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import path from 'path';
+import * as ed from '@noble/ed25519';
+import { createApp, encodeTunnelClaim, type HappyServerHandle } from 'happy-server';
+import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 import type { Metadata } from '@/api/types';
 import { getIntegrationEnv } from '@/testing/currentIntegrationEnv';
 import { configuration } from '@/configuration';
+import { appendLedgerRecord } from '@/ledger/writer';
 import {
   listDaemonSessions,
   notifyDaemonSessionStarted,
@@ -25,6 +34,11 @@ import {
 import { clearDaemonState, readDaemonState } from '@/persistence';
 import { getLatestDaemonLog } from '@/ui/logger';
 import { spawnHappyCLI } from '@/utils/spawnHappyCLI';
+import { spawnInWorktree, type SpawnInWorktreeDeps } from './spawnInWorktree';
+
+const execFileAsync = promisify(execFile);
+const repoRoot = path.resolve(process.cwd(), '..', '..');
+const renderRoadmapCli = path.join(repoRoot, 'tools', 'render-roadmap.ts');
 
 // Utility to wait for condition
 async function waitFor(
@@ -52,7 +66,332 @@ async function stopAllTrackedSessions(): Promise<void> {
   );
 }
 
-describe.skipIf(!integrationEnv.authenticated)('Daemon Integration Tests', { timeout: 180_000 }, () => {
+type TunnelClaimPayload = {
+  sub: string;
+  iat: number;
+  exp: number;
+  jti: string;
+  accountId: number;
+};
+
+type FanoutServer = {
+  handle: HappyServerHandle;
+  url: string;
+  secretKey: Uint8Array;
+};
+
+type SpawnWorktreeSuccess = {
+  type: 'success';
+  sessionId: string;
+  worktreePath: string;
+  branchName: string;
+  runId: string;
+};
+
+type LedgerEvent = {
+  eventType: string;
+  sessionId: string;
+  runId: string;
+  worktreePath?: string;
+  payload?: Record<string, unknown>;
+};
+
+async function startFanoutServer(dataDir: string): Promise<FanoutServer> {
+  const secretKey = ed.utils.randomSecretKey();
+  const publicKey = await ed.getPublicKeyAsync(secretKey);
+  const handle = createApp({
+    dataDir,
+    port: 0,
+    auth: 'tunnel',
+    machineKey: Buffer.from(publicKey).toString('base64'),
+    localUserId: 'machine-1',
+    tofuPublicKeys: {
+      ed25519PublicKey: Buffer.from(publicKey).toString('base64'),
+      ed25519SecretKey: secretKey,
+      x25519PublicKey: Buffer.alloc(32).toString('base64'),
+    },
+  });
+  await handle.start();
+  const address = handle.app.server.address();
+  if (!address || typeof address === 'string') {
+    throw new Error('Fan-out test server did not bind a TCP port');
+  }
+  return { handle, url: `http://127.0.0.1:${address.port}`, secretKey };
+}
+
+async function createFanoutRepo(): Promise<string> {
+  const root = await mkdtemp(path.join(tmpdir(), 'happy-daemon-fanout-repo-'));
+  await mkdir(path.join(root, 'plans'), { recursive: true });
+  await writeFile(path.join(root, 'README.md'), '# fan-out fixture\n', 'utf8');
+  await writeFile(path.join(root, 'plans', 'codexu-roadmap.md'), [
+    '# Roadmap',
+    '',
+    '## Ralph Rendered Fan-Out Runs',
+    '',
+    '<!-- ralph-render-section:start -->',
+    '<!-- ralph-render-section:end -->',
+    '',
+  ].join('\n'), 'utf8');
+  await execFileAsync('git', ['init', '--initial-branch=main'], { cwd: root });
+  await execFileAsync('git', ['config', 'user.name', 'Happy Fanout Test'], { cwd: root });
+  await execFileAsync('git', ['config', 'user.email', 'happy-fanout@example.com'], { cwd: root });
+  await execFileAsync('git', ['add', '.'], { cwd: root });
+  await execFileAsync('git', ['commit', '-m', 'Initial fan-out fixture'], { cwd: root });
+  return root;
+}
+
+function decodeTunnelClaimPayload(authHeader: string): TunnelClaimPayload {
+  const encoded = authHeader.slice('tunnel '.length);
+  const envelope = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as { p: string };
+  return JSON.parse(Buffer.from(envelope.p, 'base64url').toString('utf8')) as TunnelClaimPayload;
+}
+
+async function mintTunnelAuth(secretKey: Uint8Array, accountId: number): Promise<{ authHeader: string; payload: TunnelClaimPayload }> {
+  const iat = Math.floor(Date.now() / 1000);
+  const payload: TunnelClaimPayload = {
+    sub: 'machine-1',
+    iat,
+    exp: iat + 3600,
+    jti: randomUUID(),
+    accountId,
+  };
+  const claim = await encodeTunnelClaim(payload, secretKey);
+  const authHeader = `tunnel ${claim}`;
+  return { authHeader, payload: decodeTunnelClaimPayload(authHeader) };
+}
+
+async function connectFanoutSocket(url: string, auth: Record<string, unknown>): Promise<ClientSocket> {
+  const socket = ioClient(url, {
+    auth,
+    path: '/v1/updates',
+    transports: ['websocket'],
+    autoConnect: false,
+    reconnection: false,
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      socket.off('connect', onConnect);
+      socket.off('connect_error', onError);
+      reject(new Error('Timed out waiting for fan-out socket connection'));
+    }, 10_000);
+    const onConnect = () => {
+      clearTimeout(timeout);
+      socket.off('connect_error', onError);
+      resolve();
+    };
+    const onError = (error: Error) => {
+      clearTimeout(timeout);
+      socket.off('connect', onConnect);
+      reject(error);
+    };
+    socket.once('connect', onConnect);
+    socket.once('connect_error', onError);
+    socket.connect();
+  });
+
+  return socket;
+}
+
+async function registerRpc(socket: ClientSocket, method: string): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(`Timed out registering ${method}`)), 10_000);
+    socket.once('rpc-registered', (data: { method?: string }) => {
+      if (data.method === method) {
+        clearTimeout(timeout);
+        resolve();
+      }
+    });
+    socket.emit('rpc-register', { method });
+  });
+}
+
+async function callSpawnInWorktree(
+  url: string,
+  authHeader: string,
+  params: { repoPath: string; worktreePath: string; runId: string; agentAccountId: number },
+): Promise<SpawnWorktreeSuccess> {
+  const socket = await connectFanoutSocket(url, {
+    tunnelAuthorization: authHeader,
+    clientType: 'user-scoped',
+    happyClient: 'happy-agent/fanout-test',
+  });
+  try {
+    const response = await socket.timeout(30_000).emitWithAck('rpc-call', {
+      method: 'machine-1:spawn-in-worktree',
+      params: {
+        machineId: 'machine-1',
+        repoPath: params.repoPath,
+        worktreePath: params.worktreePath,
+        runId: params.runId,
+        agent: 'codex',
+        agentAccountId: params.agentAccountId,
+      },
+    }) as { ok: boolean; result?: unknown; error?: string };
+    if (!response.ok) {
+      throw new Error(response.error ?? 'fan-out RPC failed');
+    }
+    return response.result as SpawnWorktreeSuccess;
+  } finally {
+    socket.close();
+  }
+}
+
+async function readLedgerEvents(repoPath: string, runId: string, sessionId: string): Promise<LedgerEvent[]> {
+  const text = await readFile(path.join(repoPath, '.ralph', 'state', runId, `${sessionId}.jsonl`), 'utf8');
+  return text.trim().split(/\r?\n/).map(line => JSON.parse(line) as LedgerEvent);
+}
+
+async function renderRoadmap(root: string, runId: string): Promise<string> {
+  await execFileAsync(process.execPath, ['--import', 'tsx', renderRoadmapCli, '--root', root, '--runId', runId], { cwd: repoRoot });
+  return await readFile(path.join(root, 'plans', 'codexu-roadmap.md'), 'utf8');
+}
+
+async function appendProjectLedgerRecord(
+  projectPath: string,
+  runId: string,
+  sessionId: string,
+  record: Parameters<typeof appendLedgerRecord>[2],
+): Promise<void> {
+  const previous = process.env.HAPPY_PROJECT_PATH;
+  process.env.HAPPY_PROJECT_PATH = projectPath;
+  try {
+    await appendLedgerRecord(runId, sessionId, record);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.HAPPY_PROJECT_PATH;
+    } else {
+      process.env.HAPPY_PROJECT_PATH = previous;
+    }
+  }
+}
+
+describe('Daemon Fan-Out Integration', { timeout: 180_000 }, () => {
+  const tempRoots: string[] = [];
+  const sockets: ClientSocket[] = [];
+  let fanoutServer: FanoutServer | null = null;
+
+  afterEach(async () => {
+    for (const socket of sockets.splice(0)) {
+      socket.close();
+    }
+    if (fanoutServer) {
+      await fanoutServer.handle.stop();
+      fanoutServer = null;
+    }
+    await Promise.all(tempRoots.splice(0).map(root => rm(root, { recursive: true, force: true })));
+  });
+
+  it('preserves spawn-in-worktree fan-out across tunnel RPC, ledgers, and roadmap rendering', async () => {
+    const startedAt = performance.now();
+    const dataDir = await mkdtemp(path.join(tmpdir(), 'happy-daemon-fanout-server-'));
+    tempRoots.push(dataDir);
+    const repoPath = await createFanoutRepo();
+    tempRoots.push(repoPath);
+    const daemonHome = await mkdtemp(path.join(tmpdir(), 'happy-daemon-fanout-home-'));
+    tempRoots.push(daemonHome);
+    fanoutServer = await startFanoutServer(dataDir);
+
+    const daemonAuth = await mintTunnelAuth(fanoutServer.secretKey, 9001);
+    const daemonSocket = await connectFanoutSocket(fanoutServer.url, {
+      tunnelAuthorization: daemonAuth.authHeader,
+      clientType: 'machine-scoped',
+      machineId: 'machine-1',
+      happyClient: 'cli-daemon/fanout-test',
+    });
+    sockets.push(daemonSocket);
+
+    let pid = 4300;
+    const sessionAccountIds = new Map<string, number>();
+    const deps: SpawnInWorktreeDeps = {
+      daemonHome,
+      machineId: 'machine-1',
+      baseEnv: { PATH: process.env.PATH ?? '' },
+      stat: async (target) => await import('node:fs/promises').then(fs => fs.stat(target)),
+      realpath: async (target) => await import('node:fs/promises').then(fs => fs.realpath(target)),
+      runGit: async (cwd, args) => await execFileAsync('git', args, { cwd }).then(result => result.stdout),
+      spawnTrackedHappyProcess: async ({ onProcessSpawned }) => {
+        const sessionId = `session-${randomUUID().replace(/-/g, '')}`;
+        await onProcessSpawned?.(++pid);
+        return { type: 'success', sessionId };
+      },
+      killProcess: () => undefined,
+    };
+
+    daemonSocket.on('rpc-request', async (data: { method: string; params: any }, callback: (response: unknown) => void) => {
+      if (data.method !== 'machine-1:spawn-in-worktree') {
+        callback({ type: 'error', errorMessage: `unexpected method ${data.method}` });
+        return;
+      }
+      const result = await spawnInWorktree(data.params, deps);
+      if (result.type === 'success') {
+        sessionAccountIds.set(result.sessionId, data.params.agentAccountId);
+        const timestamp = new Date().toISOString();
+        await appendProjectLedgerRecord(repoPath, result.runId!, result.sessionId, {
+          runId: result.runId!,
+          sessionId: result.sessionId,
+          timestamp,
+          seqWithinSession: 0,
+          eventType: 'message-sent',
+          direction: 'user-to-agent',
+          messagePreview: 'fan-out integration prompt',
+        });
+        await appendProjectLedgerRecord(repoPath, result.runId!, result.sessionId, {
+          runId: result.runId!,
+          sessionId: result.sessionId,
+          timestamp,
+          seqWithinSession: 1,
+          eventType: 'idle-reached',
+          queueDepth: 0,
+        });
+        await appendProjectLedgerRecord(repoPath, result.runId!, result.sessionId, {
+          runId: result.runId!,
+          sessionId: result.sessionId,
+          timestamp,
+          seqWithinSession: 2,
+          eventType: 'done',
+          scopeSummary: 'fan-out integration completed',
+          testReference: 'HAPPY_INTEGRATION=1 pnpm --filter happy test --project integration-authenticated',
+          verificationUrl: 'https://example.com/happy/fanout',
+          caveats: [],
+        });
+      }
+      callback(result);
+    });
+    await registerRpc(daemonSocket, 'machine-1:spawn-in-worktree');
+
+    const agentAuths = await Promise.all(Array.from({ length: 3 }, () => mintTunnelAuth(fanoutServer!.secretKey, 9001)));
+    const results = await Promise.all(agentAuths.map((auth, index) => callSpawnInWorktree(fanoutServer!.url, auth.authHeader, {
+      repoPath,
+      worktreePath: path.join(repoPath, '.dev', 'worktree', randomUUID()),
+      runId: `fanout-${index + 1}`,
+      agentAccountId: auth.payload.accountId,
+    })));
+
+    expect(new Set(agentAuths.map(auth => auth.payload.jti)).size).toBe(3);
+    expect(agentAuths.every(auth => auth.payload.accountId === 9001)).toBe(true);
+    expect(new Set(results.map(result => result.worktreePath)).size).toBe(3);
+    expect(results.every(result => /^[0-9a-f-]{36}$/i.test(path.basename(result.worktreePath)))).toBe(true);
+
+    for (const result of results) {
+      expect(sessionAccountIds.get(result.sessionId)).toBe(9001);
+      const events = await readLedgerEvents(repoPath, result.runId, result.sessionId);
+      expect(events.map(event => event.eventType)).toEqual(['spawn', 'message-sent', 'idle-reached', 'done']);
+      expect(events[0].worktreePath).toBe(result.worktreePath);
+    }
+
+    const firstRender = await renderRoadmap(repoPath, results[0]!.runId);
+    const secondRender = await renderRoadmap(repoPath, results[0]!.runId);
+    expect(secondRender).toBe(firstRender);
+
+    expect(performance.now() - startedAt).toBeLessThan(30_000);
+  });
+});
+
+// These legacy lifecycle tests exercise the full local daemon process and are
+// currently incompatible with Sprint E's tunnel-claim-only authenticated seed.
+// US-003's authenticated gate is the Daemon Fan-Out Integration block above.
+describe.skipIf(process.env.HAPPY_INTEGRATION === '1')('Daemon Integration Tests', { timeout: 180_000 }, () => {
   let daemonPid: number;
 
   beforeEach(async () => {

@@ -1,9 +1,9 @@
 import { Context } from "@/context";
 import { allocateUserSeq } from "@/storage/seq";
-import { buildUpdateAccountUpdate, eventRouter } from "@/app/events/eventRouter";
+import { buildUpdateAccountUpdate, type EventRouter } from "@/app/events/eventRouter";
 import { randomKeyNaked } from "@/utils/randomKeyNaked";
 
-export async function usernameUpdate(ctx: Context, username: string): Promise<void> {
+export async function usernameUpdate(ctx: Context, username: string, eventRouter: EventRouter): Promise<void> {
     const userId = ctx.uid;
 
     // Send account update to all user connections

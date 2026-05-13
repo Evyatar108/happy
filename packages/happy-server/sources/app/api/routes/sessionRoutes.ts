@@ -1,4 +1,4 @@
-import { eventRouter, buildNewSessionUpdate, buildSessionActivityEphemeral } from "@/app/events/eventRouter";
+import { buildNewSessionUpdate, buildSessionActivityEphemeral, type EventRouter } from "@/app/events/eventRouter";
 import { type Fastify } from "../types";
 import { db } from "@/storage/db";
 import { z } from "zod";
@@ -9,7 +9,7 @@ import { allocateUserSeq } from "@/storage/seq";
 import { sessionDelete } from "@/app/session/sessionDelete";
 import { sendSessionPushEvent } from "@/app/push/pushNotifications";
 
-export function sessionRoutes(app: Fastify) {
+export function sessionRoutes(app: Fastify, eventRouter: EventRouter) {
 
     // Sessions API
     app.get('/v1/sessions', {
@@ -402,7 +402,7 @@ export function sessionRoutes(app: Fastify) {
         const userId = request.userId;
         const { sessionId } = request.params;
 
-        const deleted = await sessionDelete({ uid: userId }, sessionId);
+        const deleted = await sessionDelete({ uid: userId }, sessionId, eventRouter);
 
         if (!deleted) {
             return reply.code(404).send({ error: 'Session not found or not owned by user' });

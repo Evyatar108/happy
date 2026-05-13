@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { execFileSync, execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -43,6 +43,7 @@ describe('happy-agent CLI', () => {
         expect(stdout).toContain('machines');
         expect(stdout).toContain('list');
         expect(stdout).toContain('status');
+        expect(stdout).toContain('monitor');
         expect(stdout).toContain('spawn');
         expect(stdout).toContain('resume');
         expect(stdout).toContain('create');
@@ -68,10 +69,10 @@ describe('happy-agent CLI', () => {
     });
 
     describe('machines command', () => {
-        it('should show machines help with --active and --json options', () => {
+        it('should show machines help with --json option', () => {
             const { stdout } = runCli('machines', '--help');
             expect(stdout).toContain('List all machines');
-            expect(stdout).toContain('--active');
+            expect(stdout).not.toContain('--active');
             expect(stdout).toContain('--json');
         });
 
@@ -91,6 +92,22 @@ describe('happy-agent CLI', () => {
 
         it('should fail with auth error when not authenticated', () => {
             const { stderr, exitCode } = runCli('status', 'fake-session-id');
+            expect(exitCode).not.toBe(0);
+            expect(stderr).toContain('happy-agent auth login');
+        });
+    });
+
+    describe('monitor command', () => {
+        it('should show monitor help with runId, watch, and json options', () => {
+            const { stdout } = runCli('monitor', '--help');
+            expect(stdout).toContain('Monitor active sessions for a fan-out run');
+            expect(stdout).toContain('--runId');
+            expect(stdout).toContain('--watch');
+            expect(stdout).toContain('--json');
+        });
+
+        it('should fail with auth error when not authenticated', () => {
+            const { stderr, exitCode } = runCli('monitor', '--runId', 'run-1');
             expect(exitCode).not.toBe(0);
             expect(stderr).toContain('happy-agent auth login');
         });
@@ -119,11 +136,14 @@ describe('happy-agent CLI', () => {
     });
 
     describe('spawn command', () => {
-        it('should show spawn help with machine, path, agent, and json options', () => {
+        it('should show spawn help with machine, legacy path, new-worktree, and json options', () => {
             const { stdout } = runCli('spawn', '--help');
             expect(stdout).toContain('Spawn a new session on a machine');
             expect(stdout).toContain('--machine');
             expect(stdout).toContain('--path');
+            expect(stdout).toContain('--new-worktree');
+            expect(stdout).toContain('--repo');
+            expect(stdout).toContain('--worktree');
             expect(stdout).toContain('--agent');
             expect(stdout).toContain('--json');
         });
@@ -133,6 +153,7 @@ describe('happy-agent CLI', () => {
             expect(exitCode).not.toBe(0);
             expect(stderr).toContain('happy-agent auth login');
         });
+
     });
 
     describe('resume command', () => {
@@ -148,6 +169,7 @@ describe('happy-agent CLI', () => {
             expect(exitCode).not.toBe(0);
             expect(stderr).toContain('happy-agent auth login');
         });
+
     });
 
     describe('send command', () => {
