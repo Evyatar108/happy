@@ -230,8 +230,8 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 
 | Tab title | Task | Status | Commit |
 |---|---|---|---|
-| `perf-WS1` | Realtime perf — refresh-skip | ⬜ not started | — |
-| `perf-WS3` | Realtime perf — replay buffer | ⬜ not started | — |
+| `perf-WS1` | Realtime perf — refresh-skip | 🟡 in flight | — |
+| `perf-WS3` | Realtime perf — replay buffer | 🟡 in flight | — |
 | `perf-WS2` | Realtime perf — placeholder (after WS3) | ⬜ blocked on WS3 | — |
 | `3a-skills` | Phase 3a — Ralph skills port | ⏸ paused (prerequisites not yet met) | — |
 | ~~`F-013-perms`~~ | Claude permission latent override | 🚫 closed (obsolete-by-design) | b5d18eb5 → close-out |

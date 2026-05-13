@@ -196,8 +196,8 @@
   <div class="col">
     <div class="col-head"><h3>Ready now</h3><span class="badge b-now">assignable</span></div>
 
-    <div class="card">
-      <div class="card-title">Realtime sync perf — WS1: skip refreshTunnelClaim when valid</div>
+    <div class="card" style="border-color: var(--warn);">
+      <div class="card-title">🟡 Realtime sync perf — WS1: skip refreshTunnelClaim when valid <span class="sub">(in flight)</span></div>
       <div class="sub">Parse <code>exp</code>, skip roundtrip when claim valid 60-120 s ahead. Foreground fan-out 6×~2.5 s → 1×~2.5 s + 5×~0.5 s.</div>
       <div class="card-meta">
         <span class="pill area-app">happy-app</span>
@@ -218,8 +218,8 @@
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-title">Realtime sync perf — WS3: server replay buffer + client lastSeenSeq</div>
+    <div class="card" style="border-color: var(--warn);">
+      <div class="card-title">🟡 Realtime sync perf — WS3: server replay buffer + client lastSeenSeq <span class="sub">(in flight)</span></div>
       <div class="sub">Server keeps ring of last N events per user; client ships <code>lastSeenSeq</code> on reconnect handshake. Eliminates HTTP fallback on reconnect.</div>
       <div class="card-meta">
         <span class="pill area-multi">multi-package</span>
