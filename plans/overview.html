@@ -1630,7 +1630,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
   </details>
 
   <details class="cmd" id="cmd-codex-wire-spike" data-task-id="codex-wire-spike">
-    <summary><span class="cmd-name">codex-wire-spike</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Pre-flight wire-acceptance spike for Gaps 2/3/5 (30 min, unblocks codex-attachments). Spawned by <code>codex-parity-audit</code>.</span></summary>
+    <summary><span class="cmd-name">codex-wire-spike</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Wire-acceptance spike — resolved Gaps 2/3/5 against codex 0.125 · commit <code>06e0025b</code> · unblocks codex-attachments. Spawned by <code>codex-parity-audit</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
 <pre class="cmd-pre">/plan-with-ralph "30-minute pre-flight spike against a real codex app-server to resolve wire-acceptance questions blocking Gaps 2, 3, 5 from plans/codex-agent-parity-audit.md. Spike 3 questions: (1) does codex-core accept InputItem `{ type: 'image', url: 'data:image/png;base64,...' }` or does it require `{ type: 'localImage', path }` (Gap 3)? (2) does codex-core honor `config: { project_doc_fallback_filenames: ['CLAUDE.md', 'AGENTS.md'] }` in NewConversationParams (Gap 2)? (3) what's the behavior of `compactPrompt` in NewConversationParams (Gap 5)? Method: spawn a real `codex app-server` and send hand-crafted JSON-RPC requests via netcat / node script. Read packages/happy-cli/src/codex/codexAppServerTypes.ts for the wire shape; read codex/external/repos/codex-patched/codex-rs/protocol/src/lib.rs for the deserializer behavior. Output: new section 'Wire spike results' appended to plans/codex-agent-parity-audit.md with concrete answers and any follow-up steps. NO production code changes — research/spike only. Acceptance: each of the 3 questions has a definitive answer in the doc (works / requires X / unsupported), with evidence (request + response payload or referenced source-line). This unblocks codex-attachments (Gap 3) and informs codex-claude-md-autoload (Gap 2) + future codex-slash-commands (Gap 5)."</pre>
@@ -1647,9 +1647,9 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
   </details>
 
   <details class="cmd" id="cmd-codex-attachments" data-task-id="codex-attachments">
-    <summary><span class="cmd-name">codex-attachments</span><span class="cmd-badge b-blocked">🔒 blocked on codex-wire-spike</span><span class="cmd-desc">Gap 3 — image attachments on codex turn input (mobile screenshots silently dropped today). Spawned by <code>codex-parity-audit</code>.</span></summary>
+    <summary><span class="cmd-name">codex-attachments</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Gap 3 — image attachments on codex turn input · unblocked 2026-05-14 (codex-wire-spike commit <code>06e0025b</code> resolved the wire-shape question). Spawned by <code>codex-parity-audit</code>.</span></summary>
     <div class="cmd-body">
-      <div class="cmd-warn blocked">🔒 Blocked on <code>codex-wire-spike</code> resolving whether codex accepts data-URL images or needs <code>{ type: 'localImage', path }</code> to a tmp file. Pick the right shape based on the spike result.</div>
+      <div class="cmd-warn">⚠️ Read the "Wire spike results" section in <code>plans/codex-agent-parity-audit.md</code> first — it documents the chosen InputItem shape for images per the codex 0.125 spike.</div>
       <button class="copy-btn">Copy</button>
 <pre class="cmd-pre">/plan-with-ralph "Gap 3 from plans/codex-agent-parity-audit.md — image attachments never reach codex turn input. Today packages/happy-cli/src/codex/runCodex.ts:321 calls messageQueue.push(message.content.text, ...) — message.content.attachments is read NOWHERE on the codex path, and sendTurnAndWait (codexAppServerClient.ts:1338-1341) hardcodes input as `[{ type: 'text', text: prompt }]`. The wire InputItem (codexAppServerTypes.ts:134-137) DOES support image inputs — happy-cli just never produces them. PREREQUISITE: codex-wire-spike must have landed and answered whether codex accepts InputItem `{ type: 'image', url: 'data:image/png;base64,...' }` (preferred — no tmpfile management) or requires `{ type: 'localImage', path }` (needs tmpfile write + cleanup). Fix: plumb MessageQueueAttachment[] through MessageQueue2's payload to runCodex.ts's main loop (mirror the Claude path's claudeRemote.ts:65-90 `toClaudeUserContent`), synthesize InputItem[] in sendTurnAndWait based on the spike's chosen wire shape. Support PNG/JPEG/GIF/WebP (same set as Claude); skip + log unsupported MIME types. Acceptance: integration test sends a PNG attachment end-to-end against a mocked codex app-server; codex agent acknowledges the image content. Cross-package typecheck green. Test command: pnpm --filter '{packages/happy-cli}' exec vitest run 2&gt;&amp;1 | tee /tmp/codexu-attachments.log. Single commit; update plans/codex-agent-parity-audit.md Gap 3 section to mark shipped."</pre>
     </div>
@@ -2039,8 +2039,8 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T17:30:00Z",
-  "generatedFromCommit": "47de9b32",
+  "generatedAt": "2026-05-14T18:00:00Z",
+  "generatedFromCommit": "69dfe294",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -2074,9 +2074,9 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     "session-role-pill": "2026-05-14T14:00:00Z",
     "spawn-from-app": "2026-05-14T06:00:00Z",
     "agent-status-stream": "2026-05-14T06:00:00Z",
-    "codex-wire-spike": "2026-05-14T08:30:00Z",
+    "codex-wire-spike": "2026-05-14T18:00:00Z",
     "codex-claude-md-autoload": "2026-05-14T08:30:00Z",
-    "codex-attachments": "2026-05-14T08:30:00Z",
+    "codex-attachments": "2026-05-14T18:00:00Z",
     "codex-system-prompts": "2026-05-14T08:30:00Z",
     "codex-hooks-parity": "2026-05-14T08:30:00Z",
     "port-explorer-prompt": "2026-05-14T08:30:00Z",
@@ -2099,6 +2099,14 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     "codex-upstream-rebase": "periodic"
   },
   "runs": [
+    {
+      "id": "codex-wire-spike/2026-05-14",
+      "taskId": "codex-wire-spike",
+      "ranAt": "2026-05-14T18:00:00Z",
+      "outcome": "completed",
+      "commits": ["06e0025b"],
+      "summary": "Wire-acceptance spike against codex 0.125 resolved the three open questions blocking Gaps 2/3/5 from plans/codex-agent-parity-audit.md. Deliverables: tasks/spikes/codex-wire-spike.mjs (new, ~897-line all-in-one harness that spawns a real codex app-server and sends hand-crafted JSON-RPC requests) + plans/codex-agent-parity-audit.md 'Wire spike results' section appended with the concrete answers + Gap 2/3/5 cross-refs. Unblocks codex-attachments (Gap 3) and informs codex-claude-md-autoload (Gap 2) + future codex-slash-commands (Gap 5). Per session worktree-isolation lesson, this work landed via the .worktrees/codex-wire-spike worktree on a codex-wire-spike branch (cleanup: git worktree remove + git branch -D after the operator confirms)."
+    },
     {
       "id": "session-parent-link/2026-05-14",
       "taskId": "session-parent-link",

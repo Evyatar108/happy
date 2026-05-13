@@ -564,9 +564,9 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `F-015-toast` | Stale-creds toast on cold launch | ⏸ paused (awaiting reproduction) | — |
 | `mcp-discovery` | Codex agent project-.mcp.json parity | ✅ landed 2026-05-13 | 462776df |
 | `codex-parity-audit` | Research: gaps in codex agent feature parity vs Claude | ✅ landed 2026-05-13 | — (research-only; output `plans/codex-agent-parity-audit.md`) |
-| `codex-wire-spike` 🤖 | Pre-flight wire-acceptance spike for Gaps 2/3/5 | ⬜ not started | — |
+| `codex-wire-spike` 🤖 | Pre-flight wire-acceptance spike for Gaps 2/3/5 | ✅ shipped | 06e0025b |
 | `codex-claude-md-autoload` 🤖 | Gap 2: project CLAUDE.md auto-load on codex path | ⬜ not started | — |
-| `codex-attachments` 🤖 | Gap 3: image attachments on codex turn input | ⬜ blocked on codex-wire-spike | — |
+| `codex-attachments` 🤖 | Gap 3: image attachments on codex turn input | ⬜ ready (unblocked 2026-05-14) | — |
 | `codex-system-prompts` 🤖 | Gap 7: customSystemPrompt + appendSystemPrompt parity | ⬜ not started | — |
 | `codex-hooks-parity` 🤖 | Gap 4: fan codex events to happy turn-lifecycle handlers | ⬜ not started (sequence after earlier codex-* land) | — |
 | `1a-fork-doc` | Phase 1a — fork strategy commit | 🟡 in progress | — |
