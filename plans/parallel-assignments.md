@@ -66,12 +66,134 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `F-013-perms` | Claude permission latent override | ⬜ not started | — |
 | `F-015-toast` | Stale-creds toast on cold launch | ⬜ not started | — |
 
-After all five land, the next batch:
+---
 
-- **`perf-WS2`** — optimistic placeholder session (gated on WS3 landing — re-scope per WS3's overflow semantics)
-- **`3b-i-agents`** — Phase 3b-i, ralph subagents → codex agent roles
-- **`3h-options`** — Phase 3h, options-mode plugin migration (575 LOC hooks)
-- **`1b-3-multidev`** — Phase 1b sub-task 3, multi-device discoverability hint
-- **F-014 / F-017 / F-001-F-007** — remaining polish
+# Batch 2 — additional roadmap stories
 
-When that batch is queued, append new sections below and update `plans/overview.html`.
+Less-critical or sequenced-after-batch-1 ralph commands. Each is parallel-safe with the batch-1 set (different file trees) **except as noted**. Mark batch-2 status in the bottom table.
+
+## F — `perf-WS2` — Realtime perf, optimistic placeholder
+
+> **Wait until `perf-WS3` lands** — both touch `storage.ts` and WS3's replay-overflow semantics define WS2's fallback scope.
+
+```
+/plan-with-ralph "Realtime sync perf — Workstream 2: stop blocking new-message processing on a full sessions re-fetch. Per plans/realtime-sync-perf.md §Workstream 2. When a new-message socket event arrives for a sid not in storage (current code at packages/happy-app/sources/sync/sync.ts:1693-1710 blocks on sessionsSync.invalidateAndAwait() then replays queued messages), instead synthesize an optimistic placeholder StoredSession from event envelope fields (machineId from socket scope, sid, lastSeq from message, placeholder metadata { path: '', host: '', flavor: 'unknown' }, active: true, updatedAt: createdAt), insert via storage.applySessions, then apply the message immediately via the existing enqueueMessages fast path. Kick off sessionsSync.invalidate() (NOT invalidateAndAwait) to back-fill real metadata; applySessions overwrites the placeholder when the fetch resolves. Remove sessionInitInFlight set + pendingNewMessages queue (lines ~199-200) — both become unnecessary. Read packages/happy-app/CLAUDE.md sync invariants AND the new 'Session/machine-scoped network calls' note before editing. Acceptance: new test in sources/sync/sync.test.ts — mock storage with no session for sid='sx', fire new-message event, assert placeholder inserted + message enqueued BEFORE any fetchSessions mock awaited; existing new-message lifecycle tests (turn-start/turn-end thinking) stay green. Test command: pnpm --filter '{packages/happy-app}' exec vitest run sources/sync/sync.test.ts 2>&1 | tee /tmp/codexu-ws2.log. PREREQUISITE: WS3 must already be on main — re-read WS3's replayOverflow handling so the placeholder path defers to socket replay when available. Single commit; update plans/realtime-sync-perf.md and docs/validation/devtunnels-boox-result.md."
+```
+
+---
+
+## G — `1a-fork-doc` — Phase 1a, Codex fork strategy commit
+
+> Parallel with anything. Documentation-only in the codex submodule.
+
+```
+/plan-with-ralph "Phase 1a — Codex fork strategy commit. Per plans/codexu-roadmap.md §Phase 1a + Decisions still open #1. Decide between the documented fork-strategy options (subtree mirror + overlay crates vs alternative) and write up the chosen approach. Files to write: codex/docs/implementation/architecture.md (new 'Fork strategy' section), codex/docs/implementation/patch-surface.md (note upcoming patches: plugin scoping per Phase 2c, AskUserQuestion primitive per Phase 2d, Claude-via-Copilot adapter per Phase 7), codex/CLAUDE.md (top-level pointer to codexu-roadmap.md). Read codexu's docs/plans/codex-fork-extension-strategy.md FIRST — that doc covers the consumer side of fork strategy (what codexu assumes about cadence + RPC contract version); do not pick a fork strategy that invalidates its assumptions. The codex/ directory is a git submodule pointing at gim-home/codex; commit in the submodule (separate repo), then bump the submodule pointer in codexu main repo. Acceptance: 3 files updated in codex submodule with internally consistent strategy + cross-reference; codexu submodule pointer bumped; codexu-roadmap.md §Decisions made gets a new entry locking the choice. No code changes, no tests. Surface choice to operator before final commit if more than one option seems viable."
+```
+
+---
+
+## H — `1b-multidev` — Phase 1b sub-tasks 3 + 4, multi-device
+
+> Parallel with anything outside `packages/happy-cli/src/codex/` and the seamless-multi-device spec.
+
+```
+/plan-with-ralph "Phase 1b sub-task 3 + 4 — multi-device discoverability hint and multi-client approval fan-out. Per plans/codexu-roadmap.md §Phase 1b sub-tasks 3-4 + docs/plans/codex-seamless-multi-device.md sub-tasks 3-4. Sub-task 3: terminal-startup hint when codex starts in a cwd that already has a discoverable app-server, pointing user at phone attach option. Files: packages/happy-cli/src/codex/codexAppServerClient.ts (discovery + startup messaging) + packages/happy-cli/src/ui/start.ts or equivalent. Sub-task 4: when multiple clients are attached (laptop TUI + phone via tunnel), an approval prompt from codex must fan out to all attached clients; first-answer-wins; remaining clients see resolution. Files: packages/happy-cli/src/codex/runCodex.ts + packages/happy-cli/src/codex/codexAppServerClient.ts approval-handler plumbing. CRITICAL CONTEXT: re-read docs/plans/codex-seamless-multi-device.md against the finalized post-Sprint-E tunnel protocol — the spec was drafted assuming relay-forwarded phone path, but tunnels attach phone DIRECTLY to CLI's local Socket.IO server (no relay). Specifically read the 'Walkthrough Step 5 fan-out semantics shift layer' note in roadmap §Phase 1b. Decide whether codex app-server's native fan-out covers tunneled clients OR whether CLI's lifted rpcHandler must broadcast — verify by tracing one approval event from codex → CLI → tunneled phone. Read packages/happy-cli/CLAUDE.md and packages/happy-cli/src/daemon/CLAUDE.md first. Acceptance: integration test for sub-task 3 (mock discovery file existence, assert hint message); integration test for sub-task 4 (mock two attached clients, fire approval, assert both receive + first-answer wins). Test command: pnpm --filter '{packages/happy-cli}' exec vitest run 2>&1 | tee /tmp/codexu-1b34.log. Single commit per sub-task (two commits)."
+```
+
+---
+
+## I — `3b-agents` — Phase 3b-i + 3b-ii, subagents → agent roles
+
+> Parallel with most things; serializes with other Phase 3 sub-phases that touch `packages/codexu-plugin/.codex-plugin/plugin.json`.
+
+```
+/plan-with-ralph "Phase 3b-i + 3b-ii — convert 12 ralph subagents to codex [agents.<role>] TOML + pick permission profile per role. Per plans/codexu-roadmap.md §Phase 3b-i and §Phase 3b-ii. Source: C:/ai-developer-toolkit/plugins/ralph/agents/ — 12 .md subagent files (code-fixer, code-reviewer, criteria-validator, docs-reviewer, docs-updater, dsat-analyst, plan-reviewer, progress-analyst, refactoring-agent, security-fixer, security-reviewer, story-doctor). Target: ~/.codex/agents/<role>.toml per role + [agents.<role>] entries in ~/.codex/config.toml. Each [agents.<role>] declaration carries ONLY description, config_file, nickname_candidates — everything else (developer_instructions, model, model_reasoning_effort, permission profile) goes in the role config TOML. Model mapping from frontmatter: keep sonnet/opus assignments as-is, convert to codex model slugs (gpt-5-codex for sonnet equivalent, gpt-5.5 for opus or whichever the operator wants — surface this choice in plan form). Phase 3b-ii: NO ralph subagent declares tools: allowlist (verified roadmap §3b-ii) — collapse to picking PermissionProfile per the table: read-only for code-reviewer/docs-reviewer/security-reviewer/criteria-validator/progress-analyst/plan-reviewer/dsat-analyst, workspace-write for code-fixer/docs-updater/security-fixer/refactoring-agent/story-doctor. Document any Bash-subcommand restrictions needed (no profile equivalent in codex; document workaround). Read packages/codexu-plugin/CLAUDE.md if present + the existing Phase 1c scaffolding. Acceptance: 12 .toml files + 12 config.toml entries; one role (suggest code-reviewer) verified end-to-end via `codex exec` agent spawn returning a probe sentence. Single commit on main (the role .toml files are user-config, not repo-tracked — only the config.toml template + docs go in repo). Surface model-mapping choice to operator before implementing."
+```
+
+---
+
+## J — `3c-hooks` — Phase 3c, Ralph hooks port
+
+> Light verification task. Likely zero work. Parallel with anything.
+
+```
+/plan-with-ralph "Phase 3c — port ralph plugin hooks from Claude Code to codex hook system, OR verify there are no hooks to port. Per plans/codexu-roadmap.md §Phase 3c. Toolkit ralph plugin's CLAUDE.md (C:/ai-developer-toolkit/plugins/ralph/CLAUDE.md) says 'skills-only', suggesting no hooks. Verify by inspecting C:/ai-developer-toolkit/plugins/ralph/ — look for .claude/hooks/ entries, hook references in skill SKILL.md frontmatter, or any subprocess invocation pattern that mirrors Claude Code's PreToolUse/PostToolUse/SessionStart/Stop/Notification/UserPromptSubmit/PreCompact lifecycle. If zero hooks found, write a one-paragraph 'Phase 3c verified — no hooks to port' note in plans/codexu-roadmap.md under §Phase 3c (replacing the open status) and that's the entire commit. If hooks ARE found, port to codex hook system per codex/core/src/hook_runtime.rs — surface plan to operator before implementing. Acceptance: roadmap §3c marked verified-no-port OR ported hooks ship with parity tests. Light single commit either way."
+```
+
+---
+
+## K — `3d-workers` — Phase 3d, codex-based workers via native spawn
+
+> Parallel with batch-1 perf work; serializes with I (`3b-agents`) since both rely on the `[agents.<role>]` config.
+
+```
+/plan-with-ralph "Phase 3d — replace ralph's codex-exec.sh subprocess pattern with codex native spawn-agent-role for codex-based workers. Per plans/codexu-roadmap.md §Phase 3d (+ §3d-i compatibility audit). PREREQUISITE: Phase 3b-i (I 3b-agents) must have landed the agent role TOMLs so spawn-agent-role has roles to invoke. Today: ralph orchestrator skill runs `bash → codex-exec.sh` to spawn a fresh `codex exec` for each codex-based worker (planner, reviewer, verifier) — separate process, no continuity. Target: ralph orchestrator skill calls the native spawn-agent-role tool; each worker becomes a sub-thread on the SAME app-server codexu is connected to. Compatibility constraints (audited 2026-05-02, see roadmap §3d-i): SpawnAgentArgs requires message (string) + task_name; inter-agent fast path supports text-only initial input (UserInput::Text only); fork_context field is rejected; deny_unknown_fields is strict; empty agent_type maps to default role; task_name becomes AgentPath. Files to touch: ralph orchestrator skill SCRIPT under C:/ai-developer-toolkit/plugins/ralph/skills/run-ralph/ (or wherever the codex-exec.sh shellout lives) — replace shell invocation with codex native spawn API call. codex-exec.sh stays in tree but becomes unused for codex roles (still used by claude-exec.sh and copilot-exec.sh per Phase 3e). Read packages/codexu-plugin/CLAUDE.md and the spawn audit in roadmap. Acceptance: one orchestrator job (suggest a small 3-way review) runs end-to-end using native spawn; each worker thread visible in codexu/codex thread list (Phase 6 resumability hook); ralph .ralph/jobs/<name>/ artifacts produced as before. Test by running an existing job end-to-end via `/implement-with-ralph` against a trivial PRD. Surface to operator before merging — this changes ralph orchestration behavior."
+```
+
+---
+
+## L — `3fg-package` — Phase 3f + 3g, asset migration + plugin packaging
+
+> Serializes with I (3b-agents) and K (3d-workers) for plugin.json edits. Otherwise parallel.
+
+```
+/plan-with-ralph "Phase 3f + 3g — port ralph plugin assets (shell libs, scripts) and convert plugin packaging from Claude Code format to codex format. Per plans/codexu-roadmap.md §Phase 3f and §Phase 3g. Phase 3f assets to port from C:/ai-developer-toolkit/plugins/ralph/: lib/finding-merge.sh, lib/parse-not-tested-trailers.sh (shell utilities), any other lib/*.sh, statusline scripts (.ps1 + .sh) if present. Target: under packages/codexu-plugin/ — preserve directory structure. Phase 3g packaging: convert C:/ai-developer-toolkit/plugins/ralph/.claude-plugin/plugin.json to packages/codexu-plugin/.codex-plugin/plugin.json (new manifest schema per codex/core-plugins/src/manifest.rs); update bundle layout (no agents/ directory — agent roles go in user config per Phase 3b-i); set up marketplace catalog at packages/codexu-plugin/.agents/plugins/marketplace.json (per Phase 1c finding — `codex plugin install <path>` does not exist; only `codex plugin marketplace add <SOURCE>`). Existing packages/codexu-plugin/.agents/plugins/marketplace.json already lists codexu-plugin (Phase 1c); extend or add ralph as second catalog entry, your choice. Update install instructions in C:/ai-developer-toolkit/plugins/ralph/CLAUDE.md and (if exists) plugins/options-mode/CLAUDE.md to reflect codex marketplace add. Read packages/codexu-plugin/README.md + Phase 1c §Personal plugin scaffolding. Acceptance: `codex plugin marketplace upgrade codexu` picks up ralph plugin; ralph skills + asset references resolve from new locations; one user-invocable skill works via TUI /skills picker. Single commit or split per-asset, your judgment."
+```
+
+---
+
+## M — `3h-options` — Phase 3h, options-mode plugin migration
+
+> Separate plugin (options-mode) — parallel with everything else.
+
+```
+/plan-with-ralph "Phase 3h — migrate options-mode plugin from Claude Code (575 LOC of Node.js hook logic + slash command + statusline + tag-protocol enforcement) to codex plugin format. Per plans/codexu-roadmap.md §Phase 3h. Source: C:/ai-developer-toolkit/plugins/options-mode/ — 4 hook files (SessionStart, UserPromptSubmit, Stop, statusline), slash command /options-mode, PowerShell + Bash statusline scripts. What it does today: SessionStart injects rules (agent must close every turn with <options-mode>continue</options-mode> tag OR structured choice prompt); UserPromptSubmit handles /options-mode on|off|status toggle; Stop hook reads JSONL transcript, deterministically checks for closing tag, blocks turn-end if missing; statusline shows enabled/disabled state; NO LLM classification — pure tag detection. Codex hook parity (verified 2026-05-02, see roadmap §3h codex hook parity check): config/src/hook_config.rs:42 defines Stop hook kind — capabilities options-mode needs are supported. Target: new codex plugin packages/codexu-options-mode-plugin/ (or under codexu-plugin/, your choice — surface to operator). Convert Node hooks to codex hook format; convert slash command; preserve tag-protocol enforcement byte-identically. CRITICAL: the Stop hook reads codex JSONL transcript shape (NOT Claude's) — verify against codex thread JSONL format and adapt the last_assistant_message detection per roadmap note. Read C:/ai-developer-toolkit/plugins/options-mode/CLAUDE.md if present. Acceptance: enable plugin; agent ends turn WITHOUT tag → Stop hook returns decision:'block' with reason + continuation prompt; agent ends turn WITH <options-mode>continue</options-mode> tag → Stop allows turn end; /options-mode off → Stop becomes pass-through; statusline shows current state. Test command: integration test against codex exec session with mock transcript shapes. Single commit; reference Phase 3h."
+```
+
+---
+
+## N — `polish-Fs` — Bundle remaining F-* findings
+
+> Parallel with everything outside the touched files. Bundle into one PR to amortize review.
+
+```
+/plan-with-ralph "Polish PR — bundle remaining devtunnels-E findings: F-017 (device pair-code shortcut), F-001/F-002 (security Medium), F-003-F-007 (security Low). Per .ralph/jobs/devtunnels-E-cleanup/notepad.md — re-read each finding's exact text + severity + remediation before scoping. F-014 (tunnel label rename) is EXCLUDED from this bundle — needs server redeploy, separate effort. F-013, F-015, F-016 already addressed or deferred (don't include). For each F-* in scope, propose the fix in plan form FIRST, then implement after operator sign-off — security findings warrant explicit acknowledgement of the remediation choice before code lands. Read packages/happy-server/CLAUDE.md and packages/happy-app/CLAUDE.md sync invariants. Acceptance: each F-* has a green test (new or extended); all 5 happy-* package typechecks green; security findings explicitly mark severity + CVE-style remediation note in commit body. Test command: pnpm --filter '{packages/happy-server}' --filter '{packages/happy-app}' --filter '{packages/happy-cli}' exec vitest run 2>&1 | tee /tmp/codexu-polish-fs.log. ONE commit per F-finding (six commits) so each can be reverted independently if needed."
+```
+
+---
+
+## Operator-only tasks (not ralph-able)
+
+These need manual operator action; ralph won't help.
+
+- **Phase 1c residual** — TUI plugin install smoke test (operator opens codex TUI → plugins picker → enable codexu-plugin → verify hello-world in /skills). ~10 min.
+- **Phase 1b sub-task 5** — walkthrough verification (manual end-to-end multi-device test against real codex + tunnels + phone). ~1 d when sub-tasks 3 + 4 land.
+- **Phase 2a Test 3** — execpolicy sandbox denial verification. Flip local config to non-`danger-full-access` sandbox or use a non-trusted dir, then re-run the deferred test. ~30 min.
+- **BOOX Phases 2–6** — chat round-trip, refresh-per-request, token revocation, multi-device fan-out, signed-APK release. Manual hardware validation. ~2-3 h end-to-end.
+- **F-014** — code change is small (~30 min) but blocked on a happy-server redeploy window. Bundle with the next planned server change.
+- **Phase 2c, 2d** — upstream codex patches (plugin scoping, ask_user_question). Lives in the codex git submodule (gim-home/codex repo), not codexu. Separate workflow.
+
+---
+
+## Status table (batches 1 + 2)
+
+Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/overview.html` after.
+
+| Tab title | Task | Status | Commit |
+|---|---|---|---|
+| `perf-WS1` | Realtime perf — refresh-skip | ⬜ not started | — |
+| `perf-WS3` | Realtime perf — replay buffer | ⬜ not started | — |
+| `perf-WS2` | Realtime perf — placeholder (after WS3) | ⬜ blocked on WS3 | — |
+| `3a-skills` | Phase 3a — Ralph skills port | ⬜ not started | — |
+| `F-013-perms` | Claude permission latent override | ⬜ not started | — |
+| `F-015-toast` | Stale-creds toast on cold launch | ⬜ not started | — |
+| `1a-fork-doc` | Phase 1a — fork strategy commit | ⬜ not started | — |
+| `1b-multidev` | Phase 1b sub-tasks 3 + 4 | ⬜ not started | — |
+| `3b-agents` | Phase 3b-i + ii — subagents → roles | ⬜ not started | — |
+| `3c-hooks` | Phase 3c — hooks port / verify | ⬜ not started | — |
+| `3d-workers` | Phase 3d — native worker spawn (after 3b) | ⬜ blocked on 3b | — |
+| `3fg-package` | Phase 3f + 3g — asset + packaging | ⬜ not started | — |
+| `3h-options` | Phase 3h — options-mode migration | ⬜ not started | — |
+| `polish-Fs` | F-017 + F-001/F-002 + F-003-F-007 | ⬜ not started | — |
+
+When all of the above land, the roadmap's next gate is **Phase 4 — Coexistence verification** (13 integration sub-items 4a-4m). Those run sequentially per environment, not parallel, so they're not in this file.
