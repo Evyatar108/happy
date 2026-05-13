@@ -7,6 +7,8 @@ Self-contained `/plan-with-ralph` prompts for parallel-safe tasks. Drop into a f
 > **⏸ `3a-skills` is PAUSED (operator-closed 2026-05-13).** The session was closed because the discovery prerequisites the agent needs aren't yet met. Don't re-spawn until the operator re-establishes that context. Phase 3 sub-phases that build on 3a's output — **`3b-agents`, `3d-workers`, `3fg-package` in batch 2** — remain blocked on 3a's eventual discovery commit. `3c-hooks` and `3h-options` are unaffected.
 >
 > **🛡️ Minimize-conflict-surface tenet (codex submodule):** for any ralph plan that needs codex source changes, follow `plans/codexu-roadmap.md` §"Codex changes — minimize upstream conflict surface". Tldr: (1) avoid editing codex source if possible — most happy-cli work doesn't need it; (2) when new behavior IS needed, prefer a NEW package alongside in `codex/codex-rs-overlay/` (the `codex-copilot` / `codex-copilot-launcher` / `codex-invariant-tests` precedent), not edits to upstream-canonical files; (3) if patching `codex/external/repos/codex-patched/codex-rs/` is unavoidable, keep the diff minimal and surface to the operator; (4) work in a `.ralph/jobs/<name>/codex-worktree/` git worktree of the codex submodule, not in the parent codexu's checkout; (5) submodule pointer bump on codexu is a separate commit after the codex-side commit lands.
+>
+> **🌿 Worktree isolation (codexu side):** every ralph task MUST work in an isolated worktree, never on the parent codexu's `main` branch directly. Pattern: `git worktree add .worktrees/<task-id> -b ralph/<task-id> origin/main` → do all edits + commits there → `git push origin ralph/<task-id>` → surface to operator for merge into `main` (typically a `--no-ff` merge so the topic-branch boundary stays visible). Reason: 2026-05-14 codex-wire-spike committed directly on the parent codexu repo's working branch (`0dcd8614`), which forced manual cherry-picking + branch juggling to keep `main` clean. If a ralph command's prompt body doesn't already specify a worktree, follow this default. Cleanup: `git worktree remove .worktrees/<task-id>` + `git branch -D ralph/<task-id>` once merged. (codex-submodule tasks have their OWN worktree convention per the tenet above — those land in `.ralph/jobs/<name>/codex-worktree/`; codexu-side tasks land in `.worktrees/<task-id>/`.)
 
 Per-task usage:
 
@@ -566,7 +568,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `agent-tree-rpc` 🤖 | App-server RPC for codex live spawn tree | 🟡 in progress | — |
 | `session-parent-link` 🤖 | Add parentSessionId + spawnedChildren to Session metadata | ✅ shipped | 11c3eafb |
 | `mobile-tree-view` 🤖 | Tree-style session list with depth indentation | ⬜ blocked on session-parent-link | — |
-| `session-role-pill` 🤖 | Flavor + model + permission-mode pills in session row | ✅ done | — |
+| `session-role-pill` 🤖 | Flavor + model + permission-mode pills in session row | ✅ shipped | 7e9f724c |
 | `spawn-from-app` 🤖 | "Spawn child session" affordance + RPC | ⬜ blocked on session-parent-link | — |
 | `agent-status-stream` 🤖 | Live "active teammates" overlay (codex events → mobile) | ⬜ blocked on agent-tree-rpc | — |
 | `plugin-scope-agents` | Top-level-only plugin scoping + agent-spawner | ⬜ blocked on agent-view-research | — |

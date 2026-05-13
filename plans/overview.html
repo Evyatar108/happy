@@ -1623,7 +1623,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
   </details>
 
   <details class="cmd" id="cmd-session-role-pill" data-task-id="session-role-pill">
-    <summary><span class="cmd-name">session-role-pill</span><span class="cmd-badge b-inflight">🟡 in progress</span><span class="cmd-desc">Surface flavor + model + permission-mode pills inline in session-list row. Spawned by <code>agent-view-research</code>.</span></summary>
+    <summary><span class="cmd-name">session-role-pill</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Surface flavor + model + permission-mode pills inline in session-list row · merge <code>7e9f724c</code>. Spawned by <code>agent-view-research</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
 <pre class="cmd-pre">/plan-with-ralph "Surface agent flavor + currentModelCode + currentPermissionModeCode inline in the session-list row. Per plans/agent-view-research.md §6 task `session-role-pill`. Today these fields live in Session.metadata (packages/happy-app/sources/sync/storageTypes.ts:130-163) and are visible only inside SessionContextDrawer — never in the list row. The Claude Code 'teammate view' shows agent role + model on every spinner-tree line; this brings the same visual affordance to the mobile session list. File: packages/happy-app/sources/components/SessionsList.tsx:342-463 SessionItem memo — add a small horizontal pill row beneath the subtitle showing: (a) flavor icon (codex/claude/...), (b) abbreviated model code (e.g., 'gpt-5-codex' → 'codex' or full code based on width budget), (c) permission-mode badge (plan / default / acceptEdits, color-coded). Reuse existing components from sources/components/ if a Pill / Badge primitive exists. Acceptance: vitest snapshot of SessionItem with metadata.flavor='codex' + currentModelCode='gpt-5-codex' + currentPermissionModeCode='plan' → renders the three pills; existing list-row tests stay green. Cross-package typecheck green. Single commit on main. Pitfall: shallow-copy of SessionRowData might already include these fields — confirm before adding to keyExtractor / memo deps. Independent of mobile-tree-view (no schema changes); land first as a quick UX win."</pre>
@@ -2000,8 +2000,8 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T13:30:00Z",
-  "generatedFromCommit": "c0d7fae0",
+  "generatedAt": "2026-05-14T14:00:00Z",
+  "generatedFromCommit": "205b54d2",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -2032,7 +2032,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "agent-tree-rpc": "2026-05-14T07:30:00Z",
     "session-parent-link": "2026-05-14T11:30:00Z",
     "mobile-tree-view": "2026-05-14T06:00:00Z",
-    "session-role-pill": "2026-05-14T07:30:00Z",
+    "session-role-pill": "2026-05-14T14:00:00Z",
     "spawn-from-app": "2026-05-14T06:00:00Z",
     "agent-status-stream": "2026-05-14T06:00:00Z",
     "codex-wire-spike": "2026-05-14T10:00:00Z",
@@ -2062,6 +2062,14 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
       "outcome": "completed",
       "commits": ["11c3eafb"],
       "summary": "Shipped the read-side parent/child session metadata contract: app schema (storageTypes.ts: parentSessionId + spawnedChildren) and CLI type mirror (api/types.ts), sync ingress normalization in storage.applySessions, pure storage relationship helpers (getSessionParent + getSessionChildren), and focused sync/storage coverage in storage.parent-children.spec.ts + storageTypes.spec.ts + sync.test.ts. Constraint: read-side parity only; CLI writer flows are deferred. Metadata stays server-authoritative (rejected applySessions overlay)."
+    },
+    {
+      "id": "session-role-pill/2026-05-14",
+      "taskId": "session-role-pill",
+      "ranAt": "2026-05-14T14:00:00Z",
+      "outcome": "completed",
+      "commits": ["7e9f724c"],
+      "summary": "Shipped flavor + model + permission-mode pills inline in the session-list row (merge 7e9f724c absorbed 5 ralph commits from branch ralph/session-role-pill: US-001 SessionRowData metadata extension, US-002 helpers + pill row on SessionItem, US-003 snapshot/structural tests, plus 2 post-review fixes incl. an Image-element assertion). Files: packages/happy-app/sources/components/SessionsList.tsx (SessionItem memo extended to render the 3 pills beneath the subtitle) + sources/sync/storage.ts (SessionRowData extended with model + permission-mode fields). No schema changes — pure UI surfacing of metadata already in Session.metadata. First piece of the agent-view-research follow-up wave to ship."
     },
     {
       "id": "audit-general-purpose-vs-worker/2026-05-14",
