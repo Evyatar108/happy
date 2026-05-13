@@ -140,11 +140,11 @@ filter logic, workstream-pill auto-injection, and run-history rendering.
 
 When an agent commits the code for a task:
 
-1. **Find the commit** with `git log --oneline -10` — note its short SHA + ISO timestamp.
+1. **Find the commit(s)** with `git log --oneline -10` — note short SHA + ISO timestamp. For tasks spanning the codex submodule AND codexu, there will be TWO commits (codex-side content + codexu-side submodule pointer bump). Record both — see the multi-commit pattern below.
 2. **Update the `<summary>` badge**:
    - Change class from `b-ready` / `b-inflight` to `b-closed`
    - Change emoji + text: `🟡 in progress` → `✅ shipped`
-   - Optionally append `· commit <code>SHA</code>` to the `cmd-desc`
+   - Append `· commit <code>SHA</code>` to the `cmd-desc` (for single-commit tasks) OR `· codex <code>SHA1</code> + codexu pointer <code>SHA2</code>` (for cross-repo tasks)
 3. **Update the kanban card** for the task (if it has one):
    - Change `border-color: var(--warn)` → `border-color: var(--ok); opacity: 0.8`
    - Change "(in progress)" sub-text → "(shipped `<SHA>`)"
@@ -159,9 +159,24 @@ When an agent commits the code for a task:
   "summary": "One-line description of what landed."
 }
 ```
-5. Bump `lastTouched[<taskId>]` to the commit timestamp.
-6. Bump `generatedAt` + `generatedFromCommit`.
-7. Commit + push.
+
+**Multi-commit pattern** (codex-submodule tasks): list the codex-side commit FIRST (it's the actual content) and the codexu-side pointer bump SECOND (it makes the change live):
+```json
+"commits": ["e9fa64a0", "d279d49d"]
+```
+Per `port-explorer-prompt/2026-05-14` precedent.
+
+**Merge pattern** (topic-branch landings): list the topic-branch tip first and the merge SHA second:
+```json
+"commits": ["756d4290", "merge e71497eb"]
+```
+Per `3h-options/2026-05-14` precedent.
+
+5. **Sweep dependents for stale blockers.** After flipping a task to `b-closed`, search the HTML for `cmd-warn blocked` banners that reference the task ID. Each match becomes a candidate for un-blocking — flip the dependent's badge `b-blocked` → `b-ready`, remove the banner, and update its `cmd-desc` to note the unblock date. (Pattern seen 2026-05-14: `userid-cleanup` and `plugin-scope-agents` stayed `b-blocked` for weeks after their prereqs shipped because no one swept.)
+6. Bump `lastTouched[<taskId>]` to the commit timestamp.
+7. Bump `generatedAt` + `generatedFromCommit`.
+8. Commit + push.
+9. **Confirm parent codexu repo is on main** before any subsequent work — see the worktree-isolation pitfall below for why this matters.
 
 ### C. Recording a periodic task run
 
@@ -243,6 +258,9 @@ If you're adding a new view (e.g., a new section, a new filter axis, a new badge
 - **`localStorage` keys** in use: `codexu-overview-details-state-v1` (open/closed state), `codexu-overview-last-visit-v1` (for what's-new banner), `codexu-overview-notes-v1` (operator scratch notes). Don't reuse these for new features; pick a new versioned key.
 - **`spawnedFrom` is one-directional and flat** — child → parent. The reverse index (parent → children) is computed at runtime by `injectSpawnRelationships`. Don't try to encode a tree shape; one child can only have one parent (use blocks-on for multi-prereq relationships instead). If a child was spawned by multiple ancestors, pick the most-proximate one and mention the others in prose.
 - **Ralph agents must commit on isolated worktrees, never on the parent codexu's `main`.** Pattern: `git worktree add .worktrees/<task-id> -b ralph/<task-id> origin/main`, do all work there, push the topic branch, surface to operator for a `--no-ff` merge. On 2026-05-14 the codex-wire-spike agent committed directly on the parent codexu working branch (`0dcd8614`), which forced manual cherry-picking + branch-checkout dancing to keep `main` clean while the agent kept editing. Authors of new ralph commands MUST include the worktree-isolation paragraph (or rely on the global convention in `plans/parallel-assignments.md`'s preamble). Codex-submodule tasks have their own worktree convention (`.ralph/jobs/<name>/codex-worktree/` of the codex submodule); codexu-side tasks land in `.worktrees/<task-id>/`. Don't conflate the two — codex-submodule edits + codexu-side bookkeeping in the SAME task need a worktree for EACH side.
+- **End every ralph job with `git checkout main` on the parent codexu repo.** Even if the agent used a worktree correctly for its own work, leaving a topic branch checked out on the parent repo causes the NEXT bookkeeping commit (mine or another agent's) to silently land on that branch instead of main. Incidents (2026-05-14): codex-wire-spike left `codex-wire-spike` checked out → my `feat(overview): re-block async-events-design` commit (`4e8c925c`) landed there instead of main, requiring a cherry-pick. port-explorer-prompt left `port-explorer-prompt-pointer-bump` checked out → my `docs: add 4 more spawned follow-up tasks` commit (`47de9b32`) landed there, requiring `git push origin HEAD:main`. **Always verify HEAD before bookkeeping: `git branch --show-current` should print `main`. If it doesn't, switch (stashing uncommitted work first) before doing any roadmap edits.**
+- **Pre-merge rebase audit: `git diff main <branch> --stat` BEFORE every merge.** A topic branch that's N-behind main will silently revert main's recent commits if you merge it without rebasing. The expected diff for a single-task topic branch is small (~1-5 files). If the diff shows ~30 files and ~5000 lines of changes, the branch is stale — rebase it first (`git -C <worktree> rebase main`) or you'll lose recently-landed work. Incident (2026-05-14): port-explorer-prompt-pointer-bump's 1-line commit lived on a branch 5-behind main; `git diff main <branch> --stat` showed 35 files / +984 / -5396 (reversal of 5 prior landings). Rebased first → ff-merge cleanly delivered just the 1-line pointer bump. The check takes 2 seconds and prevents a class of silent disasters.
+- **Verify tab title matches the ralph prompt text before firing.** Operator tabs sometimes drift from the prompt they actually run. Incident (2026-05-14): a tab labeled `3c-hooks` was fired with the `3h-options` prompt verbatim — 3h-options shipped (correctly), 3c-hooks dashboard stayed inflight forever (incorrectly) until the mismatch surfaced. Cheap check before firing: read the first sentence of the `/plan-with-ralph "..."` block and confirm it references the same task the tab claims. If the dashboard later shows an in-progress task that's actually a different task's work, flip the misnamed one back to `b-ready` with a `cmd-desc` note acknowledging the conflation.
 - **Landing agents only flip their own badge — the full close-out is a bookkeeping pass.** Across the 2026-05-13 / 2026-05-14 session, four landing agents (`codex-parity-audit`, `agent-view-research`, `native-agent-parity`, `channels-research`) each updated their own row's badge to `b-closed` and updated `lastTouched`, but only one (`agent-view-research`) also added the `runs[]` entry and one (`channels-research`) updated `plans/parallel-assignments.md`'s status-table row. The remaining bookkeeping always falls to the operator-side commit. **The full "task landed" checklist is procedure B in this skill — and an incomplete close-out means the dashboard's "Recently shipped" footer + the parallel-assignments tracker drift out of sync within the same commit.** When auditing a recently-landed task, verify all 6 items in procedure B explicitly; don't trust that an agent did them.
 
 ## Action-button cluster (`.cmd-actions`)
