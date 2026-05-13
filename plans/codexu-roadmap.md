@@ -1739,6 +1739,91 @@ Conversion checklist per skill:
 skill bodies become `agent.spawn({agent_type: "code-fixer"})` references
 to codex agent role names defined in 3b-i.
 
+#### 3a-tail. Codex API parity follow-ups (surfaced during skills port)
+
+Pre-Phase-3a planning on 2026-05-13 (job
+`.ralph/jobs/phase-3a-port-ralph-skills/`) confirmed that a mechanical
+Claude→codex skill-body port is blocked by three concrete API/feature
+gaps. The decision was **not** to warp ralph SKILL.md bodies to fit
+codex's current narrow API; instead track each gap here so codex
+parity becomes a real deliverable rather than a hidden body-rewrite
+cost inside Phase 3a.
+
+**3a-tail-i. `context: fork` frontmatter support.** 5 ralph skills
+carry `context: fork` in frontmatter
+(`analyze-iteration`, `convert-to-ralph-prd`, `create-prd`,
+`decompose-plan`, `review-changes`). Claude Code interprets it as
+"run this skill in a forked subprocess context"; codex has no
+equivalent and silently tolerates the field (per Phase 2b loader
+verification, unknown frontmatter is dropped without warning). The
+ported skills will run in-process under codex. Resolve by either
+(a) implementing codex support for the hint, (b) auditing each of the
+5 skills for behavioral impact and stripping the field after
+confirming no divergence, or (c) keeping as a no-op marker for
+upstream-ralph re-sync diff-cleanness. Owner: TBD. Blocks: nothing
+today (silent tolerance is acceptable); flagged for behavioral audit
+before Phase 4d parity verification.
+
+**3a-tail-ii. `agent.spawn` argument parity with Claude's `Agent()` /
+`Task()`.** Per `multi_agents_v2/spawn.rs` (Phase 3d-i audit):
+`SpawnAgentArgs` requires `agent_type`, `message`, `task_name`; uses
+`#[serde(deny_unknown_fields)]`; rejects `fork_context`. Ralph SKILL.md
+bodies pass Claude-shaped args (`subagent_type`, `prompt`,
+`run_in_background`, sometimes a returned-value pattern). The 9
+function-call sites the 2026-05-13 port touched receive only a syntactic
+prefix swap (`Agent(subagent_type=` → `agent.spawn({agent_type:`); the
+trailing args are preserved verbatim and will be rejected by codex
+spawn today. To unblock end-to-end execution without a second skill
+re-edit:
+
+- Accept `prompt` as an alias for `message` (or document a one-way
+  rename and update skill bodies in a follow-up commit).
+- Support a `run_in_background` flag (Claude's per-call semantics:
+  fire-and-forget vs await final message). Codex pattern today is
+  spawn → `wait_agent`; expose as a single arg if practical.
+- Auto-generate a stable `task_name` when omitted (e.g., from
+  `agent_type` + a per-session counter or hash). Today every call
+  site must invent a unique name; ralph skill bodies do not.
+- Relax `deny_unknown_fields` for forward-compatible extras, OR
+  publish the exact field allowlist so plugin authors get a clear
+  error rather than silent rejection.
+
+Owner: TBD. Blocks: full end-to-end execution of every ralph skill
+that calls `Agent(...)` — affects `brainstorm-with-ralph`,
+`convert-to-ralph-prd`, `implement-with-ralph`, `plan-with-ralph`
+(9 call sites total). Phase 4d parity verification cannot pass without
+this or a follow-up skill re-edit.
+
+**3a-tail-iii. Result-collection contract.** Claude's
+`Agent(subagent_type=..., prompt=...)` returns the agent's final
+message inline to the caller. Codex spawn returns
+`SpawnAgentResult { task_name, nickname }` and emits events; callers
+must `wait_agent` (which itself has no per-child wait semantics —
+see Phase 3d-i audit) or watch the filesystem for a written artifact.
+Ralph skill bodies consume returned agent output synchronously
+(reviewer findings, validator JSON, fixer diff summaries). Define a
+result-collection contract that ralph skill bodies can use without
+becoming polling loops. Two candidate shapes:
+
+- **Inline return parity**: codex's app-server returns the final
+  agent message on `wait_agent` completion. Closest to Claude
+  semantics; needs spawn-side changes to attach the final message
+  to the result.
+- **Filesystem artifact convention**: standardize that ralph workers
+  write their output to `<job_dir>/<task_name>.{json,txt}` and
+  orchestrator skills read on `wait_agent` completion. Already
+  partially used by `codex-exec.sh -o $FILE` (Phase 3d-i table); make
+  it the documented contract.
+
+Owner: TBD. Blocks: same skills as 3a-tail-ii; same parity gate.
+
+**Scheduling note:** 3a-tail-i is independent (silent tolerance is
+acceptable short-term). 3a-tail-ii and 3a-tail-iii are entangled —
+fixing either alone leaves the other as a blocker for end-to-end
+execution. Recommend resolving both before Phase 3b ships agent role
+TOMLs, otherwise the role TOMLs themselves can't be smoke-tested via
+unedited ralph skills.
+
 #### 3b-i. Subagents → `[agents.<role>]` TOML conversion
 
 Ralph subagents (12 total per `plugins/ralph/agents/`, verified
