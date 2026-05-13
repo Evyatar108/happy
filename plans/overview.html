@@ -1516,7 +1516,7 @@ Acceptance: design doc + per-scope working fixture: (B) two sessions on the same
   </details>
 
   <details class="cmd" id="cmd-channels-research" data-task-id="channels-research">
-    <summary><span class="cmd-name">channels-research</span><span class="cmd-badge b-inflight">🟡 in progress</span><span class="cmd-desc">Research Claude Code's `channels` (MCP 2-way) + codex implementation plan</span></summary>
+    <summary><span class="cmd-name">channels-research</span><span class="cmd-badge b-closed">✅ landed 2026-05-13</span><span class="cmd-desc">Research Claude Code's `channels` (MCP 2-way) + codex implementation plan · doc <a href="channels-research.md">channels-research.md</a> · 2 follow-ups (mcp-server-notifications, codex-channels)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
 <pre class="cmd-pre">/plan-with-ralph "Research Claude Code's 'channels' concept and design a codex equivalent if it doesn't exist there. Goal: 2-way communication between agents and MCP servers (today MCP is largely request-response from the agent; we want the MCP to be able to push messages back / stream state changes / interrupt the agent). Output: plans/channels-research.md covering: (1) What Claude Code calls 'channels' — read the relevant Claude Code source (C:/harness-efforts/claude-code/worktrees/main/ if accessible) + Anthropic's docs/changelog. Capture the wire shape, lifecycle (open/close), back-pressure model, how an MCP server discovers/registers a channel, how the agent subscribes. (2) Codex's current MCP support — `codex` ships an MCP client; what does it support today? Read codex/external/repos/codex-patched/codex-rs/ (READ-ONLY per minimize-conflict-surface tenet) for mcp_tool_call.rs / mcp_client / rmcp_client modules. Identify whether codex's MCP transport (stdio? sse? streamable-http? something else?) admits server-initiated messages. (3) Gap analysis: if codex doesn't support 2-way channels, what's the minimal patch? An overlay crate in codex/codex-rs-overlay/ that extends mcp_client with channel semantics? A new tool type? A protocol upgrade? (4) Implementation sketch: file:line refs for where the patches would land, effort estimate, risk areas. (5) Cross-reference Phase 2d (ask_user_question primitive) and the MCP spec evolution (https://spec.modelcontextprotocol.io/) — channels might already be standardized. NO CODE — research + design only. Add follow-up ralph task entries to plans/parallel-assignments.md if the gap analysis surfaces concrete next steps. Surface to operator before committing the doc."</pre>
@@ -1524,9 +1524,8 @@ Acceptance: design doc + per-scope working fixture: (B) two sessions on the same
   </details>
 
   <details class="cmd" id="cmd-async-events-design" data-task-id="async-events-design">
-    <summary><span class="cmd-name">async-events-design</span><span class="cmd-badge b-blocked">🔒 blocked on channels-research</span><span class="cmd-desc">Design async event listening for agents (commit-merged, etc.)</span></summary>
+    <summary><span class="cmd-name">async-events-design</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Design async event listening for agents (commit-merged, etc.) — unblocked by channels-research</span></summary>
     <div class="cmd-body">
-      <div class="cmd-warn blocked">🔒 Blocked on <code>channels-research</code> — if MCP channels (2-way) are available or buildable, they're the leading candidate transport. The design has to know what's actually on the table.</div>
       <button class="copy-btn">Copy</button>
 <pre class="cmd-pre">/plan-with-ralph "Design how an agent listens to async events — e.g., 'wake me when a commit lands on main', 'notify me when a periodic task fires', 'tell me when another agent finishes its turn'. Today an agent's only async-trigger model is: exit and be re-spawned (e.g., a periodic background task that exits to wake the operator/agent). That's not ideal — loses context, restart latency, can't subscribe to fine-grained events. Output: plans/async-events-design.md covering: (1) The use cases — at least these 4: git events (commit on main / branch updated / push), periodic-task firings, inter-agent notifications (sibling-agent completion / sibling-agent question), file-system events (file changed under cwd). (2) Current options in Claude Code — is there a 'wait for X' tool? hooks? streamable MCP? A 'send-when-idle' channel? Read C:/harness-efforts/claude-code/worktrees/main/ if accessible. (3) Current options in codex — codex's hook system (config/src/hook_config.rs), inter-agent fast path in multi_agents_v2/, MCP support. READ-ONLY on codex/external/repos/codex-patched/ per minimize-conflict-surface. (4) Design options for codexu — compare at least: (a) MCP with 2-way channels (depends on channels-research outcome); (b) periodic background task that exits to wake agent (current model — note limits); (c) long-poll MCP tool (block until event); (d) a 'subscription' RPC on the codex app-server side that streams events to the agent's session; (e) hybrid (use codex hooks for in-session triggers, channels for cross-session). (5) Recommendation with rationale; identify the smallest-viable subset that covers the 4 use cases. (6) Surface to operator before committing follow-up implementation tasks. NO CODE — design only. The output doc IS the deliverable."</pre>
     </div>
@@ -1697,6 +1696,23 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
 <pre class="cmd-pre">/plan-with-ralph "30-minute prompt-diff task per plans/native-agent-parity.md §2.4. Compare D:/harness-efforts/claude-code/worktrees/main/src/tools/AgentTool/built-in/generalPurposeAgent.ts (or whichever file exposes Claude's general-purpose system prompt) against codex/external/repos/codex-patched/codex-rs/core/src/agent/builtins/worker.toml's developer_instructions. Identify guidance present in general-purpose that's missing from worker.toml — likely candidates per the research: 'NEVER create files unless absolutely necessary', 'NEVER create documentation files unless explicitly requested', other safety-rail rules. If worker.toml is sparser, fold the missing rules into worker.toml as a small targeted change (NOT a wholesale rewrite); keep the change minimal so codex's worker behavior shifts only at the margins. If worker.toml already covers the same ground (likely — codex's worker is mature), document this in plans/native-agent-parity.md §2.4 as a no-op finding. License posture: paraphrase any rule text from Claude's general-purpose; do NOT copy verbatim. Workflow: codex-submodule worktree; commit on topic branch; bump codexu submodule pointer. Acceptance: either (a) worker.toml updated with N paraphrased rule additions referenced in commit body, OR (b) plans/native-agent-parity.md §2.4 amended with a 'no merge needed, worker.toml already covers X/Y/Z' note. Surface to operator before merging. No happy-cli/happy-app changes."</pre>
+    </div>
+  </details>
+
+  <details class="cmd" id="cmd-mcp-server-notifications" data-task-id="mcp-server-notifications">
+    <summary><span class="cmd-name">mcp-server-notifications</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Stage A: bridge rmcp notification handlers + sampling into codex agent event loop, feature-gated. Spawned by <code>channels-research</code>.</span></summary>
+    <div class="cmd-body">
+      <button class="copy-btn">Copy</button>
+<pre class="cmd-pre">/plan-with-ralph "Plumb MCP server-initiated notifications (progress, cancelled, resources/updated, resources/list_changed, tools/list_changed, prompts/list_changed, message) AND sampling/createMessage into the codex agent event loop. Today codex's rmcp-client (codex/external/repos/codex-patched/codex-rs/rmcp-client/) decodes every one of these but the handlers in src/logging_client_handler.rs:49-135 are tracing-only — they never reach the agent. The elicitation path at codex/external/repos/codex-patched/codex-rs/codex-mcp/src/elicitation.rs:103-231 is the working precedent: emit Event { msg: EventMsg::… } over the tx_event: Sender&lt;Event&gt; sink that's already wired in at codex/external/repos/codex-patched/codex-rs/codex-mcp/src/connection_manager.rs:175. READ-ONLY on codex/external/repos/codex-patched/ per minimize-conflict-surface tenet (plans/codexu-roadmap.md:190-228); prefer a new overlay crate at codex/codex-rs-overlay/codex-mcp-bridge/ for the NotificationBridge struct + EventMsg additions; accept minimal sandbox-patch seams in logging_client_handler.rs (~12 lines additive) and elicitation_client_service.rs (~30 lines for sampling/createMessage). Add a new Feature::McpServerNotifications gate (default off). Add an invariant test under codex/codex-rs-overlay/codex-invariant-tests/ asserting the bridge is off by default. Bump codex-protocol with new EventMsg variants (McpServerNotification, McpSamplingRequest). Effort estimate per plans/channels-research.md §6.5: ~3-5 d wall. Read plans/channels-research.md FIRST — it has the full file:line map, the overlay-vs-inline decision, and the risk surface. Surface the overlay-vs-inline-patch shape choice to operator BEFORE landing code."</pre>
+    </div>
+  </details>
+
+  <details class="cmd" id="cmd-codex-channels" data-task-id="codex-channels">
+    <summary><span class="cmd-name">codex-channels</span><span class="cmd-badge b-blocked">🔒 blocked on mcp-server-notifications + operator decision</span><span class="cmd-desc">Stage B: Claude-Code-parity <code>experimental["codex/channel"]</code> envelope + prompt-queue policy. Spawned by <code>channels-research</code>.</span></summary>
+    <div class="cmd-body">
+      <div class="cmd-warn blocked">🔒 Deferred. Blocked on <code>mcp-server-notifications</code> landing AND on operator deciding whether channels (external-user-message envelope) are the right primitive vs raw notifications (which cover state-change push perfectly without the channels framing).</div>
+      <button class="copy-btn">Copy</button>
+<pre class="cmd-pre">/plan-with-ralph "Design + implement Claude-Code-parity 'channels' on top of mcp-server-notifications: capability key experimental['codex/channel'] advertised by participating MCP servers, notification methods notifications/codex/channel and notifications/codex/channel/permission mirroring Claude Code's wire shape at D:/harness-efforts/claude-code/worktrees/main/src/services/mcp/channelNotification.ts:37-316. Agent-loop policy: when a channel message arrives between turns, enqueue as a prompt with priority:'next' semantics; when one arrives during an LLM call, buffer until the call completes (matches Claude Code's non-preemption behaviour). Permission half is out of scope for first cut — codex doesn't have a real-time permission dialog with race resolution to relay to. Use codex/ namespace, not claude/ (cross-vendor experimental keys aren't coordinated). READ plans/channels-research.md §6.2 FIRST — it has the full design. READ-ONLY on codex/external/repos/codex-patched/ per minimize-conflict-surface tenet. Effort estimate per plans/channels-research.md §6.5: ~1.5-2 d on top of mcp-server-notifications. SURFACE TO OPERATOR FIRST whether channels (as opposed to plain notifications) are wanted for the intended use cases — channels are specifically the 'external-user pipes messages into prompt queue' shape and may be narrower than the operator needs."</pre>
     </div>
   </details>
 
@@ -1966,8 +1982,8 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T08:30:00Z",
-  "generatedFromCommit": "25ca1b17",
+  "generatedAt": "2026-05-14T09:00:00Z",
+  "generatedFromCommit": "073d4697",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -1991,8 +2007,8 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "agent-view-research": "2026-05-14T06:00:00Z",
     "plugin-scope-agents": "2026-05-14T03:00:00Z",
     "agent-comms": "2026-05-14T03:00:00Z",
-    "channels-research": "2026-05-13T23:30:00Z",
-    "async-events-design": "2026-05-14T04:00:00Z",
+    "channels-research": "2026-05-14T09:00:00Z",
+    "async-events-design": "2026-05-14T09:00:00Z",
     "native-agent-parity": "2026-05-14T08:00:00Z",
     "roadmap-plugin": "2026-05-14T05:00:00Z",
     "agent-tree-rpc": "2026-05-14T07:30:00Z",
@@ -2008,7 +2024,9 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "codex-hooks-parity": "2026-05-14T08:30:00Z",
     "port-explorer-prompt": "2026-05-14T08:30:00Z",
     "port-plan-and-verification-roles": "2026-05-14T08:30:00Z",
-    "audit-general-purpose-vs-worker": "2026-05-14T08:30:00Z"
+    "audit-general-purpose-vs-worker": "2026-05-14T08:30:00Z",
+    "mcp-server-notifications": "2026-05-14T09:00:00Z",
+    "codex-channels": "2026-05-14T09:00:00Z"
   },
   "periodic": {
     "happy-upstream-sync": { "intervalDays": 28, "lastRunId": "happy-upstream-sync/2026-05-03", "nextDueAt": "2026-05-31T00:00:00Z" },
@@ -2019,6 +2037,14 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "codex-upstream-rebase": "periodic"
   },
   "runs": [
+    {
+      "id": "channels-research/2026-05-13",
+      "taskId": "channels-research",
+      "ranAt": "2026-05-14T09:00:00Z",
+      "outcome": "completed",
+      "commits": [],
+      "summary": "Research-only deliverable: plans/channels-research.md (~570 lines). Findings: Claude Code's 'channels' is a real branded feature with three JSON-RPC methods (notifications/claude/channel, .../permission_request, .../permission), seven-gate registration, prompt-queue enqueue semantics. Codex's rmcp-client already decodes every MCP notification kind but every LoggingClientHandler is tracing-only; elicitation is the one working bidirectional precedent to copy. MCP spec 2025-11-25 does NOT standardize channels; notifications + Streamable HTTP SSE cover state-change push; no spec primitive for agent preemption (only soft-interrupt feasible). Two-stage recommendation: Stage A `mcp-server-notifications` (~3-5d, wire handler→agent bridge via overlay crate codex-mcp-bridge/ + ~12-line + ~30-line sandbox-patch seams; default-off Feature gate); Stage B `codex-channels` (~1.5-2d on top of Stage A; deferred — operator decision required on whether the channels framing is needed vs raw notifications). Phase 2d (ask_user_question) is complementary, not blocking. async-events-design unblocked by this doc."
+    },
     {
       "id": "native-agent-parity/2026-05-14",
       "taskId": "native-agent-parity",
@@ -2116,7 +2142,9 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "codex-hooks-parity": 8,
     "port-explorer-prompt": 3,
     "port-plan-and-verification-roles": 6,
-    "audit-general-purpose-vs-worker": 0.5
+    "audit-general-purpose-vs-worker": 0.5,
+    "mcp-server-notifications": 32,
+    "codex-channels": 14
   },
   "risk": {
     "perf-WS1": "low",
@@ -2158,7 +2186,9 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "codex-hooks-parity": "medium",
     "port-explorer-prompt": "low",
     "port-plan-and-verification-roles": "medium",
-    "audit-general-purpose-vs-worker": "low"
+    "audit-general-purpose-vs-worker": "low",
+    "mcp-server-notifications": "medium",
+    "codex-channels": "medium"
   },
   "workstream": {
     "perf-WS1": "perf",
@@ -2200,7 +2230,9 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "codex-hooks-parity": "codex-parity",
     "port-explorer-prompt": "agent-arch",
     "port-plan-and-verification-roles": "agent-arch",
-    "audit-general-purpose-vs-worker": "agent-arch"
+    "audit-general-purpose-vs-worker": "agent-arch",
+    "mcp-server-notifications": "agent-arch",
+    "codex-channels": "agent-arch"
   },
   "sizeBucket": {
     "perf-WS1": "quick",
@@ -2242,7 +2274,9 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "codex-hooks-parity": "medium",
     "port-explorer-prompt": "small",
     "port-plan-and-verification-roles": "medium",
-    "audit-general-purpose-vs-worker": "quick"
+    "audit-general-purpose-vs-worker": "quick",
+    "mcp-server-notifications": "large",
+    "codex-channels": "medium"
   },
   "spawnedFrom": {
     "_comment": "Map of childTaskId -> parentTaskId. Populated when a research task or audit task lands and surfaces new follow-up tasks.",
@@ -2259,7 +2293,9 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "codex-hooks-parity": "codex-parity-audit",
     "port-explorer-prompt": "native-agent-parity",
     "port-plan-and-verification-roles": "native-agent-parity",
-    "audit-general-purpose-vs-worker": "native-agent-parity"
+    "audit-general-purpose-vs-worker": "native-agent-parity",
+    "mcp-server-notifications": "channels-research",
+    "codex-channels": "channels-research"
   }
 }
 </script>
