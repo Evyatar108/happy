@@ -663,7 +663,7 @@
   .notes-toggle {
     position: absolute;
     top: 6px;
-    right: 124px; /* sits left of the "Copy Command" button (right: 6px, ~110px wide) */
+    right: 204px; /* leftmost — sits left of "Copy Name" + "Copy Command" pair */
     background: var(--card-hover);
     color: var(--fg);
     border: 1px solid var(--border);
@@ -721,8 +721,8 @@
       min-height: 40px;
     }
     .copy-btn { top: 4px; right: 4px; }
-    .notes-toggle { right: 160px; }
-    .copy-name-btn { top: 4px; right: 260px; }
+    .notes-toggle { right: 260px; }
+    .copy-name-btn { top: 4px; right: 160px; }
     .cmd-select { width: 22px; height: 22px; cursor: pointer; }
     .filter-chip { padding: 8px 14px; font-size: 13px; min-height: 36px; }
     .chip { padding: 6px 12px; font-size: 13px; }
@@ -851,7 +851,7 @@
   .copy-name-btn {
     position: absolute;
     top: 6px;
-    right: 204px; /* sits left of .notes-toggle (right: 124px, ~70px wide) which sits left of .copy-btn (right: 6px, ~110px wide) */
+    right: 124px; /* sits directly left of .copy-btn (right: 6px, ~110px wide) — paired with it */
     background: var(--card-hover);
     color: var(--muted);
     border: 1px solid var(--border);
