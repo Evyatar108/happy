@@ -15,3 +15,27 @@ pnpm --filter happy-server exec prisma validate
 pnpm --filter happy-server exec prisma generate
 pnpm --filter happy-server typecheck
 ```
+
+## Models dropped in Sprint E (US-002, commit 4ca6dd8d)
+
+All 14 models listed below were removed in the same cleanup pass. Nine were explicitly authorized by AC-E2.1; five additional models had zero code references across the entire monorepo and were removed as part of the same coherent cleanup (scope expansion, intentional):
+
+**AC-E2.1 authorized (9):**
+- `Artifact`
+- `AccessKey`
+- `ServiceAccountToken`
+- `UsageReport`
+- `UserFeedItem`
+- `VoiceConversation`
+- `UserKVStore`
+- `TerminalAuthRequest`
+- `AccountAuthRequest`
+
+**Zero-reference models also dropped (5, intentional scope expansion):**
+- `GithubOrganization`
+- `GlobalLock`
+- `RepeatKey`
+- `SimpleCache`
+- `UploadedFile`
+
+No code references to any of these 14 models exist in the monorepo. `PushToken` was intentionally retained alongside `pushRoutes.ts`.
