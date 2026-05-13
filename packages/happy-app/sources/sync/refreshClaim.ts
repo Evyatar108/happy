@@ -70,6 +70,10 @@ async function refreshTunnelClaimOnce(credentials: AuthCredentials, machineId: s
     lastRefreshAt.set(machineId, Date.now());
 
     if (!response.ok) {
+        const body = await response.clone().json().catch(() => null) as { error?: unknown } | null;
+        if ((response.status === 400 || response.status === 401) && (body?.error === 'device_code_expired' || body?.error === 'access_denied')) {
+            throw new DeviceCodeExpired(machineId);
+        }
         throw new Error(`Failed to refresh tunnel claim: ${response.status}`);
     }
 

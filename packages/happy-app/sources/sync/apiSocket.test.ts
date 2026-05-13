@@ -25,7 +25,10 @@ const mocks = vi.hoisted(() => ({
         return socket;
     }),
     credentials: [] as any[],
-    markMachineDisconnected: vi.fn(),
+    storageState: {
+        localSettings: { verboseLogging: false },
+        lastSeenUpdateSeqByMachineId: {} as Record<string, number>,
+    },
     refreshTunnelClaim: vi.fn(async (_credentials: any, machineId: string) => `jwt-${machineId}-fresh`),
 }));
 
@@ -61,10 +64,7 @@ vi.mock('@/auth/connectTokenRefresh', () => ({
 
 vi.mock('./storage', () => ({
     storage: {
-        getState: () => ({
-            localSettings: { verboseLogging: false },
-            markMachineDisconnected: mocks.markMachineDisconnected,
-        }),
+        getState: () => mocks.storageState,
     },
 }));
 
@@ -88,6 +88,7 @@ describe('apiSocket multi-machine connections', () => {
         vi.clearAllMocks();
         mocks.sockets.length = 0;
         mocks.credentials = [credential('machine-a'), credential('machine-b')];
+        mocks.storageState.lastSeenUpdateSeqByMachineId = {};
         mocks.refreshTunnelClaim.mockImplementation(async (_credentials: any, machineId: string) => `jwt-${machineId}-fresh`);
     });
 
@@ -101,6 +102,18 @@ describe('apiSocket multi-machine connections', () => {
             'https://machine-a.example.test',
             'https://machine-b.example.test',
         ]);
+    });
+
+    it('passes each machine lastSeenSeq in its Socket.IO handshake auth', async () => {
+        mocks.credentials = [credential('mA'), credential('mB')];
+        mocks.storageState.lastSeenUpdateSeqByMachineId = { mA: 10, mB: 20 };
+
+        const { apiSocket } = await import('./apiSocket');
+        await apiSocket.initializeMany(mocks.credentials.map((item) => ({ endpoint: item.tunnelUrl, credentials: item })));
+
+        expect(mocks.sockets).toHaveLength(2);
+        expect(mocks.sockets[0].options.auth).toMatchObject({ machineId: 'mA', lastSeenSeq: 10 });
+        expect(mocks.sockets[1].options.auth).toMatchObject({ machineId: 'mB', lastSeenSeq: 20 });
     });
 
     it('routes events with the source machine id and marks a disconnected machine stale', async () => {
@@ -188,14 +201,14 @@ describe('apiSocket multi-machine connections', () => {
         const reconnected = vi.fn();
         apiSocket.onReconnected(reconnected);
         mocks.sockets[0].trigger('connect');
-        const firstAuth = mocks.sockets[0].options.extraHeaders['X-Tunnel-Authorization'];
+        const firstAuth = mocks.sockets[0].options.extraHeaders['X-Codexu-Authorization'];
 
         mocks.sockets[0].trigger('disconnect');
         await Promise.resolve();
         await Promise.resolve();
         await new Promise(resolve => setTimeout(resolve, 0));
         expect(mocks.sockets).toHaveLength(2);
-        const secondAuth = mocks.sockets[1].options.extraHeaders['X-Tunnel-Authorization'];
+        const secondAuth = mocks.sockets[1].options.extraHeaders['X-Codexu-Authorization'];
         expect(secondAuth).not.toBe(firstAuth);
 
         mocks.sockets[1].trigger('connect');

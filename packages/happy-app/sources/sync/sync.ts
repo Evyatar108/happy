@@ -1642,6 +1642,15 @@ class Sync {
     private subscribeToUpdates = () => {
         // Subscribe to message updates
         apiSocket.onMessage('update', (update, machineId) => this.handleUpdate(update, false, machineId));
+        apiSocket.onMessage('replay-overflow', (data, machineId) => {
+            void this.sessionsSync.invalidateAndAwait().then(() => {
+                if (typeof data?.currentSeq === 'number') {
+                    storage.getState().setLastSeenUpdateSeq(machineId, data.currentSeq);
+                }
+            }).catch((error) => {
+                console.error('Failed to recover from replay overflow:', error);
+            });
+        });
         apiSocket.onMessage('ephemeral', (update, machineId) => this.handleEphemeralUpdate(update, machineId));
         apiSocket.onMachineDisconnected((machineId, lastSeenAt) => {
             storage.getState().markMachineDisconnected(machineId, lastSeenAt);
@@ -1653,10 +1662,15 @@ class Sync {
         // Subscribe to connection state changes
         apiSocket.onReconnected((machineId) => {
             log.log('🔌 Socket reconnected');
-            this.sessionsSync.invalidate();
             this.machinesSync.invalidate();
-            // Messages are fetched lazily per-session via onSessionVisible. Session metadata
-            // and agentState are already refreshed by sessionsSync.invalidate() above.
+            const lastSeenSeq = storage.getState().lastSeenUpdateSeqByMachineId[machineId];
+            // WS3: first-connect has no replay cursor, so it still needs the HTTP refresh.
+            // Resume reconnects rely on server replay and avoid re-fetching sessions here.
+            if (lastSeenSeq === undefined || !Number.isFinite(lastSeenSeq)) {
+                this.sessionsSync.invalidate();
+            }
+            // Messages are fetched lazily per-session via onSessionVisible. On resume,
+            // session metadata and agentState arrive through replayed update events.
             for (const sync of this.sendSync.values()) {
                 sync.invalidate();
             }
@@ -1674,6 +1688,12 @@ class Sync {
         });
     }
 
+    private persistLastSeenUpdateSeq = (sourceMachineId: string | undefined, seq: number) => {
+        if (sourceMachineId && typeof seq === 'number') {
+            storage.getState().setLastSeenUpdateSeq(sourceMachineId, seq);
+        }
+    }
+
     private handleUpdate = async (update: unknown, isReplay = false, sourceMachineId?: string) => {
         const validatedUpdate = ApiUpdateContainerSchema.safeParse(update);
         if (!validatedUpdate.success) {
@@ -1683,6 +1703,7 @@ class Sync {
         }
         const updateData = validatedUpdate.data;
         console.log(`🔄 Sync: Validated update type: ${updateData.body.t}`);
+        let deferredInvalidate: Promise<void> | null = null;
 
         if (updateData.body.t === 'new-message') {
 
@@ -1704,6 +1725,7 @@ class Sync {
                         for (const evt of pending) {
                             void this.handleUpdate(evt, true, sourceMachineId);
                         }
+                        this.persistLastSeenUpdateSeq(sourceMachineId, updateData.seq);
                     });
                 }
                 return;
@@ -1763,7 +1785,7 @@ class Sync {
 
         } else if (updateData.body.t === 'new-session') {
             log.log('🆕 New session update received');
-            this.sessionsSync.invalidate();
+            deferredInvalidate = this.sessionsSync.invalidateAndAwait();
         } else if (updateData.body.t === 'delete-session') {
             log.log('🗑️ Delete session update received');
             const sessionId = sourceMachineId ? compositeSessionId(sourceMachineId, updateData.body.sid) : updateData.body.sid;
@@ -1796,6 +1818,7 @@ class Sync {
             this.prefetchPendingPromises.delete(sessionId);
 
             log.log(`🗑️ Session ${sessionId} deleted from local storage`);
+            deferredInvalidate = this.sessionsSync.invalidateAndAwait();
         } else if (updateData.body.t === 'update-session') {
             const sessionId = sourceMachineId ? compositeSessionId(sourceMachineId, updateData.body.id) : updateData.body.id;
             const session = storage.getState().sessions[sessionId];
@@ -1937,6 +1960,13 @@ class Sync {
                 storage.getState().deleteMachine(machineId);
             }
         }
+
+        if (deferredInvalidate) {
+            void deferredInvalidate.then(() => this.persistLastSeenUpdateSeq(sourceMachineId, updateData.seq));
+            return;
+        }
+        // Persist after branch effects commit; reconnect replay may skip this seq next time.
+        this.persistLastSeenUpdateSeq(sourceMachineId, updateData.seq);
     }
 
     private flushActivityUpdates = (updates: Map<string, ApiEphemeralActivityUpdate>) => {

@@ -27,7 +27,7 @@ import { applySettings, Settings } from "./settings";
 import { LocalSettings, applyLocalSettings } from "./localSettings";
 import { Purchases, customerInfoToPurchases } from "./purchases";
 import { Profile } from "./profile";
-import { loadSettings, loadLocalSettings, saveLocalSettings, saveSettings, loadPurchases, savePurchases, loadProfile, saveProfile, loadSessionDrafts, saveSessionDrafts, loadSessionPermissionModes, saveSessionPermissionModes, loadSessionPermissionModeUserChosen, saveSessionPermissionModeUserChosen, loadSessionModelModes, saveSessionModelModes, loadSessionEffortLevels, saveSessionEffortLevels, loadSessionPinnedAvatars, saveSessionPinnedAvatars } from "./persistence";
+import { loadSettings, loadLocalSettings, saveLocalSettings, saveSettings, loadPurchases, savePurchases, loadProfile, saveProfile, loadSessionDrafts, saveSessionDrafts, loadSessionPermissionModes, saveSessionPermissionModes, loadSessionPermissionModeUserChosen, saveSessionPermissionModeUserChosen, loadSessionModelModes, saveSessionModelModes, loadSessionEffortLevels, saveSessionEffortLevels, loadLastSeenUpdateSeqByMachineId, saveLastSeenUpdateSeqByMachineId, loadSessionPinnedAvatars, saveSessionPinnedAvatars } from "./persistence";
 import type { PermissionModeKey } from '@/components/PermissionModeSelector';
 import type { CustomerInfo } from './revenueCat/types';
 import React from "react";
@@ -170,6 +170,7 @@ interface StorageState {
     sessionGitStatusFiles: Record<string, GitStatusFiles | null>;
     sessionFileCache: Record<string, Record<string, { content: string | null; diff: string | null; isBinary: boolean; cachedAt: number }>>;
     machines: Record<string, Machine>;
+    lastSeenUpdateSeqByMachineId: Record<string, number>;
     socketStatus: 'disconnected' | 'connecting' | 'connected' | 'error';
     socketLastConnectedAt: number | null;
     socketLastDisconnectedAt: number | null;
@@ -223,6 +224,7 @@ interface StorageState {
     applyFileCache: (sessionId: string, filePath: string, content: string | null, diff: string | null, isBinary: boolean) => void;
     applyNativeUpdateStatus: (status: { available: boolean; updateUrl?: string } | null) => void;
     isMutableToolCall: (sessionId: string, callId: string) => boolean;
+    setLastSeenUpdateSeq: (machineId: string, seq: number) => void;
     setSocketStatus: (status: 'disconnected' | 'connecting' | 'connected' | 'error') => void;
     getActiveSessions: () => Session[];
     updateSessionDraft: (sessionId: string, draft: string | null) => void;
@@ -349,6 +351,7 @@ export const storage = create<StorageState>()((set, get) => {
     let sessionPermissionModeUserChosen = loadSessionPermissionModeUserChosen();
     let sessionModelModes = loadSessionModelModes();
     let sessionEffortLevels = loadSessionEffortLevels();
+    let lastSeenUpdateSeqByMachineId = loadLastSeenUpdateSeqByMachineId();
     let sessionPinnedAvatars = loadSessionPinnedAvatars();
     return {
         settings,
@@ -363,6 +366,7 @@ export const storage = create<StorageState>()((set, get) => {
         sessionGitStatus: {},
         sessionGitStatusFiles: {},
         sessionFileCache: {},
+        lastSeenUpdateSeqByMachineId,
         socketStatus: 'disconnected',
         socketLastConnectedAt: null,
         socketLastDisconnectedAt: null,
@@ -1043,6 +1047,21 @@ export const storage = create<StorageState>()((set, get) => {
             ...state,
             nativeUpdateStatus: status
         })),
+        setLastSeenUpdateSeq: (machineId: string, seq: number) => {
+            const state = get();
+            const existing = state.lastSeenUpdateSeqByMachineId[machineId] ?? 0;
+            const nextSeq = Math.max(existing, seq);
+            if (nextSeq <= existing) {
+                return;
+            }
+            const nextMap = {
+                ...state.lastSeenUpdateSeqByMachineId,
+                [machineId]: nextSeq,
+            };
+            lastSeenUpdateSeqByMachineId = nextMap;
+            saveLastSeenUpdateSeqByMachineId(nextMap);
+            set({ lastSeenUpdateSeqByMachineId: nextMap });
+        },
         setSocketStatus: (status: 'disconnected' | 'connecting' | 'connected' | 'error') => set((state) => {
             const now = Date.now();
             const updates: Partial<StorageState> = {

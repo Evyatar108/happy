@@ -9,6 +9,7 @@ import { allImages, colorPairs } from '@/components/avatarBrutalistAssets';
 const mmkv = new MMKV();
 const NEW_SESSION_DRAFT_KEY = 'new-session-draft-v1';
 const REGISTERED_PUSH_TOKEN_KEY = 'registered-push-token-v1';
+const LAST_SEEN_UPDATE_SEQ_BY_MACHINE_ID_KEY = 'last-seen-update-seq-by-machine-id-v1';
 
 export type NewSessionAgentType = 'claude' | 'codex' | 'gemini' | 'openclaw';
 export type NewSessionSessionType = 'simple' | 'worktree';
@@ -239,6 +240,29 @@ export function loadSessionEffortLevels(): Record<string, string> {
 
 export function saveSessionEffortLevels(levels: Record<string, string>) {
     mmkv.set('session-effort-levels', JSON.stringify(levels));
+}
+
+export function loadLastSeenUpdateSeqByMachineId(): Record<string, number> {
+    const raw = mmkv.getString(LAST_SEEN_UPDATE_SEQ_BY_MACHINE_ID_KEY);
+    if (raw) {
+        try {
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== 'object') {
+                return {};
+            }
+            return Object.fromEntries(
+                Object.entries(parsed).filter((entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1]))
+            );
+        } catch (e) {
+            console.error('Failed to parse last seen update seq by machine id', e);
+            return {};
+        }
+    }
+    return {};
+}
+
+export function saveLastSeenUpdateSeqByMachineId(map: Record<string, number>) {
+    mmkv.set(LAST_SEEN_UPDATE_SEQ_BY_MACHINE_ID_KEY, JSON.stringify(map));
 }
 
 export interface PinnedAvatarTuple {

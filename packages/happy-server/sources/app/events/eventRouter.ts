@@ -203,6 +203,25 @@ export interface EphemeralPayload {
     [key: string]: any;
 }
 
+export interface BufferedUpdate {
+    payload: UpdatePayload;
+    recipientFilter: RecipientFilter;
+    createdAt: number;
+}
+
+export interface ReplayResult {
+    events: UpdatePayload[];
+    overflow: boolean;
+    currentSeq: number;
+}
+
+const replayBufferLimit = 1024;
+
+// Flat buffer is valid because each daemon process serves exactly one operator.
+// If that invariant changes, re-introduce userId-keying and per-account allocateUserSeq state.
+const replayBuffer: BufferedUpdate[] = [];
+let currentSeq = 0;
+
 // === EVENT ROUTER SINK ===
 
 type RoutedSocketEvent = {
@@ -219,6 +238,7 @@ export type EventRouterBus = EventEmitter;
 export interface EventRouter {
     addConnection(userId: string, connection: ClientConnection): void;
     removeConnection(userId: string, connection: ClientConnection): void;
+    getReplayForConnection(lastSeenSeq: number, connection: ClientConnection): ReplayResult;
     emitUpdate(params: {
         userId: string;
         payload: UpdatePayload;
@@ -271,6 +291,29 @@ class EventRouterSink implements EventRouter {
         // Socket.IO automatically removes sockets from all rooms on disconnect
     }
 
+    getReplayForConnection(lastSeenSeq: number, connection: ClientConnection): ReplayResult {
+        if (currentSeq === 0) {
+            return { events: [], overflow: false, currentSeq };
+        }
+
+        if (currentSeq > 0 && lastSeenSeq > currentSeq) {
+            return { events: [], overflow: true, currentSeq };
+        }
+
+        const oldestBufferedSeq = replayBuffer[0]?.payload.seq;
+        if (oldestBufferedSeq !== undefined && lastSeenSeq < oldestBufferedSeq) {
+            return { events: [], overflow: true, currentSeq };
+        }
+
+        return {
+            events: replayBuffer
+                .filter((entry) => entry.payload.seq > lastSeenSeq && this.doesFilterMatchConnection(entry.recipientFilter, connection))
+                .map((entry) => entry.payload),
+            overflow: false,
+            currentSeq
+        };
+    }
+
     close(): void {
         this.bus.off('socket-event', this.onRoutedEvent);
     }
@@ -283,11 +326,16 @@ class EventRouterSink implements EventRouter {
         recipientFilter?: RecipientFilter;
         skipSenderConnection?: ClientConnection;
     }): void {
+        const recipientFilter = params.recipientFilter || { type: 'all-user-authenticated-connections' };
+
+        // Callers allocate update.seq before emitUpdate; replay stores only fully ordered payloads.
+        this.appendToReplayBuffer(params.payload, recipientFilter);
+
         this.publish({
             userId: params.userId,
             eventName: 'update',
             payload: params.payload,
-            recipientFilter: params.recipientFilter || { type: 'all-user-authenticated-connections' },
+            recipientFilter,
             skipSenderConnection: params.skipSenderConnection
         });
     }
@@ -309,6 +357,15 @@ class EventRouterSink implements EventRouter {
 
     // === PRIVATE ROUTING LOGIC ===
 
+    private appendToReplayBuffer(payload: UpdatePayload, recipientFilter: RecipientFilter): void {
+        replayBuffer.push({ payload, recipientFilter, createdAt: Date.now() });
+        if (replayBuffer.length > replayBufferLimit) {
+            replayBuffer.shift();
+        }
+        currentSeq = payload.seq;
+    }
+
+    // Keep this mapping in lockstep with doesFilterMatchConnection.
     private getRoomsForFilter(userId: string, filter: RecipientFilter): string[] {
         switch (filter.type) {
             case 'all-user-authenticated-connections':
@@ -321,6 +378,22 @@ class EventRouterSink implements EventRouter {
             case 'machine-scoped-only':
                 // Union: specific machine + user-scoped
                 return [`user:${userId}:machine:${filter.machineId}`, `user:${userId}:user-scoped`];
+        }
+    }
+
+    // Keep this mapping in lockstep with getRoomsForFilter.
+    private doesFilterMatchConnection(filter: RecipientFilter, connection: ClientConnection): boolean {
+        switch (filter.type) {
+            case 'all-user-authenticated-connections':
+                return true;
+            case 'user-scoped-only':
+                return connection.connectionType === 'user-scoped';
+            case 'all-interested-in-session':
+                return connection.connectionType === 'user-scoped'
+                    || (connection.connectionType === 'session-scoped' && connection.sessionId === filter.sessionId);
+            case 'machine-scoped-only':
+                return connection.connectionType === 'user-scoped'
+                    || (connection.connectionType === 'machine-scoped' && connection.machineId === filter.machineId);
         }
     }
 
@@ -350,6 +423,21 @@ class EventRouterSink implements EventRouter {
 
 export function createEventRouter(io: Server, bus: EventRouterBus = sharedEventRouterBus): EventRouter {
     return new EventRouterSink(io, bus);
+}
+
+export function __resetEventRouterReplayStateForTests(): void {
+    replayBuffer.length = 0;
+    currentSeq = 0;
+}
+
+export function __getEventRouterReplayStateForTests(): { replayBuffer: BufferedUpdate[]; currentSeq: number } {
+    return { replayBuffer: [...replayBuffer], currentSeq };
+}
+
+export function __forceEventRouterReplayStateForTests(nextState: { replayBuffer?: BufferedUpdate[]; currentSeq?: number }): void {
+    replayBuffer.length = 0;
+    replayBuffer.push(...(nextState.replayBuffer ?? []));
+    currentSeq = nextState.currentSeq ?? 0;
 }
 
 // === EVENT BUILDER FUNCTIONS ===

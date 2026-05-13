@@ -16,10 +16,11 @@ function getTunnelHappyClientId(): string {
     return `${platform}/${version}`;
 }
 
-export async function buildTunnelSocketOptions(credentials: AuthCredentials, machineId = credentials.machineId): Promise<TunnelSocketOptions> {
+export async function buildTunnelSocketOptions(credentials: AuthCredentials, machineId = credentials.machineId, lastSeenSeq?: number): Promise<TunnelSocketOptions> {
     const happyClient = getTunnelHappyClientId();
     const tunnelHeaders = await getMachineAuthHeaders(credentials, machineId);
     const socketAuthHeaders = { 'X-Codexu-Authorization': tunnelHeaders['X-Codexu-Authorization'] };
+    const replayAuth = typeof lastSeenSeq === 'number' && Number.isFinite(lastSeenSeq) ? { lastSeenSeq } : {};
     const headers = {
         ...tunnelHeaders,
         'X-Happy-Client': happyClient,
@@ -32,6 +33,7 @@ export async function buildTunnelSocketOptions(credentials: AuthCredentials, mac
             happyClient,
             machineId,
             ...socketAuthHeaders,
+            ...replayAuth,
         },
         extraHeaders: headers,
         transportOptions: {

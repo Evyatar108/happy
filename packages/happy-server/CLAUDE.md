@@ -24,6 +24,21 @@ The "Local Development" section below still describes how to run the server
 in standalone mode for testing; production use is via the embedded path in
 the daemon.
 
+### Ring buffer replay state
+
+Reconnect replay in `sources/app/events/eventRouter.ts` uses a flat
+`BufferedUpdate[]` plus a module-scoped `let currentSeq`, not a map keyed by
+`userId`. The buffer retains only the latest 1024 update events; there is no
+age eviction. This is valid because `packages/happy-cli/src/daemon/dualListenerBinding.ts`
+runs one embedded happy-server daemon per operator, and `sources/storage/seq.ts`
+currently allocates a process-local update sequence for that daemon.
+
+`allocateUserSeq(...)` must run before `EventRouterSink.emitUpdate(...)`, and
+`emitUpdate(...)` appends to the replay buffer only after the payload's `seq`
+exists. Cross-process or cross-cluster replay is intentionally deferred; if the
+daemon deployment invariant is relaxed, re-introduce userId-keyed buffers and
+per-account `allocateUserSeq` state, or move the replay window into shared Redis.
+
 ## Project Overview
 
 **Name**: happy-server  

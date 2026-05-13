@@ -33,12 +33,12 @@ describe('socketOptions', () => {
 
         const options = await buildTunnelSocketOptions(credentials);
         expect(options.extraHeaders).toMatchObject({
-            'X-Tunnel-Authorization': 'tunnel fresh-socket-claim',
-            'X-Tunnel-Connect': 'connect-jwt',
+            'X-Tunnel-Authorization': 'tunnel connect-jwt',
+            'X-Codexu-Authorization': 'tunnel fresh-socket-claim',
             'X-Happy-Client': 'ios/1.2.3',
         });
-        expect((options.transportOptions as any).websocket.extraHeaders['X-Tunnel-Connect']).toBe('connect-jwt');
-        expect((options.auth as Record<string, unknown>)['X-Tunnel-Connect']).toBeUndefined();
+        expect((options.transportOptions as any).websocket.extraHeaders['X-Codexu-Authorization']).toBe('tunnel fresh-socket-claim');
+        expect((options.auth as Record<string, unknown>)['X-Tunnel-Authorization']).toBeUndefined();
         expect(JSON.stringify(options)).not.toContain('#dt=');
         expect(options.reconnection).toBe(false);
     });
@@ -71,5 +71,26 @@ describe('socketOptions', () => {
 
         const options = await buildTunnelSocketOptions(credentials);
         expect((options.auth as Record<string, unknown>).machineId).toBe('machine-1');
+    });
+
+    it('includes finite lastSeenSeq only when provided', async () => {
+        const credentials: AuthCredentials = {
+            machineId: 'machine-1',
+            tunnelUrl: 'https://machine.example.test',
+            tunnelClaim: 'stale-claim',
+            firstSeenAt: 123,
+            connectToken: 'connect-jwt',
+            deviceCode: 'device-1',
+            deviceCodeExpiresAt: Date.now() + 60_000,
+        };
+
+        const withSeq = await buildTunnelSocketOptions(credentials, 'mA', 42);
+        expect((withSeq.auth as Record<string, unknown>).lastSeenSeq).toBe(42);
+
+        const withoutSeq = await buildTunnelSocketOptions(credentials, 'mA');
+        expect(withoutSeq.auth as Record<string, unknown>).not.toHaveProperty('lastSeenSeq');
+
+        const nonFiniteSeq = await buildTunnelSocketOptions(credentials, 'mA', Number.POSITIVE_INFINITY);
+        expect(nonFiniteSeq.auth as Record<string, unknown>).not.toHaveProperty('lastSeenSeq');
     });
 });

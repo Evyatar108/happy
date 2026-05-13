@@ -214,7 +214,8 @@ class ApiSocket {
             connection.intentionalDisconnect = false;
             let socketOptions;
             try {
-                socketOptions = await buildTunnelSocketOptions(connection.config.credentials);
+                const lastSeenSeq = storage.getState().lastSeenUpdateSeqByMachineId[mid];
+                socketOptions = await buildTunnelSocketOptions(connection.config.credentials, mid, lastSeenSeq);
             } catch (error) {
                 if (error instanceof DeviceCodeExpired || error instanceof ClaimExpired) {
                     this.updateMachineStatus(mid, 'error');

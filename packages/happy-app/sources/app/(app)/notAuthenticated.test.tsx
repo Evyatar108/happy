@@ -11,8 +11,7 @@ describe('NotAuthenticated private tunnel pairing', () => {
         const home = source('app/(app)/index.tsx');
 
         expect(home).toContain('acquireConnectTokenForPair(machine)');
-        expect(home).toContain('startPairFlow(machine, connectToken)');
-        expect(home).toContain('waitForPairStatus(machine, flow, connectToken)');
+        expect(home).toContain('completePair(machine, connectToken)');
         expect(home).toContain('connectTokenExpiry');
         expect(home).not.toContain('.getConnectToken(');
     });

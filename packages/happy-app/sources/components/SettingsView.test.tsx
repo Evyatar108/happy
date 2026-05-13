@@ -11,8 +11,7 @@ describe('SettingsView private tunnel pairing', () => {
         const settings = source('components/SettingsView.tsx');
 
         expect(settings).toContain('acquireConnectTokenForPair(selectedMachine)');
-        expect(settings).toContain('startPairFlow(selectedMachine, connectToken)');
-        expect(settings).toContain('waitForPairStatus(selectedMachine, flow, connectToken)');
+        expect(settings).toContain('completePair(selectedMachine, connectToken)');
         expect(settings).toContain('connectTokenExpiry');
         expect(settings).not.toContain('.getConnectToken(');
     });

@@ -133,6 +133,10 @@ function activeAffordanceProps() {
         sendIcon: React.createElement('Text', null, 'send'),
         onAbort: vi.fn(),
         onFileViewerPress: vi.fn(),
+        machineName: 'devbox',
+        onMachineClick: vi.fn(),
+        currentPath: 'D:/harness-efforts/codexu',
+        onPathClick: vi.fn(),
         canSendWhenIdle: true,
         connectionStatus: {
             text: 'connected',
@@ -164,9 +168,8 @@ describe('AgentInput active-mode regression affordances', () => {
             activeRenderer = TestRenderer.create(<AgentInput {...activeAffordanceProps()} />);
         });
 
-        expect(countByTestId(activeRenderer!.root, 'agent-input-autocomplete-overlay')).toBeGreaterThan(0);
+        expect(countByTestId(activeRenderer!.root, 'agent-input-active-context-row')).toBeGreaterThan(0);
         expect(countByTestId(activeRenderer!.root, 'agent-input-git-status-button')).toBeGreaterThan(0);
-        expect(countByTestId(activeRenderer!.root, 'agent-input-voice-mic')).toBeGreaterThan(0);
         expect(countByTestId(activeRenderer!.root, 'agent-input-abort-button')).toBeGreaterThan(0);
         expect(countByAccessibilityLabel(activeRenderer!.root, 'translated:requestSwitch.whenIdle')).toBeGreaterThan(0);
         expect(countByTestId(activeRenderer!.root, 'agent-input-deferred-switch-button')).toBeGreaterThan(0);
@@ -177,9 +180,8 @@ describe('AgentInput active-mode regression affordances', () => {
             newRenderer = TestRenderer.create(<AgentInput {...activeAffordanceProps()} mode="new" />);
         });
 
-        expect(countByTestId(newRenderer!.root, 'agent-input-autocomplete-overlay')).toBe(0);
+        expect(countByTestId(newRenderer!.root, 'agent-input-active-context-row')).toBe(0);
         expect(countByTestId(newRenderer!.root, 'agent-input-git-status-button')).toBe(0);
-        expect(countByTestId(newRenderer!.root, 'agent-input-voice-mic')).toBe(0);
         expect(countByTestId(newRenderer!.root, 'agent-input-abort-button')).toBe(0);
         expect(countByAccessibilityLabel(newRenderer!.root, 'translated:requestSwitch.whenIdle')).toBe(0);
         expect(countByTestId(newRenderer!.root, 'agent-input-deferred-switch-button')).toBe(0);

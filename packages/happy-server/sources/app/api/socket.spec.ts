@@ -8,12 +8,18 @@ const {
     redisConstructorMock,
     createAdapterMock,
     adapterFactoryMock,
-    logMock
+    logMock,
+    serverConstructorMock,
+    createEventRouterMock,
+    buildMachineActivityEphemeralMock
 } = vi.hoisted(() => ({
     redisConstructorMock: vi.fn(),
     createAdapterMock: vi.fn(),
     adapterFactoryMock: vi.fn(),
-    logMock: vi.fn()
+    logMock: vi.fn(),
+    serverConstructorMock: vi.fn(),
+    createEventRouterMock: vi.fn(),
+    buildMachineActivityEphemeralMock: vi.fn()
 }));
 
 vi.mock("ioredis", () => ({
@@ -28,8 +34,18 @@ vi.mock("@/utils/log", () => ({
     log: logMock
 }));
 
-import { configureRedisStreamsAdapter, createSocketAuthMiddleware } from "./socket";
+vi.mock("socket.io", () => ({
+    Server: serverConstructorMock
+}));
+
+vi.mock("@/app/events/eventRouter", () => ({
+    buildMachineActivityEphemeral: buildMachineActivityEphemeralMock,
+    createEventRouter: createEventRouterMock
+}));
+
+import { configureRedisStreamsAdapter, createSocketAuthMiddleware, startSocket } from "./socket";
 import { encodeTunnelClaim } from "./auth/tunnelClaim";
+import type { ReplayResult, UpdatePayload } from "@/app/events/eventRouter";
 
 function createFakeIo() {
     const namespaceAdapter = {
@@ -116,6 +132,65 @@ function fakeSocket(headers: Record<string, string> = {}, auth: Record<string, u
     };
 }
 
+function createFakeIoForStartSocket() {
+    const namespaceAdapter = { onRawMessage: vi.fn() };
+    return {
+        adapter: vi.fn(),
+        close: vi.fn(async () => undefined),
+        of: vi.fn(() => ({ adapter: namespaceAdapter })),
+        on: vi.fn(),
+        use: vi.fn(),
+        to: vi.fn(() => ({ emit: vi.fn() })),
+    };
+}
+
+function createFakeConnectedSocket(auth: Record<string, unknown> = {}) {
+    return {
+        id: "socket-1",
+        data: {
+            userId: "user-1",
+            clientType: "user-scoped",
+            happyClient: "test-client/1.0.0",
+        },
+        handshake: {
+            auth,
+            headers: {},
+        },
+        emit: vi.fn(),
+        join: vi.fn(),
+        leave: vi.fn(),
+        on: vi.fn(),
+        broadcast: { to: vi.fn(() => ({ emit: vi.fn() })) },
+    };
+}
+
+function createFakeEventRouter() {
+    return {
+        addConnection: vi.fn(),
+        removeConnection: vi.fn(),
+        getReplayForConnection: vi.fn<(lastSeenSeq: number, connection: unknown) => ReplayResult>(() => ({ events: [], overflow: false, currentSeq: 0 })),
+        emitEphemeral: vi.fn(),
+        emitUpdate: vi.fn(),
+        close: vi.fn(),
+    };
+}
+
+function connectWithReplay(auth: Record<string, unknown>, eventRouter = createFakeEventRouter()) {
+    const io = createFakeIoForStartSocket();
+    serverConstructorMock.mockReturnValueOnce(io);
+    createEventRouterMock.mockReturnValueOnce(eventRouter);
+
+    startSocket({ server: {} } as any);
+
+    const connectionHandler = io.on.mock.calls.find(([eventName]) => eventName === "connection")?.[1];
+    expect(connectionHandler).toBeTypeOf("function");
+    const socket = createFakeConnectedSocket(auth);
+
+    connectionHandler(socket);
+
+    return { eventRouter, socket };
+}
+
 describe("createSocketAuthMiddleware — AC-A10 loopback vs tunnel auth", () => {
     let capabilityPath: string;
     const capabilityToken = "loopback-secret-token";
@@ -186,5 +261,55 @@ describe("createSocketAuthMiddleware — AC-A10 loopback vs tunnel auth", () => 
         await middleware(socket, next);
 
         expect(next).toHaveBeenCalledWith(new Error("Unauthorized"));
+    });
+});
+
+describe("startSocket replay handshake", () => {
+    beforeEach(() => {
+        delete process.env.REDIS_URL;
+        serverConstructorMock.mockReset();
+        createEventRouterMock.mockReset();
+        buildMachineActivityEphemeralMock.mockReset();
+    });
+
+    it("replays user-scoped updates after a finite lastSeenSeq", () => {
+        const events: UpdatePayload[] = Array.from({ length: 5 }, (_, index) => ({
+            id: `update-${index + 6}`,
+            seq: index + 6,
+            body: { t: "update-session", sessionId: "s1" },
+            createdAt: 1700000000000 + index,
+        }));
+        const eventRouter = createFakeEventRouter();
+        eventRouter.getReplayForConnection.mockReturnValue({ events, overflow: false, currentSeq: 10 });
+
+        const { socket } = connectWithReplay({ lastSeenSeq: 5 }, eventRouter);
+
+        expect(eventRouter.addConnection).toHaveBeenCalledOnce();
+        const connection = eventRouter.addConnection.mock.calls[0][1];
+        expect(eventRouter.getReplayForConnection).toHaveBeenCalledWith(5, connection);
+        expect(socket.emit.mock.calls.filter(([eventName]) => eventName === "update").map(([, event]) => event.seq)).toEqual([6, 7, 8, 9, 10]);
+        expect(socket.emit).not.toHaveBeenCalledWith("replay-overflow", expect.anything());
+    });
+
+    it("skips replay when lastSeenSeq is missing or non-finite", () => {
+        for (const auth of [{}, { lastSeenSeq: "5" }, { lastSeenSeq: Number.POSITIVE_INFINITY }, { lastSeenSeq: Number.NaN }]) {
+            const eventRouter = createFakeEventRouter();
+
+            const { socket } = connectWithReplay(auth, eventRouter);
+
+            expect(eventRouter.getReplayForConnection).not.toHaveBeenCalled();
+            expect(socket.emit).not.toHaveBeenCalledWith("replay-overflow", expect.anything());
+        }
+    });
+
+    it("emits replay-overflow once without update events when the replay window is unavailable", () => {
+        const eventRouter = createFakeEventRouter();
+        eventRouter.getReplayForConnection.mockReturnValue({ events: [], overflow: true, currentSeq: 2000 });
+
+        const { socket } = connectWithReplay({ lastSeenSeq: 5000 }, eventRouter);
+
+        expect(socket.emit).toHaveBeenCalledWith("replay-overflow", { replayOverflow: true, currentSeq: 2000 });
+        expect(socket.emit.mock.calls.filter(([eventName]) => eventName === "replay-overflow")).toHaveLength(1);
+        expect(socket.emit.mock.calls.filter(([eventName]) => eventName === "update")).toHaveLength(0);
     });
 });

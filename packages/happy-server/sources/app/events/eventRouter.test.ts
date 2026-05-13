@@ -1,8 +1,14 @@
 import { EventEmitter } from "events";
 import { readFileSync } from "fs";
 import { resolve } from "path";
-import { describe, expect, it } from "vitest";
-import { createEventRouter } from "./eventRouter";
+import { beforeEach, describe, expect, it } from "vitest";
+import {
+    __forceEventRouterReplayStateForTests,
+    __getEventRouterReplayStateForTests,
+    __resetEventRouterReplayStateForTests,
+    createEventRouter
+} from "./eventRouter";
+import type { ClientConnection, RecipientFilter, UpdatePayload } from "./eventRouter";
 
 // Producer coverage for US-005b: route handler (v3SessionRoutes) and socket
 // handler (machineUpdateHandler) receive EventRouter via parameters; this file
@@ -64,7 +70,46 @@ class FakeIo {
     }
 }
 
+function createUpdatePayload(seq: number): UpdatePayload {
+    return {
+        id: `update-${seq}`,
+        seq,
+        body: { t: "update-account", userId: "user-1" },
+        createdAt: 1700000000000 + seq
+    };
+}
+
+function userConnection(socket: FakeSocket): ClientConnection {
+    return {
+        connectionType: "user-scoped",
+        socket: socket as any,
+        userId: "user-1"
+    };
+}
+
+function sessionConnection(socket: FakeSocket, sessionId: string): ClientConnection {
+    return {
+        connectionType: "session-scoped",
+        socket: socket as any,
+        userId: "user-1",
+        sessionId
+    };
+}
+
+function machineConnection(socket: FakeSocket, machineId: string): ClientConnection {
+    return {
+        connectionType: "machine-scoped",
+        socket: socket as any,
+        userId: "user-1",
+        machineId
+    };
+}
+
 describe("createEventRouter", () => {
+    beforeEach(() => {
+        __resetEventRouterReplayStateForTests();
+    });
+
     it("fans events from one listener sink to both listener sinks through the shared bus", () => {
         const bus = new EventEmitter();
         const io1 = new FakeIo();
@@ -151,5 +196,112 @@ describe("createEventRouter", () => {
         expect(machineUpdateHandler).toContain("export function machineUpdateHandler(userId: string, socket: Socket, eventRouter: EventRouter)");
         expect(v3SessionRoutes).not.toContain("import { buildNewMessageUpdate, eventRouter }");
         expect(machineUpdateHandler).not.toContain("import { eventRouter }");
+    });
+
+    it("replays buffered default-filter updates without publishing to existing sockets", () => {
+        const bus = new EventEmitter();
+        const io = new FakeIo();
+        const router = createEventRouter(io as any, bus);
+        const attached = createSocket("attached", io);
+        const reconnecting = createSocket("reconnecting", io);
+
+        router.addConnection("user-1", userConnection(attached));
+
+        for (let seq = 1; seq <= 10; seq += 1) {
+            router.emitUpdate({
+                userId: "user-1",
+                payload: createUpdatePayload(seq)
+            });
+        }
+
+        expect(attached.received).toHaveLength(10);
+
+        const replay = router.getReplayForConnection(5, userConnection(reconnecting));
+
+        expect(replay.overflow).toBe(false);
+        expect(replay.currentSeq).toBe(10);
+        expect(replay.events.map((event) => event.seq)).toEqual([6, 7, 8, 9, 10]);
+        expect(attached.received).toHaveLength(10);
+        expect(reconnecting.received).toHaveLength(0);
+
+        router.close();
+    });
+
+    it("caps the replay buffer at 1024 entries and overflows when the resume seq is older than the buffer", () => {
+        const router = createEventRouter(new FakeIo() as any, new EventEmitter());
+        const reconnecting = createSocket("reconnecting", new FakeIo());
+
+        for (let seq = 1; seq <= 2000; seq += 1) {
+            router.emitUpdate({
+                userId: "user-1",
+                payload: createUpdatePayload(seq)
+            });
+        }
+
+        const state = __getEventRouterReplayStateForTests();
+        expect(state.replayBuffer).toHaveLength(1024);
+        expect(state.replayBuffer[0].payload.seq).toBe(977);
+        expect(state.currentSeq).toBe(2000);
+
+        const replay = router.getReplayForConnection(0, userConnection(reconnecting));
+        expect(replay).toEqual({ events: [], overflow: true, currentSeq: 2000 });
+
+        router.close();
+    });
+
+    it("matches replay entries with the same recipient-filter matrix as live routing", () => {
+        const router = createEventRouter(new FakeIo() as any, new EventEmitter());
+        const filters: RecipientFilter[] = [
+            { type: "all-user-authenticated-connections" },
+            { type: "user-scoped-only" },
+            { type: "all-interested-in-session", sessionId: "s1" },
+            { type: "machine-scoped-only", machineId: "m1" }
+        ];
+
+        router.emitUpdate({ userId: "user-1", payload: createUpdatePayload(1) });
+        filters.forEach((recipientFilter, index) => {
+            router.emitUpdate({
+                userId: "user-1",
+                payload: createUpdatePayload(index + 2),
+                recipientFilter
+            });
+        });
+
+        const io = new FakeIo();
+        const cases: Array<{ connection: ClientConnection; expectedSeqs: number[] }> = [
+            { connection: userConnection(createSocket("user", io)), expectedSeqs: [2, 3, 4, 5] },
+            { connection: sessionConnection(createSocket("session-s1", io), "s1"), expectedSeqs: [2, 4] },
+            { connection: sessionConnection(createSocket("session-s2", io), "s2"), expectedSeqs: [2] },
+            { connection: machineConnection(createSocket("machine-m1", io), "m1"), expectedSeqs: [2, 5] },
+            { connection: machineConnection(createSocket("machine-m2", io), "m2"), expectedSeqs: [2] }
+        ];
+
+        for (const item of cases) {
+            const replay = router.getReplayForConnection(1, item.connection);
+            expect(replay.overflow).toBe(false);
+            expect(replay.events.map((event) => event.seq)).toEqual(item.expectedSeqs);
+        }
+
+        router.close();
+    });
+
+    it("detects daemon-restart replay shapes without treating a fresh daemon as overflow", () => {
+        const io = new FakeIo();
+        const connection = userConnection(createSocket("reconnecting", io));
+        const router = createEventRouter(io as any, new EventEmitter());
+
+        __forceEventRouterReplayStateForTests({
+            replayBuffer: [{ payload: createUpdatePayload(10), recipientFilter: { type: "all-user-authenticated-connections" }, createdAt: 1700000000010 }],
+            currentSeq: 10
+        });
+        expect(router.getReplayForConnection(11, connection)).toEqual({ events: [], overflow: true, currentSeq: 10 });
+
+        __forceEventRouterReplayStateForTests({ replayBuffer: [], currentSeq: 10 });
+        expect(router.getReplayForConnection(11, connection)).toEqual({ events: [], overflow: true, currentSeq: 10 });
+
+        __resetEventRouterReplayStateForTests();
+        expect(router.getReplayForConnection(10, connection)).toEqual({ events: [], overflow: false, currentSeq: 0 });
+
+        router.close();
     });
 });

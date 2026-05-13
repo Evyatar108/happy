@@ -240,6 +240,7 @@ async function createApp() {
     v3SessionRoutes(typed, {
         addConnection: vi.fn(),
         removeConnection: vi.fn(),
+        getReplayForConnection: vi.fn(() => ({ events: [], overflow: false, currentSeq: 0 })),
         emitUpdate: emitUpdateMock,
         emitEphemeral: vi.fn(),
         close: vi.fn()

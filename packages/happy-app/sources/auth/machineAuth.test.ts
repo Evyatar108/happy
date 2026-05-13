@@ -40,8 +40,8 @@ describe('machine auth', () => {
 
     it('mints a fresh claim and returns prefixed tunnel auth', async () => {
         await expect(getMachineAuthHeaders(credentials)).resolves.toEqual({
-            'X-Tunnel-Authorization': 'tunnel fresh-claim',
-            'X-Tunnel-Connect': 'connect-jwt',
+            'X-Tunnel-Authorization': 'tunnel connect-jwt',
+            'X-Codexu-Authorization': 'tunnel fresh-claim',
         });
         expect(connect.ensureFreshConnectToken).toHaveBeenCalledWith(credentials, 'machine-1');
         expect(refresh.refreshTunnelClaim).toHaveBeenCalledWith(expect.objectContaining({

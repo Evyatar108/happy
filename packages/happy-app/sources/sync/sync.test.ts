@@ -8,14 +8,25 @@ const mocks = vi.hoisted(() => ({
     sessionEmitWithAck: vi.fn(),
     tunnelFetch: vi.fn(),
     alert: vi.fn(),
+    messageHandlers: new Map<string, (data: any, machineId: string) => void>(),
+    reconnectedListeners: [] as Array<(machineId: string) => void>,
     storageState: {
         sessions: {} as Record<string, any>,
+        machines: {} as Record<string, any>,
         settings: {} as Record<string, any>,
+        profile: {} as Record<string, any>,
+        lastSeenUpdateSeqByMachineId: {} as Record<string, number>,
         applySessions: vi.fn(),
+        applyMachines: vi.fn(),
+        applyProfile: vi.fn(),
         applySettings: vi.fn(),
         applySettingsLocal: vi.fn(),
+        deleteMachine: vi.fn(),
+        deleteSession: vi.fn(),
         getActiveSessions: vi.fn(),
         isMutableToolCall: vi.fn(),
+        markMachineDisconnected: vi.fn(),
+        setLastSeenUpdateSeq: vi.fn(),
         setSocketStatus: vi.fn(),
     },
     randomUUID: vi.fn(),
@@ -41,7 +52,18 @@ vi.mock('./apiSocket', async () => {
             forPrimaryMachine: vi.fn(),
             initialize: vi.fn(),
             onStatusChange: vi.fn(),
-            onReconnected: vi.fn(),
+            onMessage: vi.fn((event: string, handler: (data: any, machineId: string) => void) => {
+                mocks.messageHandlers.set(event, handler);
+                return () => mocks.messageHandlers.delete(event);
+            }),
+            onMachineDisconnected: vi.fn(),
+            onDeviceCodeExpired: vi.fn(),
+            onReconnected: vi.fn((listener: (machineId: string) => void) => {
+                mocks.reconnectedListeners.push(listener);
+                return () => {
+                    mocks.reconnectedListeners = mocks.reconnectedListeners.filter(item => item !== listener);
+                };
+            }),
         },
         getHappyClientId: vi.fn(() => 'client-1'),
     };
@@ -154,13 +176,29 @@ function makeSession(overrides: Partial<StoredSession> = {}): StoredSession {
 
 function resetStorageHarness() {
     mocks.storageState.sessions = {};
+    mocks.storageState.machines = {};
+    mocks.storageState.profile = {};
+    mocks.storageState.lastSeenUpdateSeqByMachineId = {};
     mocks.storageState.applySessions.mockImplementation((sessions: StoredSession[]) => {
         for (const session of sessions) {
             mocks.storageState.sessions[session.id] = session;
         }
     });
+    mocks.storageState.applyMachines.mockImplementation((machines: StoredSession[]) => {
+        for (const machine of machines) {
+            mocks.storageState.machines[machine.id] = machine;
+        }
+    });
+    mocks.storageState.setLastSeenUpdateSeq.mockImplementation((machineId: string, seq: number) => {
+        mocks.storageState.lastSeenUpdateSeqByMachineId[machineId] = Math.max(
+            mocks.storageState.lastSeenUpdateSeqByMachineId[machineId] ?? 0,
+            seq,
+        );
+    });
     mocks.storageState.getActiveSessions.mockImplementation(() => Object.values(mocks.storageState.sessions));
     mocks.storageState.isMutableToolCall.mockReturnValue(false);
+    mocks.messageHandlers.clear();
+    mocks.reconnectedListeners = [];
 }
 
 function installSyncHarness(options: { session?: StoredSession | null } = {}) {
@@ -184,17 +222,17 @@ function getPendingRecord(sessionId = 'session-1') {
     return JSON.parse(pending[0].content);
 }
 
-function makePlainUpdate(content: unknown) {
+function makePlainUpdate(content: unknown, seq = 1) {
     return {
-        id: 'update-1',
-        seq: 1,
+        id: `update-${seq}`,
+        seq,
         createdAt: 200,
         body: {
             t: 'new-message',
             sid: 'session-1',
             message: {
-                id: 'message-1',
-                seq: 1,
+                id: `message-${seq}`,
+                seq,
                 localId: null,
                 content: { t: 'encrypted', c: JSON.stringify(content) },
                 createdAt: 100,
@@ -208,6 +246,35 @@ function installIncomingMessageHarness(_content: unknown, session: StoredSession
     mocks.storageState.sessions = { 'session-1': session };
     vi.spyOn(sync as any, 'getMessagesSync').mockReturnValue({ invalidate: vi.fn() });
     vi.spyOn(sync as any, 'onSessionVisible').mockImplementation(() => undefined);
+}
+
+function makeUpdate(seq: number, body: Record<string, unknown>) {
+    return {
+        id: `update-${seq}`,
+        seq,
+        createdAt: 200 + seq,
+        body,
+    };
+}
+
+function installWs3SyncHarness() {
+    const sessionsSync = {
+        invalidate: vi.fn(),
+        invalidateAndAwait: vi.fn(async () => undefined),
+    };
+    const machinesSync = { invalidate: vi.fn() };
+    (sync as any).sessionsSync = sessionsSync;
+    (sync as any).machinesSync = machinesSync;
+    (sync as any).sendSync = new Map();
+    (sync as any).pendingNewMessages = new Map();
+    (sync as any).sessionInitInFlight = new Set();
+    (sync as any).prefetchPendingPromises = new Map();
+    return { sessionsSync, machinesSync };
+}
+
+async function flushPromises() {
+    await Promise.resolve();
+    await Promise.resolve();
 }
 
 describe('sync.sendMessage switch policy', () => {
@@ -629,6 +696,139 @@ describe('sync update-session git-status invalidation', () => {
         });
 
         expect(mocks.gitStatusInvalidate).not.toHaveBeenCalled();
+    });
+});
+
+describe('sync WS3 last-seen update seq persistence', () => {
+    beforeEach(() => {
+        vi.restoreAllMocks();
+        vi.clearAllMocks();
+        resetStorageHarness();
+        installWs3SyncHarness();
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
+        vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    });
+
+    it('persists after synchronous apply branches and after new-session invalidation resolves', async () => {
+        mocks.storageState.sessions = { 'mA:session-1': makeSession({ id: 'mA:session-1' }) };
+        vi.spyOn(sync as any, 'getMessagesSync').mockReturnValue({ invalidate: vi.fn() });
+        vi.spyOn(sync as any, 'onSessionVisible').mockImplementation(() => undefined);
+
+        await (sync as any).handleUpdate(makeUpdate(1, { t: 'update-session', id: 'session-1' }), false, 'mA');
+        expect(mocks.storageState.lastSeenUpdateSeqByMachineId.mA).toBe(1);
+
+        await (sync as any).handleUpdate(makePlainUpdate({
+            role: 'session',
+            content: { id: 'msg-2', time: 100, role: 'agent', turn: 'turn-1', ev: { t: 'turn-start' } },
+        }, 2), false, 'mA');
+        expect(mocks.storageState.lastSeenUpdateSeqByMachineId.mA).toBe(2);
+
+        await (sync as any).handleUpdate(makeUpdate(3, {
+            t: 'new-session',
+            id: 'session-2',
+            createdAt: 203,
+            updatedAt: 203,
+        }), false, 'mA');
+        await flushPromises();
+
+        expect((sync as any).sessionsSync.invalidateAndAwait).toHaveBeenCalledOnce();
+        expect(mocks.storageState.lastSeenUpdateSeqByMachineId.mA).toBe(3);
+    });
+
+    it('defers new-session persistence until invalidateAndAwait resolves', async () => {
+        let resolveInvalidate!: () => void;
+        const pending = new Promise<void>(resolve => { resolveInvalidate = resolve; });
+        (sync as any).sessionsSync.invalidateAndAwait.mockReturnValueOnce(pending);
+
+        await (sync as any).handleUpdate(makeUpdate(4, {
+            t: 'new-session',
+            id: 'session-2',
+            createdAt: 204,
+            updatedAt: 204,
+        }), false, 'mA');
+
+        expect(mocks.storageState.setLastSeenUpdateSeq).not.toHaveBeenCalled();
+
+        resolveInvalidate();
+        await pending;
+        await flushPromises();
+
+        expect(mocks.storageState.setLastSeenUpdateSeq).toHaveBeenCalledWith('mA', 4);
+    });
+
+    it('persists missing-session new-message only after the deferred replay loop and skips replay drops', async () => {
+        let resolveInvalidate!: () => void;
+        const pending = new Promise<void>(resolve => { resolveInvalidate = resolve; });
+        (sync as any).sessionsSync.invalidateAndAwait.mockReturnValueOnce(pending);
+
+        await (sync as any).handleUpdate(makePlainUpdate({
+            role: 'session',
+            content: { id: 'msg-5', time: 100, role: 'agent', turn: 'turn-1', ev: { t: 'turn-start' } },
+        }, 5), false, 'mA');
+
+        expect(mocks.storageState.setLastSeenUpdateSeq).not.toHaveBeenCalled();
+
+        resolveInvalidate();
+        await pending;
+        await flushPromises();
+
+        expect(mocks.storageState.setLastSeenUpdateSeq).toHaveBeenCalledTimes(1);
+        expect(mocks.storageState.setLastSeenUpdateSeq).toHaveBeenCalledWith('mA', 5);
+
+        mocks.storageState.setLastSeenUpdateSeq.mockClear();
+        await (sync as any).handleUpdate(makePlainUpdate({
+            role: 'session',
+            content: { id: 'msg-6', time: 100, role: 'agent', turn: 'turn-1', ev: { t: 'turn-start' } },
+        }, 6), true, 'mA');
+
+        expect(mocks.storageState.setLastSeenUpdateSeq).not.toHaveBeenCalled();
+    });
+
+    it('does not persist invalid update payloads', async () => {
+        await (sync as any).handleUpdate({ id: 'bad-update', seq: 5, createdAt: 205, body: { t: 'unknown' } }, false, 'mA');
+
+        expect(mocks.storageState.setLastSeenUpdateSeq).not.toHaveBeenCalled();
+    });
+
+    it('persists replay-overflow currentSeq only after the fallback invalidate resolves', async () => {
+        (sync as any).subscribeToUpdates();
+        const handler = mocks.messageHandlers.get('replay-overflow');
+        expect(handler).toBeDefined();
+
+        handler?.({ replayOverflow: true, currentSeq: 42 }, 'mA');
+        await flushPromises();
+
+        expect((sync as any).sessionsSync.invalidateAndAwait).toHaveBeenCalledOnce();
+        expect(mocks.storageState.setLastSeenUpdateSeq).toHaveBeenCalledWith('mA', 42);
+
+        vi.clearAllMocks();
+        (sync as any).sessionsSync.invalidateAndAwait.mockRejectedValueOnce(new Error('refresh failed'));
+
+        handler?.({ replayOverflow: true, currentSeq: 43 }, 'mA');
+        await flushPromises();
+
+        expect(mocks.storageState.setLastSeenUpdateSeq).not.toHaveBeenCalled();
+    });
+
+    it('invalidates sessions on first reconnect when no last-seen seq exists', () => {
+        const { sessionsSync, machinesSync } = installWs3SyncHarness();
+        (sync as any).subscribeToUpdates();
+
+        mocks.reconnectedListeners[0]?.('mA');
+
+        expect(machinesSync.invalidate).toHaveBeenCalledOnce();
+        expect(sessionsSync.invalidate).toHaveBeenCalledOnce();
+    });
+
+    it('skips sessions invalidation on resume reconnect when a finite last-seen seq exists', () => {
+        const { sessionsSync, machinesSync } = installWs3SyncHarness();
+        mocks.storageState.lastSeenUpdateSeqByMachineId = { mA: 42 };
+        (sync as any).subscribeToUpdates();
+
+        mocks.reconnectedListeners[0]?.('mA');
+
+        expect(machinesSync.invalidate).toHaveBeenCalledOnce();
+        expect(sessionsSync.invalidate).not.toHaveBeenCalled();
     });
 });
 

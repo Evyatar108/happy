@@ -1,6 +1,6 @@
 import { onShutdown } from "@/utils/shutdown";
 import { Fastify } from "./types";
-import { buildMachineActivityEphemeral, ClientConnection, createEventRouter } from "@/app/events/eventRouter";
+import { buildMachineActivityEphemeral, createEventRouter, type ClientConnection } from "@/app/events/eventRouter";
 import { Server } from "socket.io";
 import { createAdapter } from "@socket.io/redis-streams-adapter";
 import { Redis } from "ioredis";
@@ -191,6 +191,19 @@ export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { lo
             };
         }
         eventRouter.addConnection(userId, connection);
+
+        const lastSeenSeq = socket.handshake.auth.lastSeenSeq;
+        if (typeof lastSeenSeq === 'number' && Number.isFinite(lastSeenSeq)) {
+            const replay = eventRouter.getReplayForConnection(lastSeenSeq, connection);
+            if (replay.overflow) {
+                socket.emit('replay-overflow', { replayOverflow: true, currentSeq: replay.currentSeq });
+            } else {
+                for (const event of replay.events) {
+                    socket.emit('update', event);
+                }
+            }
+        }
+
         websocketConnectionsGauge.inc({ type: connection.connectionType, ...labels });
 
         // Broadcast daemon online status

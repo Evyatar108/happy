@@ -44,6 +44,7 @@ packages/happy-app/android/keystore.properties
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+tmp/
 
 # macOS
 .DS_Store

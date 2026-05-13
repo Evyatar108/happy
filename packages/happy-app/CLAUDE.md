@@ -131,6 +131,27 @@ sources/
 4. **State Management**: React Context for auth state, custom reducer for sync state
 5. **Platform-Specific Code**: Separate implementations for web vs native when needed
 
+### Reconnect Replay State
+
+`sources/sync/storage.ts` persists `lastSeenUpdateSeqByMachineId` per daemon. The
+value tracks socket `updateData.seq`, which is account-global for that daemon's
+wire stream; it is not `session.seq`, which is session-local pagination state.
+The client stores this per machine because the app can talk to many daemons,
+while the server replay buffer is not per user because each daemon serves only
+its single owner.
+
+`sources/sync/apiSocket.ts` sends the stored value as Socket.IO
+`auth.lastSeenSeq`. On reconnect, `sources/sync/sync.ts` always refreshes
+machines, then calls `sessionsSync.invalidate()` only when the stored seq is
+undefined. Resume reconnects rely on server replay; cap overflow or daemon
+restart gaps arrive as `replay-overflow`, which performs the HTTP sessions
+fallback and persists `currentSeq` only after that fallback resolves.
+
+The v1 design accepts a per-event MMKV write when a handled update advances the
+stored seq. The mitigation is `setLastSeenUpdateSeq(...)`: it is monotonic and
+no-ops both Zustand notification and MMKV save when an async replay handler tries
+to write a regressing seq.
+
 ### Development Guidelines
 
 - Use **4 spaces** for indentation

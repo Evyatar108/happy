@@ -29,21 +29,22 @@ describe('refreshTunnelClaim status-code-before-body', () => {
             .rejects.toBeInstanceOf(DeviceCodeExpired);
     });
 
-    it('attaches X-Tunnel-Connect from the refresh helper on pair/status', async () => {
+    it('attaches the fresh connect token to /pair/complete', async () => {
         const now = Math.floor(Date.now() / 1000);
         const claim = Buffer.from(JSON.stringify({
             p: Buffer.from(JSON.stringify({ accountId: 1, iat: now, exp: now + 600, jti: 'jti-1' })).toString('base64url'),
             s: 'sig',
         })).toString('base64url');
         global.fetch = vi.fn(async () => new Response(JSON.stringify({
-            status: 'authorized',
-            machines: [{ machineId: 'machine-1', tunnelClaim: claim }],
+            machine: { machineId: 'machine-1', tunnelClaim: claim },
         }), { status: 200 })) as never;
 
         await expect(refreshTunnelClaim(makeCredentials(), 'machine-1')).resolves.toBe(claim);
         expect(connect.ensureFreshConnectToken).toHaveBeenCalledWith(expect.objectContaining({ machineId: 'machine-1' }), 'machine-1');
-        expect(global.fetch).toHaveBeenCalledWith('https://machine.example.test/pair/status', expect.objectContaining({
-            headers: { 'Content-Type': 'application/json', 'X-Tunnel-Connect': 'connect-jwt' },
+        expect(global.fetch).toHaveBeenCalledWith('https://machine.example.test/pair/complete', expect.objectContaining({
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Tunnel-Authorization': 'tunnel connect-jwt' },
+            body: '{}',
         }));
     });
 
@@ -96,8 +97,7 @@ describe('refreshTunnelClaim clock-skew leeway', () => {
         vi.spyOn(Date, 'now').mockReturnValue(advancedNow);
 
         global.fetch = vi.fn(async () => new Response(JSON.stringify({
-            status: 'authorized',
-            machines: [{ machineId: 'machine-skew', tunnelClaim: claim }],
+            machine: { machineId: 'machine-skew', tunnelClaim: claim },
         }), { status: 200 })) as never;
 
         try {
@@ -116,33 +116,17 @@ describe('refreshTunnelClaim clock-skew leeway', () => {
 describe('refreshTunnelClaim machine identity binding', () => {
     it('throws MachineNotInRefreshResponse when requested machine is absent from a single-machine response', async () => {
         global.fetch = vi.fn(async () => new Response(JSON.stringify({
-            status: 'authorized',
-            machines: [{ machineId: 'other-machine', tunnelClaim: 'claim-for-other' }],
+            machine: { machineId: 'other-machine', tunnelClaim: 'claim-for-other' },
         }), { status: 200 })) as never;
         const promise = refreshTunnelClaim(makeCredentials(), 'machine-missing');
         await expect(promise).rejects.toBeInstanceOf(MachineNotInRefreshResponse);
     });
 
-    it('throws when the pair status response contains zero machines', async () => {
+    it('throws MachineNotInRefreshResponse when the pair response omits machine', async () => {
         global.fetch = vi.fn(async () => new Response(JSON.stringify({
-            status: 'authorized',
-            machines: [],
+            githubLogin: 'octocat',
         }), { status: 200 })) as never;
         const promise = refreshTunnelClaim(makeCredentials(), 'machine-zero');
-        await expect(promise).rejects.not.toBeInstanceOf(MachineNotInRefreshResponse);
-        await expect(promise).rejects.toThrow(/exactly one machine, got 0/);
-    });
-
-    it('rejects multi-machine responses even when the requested machineId is present', async () => {
-        global.fetch = vi.fn(async () => new Response(JSON.stringify({
-            status: 'authorized',
-            machines: [
-                { machineId: 'machine-multi', tunnelClaim: 'claim-for-requested' },
-                { machineId: 'other-machine', tunnelClaim: 'claim-for-other' },
-            ],
-        }), { status: 200 })) as never;
-        const promise = refreshTunnelClaim(makeCredentials(), 'machine-multi');
-        await expect(promise).rejects.not.toBeInstanceOf(MachineNotInRefreshResponse);
-        await expect(promise).rejects.toThrow(/exactly one machine, got 2/);
+        await expect(promise).rejects.toBeInstanceOf(MachineNotInRefreshResponse);
     });
 });
