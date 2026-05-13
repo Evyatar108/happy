@@ -287,9 +287,29 @@ Acceptance: design doc + per-scope working fixture: (B) two sessions on the same
 
 ---
 
+## U.1 — `mcp-server-notifications` — Bridge rmcp notification handlers into the codex agent event loop
+
+> Concrete Stage A follow-up surfaced by `plans/channels-research.md`. Codex's `rmcp-client` already decodes every server→client notification kind the MCP spec defines, but `logging_client_handler.rs:49–135` drops them into `tracing::info!` with no back-channel to the agent. This task wires them through `tx_event: Sender<Event>` — modelled on the existing elicitation path (`codex-mcp/src/elicitation.rs:103–231`). Minimize-conflict-surface tenet applies; prefer overlay crate + minimal sandbox-patch seams. Parallel with anything that doesn't touch rmcp-client.
+
+```
+/plan-with-ralph "Plumb MCP server-initiated notifications (progress, cancelled, resources/updated, resources/list_changed, tools/list_changed, prompts/list_changed, message) AND sampling/createMessage into the codex agent event loop. Today codex's rmcp-client (codex/external/repos/codex-patched/codex-rs/rmcp-client/) decodes every one of these but the handlers in src/logging_client_handler.rs:49–135 are tracing-only — they never reach the agent. The elicitation path at codex/external/repos/codex-patched/codex-rs/codex-mcp/src/elicitation.rs:103–231 is the working precedent: emit Event { msg: EventMsg::… } over the tx_event: Sender<Event> sink that's already wired in at codex/external/repos/codex-patched/codex-rs/codex-mcp/src/connection_manager.rs:175. READ-ONLY on codex/external/repos/codex-patched/ per minimize-conflict-surface tenet (plans/codexu-roadmap.md:190–228); prefer a new overlay crate at codex/codex-rs-overlay/codex-mcp-bridge/ for the NotificationBridge struct + EventMsg additions; accept minimal sandbox-patch seams in logging_client_handler.rs (~12 lines additive) and elicitation_client_service.rs (~30 lines for sampling/createMessage). Add a new Feature::McpServerNotifications gate (default off). Add an invariant test under codex/codex-rs-overlay/codex-invariant-tests/ asserting the bridge is off by default. Bump codex-protocol with new EventMsg variants (McpServerNotification, McpSamplingRequest). Effort estimate per plans/channels-research.md §6.5: ~3–5 d wall. Read plans/channels-research.md FIRST — it has the full file:line map, the overlay-vs-inline decision, and the risk surface. Surface the overlay-vs-inline-patch shape choice to operator BEFORE landing code."
+```
+
+---
+
+## U.2 — `codex-channels` — Claude-Code-parity `experimental["codex/channel"]` envelope
+
+> Stage B follow-up surfaced by `plans/channels-research.md`. **Deferred — decision required first.** Blocked on `mcp-server-notifications` landing AND on operator deciding whether channels (external-user-message envelope) are the right primitive for the intended use cases (vs raw notifications, which cover state-change push perfectly without the channels framing).
+
+```
+/plan-with-ralph "Design + implement Claude-Code-parity 'channels' on top of mcp-server-notifications: capability key experimental['codex/channel'] advertised by participating MCP servers, notification methods notifications/codex/channel and notifications/codex/channel/permission mirroring Claude Code's wire shape at D:/harness-efforts/claude-code/worktrees/main/src/services/mcp/channelNotification.ts:37–316. Agent-loop policy: when a channel message arrives between turns, enqueue as a prompt with priority:'next' semantics; when one arrives during an LLM call, buffer until the call completes (matches Claude Code's non-preemption behaviour). Permission half is out of scope for first cut — codex doesn't have a real-time permission dialog with race resolution to relay to. Use codex/ namespace, not claude/ (cross-vendor experimental keys aren't coordinated). READ plans/channels-research.md §6.2 FIRST — it has the full design. READ-ONLY on codex/external/repos/codex-patched/ per minimize-conflict-surface tenet. Effort estimate per plans/channels-research.md §6.5: ~1.5–2 d on top of mcp-server-notifications. SURFACE TO OPERATOR FIRST whether channels (as opposed to plain notifications) are wanted for the intended use cases — channels are specifically the 'external-user pipes messages into prompt queue' shape and may be narrower than the operator needs."
+```
+
+---
+
 ## V — `async-events-design` — Design async event listening for agents
 
-> Blocked on `channels-research`. Follow-up to that — if MCP channels are buildable they're the leading transport. Design only, no code.
+> Unblocked by `plans/channels-research.md` (the doc, not the implementation — `async-events-design` can now compare options concretely). If `mcp-server-notifications` lands, MCP notifications become a viable transport candidate to compare against the alternatives. Design only, no code.
 
 ```
 /plan-with-ralph "Design how an agent listens to async events — e.g., 'wake me when a commit lands on main', 'notify me when a periodic task fires', 'tell me when another agent finishes its turn'. Today an agent's only async-trigger model is: exit and be re-spawned (e.g., a periodic background task that exits to wake the operator/agent). That's not ideal — loses context, restart latency, can't subscribe to fine-grained events. Output: plans/async-events-design.md covering: (1) The use cases — at least these 4: git events (commit on main / branch updated / push), periodic-task firings, inter-agent notifications (sibling-agent completion / sibling-agent question), file-system events (file changed under cwd). (2) Current options in Claude Code — is there a 'wait for X' tool? hooks? streamable MCP? A 'send-when-idle' channel? Read C:/harness-efforts/claude-code/worktrees/main/ if accessible. (3) Current options in codex — codex's hook system (config/src/hook_config.rs), inter-agent fast path in multi_agents_v2/, MCP support. READ-ONLY on codex/external/repos/codex-patched/ per minimize-conflict-surface. (4) Design options for codexu — compare at least: (a) MCP with 2-way channels (depends on channels-research outcome); (b) periodic background task that exits to wake agent (current model — note limits); (c) long-poll MCP tool (block until event); (d) a 'subscription' RPC on the codex app-server side that streams events to the agent's session; (e) hybrid (use codex hooks for in-session triggers, channels for cross-session). (5) Recommendation with rationale; identify the smallest-viable subset that covers the 4 use cases. (6) Surface to operator before committing follow-up implementation tasks. NO CODE — design only. The output doc IS the deliverable."
@@ -409,6 +429,86 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
 
 ---
 
+## EE — `codex-wire-spike` — Pre-flight wire-acceptance spike for parity gaps 2/3/5
+
+> Spawned by `codex-parity-audit`. 30 minutes. No code changes — research only. Unblocks `codex-attachments` and informs `codex-claude-md-autoload`. Parallel-safe.
+
+```
+/plan-with-ralph "30-minute pre-flight spike against a real codex app-server to resolve wire-acceptance questions blocking Gaps 2, 3, 5 from plans/codex-agent-parity-audit.md. Spike 3 questions: (1) does codex-core accept InputItem `{ type: 'image', url: 'data:image/png;base64,...' }` or does it require `{ type: 'localImage', path }` (Gap 3)? (2) does codex-core honor `config: { project_doc_fallback_filenames: ['CLAUDE.md', 'AGENTS.md'] }` in NewConversationParams (Gap 2)? (3) what's the behavior of `compactPrompt` in NewConversationParams (Gap 5)? Method: spawn a real `codex app-server` and send hand-crafted JSON-RPC requests via netcat / node script. Read packages/happy-cli/src/codex/codexAppServerTypes.ts for the wire shape; read codex/external/repos/codex-patched/codex-rs/protocol/src/lib.rs for the deserializer behavior. Output: new section 'Wire spike results' appended to plans/codex-agent-parity-audit.md with concrete answers and any follow-up steps. NO production code changes — research/spike only. Acceptance: each of the 3 questions has a definitive answer in the doc (works / requires X / unsupported), with evidence (request + response payload or referenced source-line). This unblocks codex-attachments (Gap 3) and informs codex-claude-md-autoload (Gap 2) + future codex-slash-commands (Gap 5)."
+```
+
+---
+
+## FF — `codex-claude-md-autoload` — Gap 2: project CLAUDE.md auto-load on codex path
+
+> Spawned by `codex-parity-audit`. ~30-45 min, High severity. Conflicts with `mcp-discovery` / `codex-system-prompts` / `codex-hooks-parity` (all touch `runCodex.ts` + `codexAppServerClient.ts`); sequence after `mcp-discovery` lands.
+
+```
+/plan-with-ralph "Gap 2 from plans/codex-agent-parity-audit.md — codex project CLAUDE.md auto-load. Today happy-cli passes `config: null` in NewConversationParams / ResumeConversationParams (codexAppServerTypes.ts:26,56) and the codex app-server therefore uses codex's default project-doc filename (AGENTS.md only). Fix: pass `config: { project_doc_fallback_filenames: ['CLAUDE.md', 'AGENTS.md'] }` in BOTH client.startThread (runCodex.ts:794) AND resumeExistingThread (runCodex.ts:725). Add a happy CLI flag `--codex-project-doc <name>` (repeatable) to packages/happy-cli/src/codex/cliArgs.ts so power users can override the dual fallback; default unset → use ['CLAUDE.md', 'AGENTS.md'] in that order (CLAUDE.md wins per codex-core's first-non-empty semantics). PREREQ DECISION: optionally consume codex-wire-spike's confirmation that codex honors project_doc_fallback_filenames in NewConversationParams; if spike not done, ship anyway — the wire field is documented in codexAppServerTypes.ts. CONFLICT WARNING: same files as mcp-discovery (currently in progress); sequence after mcp-discovery lands. Acceptance: smoke test with only CLAUDE.md present in cwd → fresh codex session reports awareness of the project doc; with both CLAUDE.md + AGENTS.md present, CLAUDE.md wins. Test command: pnpm --filter '{packages/happy-cli}' exec vitest run 2>&1 | tee /tmp/codexu-claude-md.log. Single commit referencing audit Gap 2. Update plans/codex-agent-parity-audit.md Gap 2 section to mark shipped."
+```
+
+---
+
+## GG — `codex-attachments` — Gap 3: image attachments on codex turn input
+
+> Spawned by `codex-parity-audit`. ~2-3h, High severity. **Blocks on `codex-wire-spike`** (wire shape decision).
+
+```
+/plan-with-ralph "Gap 3 from plans/codex-agent-parity-audit.md — image attachments never reach codex turn input. Today packages/happy-cli/src/codex/runCodex.ts:321 calls messageQueue.push(message.content.text, ...) — message.content.attachments is read NOWHERE on the codex path, and sendTurnAndWait (codexAppServerClient.ts:1338-1341) hardcodes input as `[{ type: 'text', text: prompt }]`. The wire InputItem (codexAppServerTypes.ts:134-137) DOES support image inputs — happy-cli just never produces them. PREREQUISITE: codex-wire-spike must have landed and answered whether codex accepts InputItem `{ type: 'image', url: 'data:image/png;base64,...' }` (preferred — no tmpfile management) or requires `{ type: 'localImage', path }` (needs tmpfile write + cleanup). Fix: plumb MessageQueueAttachment[] through MessageQueue2's payload to runCodex.ts's main loop (mirror the Claude path's claudeRemote.ts:65-90 `toClaudeUserContent`), synthesize InputItem[] in sendTurnAndWait based on the spike's chosen wire shape. Support PNG/JPEG/GIF/WebP (same set as Claude); skip + log unsupported MIME types. Acceptance: integration test sends a PNG attachment end-to-end against a mocked codex app-server; codex agent acknowledges the image content. Cross-package typecheck green. Test command: pnpm --filter '{packages/happy-cli}' exec vitest run 2>&1 | tee /tmp/codexu-attachments.log. Single commit; update plans/codex-agent-parity-audit.md Gap 3 section to mark shipped."
+```
+
+---
+
+## HH — `codex-system-prompts` — Gap 7: customSystemPrompt + appendSystemPrompt parity
+
+> Spawned by `codex-parity-audit`. ~2h, Medium severity. Conflicts with `mcp-discovery` / `codex-claude-md-autoload` / `codex-hooks-parity` (all touch `runCodex.ts`); sequence after earlier ones land.
+
+```
+/plan-with-ralph "Gap 7 from plans/codex-agent-parity-audit.md — customSystemPrompt + appendSystemPrompt parity on codex path. Today the codex EnhancedMode (runCodex.ts:96-100) is restricted to { permissionMode, model, thinkingLevel }; customSystemPrompt + appendSystemPrompt are tracked on the Claude side (runClaude.ts:376-377, 490-518) but NOT on codex. The codex wire protocol has NewConversationParams.baseInstructions + developerInstructions (codexAppServerTypes.ts:27-28) and ResumeConversationParams equivalents (lines 57-58) — happy-cli never sets them. Fix: extend codex EnhancedMode in runCodex.ts:96-100 with `customSystemPrompt?: string; appendSystemPrompt?: string`. Mirror Claude's per-message tracking pattern (runClaude.ts:490-518) — store currentCustomSystemPrompt + currentAppendSystemPrompt at the codex session scope; pass through to client.startThread on first turn (baseInstructions = customSystemPrompt, developerInstructions = appendSystemPrompt) AND resumeExistingThread on resume. Mid-session changes deferred to next thread start (matches Claude's 'next turn only' semantics). CONFLICT WARNING: same files as mcp-discovery / codex-claude-md-autoload; sequence after those land. Acceptance: vitest fixture in runCodex.test.ts — send a message with meta.customSystemPrompt='You are a pirate' to a fresh codex session; assert startThread called with baseInstructions='You are a pirate'; resume the thread, assert resumeExistingThread also called with the persisted baseInstructions. Test command: pnpm --filter '{packages/happy-cli}' exec vitest run 2>&1 | tee /tmp/codexu-sysprompts.log. Single commit; update plans/codex-agent-parity-audit.md Gap 7 section to mark shipped."
+```
+
+---
+
+## II — `codex-hooks-parity` — Gap 4: fan codex events to happy turn-lifecycle handlers
+
+> Spawned by `codex-parity-audit`. ~6-10h, Medium severity, larger task. Sequence AFTER `mcp-discovery` / `codex-claude-md-autoload` / `codex-system-prompts` have landed.
+
+```
+/plan-with-ralph "Gap 4 from plans/codex-agent-parity-audit.md — fan codex JSON-RPC events to the same downstream handlers Claude hooks drive (onTurnStarted, onTurnCompleted, onNotification, sendContextBoundary). Today happy-cli wires 6 Claude hooks (SessionStart/PreCompact/PostCompact/Stop/UserPromptSubmit/Notification) via generateHookSettings.ts:42-49 + runClaude.ts:265-314 to drive turn lifecycle, auto-compact boundaries, idle detection. The codex path infers turn lifecycle from task_started/task_complete/turn_aborted (runCodex.ts:605-642) but does NOT call onTurnStarted/onTurnCompleted/sendContextBoundary({ kind:'autocompact' }). Fix: wire 3 codex events to the equivalent handlers — (1) task_started → call session.onTurnStarted() (currently only toggles thinking=true at runCodex.ts:628-633); (2) task_complete/turn_aborted → call session.onTurnCompleted() — defer the deferred-switch-protocol question (operator open item, see .ralph/jobs/preserve-turn-on-mode-switch/plan.md); (3) codex's setApprovalHandler permission-request path (runCodex.ts:563-583) → emit a session.onNotification()-equivalent envelope. Auto-compact (codex-internal compaction signal) is the hardest piece — investigate whether codex emits a turn_diff or compact event we can detect; if not, defer to a follow-up. CONFLICT WARNING: sequence after mcp-discovery + codex-claude-md-autoload + codex-system-prompts have landed. Acceptance: a codex session that hits codex's internal compaction threshold emits sendContextBoundary({ kind:'autocompact', ... }) visible in the wire log; permission-prompt events fire a notification path equivalent to Claude's. Cross-package typecheck green. Tests: vitest fixtures for each of the 3 event paths. Test command: pnpm --filter '{packages/happy-cli}' exec vitest run 2>&1 | tee /tmp/codexu-hooks.log. Single commit; update plans/codex-agent-parity-audit.md Gap 4 section to mark shipped."
+```
+
+---
+
+## JJ — `port-explorer-prompt` — Fill empty `explorer.toml` stub
+
+> Spawned by `native-agent-parity`. ~3h, low risk. Codex-submodule edit + submodule pointer bump. Parallel-safe (no `role.rs` change needed — file is already wired).
+
+```
+/plan-with-ralph "Fill the empty explorer.toml stub at codex/external/repos/codex-patched/codex-rs/core/src/agent/builtins/explorer.toml with a paraphrased Explore prompt — smallest delta from plans/native-agent-parity.md §2.1. Per plans/codexu-roadmap.md 'minimize-conflict-surface' tenet, this is the only built-in role port that requires NO core/src/agent/role.rs match-arm change (file is already wired in role.rs's config_file_contents() switch). Read the inspiration source at D:/harness-efforts/claude-code/worktrees/main/src/tools/AgentTool/built-in/exploreAgent.ts — paraphrase the prose per the license posture in plans/native-agent-parity.md §4 (keep structural patterns like READ-ONLY enforcement; rewrite all prose; cite inspiration in a comment header). Replace any 'Claude Code, Anthropic's CLI' references with codex-functional descriptions ('the codex agent'). Workflow: create a worktree of the codex submodule at .ralph/jobs/<job-name>/codex-worktree/ pointed at gim-home/codex's main; do edits there; commit on a topic branch in the submodule; push to gim-home/codex; then bump the codexu submodule pointer as a separate commit on codexu main. Acceptance: cargo build --workspace from codex/external/repos/codex-patched/codex-rs/ stays green; the role parses (check via existing agent_roles.rs tests or a tiny new test); a 1-minute smoke 'codex exec' against the new explorer role returns a sensible exploration of a small target. Surface to operator before committing — license-paraphrase review is gating. No happy-cli or happy-app changes; pure codex-submodule edit + submodule pointer bump."
+```
+
+---
+
+## KK — `port-plan-and-verification-roles` — Add `plan.toml` + `verification.toml` built-ins
+
+> Spawned by `native-agent-parity`. ~6h, medium risk. **Blocked on `native-agent-parity.md` §6 questions 1/4/5 (operator-gated).**
+
+```
+/plan-with-ralph "Add plan + verification built-in roles to codex per plans/native-agent-parity.md §2.2 + §2.3. New files: codex/external/repos/codex-patched/codex-rs/core/src/agent/builtins/plan.toml (read-only architect role; ends each turn with 'Critical Files for Implementation' list) + codex/external/repos/codex-patched/codex-rs/core/src/agent/builtins/verification.toml (workspace-write adversarial reviewer; VERDICT: PASS|FAIL|PARTIAL final-line contract). Edit codex/external/repos/codex-patched/codex-rs/core/src/agent/role.rs to add two new match arms in config_file_contents() + extend the built-ins table. License posture per native-agent-parity.md §4: paraphrase all prose from D:/harness-efforts/claude-code/worktrees/main/src/tools/AgentTool/built-in/planAgent.ts + verificationAgent.ts; keep structural patterns; cite inspiration in TOML comment headers. PREREQUISITES (operator-gated, must be resolved before opening): §6 Q1 role.rs edit policy (3 small match-arm edits vs design a registration seam first); §6 Q4 workspace-write tmpdir scope (verification needs $TMPDIR writes outside project tree); §6 Q5 test baseline location (codex-invariant-tests overlay vs piggyback on agent_roles.rs tests). §6 Q3 browser-MCP availability affects verification's frontend-strategy section but isn't gating — investigate codex's mcp__ namespace before writing that section. Workflow: codex-submodule worktree at .ralph/jobs/<job-name>/codex-worktree/; commit on a topic branch in gim-home/codex; bump codexu submodule pointer in a separate commit. Acceptance: cargo build --workspace green; new test (codex-invariant-tests or core agent_roles.rs test) validates both new TOMLs parse + have non-blank developer_instructions + valid permission_profile; smoke 'codex exec --agent plan' returns a 'Critical Files for Implementation' list; smoke 'codex exec --agent verification' returns a VERDICT: line. Surface to operator before merging."
+```
+
+---
+
+## LL — `audit-general-purpose-vs-worker` — 30-min prompt diff
+
+> Spawned by `native-agent-parity`. ~30 min. Parallel-safe.
+
+```
+/plan-with-ralph "30-minute prompt-diff task per plans/native-agent-parity.md §2.4. Compare D:/harness-efforts/claude-code/worktrees/main/src/tools/AgentTool/built-in/generalPurposeAgent.ts (or whichever file exposes Claude's general-purpose system prompt) against codex/external/repos/codex-patched/codex-rs/core/src/agent/builtins/worker.toml's developer_instructions. Identify guidance present in general-purpose that's missing from worker.toml — likely candidates per the research: 'NEVER create files unless absolutely necessary', 'NEVER create documentation files unless explicitly requested', other safety-rail rules. If worker.toml is sparser, fold the missing rules into worker.toml as a small targeted change (NOT a wholesale rewrite); keep the change minimal so codex's worker behavior shifts only at the margins. If worker.toml already covers the same ground (likely — codex's worker is mature), document this in plans/native-agent-parity.md §2.4 as a no-op finding. License posture: paraphrase any rule text from Claude's general-purpose; do NOT copy verbatim. Workflow: codex-submodule worktree; commit on topic branch; bump codexu submodule pointer. Acceptance: either (a) worker.toml updated with N paraphrased rule additions referenced in commit body, OR (b) plans/native-agent-parity.md §2.4 amended with a 'no merge needed, worker.toml already covers X/Y/Z' note. Surface to operator before merging. No happy-cli/happy-app changes."
+```
+
+---
+
 ## O — `polish-Fs` — Bundle remaining F-* findings
 
 > Parallel with everything outside the touched files. Bundle into one PR to amortize review.
@@ -446,6 +546,11 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `F-015-toast` | Stale-creds toast on cold launch | ⏸ paused (awaiting reproduction) | — |
 | `mcp-discovery` | Codex agent project-.mcp.json parity | 🟡 in progress | — |
 | `codex-parity-audit` | Research: gaps in codex agent feature parity vs Claude | ✅ landed 2026-05-13 | — (research-only; output `plans/codex-agent-parity-audit.md`) |
+| `codex-wire-spike` 🤖 | Pre-flight wire-acceptance spike for Gaps 2/3/5 | ⬜ not started | — |
+| `codex-claude-md-autoload` 🤖 | Gap 2: project CLAUDE.md auto-load on codex path | ⬜ not started (conflicts with mcp-discovery) | — |
+| `codex-attachments` 🤖 | Gap 3: image attachments on codex turn input | ⬜ blocked on codex-wire-spike | — |
+| `codex-system-prompts` 🤖 | Gap 7: customSystemPrompt + appendSystemPrompt parity | ⬜ not started (conflicts with mcp-discovery) | — |
+| `codex-hooks-parity` 🤖 | Gap 4: fan codex events to happy turn-lifecycle handlers | ⬜ not started (sequence after earlier codex-* land) | — |
 | `1a-fork-doc` | Phase 1a — fork strategy commit | 🟡 in progress | — |
 | `1b-multidev` | Phase 1b sub-tasks 3 + 4 | ⬜ not started | — |
 | `3b-agents` | Phase 3b-i + ii — subagents → roles | ⬜ blocked on 3a discovery | — |
@@ -466,9 +571,14 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `agent-status-stream` 🤖 | Live "active teammates" overlay (codex events → mobile) | ⬜ blocked on agent-tree-rpc | — |
 | `plugin-scope-agents` | Top-level-only plugin scoping + agent-spawner | ⬜ blocked on agent-view-research | — |
 | `agent-comms` | Top-level agent ↔ agent communication (MCP-based) | ⬜ blocked on plugin-scope-agents + channels-research | — |
-| `channels-research` | Research Claude Code "channels" + codex 2-way MCP plan | 🟡 in progress | — |
-| `async-events-design` | Design async event listening for agents | ⬜ blocked on channels-research | — |
+| `channels-research` | Research Claude Code "channels" + codex 2-way MCP plan | ✅ done — `plans/channels-research.md` (2026-05-13) | — |
+| `mcp-server-notifications` | Stage A from channels-research: bridge rmcp notifications + sampling into codex agent event loop, feature-gated | ⬜ not started | — |
+| `codex-channels` | Stage B from channels-research: `experimental["codex/channel"]` envelope + prompt-queue policy | ⬜ deferred — operator decision before scoping | — |
+| `async-events-design` | Design async event listening for agents | ⬜ unblocked (channels-research landed) | — |
 | `native-agent-parity` | Research codex parity with Claude Code's native subagents | ✅ landed 2026-05-14 | — (research-only; output `plans/native-agent-parity.md`) |
+| `port-explorer-prompt` 🤖 | Fill empty `explorer.toml` stub | ⬜ not started | — |
+| `port-plan-and-verification-roles` 🤖 | Add `plan.toml` + `verification.toml` built-ins | ⬜ blocked on §6 operator decisions | — |
+| `audit-general-purpose-vs-worker` 🤖 | 30-min prompt diff vs codex worker.toml | ⬜ not started | — |
 | `roadmap-plugin` 🛠 | Plugin: agents manage roadmap/overview.html via skill + MCP | ⬜ not started | — |
 
 🟡 = in progress (agent actively working, not yet committed). Refresh after each landing.
