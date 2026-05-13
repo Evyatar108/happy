@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { deleteCredentials, loadCredentials, saveCredentials, updateMachineConnectToken, CredentialsNotFoundError, LegacyCredentialsRequired, type PersistedCredentials } from './credentials';
+import { deleteCredentials, loadCredentials, saveCredentials, updateMachineConnectToken, toPersistedMachineCredentials, CredentialsNotFoundError, LegacyCredentialsRequired, type PersistedCredentials } from './credentials';
 import { getRandomBytes, deriveContentKeyPair, encodeBase64 } from './encryption';
 import type { Config } from './config';
 
@@ -160,5 +160,54 @@ describe('credentials', () => {
         expect(() => creds.token).toThrow(LegacyCredentialsRequired);
         expect(() => creds.secret).toThrow(LegacyCredentialsRequired);
         expect(() => creds.contentKeyPair).toThrow(LegacyCredentialsRequired);
+    });
+
+    it('toPersistedMachineCredentials strips unknown fields and keeps only documented keys', () => {
+        const input = {
+            machineId: 'machine-1',
+            tunnelUrl: 'https://machine-1.devtunnels.ms',
+            tunnelId: 'tunnel-1',
+            connectToken: 'jwt',
+            connectTokenExpiry: 99999,
+            ed25519PublicKey: 'ed',
+            x25519PublicKey: 'x',
+            tunnelClaim: 'should-be-stripped',
+            accountId: 'should-be-stripped',
+            extraRetiredField: 'also-stripped',
+        };
+        const result = toPersistedMachineCredentials(input);
+        expect(result).not.toBeNull();
+        expect(result).not.toHaveProperty('tunnelClaim');
+        expect(result).not.toHaveProperty('accountId');
+        expect(result).not.toHaveProperty('extraRetiredField');
+        expect(result!.machineId).toBe('machine-1');
+        expect(result!.tunnelId).toBe('tunnel-1');
+        expect(result!.connectToken).toBe('jwt');
+    });
+
+    it('toPersistedMachineCredentials returns null for objects missing required fields', () => {
+        expect(toPersistedMachineCredentials(null)).toBeNull();
+        expect(toPersistedMachineCredentials({ machineId: 'x' })).toBeNull();
+        expect(toPersistedMachineCredentials({ machineId: 'x', tunnelUrl: 'u', ed25519PublicKey: 'e' })).toBeNull();
+    });
+
+    it('loadCredentials strips retired fields from on-disk machine credentials', async () => {
+        const persisted = makePersisted();
+        const rawWithExtra = JSON.stringify({
+            ...persisted,
+            machines: [{
+                ...persisted.machines[0],
+                tunnelClaim: 'retired-claim',
+                accountId: 'retired-account',
+            }],
+        }, null, 2) + '\n';
+        const { writeFileSync, mkdirSync } = await import('node:fs');
+        mkdirSync(require('node:path').dirname(config.credentialPath), { recursive: true });
+        writeFileSync(config.credentialPath, rawWithExtra, { mode: 0o600 });
+
+        const creds = loadCredentials(config);
+        expect(creds.machines[0]).not.toHaveProperty('tunnelClaim');
+        expect(creds.machines[0]).not.toHaveProperty('accountId');
+        expect(creds.machines[0].machineId).toBe('machine-1');
     });
 });

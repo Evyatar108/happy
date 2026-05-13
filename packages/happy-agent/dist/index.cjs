@@ -187,6 +187,35 @@ class CredentialsNotFoundError extends Error {
     this.name = "CredentialsNotFoundError";
   }
 }
+const PERSISTED_MACHINE_KEYS = /* @__PURE__ */ new Set([
+  "machineId",
+  "tunnelId",
+  "tunnelUrl",
+  "connectToken",
+  "connectTokenExpiry",
+  "ed25519PublicKey",
+  "x25519PublicKey",
+  "ed25519Fingerprint"
+]);
+function toPersistedMachineCredentials(input) {
+  if (!input || typeof input !== "object") {
+    return null;
+  }
+  const candidate = input;
+  if (typeof candidate.machineId !== "string" || typeof candidate.tunnelUrl !== "string" || typeof candidate.ed25519PublicKey !== "string" || typeof candidate.x25519PublicKey !== "string") {
+    return null;
+  }
+  if (candidate.tunnelId !== void 0 && typeof candidate.tunnelId !== "string" || candidate.connectToken !== void 0 && typeof candidate.connectToken !== "string" || candidate.connectTokenExpiry !== void 0 && typeof candidate.connectTokenExpiry !== "number" || candidate.ed25519Fingerprint !== void 0 && typeof candidate.ed25519Fingerprint !== "string") {
+    return null;
+  }
+  const normalized = {};
+  for (const key of Object.keys(candidate)) {
+    if (PERSISTED_MACHINE_KEYS.has(key)) {
+      normalized[key] = candidate[key];
+    }
+  }
+  return normalized;
+}
 function toCredentials(persisted) {
   const adapter = { ...persisted };
   Object.defineProperties(adapter, {
@@ -219,7 +248,11 @@ function loadCredentials(config) {
     throw new CredentialsNotFoundError();
   }
   const persisted = JSON.parse(node_fs.readFileSync(config.credentialPath, "utf-8"));
-  return toCredentials(persisted);
+  const sanitized = {
+    ...persisted,
+    machines: persisted.machines.map(toPersistedMachineCredentials).filter((m) => m !== null)
+  };
+  return toCredentials(sanitized);
 }
 async function saveCredentials(config, persisted) {
   node_fs.mkdirSync(node_path.dirname(config.credentialPath), { recursive: true, mode: 448 });
@@ -552,19 +585,23 @@ async function discoverAuthorizedMachines(status, deviceCode, intervalSeconds, d
   for (const primary of status.machines ?? []) {
     const tunnelId = primary.tunnelId ?? parseTunnelIdFromUrl(primary.tunnelUrl);
     if (!tunnelId) {
-      machines.push(primary);
+      const projected = toPersistedMachineCredentials(primary);
+      if (projected) machines.push(projected);
       continue;
     }
     if (!devTunnelsAccess) {
-      machines.push({ ...primary, tunnelId });
+      const projected = toPersistedMachineCredentials({ ...primary, tunnelId });
+      if (projected) machines.push(projected);
       continue;
     }
     try {
       const connectToken = await provider.getConnectToken(tunnelId);
       const connectTokenExpiry = deriveConnectTokenExpiry();
-      machines.push({ ...primary, tunnelId, connectToken, connectTokenExpiry });
+      const projected = toPersistedMachineCredentials({ ...primary, tunnelId, connectToken, connectTokenExpiry });
+      if (projected) machines.push(projected);
     } catch {
-      machines.push({ ...primary, tunnelId });
+      const projected = toPersistedMachineCredentials({ ...primary, tunnelId });
+      if (projected) machines.push(projected);
     }
   }
   for (const discovered of status.discoveredMachines ?? []) {
@@ -585,7 +622,8 @@ async function discoverAuthorizedMachines(status, deviceCode, intervalSeconds, d
         const connectTokenExpiry = deriveConnectTokenExpiry();
         const target = await postPairStatus(discovered.tunnelUrl, deviceCode, TARGET_DISCOVERY_TIMEOUT_MS, connectToken);
         if (target.status === "authorized" && target.machines?.[0]) {
-          machines.push({ ...target.machines[0], tunnelId: discovered.tunnelId, connectToken, connectTokenExpiry });
+          const projected = toPersistedMachineCredentials({ ...target.machines[0], tunnelId: discovered.tunnelId, connectToken, connectTokenExpiry });
+          if (projected) machines.push(projected);
         }
         break;
       } catch (error) {

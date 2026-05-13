@@ -2,7 +2,7 @@ import axios, { AxiosError } from 'axios';
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { saveCredentials, deleteCredentials, legacyCredentialsToPersisted, type PersistedCredentials, type PersistedDiscoveredMachine, type PersistedMachineCredentials } from './credentials';
+import { saveCredentials, deleteCredentials, legacyCredentialsToPersisted, toPersistedMachineCredentials, type PersistedCredentials, type PersistedDiscoveredMachine, type PersistedMachineCredentials } from './credentials';
 import { encodeBase64 } from './encryption';
 import { DevTunnelsClientProvider } from './tunnel/clientProvider';
 import type { Config } from './config';
@@ -161,19 +161,23 @@ async function discoverAuthorizedMachines(status: PairStatusResponse, deviceCode
     for (const primary of status.machines ?? []) {
         const tunnelId = primary.tunnelId ?? parseTunnelIdFromUrl(primary.tunnelUrl);
         if (!tunnelId) {
-            machines.push(primary);
+            const projected = toPersistedMachineCredentials(primary);
+            if (projected) machines.push(projected);
             continue;
         }
         if (!devTunnelsAccess) {
-            machines.push({ ...primary, tunnelId });
+            const projected = toPersistedMachineCredentials({ ...primary, tunnelId });
+            if (projected) machines.push(projected);
             continue;
         }
         try {
             const connectToken = await provider.getConnectToken(tunnelId);
             const connectTokenExpiry = deriveConnectTokenExpiry();
-            machines.push({ ...primary, tunnelId, connectToken, connectTokenExpiry });
+            const projected = toPersistedMachineCredentials({ ...primary, tunnelId, connectToken, connectTokenExpiry });
+            if (projected) machines.push(projected);
         } catch {
-            machines.push({ ...primary, tunnelId });
+            const projected = toPersistedMachineCredentials({ ...primary, tunnelId });
+            if (projected) machines.push(projected);
         }
     }
 
@@ -197,7 +201,8 @@ async function discoverAuthorizedMachines(status: PairStatusResponse, deviceCode
                 const connectTokenExpiry = deriveConnectTokenExpiry();
                 const target = await postPairStatus(discovered.tunnelUrl, deviceCode, TARGET_DISCOVERY_TIMEOUT_MS, connectToken);
                 if (target.status === 'authorized' && target.machines?.[0]) {
-                    machines.push({ ...target.machines[0], tunnelId: discovered.tunnelId, connectToken, connectTokenExpiry });
+                    const projected = toPersistedMachineCredentials({ ...target.machines[0], tunnelId: discovered.tunnelId, connectToken, connectTokenExpiry });
+                    if (projected) machines.push(projected);
                 }
                 break;
             } catch (error) {

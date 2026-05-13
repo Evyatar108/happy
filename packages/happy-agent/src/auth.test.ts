@@ -295,6 +295,29 @@ describe('auth', () => {
             expect(creds.machines[0].connectToken).toBe('connect-jwt');
             expect(typeof creds.machines[0].connectTokenExpiry).toBe('number');
         });
+
+        it('strips retired server fields (tunnelClaim, accountId) from primary machine before persisting', async () => {
+            mockedAxios.get.mockResolvedValueOnce({
+                data: { device_code: 'device-code', user_code: 'ABCD-EFGH', verification_uri: 'https://github.com/login/device', expires_in: 900, interval: 1 },
+            });
+            mockedAxios.post.mockResolvedValueOnce({
+                data: {
+                    status: 'authorized',
+                    githubLogin: 'octocat',
+                    machines: [{ ...machine({ tunnelUrl: 'https://primary-tunnel.devtunnels.ms' }), tunnelClaim: 'old-claim', accountId: 'acct-1' }],
+                    discoveredMachines: [],
+                },
+            });
+
+            const promise = authLogin(config);
+            await vi.advanceTimersByTimeAsync(1000);
+            await promise;
+
+            const raw = JSON.parse(readFileSync(config.credentialPath, 'utf-8')) as PersistedCredentials;
+            expect(raw.machines[0]).not.toHaveProperty('tunnelClaim');
+            expect(raw.machines[0]).not.toHaveProperty('accountId');
+            expect(raw.machines[0].machineId).toBe('machine-1');
+        });
     });
 
     describe('authLogout', () => {
