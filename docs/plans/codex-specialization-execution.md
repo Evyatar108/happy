@@ -197,9 +197,9 @@ Then:
 The 4 candidate extensions (after dropping idle-shutdown):
 
 1. Cancel-loser semantics on approvals — `codex-rs/app-server/src/bespoke_event_handling.rs` plus a new helper file
-2. Standard ws transport reconnect — port from `codex-rs/app-server/src/transport/remote_control/websocket.rs` to `codex-rs/app-server/src/transport/websocket.rs`
+2. Standard ws transport reconnect — port from `codex-rs/app-server-transport/src/transport/remote_control/websocket.rs` to `codex-rs/app-server-transport/src/transport/websocket.rs` (paths relocated to the new `app-server-transport` crate in upstream v0.129; remote_control itself stays force-disabled per the fork's three-layer patch — only the reconnect/backoff/handshake mechanics get extracted)
 3. Background terminal `list/kill/output` protocol methods — additive in `codex-rs/app-server-protocol/src/protocol/common.rs` + `codex-rs/protocol/src/protocol.rs` + dispatch in `codex-rs/core/src/session/handlers.rs`
-4. Client presence events — emit notifications from existing internal hooks at `codex-rs/app-server/src/codex_message_processor.rs`
+4. Client presence events — emit notifications from existing internal hooks now in `codex-rs/app-server/src/message_processor.rs` + `codex-rs/app-server/src/request_processors/*.rs` (the v0.128-era `codex_message_processor.rs` monolith was deleted upstream in v0.129 and split across these files)
 
 Each is roughly 50-150 LOC. They can ship as 4 separate PRs against the patched fork, or 1 bundled PR if you prefer.
 
