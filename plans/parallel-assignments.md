@@ -577,6 +577,10 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `3fg-package` | Phase 3f + 3g — asset + packaging | ⬜ blocked on 3a discovery | — |
 | `3h-options` | Phase 3h — options-mode migration | ✅ shipped (merged from `phase-3h-options-mode-plugin`) | 756d4290 + merge |
 | `3h-tail` 🤖 | Codex TUI statusline plugin slot + `request_user_input` override | ⬜ not started | — |
+| `session-parent-link-writer` 🤖 | CLI writer for parentSessionId + spawnedChildren (companion to session-parent-link) | ⬜ not started | — |
+| `codex-base-prompt-safety-rails` 🤖 | Launcher-injected `additional_instructions` for the two safety rails missing from codex base prompt | ⬜ not started | — |
+| `codex-slash-commands` 🤖 | Gap 5 — `/clear` + `/compact` parity on codex path | ⬜ blocked on codex-hooks-parity | — |
+| `codex-polish-lows` 🤖 | Bundle of Gaps 8/9/11/12 (tool gating + codex-args passthrough + statusline + SDK init-metadata mirror) | ⬜ not started | — |
 | `polish-Fs` | F-017 + F-001/F-002 + F-003-F-007 | ⬜ not started | — |
 | `userid-cleanup` | Drop multi-tenant userId scoping in happy-server | ⬜ blocked on perf-WS3 | — |
 | `happy-upstream-sync` 🔄 | Periodic — review new slopus/happy commits since last sync | ⬜ next due ~4w from 2026-05-03 | — |

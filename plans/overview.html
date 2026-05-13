@@ -1712,6 +1712,50 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
     </div>
   </details>
 
+  <details class="cmd" id="cmd-session-parent-link-writer" data-task-id="session-parent-link-writer">
+    <summary><span class="cmd-name">session-parent-link-writer</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">CLI writer wiring for parentSessionId — populate the metadata fields the read path (session-parent-link) now reads. Spawned by <code>session-parent-link</code>.</span></summary>
+    <div class="cmd-body">
+      <button class="copy-btn">Copy Command</button>
+<pre class="cmd-pre">/plan-with-ralph "Wire the CLI writer side for the parentSessionId + spawnedChildren[] metadata fields shipped by session-parent-link (commit 11c3eafb, read path only). Today the schema accepts those fields and the helpers (getSessionParent, getSessionChildren) work end-to-end — but no code populates them on the wire, so the storage round-trips empty/null defaults forever. Per the session-parent-link plan's Open Questions, the writer side was explicitly deferred to this task. Touch points (per the plan + agent-view-research.md §6): (1) packages/happy-app/sources/sync/ops.ts createSessionMetadata — when the app spawns a new session that has a logical parent (e.g., via spawn-from-app), set parentSessionId on creation; (2) packages/happy-cli/src/daemon/forkSession.ts — when a session is forked via HAPPY_FORKED_FROM_SESSION_ID, set parentSessionId on the child + add the child's sid to the parent's spawnedChildren via apiSession.updateMetadata; (3) packages/happy-cli/src/codex/runCodex.ts — when codex spawns a sub-agent (via multi_agents_v2/spawn.rs) the new thread that gets a happy session should carry the parent's compositeSessionId; (4) packages/happy-cli/src/api/apiSession.ts updateMetadata — ensure the path can write parentSessionId/spawnedChildren without overwriting other fields. Cycle prevention: when setting parentSessionId, walk up the parent chain (max-depth hop counter, e.g., 16) to reject cycles; document the limit. Read packages/happy-app/CLAUDE.md sync invariants (composite-id rules via machineSessionId.ts must be respected). Read the session-parent-link run record at plans/overview.html — runs['session-parent-link/2026-05-14'] for the existing read-path landing's scope. Workflow: codexu worktree at .worktrees/session-parent-link-writer/ on a topic branch ralph/session-parent-link-writer off origin/main. Acceptance: integration test in happy-cli — fork a session via HAPPY_FORKED_FROM_SESSION_ID, assert new session has parentSessionId set + parent's metadata.spawnedChildren includes the new sid; cycle test — try to set parent on a session that's already a transitive ancestor, assert rejection. Cross-package typecheck stays green. Single commit on topic branch; push; surface for merge."</pre>
+    </div>
+  </details>
+
+  <details class="cmd" id="cmd-codex-base-prompt-safety-rails" data-task-id="codex-base-prompt-safety-rails">
+    <summary><span class="cmd-name">codex-base-prompt-safety-rails</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Inject Claude's safety rails ('NEVER create files...' + 'NEVER proactively create docs...') into codex base prompt via launcher additional_instructions. Spawned by <code>audit-general-purpose-vs-worker</code>.</span></summary>
+    <div class="cmd-body">
+      <button class="copy-btn">Copy Command</button>
+<pre class="cmd-pre">/plan-with-ralph "Inject Claude's two safety rails into codex's main-agent base prompt as launcher-injected additional_instructions (overlay path per AGENTS.override.md tenet 1). Per audit-general-purpose-vs-worker finding (plans/native-agent-parity.md §2.4). Gap: Claude's general-purpose prompt has 'NEVER create files unless absolutely necessary' + 'NEVER proactively create *.md / README files' (D:/harness-efforts/claude-code/worktrees/main/src/tools/AgentTool/built-in/generalPurposeAgent.ts:15-16); codex's main-agent base prompt at codex/external/repos/codex-patched/codex-rs/core/prompts/gpt_5_2_prompt.md:156,158 has only weak abstract analogues ('surgical precision', 'don't gold-plate'). The audit established the correct fix-site is launcher-injected additional_instructions (NOT a worker-only TOML — that would skip the main-agent flow). Implementation: investigate the codex launcher seam — likely codex/codex-rs-overlay/codex-copilot-launcher/ (the precedent overlay crate) is the right place to add a `--additional-instructions` or equivalent flag that codex-core threads into the base prompt. Paraphrase the rule text (do NOT copy verbatim — license posture per plans/native-agent-parity.md §4); cite inspiration in the launcher's docs/source comment. Workflow (codex submodule): worktree at .ralph/jobs/<job-name>/codex-worktree/ pointed at gim-home/codex's main; commit on topic branch; push to gim-home/codex; bump the codexu submodule pointer as a separate commit on codexu main. PREREQUISITE INVESTIGATION: confirm whether codex already exposes an additional_instructions plumbing point, or whether the overlay crate needs to add one. Surface the choice (overlay-vs-upstream-patch) to operator BEFORE landing. Acceptance: cargo build --workspace green; new test asserting the additional_instructions reach the model's system prompt at session start; smoke 'codex exec' with a prompt asking to create a doc verifies the agent declines or asks first. NO happy-cli or happy-app changes — purely codex-submodule + the launcher overlay."</pre>
+    </div>
+  </details>
+
+  <details class="cmd" id="cmd-codex-slash-commands" data-task-id="codex-slash-commands">
+    <summary><span class="cmd-name">codex-slash-commands</span><span class="cmd-badge b-blocked">🔒 blocked on codex-hooks-parity</span><span class="cmd-desc">Gap 5 — `/clear` and `/compact` parity on the codex path. Spawned by <code>codex-parity-audit</code>.</span></summary>
+    <div class="cmd-body">
+      <div class="cmd-warn blocked">🔒 Blocked on <code>codex-hooks-parity</code> — Gap 5's <code>/compact</code> handling depends on Gap 4's auto-compact context-boundary emission so the manual <code>/compact</code> also fires <code>sendContextBoundary({ kind:'compact', triggeredBy:'user' })</code>.</div>
+      <button class="copy-btn">Copy Command</button>
+<pre class="cmd-pre">/plan-with-ralph "Gap 5 from plans/codex-agent-parity-audit.md — /clear and /compact parity on the codex path. Today packages/happy-cli/src/codex/runCodex.ts:280-334 pushes the user message text into messageQueue with NO slash-command parsing — parseSpecialCommand (shared with the Claude path at runClaude.ts:541-577) is never imported on the codex side. Even if a user types /compact on a codex session, codex-core sees the literal string and codex-core's own slash-command handling may or may not fire. Codex's wire surface supports compact via NewConversationParams.compactPrompt (codexAppServerTypes.ts:29) but client.startThread (codexAppServerClient.ts) never sets it. PREREQUISITE: codex-hooks-parity (Gap 4) must have landed so the auto-compact context-boundary emission is in place — manual /compact should also fire sendContextBoundary({ kind:'compact', triggeredBy:'user' }) to keep the UI signal consistent. STEP 1 spike (~30 min): does codex-core's own slash-command handling fire when the user message is /clear or /compact? If YES → document + add a smoke test; pure happy-cli passthrough is fine. If NO → STEP 2: implement happy-cli-side interception via parseSpecialCommand (shared with Claude) — on /clear call client.disconnect() + start a fresh thread (verify with codex maintainer that this is intended UX); on /compact plumb a codex-side compact RPC if one exists, OR set compactPrompt on the NEXT startThread / similar. Also handle the wrapped form <command-name>/clear</command-name> in sessionProtocolMapper.ts (matches the Claude path's detectWrappedSlashCommandBoundary at packages/happy-cli/CLAUDE.md 'Wrapped-slash-command detection (F-012 / F-013)'). Acceptance: typing /clear on a happy codex session results in a fresh thread; typing /compact triggers codex's compact path AND emits sendContextBoundary({ kind:'compact', triggeredBy:'user' }). Workflow: codexu worktree at .worktrees/codex-slash-commands/ on topic branch ralph/codex-slash-commands. Test command: pnpm --filter '{packages/happy-cli}' exec vitest run 2>&1 | tee /tmp/codexu-slash.log. Single commit; update plans/codex-agent-parity-audit.md Gap 5 section to mark shipped."</pre>
+    </div>
+  </details>
+
+  <details class="cmd" id="cmd-codex-polish-lows" data-task-id="codex-polish-lows">
+    <summary><span class="cmd-name">codex-polish-lows</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Bundle of Gaps 8/9/11/12 (tool gating partial + codex-args passthrough + statusline + SDK init-metadata mirror). Spawned by <code>codex-parity-audit</code>.</span></summary>
+    <div class="cmd-body">
+      <div class="cmd-warn">⚠️ Best to land after the bigger codex-* parity follow-ups (mcp-discovery, codex-claude-md-autoload, codex-system-prompts, codex-hooks-parity) so this bundles cleanly without rebase churn. Conflicts with anything else touching <code>runCodex.ts</code>.</div>
+      <button class="copy-btn">Copy Command</button>
+<pre class="cmd-pre">/plan-with-ralph "Bundle the 4 Low-severity codex-parity gaps from plans/codex-agent-parity-audit.md into a single polish PR. The audit recommended this packaging explicitly: '8. Gaps 8, 9, 11, 12 are all small and can land in a single polish PR if desired.' One commit per gap so each can be reverted independently.
+
+GAP 8 — codex-tool-gating-partial. Track allowedTools/disallowedTools in codex EnhancedMode (runCodex.ts:96-100, currently restricted to { permissionMode, model, thinkingLevel }); at startThread, filter the mcpServers entries (whole-server granularity — drop entries whose tools are entirely disallowed). True per-tool-within-server filtering deferred to a follow-up overlay crate.
+
+GAP 9 — codex-args-passthrough. Add repeatable --codex-arg <flag> to packages/happy-cli/src/codex/cliArgs.ts (alongside existing --effort, --model, --permission-mode, --codex-transport, --resume). Forward to the `codex app-server` spawn argv. Power-user escape hatch — document in packages/happy-cli/CLAUDE.md that structured flags are preferred.
+
+GAP 11 — codex-statusline-metadata-mirror. Extend the metadata-merge in both runCodex.ts:796-800 AND resumeExistingThread.ts to include model, modelProvider, approvalPolicy, sandbox, reasoningEffort from NewConversationResponse / ResumeConversationResponse (codexAppServerTypes.ts:35-47) — currently only codexThreadId is written. Match the Claude side's mergeSDKInitMetadata semantics.
+
+GAP 12 — codex-sdk-init-metadata-mirror. Investigate the codex initialize RPC's full response shape (server capabilities, available tools, slash commands) and propagate those into Session.metadata so the mobile app can render them. Likely a small extension of the metadata-merge from Gap 11.
+
+CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts — sequence after mcp-discovery / codex-claude-md-autoload / codex-system-prompts / codex-hooks-parity have landed to avoid rebase churn. Workflow: codexu worktree at .worktrees/codex-polish-lows/ on topic branch ralph/codex-polish-lows off origin/main. 4 commits (one per gap), all referencing the corresponding audit-doc section. Cross-package typecheck green. Each gap has its own acceptance test. Update plans/codex-agent-parity-audit.md Gap 8/9/11/12 sections to mark shipped."</pre>
+    </div>
+  </details>
+
   <details class="cmd" id="cmd-mcp-server-notifications" data-task-id="mcp-server-notifications">
     <summary><span class="cmd-name">mcp-server-notifications</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Stage A: bridge rmcp notification handlers + sampling into codex agent event loop, feature-gated. Spawned by <code>channels-research</code>.</span></summary>
     <div class="cmd-body">
@@ -1995,8 +2039,8 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T16:30:00Z",
-  "generatedFromCommit": "e71497eb",
+  "generatedAt": "2026-05-14T17:00:00Z",
+  "generatedFromCommit": "c7dfaf08",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -2039,6 +2083,10 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
     "port-plan-and-verification-roles": "2026-05-14T08:30:00Z",
     "audit-general-purpose-vs-worker": "2026-05-14T08:30:00Z",
     "3h-tail": "2026-05-14T16:30:00Z",
+    "session-parent-link-writer": "2026-05-14T17:00:00Z",
+    "codex-base-prompt-safety-rails": "2026-05-14T17:00:00Z",
+    "codex-slash-commands": "2026-05-14T17:00:00Z",
+    "codex-polish-lows": "2026-05-14T17:00:00Z",
     "mcp-server-notifications": "2026-05-14T09:00:00Z",
     "codex-channels": "2026-05-14T09:00:00Z"
   },
@@ -2206,6 +2254,10 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
     "port-plan-and-verification-roles": 6,
     "audit-general-purpose-vs-worker": 0.5,
     "3h-tail": 8,
+    "session-parent-link-writer": 4,
+    "codex-base-prompt-safety-rails": 4,
+    "codex-slash-commands": 3,
+    "codex-polish-lows": 5,
     "mcp-server-notifications": 32,
     "codex-channels": 14
   },
@@ -2251,6 +2303,10 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
     "port-plan-and-verification-roles": "medium",
     "audit-general-purpose-vs-worker": "low",
     "3h-tail": "medium",
+    "session-parent-link-writer": "medium",
+    "codex-base-prompt-safety-rails": "medium",
+    "codex-slash-commands": "medium",
+    "codex-polish-lows": "low",
     "mcp-server-notifications": "medium",
     "codex-channels": "medium"
   },
@@ -2296,6 +2352,10 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
     "port-plan-and-verification-roles": "agent-arch",
     "audit-general-purpose-vs-worker": "agent-arch",
     "3h-tail": "codex-spec",
+    "session-parent-link-writer": "agent-arch",
+    "codex-base-prompt-safety-rails": "agent-arch",
+    "codex-slash-commands": "codex-parity",
+    "codex-polish-lows": "codex-parity",
     "mcp-server-notifications": "agent-arch",
     "codex-channels": "agent-arch"
   },
@@ -2341,6 +2401,10 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
     "port-plan-and-verification-roles": "medium",
     "audit-general-purpose-vs-worker": "quick",
     "3h-tail": "medium",
+    "session-parent-link-writer": "small",
+    "codex-base-prompt-safety-rails": "small",
+    "codex-slash-commands": "small",
+    "codex-polish-lows": "small",
     "mcp-server-notifications": "large",
     "codex-channels": "medium"
   },
@@ -2361,6 +2425,10 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
     "port-plan-and-verification-roles": "native-agent-parity",
     "audit-general-purpose-vs-worker": "native-agent-parity",
     "3h-tail": "3h-options",
+    "session-parent-link-writer": "session-parent-link",
+    "codex-base-prompt-safety-rails": "audit-general-purpose-vs-worker",
+    "codex-slash-commands": "codex-parity-audit",
+    "codex-polish-lows": "codex-parity-audit",
     "mcp-server-notifications": "channels-research",
     "codex-channels": "channels-research"
   }
