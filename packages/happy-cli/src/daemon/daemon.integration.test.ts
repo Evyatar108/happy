@@ -99,7 +99,6 @@ async function startFanoutServer(dataDir: string): Promise<FanoutServer> {
     localUserId: 'machine-1',
     tofuPublicKeys: {
       ed25519PublicKey: Buffer.from(publicKey).toString('base64'),
-      ed25519SecretKey: secretKey,
       x25519PublicKey: Buffer.alloc(32).toString('base64'),
     },
   });

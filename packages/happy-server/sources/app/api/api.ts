@@ -35,7 +35,6 @@ export interface TofuHandshakeConfig {
         x25519PublicKey: string;
         ed25519Fingerprint?: string;
     };
-    ed25519SecretKey?: Uint8Array;
     x25519SecretKey?: Uint8Array;
     publicUrl?: string;
 }

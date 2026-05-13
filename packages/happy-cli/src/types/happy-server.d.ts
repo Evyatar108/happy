@@ -21,7 +21,6 @@ declare module 'happy-server' {
 
   export interface TofuPublicKeys {
     ed25519PublicKey: string | Uint8Array;
-    ed25519SecretKey?: Uint8Array;
     x25519PublicKey: string | Uint8Array;
     x25519SecretKey?: Uint8Array;
     ed25519Fingerprint?: string;
