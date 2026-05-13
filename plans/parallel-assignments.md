@@ -233,6 +233,8 @@ Less-critical or sequenced-after-batch-1 ralph commands. Each is parallel-safe w
 
 ## R — `agent-view-research` — Research Claude Code's agent-view feature
 
+> ✅ **LANDED 2026-05-14.** Research doc at `plans/agent-view-research.md`. Spawned 6 follow-up tasks (Y–DD below): `agent-tree-rpc`, `session-parent-link`, `mobile-tree-view`, `session-role-pill`, `spawn-from-app`, `agent-status-stream`. Each tagged `spawnedFrom='agent-view-research'` in `plans/overview.html` roadmap-data JSON. These follow-ups ARE the Phase 6 ("Long-lived teammates") implementation per `plans/codexu-roadmap.md:2455-2479`. Operator should review the research doc before opening any follow-up code task.
+>
 > Research-only ralph job. Output: `plans/agent-view-research.md` + a decomposition into follow-up tasks. Parallel with anything.
 
 ```
@@ -347,6 +349,66 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
 
 ---
 
+## Y — `agent-tree-rpc` — App-server RPC exposing codex's live spawn tree
+
+> Spawned by `agent-view-research`. Bucket (a) codex agent runtime. Parallel-safe with everything else in batch 1/2 (touches happy-cli + new RPC handler; codex source READ-ONLY). 8h estimate; medium risk.
+
+```
+/plan-with-ralph "Expose codex's live spawn tree as a queryable + streamable app-server RPC. Per plans/agent-view-research.md §6 task `agent-tree-rpc`. Today codex already has the data — AgentRegistry.agent_tree (codex/external/repos/codex-patched/codex-rs/core/src/agent/registry.rs), control.rs:832-840 subscribe_status, and CollabAgentSpawnBegin/EndEvent are emitted (spawn.rs:71-205) — but nothing exposes the live tree as a single queryable surface that mobile clients can render. Minimize-conflict-surface tenet per plans/codexu-roadmap.md: codex source READ-ONLY; add the RPC bridge on the happy-cli side (packages/happy-cli/src/codex/codexAppServerClient.ts + runCodex.ts) by subscribing to codex's existing event stream and re-emitting structured spawn-tree updates over happy-server's Socket.IO. Add two RPC shapes: (1) sessionGetAgentTree(sessionId) → { nodes: AgentTreeNode[], edges: { parent, child }[] } where AgentTreeNode = { threadId, agentRole, nickname, status, lastTaskMessage, spawnedAt }; (2) socket subscription event 'agent-tree-update' emitting incremental deltas (node-added, node-status-changed, node-removed). Read codex/external/repos/codex-patched/codex-rs/core/src/agent/registry.rs + control.rs (READ-ONLY) for the data shape. Read packages/happy-cli/src/codex/runCodex.ts for the existing codex event subscription pattern. Read packages/happy-server/sources/app/events/eventRouter.ts for the fan-out primitive. Acceptance: codex spawns 2 sub-agents via spawn_agent → happy-cli detects + emits agent-tree-update events → happy-server fans out → vitest assertion that subscribed clients receive both spawn-begin and spawn-end deltas in correct order with parent linkage. Cross-package typecheck green. Single commit on main, NO codex submodule edits. Pitfall: subscribe_status returns a tokio watch::Receiver that lives in codex's process — happy-cli's bridge must hold the receiver in a task that survives across the agent's lifetime, not just for one tool call."
+```
+
+---
+
+## Z — `session-parent-link` — Add parentSessionId + spawnedChildren to Session metadata
+
+> Spawned by `agent-view-research`. Bucket (b) codexu mobile app UI (also touches happy-server wire shape). 4h estimate; medium risk; small. Foundation for `mobile-tree-view` and `spawn-from-app`.
+
+```
+/plan-with-ralph "Add parentSessionId + spawnedChildren tracking to Session metadata end-to-end. Per plans/agent-view-research.md §6 task `session-parent-link`. Today Session has no concept of parent-child (packages/happy-app/sources/sync/storageTypes.ts:130-163) — the mobile app shows a flat list. Add: Metadata.parentSessionId?: string and Metadata.spawnedChildren?: string[] (composite session IDs). Plumb through: (1) happy-server schema/wire shape — if backend tracks the link, add columns; if metadata-only, just extend the JSON contract; surface choice to operator. (2) happy-app storageTypes.ts Session/Metadata types. (3) storage.ts:395-570 applySessions reducer — preserve the new fields on update merges. (4) New helper getSessionChildren(sid) and getSessionParent(sid) in sources/sync/storage.ts. NO UI changes yet — that's mobile-tree-view's job. Acceptance: writing a Session with parentSessionId='m1:abc' and spawnedChildren=['m1:def','m1:ghi'] round-trips through happy-server → app → MMKV → re-fetch unchanged; helpers return correct neighbours; cross-package typecheck green. Read packages/happy-app/CLAUDE.md sync invariants — composite-id (machineSessionId.ts) helpers must be respected for parent refs. Single commit on main. Pitfall: existing sessions have no parent — null parentSessionId means top-level; don't backfill spawnedChildren=[] on every existing session (use undefined/null to distinguish missing-field from empty-children)."
+```
+
+---
+
+## AA — `mobile-tree-view` — Tree-style session list with depth indentation + expand/collapse
+
+> Spawned by `agent-view-research`. Bucket (b) codexu mobile app UI. **Blocks on `session-parent-link`.** 12h estimate; medium risk; large.
+
+```
+/plan-with-ralph "Convert the happy-app session list from flat-with-date-groups to a tree with depth indentation + expand/collapse. Per plans/agent-view-research.md §6 task `mobile-tree-view`. PREREQUISITE: session-parent-link must have landed so Session.metadata.parentSessionId + spawnedChildren are queryable. Files: packages/happy-app/sources/sync/storage.ts:250-343 buildSessionListViewData — change from flat SessionListViewItem[] to depth-tagged flattened-tree (each item carries `depth: number` and `hasChildren: boolean`). packages/happy-app/sources/components/SessionsList.tsx:193-333 FlatList — keep FlatList but consume the new depth-tagged data; SessionsList.tsx:342-463 SessionItem memo — render depth-based left indent (e.g., depth × 20px) + chevron icon when hasChildren; toggle expanded state in a new MMKV-persisted Map<sid, boolean>. Active-vs-inactive grouping: when a parent is in the active group, render its children inline beneath it (still in the active group); otherwise children appear inside their date group, indented under parent if the parent is in the SAME date group, otherwise as orphans (rare). Read packages/happy-app/CLAUDE.md sync invariants — renderWindow + seq-based pagination must not be touched. Acceptance: vitest snapshot of buildSessionListViewData with mocked parent + 2 children → correct depth ordering; manual smoke: cold-launch with synthetic parentSessionId data → tree renders, chevron toggles expand/collapse, persists across refresh. Cross-package typecheck green. Single commit on main. Pitfall: SessionItem memo must include depth + expanded in its keyExtractor / memo deps, or stale rows will render at wrong depth on tree mutations."
+```
+
+---
+
+## BB — `session-role-pill` — Surface agent flavor + model + permission-mode in session row
+
+> Spawned by `agent-view-research`. Bucket (b) codexu mobile app UI. Parallel-safe with everything (no schema changes — uses existing metadata fields). 3h estimate; low risk; small.
+
+```
+/plan-with-ralph "Surface agent flavor + currentModelCode + currentPermissionModeCode inline in the session-list row. Per plans/agent-view-research.md §6 task `session-role-pill`. Today these fields live in Session.metadata (packages/happy-app/sources/sync/storageTypes.ts:130-163) and are visible only inside SessionContextDrawer — never in the list row. The Claude Code 'teammate view' shows agent role + model on every spinner-tree line; this brings the same visual affordance to the mobile session list. File: packages/happy-app/sources/components/SessionsList.tsx:342-463 SessionItem memo — add a small horizontal pill row beneath the subtitle showing: (a) flavor icon (codex/claude/...), (b) abbreviated model code (e.g., 'gpt-5-codex' → 'codex' or full code based on width budget), (c) permission-mode badge (plan / default / acceptEdits, color-coded). Reuse existing components from sources/components/ if a Pill / Badge primitive exists. Acceptance: vitest snapshot of SessionItem with metadata.flavor='codex' + currentModelCode='gpt-5-codex' + currentPermissionModeCode='plan' → renders the three pills; existing list-row tests stay green. Cross-package typecheck green. Single commit on main. Pitfall: shallow-copy of SessionRowData might already include these fields — confirm before adding to keyExtractor / memo deps. Independent of mobile-tree-view (no schema changes); land first as a quick UX win."
+```
+
+---
+
+## CC — `spawn-from-app` — "Spawn child session" affordance + spawnSessionFromSession RPC
+
+> Spawned by `agent-view-research`. Bucket (c) both — happy-app + happy-cli. **Blocks on `session-parent-link`.** 8h estimate; medium risk; medium.
+
+```
+/plan-with-ralph "Add a 'spawn child session' affordance to the happy-app session detail view + new spawnSessionFromSession RPC end-to-end. Per plans/agent-view-research.md §6 task `spawn-from-app`. PREREQUISITE: session-parent-link must have landed so the new child can carry parentSessionId. New RPC shape: spawnSessionFromSession(parentSid: compositeSessionId, config: { agent, path?, permissionMode?, model?, initialMessage? }) → newSid. happy-cli side (packages/happy-cli/src/api/apiSession.ts or apiMachine.ts): register the handler; resolve parent's machineId from compositeSessionId; call existing machineSpawnNewSession-equivalent path with auto-set Metadata.parentSessionId = parentSid; also update parent's metadata.spawnedChildren via sessionUpdateMetadata. happy-app side (packages/happy-app/sources/sync/ops.ts): add machineSpawnSessionFromSession wrapper; in session detail view (sources/app/(app)/session/[id].tsx or wherever the detail screen lives), add a 'Spawn child agent' action button that opens a sheet with agent flavor/permission/model pickers and an optional initial-message field. Read packages/happy-app/CLAUDE.md sync invariants. Acceptance: vitest fixture in happy-cli — call spawnSessionFromSession against a mocked parent; assert new session created with parentSessionId set + parent's spawnedChildren contains new sid. Manual smoke from app: tap 'spawn child' on a session → new child appears in list with parent linkage visible (if mobile-tree-view has landed, indented under parent; otherwise just present in flat list with correct metadata). Cross-package typecheck green. Single commit on main per side (happy-cli commit, happy-app commit). Pitfall: cycle prevention — if a user tries to spawn under a session that's already a child of the new child (cycle), the handler must reject; document the limit (max-depth 1? unlimited with hop counter?). Coordinate with the agent-comms task — spawnSessionFromSession is the same RPC Scope C will need; this lands the wire shape first."
+```
+
+---
+
+## DD — `agent-status-stream` — Bridge codex spawn events through to mobile as "active teammates" overlay
+
+> Spawned by `agent-view-research`. Bucket (c) both — codex (via happy-cli bridge) + happy-app. **Blocks on `agent-tree-rpc`.** 10h estimate; high risk; large.
+
+```
+/plan-with-ralph "Bridge codex's per-session spawn-tree updates from agent-tree-rpc through to a live 'active teammates' overlay in the happy-app session detail view. Per plans/agent-view-research.md §6 task `agent-status-stream`. PREREQUISITE: agent-tree-rpc must have landed so happy-server emits 'agent-tree-update' events with structured deltas. happy-app side: (1) sources/sync/storage.ts — add agentTreeBySession: Record<sid, AgentTreeNode[]> reducer state; subscribe to agent-tree-update events via the existing socket plumbing; apply deltas with monotonic guard (use the codex thread's spawn timestamp as the seq, since this is out-of-band from message seq). (2) sources/app/(app)/session/[id].tsx — add a collapsible 'Active teammates' overlay panel showing the spawn tree (parent thread + spawned sub-agents) with live status indicators ('running' / 'idle' / 'completed' / 'failed' pulsed dot); tap a teammate row to peek its last-task-message + lastN messages (separate RPC, follow-up). Reuse mobile-tree-view's depth-indentation pattern for the teammate sub-tree rendering. Read packages/happy-app/CLAUDE.md sync invariants — the new reducer state is in-memory only (ephemeral; don't persist to MMKV); reconnect should re-fetch full tree via sessionGetAgentTree(sid) once and then resume incremental deltas. Acceptance: integration test — happy-cli emits 'agent-tree-update' with 2 spawn events, app receives both, panel shows 2 teammates with correct status; status transition to 'completed' updates the panel pulsed dot. Cross-package typecheck green. ONE commit per side (happy-app commit; happy-cli changes minimal since agent-tree-rpc already lands the wire shape). Pitfall: subscribe_status's watch::Receiver fires aggressively (every internal state tick); happy-cli's bridge must coalesce to status-changed deltas only — verify the bridge dedupes idempotent re-emissions before fanning out to clients. Surface UX choice to operator BEFORE building: should the 'Active teammates' overlay auto-show when a session has > 0 children, or only after user opens it from a menu?"
+```
+
+---
+
 ## O — `polish-Fs` — Bundle remaining F-* findings
 
 > Parallel with everything outside the touched files. Bundle into one PR to amortize review.
@@ -383,7 +445,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | ~~`F-013-perms`~~ | Claude permission latent override | 🚫 closed (obsolete-by-design) | b5d18eb5 → close-out |
 | `F-015-toast` | Stale-creds toast on cold launch | ⬜ not started | — |
 | `mcp-discovery` | Codex agent project-.mcp.json parity | 🟡 in progress | — |
-| `codex-parity-audit` | Research: gaps in codex agent feature parity vs Claude | 🟡 in progress | — |
+| `codex-parity-audit` | Research: gaps in codex agent feature parity vs Claude | ✅ landed 2026-05-13 | — (research-only; output `plans/codex-agent-parity-audit.md`) |
 | `1a-fork-doc` | Phase 1a — fork strategy commit | 🟡 in progress | — |
 | `1b-multidev` | Phase 1b sub-tasks 3 + 4 | ⬜ not started | — |
 | `3b-agents` | Phase 3b-i + ii — subagents → roles | ⬜ blocked on 3a discovery | — |
@@ -395,7 +457,13 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `userid-cleanup` | Drop multi-tenant userId scoping in happy-server | ⬜ blocked on perf-WS3 | — |
 | `happy-upstream-sync` 🔄 | Periodic — review new slopus/happy commits since last sync | ⬜ next due ~4w from 2026-05-03 | — |
 | `codex-upstream-rebase` 🔄 | Periodic — rebase codex submodule on openai/codex | ⬜ first run pending | — |
-| `agent-view-research` | Research Claude Code's agent-view feature | 🟡 in progress | — |
+| `agent-view-research` | Research Claude Code's agent-view feature | ✅ landed 2026-05-14 | — (research-only; output `plans/agent-view-research.md`) |
+| `agent-tree-rpc` 🤖 | App-server RPC for codex live spawn tree | ⬜ not started | — |
+| `session-parent-link` 🤖 | Add parentSessionId + spawnedChildren to Session metadata | ⬜ not started | — |
+| `mobile-tree-view` 🤖 | Tree-style session list with depth indentation | ⬜ blocked on session-parent-link | — |
+| `session-role-pill` 🤖 | Flavor + model + permission-mode pills in session row | ⬜ not started | — |
+| `spawn-from-app` 🤖 | "Spawn child session" affordance + RPC | ⬜ blocked on session-parent-link | — |
+| `agent-status-stream` 🤖 | Live "active teammates" overlay (codex events → mobile) | ⬜ blocked on agent-tree-rpc | — |
 | `plugin-scope-agents` | Top-level-only plugin scoping + agent-spawner | ⬜ blocked on agent-view-research | — |
 | `agent-comms` | Top-level agent ↔ agent communication (MCP-based) | ⬜ blocked on plugin-scope-agents + channels-research | — |
 | `channels-research` | Research Claude Code "channels" + codex 2-way MCP plan | 🟡 in progress | — |

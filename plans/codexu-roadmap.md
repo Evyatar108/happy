@@ -487,6 +487,20 @@ conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
     log + skip malformed entries. Estimated ~30-45 min including tests. Plan:
     ship as a small standalone PR — short ralph command in
     `plans/parallel-assignments.md` (tab `mcp-discovery`).
+  - **Codex agent parity audit (shipped 2026-05-13):** structured survey of
+    every Claude-Code feature the codex agent under happy doesn't match today —
+    doc at `plans/codex-agent-parity-audit.md`. 12 gaps catalogued with
+    file:line evidence, proposed fix-site (happy-cli vs overlay crate vs
+    upstream patch), effort, severity, and a ralph-command shape per gap. 3
+    High-severity gaps (project-`.mcp.json` discovery, project-`CLAUDE.md`
+    auto-load, image attachments never reaching codex turn input); 4 Medium
+    (hooks parity, slash commands, plan mode, custom system prompts); 5 Low
+    (tool gating, codex-args passthrough, `.claude/skills/` category
+    mismatch, statusline, init-metadata mirror). All proposed fix-sites are
+    happy-cli-side except Gap 6 (plan mode) which has a v2 overlay-crate
+    option deferred. No upstream-canonical codex edits proposed. Closes the
+    "found the `.mcp.json` gap by accident" failure mode. Recommended landing
+    order in the doc; Gap 1 is the existing `mcp-discovery` ralph command.
 
 **R-D18 (pre-production gate): RESOLVED (corrected 2026-05-13).** Sprint E
 US-004 shipped resolution path **(b)** — a private-tunnel auth channel via
