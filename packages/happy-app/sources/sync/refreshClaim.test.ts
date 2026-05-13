@@ -81,6 +81,38 @@ describe('refreshTunnelClaim status-code-before-body', () => {
     });
 });
 
+describe('refreshTunnelClaim clock-skew leeway', () => {
+    it('accepts a claim with exp = now+10s even when client clock is 20s ahead of server', async () => {
+        const realNow = Math.floor(Date.now() / 1000);
+        const exp = realNow + 10;
+        const iat = realNow - 5;
+
+        const claim = Buffer.from(JSON.stringify({
+            p: Buffer.from(JSON.stringify({ accountId: 1, iat, exp, jti: 'jti-skew' })).toString('base64url'),
+            s: 'sig',
+        })).toString('base64url');
+
+        const advancedNow = (realNow + 20) * 1000;
+        vi.spyOn(Date, 'now').mockReturnValue(advancedNow);
+
+        global.fetch = vi.fn(async () => new Response(JSON.stringify({
+            status: 'authorized',
+            machines: [{ machineId: 'machine-skew', tunnelClaim: claim }],
+        }), { status: 200 })) as never;
+
+        try {
+            await expect(
+                refreshTunnelClaim(
+                    { ...makeCredentials(), deviceCodeExpiresAt: advancedNow + 60_000 },
+                    'machine-skew',
+                ),
+            ).resolves.toBe(claim);
+        } finally {
+            vi.restoreAllMocks();
+        }
+    });
+});
+
 describe('refreshTunnelClaim machine identity binding', () => {
     it('throws MachineNotInRefreshResponse when requested machine is absent from a single-machine response', async () => {
         global.fetch = vi.fn(async () => new Response(JSON.stringify({
