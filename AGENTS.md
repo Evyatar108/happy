@@ -38,6 +38,20 @@ Full fork context, branches, build workflow, and "things that bit us" catalogue 
 
 **Keep documentation close to the code, not in user-global memory.** This fork's setup (stable tunnel URL, services, build tricks) lives in `docs/fork-notes.md` and `.agents/skills/` — versioned, portable across machines, discoverable to any agent without needing prior session context.
 
+**Capture expensive test/build output to a file once, then grep the file.** When a command takes >30 sec (large `vitest run`, monorepo `tsc --noEmit`, gradle builds), redirect stdout+stderr to `/tmp/<name>.out` on the first invocation and run subsequent greps against the saved file. Don't re-run the same long command to ask different questions of its output — each rerun costs minutes and produces identical output unless underlying state changed.
+
+```bash
+# Do this once:
+pnpm --filter happy-cli test > /tmp/happy-cli.test.out 2>&1
+
+# Then any of:
+grep FAIL /tmp/happy-cli.test.out
+grep -B1 -A5 "AssertionError" /tmp/happy-cli.test.out | head -40
+grep -c "^✓" /tmp/happy-cli.test.out
+```
+
+Re-run only when code/deps/env actually changed.
+
 ## Windows-specific cautions
 
 The dev box runs Windows 11 + Git Bash + PowerShell 5.1 (default admin Terminal). A few consistent landmines (expanded details in `docs/fork-notes.md` → "Things that bit us that aren't obvious"):

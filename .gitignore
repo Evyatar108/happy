@@ -103,3 +103,4 @@ packages/happy-server/logs/
 # scratch tooling (upstream)
 .cdp-scripts/
 happy-workspaces/
+docs/validation/boox-screenshots-*/
