@@ -133,12 +133,12 @@ The plugin-scoping piece is already tracked as task `plugin-scope-agents` in `pl
 
 ## 5. What concepts we'd want to bring to the happy/codexu mobile app UI
 
-Today the mobile app is a **flat list** with date-grouped inactive sessions and a single "active sessions" group at the top (`packages/happy-app/sources/components/SessionsList.tsx:193-333`). Every Session is a peer; no parent-child relationships, no agent-role surfacing in the row, no in-app spawn affordance.
+Today the mobile app is a **flat list** with date-grouped inactive sessions and a single "active sessions" group at the top (`packages/happy-app/sources/components/SessionsList.tsx` — see the `SessionsList` function). Every Session is a peer; no parent-child relationships, no in-app spawn affordance. Agent-role surfacing (flavor + model + permission-mode pills) landed via the `session-role-pill` task; tree-depth indentation is still pending the `mobile-tree-view` task.
 
 ### Today's data model (relevant gaps)
 
 `Session` interface (`packages/happy-app/sources/sync/storageTypes.ts:130-163`):
-- Has `metadata.flavor`, `metadata.currentModelCode`, `metadata.currentPermissionModeCode`, `metadata.currentThoughtLevelCode` — all stored, but **only displayed inside `SessionContextDrawer`**, never in the list row.
+- Has `metadata.flavor`, `metadata.currentModelCode`, `metadata.currentPermissionModeCode`, `metadata.currentThoughtLevelCode` — all stored. `currentThoughtLevelCode` is still drawer-only; the other three are now surfaced inline in the session row via the role-pill row added by the `session-role-pill` task (see `SessionsList.tsx` `SessionItem` `sessionRolePillRow`).
 - Has `agentState.controlledByUser` — local-vs-remote indicator, also not surfaced in row.
 - **Does NOT have**: `parentSessionId`, `spawnedChildren`, `spawnedAt`, `agentRole` (as distinct from flavor).
 
@@ -173,7 +173,7 @@ Any UI work for agent-view-style features must respect:
 
 - **Data model** — `packages/happy-app/sources/sync/storageTypes.ts` (Session + Metadata extension), `packages/happy-server/sources/app/` (wire shape if backend tracks parent links)
 - **List builder** — `packages/happy-app/sources/sync/storage.ts:250-343` (`buildSessionListViewData`) and `:395-570` (`applySessions` reducer) for tree construction
-- **List UI** — `packages/happy-app/sources/components/SessionsList.tsx:193-333` (FlatList → tree), `:342-463` (SessionItem memo — add depth indent + role pill)
+- **List UI** — `packages/happy-app/sources/components/SessionsList.tsx` `SessionsList` function (FlatList → tree, pending `mobile-tree-view`), `SessionItem` memo (already has role pills via `session-role-pill`; tree-view will add depth indent).
 - **Mutation** — `packages/happy-app/sources/sync/ops.ts` (`machineSpawnNewSession` neighbour, add `spawnSessionFromSession`)
 - **CLI side** — `packages/happy-cli/src/api/apiMachine.ts` / `apiSession.ts` (new spawn-child-of-session RPC handler)
 
