@@ -95,7 +95,7 @@ packages/happy-server/logs/
 # Workspace junctions (per-machine; created by `mklink /J`) — never tracked.
 # Each developer creates these locally to navigate the multi-repo workspace.
 # See plans/codexu-roadmap.md → "Active session pickup" → step 9.
-/codex
+# Note: /codex is now a git submodule (gim-home/codex), no longer a per-machine junction.
 /ralph
 /options-mode
 /inspirations/
