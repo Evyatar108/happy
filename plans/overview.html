@@ -715,13 +715,14 @@
     .sub, .cmd-desc, .card-meta, .footnote, .section-counts, .strip-count, .kbd-hint {
       color: var(--fg);
     }
-    .copy-btn, .bulk-btn, .notes-toggle, .wn-dismiss {
+    .copy-btn, .bulk-btn, .notes-toggle, .copy-name-btn, .wn-dismiss {
       padding: 10px 16px;
       font-size: 13px;
       min-height: 40px;
     }
     .copy-btn { top: 4px; right: 4px; }
     .notes-toggle { right: 100px; }
+    .copy-name-btn { top: 4px; right: 200px; }
     .cmd-select { width: 22px; height: 22px; cursor: pointer; }
     .filter-chip { padding: 8px 14px; font-size: 13px; min-height: 36px; }
     .chip { padding: 6px 12px; font-size: 13px; }
@@ -850,7 +851,7 @@
   .copy-name-btn {
     position: absolute;
     top: 6px;
-    right: 76px;
+    right: 156px; /* sits left of .notes-toggle (right: 80px) which sits left of .copy-btn (right: 6px) */
     background: var(--card-hover);
     color: var(--muted);
     border: 1px solid var(--border);
