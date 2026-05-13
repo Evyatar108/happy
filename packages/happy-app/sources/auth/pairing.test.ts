@@ -32,7 +32,9 @@ import {
     parseTunnelClaimPayload,
     pollPairStatus,
     startPairFlow,
+    waitForPairStatus,
 } from './pairing';
+import { deriveConnectTokenExpiry } from './connectTokenRefresh';
 import type { MachineTunnel } from '@/sync/tunnelProvider';
 
 function encodeClaim(payload: unknown): string {
@@ -208,5 +210,33 @@ describe('pairing', () => {
         (global.fetch as any).mockResolvedValue({ ok: false });
 
         await expect(fetchGitHubUserProfile('ghu-token')).resolves.toEqual({ login: '', avatarUrl: '' });
+    });
+
+    it('persisted expiry is within 5s of pair-completion timestamp when computed after waitForPairStatus', async () => {
+        vi.useFakeTimers();
+        try {
+            const tunnelClaim = encodeClaim({ sub: 'local-user', iat: 1, exp: 3601, jti: 'jti-3', accountId: 42 });
+            (global.fetch as any).mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    status: 'authorized',
+                    machines: [{ machineId: 'machine-1', tunnelUrl: 'https://machine.example.test', tunnelClaim }],
+                }),
+            });
+
+            const flow = { device_code: 'device-1', user_code: 'ABCD', verification_uri: 'https://github.com/login/device', interval: 1, expires_in: 900 };
+            const pairPromise = waitForPairStatus(machine, flow, 'connect-jwt');
+            await vi.runAllTimersAsync();
+            await pairPromise;
+
+            const realNow = Date.now();
+            const connectTokenExpiry = deriveConnectTokenExpiry(realNow);
+
+            const CONNECT_TOKEN_TTL_MS = 55 * 60_000;
+            expect(connectTokenExpiry).toBeGreaterThanOrEqual(realNow + CONNECT_TOKEN_TTL_MS);
+            expect(connectTokenExpiry).toBeLessThanOrEqual(realNow + CONNECT_TOKEN_TTL_MS + 5_000);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

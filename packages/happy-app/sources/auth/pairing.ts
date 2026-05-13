@@ -3,8 +3,6 @@ import * as WebBrowser from 'expo-web-browser';
 import { AuthCredentials, TokenStorage } from './tokenStorage';
 import { decodeBase64Url } from '@/utils/base64url';
 import { DevTunnelsClientProvider, type MachineTunnel } from '@/sync/tunnelProvider';
-import { deriveConnectTokenExpiry } from './connectTokenRefresh';
-
 // devtunnel's public GitHub App — no client secret required (device flow public client)
 const DEVTUNNEL_GITHUB_CLIENT_ID = 'Iv1.e7b89e013f801f03';
 const PAIRING_FALLBACK_EXPIRY_SECONDS = 15 * 60;
@@ -130,10 +128,10 @@ export class PairingClaimMissingAccountId extends Error {
     }
 }
 
-export async function acquireConnectTokenForPair(machine: MachineTunnel): Promise<{ connectToken: string; connectTokenExpiry: number }> {
+export async function acquireConnectTokenForPair(machine: MachineTunnel): Promise<{ connectToken: string }> {
     const provider = new DevTunnelsClientProvider({ credentials: TokenStorage });
     const connectToken = await provider.getConnectToken(machine.tunnelId);
-    return { connectToken, connectTokenExpiry: deriveConnectTokenExpiry() };
+    return { connectToken };
 }
 
 export async function startPairFlow(machine: MachineTunnel, connectToken: string): Promise<PairStartResponse> {

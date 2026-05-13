@@ -20,6 +20,7 @@ import {
     waitForPairStatus,
     type PairMachine,
 } from '@/auth/pairing';
+import { deriveConnectTokenExpiry } from '@/auth/connectTokenRefresh';
 import { Modal } from '@/modal';
 import { TokenStorage } from '@/auth/tokenStorage';
 import { DevTunnelsClientProvider, type ClientTunnelProvider, type MachineTunnel } from '@/sync/tunnelProvider';
@@ -117,11 +118,12 @@ export function NotAuthenticated({ tunnelProvider }: NotAuthenticatedProps = {})
         login: string,
         avatarUrl: string,
     ) => {
-        const { connectToken, connectTokenExpiry } = await acquireConnectTokenForPair(machine);
+        const { connectToken } = await acquireConnectTokenForPair(machine);
         const flow = await startPairFlow(machine, connectToken);
         const deviceCodeExpiresAt = Date.now() + (flow.expires_in ?? 15 * 60) * 1000;
         await openGitHubDeviceFlow(flow);
         const status = await waitForPairStatus(machine, flow, connectToken);
+        const connectTokenExpiry = deriveConnectTokenExpiry();
         const paired = status.machines?.[0];
         if (!paired) throw new Error(t('welcome.pairingFailed'));
 

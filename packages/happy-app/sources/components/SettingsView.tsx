@@ -15,6 +15,7 @@ import {
     startPairFlow,
     waitForPairStatus,
 } from '@/auth/pairing';
+import { deriveConnectTokenExpiry } from '@/auth/connectTokenRefresh';
 import { TokenStorage } from '@/auth/tokenStorage';
 import { Typography } from "@/constants/Typography";
 import { Item } from '@/components/Item';
@@ -138,11 +139,12 @@ export const SettingsView = React.memo(function SettingsView() {
             }
         }
 
-        const { connectToken, connectTokenExpiry } = await acquireConnectTokenForPair(selectedMachine);
+        const { connectToken } = await acquireConnectTokenForPair(selectedMachine);
         const flow = await startPairFlow(selectedMachine, connectToken);
         const deviceCodeExpiresAt = Date.now() + (flow.expires_in ?? 15 * 60) * 1000;
         await openGitHubDeviceFlow(flow);
         const status = await waitForPairStatus(selectedMachine, flow, connectToken);
+        const connectTokenExpiry = deriveConnectTokenExpiry();
         const paired = status.machines?.[0];
         if (!paired) {
             throw new Error(t('welcome.pairingFailed'));
