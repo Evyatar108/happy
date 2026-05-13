@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { type Fastify } from "../types";
-import { requireAccountIdForTunnel } from "../utils/requireAccountIdForTunnel";
 
 const MachineSelfSchema = z.object({
     machineId: z.string(),
@@ -15,15 +14,12 @@ const MachineSelfSchema = z.object({
 export type MachineSelfState = z.infer<typeof MachineSelfSchema>;
 
 export interface MachineSelfRoutesOptions {
-    auth: "tunnel" | "loopback";
     machineState?: () => MachineSelfState | Promise<MachineSelfState>;
 }
 
 export function machineSelfRoutes(app: Fastify, options: MachineSelfRoutesOptions) {
-    const accountIdGate = requireAccountIdForTunnel(options.auth);
-
     app.get('/v2/me/machine', {
-        preHandler: [app.authenticate, accountIdGate],
+        preHandler: [app.authenticate],
         schema: {
             response: {
                 200: MachineSelfSchema,

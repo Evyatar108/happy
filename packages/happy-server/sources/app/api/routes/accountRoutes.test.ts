@@ -1,22 +1,17 @@
-import * as ed from "@noble/ed25519";
 import { mkdtemp, readFile, writeFile } from "fs/promises";
 import os from "os";
 import path from "path";
 import { afterEach, describe, expect, it } from "vitest";
 import { configureApi, createApi, type TofuHandshakeConfig } from "../api";
-import { encodeTunnelClaim } from "../auth/tunnelClaim";
 
-async function createTofuConfig(): Promise<TofuHandshakeConfig> {
-    const secretKey = ed.utils.randomSecretKey();
-    const publicKey = await ed.getPublicKeyAsync(secretKey);
+function createTofuConfig(): TofuHandshakeConfig {
     return {
         localUserId: "local-user",
         publicUrl: "https://happy-local.devtunnels.ms",
         tofuPublicKeys: {
-            ed25519PublicKey: Buffer.from(publicKey).toString("base64"),
+            ed25519PublicKey: "unused",
             x25519PublicKey: "unused",
         },
-        ed25519SecretKey: secretKey,
     };
 }
 
@@ -42,7 +37,7 @@ describe("/v2/me routes", () => {
         await writeFile(accountSettingsPath, JSON.stringify({ theme: "plain", alerts: true }));
         await writeFile(loopbackCap, "capability-token\n");
 
-        const tofuConfig = await createTofuConfig();
+        const tofuConfig = createTofuConfig();
         const machineState = {
             machineId: "machine-1",
             hostname: "devbox",
@@ -59,8 +54,7 @@ describe("/v2/me routes", () => {
         configureApi(tunnelApp, tofuConfig, { ...options, auth: "tunnel" });
         configureApi(loopbackApp, tofuConfig, { ...options, auth: "loopback" });
 
-        const tunnelClaim = await encodeTunnelClaim({ sub: "local-user", iat: Math.floor(Date.now() / 1000), accountId: 42 }, tofuConfig.ed25519SecretKey!);
-        const tunnelHeaders = { "X-Codexu-Authorization": `tunnel ${tunnelClaim}` };
+        const tunnelHeaders = {};
         const loopbackHeaders = { "X-Loopback-Capability": "capability-token" };
 
         await expect(tunnelApp.inject({ method: "GET", url: "/v2/me/profile", headers: tunnelHeaders }).then(r => r.json())).resolves.toEqual({
@@ -94,7 +88,7 @@ describe("/v2/me routes", () => {
         const loopbackCap = path.join(dir, "loopback-cap.txt");
         await writeFile(loopbackCap, "capability-token\n");
 
-        const tofuConfig = await createTofuConfig();
+        const tofuConfig = createTofuConfig();
         const options = {
             paths: { accountSettings: accountSettingsPath, loopbackCap },
             machineState: () => ({
@@ -111,18 +105,17 @@ describe("/v2/me routes", () => {
         apps.push(tunnelApp);
         configureApi(tunnelApp, tofuConfig, { ...options, auth: "tunnel" });
 
-        const tunnelClaim = await encodeTunnelClaim({ sub: "local-user", iat: Math.floor(Date.now() / 1000), accountId: 42 }, tofuConfig.ed25519SecretKey!);
         const oversized = { blob: "x".repeat(5 * 1024 * 1024) };
         const response = await tunnelApp.inject({
             method: "PUT",
             url: "/v2/me/settings",
-            headers: { "X-Codexu-Authorization": `tunnel ${tunnelClaim}`, "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json" },
             payload: JSON.stringify(oversized),
         });
         expect(response.statusCode).toBe(413);
     });
 
-    it("rejects legacy tunnel claims without accountId and cross-presented auth headers", async () => {
+    it("keeps loopback capability enforcement separate from tunnel auth", async () => {
         const dir = await mkdtemp(path.join(os.tmpdir(), "happy-me-routes-"));
         const loopbackCap = path.join(dir, "loopback-cap.txt");
         await writeFile(path.join(dir, "profile.json"), JSON.stringify({
@@ -134,7 +127,7 @@ describe("/v2/me routes", () => {
         }));
         await writeFile(loopbackCap, "capability-token\n");
 
-        const tofuConfig = await createTofuConfig();
+        const tofuConfig = createTofuConfig();
         const options = {
             paths: { profile: path.join(dir, "profile.json"), accountSettings: path.join(dir, "account-settings.json"), loopbackCap },
             machineState: () => ({
@@ -153,31 +146,19 @@ describe("/v2/me routes", () => {
         configureApi(tunnelApp, tofuConfig, { ...options, auth: "tunnel" });
         configureApi(loopbackApp, tofuConfig, { ...options, auth: "loopback" });
 
-        const legacyClaim = await encodeTunnelClaim({ sub: "local-user", iat: Math.floor(Date.now() / 1000) }, tofuConfig.ed25519SecretKey!);
-        const validClaim = await encodeTunnelClaim({ sub: "local-user", iat: Math.floor(Date.now() / 1000), accountId: 42 }, tofuConfig.ed25519SecretKey!);
-
-        const legacyResponse = await tunnelApp.inject({
+        const tunnelResponse = await tunnelApp.inject({
             method: "GET",
             url: "/v2/me/profile",
-            headers: { "X-Codexu-Authorization": `tunnel ${legacyClaim}` },
         });
-        expect(legacyResponse.statusCode).toBe(401);
-        expect(legacyResponse.json()).toEqual({ error: "account_id_required" });
+        expect(tunnelResponse.statusCode).toBe(200);
+        expect(tunnelResponse.json()).toEqual(expect.objectContaining({ githubUserId: 42 }));
 
         const tunnelClaimOnLoopback = await loopbackApp.inject({
             method: "GET",
             url: "/v2/me/profile",
-            headers: { "X-Codexu-Authorization": `tunnel ${validClaim}` },
+            headers: { "X-Codexu-Authorization": "tunnel obsolete-claim" },
         });
         expect(tunnelClaimOnLoopback.statusCode).toBe(401);
         expect(tunnelClaimOnLoopback.json()).toEqual({ error: "invalid_loopback_capability" });
-
-        const capabilityOnTunnel = await tunnelApp.inject({
-            method: "GET",
-            url: "/v2/me/profile",
-            headers: { "X-Loopback-Capability": "capability-token" },
-        });
-        expect(capabilityOnTunnel.statusCode).toBe(401);
-        expect(capabilityOnTunnel.json()).toEqual({ error: "missing_tunnel_authorization" });
     });
 });

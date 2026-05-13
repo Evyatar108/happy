@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, writeFile } from "fs/promises";
 import os from "os";
 import path from "path";
-import * as ed from "@noble/ed25519";
 
 const {
     redisConstructorMock,
@@ -29,7 +28,6 @@ vi.mock("@/utils/log", () => ({
 }));
 
 import { configureRedisStreamsAdapter, createSocketAuthMiddleware } from "./socket";
-import { encodeTunnelClaim } from "./auth/tunnelClaim";
 
 function createFakeIo() {
     const namespaceAdapter = {
@@ -96,19 +94,6 @@ describe("configureRedisStreamsAdapter", () => {
     });
 });
 
-async function createTunnelConfig() {
-    const secretKey = ed.utils.randomSecretKey();
-    const publicKey = await ed.getPublicKeyAsync(secretKey);
-    return {
-        localUserId: "test-user",
-        tofuPublicKeys: {
-            ed25519PublicKey: Buffer.from(publicKey).toString("base64"),
-            x25519PublicKey: "unused",
-        },
-        ed25519SecretKey: secretKey,
-    };
-}
-
 function fakeSocket(headers: Record<string, string> = {}, auth: Record<string, unknown> = {}) {
     return {
         handshake: { headers, auth },
@@ -139,20 +124,14 @@ describe("createSocketAuthMiddleware — AC-A10 loopback vs tunnel auth", () => 
 
         expect(next).toHaveBeenCalledWith();
         expect(socket.data.userId).toBe("daemon-user");
-        expect(socket.data.accountId).toBeNull();
     });
 
     it("loopback: rejects a tunnel-claim header (cross-presented)", async () => {
-        const tunnelConfig = await createTunnelConfig();
-        const claim = await encodeTunnelClaim(
-            { sub: tunnelConfig.localUserId, iat: Math.floor(Date.now() / 1000), accountId: 12345 },
-            tunnelConfig.ed25519SecretKey
-        );
         const middleware = createSocketAuthMiddleware({ localUserId: "daemon-user" }, {
             auth: "loopback",
             paths: { loopbackCap: capabilityPath },
         });
-        const socket = fakeSocket({ "x-codexu-authorization": `tunnel ${claim}` });
+        const socket = fakeSocket({ "x-codexu-authorization": "tunnel obsolete-claim" });
         const next = vi.fn();
 
         await middleware(socket, next);
@@ -160,31 +139,27 @@ describe("createSocketAuthMiddleware — AC-A10 loopback vs tunnel auth", () => 
         expect(next).toHaveBeenCalledWith(new Error("Unauthorized"));
     });
 
-    it("tunnel: accepts a valid tunnel claim", async () => {
-        const tunnelConfig = await createTunnelConfig();
-        const claim = await encodeTunnelClaim(
-            { sub: tunnelConfig.localUserId, iat: Math.floor(Date.now() / 1000), accountId: 12345 },
-            tunnelConfig.ed25519SecretKey
-        );
+    it("tunnel: accepts without a Happy tunnel claim", async () => {
+        const tunnelConfig = { localUserId: "test-user" };
         const middleware = createSocketAuthMiddleware(tunnelConfig, { auth: "tunnel" });
-        const socket = fakeSocket({ "x-codexu-authorization": `tunnel ${claim}` });
+        const socket = fakeSocket();
         const next = vi.fn();
 
         await middleware(socket, next);
 
         expect(next).toHaveBeenCalledWith();
         expect(socket.data.userId).toBe(tunnelConfig.localUserId);
-        expect(socket.data.accountId).toBe(12345);
     });
 
-    it("tunnel: rejects a capability header (cross-presented)", async () => {
-        const tunnelConfig = await createTunnelConfig();
+    it("tunnel: ignores a capability header", async () => {
+        const tunnelConfig = { localUserId: "test-user" };
         const middleware = createSocketAuthMiddleware(tunnelConfig, { auth: "tunnel" });
         const socket = fakeSocket({ "x-loopback-capability": capabilityToken });
         const next = vi.fn();
 
         await middleware(socket, next);
 
-        expect(next).toHaveBeenCalledWith(new Error("Unauthorized"));
+        expect(next).toHaveBeenCalledWith();
+        expect(socket.data.userId).toBe(tunnelConfig.localUserId);
     });
 });

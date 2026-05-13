@@ -18,7 +18,6 @@ import { machineSelfRoutes, type MachineSelfState } from "./routes/machineSelfRo
 import { isLocalStorage, getLocalFilesDir } from "@/storage/files";
 import type { EventRouter } from "@/app/events/eventRouter";
 import { verifyLoopbackCapability, type LoopbackCapabilityPaths } from "./auth/loopbackCapability";
-import { verifyTunnelClaim, type TunnelClaimResult } from "./auth/tunnelClaim";
 import * as path from "path";
 import * as fs from "fs";
 
@@ -40,8 +39,6 @@ export interface TofuHandshakeConfig {
     x25519SecretKey?: Uint8Array;
     publicUrl?: string;
 }
-
-export { verifyTunnelClaim, type TunnelClaimResult };
 
 export function createApi() {
     return fastify({
@@ -78,15 +75,8 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
     enableMonitoring(typed);
     enableErrorHandlers(typed);
     typed.decorate('verifyLoopbackCapability', verifyLoopbackCapability(options.paths, tofuConfig.localUserId));
-    typed.decorate('authenticateTunnelClaim', async function (request: any, reply: any) {
-        const authHeader = request.headers['x-codexu-authorization'] as string | undefined;
-        const result = await verifyTunnelClaim(authHeader, tofuConfig);
-        if (!result.ok) {
-            const status = result.reason === 'tunnel_verification_unavailable' ? 503 : 401;
-            return reply.code(status).send({ error: result.reason });
-        }
-        request.userId = result.payload.sub;
-        request.accountId = result.payload.accountId;
+    typed.decorate('authenticateTunnelClaim', async function (request: any) {
+        request.userId = tofuConfig.localUserId;
     });
     typed.decorate('authenticate', options.auth === "loopback" ? typed.verifyLoopbackCapability : typed.authenticateTunnelClaim);
 
@@ -113,8 +103,8 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
     options.onEventRouter?.(eventRouter);
 
     // Routes available on both tunnel and loopback listeners
-    accountRoutes(typed, { auth: options.auth ?? "tunnel", paths: options.paths });
-    machineSelfRoutes(typed, { auth: options.auth ?? "tunnel", machineState: options.machineState });
+    accountRoutes(typed, { paths: options.paths });
+    machineSelfRoutes(typed, { machineState: options.machineState });
 
     // Routes only available on the tunnel listener (not loopback)
     if (options.auth !== "loopback") {
