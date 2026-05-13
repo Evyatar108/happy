@@ -1408,7 +1408,7 @@
   </details>
 
   <details class="cmd" id="cmd-3c-hooks" data-task-id="3c-hooks">
-    <summary><span class="cmd-name">3c-hooks</span><span class="cmd-badge b-inflight">🟡 in progress</span><span class="cmd-desc">Phase 3c — Ralph hooks port / verify (likely zero work)</span></summary>
+    <summary><span class="cmd-name">3c-hooks</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Phase 3c — Ralph hooks port / verify (likely zero work) — never actually fired; tab was conflated with 3h-options earlier</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
 <pre class="cmd-pre">/plan-with-ralph "Phase 3c — port ralph plugin hooks from Claude Code to codex hook system, OR verify there are no hooks to port. Per plans/codexu-roadmap.md §Phase 3c. Toolkit ralph plugin's CLAUDE.md (C:/ai-developer-toolkit/plugins/ralph/CLAUDE.md) says 'skills-only', suggesting no hooks. Verify by inspecting C:/ai-developer-toolkit/plugins/ralph/ — look for .claude/hooks/ entries, hook references in skill SKILL.md frontmatter, or any subprocess invocation pattern that mirrors Claude Code's PreToolUse/PostToolUse/SessionStart/Stop/Notification/UserPromptSubmit/PreCompact lifecycle. If zero hooks found, write a one-paragraph 'Phase 3c verified — no hooks to port' note in plans/codexu-roadmap.md under §Phase 3c (replacing the open status) and that's the entire commit. If hooks ARE found, port to codex hook system per codex/core/src/hook_runtime.rs — surface plan to operator before implementing. Acceptance: roadmap §3c marked verified-no-port OR ported hooks ship with parity tests. Light single commit either way."</pre>
@@ -2039,8 +2039,8 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T17:00:00Z",
-  "generatedFromCommit": "c7dfaf08",
+  "generatedAt": "2026-05-14T17:30:00Z",
+  "generatedFromCommit": "47de9b32",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -2053,7 +2053,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     "1a-fork-doc": "2026-05-13T23:30:00Z",
     "1b-multidev": "2026-05-13T19:30:00Z",
     "3b-agents": "2026-05-13T19:30:00Z",
-    "3c-hooks": "2026-05-13T23:30:00Z",
+    "3c-hooks": "2026-05-14T17:30:00Z",
     "3d-workers": "2026-05-13T19:30:00Z",
     "3fg-package": "2026-05-13T19:30:00Z",
     "3h-options": "2026-05-14T16:00:00Z",

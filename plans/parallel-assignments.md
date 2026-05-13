@@ -572,7 +572,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `1a-fork-doc` | Phase 1a — fork strategy commit | 🟡 in progress | — |
 | `1b-multidev` | Phase 1b sub-tasks 3 + 4 | ⬜ not started | — |
 | `3b-agents` | Phase 3b-i + ii — subagents → roles | ⬜ blocked on 3a discovery | — |
-| `3c-hooks` | Phase 3c — hooks port / verify | 🟡 in progress | — |
+| `3c-hooks` | Phase 3c — hooks port / verify | ⬜ ready (never actually fired) | — |
 | `3d-workers` | Phase 3d — native worker spawn (after 3b) | ⬜ blocked on 3a + 3b | — |
 | `3fg-package` | Phase 3f + 3g — asset + packaging | ⬜ blocked on 3a discovery | — |
 | `3h-options` | Phase 3h — options-mode migration | ✅ shipped (merged from `phase-3h-options-mode-plugin`) | 756d4290 + merge |
