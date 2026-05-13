@@ -41,11 +41,9 @@ import {
     resolveSessionEncryption,
     listKnownMachines,
     discoverMachineTunnels,
-    refreshTunnelClaim,
+    refreshMachineTunnel,
     InvalidTunnelUrlError,
     MachineNotKnownError,
-    NetworkError,
-    RateLimitedError,
     RefreshFailedError,
 } from './api';
 
@@ -70,7 +68,6 @@ function makeConfig(): Config {
 function makeCredentials(): Credentials {
     const secret = getRandomBytes(32);
     const contentKeyPair = deriveContentKeyPair(secret);
-    const now = Math.floor(Date.now() / 1000);
     return {
         githubLogin: 'octocat',
         deviceCode: 'device-code',
@@ -80,10 +77,8 @@ function makeCredentials(): Credentials {
             machineId: 'machine-1',
             tunnelId: 'tunnel-1',
             tunnelUrl: 'https://machine-1.devtunnels.ms',
-            tunnelClaim: encodeTunnelClaim({ accountId: 123, iat: now, exp: now + 600, jti: 'jti-1' }),
             connectToken: 'connect-jwt',
             connectTokenExpiry: Date.now() + 120_000,
-            accountId: 123,
             ed25519PublicKey: 'ed',
             x25519PublicKey: 'x',
         }],
@@ -93,11 +88,6 @@ function makeCredentials(): Credentials {
         secret,
         contentKeyPair,
     };
-}
-
-function encodeTunnelClaim(payload: unknown): string {
-    const p = Buffer.from(JSON.stringify(payload)).toString('base64url');
-    return Buffer.from(JSON.stringify({ p, s: 'signature' })).toString('base64url');
 }
 
 function makeRawSessionWithDataKey(
@@ -228,46 +218,27 @@ describe('api', () => {
         });
     });
 
-    describe('refreshTunnelClaim', () => {
-        it('refreshes a known machine claim with a 30s /pair/complete request', async () => {
-            const now = Math.floor(Date.now() / 1000);
-            const tunnelClaim = encodeTunnelClaim({ accountId: 456, iat: now, exp: now + 600, jti: 'fresh-jti' });
-            mockedAxios.post.mockResolvedValueOnce({
-                data: {
-                    githubLogin: 'octocat',
-                    machine: {
-                        machineId: 'machine-1',
-                        tunnelUrl: 'https://machine-1.devtunnels.ms',
-                        tunnelClaim,
-                    },
-                },
-            });
-
-            const result = await refreshTunnelClaim(config, creds, 'machine-1');
+    describe('refreshMachineTunnel', () => {
+        it('returns a known machine tunnel with a fresh connect token', async () => {
+            const result = await refreshMachineTunnel(config, creds, 'machine-1');
 
             expect(result).toEqual({
                 tunnelUrl: 'https://machine-1.devtunnels.ms',
-                tunnelClaim,
                 connectToken: 'connect-jwt',
-                accountId: 456,
             });
-            expect(mockedAxios.post).toHaveBeenCalledWith(
-                'https://machine-1.devtunnels.ms/pair/complete',
-                {},
-                { headers: { 'Content-Type': 'application/json', 'X-Happy-Client': 'cli-control-plane/0.1.0', 'X-Tunnel-Authorization': 'tunnel connect-jwt' }, timeout: 30_000 },
-            );
+            expect(mockedAxios.post).not.toHaveBeenCalled();
         });
 
         it('checks device-code expiry before any network request', async () => {
             creds = { ...creds, deviceCodeExpiresAt: Math.floor(Date.now() / 1000) };
 
-            await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow(RefreshFailedError);
-            await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow("Device code expired. Run 'happy-agent auth login'");
+            await expect(refreshMachineTunnel(config, creds, 'machine-1')).rejects.toThrow(RefreshFailedError);
+            await expect(refreshMachineTunnel(config, creds, 'machine-1')).rejects.toThrow("Device code expired. Run 'happy-agent auth login'");
             expect(mockedAxios.post).not.toHaveBeenCalled();
         });
 
         it('throws MachineNotKnownError before network for unknown machines', async () => {
-            await expect(refreshTunnelClaim(config, creds, 'missing-machine')).rejects.toThrow(MachineNotKnownError);
+            await expect(refreshMachineTunnel(config, creds, 'missing-machine')).rejects.toThrow(MachineNotKnownError);
             expect(mockedAxios.post).not.toHaveBeenCalled();
         });
 
@@ -277,93 +248,14 @@ describe('api', () => {
                 machines: [{ ...creds.machines[0], tunnelUrl: 'abc.devtunnels.ms' }],
             };
 
-            await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow(InvalidTunnelUrlError);
+            await expect(refreshMachineTunnel(config, creds, 'machine-1')).rejects.toThrow(InvalidTunnelUrlError);
             expect(mockedAxios.post).not.toHaveBeenCalled();
-        });
-
-        it('maps 401, 429, and network failures to typed refresh errors', async () => {
-            const { AxiosError } = await import('axios');
-
-            mockedAxios.post.mockRejectedValueOnce(new (AxiosError as any)('Unauthorized', { response: { status: 401 } }));
-            await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow(RefreshFailedError);
-
-            mockedAxios.post.mockRejectedValueOnce(new (AxiosError as any)('Too Many Requests', { response: { status: 429 } }));
-            await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow(RateLimitedError);
-
-            mockedAxios.post.mockRejectedValueOnce(new (AxiosError as any)('getaddrinfo ENOTFOUND'));
-            await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow(NetworkError);
-        });
-
-        it('maps expired pair/status responses to RefreshFailedError', async () => {
-            mockedAxios.post.mockResolvedValueOnce({ data: { status: 'expired' } });
-
-            await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow(RefreshFailedError);
-        });
-
-        it('throws RefreshFailedError before claim decode when response machineId does not match requested machineId', async () => {
-            const now = Math.floor(Date.now() / 1000);
-            mockedAxios.post.mockResolvedValueOnce({
-                data: {
-                    githubLogin: 'octocat',
-                    machine: {
-                        machineId: 'machine-9',
-                        tunnelUrl: 'https://machine-9.devtunnels.ms',
-                        tunnelClaim: encodeTunnelClaim({ accountId: 456, iat: now, exp: now + 600, jti: 'fresh-jti' }),
-                    },
-                },
-            });
-
-            await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow(
-                new RefreshFailedError('Pair complete returned machine machine-9, expected machine-1'),
-            );
-        });
-
-        it('rejects tunnel claims without required signed-envelope payload fields', async () => {
-            mockedAxios.post.mockResolvedValueOnce({
-                data: {
-                    githubLogin: 'octocat',
-                    machine: {
-                        machineId: 'machine-1',
-                        tunnelUrl: 'https://machine-1.devtunnels.ms',
-                        tunnelClaim: encodeTunnelClaim({ accountId: 'bad', iat: 1, exp: 2, jti: 'jti' }),
-                    },
-                },
-            });
-
-            await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow('accountId missing');
-        });
-
-        it('rejects already-expired tunnel claims during the audit pass', async () => {
-            const now = Math.floor(Date.now() / 1000);
-            mockedAxios.post.mockResolvedValueOnce({
-                data: {
-                    githubLogin: 'octocat',
-                    machine: {
-                        machineId: 'machine-1',
-                        tunnelUrl: 'https://machine-1.devtunnels.ms',
-                        tunnelClaim: encodeTunnelClaim({ accountId: 456, iat: now - 600, exp: now - 1, jti: 'jti-expired' }),
-                    },
-                },
-            });
-
-            await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow('claim expired');
         });
 
         it('does not mutate the persisted credential object', async () => {
             const before = JSON.stringify(creds.machines);
-            const now = Math.floor(Date.now() / 1000);
-            mockedAxios.post.mockResolvedValueOnce({
-                data: {
-                    githubLogin: 'octocat',
-                    machine: {
-                        machineId: 'machine-1',
-                        tunnelUrl: 'https://machine-1.devtunnels.ms',
-                        tunnelClaim: encodeTunnelClaim({ accountId: 456, iat: now, exp: now + 600, jti: 'fresh-jti' }),
-                    },
-                },
-            });
 
-            await refreshTunnelClaim(config, creds, 'machine-1');
+            await refreshMachineTunnel(config, creds, 'machine-1');
 
             expect(JSON.stringify(creds.machines)).toBe(before);
         });
@@ -390,7 +282,6 @@ describe('api', () => {
                 {
                     headers: {
                         'X-Tunnel-Authorization': 'tunnel connect-jwt',
-                        'X-Codexu-Authorization': `tunnel ${creds.machines[0].tunnelClaim}`,
                         'X-Happy-Client': 'cli-control-plane/0.1.0',
                     },
                     timeout: 10_000,

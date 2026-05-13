@@ -22,10 +22,8 @@ export type PersistedMachineCredentials = {
     machineId: string;
     tunnelId?: string;
     tunnelUrl: string;
-    tunnelClaim: string;
     connectToken?: string;
     connectTokenExpiry?: number;
-    accountId: number;
     ed25519PublicKey: string;
     x25519PublicKey: string;
     ed25519Fingerprint?: string;

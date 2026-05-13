@@ -31,13 +31,6 @@ type PairStatusResponse = {
 
 type PairStatusMachine = PersistedMachineCredentials;
 
-type TunnelClaimPayload = {
-    accountId?: unknown;
-    iat?: unknown;
-    exp?: unknown;
-    jti?: unknown;
-};
-
 export async function authLogin(config: Config): Promise<void> {
     const start = await startPairing(config);
     const expiresAt = Math.floor(Date.now() / 1000) + start.expires_in;
@@ -70,7 +63,6 @@ export async function authLogin(config: Config): Promise<void> {
         if (status.status === 'authorized') {
             const devTunnelsAccess = await resolveDevTunnelsAccess(status, intervalSeconds);
             const machines = await discoverAuthorizedMachines(status, start.device_code, intervalSeconds, devTunnelsAccess);
-            const auditedMachines = auditMachines(machines);
             const legacy = readLegacyCredentials();
             const persisted: PersistedCredentials = {
                 githubLogin: requireString(status.githubLogin, 'githubLogin'),
@@ -78,7 +70,7 @@ export async function authLogin(config: Config): Promise<void> {
                 deviceCode: start.device_code,
                 deviceCodeExpiresAt: expiresAt,
                 pairingBaseUrl: config.pairingBaseUrl,
-                machines: auditedMachines,
+                machines,
                 discoveredMachines: status.discoveredMachines,
                 ...legacy,
             };
@@ -280,31 +272,6 @@ async function pollDevTunnelsDeviceFlow(deviceCode: string): Promise<string | nu
 
 function deriveConnectTokenExpiry(now = Date.now()): number {
     return now + CONNECT_TOKEN_TTL_MS;
-}
-
-function auditMachines(machines: PairStatusMachine[]): PersistedMachineCredentials[] {
-    const audited: PersistedMachineCredentials[] = [];
-    for (const machine of machines) {
-        try {
-            const payload = decodeTunnelClaimPayload(machine.tunnelClaim);
-            if (typeof payload.accountId !== 'number') throw new Error('accountId missing');
-            if (typeof payload.iat !== 'number' || typeof payload.exp !== 'number' || payload.exp - payload.iat > 3600) throw new Error('invalid lifetime');
-            if (payload.exp <= Math.floor(Date.now() / 1000)) throw new Error('claim expired');
-            if (typeof payload.jti !== 'string' || payload.jti.length === 0) throw new Error('jti missing');
-            audited.push({ ...machine, accountId: payload.accountId });
-        } catch (error) {
-            console.warn(`Skipping machine ${machine.machineId} with invalid tunnel claim: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    }
-    return audited;
-}
-
-function decodeTunnelClaimPayload(tunnelClaim: string): TunnelClaimPayload {
-    const envelope = JSON.parse(Buffer.from(tunnelClaim, 'base64url').toString('utf-8')) as { p?: unknown; s?: unknown };
-    if (typeof envelope.p !== 'string' || typeof envelope.s !== 'string') {
-        throw new Error('invalid envelope');
-    }
-    return JSON.parse(Buffer.from(envelope.p, 'base64url').toString('utf-8')) as TunnelClaimPayload;
 }
 
 function readLegacyCredentials(): Pick<PersistedCredentials, 'legacyToken' | 'legacySecret'> {

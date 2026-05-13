@@ -13,12 +13,7 @@ const rpcMock = vi.hoisted(() => {
     return {
         emitWithAck,
         socket,
-        io: vi.fn((_url: string, options: { auth?: { codexuAuthorization?: string } }) => {
-            if (!options.auth?.codexuAuthorization?.startsWith('tunnel ')) {
-                emitWithAck.mockRejectedValueOnce(new Error('missing_tunnel_authorization'));
-            }
-            return socket;
-        }),
+        io: vi.fn((_url: string, _options: unknown) => socket),
     };
 });
 
@@ -28,7 +23,7 @@ vi.mock('socket.io-client', () => ({
 
 const { resumeSessionOnMachine, spawnInWorktreeOnMachine, spawnSessionOnMachine } = await import('./machineRpc');
 
-function lastIoCall(): [string, { auth: { codexuAuthorization: string }; extraHeaders: Record<string, string>; transportOptions: { websocket: { extraHeaders: Record<string, string> }; polling: { extraHeaders: Record<string, string> } }; path: string; transports: string[]; autoConnect: boolean; reconnection: boolean }] {
+function lastIoCall(): [string, { extraHeaders: Record<string, string>; transportOptions: { websocket: { extraHeaders: Record<string, string> }; polling: { extraHeaders: Record<string, string> } }; path: string; transports: string[]; autoConnect: boolean; reconnection: boolean }] {
     return rpcMock.io.mock.calls.at(-1) as ReturnType<typeof lastIoCall>;
 }
 
@@ -55,15 +50,10 @@ describe('machine RPC client', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         rpcMock.socket.connected = true;
-        rpcMock.io.mockImplementation((_url: string, options: { auth?: { codexuAuthorization?: string } }) => {
-            if (!options.auth?.codexuAuthorization?.startsWith('tunnel ')) {
-                rpcMock.emitWithAck.mockRejectedValueOnce(new Error('missing_tunnel_authorization'));
-            }
-            return rpcMock.socket;
-        });
+        rpcMock.io.mockImplementation((_url: string, _options: unknown) => rpcMock.socket);
     });
 
-    it('wraps spawn-in-worktree with tunnel auth and plaintext params', async () => {
+    it('wraps spawn-in-worktree with gateway auth and plaintext params', async () => {
         const resultPayload = {
             type: 'success',
             sessionId: 'session-1',
@@ -73,7 +63,7 @@ describe('machine RPC client', () => {
         };
         rpcMock.emitWithAck.mockResolvedValueOnce({ ok: true, result: resultPayload });
 
-        const result = await spawnInWorktreeOnMachine('https://abc.devtunnels.ms', 'claim-1', 'connect-1', {
+        const result = await spawnInWorktreeOnMachine('https://abc.devtunnels.ms', 'connect-1', {
             machineId: 'machine-1',
             repoPath: '/repo',
             worktreePath: '/repo/.dev/worktree/ralph-12345678',
@@ -84,7 +74,6 @@ describe('machine RPC client', () => {
         const [url, options] = lastIoCall();
         expect(url).toBe('https://abc.devtunnels.ms');
         expect(options).toMatchObject({
-            auth: { codexuAuthorization: 'tunnel claim-1' },
             extraHeaders: { 'X-Tunnel-Authorization': 'tunnel connect-1' },
             transportOptions: {
                 websocket: { extraHeaders: { 'X-Tunnel-Authorization': 'tunnel connect-1' } },
@@ -95,7 +84,6 @@ describe('machine RPC client', () => {
             autoConnect: false,
             reconnection: false,
         });
-        expect(options.auth.codexuAuthorization.startsWith('tunnel ')).toBe(true);
         expect(lastRpcCall().method).toBe('machine-1:spawn-in-worktree');
         expectPlainParams(lastRpcCall().params);
         expect(lastRpcCall().params).toEqual({
@@ -114,7 +102,7 @@ describe('machine RPC client', () => {
         const resultPayload = { type: 'requestToApproveDirectoryCreation', directory: '/repo' };
         rpcMock.emitWithAck.mockResolvedValueOnce({ ok: true, result: resultPayload });
 
-        const result = await spawnSessionOnMachine('http://127.0.0.1:41000', 'claim-2', 'connect-2', {
+        const result = await spawnSessionOnMachine('http://127.0.0.1:41000', 'connect-2', {
             machineId: 'machine-1',
             directory: '/repo',
             approvedNewDirectoryCreation: true,
@@ -140,7 +128,7 @@ describe('machine RPC client', () => {
         const resultPayload = { type: 'success', sessionId: 'session-resumed' };
         rpcMock.emitWithAck.mockResolvedValueOnce({ ok: true, result: resultPayload });
 
-        const result = await resumeSessionOnMachine('https://abc.devtunnels.ms', 'claim-3', 'connect-3', {
+        const result = await resumeSessionOnMachine('https://abc.devtunnels.ms', 'connect-3', {
             machineId: 'machine-1',
             sessionId: 'session-original',
         });
@@ -155,7 +143,7 @@ describe('machine RPC client', () => {
         const resultPayload = { type: 'error', errorMessage: 'daemon refused' };
         rpcMock.emitWithAck.mockResolvedValueOnce({ ok: true, result: resultPayload });
 
-        const result = await spawnSessionOnMachine('https://abc.devtunnels.ms', 'claim-4', 'connect-4', {
+        const result = await spawnSessionOnMachine('https://abc.devtunnels.ms', 'connect-4', {
             machineId: 'machine-1',
             directory: '/repo',
         });
@@ -166,13 +154,13 @@ describe('machine RPC client', () => {
 
     it('maps RPC ack errors and timeout rejections', async () => {
         rpcMock.emitWithAck.mockResolvedValueOnce({ ok: false, error: 'RPC method not available' });
-        await expect(spawnSessionOnMachine('https://abc.devtunnels.ms', 'claim-5', 'connect-5', {
+        await expect(spawnSessionOnMachine('https://abc.devtunnels.ms', 'connect-5', {
             machineId: 'machine-1',
             directory: '/repo',
         })).rejects.toThrow('Machine machine-1 is offline or its daemon is not connected.');
 
         rpcMock.emitWithAck.mockRejectedValueOnce(new Error('operation has timed out'));
-        await expect(spawnSessionOnMachine('https://abc.devtunnels.ms', 'claim-6', 'connect-6', {
+        await expect(spawnSessionOnMachine('https://abc.devtunnels.ms', 'connect-6', {
             machineId: 'machine-1',
             directory: '/repo',
         })).rejects.toThrow('operation has timed out');
@@ -180,24 +168,16 @@ describe('machine RPC client', () => {
 
     it('rejects invalid plaintext result shapes', async () => {
         rpcMock.emitWithAck.mockResolvedValueOnce({ ok: true, result: 'encrypted-base64' });
-        await expect(spawnSessionOnMachine('https://abc.devtunnels.ms', 'claim-7', 'connect-7', {
+        await expect(spawnSessionOnMachine('https://abc.devtunnels.ms', 'connect-7', {
             machineId: 'machine-1',
             directory: '/repo',
         })).rejects.toThrow('RPC call returned invalid data');
 
         rpcMock.emitWithAck.mockResolvedValueOnce({ ok: true, result: { type: 'unknown' } });
-        await expect(spawnSessionOnMachine('https://abc.devtunnels.ms', 'claim-8', 'connect-8', {
+        await expect(spawnSessionOnMachine('https://abc.devtunnels.ms', 'connect-8', {
             machineId: 'machine-1',
             directory: '/repo',
         })).rejects.toThrow('RPC call returned unexpected data');
     });
 
-    it('local mock rejects missing codexuAuthorization prefix', async () => {
-        const socket = rpcMock.io('https://abc.devtunnels.ms', {
-            auth: { codexuAuthorization: 'claim-without-prefix' },
-        });
-
-        await expect(socket.timeout(30_000).emitWithAck('rpc-call', { method: 'machine-1:spawn-happy-session', params: {} }))
-            .rejects.toThrow('missing_tunnel_authorization');
-    });
 });

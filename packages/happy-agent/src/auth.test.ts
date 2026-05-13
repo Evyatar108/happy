@@ -39,18 +39,10 @@ function makeTestConfig(): Config {
     };
 }
 
-function encodeTunnelClaim(payload: unknown): string {
-    const p = Buffer.from(JSON.stringify(payload)).toString('base64url');
-    return Buffer.from(JSON.stringify({ p, s: 'signature' })).toString('base64url');
-}
-
 function machine(overrides: Partial<PersistedCredentials['machines'][number]> = {}): PersistedCredentials['machines'][number] {
-    const now = Math.floor(Date.now() / 1000);
     return {
         machineId: 'machine-1',
         tunnelUrl: 'https://machine-1.devtunnels.ms',
-        tunnelClaim: encodeTunnelClaim({ accountId: 123, iat: now, exp: now + 600, jti: 'jti-1' }),
-        accountId: 999,
         ed25519PublicKey: 'ed',
         x25519PublicKey: 'x',
         ...overrides,
@@ -112,7 +104,6 @@ describe('auth', () => {
             expect(mockedAxios.post).toHaveBeenCalledWith('https://pairing.example.com/pair/status', { device_code: 'device-code' }, expect.any(Object));
             expect(creds.githubLogin).toBe('octocat');
             expect(creds.machines).toHaveLength(1);
-            expect(creds.machines[0].accountId).toBe(123);
             expect(creds.legacyToken).toBe('legacy-token');
             expect(creds.secret).toEqual(legacySecret);
         });
@@ -281,20 +272,6 @@ describe('auth', () => {
             expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping unreachable tunnel https://t1.devtunnels.ms: getaddrinfo ENOTFOUND'));
         });
 
-        it('omits machines whose tunnel claim fails audit', async () => {
-            mockedAxios.get.mockResolvedValueOnce({ data: { device_code: 'device-code', user_code: 'CODE', verification_uri: 'https://github.com/login/device', expires_in: 900, interval: 1 } });
-            mockedAxios.post.mockResolvedValueOnce({
-                data: { status: 'authorized', githubLogin: 'octocat', machines: [machine({ tunnelClaim: encodeTunnelClaim({ accountId: 'bad', iat: 1, exp: 2, jti: 'jti' }) })], discoveredMachines: [] },
-            });
-
-            const promise = authLogin(config);
-            await vi.advanceTimersByTimeAsync(1000);
-            await promise;
-
-            expect(loadCredentials(config).machines).toHaveLength(0);
-            expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping machine machine-1 with invalid tunnel claim'));
-        });
-
         it('enriches primary machine with tunnelId and connectToken on primary-only login', async () => {
             mockedAxios.get.mockResolvedValueOnce({
                 data: { device_code: 'device-code', user_code: 'ABCD-EFGH', verification_uri: 'https://github.com/login/device', expires_in: 900, interval: 1 },
@@ -317,21 +294,6 @@ describe('auth', () => {
             expect(creds.machines[0].tunnelId).toBe('primary-tunnel');
             expect(creds.machines[0].connectToken).toBe('connect-jwt');
             expect(typeof creds.machines[0].connectTokenExpiry).toBe('number');
-        });
-
-        it('omits machines whose tunnel claim is already expired', async () => {
-            const now = Math.floor(Date.now() / 1000);
-            mockedAxios.get.mockResolvedValueOnce({ data: { device_code: 'device-code', user_code: 'CODE', verification_uri: 'https://github.com/login/device', expires_in: 900, interval: 1 } });
-            mockedAxios.post.mockResolvedValueOnce({
-                data: { status: 'authorized', githubLogin: 'octocat', machines: [machine({ tunnelClaim: encodeTunnelClaim({ accountId: 123, iat: now - 600, exp: now - 1, jti: 'jti-expired' }) })], discoveredMachines: [] },
-            });
-
-            const promise = authLogin(config);
-            await vi.advanceTimersByTimeAsync(1000);
-            await promise;
-
-            expect(loadCredentials(config).machines).toHaveLength(0);
-            expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('claim expired'));
         });
     });
 

@@ -77,28 +77,9 @@ type MachineSelfState = {
     owner: string;
 };
 
-export type RefreshedTunnelClaim = {
+export type RefreshedMachineTunnel = {
     tunnelUrl: string;
-    tunnelClaim: string;
     connectToken: string;
-    accountId: number;
-};
-
-type PairStatusResponse = {
-    status: 'pending' | 'slow_down' | 'authorized' | 'expired';
-    machines?: Array<{
-        machineId: string;
-        tunnelUrl: string;
-        tunnelClaim: string;
-        accountId?: number;
-    }>;
-};
-
-type TunnelClaimPayload = {
-    accountId?: unknown;
-    iat?: unknown;
-    exp?: unknown;
-    jti?: unknown;
 };
 
 const connectTokenRefreshes = new Map<string, Promise<{ connectToken: string; connectTokenExpiry: number }>>();
@@ -189,23 +170,9 @@ export class InvalidTunnelUrlError extends Error {
 }
 
 export class RefreshFailedError extends Error {
-    constructor(message = "Failed to refresh tunnel claim. Run 'happy-agent auth login'") {
+    constructor(message = "Failed to refresh machine tunnel. Run 'happy-agent auth login'") {
         super(message);
         this.name = 'RefreshFailedError';
-    }
-}
-
-export class RateLimitedError extends Error {
-    constructor() {
-        super('Tunnel claim refresh was rate limited. Retry in 60s.');
-        this.name = 'RateLimitedError';
-    }
-}
-
-export class NetworkError extends Error {
-    constructor(message: string) {
-        super(`Network error refreshing tunnel claim: ${message}`);
-        this.name = 'NetworkError';
     }
 }
 
@@ -238,23 +205,6 @@ function authHeaders(creds: Credentials): Record<string, string> {
         Authorization: `Bearer ${creds.token}`,
         'X-Happy-Client': 'cli-control-plane/0.1.0',
     };
-}
-
-function decodeTunnelClaimPayload(tunnelClaim: string): TunnelClaimPayload {
-    const envelope = JSON.parse(Buffer.from(tunnelClaim, 'base64url').toString('utf-8')) as { p?: unknown; s?: unknown };
-    if (typeof envelope.p !== 'string' || typeof envelope.s !== 'string') {
-        throw new Error('invalid envelope');
-    }
-    return JSON.parse(Buffer.from(envelope.p, 'base64url').toString('utf-8')) as TunnelClaimPayload;
-}
-
-function accountIdFromTunnelClaim(tunnelClaim: string): number {
-    const payload = decodeTunnelClaimPayload(tunnelClaim);
-    if (typeof payload.accountId !== 'number') throw new Error('accountId missing');
-    if (typeof payload.iat !== 'number' || typeof payload.exp !== 'number' || payload.exp - payload.iat > 3600) throw new Error('invalid lifetime');
-    if (payload.exp <= Math.floor(Date.now() / 1000)) throw new Error('claim expired');
-    if (typeof payload.jti !== 'string' || payload.jti.length === 0) throw new Error('jti missing');
-    return payload.accountId;
 }
 
 // --- API functions ---
@@ -316,7 +266,6 @@ export async function listKnownMachines(
             const resp = await axios.get(`${machine.tunnelUrl}/v2/me/machine`, {
                 headers: {
                     'X-Tunnel-Authorization': `tunnel ${connectToken}`,
-                    'X-Codexu-Authorization': `tunnel ${machine.tunnelClaim}`,
                     'X-Happy-Client': 'cli-control-plane/0.1.0',
                 },
                 timeout: 10_000,
@@ -340,12 +289,11 @@ export async function listKnownMachines(
     }));
 }
 
-export async function refreshTunnelClaim(
+export async function refreshMachineTunnel(
     config: Config,
     creds: Credentials,
     machineId: string,
-): Promise<RefreshedTunnelClaim> {
-    void config;
+): Promise<RefreshedMachineTunnel> {
     if (Math.floor(Date.now() / 1000) >= creds.deviceCodeExpiresAt) {
         throw new RefreshFailedError("Device code expired. Run 'happy-agent auth login'");
     }
@@ -362,35 +310,9 @@ export async function refreshTunnelClaim(
     }
 
     const connectToken = await ensureMachineConnectToken(config, creds, target);
-    let response: { githubLogin?: string; machine?: { machineId?: string; tunnelUrl?: string; tunnelClaim?: string } };
-    try {
-        const resp = await axios.post(`${target.tunnelUrl}/pair/complete`, {}, {
-            headers: { 'Content-Type': 'application/json', 'X-Happy-Client': 'cli-control-plane/0.1.0', 'X-Tunnel-Authorization': `tunnel ${connectToken}` },
-            timeout: 30_000,
-        });
-        response = resp.data as typeof response;
-    } catch (error) {
-        if (error instanceof AxiosError) {
-            if (error.response?.status === 401) throw new RefreshFailedError();
-            if (error.response?.status === 429) throw new RateLimitedError();
-            throw new NetworkError(error.message);
-        }
-        throw new NetworkError(error instanceof Error ? error.message : String(error));
-    }
-
-    if (!response.machine || response.machine.machineId !== machineId || !response.machine.tunnelUrl || !response.machine.tunnelClaim) {
-        throw new RefreshFailedError(`Pair complete returned machine ${response.machine?.machineId ?? 'unknown'}, expected ${machineId}`);
-    }
-    try {
-        new URL(response.machine.tunnelUrl);
-    } catch {
-        throw new InvalidTunnelUrlError(response.machine.tunnelUrl);
-    }
     return {
-        tunnelUrl: response.machine.tunnelUrl,
-        tunnelClaim: response.machine.tunnelClaim,
+        tunnelUrl: target.tunnelUrl,
         connectToken,
-        accountId: accountIdFromTunnelClaim(response.machine.tunnelClaim),
     };
 }
 
