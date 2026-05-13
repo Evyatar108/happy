@@ -1,0 +1,28 @@
+I’m opening the attached file first to see the task and any project context it contains.
+
+I found a review task in the attachment; I’m reading the rest of the design doc and its referenced planning docs before writing the critique.
+
+### Feasibility
+
+- **[High] U3 is not actually covered by the recommended v1, despite the doc claiming v1 covers all four use cases.** In §1, U3 includes passive sibling events (“completed turn / asked a question / spawned/closed”). But §3.2 explicitly says codex only solves the **explicit wait** case today, and recommends **not** routing U3 through the new MCP bridge; passive notification is deferred. That directly conflicts with the TL;DR and §6’s “all four use cases” framing. **Fix:** split U3 into **U3a explicit wait (already solved, out of scope)** and **U3b passive sibling notify (either add a concrete design now, or explicitly defer it and remove it from the v1 promise/estimate).**
+
+- **[High] Stage A as written is not yet a complete “agent wakes on async event” solution.** `plans/channels-research.md §6.1` gives a bridge from MCP notifications into `EventMsg`, but this doc does not fully specify how generic MCP notifications become actionable work for a running codex agent without the deferred prompt-queue/channel policy. Right now, the recommendation conflates **transport plumbing** with **wake-up semantics**. **Fix:** either (a) narrow Stage A to “notification transport only” and say passive wake requires Stage B, or (b) define the exact consumer behavior in v1: subscription registration, buffering, prompt injection point, formatting, dedupe, and opt-in rules.
+
+### Completeness
+
+- **[High] The doc says §6 surfaces three operator decisions, but those decisions are not actually present as explicit decision items.** That leaves the follow-up implementation plan under-scoped. The real blocking choices are only implicit: whether to ship **5.c long-poll first**, whether **U3 passive notify** is in or out of v1, and what the **trust/lifecycle model** is for subscriptions. **Fix:** add a short “Operator decisions” table with columns: *decision*, *options*, *recommended default*, *impact if chosen*, *blocks implementation?*
+
+- **[Medium] The risk register is missing subscription lifecycle and governance risks.** §6.4 covers backpressure and lock safety, but not who can create subscriptions, max watch roots/globs, min timer interval, cleanup on session end, resume behavior, or how orphaned watches are reclaimed. Those are especially important for U1/U2/U4 because the producer layer lives in `happy-cli` and can leak work even if codex-side delivery is correct. **Fix:** add one risk/decision item covering **subscription ownership, quotas, teardown, and persistence semantics**.
+
+### Ordering
+
+- **[Medium] The proposed order is backwards for de-risking.** §5.c correctly notes that the **same producer code** can ship immediately behind a long-poll MCP tool with **zero codex patching**, yet §7 recommends starting with the codex bridge first. That makes the riskiest dependency mandatory before validating the watchers themselves. **Fix:** reorder to: **Stage 0 = producer MCP server + long-poll tool for U1/U2/U4**, then only do **Stage A bridge** if passive between-turn wake is still worth the upstream seam.
+
+### Simplicity
+
+- **[Medium] The five-option comparison is sound overall, but the recommendation underweights the simplest viable path it already identified.** The doc’s own analysis makes 5.c the best near-term proof point, while 5.a is the best long-term architecture. The recommendation should reflect that instead of jumping straight to 5.a as the “smallest viable subset.” **Fix:** rename the recommendation to a **phased path**: “prove producers with 5.c, then add 5.a only for passive push.”
+
+### Acceptance Criteria Quality
+
+- **[Medium] The success criteria are still too fuzzy for an autonomous follow-up plan.** “Cover all four use cases” is not testable given the current U3 ambiguity, and there are no per-use-case pass/fail statements. **Fix:** add explicit acceptance bullets per use case, e.g. “git main ref change emits exactly one filtered event,” “fs watcher ignores `.git/` and build artifacts by default,” “timer minimum cadence enforced,” and “U3 passive notify is either implemented or explicitly deferred.”
+

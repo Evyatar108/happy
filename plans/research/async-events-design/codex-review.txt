@@ -1,0 +1,22 @@
+No Critical findings. High/Medium findings:
+
+- [High] The Claude Code source root is wrong. The doc cites `C:/harness-efforts/claude-code/worktrees/main/...`, but the files exist locally under `D:/harness-efforts/claude-code/worktrees/main/...`. The cited line ranges I checked are mostly accurate once the drive is corrected, but as written the citations do not resolve.  
+  Fix: replace all `C:/harness-efforts/claude-code/...` citations with `D:/harness-efforts/claude-code/...`.
+
+- [High] The recommendation is internally inconsistent about producer hosting. §6 and the TL;DR lean on “in-process duplex transport,” but happy-cli’s current MCP path is a Node stdio bridge launched from [runCodex.ts](D:/harness-efforts/codexu/packages/happy-cli/src/codex/runCodex.ts:693) and implemented in [happyMcpStdioBridge.ts](D:/harness-efforts/codexu/packages/happy-cli/src/codex/happyMcpStdioBridge.ts:14). Codex’s in-process transport is only used for Rust built-in MCP servers via [rmcp_client.rs](D:/harness-efforts/codexu/codex/external/repos/codex-patched/codex-rs/codex-mcp/src/rmcp_client.rs:575) and [builtin.rs](D:/harness-efforts/codexu/codex/external/repos/codex-patched/codex-rs/codex-mcp/src/builtin.rs:21).  
+  Fix: make Ciii the actual recommendation throughout, or explicitly add a Rust built-in MCP server task.
+
+- [High] The push design lacks a concrete async-event wire schema. Bridging Codex’s existing MCP notifications only gives fixed handlers like `on_progress`, `on_resource_updated`, and `on_logging_message` in [logging_client_handler.rs](D:/harness-efforts/codexu/codex/external/repos/codex-patched/codex-rs/rmcp-client/src/logging_client_handler.rs:49). It does not define how `gitRefUpdated` or `fsChanged` is encoded, authenticated, subscribed, or distinguished from ordinary MCP logging.  
+  Fix: define a `codexu/async-events` capability plus exact notification payload, or explicitly reserve `notifications/message` with a strict `{kind, eventId, source, subscriptionId, payload}` envelope and never forward arbitrary logs as prompts.
+
+- [High] The “A0 + A1 covers all four use cases” claim is not true for U3 as written. §6.2 maps U3 to existing `wait_agent`, while passive sibling completion is deferred to A2. `wait_agent` is explicit blocking behavior, not passive subscription; its v2 result is only `message`/`timed_out` in [wait.rs](D:/harness-efforts/codexu/codex/external/repos/codex-patched/codex-rs/core/src/tools/handlers/multi_agents_v2/wait.rs:114).  
+  Fix: either narrow U3 v1 acceptance to “explicit wait only,” or include A2 in the v1 recommendation.
+
+- [Medium] U4’s implementation claim depends on `chokidar`, but `packages/happy-cli/package.json` has no direct `chokidar` dependency, and the existing [startFileWatcher.ts](D:/harness-efforts/codexu/packages/happy-cli/src/modules/watcher/startFileWatcher.ts:5) watches one file via `fs/promises.watch`.  
+  Fix: add `chokidar` as a direct dependency with Windows tests, or change the design to use existing primitives and explicitly call out their non-recursive/single-file limits.
+
+- [Medium] Replay is underspecified. “Persist last-event-id” is not enough for filesystem events unless the producer also persists an event queue or can reconstruct changes from snapshots. Git refs and timers can be recomputed; arbitrary file create/delete storms generally cannot.  
+  Fix: add per-producer replay semantics: git = ref SHA compare, timer = missed schedule calculation, fs = best-effort snapshot diff or no replay.
+
+- [Medium] The risk register misses lifecycle cleanup. The design adds long-lived watchers/timers per session, but does not specify stop behavior on session close, Codex backend restart, MCP disconnect, or Happy reconnect.  
+  Fix: add a risk and acceptance item requiring watcher teardown through the same lifecycle that stops `happyServer.stop()` in [runCodex.ts](D:/harness-efforts/codexu/packages/happy-cli/src/codex/runCodex.ts:494).

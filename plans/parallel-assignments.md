@@ -564,7 +564,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `codex-upstream-rebase` 🔄 | Periodic — rebase codex submodule on openai/codex | ⬜ first run pending | — |
 | `agent-view-research` | Research Claude Code's agent-view feature | ✅ landed 2026-05-14 | — (research-only; output `plans/agent-view-research.md`) |
 | `agent-tree-rpc` 🤖 | App-server RPC for codex live spawn tree | 🟡 in progress | — |
-| `session-parent-link` 🤖 | Add parentSessionId + spawnedChildren to Session metadata | ✅ shipped | this commit |
+| `session-parent-link` 🤖 | Add parentSessionId + spawnedChildren to Session metadata | ✅ shipped | 11c3eafb |
 | `mobile-tree-view` 🤖 | Tree-style session list with depth indentation | ⬜ blocked on session-parent-link | — |
 | `session-role-pill` 🤖 | Flavor + model + permission-mode pills in session row | 🟡 in progress | — |
 | `spawn-from-app` 🤖 | "Spawn child session" affordance + RPC | ⬜ blocked on session-parent-link | — |
@@ -574,7 +574,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `channels-research` | Research Claude Code "channels" + codex 2-way MCP plan | ✅ done — `plans/channels-research.md` (2026-05-13) | — |
 | `mcp-server-notifications` | Stage A from channels-research: bridge rmcp notifications + sampling into codex agent event loop, feature-gated | ⬜ not started | — |
 | `codex-channels` | Stage B from channels-research: `experimental["codex/channel"]` envelope + prompt-queue policy | ⬜ deferred — operator decision before scoping | — |
-| `async-events-design` | Design async event listening for agents | 🟡 in progress | — |
+| `async-events-design` | Design async event listening for agents | ✅ landed 2026-05-14 | — (research-only; output `plans/async-events-design.md`) |
 | `native-agent-parity` | Research codex parity with Claude Code's native subagents | ✅ landed 2026-05-14 | — (research-only; output `plans/native-agent-parity.md`) |
 | `port-explorer-prompt` 🤖 | Fill empty `explorer.toml` stub | 🟡 in progress | — |
 | `port-plan-and-verification-roles` 🤖 | Add `plan.toml` + `verification.toml` built-ins | ⬜ blocked on §6 operator decisions | — |

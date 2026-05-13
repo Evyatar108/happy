@@ -1,0 +1,99 @@
+**Codebase Architecture**
+
+`codexu` is a pnpm monorepo with TypeScript/Node packages plus a vendored Codex Rust tree:
+
+- `packages/happy-cli/`: local daemon/CLI that launches Claude or Codex, bridges session events, starts local MCP servers, and talks to `happy-server`.
+- `packages/happy-server/`: Fastify + Socket.IO server, with event fan-out and replay via `sources/app/events/eventRouter.ts`.
+- `packages/happy-app/`: Expo/React Native client.
+- `packages/happy-wire/`: shared event/session protocol types.
+- `codex/external/repos/codex-patched/`: vendored Codex Rust implementation. Per roadmap, this should be treated read-only/minimize-conflict-surface.
+- `codex/codex-rs-overlay/`: preferred place for future Codex-adjacent overlay work.
+
+Build tooling is pnpm 10.x for TS packages. Codex itself is Rust/Cargo. The existing `happy-cli` Codex path uses Codex’s app-server client plus a local Happy MCP bridge.
+
+**Feature-Relevant Code**
+
+Codex MCP support is the most relevant foundation.
+
+- `plans/channels-research.md`: already identifies the important missing piece: Codex’s rmcp client receives server notifications but does not surface them to the agent event loop. Proposed follow-up is `EventMsg::McpServerNotification`.
+- `codex/external/repos/codex-patched/codex-rs/rmcp-client/src/logging_client_handler.rs`: MCP notifications like resource updates, tool list changes, logging messages are currently logging-only.
+- `codex/external/repos/codex-patched/codex-rs/codex-mcp/src/connection_manager.rs`: `McpConnectionManager::new` already receives `tx_event: Sender<Event>`, which is the natural bridge point.
+- `codex/external/repos/codex-patched/codex-rs/codex-mcp/src/elicitation.rs`: precedent for turning an MCP callback into `EventMsg::ElicitationRequest`.
+
+Codex hooks exist, but they are synchronous lifecycle/tool taps, not async subscriptions.
+
+- `codex/external/repos/codex-patched/codex-rs/config/src/hook_config.rs`: hook events include `PreToolUse`, `PostToolUse`, `SessionStart`, `UserPromptSubmit`, `Stop`, etc.
+- `codex/external/repos/codex-patched/codex-rs/core/src/hook_runtime.rs`: runs hooks around known Codex events. Useful for in-session triggers, not “wake me when external X happens”.
+
+Inter-agent plumbing already has partial support.
+
+- `codex/external/repos/codex-patched/codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs`: sibling agent spawn path.
+- `.../message_tool.rs`: `send_message` queues inter-agent communication.
+- `.../wait.rs`: `wait_agent` waits for mailbox changes, but only as an explicit blocking tool call.
+- `codex/external/repos/codex-patched/codex-rs/core/src/agent/mailbox.rs`: mailbox is unbounded and not persistent.
+- `codex/external/repos/codex-patched/codex-rs/protocol/src/protocol.rs`: `InterAgentCommunication { ..., trigger_turn }`.
+
+Happy’s Codex integration is the practical place for v0 behavior.
+
+- `packages/happy-cli/src/codex/runCodex.ts`: starts Codex app-server client, maps Codex events into Happy session envelopes, starts Happy MCP bridge, and drives `sendTurnAndWait`.
+- `packages/happy-cli/src/codex/codexAppServerClient.ts`: handles app-server notifications and unknown notification logging.
+- `packages/happy-cli/src/claude/utils/startHappyServer.ts`: current local MCP server only exposes `change_title`.
+- `packages/happy-cli/src/codex/happyMcpStdioBridge.ts`: exposes Happy MCP tools to Codex over stdio.
+
+Server-side event routing is useful for cross-session/operator fan-out.
+
+- `packages/happy-server/sources/app/events/eventRouter.ts`: persistent update events, ephemeral events, rooms, filters, replay buffer.
+- `packages/happy-server/sources/app/api/socket.ts`: replay on reconnect via `lastSeenSeq`.
+- `packages/happy-server/sources/app/api/socket/rpcHandler.ts`: Socket.IO RPC mechanism with timeout/reconnect behavior.
+
+Existing file-watch precedent is limited.
+
+- `packages/happy-cli/src/modules/watcher/startFileWatcher.ts`: wraps `fs/promises.watch` for a single file and restarts after errors.
+- `packages/happy-cli/src/modules/watcher/awaitFileExist.ts`: polling helper.
+
+Claude Code has more of this already.
+
+- `C:/harness-efforts/claude-code/worktrees/main/src/services/mcp/channelNotification.ts`: `notifications/claude/channel`, gated by capability `experimental["claude/channel"]`.
+- `.../useManageMCPConnections.ts`: channel notifications enqueue prompt messages with `priority: "next"`.
+- `.../tools/SleepTool/prompt.ts`: SleepTool polls/wakes and emits tick prompts.
+- `.../utils/cronScheduler.ts` and scheduled-task hooks: scheduled tasks enqueue prompts.
+- No general “wait for arbitrary X” primitive was found; Claude has channels, sleep/ticks, cron, and hooks.
+
+**Technical Constraints**
+
+`codex/external/repos/codex-patched/` should remain read-only for this planning effort and minimized for future implementation. Anything requiring Codex protocol/event-loop changes has higher conflict cost than a `happy-cli` overlay or local MCP server.
+
+Current Codex MCP notifications do not wake the model. Until `EventMsg::McpServerNotification` lands, MCP server-push is not enough by itself.
+
+Long-poll MCP tools are implementable now, but they occupy a tool call/model turn while waiting. That is acceptable for explicit requests like “wake me when main changes”, but it is not passive background delivery.
+
+Codex hooks cannot observe arbitrary external events. They can enrich or block existing turn/tool lifecycle moments only.
+
+`wait_agent` is scoped to Codex’s in-process mailbox and waits for mailbox changes, not typed subscriptions such as “this sibling finished” or “this sibling asked me a question”. Mailboxes are not durable.
+
+`happy-server` has replay for persistent update events, but ephemeral events are not replayed. Async-event delivery needs an explicit durability choice: TTL queue, cursor replay, or best-effort only.
+
+File-system and git events need debounce plus confirmation. Watching `.git` alone can false-wake; robust git subscriptions should verify refs with `git rev-parse`, and remote push detection needs either fetch/polling or remote ref polling.
+
+**Implementation Suggestions**
+
+The pragmatic v0 is a `happy-cli`-owned async event hub exposed through MCP long-poll tools. This avoids Codex upstream edits and covers all four required use cases.
+
+Suggested shape:
+
+- Event sources live in `happy-cli`: git ref watcher/poller, periodic scheduler, filesystem watcher, inter-agent/session event inbox.
+- MCP tools exposed through the existing Happy MCP path:
+  - `async_events_subscribe({ kinds, filters, ttl })`
+  - `async_events_wait({ subscriptionId, timeoutMs, afterEventId })`
+  - `async_events_list({ afterEventId })`
+- Events should have stable ids, kind, source, cwd/session id, created timestamp, payload, and replay TTL.
+- Git event implementation should debounce `.git` changes and confirm the target ref changed. For “commit lands on main”, compare old/new `git rev-parse main`; for forward-only semantics, use `git merge-base --is-ancestor old new`.
+- Periodic tasks can be implemented in `happy-cli` as scheduler-generated events first, then later unified with any existing server/task scheduler.
+- Inter-agent completion/question can initially bridge from Codex multi-agent mailbox/session events where available, and from `happy-server` RPC/event routing for cross-session cases.
+- Filesystem events should be limited to cwd/allowlisted paths, debounced, and normalized to avoid noisy recursive storms.
+
+Longer term, the cleaner passive model is to land `mcp-server-notifications` from `plans/channels-research.md`: map MCP server notifications into Codex `EventMsg`, then eventually support a channel-like prompt queue similar to Claude’s `experimental["claude/channel"]`.
+
+Recommended design direction for `plans/async-events-design.md`: hybrid.
+
+Use long-poll MCP as the smallest viable subset now. Use Codex hooks only for in-session lifecycle/tool triggers. Use MCP server notifications/channels later for true passive wake and cross-session prompts. Surface to the operator before follow-up implementation: whether v0 should be explicit wait-only or prompt-injecting, event retention policy, watched-path/security policy, and whether Codex upstream patches are acceptable for passive delivery.
