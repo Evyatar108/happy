@@ -239,3 +239,22 @@ tokens server-side and exposes only a same-site session cookie to the SPA.
 - Sprint A `jti` replay protection is process-local in memory. Tests that
   compare fresh claims must not restart the server between assertion
   connections. Durable replay protection remains deferred to Sprint E.
+
+## R-D18 path (b) implementation log
+
+Sprint E resolves R-D18 with private Dev Tunnels plus an explicit gateway-auth
+carrier:
+
+- `X-Tunnel-Connect` carries the Dev Tunnels connect token to the gateway.
+- `X-Tunnel-Authorization` carries the signed Happy claim to happy-server.
+- happy-app obtains connect tokens through `sources/sync/tunnelProvider.ts`
+  and refreshes them through `sources/auth/connectTokenRefresh.ts` before
+  pre-pair and post-pair tunnel calls.
+- happy-agent obtains connect tokens through `ClientTunnelProvider` and
+  persists refreshed token fields in its machine credentials.
+- happy-server only allow-lists the header for CORS; it does not authorize the
+  Dev Tunnels token itself.
+
+No anonymous Dev Tunnels access is part of the production path. The BOOX
+operator smoke evidence for private-tunnel pairing is recorded in
+`docs/validation/devtunnels-boox-result.md` during Sprint E US-E5.

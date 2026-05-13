@@ -2,16 +2,16 @@
 
 Audience: developers working on Happy's daemon, server, agent, and app transport layers.
 
-This document records the Sprint A target contract for the Dev Tunnels migration. Sprints A, B, C, and D have all landed: Sprint A documented the contract and supporting guardrails, Sprint B deleted handler-side RPC encryption in happy-cli, Sprint C deleted caller-side RPC encryption in happy-agent, and Sprint D deleted the remaining caller-side encryption and the X25519 session-key derivation path in happy-app. The X25519 per-message RPC layer is now fully removed end-to-end across happy-cli, happy-agent, and happy-app. The only remaining known production-readiness gap is R-D18 (public Dev Tunnels reachability): Sprint A's production tunnel-creation path does not currently invoke `--allow-anonymous`, so production rollout depends on one of the three R-D18 resolution paths (a/b/c) tracked in `packages/happy-app/scripts/sprint-a-gap.md`.
+This document records the current Dev Tunnels security contract. Sprints A through E have landed the signed Happy claim envelope, removed the transitional JWT fallback, deleted the X25519 RPC payload encryption layer, and resolved R-D18 with path (b): private Dev Tunnels plus an explicit `X-Tunnel-Connect` gateway-auth header.
 
 ## Trust Model
 
 The Dev Tunnels design uses two layers:
 
-- Transport: Microsoft Dev Tunnels TLS protects bytes in flight between clients and the user's daemon listener.
-- Identity: Happy's tunnel-claim JWT identifies the Happy account and machine authorization context for the request.
+- Transport: Microsoft Dev Tunnels TLS protects bytes in flight between clients and the user's daemon listener. Private tunnel access is authenticated to the gateway with `X-Tunnel-Connect`.
+- Identity: Happy's signed tunnel claim identifies the Happy account and machine authorization context for the request.
 
-The tunnel claim is the Happy authorization artifact. It is issued by `/pair/status`, signed by the daemon's embedded server, and verified by tunnel-facing routes and Socket.IO handshakes. Sprint A extends that claim with optional `accountId` while preserving compatibility with older claims.
+The tunnel claim is the Happy authorization artifact. It is issued by `/pair/status`, signed by the daemon's embedded server, and verified by tunnel-facing routes and Socket.IO handshakes. The accepted payload shape is `{ sub, iat, exp, jti, accountId? }` with a one-hour maximum lifetime and an in-memory replay cache keyed by `jti`.
 
 Trusted parties:
 
@@ -23,6 +23,42 @@ Untrusted parties:
 
 - The public network between clients and the Dev Tunnels edge.
 - Other clients without a valid Happy tunnel claim or loopback capability.
+
+## Claim Envelope Contract
+
+Happy claims are base64url-encoded envelopes:
+
+```json
+{
+  "p": "base64url({ sub, iat, exp, jti, accountId? })",
+  "s": "hex(ed25519-signature)"
+}
+```
+
+`verifyTunnelClaim()` verifies the Ed25519 signature, requires `sub` to match the embedded server's local user id, enforces `exp`, and rejects replayed `jti` values from the process-local cache. Dev Tunnels JWTs are not accepted as Happy authorization and no fallback parser remains.
+
+## Gateway Auth: R-D18 Path (b)
+
+Sprint E implements R-D18 path (b): all private-tunnel HTTP and Socket.IO callers carry a Dev Tunnels connect token separately from the Happy claim.
+
+- `X-Tunnel-Connect` is consumed by the Dev Tunnels gateway.
+- `X-Tunnel-Authorization` is consumed by happy-server.
+- happy-app obtains connect tokens from `DevTunnelsClientProvider.getConnectToken(tunnelId)` through its local provider implementation.
+- happy-agent obtains connect tokens from the same provider contract and persists refreshed token fields in its machine credentials.
+
+The server does not authorize `X-Tunnel-Connect`; it only includes the header in HTTP and Socket.IO CORS allow-lists so web clients can reach private tunnels.
+
+## Production Owner Gate
+
+`HAPPY_TUNNEL_GITHUB_OWNER` is mandatory when `NODE_ENV=production`. If it is unset, `/pair/status` returns `503 { error: "happy_tunnel_github_owner_unset" }`. If it is set and the paired GitHub login differs, `/pair/status` returns `403`. This gate binds a self-hosted production server to the operator-owned GitHub identity that owns the private tunnel.
+
+## Web TokenStorage Threat Model
+
+Native happy-app stores credentials in `expo-secure-store`. On web, `sources/auth/tokenStorage.ts` stores `devTunnelsAccess` and per-machine tunnel credentials in `localStorage`. That is an accepted trade-off for the single-user self-host posture: the operator controls the browser environment, the app does not mix untrusted third-party scripts into its origin, and XSS is out of scope. If the fork ever ships a public multi-user web build, this must be revisited with session-only tokens or a backend-for-frontend that holds tokens server-side.
+
+## Encryption Posture
+
+Happy now relies on TLS plus Dev Tunnels gateway auth plus the signed Happy claim. The removed X25519 RPC-layer encryption is not part of the current transport contract. Message bodies, metadata, and state fields can still be encrypted at the application layer where existing session sync requires it, but RPC params and responses are plaintext JSON over the authenticated tunnel.
 
 ## RPC Payload Contract: Option A
 

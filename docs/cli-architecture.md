@@ -25,8 +25,8 @@ graph TB
         TunnelFile[tunnel.json]
         ServerKeyPub[server-key.pub]
         ServerKeyPriv[server-key.priv]
-        EcdhPub[ecdh-key.pub]
-        EcdhPriv[ecdh-key.priv]
+    EcdhPub[ecdh-key.pub]
+    EcdhPriv[ecdh-key.priv]
         Logs[logs/]
     end
 
@@ -136,7 +136,7 @@ Local state lives under `~/.happy` (or `HAPPY_HOME_DIR`):
 - `machine.json`: embedded `happy-server` loopback port and last-known `tunnelUrl`.
 - `tunnel.json`: Dev Tunnel record (`tunnelId`, `tunnelName`, `tunnelUrl`, `createdAt`, optional `refreshedAt`).
 - `server-key.pub` / `server-key.priv`: long-term Ed25519 keypair that defines this machine's TOFU identity. The SHA-256 fingerprint of the public key is what mobile clients pin on first pair.
-- `ecdh-key.pub` / `ecdh-key.priv`: long-term X25519 keypair used for the ECDH session-key handshake with mobile clients (generated via `tweetnacl.box.keyPair()` — separate from Ed25519, no edwards-to-montgomery conversion).
+- `ecdh-key.pub` / `ecdh-key.priv`: legacy TOFU public-key material still surfaced for compatibility; RPC payload encryption is no longer derived from it.
 - `logs/`: CLI/daemon logs.
 
 The `~/.happy` directory itself is created with mode `0700`. All four key files are written `0600` on POSIX and locked down via `icacls` on Windows.
@@ -161,8 +161,8 @@ graph TB
         Socket[Socket.IO]
     end
 
-    Base --> |POST /v1/sessions| HTTP
-    Base --> |POST /v1/machines| HTTP
+    Base --> |session HTTP| HTTP
+    Base --> |self/machine HTTP| HTTP
 
     Session --> |session-scoped| Socket
     Machine --> |machine-scoped| Socket
@@ -171,10 +171,7 @@ graph TB
 ```
 
 ### HTTP
-`ApiClient` (`src/api/api.ts`) handles:
-- Session creation (`POST /v1/sessions`) with encrypted metadata/state.
-- Machine registration (`POST /v1/machines`) with encrypted metadata/daemon state. Machine metadata now includes the `tunnelUrl` so other clients can discover this machine's public endpoint.
-- Other CRUD actions through `ApiSessionClient` and `ApiMachineClient`.
+`ApiClient` (`src/api/api.ts`) handles session HTTP calls with encrypted metadata/state and wires tunnel-authenticated clients for the embedded server. The server-side machine directory was removed in Sprint E; machine discovery now comes from locally persisted Dev Tunnel credentials and `/v2/me/machine`, while daemon state flows through the Socket.IO machine scope.
 
 ### WebSocket
 
@@ -203,6 +200,15 @@ graph LR
 - Updates machine metadata/daemon state with optimistic concurrency.
 - Receives machine updates and merges them locally.
 
+### Authentication And Gateway Access
+
+CLI and daemon traffic uses two independent credentials when crossing a private Dev Tunnel:
+
+- `X-Tunnel-Connect` is the Dev Tunnels connect token obtained through `ClientTunnelProvider.getConnectToken(tunnelId)`.
+- `X-Tunnel-Authorization` is the signed Happy tunnel claim minted by `/pair/status` and verified by happy-server.
+
+`src/tunnel/tunnelManager.ts` creates private tunnels and must not add anonymous access flags. The app and happy-agent refresh connect tokens and Happy claims before tunnel HTTP/Socket.IO calls.
+
 ### Encryption
 
 ```mermaid
@@ -223,9 +229,11 @@ flowchart LR
 The CLI encrypts client content before it leaves the machine using `src/api/encryption.ts`.
 - Session metadata, agent state, messages, machine state, artifacts, and KV values are encrypted client-side.
 - On-wire encoding is base64; see `encryption.md`.
-- The session content key is established with mobile clients via the X25519 ECDH handshake using `ecdh-key.{pub,priv}`.
+- RPC params and responses are plaintext JSON over TLS plus Happy claim auth. Session content encryption remains for message bodies, metadata, and state fields.
 
 ## Daemon architecture
+
+Session fan-out uses `src/daemon/spawnInWorktree.ts` for transactional worktree creation and process launch. The transaction record tracks worktree creation, process spawn, and session registration so crash recovery can roll back partial spawns without leaving orphan worktrees.
 
 ```mermaid
 graph TB

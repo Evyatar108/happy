@@ -125,9 +125,9 @@ sources/
 
 ### Key Architectural Patterns
 
-1. **Authentication Flow**: GitHub device flow discovers Dev Tunnels machines, then `/pair/start` and `/pair/status` mint tunnel claims.
-2. **Data Synchronization**: HTTP and Socket.IO calls authenticate with fresh plaintext tunnel claims; reconnects create replacement sockets instead of reusing stale claims.
-3. **Credential Storage**: `TokenStorage` stores a nullable primary machine id, per-machine tunnel credentials, and top-level Dev Tunnels OAuth access.
+1. **Authentication Flow**: GitHub device flow discovers Dev Tunnels machines, then `/pair/start` and `/pair/status` mint tunnel claims. Before private-tunnel calls, `sources/sync/tunnelProvider.ts:getConnectToken()` obtains the Dev Tunnels connect token used as `X-Tunnel-Connect`.
+2. **Data Synchronization**: HTTP and Socket.IO calls authenticate with fresh Happy tunnel claims in `X-Tunnel-Authorization` and Dev Tunnels connect tokens in `X-Tunnel-Connect`; reconnects create replacement sockets instead of reusing stale claims.
+3. **Credential Storage**: `TokenStorage` stores a nullable primary machine id, per-machine tunnel credentials/connect-token fields, and top-level Dev Tunnels OAuth access.
 4. **State Management**: React Context for auth state, custom reducer for sync state
 5. **Platform-Specific Code**: Separate implementations for web vs native when needed
 

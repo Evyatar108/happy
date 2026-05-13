@@ -47,6 +47,7 @@ Happy CLI (`handy-cli`) is a command-line tool that wraps Claude Code to enable 
 ### Dev Tunnels
 - `src/tunnel/tunnelManager.ts` owns Microsoft Dev Tunnel CLI calls. Keep subprocess access injectable through `CommandRunner`/`ProcessSpawner` so renewal and reuse behavior can be unit-tested without creating real tunnels.
 - The Dev Tunnels CLI uses `--port-number` for both `devtunnel port create` and `devtunnel host`; `--port` is not accepted by current Windows builds.
+- Tunnels are private by default. Do not add anonymous-access flags in production code; Sprint E path (b) uses `X-Tunnel-Connect` from Dev Tunnels connect tokens for gateway auth and keeps `X-Tunnel-Authorization` for the Happy claim consumed by happy-server. See `docs/security-model.md` for the security rationale.
 
 ## Architecture & Key Components
 

@@ -16,7 +16,7 @@ This is server-side only. CLI client migration will happen separately. Existing 
 - **Current write**: Socket.IO `message` event in `socket/sessionUpdateHandler.ts` — single message at a time with `AsyncLock`
 - **Event broadcasting**: `eventRouter.emitUpdate()` sends `new-message` updates to Socket.IO clients
 - **Existing cursor pattern**: `GET /v2/sessions` uses ID-based cursor — we'll follow a similar pattern but use `seq`
-- **Existing batch pattern**: KV store `POST /v1/kv` does atomic batch mutations — good reference
+- **Existing batch pattern**: KV store `POST [deleted key-value route]` does atomic batch mutations — good reference
 
 ## Development Approach
 - **Testing approach**: Regular (code first, then tests)

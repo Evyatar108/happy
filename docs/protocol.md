@@ -10,19 +10,19 @@ This document describes the Happy wire protocol as implemented in `packages/happ
 ## Protocol design motivations
 The protocol is designed to stay minimal, explicit, and resilient under intermittent connectivity. A few guiding principles shape naming, payloads, and versioning:
 
-- **Small surface area over completeness.** Routes and events exist only when they provide a clear sync primitive (e.g., sessions, artifacts, KV). If a capability can be expressed as data within an existing primitive, it should be.
+- **Small surface area over completeness.** Routes and events exist only when they provide a clear sync primitive. If a capability can be expressed as data within an existing primitive, it should be.
 - **Explicit event types and short keys.** Update payloads use `t` for the event type and concise field names (`sid`, `id`, `seq`) to keep message size down without hiding meaning. These names are stable because they are used across clients.
-- **Separation of persistent vs. ephemeral.** Anything that must be recoverable after reconnect is an `update` event with a sequence number. Presence and usage are `ephemeral` to avoid state confusion and minimize storage.
+- **Separation of persistent vs. ephemeral.** Anything that must be recoverable after reconnect is an `update` event with a sequence number. Presence is `ephemeral` to avoid state confusion and minimize storage.
 - **Monotonic ordering at the user level.** `UpdatePayload.seq` is a single per-user counter. This makes client reconciliation simple: apply updates in order and you are consistent for that user.
-- **Optimistic concurrency by default.** Versioned fields (metadata, agent state, artifact parts, access keys, KV) require `expectedVersion`. This prevents silent overwrites and keeps conflict resolution client-driven.
-- **Client-side encryption boundaries.** The server never needs to understand plaintext. The protocol therefore treats most payloads as opaque strings or base64 blobs, which keeps server logic simple and privacy guarantees strong.
-- **Backward compatibility over breaking changes.** New routes/events are added rather than mutating existing shapes in incompatible ways. When dual behavior is needed (e.g., machines), the server emits both old and new updates.
+- **Optimistic concurrency by default.** Versioned fields such as session metadata, agent state, and machine state require `expectedVersion`. This prevents silent overwrites and keeps conflict resolution client-driven.
+- **Client-side encryption boundaries.** Message bodies, metadata, and state fields remain encrypted client-side. RPC params and responses are plaintext JSON over TLS plus Happy claim auth.
+- **Backward compatibility where it serves live clients.** Sprint E intentionally removed obsolete route/event families whose callers had already moved to the Dev Tunnels architecture.
 - **Avoid full REST verbs.** Reads are primarily `GET`, while writes/actions are primarily `POST`, with `DELETE` used when the intent is unambiguous. We avoid the full REST palette because many mutations are not cleanly tied to a single entity or involve more than CRUD logic. Keeping to `GET` + `POST` (plus occasional `DELETE`) makes the client simpler and the protocol clearer.
 
 If a new protocol field or event is proposed, it should answer: does this create a durable sync primitive, or can it be encoded inside existing encrypted payloads without expanding the API surface?
 
 ## Authentication
-The embedded `happy-server` runs per machine and is reached over a Microsoft Dev Tunnel. Mobile clients authenticate to the tunnel by presenting a signed Happy tunnel claim — a base64url-encoded envelope `{ p, s }` where `p` is the base64url JSON payload `{ sub, iat, accountId? }` and `s` is the hex Ed25519 signature, issued during pairing and stored in `AuthCredentials.tunnelClaim`. As of Sprint A, the server also accepts a Dev Tunnels connect JWT in the same header (`Authorization: Bearer <jwt>` style), but only if the JWT carries GitHub identity claims; absent identity, the JWT is rejected with `invalid_tunnel_claim` (no synthetic claim is minted). Note: the Dev Tunnels JWT fallback parses + checks expiry only and does NOT verify the JWT signature — coordinated B+C+D cutover removes this transitional path.
+The embedded `happy-server` runs per machine and is reached over a Microsoft Dev Tunnel. Private-tunnel gateway access is authenticated with `X-Tunnel-Connect`. Happy authorization is a separate signed tunnel claim: a base64url-encoded envelope `{ p, s }` where `p` is the base64url JSON payload `{ sub, iat, exp, jti, accountId? }` and `s` is the hex Ed25519 signature, issued during pairing and stored in `AuthCredentials.tunnelClaim`. Dev Tunnels JWT fallback is removed.
 
 The claim is sent on every request as the HTTP header:
 
@@ -30,7 +30,7 @@ The claim is sent on every request as the HTTP header:
 X-Tunnel-Authorization: tunnel <base64url(claim)>
 ```
 
-The server rejects connections that omit the header, present a malformed or non-JSON claim, do not match the local user (`sub`), or carry an `iat` older than 24 hours. End-to-end encryption of payload contents is layered on top of this transport via the per-machine session key derived during pairing; see `encryption.md`. For the HTTP endpoint catalog and pairing flows, see `api.md`.
+The server rejects connections that omit the header, present a malformed or non-JSON claim, do not match the local user (`sub`), exceed the claim expiry, or replay a previously seen `jti`. Payload encryption boundaries are described in `security-model.md`. For the HTTP endpoint catalog and pairing flows, see `api.md`.
 
 ## WebSocket connection
 ### Handshake
@@ -39,6 +39,7 @@ Connect with Socket.IO using:
 ```
 path: "/v1/updates"
 extraHeaders: {
+  "X-Tunnel-Connect": "<dev-tunnels-connect-token>",
   "X-Tunnel-Authorization": "tunnel <base64url(claim)>"
 }
 auth: {
@@ -53,7 +54,7 @@ Clients that cannot set custom WebSocket headers may pass the same value through
 
 Rules enforced server-side:
 - `X-Tunnel-Authorization` (or `auth.tunnelAuthorization`) is required and must start with `tunnel `.
-- The decoded claim must parse as JSON, match the local user `sub`, and have an `iat` no older than 24 hours.
+- The decoded claim must parse as JSON, match the local user `sub`, pass `exp`, and use a fresh `jti`.
 - `session-scoped` requires `sessionId`.
 - `machine-scoped` requires `machineId`.
 
@@ -77,7 +78,7 @@ Persistent sync events. Payload shape:
 ```
 
 #### `ephemeral`
-Transient presence/usage events. Payload shape:
+Transient presence events. Payload shape:
 ```
 {
   type: string,
@@ -111,28 +112,9 @@ Field names below match on-wire payloads.
 - `update-machine`
   - `body`: `{ t: "update-machine", machineId, metadata?, daemonState?, activeAt? }`
 
-- `new-artifact`
-  - `body`: `{ t: "new-artifact", artifactId, seq, header, headerVersion, body, bodyVersion, dataEncryptionKey, createdAt, updatedAt }`
-
-- `update-artifact`
-  - `body`: `{ t: "update-artifact", artifactId, header?, body? }`
-
-- `delete-artifact`
-  - `body`: `{ t: "delete-artifact", artifactId }`
-
-- `relationship-updated`
-  - `body`: `{ t: "relationship-updated", uid, status, timestamp }`
-
-- `new-feed-post`
-  - `body`: `{ t: "new-feed-post", id, body, cursor, createdAt }`
-
-- `kv-batch-update`
-  - `body`: `{ t: "kv-batch-update", changes: [{ key, value, version }] }`
-
 ### Ephemeral event types
 - `activity`: `{ type: "activity", id: sessionId, active, activeAt, thinking? }`
 - `machine-activity`: `{ type: "machine-activity", id: machineId, active, activeAt }`
-- `usage`: `{ type: "usage", id: sessionId, key, tokens, cost, timestamp }`
 - `machine-status`: `{ type: "machine-status", machineId, online, timestamp }`
 
 ### Client -> server WebSocket events
@@ -160,10 +142,6 @@ Field names below match on-wire payloads.
   - `{ sid, time }`
   - Marks session inactive and emits `ephemeral` activity.
 
-- `usage-report`
-  - `{ key, sessionId?, tokens, cost }`
-  - Stores usage report and optionally emits `ephemeral` usage for the session.
-
 - `machine-alive`
   - `{ machineId, time }`
   - Emits `ephemeral` machine-activity.
@@ -175,26 +153,6 @@ Field names below match on-wire payloads.
 - `machine-update-state`
   - `{ machineId, daemonState, expectedVersion }`
   - Response: `{ result: "success", version, daemonState }` or `{ result: "version-mismatch", version, daemonState }`
-
-- `artifact-read`
-  - `{ artifactId }`
-  - Response: `{ result: "success", artifact }` or `{ result: "error", message }`
-
-- `artifact-create`
-  - `{ id, header, body, dataEncryptionKey }`
-  - Response: `{ result: "success", artifact }` or `{ result: "error", message }`
-
-- `artifact-update`
-  - `{ artifactId, header?, body? }` where `header` and `body` include `data` + `expectedVersion`
-  - Response: `{ result: "success", header?, body? }` or `{ result: "version-mismatch", header?, body? }`
-
-- `artifact-delete`
-  - `{ artifactId }`
-  - Response: `{ result: "success" }` or `{ result: "error", message }`
-
-- `access-key-get`
-  - `{ sessionId, machineId }`
-  - Response: `{ ok: true, accessKey? }` or `{ ok: false, error }`
 
 - `rpc-register`
   - `{ method }` -> server emits `rpc-registered`
@@ -211,8 +169,8 @@ See `api.md` for the full HTTP endpoint catalog and auth flows.
 
 ## Sequencing and concurrency
 - `UpdatePayload.seq` is the per-user update sequence (monotonic) used for sync ordering.
-- Sessions, machines, and artifacts have their own `seq` fields used by clients for ordering.
-- Versioned fields (metadata, agentState, daemonState, artifact header/body, access keys, KV) use optimistic concurrency with `expectedVersion` and return a version-mismatch response containing the current version/data.
+- Sessions and machines have their own `seq` fields used by clients for ordering.
+- Versioned fields (metadata, agentState, daemonState) use optimistic concurrency with `expectedVersion` and return a version-mismatch response containing the current version/data.
 
 ## Implementation references
 - API routes: `packages/happy-server/sources/app/api/routes`

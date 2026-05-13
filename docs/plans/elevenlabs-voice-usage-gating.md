@@ -1,7 +1,7 @@
 # ElevenLabs Voice Usage Gating
 
 > **Status: blocked — re-scope required before reactivating.**
-> Sprint D removed the happy-app voice surface this plan targeted (commit `db96a40f`, US-005 / US-D4). The app-side files this plan referenced — `sync/apiVoice.ts`, `realtime/RealtimeSession.ts`, `realtime/RealtimeVoiceSession.tsx`, `realtime/RealtimeVoiceSession.web.tsx`, `realtime/types.ts`, plus the rest of `realtime/` and the voice settings screens — no longer exist. The server-side `/v1/voice/token` route and `ELEVENLABS_API_KEY` plumbing are still present, so the usage-gating contract described below remains potentially valuable as prior art for a future re-implementation. Do not treat the client-side sections as actionable until a new voice surface is designed.
+> Sprint D removed the happy-app voice surface this plan targeted (commit `db96a40f`, US-005 / US-D4). The app-side files this plan referenced — `sync/apiVoice.ts`, `realtime/RealtimeSession.ts`, `realtime/RealtimeVoiceSession.tsx`, `realtime/RealtimeVoiceSession.web.tsx`, `realtime/types.ts`, plus the rest of `realtime/` and the voice settings screens — no longer exist. The server-side `[deleted voice route]` route and `ELEVENLABS_API_KEY` plumbing are still present, so the usage-gating contract described below remains potentially valuable as prior art for a future re-implementation. Do not treat the client-side sections as actionable until a new voice surface is designed.
 
 ## Problem
 
@@ -41,7 +41,7 @@ The repo already assumes ElevenLabs API access exists on the server:
 
 - `packages/happy-server/sources/app/api/routes/voiceRoutes.ts` reads `process.env.ELEVENLABS_API_KEY`.
 - `packages/happy-server/deploy/handy.yaml` extracts `/handy-elevenlabs`.
-- `docs/deployment.md` documents `ELEVENLABS_API_KEY` as required for `/v1/voice/token` in production.
+- `docs/deployment.md` documents `ELEVENLABS_API_KEY` as required for `[deleted voice route]` in production.
 
 The app does not currently have an ElevenLabs API secret. Client config only carries public values such as RevenueCat public keys and ElevenLabs agent IDs.
 
@@ -94,7 +94,7 @@ startRealtimeSession(sessionId, initialContext)
   +--> determine agentId from app config
   |
   v
-POST /v1/voice/token
+POST [deleted voice route]
   Authorization: Bearer <jwt>
   body: { sessionId, agentId }
   |

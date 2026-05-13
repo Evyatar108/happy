@@ -13,7 +13,7 @@ The server owns all usage accounting and token minting. ElevenLabs is the
 source of truth — there is no local DB row per conversation.
 
 ```
-POST /v1/voice/conversations { agentId }
+POST [deleted voice route] { agentId }
 │   (preHandler: app.authenticate)
 │
 ├─ deriveElevenUserId(userId) = "u_" + base64url(HMAC-SHA256(HANDY_MASTER_SECRET, userId))
@@ -34,7 +34,7 @@ POST /v1/voice/conversations { agentId }
 └─ Return { allowed: true, conversationToken, conversationId, agentId,
             elevenUserId, usedSeconds, limitSeconds }
 
-GET /v1/voice/usage
+GET [deleted voice route]
 │   (preHandler: app.authenticate)
 └─ Parallel: getVoiceUsage(...) + hasActiveSubscription(userId)
    → { usedSeconds, limitSeconds, conversationCount, conversationLimit, elevenUserId }

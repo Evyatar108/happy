@@ -1,106 +1,109 @@
 # API
 
-This document covers the HTTP API surface and authentication flows. For WebSocket updates and event payloads, see `protocol.md`. For encryption boundaries and encoding details, see `encryption.md`.
+This document covers the current HTTP and Socket.IO surface after the Dev Tunnels Sprint E cleanup. For event payloads, see `protocol.md`. For transport and threat-model details, see `security-model.md`.
 
-## Method conventions
+## Method Conventions
+
 - **GET** is used for reads.
-- **POST** is used for mutations or actions, even when the operation doesn't map cleanly to a single entity.
-- **DELETE** is used when intent is unambiguous (e.g., removing a token or deleting a session/artifact).
+- **POST** is used for mutations and actions.
+- **PUT** is used for replacing machine-local settings.
+- **DELETE** is used when removal intent is unambiguous.
 
-We intentionally avoid the full REST verb palette because many operations span multiple entities or have non-CRUD semantics.
+The API stays deliberately small. Sprint E removed the legacy artifact, feed, voice, key-value, access-key, user, friends, usage, and machine-directory route modules from happy-server.
 
 ## Authentication
-Most endpoints require `X-Tunnel-Authorization: tunnel <claim>`, where `<claim>` is a base64url-encoded JSON object minted by the embedded happy-server during pairing.
 
-The claim is a base64url-encoded Ed25519-signed envelope `{ p: base64url(payload), s: hex(signature) }` where payload is `{ sub, iat, accountId? }`:
-- `sub` — local machine/user id; must match the embedded server's `localUserId`.
-- `iat` — issued-at, in seconds since epoch. Claims older than 24 hours are rejected.
-- `accountId` — optional GitHub numeric user id derived from the `/pair/status` GitHub user response.
+Tunnel-facing requests authenticate with two distinct headers:
 
-The authenticate hook (`packages/happy-server/sources/app/api/api.ts`) parses the header, validates `sub` against the local server identity, and rejects expired or malformed envelopes with `401`.
+- `X-Tunnel-Connect: <connect token>` authenticates the client to the Microsoft Dev Tunnels gateway for private tunnel access.
+- `X-Tunnel-Authorization: tunnel <claim>` authenticates the request to happy-server after it reaches the embedded server.
 
-Pairing flow (mobile <-> embedded server, replaces the deprecated cloud Bearer flow):
+The Happy claim is a base64url-encoded Ed25519-signed envelope `{ p, s }`. The decoded payload is `{ sub, iat, exp, jti, accountId? }`:
+
+- `sub` is the embedded server's local machine/user id.
+- `iat` and `exp` bound the one-hour claim lifetime.
+- `jti` is single-use within the server's in-memory replay cache.
+- `accountId` is the optional GitHub numeric user id returned during pairing.
+
+`verifyTunnelClaim()` accepts only this signed Happy envelope. Dev Tunnels JWT fallback is removed.
+
+## Pairing Flow
 
 - `GET /pair/start`
-  - Initiates GitHub device flow against the embedded server's GitHub OAuth client.
+  - Starts GitHub device flow against the embedded server's GitHub OAuth client.
   - Response: `{ device_code, user_code, verification_uri, verification_uri_complete?, expires_in, interval }`.
 
 - `POST /pair/status`
-  - Body: `{ device_code, mobileEcdhPublicKey? }`.
-  - Polls GitHub for OAuth completion. Optionally accepts the mobile's X25519 public key to derive the ECDH shared session key (TOFU pinning).
+  - Body: `{ device_code }` plus pairing metadata.
+  - Polls GitHub for OAuth completion, enforces `HAPPY_TUNNEL_GITHUB_OWNER` when configured, and returns machine credentials.
   - Response while pending: `{ status: "pending" }`.
-  - Response when authorized: `{ status: "authorized", githubLogin, machines: [{ machineId, tunnelUrl, ed25519PublicKey, x25519PublicKey, ed25519Fingerprint, tunnelClaim }] }`. The `tunnelClaim` is what mobile sends back in the `X-Tunnel-Authorization` header on subsequent requests.
-  - When `HAPPY_TUNNEL_GITHUB_OWNER` is set, GitHub identities not matching the operator login are rejected with `403`.
+  - Response when authorized: `{ status: "authorized", githubLogin, machines: [...] }` where each machine includes `machineId`, `tunnelUrl`, TOFU public keys, `tunnelClaim`, and the app-carried Dev Tunnels connect token fields.
 
-## Endpoint catalog
-### Sessions
+- `POST /pair/connect`
+  - Completes the machine connect step after the client has accepted the TOFU identity.
+
+In `NODE_ENV=production`, `HAPPY_TUNNEL_GITHUB_OWNER` is mandatory for `/pair/status`. Missing configuration returns `503 { error: "happy_tunnel_github_owner_unset" }`; mismatched GitHub users return `403`.
+
+## Endpoint Catalog
+
+### Pairing
+
+- `GET /pair/start`
+- `POST /pair/status`
+- `POST /pair/connect`
+
+### Self (`/v2/me/*`)
+
+Self routes are mounted on both tunnel and loopback listeners. They expose the paired GitHub identity, local account settings, and the running machine state to embedded clients.
+
+- `GET /v2/me/profile` - returns the paired GitHub profile from local storage.
+- `GET /v2/me/settings` - returns machine-local account settings.
+- `PUT /v2/me/settings` - atomically writes machine-local account settings.
+- `GET /v2/me/machine` - returns the injected machine state, or `503 { error: "machine_state_unavailable" }` when standalone mode has no machine-state provider.
+
+When `options.auth === "tunnel"`, every self route requires a numeric `accountId` claim.
+
+### Sessions And Messages
+
 - `GET /v1/sessions`
 - `GET /v2/sessions/active?limit=...`
 - `GET /v2/sessions?cursor=cursor_v1_<id>&limit=...&changedSince=...`
-- `POST /v1/sessions` (create or load by `tag`)
+- `POST /v1/sessions`
 - `GET /v1/sessions/:sessionId/messages`
 - `POST /v1/sessions/:sessionId/archive`
 - `DELETE /v1/sessions/:sessionId`
 - `GET /v3/sessions/:sessionId/messages?after_seq=...&limit=...`
 - `POST /v3/sessions/:sessionId/messages`
 
-### Machines
-- `POST /v1/machines` (create or load by id)
-- `GET /v1/machines`
-- `GET /v1/machines/:id`
+### Socket.IO
 
-### Self (`/v2/me/*`)
-Self routes are mounted on **both** the tunnel and loopback listeners (unlike `/v1/*` and `/pair/*`, which mount only on the tunnel listener). They expose the paired GitHub identity and the running machine's state to the embedded clients.
+- `/v1/updates` - Socket.IO mount for user, session, and machine scoped realtime updates.
 
-- `GET /v2/me/profile` — returns the paired GitHub profile read from `paths.profile` (defaults to `~/.happy/profile.json`). Responds `404 { error: "profile_not_found" }` when the file is absent.
-- `GET /v2/me/settings` — returns the JSON object stored at `paths.accountSettings` (defaults to `~/.happy/account-settings.json`); returns `{}` when the file does not exist.
-- `PUT /v2/me/settings` — atomically writes the request body to `paths.accountSettings` (temp-file + rename, `0o600` permissions on non-Windows) and echoes the stored value back.
-- `GET /v2/me/machine` — returns the result of the `machineState` getter injected into `createApp()`. Responds `503 { error: "machine_state_unavailable" }` when the getter is not configured (e.g., standalone `createApp()` deployments without a machine state provider) rather than fabricating defaults.
+Socket.IO handshakes carry the same Happy claim as HTTP through either `extraHeaders.X-Tunnel-Authorization` or `auth.tunnelAuthorization`. Private Dev Tunnels access is carried separately with `X-Tunnel-Connect` where the platform can set headers.
 
-When `options.auth === "tunnel"`, every `/v2/me/*` route additionally requires a numeric `accountId` claim and rejects requests without one with `401 { error: "account_id_required" }`.
+### Push Tokens
 
-### Artifacts
-- `GET /v1/artifacts`
-- `GET /v1/artifacts/:id`
-- `POST /v1/artifacts`
-- `POST /v1/artifacts/:id` (versioned update)
-- `DELETE /v1/artifacts/:id`
+Push tokens stay server-owned and per-machine.
 
-### Access keys
-- `GET /v1/access-keys/:sessionId/:machineId`
-- `POST /v1/access-keys/:sessionId/:machineId`
-- `PUT /v1/access-keys/:sessionId/:machineId`
-
-### Key-value store
-- `GET /v1/kv/:key`
-- `GET /v1/kv?prefix=...&limit=...`
-- `POST /v1/kv/bulk`
-- `POST /v1/kv` (batch mutate)
-
-### Push tokens
-Push tokens are stored per-machine (keyed by the embedded server's `localUserId`/`machineId`) and per-device. There is no account scoping in the per-machine architecture; each embedded server owns its own token set and dispatches Expo notifications directly.
-
-- `POST /push/register` — body `{ expoPushToken, deviceId }`
-- `POST /v1/push-tokens` — body `{ token, deviceId? }` (compatibility alias)
-- `DELETE /v1/push-tokens/:token`
-- `GET /v1/push-tokens`
-
-### Users, friends, feed
-- `GET /v1/user/:id`
-- `GET /v1/user/search?query=...`
-- `POST /v1/friends/add`
-- `POST /v1/friends/remove`
-- `GET /v1/friends`
-- `GET /v1/feed`
-
-### Version and voice
-- `POST /v1/version`
-- `POST /v1/voice/token`
+- `POST /push/register` - body `{ expoPushToken, deviceId }`.
+- `POST /v1/push-tokens` - body `{ token, deviceId? }`.
+- `DELETE /v1/push-tokens/:token`.
+- `GET /v1/push-tokens`.
 
 ### Dev-only
-- `POST /logs-combined-from-cli-and-mobile-for-simple-ai-debugging` (only if enabled)
 
-## Implementation references
-- API routes: `packages/happy-server/sources/app/api/routes`
-- Authenticate hook and tunnel claim verification: `packages/happy-server/sources/app/api/api.ts`
+- `POST /logs-combined-from-cli-and-mobile-for-simple-ai-debugging` - registered only when debug logging is enabled.
+
+## Removed Surfaces
+
+Sprint E removed obsolete happy-server modules for artifacts, feed, voice, key-value storage, access keys, usage reports, users, friends, and the server-side machine directory. Their former routes must return 404. Machine state now comes from local daemon state plus `/v2/me/machine`, and remote machine actions use Socket.IO RPC.
+
+## Implementation References
+
+- API wiring: `packages/happy-server/sources/app/api/api.ts`
 - Pairing route: `packages/happy-server/sources/app/api/routes/pairRoutes.ts`
+- Self routes: `packages/happy-server/sources/app/api/routes/accountRoutes.ts` and `packages/happy-server/sources/app/api/routes/machineSelfRoutes.ts`
+- Session routes: `packages/happy-server/sources/app/api/routes/sessionRoutes.ts` and `packages/happy-server/sources/app/api/routes/v3SessionRoutes.ts`
+- Push routes: `packages/happy-server/sources/app/api/routes/pushRoutes.ts`
+- Socket.IO wiring: `packages/happy-server/sources/app/api/socket.ts`
+- Claim verification: `packages/happy-server/sources/app/api/auth/tunnelClaim.ts`

@@ -51,6 +51,7 @@ Current session wire payload shape (decrypted message body):
 ### 3. TOFU handshake schemas
 
 Shared from `@slopus/happy-wire` (re-exported from `tofu.ts`):
+- `MachineTunnelSchema` / `MachineTunnel`: the persisted Dev Tunnels machine descriptor used by app and agent code when discovering locally known machines.
 - `TofuPublicKeysSchema` / `TofuPublicKeys`: the embedded server's pinned long-term keys (`ed25519PublicKey`, `x25519PublicKey`, optional `ed25519Fingerprint`)
 - `TofuPubkeysEventSchema` / `TofuPubkeysEvent`: the `t: 'tofu-pubkeys'` socket event the server emits on connect so mobile can pin keys on first contact
 - `TofuSessionKeyExchangeSchema` / `TofuSessionKeyExchange`: the `t: 'tofu-session-key'` record produced by the X25519 ECDH session-key exchange (`machineId`, `mobileX25519PublicKey`, `serverX25519PublicKey`, `sessionKey`, `firstSeenAt`)
