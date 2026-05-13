@@ -1007,6 +1007,26 @@ without new evidence:
 - **Plugin scoping (host vs agent context) is required new feature.**
   Without it, ralph plugin's skills load inside spawned worker agents
   and create recursion / context bloat.
+- **Phase 1a — codex fork-layout strategy (2026-05-13).** Locked: option
+  (a) from "Decisions still open #1" — stay on `gim-home/codex` +
+  overlay-crate pattern, with opportunistic upstream PRs for pieces
+  openai/codex is likely to want. Concretely: subtree mirror at
+  `codex/external/repos/codex-patched/` (Rust workspace at `codex-rs/`
+  inside it) + overlay crates at `codex/codex-rs-overlay/` (precedents:
+  `codex-copilot`, `codex-copilot-launcher`, `codex-invariant-tests`) +
+  `codex/` submodule pinned to `gim-home/codex`. Cadence is
+  *procedural-only* (stable upstream tags via
+  `codex/scripts/check_subtree_lag.sh`; pull frequency operator-gated,
+  no fixed cadence locked here). The open W-5 RFC in
+  `codex/docs/plans/reduce-conflict-surface.md` (proposal to convert the
+  inner subtree to a submodule) remains open and is NOT resolved by
+  this commit. RPC contract versioning, also referenced in Phase 1a as
+  future work, is NOT part of this commit either. Canonical docs:
+  `codex/docs/implementation/architecture.md` § "Fork strategy",
+  `codex/docs/implementation/patch-surface.md` § 17, and
+  `codex/CLAUDE.md` § "Consumer: codexu". Codex-side commit:
+  `gim-home/codex@1799936`. Companion entry under "Decisions still
+  open #1" links back here.
 
 ## Decisions still open
 
@@ -1015,6 +1035,10 @@ options + default-if-no-decision) at #1, #2, #4, #5, #7; and **open
 questions** (drill-in items requiring research) at #3, #6, #8, #9.
 
 1. **Codex fork strategy.** When: Phase 1a. Owner: user.
+
+   **RESOLVED 2026-05-13** — see § "Decisions made" entry for "Phase 1a
+   — codex fork-layout strategy (2026-05-13)". Chose option (a) with
+   opportunistic (b). Original options retained below for history.
 
    | Option | Action | Trade-off | Default-if-no-decision |
    |---|---|---|---|
