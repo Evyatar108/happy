@@ -443,7 +443,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `perf-WS2` | Realtime perf — placeholder (after WS3) | ⬜ blocked on WS3 | — |
 | `3a-skills` | Phase 3a — Ralph skills port | ⏸ paused (prerequisites not yet met) | — |
 | ~~`F-013-perms`~~ | Claude permission latent override | 🚫 closed (obsolete-by-design) | b5d18eb5 → close-out |
-| `F-015-toast` | Stale-creds toast on cold launch | ⬜ not started | — |
+| `F-015-toast` | Stale-creds toast on cold launch | ⏸ paused (awaiting reproduction) | — |
 | `mcp-discovery` | Codex agent project-.mcp.json parity | 🟡 in progress | — |
 | `codex-parity-audit` | Research: gaps in codex agent feature parity vs Claude | ✅ landed 2026-05-13 | — (research-only; output `plans/codex-agent-parity-audit.md`) |
 | `1a-fork-doc` | Phase 1a — fork strategy commit | 🟡 in progress | — |

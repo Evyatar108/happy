@@ -1348,8 +1348,9 @@
   </details>
 
   <details class="cmd" id="cmd-F-015-toast" data-task-id="F-015-toast">
-    <summary><span class="cmd-name">F-015-toast</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Stale-creds toast on cold launch (happy-app)</span></summary>
+    <summary><span class="cmd-name">F-015-toast</span><span class="cmd-badge b-paused">⏸ paused</span><span class="cmd-desc">Stale-creds toast on cold launch (happy-app) — awaiting next reproduction</span></summary>
     <div class="cmd-body">
+      <div class="cmd-warn">⏸ Paused 2026-05-13 — cosmetic issue not currently observed in operator's launch path; re-fire when the toast surfaces again so we have a fresh repro to scope against.</div>
       <button class="copy-btn">Copy</button>
 <pre class="cmd-pre">/plan-with-ralph "F-015 fix — stale-creds profile-parse error toast surfaces on cold app launch before pair completes (cosmetic). Per .ralph/jobs/devtunnels-E-cleanup/notepad.md F-015 entry — re-read exact text before scoping. Trace: app cold-launches → AuthContext loads persisted creds from TokenStorage → if a persisted profile is in the pre-Sprint-E shape, profileParse throws → an error toast surfaces before the user sees the pair screen. Files likely involved: packages/happy-app/sources/auth/AuthContext.tsx, packages/happy-app/sources/sync/profile.ts (profileParse), packages/happy-app/sources/auth/tokenStorage.ts. Fix: suppress the toast on the pre-pair branch (TokenStorage has no machine credentials yet); silently fall through to the pair screen. Do NOT add a backwards-compat shim to profileParse — per the production-quality-code preference, delete unused shape branches if they exist. Read packages/happy-app/CLAUDE.md sync invariants. Acceptance: cold launch with no creds → pair screen, zero error toast; cold launch with valid post-Sprint-E creds → session list as before; pollutes-MMKV launch (simulate by writing a v1 profile shape) → pair screen, zero toast. Test command: pnpm --filter '{packages/happy-app}' exec vitest run 2&gt;&amp;1 | tee /tmp/codexu-f015.log; reference F-015."</pre>
     </div>
@@ -1896,14 +1897,14 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T06:30:00Z",
-  "generatedFromCommit": "2571a6cd",
+  "generatedAt": "2026-05-14T07:00:00Z",
+  "generatedFromCommit": "d75497da",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
     "3a-skills": "2026-05-13T21:30:00Z",
     "F-013-perms": "2026-05-13T21:00:00Z",
-    "F-015-toast": "2026-05-13T20:00:00Z",
+    "F-015-toast": "2026-05-14T07:00:00Z",
     "mcp-discovery": "2026-05-13T23:30:00Z",
     "codex-parity-audit": "2026-05-13T23:30:00Z",
     "perf-WS2": "2026-05-13T19:30:00Z",
