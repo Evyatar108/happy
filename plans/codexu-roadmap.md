@@ -1137,9 +1137,96 @@ installs themselves are user-scoped.
 
 ### Phase 2 — Codex divergences
 
-Concentrate fork work in
-`C:/harness-efforts/codex/external/repos/codex-patched/`. Phase 2a-b
-are small; 2c-d are real new features.
+Phase 2a-b are small; 2c-d are real new features that land additive
+fork code on top of upstream codex.
+
+#### Phase 2 prerequisite (REQUIRED before any brainstorm or plan) — minimize upstream-canonical conflict surface
+
+Every Phase 2 brainstorm + planning round MUST treat conflict surface
+against `external/repos/codex-patched/codex-rs/` (upstream-canonical
+territory, pulled via `git subtree pull` on every rebase) as a
+first-class design constraint, not an afterthought. The rust-v0.128 →
+rust-v0.129 trial rebase surfaced 297 conflicts across 1151 files
+before the W-1..W-3 mitigations landed; v0.129→v0.130 was 18 after W-1
+and 3 after W-2+W-3. Every new line we author inside the subtree
+recurs as conflict cost on every future upstream pull, *forever*.
+
+**Hard rules for Phase 2 planning agents:**
+
+1. **Default new code to `codex-rs-overlay/`, not `external/repos/codex-patched/codex-rs/`.** The
+   `codex-rs-overlay/` directory is the fork-exclusive crate area
+   (sibling to the subtree). Crates there are NEVER conflict surface.
+   Authoritative pattern: `codex-rs-overlay/codex-copilot-launcher/`
+   and `codex-rs-overlay/codex-invariant-tests/` (W-3 + D-001
+   deliverables from the codex submodule's
+   `docs/plans/reduce-conflict-surface.md`). Plans MUST prefer new
+   crates / new modules in `codex-rs-overlay/` whenever the design
+   admits it — even if it costs a thin trait extension or wrapper in
+   the subtree.
+
+2. **Budget upstream-canonical-file edits explicitly.** Every plan must
+   include an "Upstream-canonical edit budget" table listing each
+   touched file inside `external/repos/codex-patched/codex-rs/` with
+   columns for *why this can't go in overlay*, *expected re-conflict
+   probability per rebase* (Low/Medium/High based on upstream churn
+   rate from `regression-history.md`), and *fallback if upstream
+   refactors this seam away* (re-port plan, not "we'll figure it out").
+   A plan with > 10 upstream-canonical files needs explicit reviewer
+   sign-off, not silent acceptance.
+
+3. **Prefer additive symbol surfaces over inline edits.** When the
+   subtree must be touched, add new symbols (new function, new struct,
+   new trait impl block) over editing existing ones. New symbols
+   collide with upstream only if upstream picks the same name; inline
+   edits collide on every nearby change. When extending existing
+   structs, add fields with `#[serde(default)]` so upstream-canonical
+   construction sites still compile after a rebase even if our
+   initializer site silently drops the field (the silent-drop hazard
+   from `regression-history.md` v0.129+v0.130 rebase narratives).
+
+4. **Every new patch site MUST be registered.** New SANDBOX-PATCH
+   markers, audit-script entries (`scripts/audit_network_calls.sh`'s
+   `KNOWN_PATCH_FILES`), and invariant-check entries
+   (`scripts/audit_invariants.sh`, the 19-invariant inventory in
+   `docs/implementation/patch-surface.md` §14) MUST land in the same
+   PR as the patch. A patch the audit script doesn't know about gets
+   silently dropped by a future merge driver (this happened repeatedly
+   in v0.129; see `regression-history.md` "Silent-drop patches
+   recovered" table). The invariant test must run in
+   `.github/workflows/invariant-check.yml`.
+
+5. **Document the rebase-replant recipe for every patch.** Every
+   upstream-canonical edit must add a row to
+   `codex/docs/implementation/patch-surface.md` §14 (invariant
+   inventory) and §15 (rebase-replant recipes) with a code-pointer
+   exact enough that a rebase agent can find the patch without
+   reading the original PR (`file:line` + the exact 1-2-line marker
+   block, not "see the change near function X").
+
+6. **Upstream-PR what we can.** If a patch is a pure improvement
+   upstream might accept (security hardening, accessibility, generic
+   bug fixes), file an upstream PR in parallel — even if it takes
+   months to merge, every upstream-accepted change is one fewer
+   permanent fork patch. The Phase 2 brainstorm output must list each
+   proposed patch's "upstream-PR-able? y/n + reasoning" alongside the
+   technical design.
+
+**Cross-references (read before brainstorm):**
+- `codex/docs/plans/reduce-conflict-surface.md` — the W-1..W-6
+  workstream that landed the merge-driver + overlay-relocation +
+  invariant-check CI in the codex submodule. Section "Approach"
+  explains why each conflict bucket needs a different mitigation.
+- `codex/docs/implementation/patch-surface.md` §14 (the 19-invariant
+  inventory + which test enforces each) and §15 (rebase-replant
+  recipe template).
+- `codex/docs/implementation/regression-history.md` — the
+  "Silent-drop patches" tables from v0.128.0 / v0.129.0 / v0.130.0
+  rebase entries. New Phase 2 patches WILL hit the same silent-drop
+  trap if they're not registered in the audit script. Read these
+  before designing the registration surface for your patch.
+- `codex/.claude/commands/rebase-upstream.md` — what a rebase agent
+  actually does when reconciling. Your patch must survive this
+  workflow without manual rescue every time.
 
 #### 2a. Verify upstream features end-to-end
 
@@ -1218,7 +1305,43 @@ Loader behavior:
   Threading scope through requires touching session construction +
   `build_hooks_for_config`, NOT `agent/registry.rs` directly.
 
-**Files to modify** (in
+**Conflict-surface requirement for Phase 2c brainstorm + plan.** The
+file list below currently touches **9 upstream-canonical files**
+across `core-plugins/`, `core/`, `plugin/`, `core-skills/`. This is the
+HIGHEST upstream-edit count of any planned Phase 2 work and the
+roadmap flags 2c as "highest-risk" partly for this reason. Per the
+Phase 2 prerequisite above (REQUIRED), the brainstorm MUST evaluate at
+least these alternatives before settling on the inline-edit list:
+
+- **(A) Overlay-first scope filter.** A new `codex-rs-overlay/codex-scope-loader/`
+  crate that wraps `core-plugins::PluginLoader` and applies scope
+  filtering at the boundary. Upstream-canonical files would only need
+  to (i) make `PluginLoader::load` return something the overlay crate
+  can post-process, and (ii) accept the wrapping at session
+  construction. If the upstream API already exposes enough surface,
+  zero subtree edits.
+- **(B) Manifest-only patch + runtime scope gate via session callback.**
+  Add `scope` field to `core-plugins/src/manifest.rs` (one file) and
+  do all filtering in a session-side callback that lives in
+  `codex-rs-overlay/`. Trades cache-correctness work in `manager.rs`
+  for a callback contract; the cache stays unscoped.
+- **(C) Upstream PR for the `scope` field + manifestVersion.**
+  Plugin-scoping is a generic concern (any spawned-agent system has
+  it). Worth an RFC issue against upstream `openai/codex` BEFORE
+  committing to fork-only landing. If accepted, the schema patch
+  evaporates on the next subtree pull.
+- **(D) Current inline approach** — only chosen if A/B/C are rejected
+  with explicit "why these don't work" reasoning in the plan output.
+
+The plan MUST include the "Upstream-canonical edit budget" table from
+the Phase 2 prerequisite for the chosen approach, with re-conflict
+probability per file derived from `regression-history.md` (files
+already named in silent-drop tables get **High**; files in the W-1
+merge-driver allowlist get **Low**; everything else **Medium**). The
+manifestVersion piggyback bullet stays valid in any approach since
+it's a one-file edit either way.
+
+**Files to modify (if approach D is chosen)** (in
 `external/repos/codex-patched/codex-rs/`):
 - `core-plugins/src/manifest.rs` — add `scope` field AND
   `manifestVersion` field (the latter for the upgrade-paths concern in
@@ -1412,7 +1535,55 @@ Result {
 authors use `ask_user_question` for general clarification regardless of
 mode/thread depth.
 
-**Files to author** (in `external/repos/codex-patched/codex-rs/`):
+**Conflict-surface requirement for Phase 2d brainstorm + plan.** Most
+of the ~3500-4500 LOC for `ask_user_question` is NEW content (new
+module, new schema file, new TUI card), which is naturally low
+conflict surface — new files only conflict when upstream picks the
+same path/name. The high-risk surface is the registration + bridging
+edits inside existing upstream-canonical files:
+`core/src/tools/spec.rs` (handler registration at lines 168, 244),
+`app-server-protocol/src/protocol/v2.rs` (new request shape),
+session/oneshot bridging for the spawned-agent attribution work, and
+the TUI request-routing files (`app_server_requests.rs`,
+`pending_interactive_replay.rs`, `replay_filter.rs`, `side.rs`).
+
+Per the Phase 2 prerequisite above (REQUIRED), the brainstorm MUST
+evaluate at least these alternatives for **each** existing-file edit
+before accepting it into the plan:
+
+- **(A) Move the new module + tool registration into an overlay
+  crate** (`codex-rs-overlay/codex-ask-user-question/`) and expose a
+  single registration call that `core/src/tools/spec.rs` invokes. If
+  upstream's tool-registration surface supports `inventory!`-style
+  registration or a registry-pattern entry point, the only subtree
+  edit is one call site (or zero). The bulk of the 3500-4500 LOC
+  lives outside the subtree.
+- **(B) Reuse `request_user_input`'s existing protocol envelope and
+  app-server bridge** by adding a `kind: "ask_user_question"`
+  discriminator at the existing seam, instead of authoring a parallel
+  `ServerRequestPayload::ToolRequestUserInput` sibling. Trades
+  protocol-purity for a much smaller upstream-canonical edit
+  footprint. Risk: muddies the existing tool's protocol; mitigation:
+  keep the discriminator at the wire layer only and switch on it
+  inside the new handler module.
+- **(C) Upstream PR for the AskUserQuestion schema.** Structured
+  agent-asks-user is a generic concern. Worth an RFC. Spawned-agent
+  attribution (the 🔴 blocker above) is also generic; an upstream PR
+  for parent-chain event routing benefits every codex consumer with
+  sub-agents.
+- **(D) Current parallel-implementation approach** — only if A/B/C are
+  rejected with explicit reasoning in the plan.
+
+The plan MUST include the "Upstream-canonical edit budget" table for
+the chosen approach. The spawned-agent attribution work (new
+event-routing through the spawn chain) MUST be designed with the same
+conflict-surface lens — it's net-new code, so default it to
+`codex-rs-overlay/` unless a session/turn-context API change forces a
+subtree edit.
+
+**Files to author (if approach D is chosen, scoped to the
+upstream-canonical seam)** (in
+`external/repos/codex-patched/codex-rs/`):
 - `core/src/tools/handlers/ask_user_question/{mod.rs, schema.rs,
   prompt.rs, handler.rs}` — new function tool definition + schema
 - `core/src/tools/handlers/ask_user_question/tests.rs` — schema
