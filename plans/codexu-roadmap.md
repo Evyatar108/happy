@@ -423,8 +423,12 @@ conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
       so plugins like `ralph-orchestration` stay scoped-out from
       sub-agents but reachable through the spawner.
     - `agent-comms` (blocked on plugin-scope-agents + channels-research)
-      — MCP-based communication: spawn-other-top-level + message-passing
-      between live top-level sessions.
+      — MCP-based communication across THREE scopes: (A) cross-tunnel /
+      cross-machine (different daemons, codexu-specific), (B)
+      same-machine daemon-managed (multiple sessions on one daemon),
+      (C) parent-spawned-child (agent-spawner retains the channel
+      from spawn time). Design has to decide unified-transport-with-
+      routing vs three distinct mechanisms vs a spectrum.
     - `channels-research` — research Claude Code's "channels" concept
       (2-way agent ↔ MCP communication) and design a codex equivalent
       if it doesn't exist there. Likely transport for agent-comms.

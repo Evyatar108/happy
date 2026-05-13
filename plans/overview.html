@@ -1400,11 +1400,25 @@
   </details>
 
   <details class="cmd" id="cmd-agent-comms" data-task-id="agent-comms">
-    <summary><span class="cmd-name">agent-comms</span><span class="cmd-badge b-blocked">🔒 blocked on plugin-scope-agents + channels-research</span><span class="cmd-desc">Top-level agent ↔ top-level agent communication (MCP-based?)</span></summary>
+    <summary><span class="cmd-name">agent-comms</span><span class="cmd-badge b-blocked">🔒 blocked on plugin-scope-agents + channels-research</span><span class="cmd-desc">Top-level agent ↔ top-level agent comms across 3 scopes (cross-tunnel / same-daemon / parent-child)</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Blocked on <code>plugin-scope-agents</code> + <code>agent-view-research</code> + <code>channels-research</code> landing. The communication channel design depends on the spawner pattern's chosen model AND on whether MCP "channels" (2-way) are available as the transport.</div>
       <button class="copy-btn">Copy</button>
-<pre class="cmd-pre">/plan-with-ralph "Build top-level-agent ↔ top-level-agent communication. Constraint: a top-level agent (one with host-tier plugins like ralph-orchestration) should be able to talk to OTHER top-level agents — regardless of whether the operator spawned them directly or they were spawned by another agent-spawner (see plugin-scope-agents). Two channels to consider: (1) an MCP server for SPAWNING — top-level agents can request another top-level agent be spawned with specific role/cwd/plugins; (2) an MCP server for MESSAGE PASSING between live top-level sessions — request-response or pub-sub. Surface the design choice to operator before coding (MCP-only vs MCP + native happy-cli RPC vs codex inter-agent fast path extension). Read plans/agent-view-research.md (research output), plans/channels-research.md (output of channels-research), plans/agent-view-followups.md if exists, and codex/external/repos/codex-patched/codex-rs/multi_agents_v2/ for codex's existing inter-agent plumbing. Read packages/happy-cli/src/api/apiMachine.ts for how spawn-happy-session is currently exposed to clients — the agent-comms MCP may live there. Acceptance: a top-level agent can spawn another top-level agent via MCP; both can exchange a message; both have host-tier plugins enabled. Test: end-to-end fixture in packages/happy-cli/. Pitfall: cycle-prevention — agent A spawns agent B which spawns agent A → infinite loop. Need a hop counter or operator-approval gate. Surface architectural choices to operator BEFORE landing code."</pre>
+<pre class="cmd-pre">/plan-with-ralph "Build top-level-agent ↔ top-level-agent communication across THREE distinct scopes — design has to decide whether to unify them under one transport or distinguish them with different mechanisms.
+
+Scope A — Cross-tunnel / cross-machine (codexu-specific). Two top-level sessions live on different daemons (e.g., laptop daemon + remote machine daemon, both paired to the same operator's GitHub identity). Today daemons are silo'd (single-user-per-process embedded happy-server per Sprint A); no cross-daemon routing exists. This is the hardest scope because there's no existing routing layer. Options: (i) re-introduce a relay (we explicitly deleted this — operator policy); (ii) use Microsoft Dev Tunnels as a P2P channel between daemons; (iii) operator's mobile app acts as the rendezvous broker. Surface this choice to operator BEFORE designing the wire shape.
+
+Scope B — Same-machine, daemon-managed. Two top-level sessions on ONE daemon. Daemon already coordinates via Socket.IO event-routing (packages/happy-server/sources/app/events/eventRouter.ts). The cross-session message-pass would extend that with a per-session inbox + a tool the agent invokes. This is the easiest scope.
+
+Scope C — Parent-spawned-child relationship. An agent-spawner (from plugin-scope-agents) spawned the child top-level session; the parent retains a 'session reference' or capability. Communication has implicit trust + a known channel from spawn time. Could be a strict subset of B/A but with stronger invariants (e.g., parent can read child's logs/state; child can post back to parent's inbox without explicit handshake).
+
+The design must answer: are these three separate mechanisms (different MCP servers / RPC surfaces per scope), one unified transport with scope-aware routing (single MCP with a 'scope' parameter), or a spectrum (parent-child piggybacks on B; B uses daemon Socket.IO; A needs the explicit cross-daemon design)?
+
+Two consumer-facing channels to cover regardless of scope: (1) SPAWNING — request another top-level agent be spawned with role/cwd/plugins; (2) MESSAGE PASSING — request-response or pub-sub between live sessions.
+
+Read plans/agent-view-research.md, plans/channels-research.md, plans/agent-view-followups.md if exists, codex/external/repos/codex-patched/codex-rs/multi_agents_v2/ for codex's existing inter-agent plumbing (READ-ONLY per minimize-conflict-surface). Read packages/happy-cli/src/api/apiMachine.ts + apiSession.ts for how spawn-happy-session is currently exposed; the agent-comms MCP likely lives in happy-cli. Read packages/happy-server/sources/app/events/eventRouter.ts for the existing fan-out primitive that Scope B would extend.
+
+Acceptance: design doc + per-scope working fixture: (B) two sessions on the same daemon exchange a message; (C) a spawned child reports back to its parent without re-handshake; (A) the design names a concrete transport choice for cross-daemon (no full implementation required for the first pass). Tests: vitest fixture for each scope. Pitfall: cycle-prevention applies across scopes (A spawns B spawns A → loop); need hop counter + operator-approval gate. Surface ARCHITECTURAL CHOICES (relay-vs-P2P-vs-broker, unified-vs-separate transports) to operator BEFORE landing code."</pre>
     </div>
   </details>
 
@@ -1699,8 +1713,8 @@
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T04:00:00Z",
-  "generatedFromCommit": "5d80d5fb",
+  "generatedAt": "2026-05-14T04:30:00Z",
+  "generatedFromCommit": "45c17475",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:00:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
