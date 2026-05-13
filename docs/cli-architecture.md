@@ -227,7 +227,7 @@ flowchart LR
 ```
 
 The CLI encrypts client content before it leaves the machine using `src/api/encryption.ts`.
-- Session metadata, agent state, messages, machine state, artifacts, and KV values are encrypted client-side.
+- Session metadata, agent state, messages, and machine state are encrypted client-side.
 - On-wire encoding is base64; see `encryption.md`.
 - RPC params and responses are plaintext JSON over TLS plus Happy claim auth. Session content encryption remains for message bodies, metadata, and state fields.
 
