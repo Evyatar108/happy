@@ -5,7 +5,6 @@ import * as path from "path";
 import { writeJsonAtomically } from "@slopus/happy-wire/node";
 import { type Fastify } from "../types";
 import { type ApiPaths } from "../api";
-import { requireAccountIdForTunnel } from "../utils/requireAccountIdForTunnel";
 
 const ProfileSchema = z.object({
     githubUserId: z.number(),
@@ -18,7 +17,6 @@ const ProfileSchema = z.object({
 const SettingsSchema = z.record(z.unknown());
 
 export interface AccountRoutesOptions {
-    auth: "tunnel" | "loopback";
     paths?: ApiPaths;
 }
 
@@ -44,10 +42,9 @@ async function readJsonFile<T>(filePath: string, schema: z.ZodType<T>): Promise<
 export function accountRoutes(app: Fastify, options: AccountRoutesOptions) {
     const profilePath = options.paths?.profile ?? defaultProfilePath();
     const accountSettingsPath = options.paths?.accountSettings ?? defaultAccountSettingsPath();
-    const accountIdGate = requireAccountIdForTunnel(options.auth);
 
     app.get('/v2/me/profile', {
-        preHandler: [app.authenticate, accountIdGate],
+        preHandler: [app.authenticate],
         schema: {
             response: {
                 200: ProfileSchema,
@@ -64,7 +61,7 @@ export function accountRoutes(app: Fastify, options: AccountRoutesOptions) {
     });
 
     app.get('/v2/me/settings', {
-        preHandler: [app.authenticate, accountIdGate],
+        preHandler: [app.authenticate],
         schema: {
             response: {
                 200: SettingsSchema,
@@ -76,7 +73,7 @@ export function accountRoutes(app: Fastify, options: AccountRoutesOptions) {
     });
 
     app.put('/v2/me/settings', {
-        preHandler: [app.authenticate, accountIdGate],
+        preHandler: [app.authenticate],
         bodyLimit: 1024 * 1024,
         schema: {
             body: SettingsSchema,

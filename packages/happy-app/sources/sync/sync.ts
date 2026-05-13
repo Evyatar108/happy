@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { apiSocket, getHappyClientId } from '@/sync/apiSocket';
 import { AuthCredentials, TokenStorage } from '@/auth/tokenStorage';
-import { tunnelFetch, registerDeviceCodeExpiredHandler } from '@/auth/machineAuth';
+import { tunnelFetch } from '@/auth/machineAuth';
 import { storage } from './storage';
 import { ApiEphemeralUpdateSchema, ApiMessage, ApiUpdateContainerSchema } from './apiTypes';
 import type { ApiEphemeralActivityUpdate } from './apiTypes';
@@ -368,15 +368,6 @@ class Sync {
     }
 
     async #init() {
-
-        // Centralized DeviceCodeExpired / ClaimExpired handler for all tunnelFetch call sites.
-        // Registered once per init so every HTTP call through tunnelFetch (fetchSessions,
-        // fetchMachines, syncSettings, fetchProfile, apiSocket.requestForMachine,
-        // apiPush, etc.) triggers disconnect-and-notify without duplicating catch blocks.
-        registerDeviceCodeExpiredHandler((machineId) => {
-            storage.getState().markMachineDisconnected(machineId, Date.now());
-            this.notifyDeviceCodeExpired(machineId);
-        });
 
         // Subscribe to updates
         this.subscribeToUpdates();
@@ -1631,14 +1622,6 @@ class Sync {
         }
     }
 
-    private notifyDeviceCodeExpired = (machineId: string) => {
-        Modal.alert(
-            t('errors.deviceCodeExpiredTitle'),
-            t('errors.deviceCodeExpiredMessage', { machineId }),
-            [{ text: t('common.ok'), style: 'cancel' }],
-        );
-    };
-
     private subscribeToUpdates = () => {
         // Subscribe to message updates
         apiSocket.onMessage('update', (update, machineId) => this.handleUpdate(update, false, machineId));
@@ -1662,9 +1645,6 @@ class Sync {
         apiSocket.onMessage('ephemeral', (update, machineId) => this.handleEphemeralUpdate(update, machineId));
         apiSocket.onMachineDisconnected((machineId, lastSeenAt) => {
             storage.getState().markMachineDisconnected(machineId, lastSeenAt);
-        });
-        apiSocket.onDeviceCodeExpired((machineId) => {
-            this.notifyDeviceCodeExpired(machineId);
         });
 
         // Subscribe to connection state changes

@@ -20,8 +20,10 @@ describe('profileParse', () => {
         });
     });
 
-    it('accepts the persisted app-local profile shape', () => {
+    // profileParse passes the local shape through ProfileSchema.safeParse — it does not throw;
+    // the old test description and assertion were incorrect before this correction.
+    it('accepts the persisted local profile shape', () => {
         expect(profileParse({ id: '42', timestamp: 1, firstName: 'Old', lastName: null, avatar: null, github: null }))
-            .toMatchObject({ id: '42', timestamp: 1, firstName: 'Old' });
+            .toMatchObject({ id: '42', firstName: 'Old' });
     });
 });

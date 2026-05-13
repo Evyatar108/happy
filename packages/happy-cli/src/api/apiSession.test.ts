@@ -35,7 +35,7 @@ const {
         mockDelay: vi.fn(async () => undefined),
         mockTunnelSocketIOOptions: vi.fn(async () => ({
             url: 'http://127.0.0.1:7010',
-            auth: { tunnelAuthorization: 'tunnel test.claim' }
+            auth: {}
         })),
         mockTunnelFetch: vi.fn(async (path: string, init: RequestInit = {}) => {
             const url = new URL(path, 'https://server.test');

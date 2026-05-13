@@ -7,7 +7,7 @@ import type { Config } from './config';
 import { loadCredentials } from './credentials';
 import type { Credentials } from './credentials';
 import { authLogin, authLogout, authStatus } from './auth';
-import { listSessions, listActiveSessions, createSession, getSessionMessages, listKnownMachines, discoverMachineTunnels, refreshTunnelClaim, MachineNotKnownError } from './api';
+import { listSessions, listActiveSessions, createSession, getSessionMessages, listKnownMachines, discoverMachineTunnels, refreshMachineTunnel, MachineNotKnownError } from './api';
 import type { DecryptedSession, MachineSummary } from './api';
 import { resumeSessionOnMachine, spawnInWorktreeOnMachine, spawnSessionOnMachine, type SupportedAgent } from './machineRpc';
 import { SessionClient } from './session';
@@ -68,12 +68,12 @@ function resolveSessionMachineId(session: DecryptedSession): string {
     return metadata.machineId;
 }
 
-async function refreshKnownTunnelClaim(config: Config, creds: Credentials, machineId: string): Promise<{ tunnelUrl: string; tunnelClaim: string; connectToken: string }> {
+async function resolveKnownMachineTunnel(config: Config, creds: Credentials, machineId: string): Promise<{ tunnelUrl: string; connectToken: string }> {
     const tunnels = discoverMachineTunnels(creds);
     if (!tunnels.find(tunnel => tunnel.machineId === machineId)) {
         throw new MachineNotKnownError(machineId);
     }
-    return refreshTunnelClaim(config, creds, machineId);
+    return refreshMachineTunnel(config, creds, machineId);
 }
 
 // --- CLI ---
@@ -277,8 +277,8 @@ program
                 throw new Error('--create-dir is only supported by the legacy --path flow.');
             }
 
-            const { tunnelUrl, tunnelClaim, connectToken } = await refreshKnownTunnelClaim(config, creds, machine.id);
-            const result = await spawnInWorktreeOnMachine(tunnelUrl, tunnelClaim, connectToken, {
+            const { tunnelUrl, connectToken } = await resolveKnownMachineTunnel(config, creds, machine.id);
+            const result = await spawnInWorktreeOnMachine(tunnelUrl, connectToken, {
                 machineId: machine.id,
                 repoPath: opts.repo,
                 worktreePath: opts.worktree,
@@ -330,8 +330,8 @@ program
 
         const directory = resolveRemotePath(opts.path);
 
-        const { tunnelUrl, tunnelClaim, connectToken } = await refreshKnownTunnelClaim(config, creds, machine.id);
-        const result = await spawnSessionOnMachine(tunnelUrl, tunnelClaim, connectToken, {
+        const { tunnelUrl, connectToken } = await resolveKnownMachineTunnel(config, creds, machine.id);
+        const result = await spawnSessionOnMachine(tunnelUrl, connectToken, {
             machineId: machine.id,
             directory,
             approvedNewDirectoryCreation: opts.createDir,
@@ -383,8 +383,8 @@ program
         const machineId = resolveSessionMachineId(session);
         const machine = await resolveMachine(config, creds, machineId);
 
-        const { tunnelUrl, tunnelClaim, connectToken } = await refreshKnownTunnelClaim(config, creds, machine.id);
-        const result = await resumeSessionOnMachine(tunnelUrl, tunnelClaim, connectToken, { machineId: machine.id, sessionId: session.id });
+        const { tunnelUrl, connectToken } = await resolveKnownMachineTunnel(config, creds, machine.id);
+        const result = await resumeSessionOnMachine(tunnelUrl, connectToken, { machineId: machine.id, sessionId: session.id });
         const payload = {
             sourceSessionId: session.id,
             machineId: machine.id,

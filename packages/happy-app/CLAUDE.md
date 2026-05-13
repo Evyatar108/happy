@@ -111,7 +111,7 @@ This generates `sources/changelog/changelog.json` which is used by the app.
 - **Unistyles** for cross-platform styling with themes and breakpoints
 - **Expo Router v6** for file-based routing
 - **Socket.io** for real-time WebSocket communication
-- **Dev Tunnels** plaintext tunnel claims for machine authentication
+- **Dev Tunnels** connect-token gateway auth for machine access
 
 ### Project Structure
 ```
@@ -125,8 +125,8 @@ sources/
 
 ### Key Architectural Patterns
 
-1. **Authentication Flow**: One-time GitHub device flow (against `Iv1.e7b89e013f801f03`, devtunnel's public OAuth app) yields a `ghu_*` token used to enumerate Dev Tunnels machines. Per machine, a single `POST /pair/complete` against the daemon's tunnel mints the signed Happy tunnel claim. Before private-tunnel calls, `sources/sync/tunnelProvider.ts:getConnectToken()` obtains the Dev Tunnels connect token used as `X-Tunnel-Authorization: tunnel <connect-jwt>` (Microsoft's gateway auth — stripped by the gateway before reaching the backend).
-2. **Data Synchronization**: HTTP and Socket.IO calls authenticate with fresh Happy tunnel claims in `X-Codexu-Authorization` and Dev Tunnels connect tokens in `X-Tunnel-Authorization`; reconnects create replacement sockets instead of reusing stale claims.
+1. **Authentication Flow**: One-time GitHub device flow (against `Iv1.e7b89e013f801f03`, devtunnel's public OAuth app) yields a `ghu_*` token used to enumerate Dev Tunnels machines. Per machine, a single `POST /pair/complete` against the daemon's tunnel returns machine metadata. Before private-tunnel calls, `sources/sync/tunnelProvider.ts:getConnectToken()` obtains the Dev Tunnels connect token used as `X-Tunnel-Authorization: tunnel <connect-jwt>` (Microsoft's gateway auth — stripped by the gateway before reaching the backend).
+2. **Data Synchronization**: HTTP and Socket.IO calls authenticate to the Dev Tunnels gateway with connect tokens in `X-Tunnel-Authorization`; reconnects create replacement sockets instead of reusing stale gateway credentials.
 3. **Credential Storage**: `TokenStorage` stores a nullable primary machine id, per-machine tunnel credentials/connect-token fields, and top-level Dev Tunnels OAuth access.
 4. **State Management**: React Context for auth state, custom reducer for sync state
 5. **Platform-Specific Code**: Separate implementations for web vs native when needed
@@ -600,7 +600,7 @@ const MyComponent = () => {
 - This project targets Android, iOS, and web platforms
 - Web is considered a secondary platform
 - Avoid web-specific implementations unless explicitly requested
-- **Web threat model for `TokenStorage` is accepted-as-documented.** On web, `sources/auth/tokenStorage.ts` persists `devTunnelsAccess` (a `ghu_*` GitHub OAuth token with `read:user` scope) and per-machine `tunnelClaim`/`deviceCode` into `localStorage`. This is JS-accessible and would be exfiltrated by any XSS sink, but is an explicit trade-off for the single-user self-host posture (the user controls their browser, no untrusted third-party scripts run in the SPA, XSS is out-of-scope). Native uses `expo-secure-store` (OS keystore) and is unaffected. Full threat model in `packages/happy-app/scripts/sprint-a-gap.md` "Web platform threat model (TokenStorage persistence)". If the fork ever ships a public multi-user web build, this trade-off must be revisited (session-only in-memory tokens, or a BFF that holds tokens server-side).
+- **Web threat model for `TokenStorage` is accepted-as-documented.** On web, `sources/auth/tokenStorage.ts` persists `devTunnelsAccess` (a `ghu_*` GitHub OAuth token with `read:user` scope), per-machine Dev Tunnels connect-token fields, and device-code metadata into `localStorage`. This is JS-accessible and would be exfiltrated by any XSS sink, but is an explicit trade-off for the single-user self-host posture (the user controls their browser, no untrusted third-party scripts run in the SPA, XSS is out-of-scope). Native uses `expo-secure-store` (OS keystore) and is unaffected. Full threat model in `packages/happy-app/scripts/sprint-a-gap.md` "Web platform threat model (TokenStorage persistence)". If the fork ever ships a public multi-user web build, this trade-off must be revisited (session-only in-memory tokens, or a BFF that holds tokens server-side).
 - Keep dev pages without i18n, always use t(...) function to translate all strings, when adding new string add it to all languages, think about context before translating.
 - Core principles: never show loading error, always just retry. Always sync main data in "sync" class. Always use invalidate sync for it. Always use Item component first and only then you should use anything else or custom ones for content. Do not ever do backward compatibility if not explicitly stated.
 - Never use custom headers in navigation, almost never use Stack.Page options in individual pages. Only when you need to show something dynamic. Always show header on all screens.

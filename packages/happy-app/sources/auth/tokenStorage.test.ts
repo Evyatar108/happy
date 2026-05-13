@@ -18,7 +18,6 @@ describe('TokenStorage', () => {
     const credentials: AuthCredentials = {
         machineId: 'machine-1',
         tunnelUrl: 'https://machine.example.test',
-        tunnelClaim: 'jwt-1',
         firstSeenAt: 123,
         tunnelId: 'tunnel-1',
         login: 'octocat',
@@ -45,7 +44,11 @@ describe('TokenStorage', () => {
     });
 
     it('loads trusted machine credentials from SecureStore', async () => {
-        secureStore.getItemAsync.mockResolvedValue(JSON.stringify(credentials));
+        secureStore.getItemAsync.mockResolvedValue(JSON.stringify({
+            primaryMachineId: 'machine-1',
+            machines: [credentials],
+            devTunnelsAccess: null,
+        }));
 
         await expect(TokenStorage.getCredentials()).resolves.toEqual(credentials);
     });
@@ -55,7 +58,6 @@ describe('TokenStorage', () => {
             ...credentials,
             machineId: 'machine-2',
             tunnelUrl: 'https://machine-2.example.test',
-            tunnelClaim: 'jwt-2',
         };
         secureStore.getItemAsync.mockResolvedValueOnce(JSON.stringify({
             primaryMachineId: 'machine-1',
@@ -75,10 +77,10 @@ describe('TokenStorage', () => {
         );
     });
 
-    it('loads legacy single-machine storage as a one-entry credential list', async () => {
+    it('drops legacy single-machine storage', async () => {
         secureStore.getItemAsync.mockResolvedValue(JSON.stringify(credentials));
 
-        await expect(TokenStorage.getCredentialsList()).resolves.toEqual([credentials]);
+        await expect(TokenStorage.getCredentialsList()).resolves.toEqual([]);
     });
 
     it('round-trips the top-level Dev Tunnels token without paired machines', async () => {
@@ -167,36 +169,79 @@ describe('TokenStorage', () => {
         expect(secureStore.setItemAsync).not.toHaveBeenCalled();
     });
 
+    it('strips unknown fields (e.g. stale tunnelClaim) on load', async () => {
+        const staleBlob = { ...credentials, tunnelClaim: 'stale-claim', accountId: 'old-account' };
+        secureStore.getItemAsync.mockResolvedValue(JSON.stringify({
+            primaryMachineId: 'machine-1',
+            machines: [staleBlob],
+            devTunnelsAccess: null,
+        }));
+
+        await expect(TokenStorage.getCredentials()).resolves.toEqual(credentials);
+    });
+
+    it('does not re-persist unknown fields from a stale blob after updateMachineCredentials', async () => {
+        const staleBlob = { ...credentials, tunnelClaim: 'stale-claim', accountId: 'old-account' };
+        secureStore.getItemAsync.mockResolvedValue(JSON.stringify({
+            primaryMachineId: 'machine-1',
+            machines: [staleBlob],
+            devTunnelsAccess: null,
+        }));
+
+        await expect(TokenStorage.updateMachineCredentials('machine-1', { connectToken: 'new-token' })).resolves.toBe(true);
+
+        expect(secureStore.setItemAsync).toHaveBeenCalledWith(
+            'machine_credentials',
+            JSON.stringify({
+                primaryMachineId: 'machine-1',
+                machines: [{ ...credentials, connectToken: 'new-token' }],
+                devTunnelsAccess: null,
+            })
+        );
+    });
+
+    it('strips unknown fields when setting credentials', async () => {
+        const staleBlob = { ...credentials, tunnelClaim: 'stale-claim', accountId: 'old-account' } as AuthCredentials & Record<string, unknown>;
+        await expect(TokenStorage.setCredentials(staleBlob as AuthCredentials)).resolves.toBe(true);
+
+        expect(secureStore.setItemAsync).toHaveBeenCalledWith(
+            'machine_credentials',
+            JSON.stringify({
+                primaryMachineId: 'machine-1',
+                machines: [credentials],
+                devTunnelsAccess: null,
+            })
+        );
+    });
+
     it('detects old-shape records', () => {
         expect(isOldShape({ ...credentials, pinnedPubkey: 'ed-pubkey' })).toBe(true);
         expect(isOldShape({ ...credentials, sessionKey: 'shared-session-key' })).toBe(true);
-        expect(isOldShape({ ...credentials, tunnelClaim: undefined })).toBe(true);
         expect(isOldShape(credentials)).toBe(false);
     });
 
-    it('wipes old-shape records while preserving Dev Tunnels OAuth and rolling primary machine', async () => {
+    it('wipes old-shape records while preserving claim-free credentials and rolling primary machine', async () => {
         const cleanSecond: AuthCredentials = {
             ...credentials,
             machineId: 'machine-2',
             tunnelUrl: 'https://machine-2.example.test',
-            tunnelClaim: 'jwt-2',
         };
         const oldPinned = { ...credentials, pinnedPubkey: 'legacy-pubkey' };
         const oldSession = { ...credentials, machineId: 'machine-3', sessionKey: 'legacy-session' };
-        const missingClaim = { ...credentials, machineId: 'machine-4', tunnelClaim: undefined };
+        const claimFree = { ...credentials, machineId: 'machine-4', tunnelUrl: 'https://machine-4.example.test' };
         secureStore.getItemAsync.mockResolvedValue(JSON.stringify({
             primaryMachineId: 'machine-1',
-            machines: [oldPinned, cleanSecond, oldSession, missingClaim],
+            machines: [oldPinned, cleanSecond, oldSession, claimFree],
             devTunnelsAccess: 'oauth-token-5',
         }));
 
-        await expect(TokenStorage.getCredentialsList()).resolves.toEqual([cleanSecond]);
+        await expect(TokenStorage.getCredentialsList()).resolves.toEqual([cleanSecond, claimFree]);
 
         expect(secureStore.setItemAsync).toHaveBeenCalledWith(
             'machine_credentials',
             JSON.stringify({
                 primaryMachineId: 'machine-2',
-                machines: [cleanSecond],
+                machines: [cleanSecond, claimFree],
                 devTunnelsAccess: 'oauth-token-5',
             })
         );

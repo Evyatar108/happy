@@ -919,9 +919,9 @@
   <div class="col">
     <div class="col-head"><h3>Ready now</h3><span class="badge b-now">assignable</span></div>
 
-    <div class="card" style="border-color: var(--warn);">
-      <div class="card-title">Realtime sync perf — WS1: skip refreshTunnelClaim when valid <span class="sub">(in progress)</span></div>
-      <div class="sub">Parse <code>exp</code>, skip roundtrip when claim valid 60-120 s ahead. Foreground fan-out 6×~2.5 s → 1×~2.5 s + 5×~0.5 s.</div>
+    <div class="card">
+      <div class="card-title">Realtime sync perf — WS1 obsoleted by claim removal</div>
+      <div class="sub">The Happy claim roundtrip was removed end-to-end. Start remaining perf work at WS2 or later.</div>
       <div class="card-meta">
         <span class="pill area-app">happy-app</span>
         <span class="pill p-low">low</span>

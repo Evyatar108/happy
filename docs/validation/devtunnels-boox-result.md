@@ -15,7 +15,7 @@ The Sprint A migration as originally shipped on `main` (`2a8b4bf9`) did not pair
 
 | Finding | Severity | Resolution |
 |---|---|---|
-| `X-Tunnel-Connect` header rejected by Microsoft Dev Tunnels gateway | Blocker | Renamed to `X-Tunnel-Authorization: tunnel <connect-jwt>` (Microsoft's standard). Happy claim moved to `X-Codexu-Authorization` because gateway strips `X-Tunnel-Authorization` before forwarding. |
+| `X-Tunnel-Connect` header rejected by Microsoft Dev Tunnels gateway | Blocker | Renamed to `X-Tunnel-Authorization: tunnel <connect-jwt>` (Microsoft's standard). Later remove-tunnel-claim-layer work retired the separate Happy daemon header entirely. |
 | Per-machine `/pair/start` + `/pair/status` device flow needed `GITHUB_CLIENT_ID` + `HAPPY_TUNNEL_GITHUB_OWNER` env vars and was redundant on a personal fork | Blocker | Replaced with a single `POST /pair/complete` that reads identity from `~/.happy/profile.json`. |
 | Tunnel id `happy-<host>-<uuid>` overflowed Microsoft's 49-char limit | Blocker | Renamed to `codexu-<host>`. Dropped UUID component (hostname is unique under a single Microsoft account). |
 | `devtunnel host <id> --port-number <port>` errored when port already registered | Blocker | Removed redundant `--port-number` from `startHost`; `ensurePort` already adds the port. |
@@ -45,10 +45,12 @@ Evidence:
   [DAEMON RUN] Embedded happy-server tunnel listener started on 127.0.0.1:51371
   [DAEMON RUN] Dev Tunnel host started for https://58l8c10h-51371.usw2.devtunnels.ms
   ```
-- Pair-success evidence: BOOX app advanced from the unauthenticated landing screen ("Pair machine" button) past `POST /pair/complete` to the authenticated session-ready state. Curl repro of the same flow (with the same connect token + headers the app uses) returned HTTP 200 with a fully-formed `{ githubLogin, machine: { machineId, tunnelUrl, ed25519PublicKey, x25519PublicKey, ed25519Fingerprint, tunnelClaim } }` payload.
+- Pair-success evidence: BOOX app advanced from the unauthenticated landing screen ("Pair machine" button) past `POST /pair/complete` to the authenticated session-ready state. Curl repro of the same flow (with the same connect token + headers the app uses) returned HTTP 200 with a fully-formed `{ githubLogin, machine: { machineId, tunnelUrl, ed25519PublicKey, x25519PublicKey, ed25519Fingerprint } }` payload.
 - Confirmation that `devtunnel access create --anonymous` was NOT invoked: verified — `packages/happy-cli/src/tunnel/tunnelManager.ts` does not call `devtunnel access` at all; only `devtunnel create`, `port create`, `host`, `show`. Searching the daemon log for `allow-anonymous` returns no hits.
 
 Notes: Phases 2-6 not yet attempted in this session — operator paused validation here to commit the design corrections. Resume from Phase 2 in a follow-up session against the same paired BOOX + daemon.
+
+> **PENDING OPERATOR VERIFICATION (remove-tunnel-claim-layer):** The Phase 1 PASS above was recorded against a build that still sent `X-Codexu-Authorization`. The remove-tunnel-claim-layer work has since deleted that header entirely. Before merging, the operator must re-run the BOOX → daemon HTTP + socket flow against the new build and confirm that pairing and chat round-trips succeed without `X-Codexu-Authorization`. Replace this block with a one-line confirmation (e.g. "re-verified PASS on <date> against build <sha>") once done.
 <!-- optional per-phase notes -->
 
 ---
@@ -165,19 +167,19 @@ perf problems that don't block the Phase 1 PASS verdict and don't need to block
 Phases 2–6 either, but should be fixed before the migration is declared
 production-ready:
 
-- **Slow first-load on foreground.** Opening the BOOX Happy app (cold or after
-  the e-ink screensaver) takes several seconds before the chat list renders.
-  Most of the latency is in sequenced `tunnelFetch` calls — each one pays for
-  `ensureFreshConnectToken` → `refreshTunnelClaim` → the actual fetch, and the
-  claim-refresh round-trip currently runs even when the cached claim is still
-  valid for tens of minutes.
+- **Slow first-load on foreground: RESOLVED by remove-tunnel-claim-layer.** Opening the BOOX Happy app (cold or after
+  the e-ink screensaver) used to take several seconds before the chat list rendered.
+  Most of the latency was in sequenced `tunnelFetch` calls, where each one paid for
+  Dev Tunnels connect-token refresh, then a Happy claim refresh, then the actual fetch.
+  The Happy claim refresh leg has been deleted; steady-state calls now need only the
+  Dev Tunnels connect token and the actual request.
 - **New-message latency ≈ 1 min.** A message typed into a CLI `happy` session
   takes up to a minute to surface on the BOOX. Diagnosed as the "unknown
   session" code path in `packages/happy-app/sources/sync/sync.ts:1680-1710`:
   when a `new-message` socket event arrives for a session the app's storage
   doesn't know yet, the app **blocks** message rendering on a full
   `/v1/sessions` re-fetch and then replays queued messages. The 1-min figure
-  matches the cost of that fetch over Dev Tunnels with the claim-refresh
+  matches the cost of that fetch over Dev Tunnels with the former claim-refresh
   serialization above.
 - **Slow reconnect after a transient.** Socket.IO without a server-side replay
   buffer means events emitted during a disconnect window are lost on the

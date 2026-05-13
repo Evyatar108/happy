@@ -3,7 +3,7 @@ import { mkdtemp } from "fs/promises";
 import os from "os";
 import path from "path";
 import { encodeBase64 } from "privacy-kit";
-import { bootstrapMachineForEmbedded, createApp, type HappyServerHandle } from "./index";
+import { assertOperatorIdentityGate, bootstrapMachineForEmbedded, createApp, type HappyServerHandle } from "./index";
 import { db, getPGlite } from "./storage/db";
 import { machineUpdateHandler } from "./app/api/socket/machineUpdateHandler";
 
@@ -117,6 +117,29 @@ describe("bootstrapMachineForEmbedded", () => {
             daemonState: "legacy-next-state",
         });
     }, 20_000);
+});
+
+describe("operator identity gate", () => {
+    it("refuses to start the tunnel listener when bound to a non-loopback host", () => {
+        expect(() => createApp({
+            dataDir: os.tmpdir(),
+            port: 0,
+            machineKey: "test-machine-key",
+            localUserId: "local-user",
+            host: "0.0.0.0",
+        })).toThrow(/refusing to start happy-server tunnel listener bound to non-loopback host "0\.0\.0\.0"/);
+    });
+
+    it("accepts the default loopback bind on 127.0.0.1 with tunnel auth", () => {
+        expect(() => assertOperatorIdentityGate({ host: "127.0.0.1" })).not.toThrow();
+        expect(() => assertOperatorIdentityGate({ host: undefined })).not.toThrow();
+        expect(() => assertOperatorIdentityGate({ host: "::1" })).not.toThrow();
+        expect(() => assertOperatorIdentityGate({ host: "localhost" })).not.toThrow();
+    });
+
+    it("permits non-loopback binds when auth is loopback", () => {
+        expect(() => assertOperatorIdentityGate({ host: "0.0.0.0", auth: "loopback" })).not.toThrow();
+    });
 });
 
 async function triggerMachineUpdateState(machineId: string, encryptedDaemonState: string, expectedVersion: number) {

@@ -98,11 +98,6 @@ function makeCredentials(): Credentials {
     };
 }
 
-function encodeTunnelClaim(payload: unknown): string {
-    const p = Buffer.from(JSON.stringify(payload)).toString('base64url');
-    return Buffer.from(JSON.stringify({ p, s: 'signature' })).toString('base64url');
-}
-
 function makeRawSessionWithDataKey(
     creds: Credentials,
     metadata: unknown,
@@ -335,10 +330,8 @@ describe('Smoke: machines command tunnel join', () => {
                 machineId: 'machine-1',
                 tunnelId: 'tunnel-1',
                 tunnelUrl,
-                tunnelClaim: encodeTunnelClaim({ accountId: 123, iat: 1, exp: 2, jti: 'jti-1' }),
                 connectToken: 'test-connect-token',
                 connectTokenExpiry: Date.now() + 3_600_000,
-                accountId: 123,
                 ed25519PublicKey: 'ed',
                 x25519PublicKey: 'x',
             }],
@@ -368,11 +361,10 @@ describe('Smoke: machines command tunnel join', () => {
 });
 
 describe('Smoke: spawn and resume tunnel RPC wiring', () => {
-    it('refreshes tunnel claims and sends plaintext spawn/resume RPC params', async () => {
+    it('sends plaintext spawn/resume RPC params with gateway auth only', async () => {
         const creds = makeCredentials();
         const rawSession = makeRawSessionLegacy(creds, { machineId: 'machine-1', path: '/repo' }, null, { id: 'session-source' });
         const rpcCalls: Array<{ method: string; params: unknown; auth: unknown }> = [];
-        let pairStatusCalls = 0;
         let tunnelUrl = '';
 
         const server = createServer((req, res) => {
@@ -392,20 +384,6 @@ describe('Smoke: spawn and resume tunnel RPC wiring', () => {
             if (req.method === 'GET' && req.url === '/v1/sessions') {
                 res.writeHead(200, { 'content-type': 'application/json' });
                 res.end(JSON.stringify({ sessions: [rawSession] }));
-                return;
-            }
-            if (req.method === 'POST' && req.url === '/pair/complete') {
-                pairStatusCalls += 1;
-                const now = Math.floor(Date.now() / 1000);
-                res.writeHead(200, { 'content-type': 'application/json' });
-                res.end(JSON.stringify({
-                    githubLogin: 'octocat',
-                    machine: {
-                        machineId: 'machine-1',
-                        tunnelUrl,
-                        tunnelClaim: encodeTunnelClaim({ accountId: 123, iat: now, exp: now + 600, jti: `jti-${pairStatusCalls}` }),
-                    },
-                }));
                 return;
             }
             res.writeHead(404);
@@ -434,10 +412,8 @@ describe('Smoke: spawn and resume tunnel RPC wiring', () => {
                 machineId: 'machine-1',
                 tunnelId: 'tunnel-1',
                 tunnelUrl,
-                tunnelClaim: encodeTunnelClaim({ accountId: 123, iat: 1, exp: 2, jti: 'initial-jti' }),
                 connectToken: 'connect-jwt',
                 connectTokenExpiry: Date.now() + 120_000,
-                accountId: 123,
                 ed25519PublicKey: 'ed',
                 x25519PublicKey: 'x',
             }],
@@ -460,7 +436,6 @@ describe('Smoke: spawn and resume tunnel RPC wiring', () => {
             const resume = await runCliAsync(env, 'resume', 'session-source', '--json');
             expect(resume.exitCode).toBe(0);
 
-            expect(pairStatusCalls).toBe(3);
             expect(rpcCalls.map(call => call.method)).toEqual([
                 'machine-1:spawn-happy-session',
                 'machine-1:spawn-in-worktree',
@@ -470,7 +445,7 @@ describe('Smoke: spawn and resume tunnel RPC wiring', () => {
             expect(rpcCalls[0].params).toMatchObject({ machineId: 'machine-1', type: 'spawn-in-directory', directory: '/repo' });
             expect(rpcCalls[1].params).toMatchObject({ machineId: 'machine-1', repoPath: '/repo', agent: 'codex' });
             expect(rpcCalls[2].params).toEqual({ machineId: 'machine-1', sessionId: 'session-source' });
-            expect(rpcCalls.every(call => (call.auth as { codexuAuthorization?: string }).codexuAuthorization?.startsWith('tunnel '))).toBe(true);
+            expect(rpcCalls.every(call => Object.keys(call.auth as Record<string, unknown>).length === 0)).toBe(true);
         } finally {
             ioServer.close();
             server.close();

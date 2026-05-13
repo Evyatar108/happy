@@ -78,7 +78,7 @@ US-A6/A7 should rely on the GitHub identity already fetched inside the `/pair/st
 }
 ```
 
-Recommendation: add `accountId` to the Happy Ed25519 tunnel claim from this in-scope `githubUser.id` result. Do not build a cross-request identity cache for this migration step. If `verifyTunnelClaim()` later falls back to `verifyDevTunnelsConnect()` for a Dev Tunnels JWT, that fallback can validate tunnel access but should not be expected to populate `accountId` unless a future Dev Tunnels API response adds identity metadata.
+Historical recommendation: at the time, add `accountId` to the Happy Ed25519 tunnel claim from this in-scope `githubUser.id` result. That recommendation is obsolete after the remove-tunnel-claim-layer work; Dev Tunnels gateway auth is now the remote gate and happy-server collapses identity to the local user id.
 
 ## Ownership, Deletion, and Crash Recovery
 
@@ -98,5 +98,5 @@ The list response includes disconnected tunnels with `hostConnectionCount: 0`, `
 
 ## Sprint A Recommendation
 
-US-A6/A7 should use Dev Tunnels JWT verification only as a transport-access validator. The authoritative Happy account identity should come from `api.github.com/user` inside `/pair/status`, and the resulting numeric `githubUser.id` should be copied into the Happy-signed tunnel claim as optional `accountId` for backward compatibility.
+Historical Sprint A recommendation (obsolete after remove-tunnel-claim-layer): US-A6/A7 should use Dev Tunnels JWT verification only as a transport-access validator. The authoritative Happy account identity should come from `api.github.com/user` inside `/pair/status`, and the resulting numeric `githubUser.id` should be copied into the Happy-signed tunnel claim as optional `accountId` for backward compatibility. After the remove-tunnel-claim-layer work, the Happy-signed tunnel claim and its `accountId` field have been removed entirely; Dev Tunnels gateway auth (`X-Tunnel-Authorization`) is now the sole remote identity gate, and happy-server collapses identity to the local user id.
 

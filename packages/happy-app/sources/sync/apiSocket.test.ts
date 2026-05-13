@@ -29,7 +29,7 @@ const mocks = vi.hoisted(() => ({
         localSettings: { verboseLogging: false },
         lastSeenUpdateSeqByMachineId: {} as Record<string, number>,
     },
-    refreshTunnelClaim: vi.fn(async (_credentials: any, machineId: string) => `jwt-${machineId}-fresh`),
+    markMachineDisconnected: vi.fn(),
 }));
 
 vi.mock('socket.io-client', () => ({
@@ -50,11 +50,6 @@ vi.mock('@/auth/tokenStorage', () => ({
     },
 }));
 
-vi.mock('@/sync/refreshClaim', () => ({
-    refreshTunnelClaim: mocks.refreshTunnelClaim,
-    DeviceCodeExpired: class DeviceCodeExpired extends Error {},
-}));
-
 vi.mock('@/auth/connectTokenRefresh', () => ({
     ensureFreshConnectToken: vi.fn(async (_credentials: any, machineId: string) => ({
         connectToken: `connect-${machineId}`,
@@ -72,7 +67,6 @@ function credential(machineId: string) {
     return {
         machineId,
         tunnelUrl: `https://${machineId}.example.test`,
-        tunnelClaim: `jwt-${machineId}`,
         firstSeenAt: 1,
         tunnelId: `tunnel-${machineId}`,
         login: `login-${machineId}`,
@@ -89,7 +83,6 @@ describe('apiSocket multi-machine connections', () => {
         mocks.sockets.length = 0;
         mocks.credentials = [credential('machine-a'), credential('machine-b')];
         mocks.storageState.lastSeenUpdateSeqByMachineId = {};
-        mocks.refreshTunnelClaim.mockImplementation(async (_credentials: any, machineId: string) => `jwt-${machineId}-fresh`);
     });
 
     it('maintains one Socket.IO connection per configured machine', async () => {
@@ -191,35 +184,29 @@ describe('apiSocket multi-machine connections', () => {
         expect(apiSocket.getConnectionMachineIds()).toEqual(['machine-a']);
     });
 
-    it('replaces unintentional disconnects with a fresh-claim socket and skips intentional reconnects', async () => {
-        let claimIndex = 0;
-        mocks.refreshTunnelClaim.mockImplementation(async (_credentials: any, machineId: string) => `jwt-${machineId}-${++claimIndex}`);
-
+    it('replaces unintentional disconnects with a new socket and skips intentional reconnects', async () => {
         const { apiSocket } = await import('./apiSocket');
         await apiSocket.initializeMany([{ endpoint: mocks.credentials[0].tunnelUrl, credentials: mocks.credentials[0] }]);
 
         const reconnected = vi.fn();
         apiSocket.onReconnected(reconnected);
         mocks.sockets[0].trigger('connect');
-        const firstAuth = mocks.sockets[0].options.extraHeaders['X-Codexu-Authorization'];
+        const firstAuth = mocks.sockets[0].options.extraHeaders['X-Tunnel-Authorization'];
 
         mocks.sockets[0].trigger('disconnect');
         await Promise.resolve();
         await Promise.resolve();
         await new Promise(resolve => setTimeout(resolve, 0));
         expect(mocks.sockets).toHaveLength(2);
-        const secondAuth = mocks.sockets[1].options.extraHeaders['X-Codexu-Authorization'];
-        expect(secondAuth).not.toBe(firstAuth);
+        expect(mocks.sockets[1].options.extraHeaders['X-Tunnel-Authorization']).toBe(firstAuth);
 
         mocks.sockets[1].trigger('connect');
         expect(reconnected).toHaveBeenCalledTimes(1);
         expect(reconnected).toHaveBeenCalledWith('machine-a');
 
-        mocks.refreshTunnelClaim.mockClear();
         apiSocket.disconnect('machine-a');
         mocks.sockets[1].trigger('disconnect');
         await Promise.resolve();
-        expect(mocks.refreshTunnelClaim).not.toHaveBeenCalled();
         expect(mocks.sockets).toHaveLength(2);
     });
 });

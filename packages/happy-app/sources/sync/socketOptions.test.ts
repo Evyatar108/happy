@@ -8,10 +8,6 @@ vi.mock('react-native', () => ({
     Platform: { OS: 'ios' },
 }));
 
-vi.mock('@/sync/refreshClaim', () => ({
-    refreshTunnelClaim: vi.fn(async () => 'fresh-socket-claim'),
-}));
-
 vi.mock('@/auth/connectTokenRefresh', () => ({
     ensureFreshConnectToken: vi.fn(async () => ({ connectToken: 'connect-jwt', connectTokenExpiry: Date.now() + 60_000 })),
 }));
@@ -20,11 +16,10 @@ import { buildTunnelSocketOptions } from './socketOptions';
 import type { AuthCredentials } from '@/auth/tokenStorage';
 
 describe('socketOptions', () => {
-    it('builds Socket.IO options with fresh tunnel claim auth and reconnect disabled', async () => {
+    it('builds Socket.IO options with Dev Tunnels auth and reconnect disabled', async () => {
         const credentials: AuthCredentials = {
             machineId: 'machine-1',
             tunnelUrl: 'https://machine.example.test',
-            tunnelClaim: 'stale-claim',
             firstSeenAt: 123,
             connectToken: 'connect-jwt',
             deviceCode: 'device-1',
@@ -34,10 +29,9 @@ describe('socketOptions', () => {
         const options = await buildTunnelSocketOptions(credentials);
         expect(options.extraHeaders).toMatchObject({
             'X-Tunnel-Authorization': 'tunnel connect-jwt',
-            'X-Codexu-Authorization': 'tunnel fresh-socket-claim',
             'X-Happy-Client': 'ios/1.2.3',
         });
-        expect((options.transportOptions as any).websocket.extraHeaders['X-Codexu-Authorization']).toBe('tunnel fresh-socket-claim');
+        expect((options.transportOptions as any).websocket.extraHeaders['X-Tunnel-Authorization']).toBe('tunnel connect-jwt');
         expect((options.auth as Record<string, unknown>)['X-Tunnel-Authorization']).toBeUndefined();
         expect(JSON.stringify(options)).not.toContain('#dt=');
         expect(options.reconnection).toBe(false);
@@ -47,7 +41,6 @@ describe('socketOptions', () => {
         const credentials: AuthCredentials = {
             machineId: 'machine-1',
             tunnelUrl: 'https://machine.example.test',
-            tunnelClaim: 'stale-claim',
             firstSeenAt: 123,
             connectToken: 'connect-jwt',
             deviceCode: 'device-1',
@@ -62,7 +55,6 @@ describe('socketOptions', () => {
         const credentials: AuthCredentials = {
             machineId: 'machine-1',
             tunnelUrl: 'https://machine.example.test',
-            tunnelClaim: 'stale-claim',
             firstSeenAt: 123,
             connectToken: 'connect-jwt',
             deviceCode: 'device-1',

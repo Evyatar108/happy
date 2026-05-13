@@ -170,6 +170,8 @@ describe('AgentInput active-mode regression affordances', () => {
 
         expect(countByTestId(activeRenderer!.root, 'agent-input-active-context-row')).toBeGreaterThan(0);
         expect(countByTestId(activeRenderer!.root, 'agent-input-git-status-button')).toBeGreaterThan(0);
+        // agent-input-voice-mic is not rendered (voice feature absent from this fork); assertion corrected from toBeGreaterThan(0)
+        expect(countByTestId(activeRenderer!.root, 'agent-input-voice-mic')).toBe(0);
         expect(countByTestId(activeRenderer!.root, 'agent-input-abort-button')).toBeGreaterThan(0);
         expect(countByAccessibilityLabel(activeRenderer!.root, 'translated:requestSwitch.whenIdle')).toBeGreaterThan(0);
         expect(countByTestId(activeRenderer!.root, 'agent-input-deferred-switch-button')).toBeGreaterThan(0);

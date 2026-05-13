@@ -15,22 +15,14 @@ The protocol is designed to stay minimal, explicit, and resilient under intermit
 - **Separation of persistent vs. ephemeral.** Anything that must be recoverable after reconnect is an `update` event with a sequence number. Presence is `ephemeral` to avoid state confusion and minimize storage.
 - **Monotonic ordering at the user level.** `UpdatePayload.seq` is a single per-user counter. This makes client reconciliation simple: apply updates in order and you are consistent for that user.
 - **Optimistic concurrency by default.** Versioned fields such as session metadata, agent state, and machine state require `expectedVersion`. This prevents silent overwrites and keeps conflict resolution client-driven.
-- **Client-side encryption boundaries.** Message bodies, metadata, and state fields remain encrypted client-side. RPC params and responses are plaintext JSON over TLS plus Happy claim auth.
+- **Client-side encryption boundaries.** Message bodies, metadata, and state fields remain encrypted client-side. RPC params and responses are plaintext JSON over TLS plus Dev Tunnels gateway auth.
 - **Backward compatibility where it serves live clients.** Sprint E intentionally removed obsolete route/event families whose callers had already moved to the Dev Tunnels architecture.
 - **Avoid full REST verbs.** Reads are primarily `GET`, while writes/actions are primarily `POST`, with `DELETE` used when the intent is unambiguous. We avoid the full REST palette because many mutations are not cleanly tied to a single entity or involve more than CRUD logic. Keeping to `GET` + `POST` (plus occasional `DELETE`) makes the client simpler and the protocol clearer.
 
 If a new protocol field or event is proposed, it should answer: does this create a durable sync primitive, or can it be encoded inside existing encrypted payloads without expanding the API surface?
 
 ## Authentication
-The embedded `happy-server` runs per machine and is reached over a Microsoft Dev Tunnel. Private-tunnel gateway access is authenticated with `X-Tunnel-Authorization: tunnel <connect-jwt>` (Microsoft's standard `WWW-Authenticate: tunnel` scheme; consumed + stripped by the gateway). Happy authorization is a separate signed tunnel claim: a base64url-encoded envelope `{ p, s }` where `p` is the base64url JSON payload `{ sub, iat, exp, jti, accountId? }` and `s` is the hex Ed25519 signature, issued during pairing and stored in `AuthCredentials.tunnelClaim`. Dev Tunnels JWT fallback is removed.
-
-The claim is sent on every request as the HTTP header:
-
-```
-X-Codexu-Authorization: tunnel <base64url(claim)>
-```
-
-The server rejects connections that omit the header, present a malformed or non-JSON claim, do not match the local user (`sub`), exceed the claim expiry, or replay a previously seen `jti`. Payload encryption boundaries are described in `security-model.md`. For the HTTP endpoint catalog and pairing flows, see `api.md`.
+The embedded `happy-server` runs per machine and is reached over a Microsoft Dev Tunnel. Private-tunnel gateway access is authenticated with `X-Tunnel-Authorization: tunnel <connect-jwt>` (Microsoft's standard `WWW-Authenticate: tunnel` scheme; consumed + stripped by the gateway). After the gateway admits the request, happy-server treats the caller as the single local operator and uses `tofuConfig.localUserId` for request and socket identity. Loopback callers use `X-Loopback-Capability` instead. Payload encryption boundaries are described in `security-model.md`. For the HTTP endpoint catalog and pairing flows, see `api.md`.
 
 ## WebSocket connection
 ### Handshake
@@ -39,22 +31,20 @@ Connect with Socket.IO using:
 ```
 path: "/v1/updates"
 extraHeaders: {
-  "X-Tunnel-Authorization": "tunnel <dev-tunnels-connect-token>",
-  "X-Codexu-Authorization": "tunnel <base64url(claim)>"
+  "X-Tunnel-Authorization": "tunnel <dev-tunnels-connect-token>"
 }
 auth: {
   clientType: "user-scoped" | "session-scoped" | "machine-scoped",
   sessionId?: "<session id>",
-  machineId?: "<machine id>",
-  codexuAuthorization?: "tunnel <base64url(claim)>"
+  machineId?: "<machine id>"
 }
 ```
 
-Clients that cannot set custom WebSocket headers may pass the same value through `auth.tunnelAuthorization`; the server reads either source.
+Loopback clients use the same Socket.IO scope fields but present `X-Loopback-Capability` to the loopback listener.
 
 Rules enforced server-side:
-- `X-Tunnel-Authorization` (or `auth.tunnelAuthorization`) is required and must start with `tunnel `.
-- The decoded claim must parse as JSON, match the local user `sub`, pass `exp`, and use a fresh `jti`.
+- Tunnel listener access is gated by Microsoft Dev Tunnels before the request reaches happy-server.
+- Loopback listener access requires a valid `X-Loopback-Capability` token.
 - `session-scoped` requires `sessionId`.
 - `machine-scoped` requires `machineId`.
 

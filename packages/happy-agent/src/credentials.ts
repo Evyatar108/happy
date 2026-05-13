@@ -22,14 +22,44 @@ export type PersistedMachineCredentials = {
     machineId: string;
     tunnelId?: string;
     tunnelUrl: string;
-    tunnelClaim: string;
     connectToken?: string;
     connectTokenExpiry?: number;
-    accountId: number;
     ed25519PublicKey: string;
     x25519PublicKey: string;
     ed25519Fingerprint?: string;
 };
+
+const PERSISTED_MACHINE_KEYS = new Set<string>([
+    'machineId', 'tunnelId', 'tunnelUrl',
+    'connectToken', 'connectTokenExpiry',
+    'ed25519PublicKey', 'x25519PublicKey', 'ed25519Fingerprint',
+]);
+
+export function toPersistedMachineCredentials(input: unknown): PersistedMachineCredentials | null {
+    if (!input || typeof input !== 'object') {
+        return null;
+    }
+    const candidate = input as Record<string, unknown>;
+    if (typeof candidate.machineId !== 'string'
+        || typeof candidate.tunnelUrl !== 'string'
+        || typeof candidate.ed25519PublicKey !== 'string'
+        || typeof candidate.x25519PublicKey !== 'string') {
+        return null;
+    }
+    if ((candidate.tunnelId !== undefined && typeof candidate.tunnelId !== 'string')
+        || (candidate.connectToken !== undefined && typeof candidate.connectToken !== 'string')
+        || (candidate.connectTokenExpiry !== undefined && typeof candidate.connectTokenExpiry !== 'number')
+        || (candidate.ed25519Fingerprint !== undefined && typeof candidate.ed25519Fingerprint !== 'string')) {
+        return null;
+    }
+    const normalized: Record<string, unknown> = {};
+    for (const key of Object.keys(candidate)) {
+        if (PERSISTED_MACHINE_KEYS.has(key)) {
+            normalized[key] = candidate[key];
+        }
+    }
+    return normalized as unknown as PersistedMachineCredentials;
+}
 
 export type PersistedDiscoveredMachine = {
     tunnelId: string;
@@ -92,7 +122,13 @@ export function loadCredentials(config: Config): Credentials {
         throw new CredentialsNotFoundError();
     }
     const persisted = JSON.parse(readFileSync(config.credentialPath, 'utf-8')) as PersistedCredentials;
-    return toCredentials(persisted);
+    const sanitized: PersistedCredentials = {
+        ...persisted,
+        machines: persisted.machines
+            .map(toPersistedMachineCredentials)
+            .filter((m): m is PersistedMachineCredentials => m !== null),
+    };
+    return toCredentials(sanitized);
 }
 
 export async function saveCredentials(config: Config, persisted: PersistedCredentials): Promise<void> {

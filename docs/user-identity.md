@@ -7,7 +7,7 @@ Happy is now single-tenant per operator machine. The local daemon owns the embed
 The operator proves identity in two phases (revised 2026-05-13):
 
 1. **One-time daemon onboarding**: on the daemon machine, the operator runs `happy auth login --force` which does a GitHub device flow against `Iv1.e7b89e013f801f03` (the public devtunnel OAuth app). The flow writes `~/.happy/profile.json` with the operator's GitHub identity (login, numeric id, name, avatar).
-2. **Mobile pair**: the mobile app calls `POST /pair/complete` on the daemon's Dev Tunnel. The Dev Tunnels gateway's `X-Tunnel-Authorization: tunnel <connect-jwt>` check is the only identity gate — anyone who can reach the daemon's Dev Tunnel and present a valid connect token is treated as the operator. The daemon reads identity from `profile.json` and returns the tunnel claim.
+2. **Mobile pair**: the mobile app calls `POST /pair/complete` on the daemon's Dev Tunnel. The Dev Tunnels gateway's `X-Tunnel-Authorization: tunnel <connect-jwt>` check is the only identity gate — anyone who can reach the daemon's Dev Tunnel and present a valid connect token is treated as the operator. The daemon reads identity from `profile.json` and returns machine metadata.
 
 The previous per-machine GitHub device flow (Sprint A `/pair/start` + `/pair/status` + `HAPPY_TUNNEL_GITHUB_OWNER` enforcement) was deleted during BOOX validation because tunnel ownership already proves operator identity in the single-operator personal-fork posture. A public multi-tenant deployment would need to reintroduce a per-tunnel ownership check.
 
@@ -44,7 +44,6 @@ After pairing, mobile stores per-machine credentials in SecureStore:
 {
   machineId: string;
   tunnelUrl: string;
-  tunnelClaim: string;
   tunnelId: string;
   deviceCode: string;
   deviceCodeExpiresAt: number;
@@ -54,7 +53,7 @@ After pairing, mobile stores per-machine credentials in SecureStore:
 }
 ```
 
-`tunnelClaim` is a plaintext envelope produced by the machine and signed by Sprint A's Ed25519 server key. Its payload binds the GitHub user id into `accountId`, so identity is established end-to-end via GitHub device flow → tunnel-claim envelope rather than any client-side key derivation. The mobile app no longer derives an X25519 session key; tunnel HTTP and Socket.IO calls authenticate by presenting the current `tunnelClaim` directly.
+The mobile app no longer derives an X25519 session key and no longer stores a Happy-specific signed tunnel envelope. Tunnel HTTP and Socket.IO calls authenticate to the Microsoft Dev Tunnels gateway with a refreshed connect token, and the embedded server collapses request identity to its configured local user id.
 
 ## Operational Implications
 

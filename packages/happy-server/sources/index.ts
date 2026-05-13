@@ -6,11 +6,8 @@ import type { ApiPaths, MachineStateGetter } from "./app/api/api";
 import { decodeBase64 } from "privacy-kit";
 import { db, getPGlite } from "./storage/db";
 
-export { encodeTunnelClaim } from "./app/api/auth/tunnelClaim";
-
 export interface TofuPublicKeys {
     ed25519PublicKey: string | Uint8Array;
-    ed25519SecretKey?: Uint8Array;
     x25519PublicKey: string | Uint8Array;
     x25519SecretKey?: Uint8Array;
     ed25519Fingerprint?: string;
@@ -89,6 +86,24 @@ function machineKeyToSeed(machineKey: string | Uint8Array) {
     return Buffer.from(machineKey).toString("base64");
 }
 
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "0:0:0:0:0:0:0:1", "localhost"]);
+
+export function isLoopbackHost(host: string | undefined): boolean {
+    if (!host) {
+        return true;
+    }
+    return LOOPBACK_HOSTS.has(host.toLowerCase());
+}
+
+export function assertOperatorIdentityGate(config: Pick<CreateAppConfig, "auth" | "host">): void {
+    const resolvedHost = config.host || "127.0.0.1";
+    if (config.auth !== "loopback" && !isLoopbackHost(resolvedHost)) {
+        const message = `CRITICAL: refusing to start happy-server tunnel listener bound to non-loopback host "${resolvedHost}". The tunnel listener collapses identity to tofuConfig.localUserId and relies on the Dev Tunnels gateway plus a loopback bind as its operator identity gate. Bind to 127.0.0.1 (or set auth: "loopback") instead.`;
+        console.error(message);
+        throw new Error(message);
+    }
+}
+
 function publicKeyToBase64(publicKey: string | Uint8Array): string {
     if (typeof publicKey === "string") {
         return publicKey;
@@ -97,6 +112,7 @@ function publicKeyToBase64(publicKey: string | Uint8Array): string {
 }
 
 export function createApp(config: CreateAppConfig): HappyServerHandle {
+    assertOperatorIdentityGate(config);
     const app = fastify({ logger: false });
     let isConfigured = false;
     let isStarted = false;
@@ -147,7 +163,6 @@ export function createApp(config: CreateAppConfig): HappyServerHandle {
                 x25519PublicKey: publicKeyToBase64(config.tofuPublicKeys.x25519PublicKey),
                 ed25519Fingerprint: config.tofuPublicKeys.ed25519Fingerprint,
             } : undefined,
-            ed25519SecretKey: config.tofuPublicKeys?.ed25519SecretKey,
             x25519SecretKey: config.tofuPublicKeys?.x25519SecretKey,
         }, {
             auth: config.auth,

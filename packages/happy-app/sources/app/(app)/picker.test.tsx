@@ -91,9 +91,9 @@ describe('NotAuthenticated machine picker', () => {
         });
         mocks.waitForPairStatus.mockResolvedValue({
             status: 'authorized',
-            machines: [{ machineId: 'machine-b', tunnelUrl: 'https://b.example.test', tunnelClaim: 'claim' }],
+            machines: [{ machineId: 'machine-b', tunnelUrl: 'https://b.example.test' }],
         });
-        mocks.credentialsFromPairMachine.mockReturnValue({ machineId: 'machine-b', tunnelUrl: 'https://b.example.test', tunnelClaim: 'claim', firstSeenAt: 1 });
+        mocks.credentialsFromPairMachine.mockReturnValue({ machineId: 'machine-b', tunnelUrl: 'https://b.example.test', firstSeenAt: 1 });
     });
 
     it('renders MachineTunnel lastSeenAt and sends the selected machine directly', async () => {

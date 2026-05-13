@@ -2,7 +2,7 @@ import axios, { AxiosError } from 'axios';
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { saveCredentials, deleteCredentials, legacyCredentialsToPersisted, type PersistedCredentials, type PersistedDiscoveredMachine, type PersistedMachineCredentials } from './credentials';
+import { saveCredentials, deleteCredentials, legacyCredentialsToPersisted, toPersistedMachineCredentials, type PersistedCredentials, type PersistedDiscoveredMachine, type PersistedMachineCredentials } from './credentials';
 import { encodeBase64 } from './encryption';
 import { DevTunnelsClientProvider } from './tunnel/clientProvider';
 import type { Config } from './config';
@@ -30,13 +30,6 @@ type PairStatusResponse = {
 };
 
 type PairStatusMachine = PersistedMachineCredentials;
-
-type TunnelClaimPayload = {
-    accountId?: unknown;
-    iat?: unknown;
-    exp?: unknown;
-    jti?: unknown;
-};
 
 export async function authLogin(config: Config): Promise<void> {
     const start = await startPairing(config);
@@ -70,7 +63,6 @@ export async function authLogin(config: Config): Promise<void> {
         if (status.status === 'authorized') {
             const devTunnelsAccess = await resolveDevTunnelsAccess(status, intervalSeconds);
             const machines = await discoverAuthorizedMachines(status, start.device_code, intervalSeconds, devTunnelsAccess);
-            const auditedMachines = auditMachines(machines);
             const legacy = readLegacyCredentials();
             const persisted: PersistedCredentials = {
                 githubLogin: requireString(status.githubLogin, 'githubLogin'),
@@ -78,7 +70,7 @@ export async function authLogin(config: Config): Promise<void> {
                 deviceCode: start.device_code,
                 deviceCodeExpiresAt: expiresAt,
                 pairingBaseUrl: config.pairingBaseUrl,
-                machines: auditedMachines,
+                machines,
                 discoveredMachines: status.discoveredMachines,
                 ...legacy,
             };
@@ -169,19 +161,23 @@ async function discoverAuthorizedMachines(status: PairStatusResponse, deviceCode
     for (const primary of status.machines ?? []) {
         const tunnelId = primary.tunnelId ?? parseTunnelIdFromUrl(primary.tunnelUrl);
         if (!tunnelId) {
-            machines.push(primary);
+            const projected = toPersistedMachineCredentials(primary);
+            if (projected) machines.push(projected);
             continue;
         }
         if (!devTunnelsAccess) {
-            machines.push({ ...primary, tunnelId });
+            const projected = toPersistedMachineCredentials({ ...primary, tunnelId });
+            if (projected) machines.push(projected);
             continue;
         }
         try {
             const connectToken = await provider.getConnectToken(tunnelId);
             const connectTokenExpiry = deriveConnectTokenExpiry();
-            machines.push({ ...primary, tunnelId, connectToken, connectTokenExpiry });
+            const projected = toPersistedMachineCredentials({ ...primary, tunnelId, connectToken, connectTokenExpiry });
+            if (projected) machines.push(projected);
         } catch {
-            machines.push({ ...primary, tunnelId });
+            const projected = toPersistedMachineCredentials({ ...primary, tunnelId });
+            if (projected) machines.push(projected);
         }
     }
 
@@ -205,7 +201,8 @@ async function discoverAuthorizedMachines(status: PairStatusResponse, deviceCode
                 const connectTokenExpiry = deriveConnectTokenExpiry();
                 const target = await postPairStatus(discovered.tunnelUrl, deviceCode, TARGET_DISCOVERY_TIMEOUT_MS, connectToken);
                 if (target.status === 'authorized' && target.machines?.[0]) {
-                    machines.push({ ...target.machines[0], tunnelId: discovered.tunnelId, connectToken, connectTokenExpiry });
+                    const projected = toPersistedMachineCredentials({ ...target.machines[0], tunnelId: discovered.tunnelId, connectToken, connectTokenExpiry });
+                    if (projected) machines.push(projected);
                 }
                 break;
             } catch (error) {
@@ -280,31 +277,6 @@ async function pollDevTunnelsDeviceFlow(deviceCode: string): Promise<string | nu
 
 function deriveConnectTokenExpiry(now = Date.now()): number {
     return now + CONNECT_TOKEN_TTL_MS;
-}
-
-function auditMachines(machines: PairStatusMachine[]): PersistedMachineCredentials[] {
-    const audited: PersistedMachineCredentials[] = [];
-    for (const machine of machines) {
-        try {
-            const payload = decodeTunnelClaimPayload(machine.tunnelClaim);
-            if (typeof payload.accountId !== 'number') throw new Error('accountId missing');
-            if (typeof payload.iat !== 'number' || typeof payload.exp !== 'number' || payload.exp - payload.iat > 3600) throw new Error('invalid lifetime');
-            if (payload.exp <= Math.floor(Date.now() / 1000)) throw new Error('claim expired');
-            if (typeof payload.jti !== 'string' || payload.jti.length === 0) throw new Error('jti missing');
-            audited.push({ ...machine, accountId: payload.accountId });
-        } catch (error) {
-            console.warn(`Skipping machine ${machine.machineId} with invalid tunnel claim: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    }
-    return audited;
-}
-
-function decodeTunnelClaimPayload(tunnelClaim: string): TunnelClaimPayload {
-    const envelope = JSON.parse(Buffer.from(tunnelClaim, 'base64url').toString('utf-8')) as { p?: unknown; s?: unknown };
-    if (typeof envelope.p !== 'string' || typeof envelope.s !== 'string') {
-        throw new Error('invalid envelope');
-    }
-    return JSON.parse(Buffer.from(envelope.p, 'base64url').toString('utf-8')) as TunnelClaimPayload;
 }
 
 function readLegacyCredentials(): Pick<PersistedCredentials, 'legacyToken' | 'legacySecret'> {

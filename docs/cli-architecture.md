@@ -205,9 +205,8 @@ graph LR
 CLI and daemon traffic uses two independent credentials when crossing a private Dev Tunnel:
 
 - `X-Tunnel-Authorization: tunnel <connect-jwt>` carries the Dev Tunnels connect token (Microsoft's gateway auth scheme; obtained through `ClientTunnelProvider.getConnectToken(tunnelId)`). The Dev Tunnels gateway consumes and strips this header before forwarding to the backend.
-- `X-Codexu-Authorization: tunnel <happy-claim>` is the signed Happy tunnel claim minted by `POST /pair/complete` and verified by happy-server's `authenticateTunnelClaim` middleware.
 
-`src/tunnel/tunnelManager.ts` creates private tunnels and must not add anonymous access flags. The app and happy-agent refresh connect tokens and Happy claims before tunnel HTTP/Socket.IO calls.
+`src/tunnel/tunnelManager.ts` creates private tunnels and must not add anonymous access flags. The app and happy-agent refresh Dev Tunnels connect tokens before tunnel HTTP/Socket.IO calls.
 
 ### Encryption
 
@@ -229,7 +228,7 @@ flowchart LR
 The CLI encrypts client content before it leaves the machine using `src/api/encryption.ts`.
 - Session metadata, agent state, messages, and machine state are encrypted client-side.
 - On-wire encoding is base64; see `encryption.md`.
-- RPC params and responses are plaintext JSON over TLS plus Happy claim auth. Session content encryption remains for message bodies, metadata, and state fields.
+- RPC params and responses are plaintext JSON over TLS plus Dev Tunnels gateway auth. Session content encryption remains for message bodies, metadata, and state fields.
 
 ## Daemon architecture
 

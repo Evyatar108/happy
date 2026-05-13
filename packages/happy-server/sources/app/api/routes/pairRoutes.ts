@@ -2,10 +2,8 @@ import { z } from "zod";
 import nacl from "tweetnacl";
 import * as os from "os";
 import * as path from "path";
-import { randomUUID } from "crypto";
 import { type Fastify } from "../types";
 import { type TofuHandshakeConfig } from "../api";
-import { encodeTunnelClaim } from "../auth/tunnelClaim";
 
 export interface PairRoutePaths {
     profile?: string;
@@ -32,19 +30,6 @@ async function readProfile(profilePath: string): Promise<ProfileData | null> {
     } catch {
         return null;
     }
-}
-
-/** Build the payload for a signed tunnel claim. Providing `accountId` links the
- *  claim to a GitHub account (present after a GitHub device-flow grant). */
-function buildTunnelClaimPayload(localUserId: string, accountId?: number): {
-    sub: string;
-    iat: number;
-    exp: number;
-    jti: string;
-    accountId?: number;
-} {
-    const iat = Math.floor(Date.now() / 1000);
-    return { sub: localUserId, iat, exp: iat + 3600, jti: randomUUID(), ...(accountId !== undefined ? { accountId } : {}) };
 }
 
 const PAIR_RATE_LIMIT_MAX = 30;
@@ -91,7 +76,6 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig, paths:
                         ed25519PublicKey: z.string(),
                         x25519PublicKey: z.string(),
                         ed25519Fingerprint: z.string().optional(),
-                        tunnelClaim: z.string(),
                         mobileSharedSecret: z.string().optional(),
                     }),
                 }),
@@ -105,9 +89,6 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig, paths:
         }
         if (!tofuConfig.tofuPublicKeys) {
             return reply.code(503).send({ error: "tofu_public_keys_unavailable" });
-        }
-        if (!tofuConfig.ed25519SecretKey) {
-            return reply.code(503).send({ error: "tunnel_signing_key_unavailable" });
         }
 
         const profile = await readProfile(paths.profile ?? defaultProfilePath());
@@ -123,8 +104,6 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig, paths:
         }
 
         const tunnelUrl = tofuConfig.publicUrl || process.env.PUBLIC_URL || `http://127.0.0.1:${process.env.PORT ?? "3005"}`;
-        const claimPayload = buildTunnelClaimPayload(tofuConfig.localUserId, profile.githubUserId);
-        const tunnelClaim = await encodeTunnelClaim(claimPayload, tofuConfig.ed25519SecretKey);
 
         return {
             githubLogin: profile.githubLogin,
@@ -134,7 +113,6 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig, paths:
                 ed25519PublicKey: tofuConfig.tofuPublicKeys.ed25519PublicKey,
                 x25519PublicKey: tofuConfig.tofuPublicKeys.x25519PublicKey,
                 ed25519Fingerprint: tofuConfig.tofuPublicKeys.ed25519Fingerprint,
-                tunnelClaim,
                 mobileSharedSecret,
             },
         };
@@ -149,7 +127,7 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig, paths:
             }),
         },
     }, async (request, reply) => {
-        if (!tofuConfig.tofuPublicKeys || !tofuConfig.ed25519SecretKey) {
+        if (!tofuConfig.tofuPublicKeys) {
             return reply.code(503).send({ error: "tofu_public_keys_unavailable" });
         }
 
@@ -161,17 +139,12 @@ export function pairRoutes(app: Fastify, tofuConfig: TofuHandshakeConfig, paths:
         }
 
         const tunnelUrl = tofuConfig.publicUrl || process.env.PUBLIC_URL || `http://127.0.0.1:${process.env.PORT ?? "3005"}`;
-        const tunnelClaim = await encodeTunnelClaim(
-            buildTunnelClaimPayload(tofuConfig.localUserId),
-            tofuConfig.ed25519SecretKey,
-        );
         return {
             machineId: tofuConfig.localUserId,
             tunnelUrl,
             ed25519PublicKey: tofuConfig.tofuPublicKeys.ed25519PublicKey,
             x25519PublicKey: tofuConfig.tofuPublicKeys.x25519PublicKey,
             ed25519Fingerprint: tofuConfig.tofuPublicKeys.ed25519Fingerprint,
-            tunnelClaim,
             mobileSharedSecret,
         };
     });

@@ -1,10 +1,10 @@
 # Realtime Sync Perf Plan
 
-**Status:** drafted 2026-05-13 for a fresh agent. Not yet started.
+**Status:** partially obsoleted 2026-05-13 by `D:/harness-efforts/codexu/.ralph/jobs/remove-tunnel-claim-layer/plan.md`.
 **Branch:** `main` (origin/main HEAD after BOOX-validation push and the 2026-05-13 apiSocket scope-builder consolidation in commit `7ef13b21`).
 **Related history:**
 - `docs/validation/devtunnels-boox-result.md` "Realtime sync perf (deferred)" subsection — empirical symptoms that motivated this work
-- `packages/happy-app/scripts/sprint-a-gap.md` "R-D18 path (b) implementation log" — gateway/claim header design these calls run on top of
+- `packages/happy-app/scripts/sprint-a-gap.md` "R-D18 path (b) implementation log" — historical gateway/header design these calls run on top of
 - `packages/happy-app/CLAUDE.md` — read the "Session/machine-scoped network calls MUST go through `apiSocket.forSession(sid)` …" invariant. The new scope-builder API is the baseline. There is **no** `apiSocket.request` / `apiSocket.emitWithAck` / `apiSocket.sessionRPC` / `apiSocket.machineRPC` / `apiSocket.requestForSession`. Any code this plan asks you to add to `apiSocket.ts` MUST follow the scope builder pattern.
 
 ## Baseline state (verified 2026-05-13)
@@ -31,7 +31,7 @@ These are what the operator experienced during US-005 BOOX Phase 1 validation, a
 - Steady-state push **does work** — server emits `new-session`, `new-message`, `update-session`, `update-machine` to user-scoped + session-scoped rooms (`packages/happy-server/sources/app/api/socket/sessionUpdateHandler.ts:286-293`, `packages/happy-server/sources/app/api/routes/sessionRoutes.ts:281`).
 - **There is no server-side event replay buffer**. Socket.IO without an adapter does not persist events across a client's disconnected window. Events fired during the disconnect are lost on the floor.
 - happy-app's recovery from a lost event is **HTTP re-fetch**: `fetchSessions` calls `tunnelFetch('/v1/sessions', ...)` (`packages/happy-app/sources/sync/sync.ts:1135-1195`). `fetchMessages` and `loadOlder` call `apiSocket.forSession(sessionId).request('/v3/sessions/:localId/messages?...')` — which is `tunnelFetch` under the hood (`packages/happy-app/sources/sync/apiSocket.ts` `_requestForMachine`). The 2026-05-13 consolidation replaced `apiSocket.requestForSession(sid, path)` / `apiSocket.sessionRPC(sid, method, params)` / etc. with `apiSocket.forSession(sid).request|rpc|machineRpc|emitWithAck(...)` scope builders; the new pattern is the ONLY way to call session-scoped routing.
-- Every `tunnelFetch` call runs `getMachineAuthHeaders` (`packages/happy-app/sources/auth/machineAuth.ts:65-72`) which sequences: `ensureFreshConnectToken` (potential roundtrip to Microsoft Dev Tunnels API) → `refreshTunnelClaim` (roundtrip to daemon `/pair/complete`) → the actual fetch. So a cold call can be 3 sequential HTTPS roundtrips through the tunnel.
+- Every `tunnelFetch` call runs `getMachineAuthHeaders` (`packages/happy-app/sources/auth/machineAuth.ts:65-72`) which now only ensures a Dev Tunnels connect token before the actual fetch. Earlier drafts of this plan included a second Happy claim refresh roundtrip; that layer was removed by the remove-tunnel-claim-layer plan.
 - `InvalidateSync` (`packages/happy-app/sources/utils/sync.ts:3-83`) is **debounced, not timer-polled.** No fixed cadence. It only runs `_command` when someone calls `.invalidate()`. So "polling cadence" is not the bottleneck — what triggers `.invalidate()` matters.
 
 ### What triggers `sessionsSync.invalidate()` (and is therefore a source of HTTP work)
@@ -77,29 +77,13 @@ Each workstream stands on its own. Recommend executing in the order presented (c
 
 ---
 
-### Workstream 1 — Skip `refreshTunnelClaim` roundtrip when claim is still valid
+### Workstream 1 — OBSOLETED: Happy claim refresh roundtrip removed
 
-**Pain it relieves:** every steady-state fetch currently pays ~1s for a `refreshTunnelClaim` HTTPS roundtrip even when the existing `tunnelClaim` is still valid for tens of minutes. This makes every foreground-triggered fan-out unnecessarily expensive.
+This workstream was superseded by `D:/harness-efforts/codexu/.ralph/jobs/remove-tunnel-claim-layer/plan.md`, implemented by commits `48e16356`, `5c1b3953`, `0c0f2d53`, `c3328948`, and `26ed2402` on `ralph/remove-tunnel-claim-layer`.
 
-**Files to read:**
-- `packages/happy-app/sources/sync/refreshClaim.ts` — current refresh logic, has `MIN_REFRESH_INTERVAL_MS = 12_000` rate-limit but no exp-based skip
-- `packages/happy-app/sources/auth/machineAuth.ts:65-72` — calls `refreshTunnelClaim` on every `tunnelFetch` via `getMachineAuthHeaders`
-- `packages/happy-app/sources/auth/pairing.ts:parseTunnelClaimPayload` — already decodes the claim envelope; the `exp` (Unix seconds) field is in there
+The original idea was to skip a per-request Happy claim refresh when the cached claim was still valid. That is no longer the right fix because the Happy claim layer has been deleted end-to-end: server verification and minting code is gone, app/CLI/agent callers no longer send the retired header, and app credentials no longer persist the claim. The foreground first-load pain point from this workstream is therefore resolved at the root rather than optimized around.
 
-**What to do:**
-- In `refreshTunnelClaim`, before doing the HTTP roundtrip, parse the current `credentials.tunnelClaim` (via `parseTunnelClaimPayload`) and check `exp - now > SAFETY_WINDOW_S` (suggest 60-120 seconds). If still valid, return the cached claim string. No network call.
-- Keep the existing rate-limit (`MIN_REFRESH_INTERVAL_MS`) as a secondary guard.
-- Verify: `validateFreshClaim` (already in the file) covers the integrity check on actual fresh claims; the skip path needs no extra validation.
-
-**Test plan:**
-- `packages/happy-app/sources/sync/refreshClaim.test.ts` — add a case that asserts no `fetch` call when the cached claim still has `exp > now + SAFETY_WINDOW_S`.
-- Existing tests for `503`/`5xx` retry paths must stay green.
-
-**Expected outcome:** foreground fan-out where 5/6 fetches share a fresh-enough claim drops from 6×~2.5s to 1×~2.5s + 5×~0.5s. Cold-foreground first fetch is unchanged.
-
-**Risk:** if the claim's `exp` is short-lived (<1 min) the skip never kicks in. Verify the daemon's `buildTunnelClaimPayload` in `packages/happy-server/sources/app/api/routes/pairRoutes.ts` issues a meaningful lifetime — at the time of this writing it's 3600s, which makes the optimization worthwhile.
-
-**Estimate:** 30–45 min including tests.
+Remaining realtime-sync work should start at Workstream 2 below.
 
 ---
 
@@ -184,7 +168,7 @@ If after workstreams 1–3 there's still meaningful HTTP traffic on the steady-s
 
 | Workstream | Touches | Risk | Rollback |
 |---|---|---|---|
-| 1 (refresh-skip) | `refreshClaim.ts`, `refreshClaim.test.ts` | Low | revert single commit |
+| 1 (claim refresh) | Obsoleted by remove-tunnel-claim-layer | None | already removed |
 | 2 (optimistic placeholder) | `sync.ts:1680-1710`, `storage.ts` (minor), new test | Medium — placeholder semantics need care | revert single commit |
 | 3 (replay buffer) | `eventRouter.ts`, `socket.ts`, `apiSocket.ts`, `storage.ts`, server + client tests | Medium — touches both sides of the wire; ring-buffer size is a runtime knob | revert single commit (but keep client-side `lastSeenUpdateSeq` persistence, it's idempotent) |
 

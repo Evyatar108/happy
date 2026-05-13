@@ -26,7 +26,6 @@ function machine(overrides: Partial<AuthCredentials> = {}): AuthCredentials {
         machineId: 'machine-1',
         tunnelId: 'tunnel-1',
         tunnelUrl: 'https://machine.example.test',
-        tunnelClaim: 'claim',
         firstSeenAt: 1,
         ...overrides,
     };

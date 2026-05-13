@@ -59,7 +59,6 @@ function credentials(machineId: string): AuthCredentials {
     return {
         machineId,
         tunnelUrl: `https://${machineId}.example.test`,
-        tunnelClaim: `jwt-${machineId}`,
         firstSeenAt: 1,
         tunnelId: `tunnel-${machineId}`,
         login: `login-${machineId}`,

@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   },
   readSettings: vi.fn(),
   readMachineState: vi.fn(),
-  loadOrCreateTofuKeypairs: vi.fn(),
   createConnection: vi.fn(),
   ensureDaemonRunning: vi.fn(),
   tcpReady: true,
@@ -25,10 +24,6 @@ vi.mock('@/persistence', () => ({
   readMachineState: mocks.readMachineState,
 }));
 
-vi.mock('@/tofu/keypairManager', () => ({
-  loadOrCreateTofuKeypairs: mocks.loadOrCreateTofuKeypairs,
-}));
-
 vi.mock('node:net', () => ({
   createConnection: mocks.createConnection,
 }));
@@ -41,13 +36,6 @@ function response(status: number): Response {
   return new Response('{}', { status, headers: { 'Content-Type': 'application/json' } });
 }
 
-function decodeJti(claim: string): string {
-  const encoded = claim.slice('tunnel '.length);
-  const envelope = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf-8')) as { p: string };
-  const payload = JSON.parse(Buffer.from(envelope.p, 'base64url').toString('utf-8')) as { jti: string };
-  return payload.jti;
-}
-
 async function loadClient(homeDir: string) {
   mocks.configuration.happyHomeDir = homeDir;
   mocks.readSettings.mockResolvedValue({ machineId: 'machine-1' });
@@ -57,9 +45,6 @@ async function loadClient(homeDir: string) {
     loopbackPort: 62001,
     tunnelId: 'tunnel-1',
     lastTunnelUrl: 'https://example.devtunnels.ms',
-  });
-  mocks.loadOrCreateTofuKeypairs.mockResolvedValue({
-    ed25519PrivateKey: new Uint8Array(32).fill(7),
   });
   const client = await import('./daemonClient');
   client.__resetDaemonClientForTests();
@@ -74,7 +59,6 @@ describe('daemonClient', () => {
     vi.restoreAllMocks();
     mocks.readSettings.mockReset();
     mocks.readMachineState.mockReset();
-    mocks.loadOrCreateTofuKeypairs.mockReset();
     mocks.createConnection.mockReset();
     mocks.ensureDaemonRunning.mockReset();
     mocks.ensureDaemonRunning.mockResolvedValue(undefined);
@@ -112,20 +96,9 @@ describe('daemonClient', () => {
     expect(options.url).toBe('http://127.0.0.1:62000');
     expect(options).toEqual({
       url: 'http://127.0.0.1:62000',
-      auth: { tunnelAuthorization: expect.stringMatching(/^tunnel /) },
+      auth: {},
     });
     expect('extraHeaders' in options).toBe(false);
-  });
-
-  it('mints a fresh claim every time while loading key material once', async () => {
-    const client = await loadClient(await makeHome());
-
-    const claims = await Promise.all(Array.from({ length: 10 }, () => client.mintTunnelClaim()));
-    const jtis = claims.map(decodeJti);
-
-    expect(new Set(jtis).size).toBe(10);
-    expect(mocks.loadOrCreateTofuKeypairs).toHaveBeenCalledTimes(1);
-    expect(mocks.readSettings).toHaveBeenCalledTimes(1);
   });
 
   it('re-reads a rotated loopback capability after one 401', async () => {
@@ -154,18 +127,15 @@ describe('daemonClient', () => {
     await expect(client.loopbackFetch('/v2/me/settings')).rejects.toThrow('capability refresh');
   });
 
-  it('retries tunnel fetch with a freshly minted claim after one 401', async () => {
+  it('sends tunnel fetches without the retired Happy claim header', async () => {
     const client = await loadClient(await makeHome());
-    const seenJtis: string[] = [];
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
-      seenJtis.push(decodeJti(new Headers(init?.headers).get('X-Tunnel-Authorization') ?? ''));
-      return response(seenJtis.length === 1 ? 401 : 200);
-    });
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(response(200));
 
     await expect(client.tunnelFetch('/v1/sessions')).resolves.toMatchObject({ status: 200 });
 
-    expect(seenJtis).toHaveLength(2);
-    expect(seenJtis[0]).not.toBe(seenJtis[1]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const headers = new Headers(fetchMock.mock.calls[0][1]?.headers);
+    expect(headers.get('X-Codexu-Authorization')).toBeNull();
   });
 
   it('calls ensureDaemonRunning before polling so cold-start auto-spawns the daemon', async () => {

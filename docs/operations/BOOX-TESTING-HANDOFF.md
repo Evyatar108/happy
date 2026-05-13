@@ -14,7 +14,7 @@ This file is the single starting point. Read it top-to-bottom before doing anyth
 
 The Sprint A migration shipped on main with several never-reached-end-to-end bugs. The validation session corrected them in source:
 
-- **Header rename**: client sends `X-Tunnel-Authorization: tunnel <connect-jwt>` (Microsoft's gateway auth) AND `X-Codexu-Authorization: tunnel <happy-claim>` (custom header so the gateway-strip doesn't eat the claim). The old `X-Tunnel-Connect` name is gone.
+- **Header contract**: client sends `X-Tunnel-Authorization: tunnel <connect-jwt>` for Microsoft's gateway auth. The older Happy-specific daemon header has been retired, and the old `X-Tunnel-Connect` name is gone.
 - **Pair protocol simplified**: `/pair/start` + `/pair/status` + per-machine GitHub device flow are replaced by a single `POST /pair/complete` that uses local `profile.json` identity. No `GITHUB_CLIENT_ID` env var needed.
 - **Tunnel id prefix**: `happy-<host>-<uuid>` → `codexu-<host>` (Microsoft caps tunnel ids at 49 chars; the long form overflowed). Tunnel label stays `happy-machine` for now (F-014 deferred — server query in `pairRoutes.ts` still uses that label).
 - **Port URL**: client + daemon now read `portForwardingUris` (plural array, what the Dev Tunnels API actually returns) and the daemon's `tunnelManager.parseTunnelUrl` also handles the CLI's `portUri` field. The base-tunnel URL `https://<tunnelId>.devtunnels.ms` (no port) does not resolve; the port-specific `https://<short-id>-<port>.<region>.devtunnels.ms` does.
@@ -36,7 +36,7 @@ Phase 1 passed but the operator observed (a) several-second foreground refresh, 
 - US-001 server route deletions ✓
 - US-002 Prisma schema reduction ✓ (schema edits committed; `prisma migrate dev` not yet run)
 - US-003 fan-out preservation integration test ✓
-- US-004 R-D18 path (b) gateway-auth plumbing ✓ (the header was renamed from `X-Tunnel-Connect` to `X-Tunnel-Authorization: tunnel <connect-jwt>` during BOOX validation; the happy-claim header was renamed from `X-Tunnel-Authorization` to `X-Codexu-Authorization` to avoid collision with the gateway header)
+- US-004 R-D18 path (b) gateway-auth plumbing ✓ (the header was renamed from `X-Tunnel-Connect` to `X-Tunnel-Authorization: tunnel <connect-jwt>` during BOOX validation; later remove-tunnel-claim-layer work retired the separate Happy daemon header entirely)
 - US-005 **THIS — BOOX hardware validation** (operator-blocked, what we're doing here)
 - US-006 docs sweep ✓
 - US-007 **THIS — run Prisma migration; commit migration file** (operator-blocked; depends on US-005 passing for go/no-go)
@@ -137,7 +137,7 @@ You need a happy-cli daemon reachable via Dev Tunnels. Two options:
   ```
 - **(b)** Use a daemon on another trusted machine. The BOOX must be able to reach its Dev Tunnel.
 
-The app on the BOOX prompts "Sign in with GitHub" — complete the device flow on a browser. Pick the machine from the picker. The daemon mints a tunnel claim, the app stores it, you're paired.
+The app on the BOOX prompts "Sign in with GitHub" — complete the device flow on a browser. Pick the machine from the picker. The daemon validates Dev Tunnels gateway auth, returns machine metadata, and the app stores credentials — you're paired.
 
 ### Step 5 — Walk the BOOX validation template
 

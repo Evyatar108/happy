@@ -49,7 +49,7 @@ graph TB
 - Database: PGlite (embedded Postgres) by default via Prisma; external Postgres is opt-in for the standalone deployment shape.
 - Cache/bus: Redis is optional. When `REDIS_URL` is set, the Socket.IO Redis-streams adapter is enabled for multi-process fan-out. In the embedded per-machine deployment Redis is not used.
 - Blob storage: local filesystem (`<dataDir>/files`) by default; S3-compatible storage is opt-in when `S3_HOST` and friends are set.
-- Auth: TOFU handshake middleware verifies `X-Codexu-Authorization: tunnel <base64url-claim>` against the embedded server identity, one-hour `exp`, and replay-protected `jti`. Private Dev Tunnels gateway access is carried separately by `X-Tunnel-Authorization: tunnel <connect-jwt>` (Microsoft's standard scheme; consumed + stripped by the gateway).
+- Auth: private Dev Tunnels gateway access is carried by `X-Tunnel-Authorization: tunnel <connect-jwt>` (Microsoft's standard scheme; consumed + stripped by the gateway). After the gateway admits a tunnel request, happy-server uses `tofuConfig.localUserId`; loopback listeners continue to require `X-Loopback-Capability`.
 - Crypto: privacy-kit `KeyTree` derived from the per-machine `HANDY_MASTER_SECRET` (set by `createHappyServer()` from the configured `machineKey`). Used only for server-side service-token storage.
 - Push: Expo push notifications are delivered directly from happy-server via `sendSessionPushEvent` to tokens stored per (machineId, deviceId).
 - Metrics: Prometheus-style `/metrics` server + per-request HTTP metrics.
@@ -113,7 +113,7 @@ Shutdown calls `handle.stop()`, which closes the Fastify app, shuts down the aut
 `configureApi()` in `sources/app/api/api.ts` wires the HTTP server:
 - Fastify instance with Zod validators/serializers (created via `createApi()`).
 - Global hooks for monitoring and error handling.
-- `authenticate` decorator that verifies the TOFU `X-Tunnel-Authorization: tunnel <claim>` header against the embedded server's `localUserId` and a 24-hour `iat` window.
+- `authenticate` decorator that assigns tunnel identity from the embedded server's `localUserId`, while preserving loopback capability checks on loopback listeners.
 - A `/files/*` static handler when local-filesystem storage is in use.
 - Route modules under `sources/app/api/routes`.
 - Socket.IO server attached at `/v1/updates` with the same TOFU handshake check in its middleware.
@@ -122,7 +122,7 @@ Shutdown calls `handle.stop()`, which closes the Fastify app, shuts down the aut
 graph LR
     subgraph "Fastify Server"
         Hooks[Global Hooks]
-        Auth[authenticate decorator - TOFU claim]
+        Auth[authenticate decorator - tunnel or loopback gate]
 
         subgraph Routes
             direction TB
@@ -138,8 +138,8 @@ graph LR
 
     SocketIO[Socket.IO /v1/updates]
 
-    Mobile -->|tunnel claim| Hooks --> Auth --> Routes
-    Mobile -->|tunnel claim| SocketIO
+    Mobile -->|Dev Tunnels gateway auth| Hooks --> Auth --> Routes
+    Mobile -->|Dev Tunnels gateway auth| SocketIO
 ```
 
 HTTP routes are organized by domain:
@@ -165,27 +165,24 @@ sequenceDiagram
     Gateway->>Gateway: Verify connect token, strip header
     Gateway->>Server: POST /pair/complete (forwarded, no X-Tunnel-Authorization)
     Server->>Server: Read identity from ~/.happy/profile.json
-    Server->>Server: Sign Happy envelope ed25519.sign(payload{sub,iat,exp,jti,accountId})
-    Server-->>Gateway: { githubLogin, machine: { machineId, tunnelUrl, ed25519PublicKey, ed25519Fingerprint, tunnelClaim } }
+    Server-->>Gateway: { githubLogin, machine: { machineId, tunnelUrl, ed25519PublicKey, ed25519Fingerprint } }
     Gateway-->>Mobile: 200 + body
 
     Note over Mobile,Server: Subsequent requests
 
-    Mobile->>Gateway: Request + X-Tunnel-Authorization: tunnel <connect-jwt> + X-Codexu-Authorization: tunnel <claim>
+    Mobile->>Gateway: Request + X-Tunnel-Authorization: tunnel <connect-jwt>
     Gateway->>Gateway: Verify connect token, strip X-Tunnel-Authorization
-    Gateway->>Server: Request + X-Codexu-Authorization (passed through)
-    Server->>Server: authenticate decorator reads x-codexu-authorization; verify ed25519 sig, sub == localUserId, exp + jti replay protection, 1h max TTL
+    Gateway->>Server: Request
+    Server->>Server: authenticate decorator assigns tofuConfig.localUserId
     Server-->>Mobile: Response
 ```
 
 The backend does not store accounts or passwords. Pairing identity comes from `~/.happy/profile.json`, which is written when the operator runs `happy auth login --force` on the daemon machine (one-time GitHub device flow against `Iv1.e7b89e013f801f03`, the public devtunnel OAuth app).
 
-- `POST /pair/complete` is the single pair + refresh endpoint. The Dev Tunnels gateway's `X-Tunnel-Authorization: tunnel <connect-jwt>` check is the identity gate; the daemon's signed Ed25519 envelope binds the claim to its local Ed25519 key + the operator's GitHub identity (`accountId` from profile.json). The mobile client trust-on-first-use pins the daemon's Ed25519 public key on first pair.
-- All subsequent HTTP and WebSocket calls present BOTH `X-Tunnel-Authorization: tunnel <connect-jwt>` (gateway, consumed + stripped) AND `X-Codexu-Authorization: tunnel <happy-claim>` (passes through to the daemon).
+- `POST /pair/complete` is the single pair endpoint. The Dev Tunnels gateway's `X-Tunnel-Authorization: tunnel <connect-jwt>` check is the identity gate; the daemon reads the operator's GitHub identity from profile.json. The mobile client trust-on-first-use pins the daemon's Ed25519 public key on first pair.
+- All subsequent HTTP and WebSocket calls present `X-Tunnel-Authorization: tunnel <connect-jwt>` to the gateway. The gateway consumes and strips it, and happy-server assigns the request/socket user id from `tofuConfig.localUserId`.
 
-The claim is Ed25519-signed by the embedded server. Tunnel-facing routes and Socket.IO middleware base64url-decode the envelope, verify the signature against the configured Ed25519 public key, then check `sub === localUserId`, enforce `exp`, and reject replayed `jti` values from the in-memory cache. Optional `accountId` carries the GitHub numeric user id.
-
-The refresh-per-request model is intentional: app and agent callers refresh the Happy claim before protected HTTP calls and Socket.IO handshakes by re-hitting `/pair/complete`. The gateway connect-token is refreshed separately by the client via `connectTokenRefresh.ts` against the Dev Tunnels API.
+The gateway connect-token is refreshed by the client via `connectTokenRefresh.ts` against the Dev Tunnels API.
 
 The legacy `auth` module (`sources/app/auth/auth.ts`) still exists and is initialized at startup, but it is no longer used to authenticate HTTP requests. It is retained for internal helpers (e.g., the GitHub ephemeral token used by integrations) and for the standalone deployment shape.
 
@@ -226,7 +223,7 @@ Socket.IO connections are tagged by scope at handshake time:
 - `session-scoped`: receives updates only for one session.
 - `machine-scoped`: daemon connections for machine state.
 
-The Socket.IO middleware in `sources/app/api/socket.ts` enforces the same TOFU claim check as the HTTP layer before any connection is accepted, then attaches `userId`, `clientType`, `sessionId`, `machineId`, and the TOFU public keys to `socket.data`. On connection, it emits a `tofu-pubkeys` event so clients that connected via Socket.IO directly can perform the TOFU pin.
+The Socket.IO middleware in `sources/app/api/socket.ts` enforces the same tunnel/loopback gate as the HTTP layer before any connection is accepted, then attaches `userId`, `clientType`, `sessionId`, `machineId`, and the TOFU public keys to `socket.data`. On connection, it emits a `tofu-pubkeys` event so clients that connected via Socket.IO directly can perform the TOFU pin.
 
 ### Event router
 `EventRouter` (`sources/app/events/eventRouter.ts`) maintains per-user connection sets and routes:

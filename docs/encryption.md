@@ -1,6 +1,6 @@
 # Encryption And Trust
 
-Happy uses a server-per-machine trust model for pairing. The embedded server publishes machine public keys for CLI-internal use; mobile authenticates to a paired machine by presenting a plaintext `tunnelClaim` envelope issued during pairing.
+Happy uses a server-per-machine trust model for pairing. The embedded server publishes machine public keys for CLI-internal use; mobile reaches a paired machine through the Microsoft Dev Tunnels gateway using a connect token.
 
 For transport and event shapes, see `protocol.md` and `packages/happy-wire`.
 
@@ -31,25 +31,11 @@ The Socket.IO handshake and pairing response publish the same machine public key
 }
 ```
 
-The server emits this as `tofu-pubkeys` after accepting a Socket.IO connection. The `/pair/status` response also returns the keys with the authorized machine entry so a trust dialog can be shown before saving credentials. The Ed25519/X25519 keypairs continue to underpin happy-cli's internal trust state; mobile authentication itself flows through the `tunnelClaim` envelope described below.
+The server emits this as `tofu-pubkeys` after accepting a Socket.IO connection. The `/pair/complete` response also returns the keys with the authorized machine entry so a trust dialog can be shown before saving credentials. The Ed25519/X25519 keypairs continue to underpin happy-cli's internal trust state; mobile remote access itself flows through Dev Tunnels gateway authentication.
 
-## Tunnel Claim Authentication
+## Tunnel Authentication
 
-Sprint D removed X25519 ECDH session-key derivation entirely from happy-app. The mobile app no longer generates an X25519 keypair, no longer pins the server's Ed25519 public key, and no longer derives a per-machine session key. The `tunnelClaim` envelope returned by `/pair/status` is now the only authentication artifact the app holds for a paired machine.
-
-`tunnelClaim` is a base64url-encoded JSON envelope of the form `{ p, s }`, where `p` is a base64url-encoded JSON payload signed by the machine's Ed25519 server key. The decoded payload is:
-
-```ts
-{
-  sub: string;        // subject (machine-scoped identifier)
-  iat: number;        // issued-at (seconds)
-  exp: number;        // expiry (seconds)
-  jti: string;        // replay-protection nonce
-  accountId: number;  // GitHub-derived account binding
-}
-```
-
-The embedded server rejects replayed `jti` values. Mobile presents the current `tunnelClaim` on every tunnel HTTP request and on the Socket.IO handshake; there is no separate session-key step.
+Sprint D removed X25519 ECDH session-key derivation entirely from happy-app. The mobile app no longer generates an X25519 keypair, no longer pins the server's Ed25519 public key, and no longer derives a per-machine session key. The later remove-tunnel-claim-layer work also removed the Happy-specific signed tunnel envelope. Mobile presents a Dev Tunnels connect token to the gateway on every tunnel HTTP request and Socket.IO handshake; the gateway strips the token before forwarding and happy-server uses `tofuConfig.localUserId` as the local identity.
 
 The stored mobile credential shape, written by `packages/happy-app/sources/auth/tokenStorage.ts`, is:
 
@@ -57,7 +43,6 @@ The stored mobile credential shape, written by `packages/happy-app/sources/auth/
 {
   machineId: string;
   tunnelUrl: string;
-  tunnelClaim: string;
   firstSeenAt: number;
   login?: string;
   avatarUrl?: string;
@@ -69,7 +54,7 @@ The stored mobile credential shape, written by `packages/happy-app/sources/auth/
 }
 ```
 
-Credentials are kept per machine inside a `{ primaryMachineId, machines[], devTunnelsAccess }` envelope so the app can pair with multiple operator machines concurrently. The Sprint A `pinnedPubkey`, `sessionKey`, and `githubToken` fields have been removed from `AuthCredentials`; legacy credentials carrying any of them are filtered out by the `isOldShape(...)` migration check on load so the app forces a re-pair instead of attempting to use them.
+Credentials are kept per machine inside a `{ primaryMachineId, machines[], devTunnelsAccess }` envelope so the app can pair with multiple operator machines concurrently. The Sprint A `pinnedPubkey`, `sessionKey`, and `githubToken` fields, plus the later Happy-specific tunnel envelope field, have been removed from `AuthCredentials`; legacy credentials carrying old structural fields are filtered out on load so the app forces a re-pair instead of attempting to use them.
 
 ## Where Encryption Is Applied
 

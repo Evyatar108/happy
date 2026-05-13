@@ -71,7 +71,7 @@ describe('ApiClient daemon REST routing', () => {
                 seq: 7,
                 createdAt: 1,
                 updatedAt: 1,
-                metadata: testMetadata,
+                metadata: JSON.stringify(testMetadata),
                 metadataVersion: 2,
                 agentState: null,
                 agentStateVersion: 3,

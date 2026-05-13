@@ -34,7 +34,7 @@ const server = createHappyServer({
   port: 3005,                       // loopback port to listen on
   host: "127.0.0.1",                // optional, default 127.0.0.1
   machineKey: "<base64-or-string>", // master secret for auth/encryption
-  localUserId: "local-user",        // single-tenant user id baked into tunnel claims
+  localUserId: "local-user",        // single-tenant user id assigned to tunnel-listener requests (after Dev Tunnels gateway auth)
   publicUrl: "https://<tunnel>.devtunnels.ms", // public Dev Tunnel URL announced to clients
   tofuPublicKeys: {
     ed25519PublicKey: "<base64>",

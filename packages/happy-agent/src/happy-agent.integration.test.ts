@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { randomUUID } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { decodeBase64, encodeBase64, libsodiumEncryptForPublicKey } from './encryption';
@@ -116,14 +115,6 @@ function readDaemonMachineId(envDir: string): string | null {
     return typeof parsed.machineId === 'string' && parsed.machineId.length > 0 ? parsed.machineId : null;
 }
 
-function buildTestTunnelClaim(accountId: number): string {
-    const iat = Math.floor(Date.now() / 1000);
-    const payload = { sub: 'integration-test', iat, exp: iat + 3600, jti: randomUUID(), accountId };
-    const p = Buffer.from(JSON.stringify(payload)).toString('base64url');
-    const envelope = { p, s: 'integration-test-signature' };
-    return Buffer.from(JSON.stringify(envelope)).toString('base64url');
-}
-
 function seedAgentCredentialFiles(envDir: string, agentDir: string, legacyDir: string, serverPort: number): void {
     mkdirSync(agentDir, { recursive: true });
     mkdirSync(legacyDir, { recursive: true });
@@ -145,8 +136,6 @@ function seedAgentCredentialFiles(envDir: string, agentDir: string, legacyDir: s
             ? [{
                 machineId: daemonMachineId,
                 tunnelUrl: `http://localhost:${serverPort}`,
-                tunnelClaim: buildTestTunnelClaim(1),
-                accountId: 1,
                 ed25519PublicKey: Buffer.alloc(32).toString('base64'),
                 x25519PublicKey: Buffer.alloc(32).toString('base64'),
             }]
@@ -493,7 +482,7 @@ describe('happy-agent integration', { timeout: 180_000 }, () => {
         expect(seededAgentCredentials.legacyToken).toBeTruthy();
         expect(seededLegacyCredentials.secret).toBeInstanceOf(Uint8Array);
         // New credentials path: seeded credentials carry at least one persisted machine entry so
-        // refreshKnownTunnelClaim can pass discoverMachineTunnels without throwing MachineNotKnownError
+        // resolveKnownMachineTunnel can pass discoverMachineTunnels without throwing MachineNotKnownError
         // (AC-C27 new path).
         expect(seededAgentCredentials.machines.length).toBeGreaterThan(0);
         expect(seededAgentCredentials.machines[0].machineId).toBeTruthy();

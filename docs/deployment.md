@@ -46,7 +46,7 @@ can reach its Dev Tunnel **is** the operator. There's nothing else to configure.
 
 ### Private Dev Tunnels
 
-Sprint E uses R-D18 path (b). Tunnels stay private. The app and happy-agent acquire Dev Tunnels connect tokens and send them as `X-Tunnel-Connect`; happy-server separately verifies the signed Happy claim in `X-Tunnel-Authorization`. Operators do not need to create anonymous tunnel access.
+Sprint E uses R-D18 path (b). Tunnels stay private. The app and happy-agent acquire Dev Tunnels connect tokens and send them as `X-Tunnel-Authorization: tunnel <connect-jwt>` to the Microsoft gateway. The gateway strips that header before forwarding, and happy-server collapses remote identity to its local user id. Operators do not need to create anonymous tunnel access.
 
 ## 1. Clean Install
 
@@ -220,7 +220,7 @@ Dev Tunnel host started for https://happy-myhost-machine123.devtunnels.ms
 
 This is the first mobile pair step.
 
-Open the Happy mobile app and start pairing. The app does a GitHub device flow once against `Iv1.e7b89e013f801f03` (devtunnel's public OAuth app) to obtain a `ghu_*` token for the Dev Tunnels API, then calls the machine tunnel's `POST /pair/complete` with `X-Tunnel-Authorization: tunnel <connect-jwt>` (the Dev Tunnels gateway auth — gateway strips it before forwarding to the daemon). The daemon mints a signed tunnel claim using its locally-onboarded identity from `~/.happy/profile.json`. The app stores credentials and is paired.
+Open the Happy mobile app and start pairing. The app does a GitHub device flow once against `Iv1.e7b89e013f801f03` (devtunnel's public OAuth app) to obtain a `ghu_*` token for the Dev Tunnels API, then calls the machine tunnel's `POST /pair/complete` with `X-Tunnel-Authorization: tunnel <connect-jwt>` (the Dev Tunnels gateway auth — gateway strips it before forwarding to the daemon). The daemon reads its locally-onboarded identity from `~/.happy/profile.json`, returns machine metadata, and the app stores credentials.
 
 ### Windows Operator
 
@@ -277,7 +277,7 @@ Trust this machine
 Ed25519 fingerprint SHA256:abc123...
 ```
 
-After trust is accepted, mobile stores `{ machineId, tunnelUrl, tunnelClaim, tunnelId, deviceCode, deviceCodeExpiresAt, login, avatarUrl, firstSeenAt }` per machine in SecureStore and uses the saved machine list for future multi-machine sync. The `tunnelClaim` is a server-signed envelope that mobile refreshes per request; there is no client-side X25519 session-key derivation. The persisted `deviceCode` has a 15-minute TTL (`deviceCodeExpiresAt`), and its expiry is the re-pair UX boundary — once it lapses, mobile must run the GitHub device flow again to mint a fresh claim.
+After trust is accepted, mobile stores `{ machineId, tunnelUrl, tunnelId, deviceCode, deviceCodeExpiresAt, login, avatarUrl, firstSeenAt }` plus refreshed Dev Tunnels connect-token fields per machine in SecureStore and uses the saved machine list for future multi-machine sync. There is no client-side X25519 session-key derivation and no Happy-specific tunnel claim. The persisted `deviceCode` has a 15-minute TTL (`deviceCodeExpiresAt`), and its expiry is the re-pair UX boundary.
 
 ## Web And Desktop Tunnel Clients Deferred To V2
 

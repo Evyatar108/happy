@@ -7,7 +7,7 @@ function source(path: string): string {
 }
 
 describe('NotAuthenticated private tunnel pairing', () => {
-    it('threads the acquired connect token through pre-pair requests and credentials', () => {
+    it('threads the acquired connect token through pairing and credentials', () => {
         const home = source('app/(app)/index.tsx');
 
         expect(home).toContain('acquireConnectTokenForPair(machine)');

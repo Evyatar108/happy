@@ -21,7 +21,6 @@ declare module 'happy-server' {
 
   export interface TofuPublicKeys {
     ed25519PublicKey: string | Uint8Array;
-    ed25519SecretKey?: Uint8Array;
     x25519PublicKey: string | Uint8Array;
     x25519SecretKey?: Uint8Array;
     ed25519Fingerprint?: string;
@@ -74,6 +73,5 @@ declare module 'happy-server' {
 
   export function createApp(config: CreateAppConfig): HappyServerHandle;
   export function createHappyServer(config: HappyServerConfig): HappyServerHandle;
-  export function encodeTunnelClaim(payload: unknown, ed25519SecretKey: Uint8Array): Promise<string>;
   export function bootstrapMachineForEmbedded(input: BootstrapMachineForEmbeddedInput): Promise<void>;
 }
