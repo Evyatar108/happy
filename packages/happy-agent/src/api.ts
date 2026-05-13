@@ -305,7 +305,6 @@ export async function listKnownMachines(
     config: Config,
     creds: Credentials,
 ): Promise<MachineSummary[]> {
-    void config;
     return Promise.all(creds.machines.map(async machine => {
         const base: MachineSummary = {
             id: machine.machineId,
@@ -313,10 +312,12 @@ export async function listKnownMachines(
             tunnelUrl: machine.tunnelUrl,
         };
         try {
+            const connectToken = await ensureMachineConnectToken(config, creds, machine);
             const resp = await axios.get(`${machine.tunnelUrl}/v2/me/machine`, {
                 headers: {
                     'X-Tunnel-Authorization': `tunnel ${machine.tunnelClaim}`,
                     'X-Happy-Client': 'cli-control-plane/0.1.0',
+                    'X-Tunnel-Connect': connectToken,
                 },
                 timeout: 10_000,
             });

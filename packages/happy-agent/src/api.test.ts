@@ -393,6 +393,7 @@ describe('api', () => {
                     headers: {
                         'X-Tunnel-Authorization': `tunnel ${creds.machines[0].tunnelClaim}`,
                         'X-Happy-Client': 'cli-control-plane/0.1.0',
+                        'X-Tunnel-Connect': 'connect-jwt',
                     },
                     timeout: 10_000,
                 },
