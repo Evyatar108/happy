@@ -40,11 +40,9 @@ When each task lands, mark its row done at the bottom of this file.
 
 ---
 
-## D — `F-013-perms` — Claude permission latent override
+## D — ~~`F-013-perms`~~ — closed (obsolete-by-design, Phase 5 drop-Claude)
 
-```
-/plan-with-ralph "F-013 fix — latent permission-mode override path in Claude permission handler. Per .ralph/jobs/devtunnels-E-cleanup/notepad.md F-013 entry — re-read the exact finding text and reproduction before scoping the fix. Likely file: packages/happy-cli/src/claude/permissions.ts (mapToClaudeMode) or src/claude/utils/sessionAllowlist.ts. Read packages/happy-cli/CLAUDE.md 'Permission Mode Protocol' section first — it documents the 7-mode wire enum vs 4-mode SDK enum, and how publishPermissionModeIfChanged mutates runner-local metadata. Apply the fix per the notepad's remediation; if remediation is vague, write the plan in plan form and surface the question to the operator before implementing. Acceptance: existing permission tests stay green; add one test exercising the previously-latent override path. Test command: pnpm --filter '{packages/happy-cli}' exec vitest run 2>&1 | tee /tmp/codexu-f013.log. Cross-package typecheck must stay green. Single commit; reference F-013 in the commit body."
-```
+> Closed 2026-05-13. F-013 is structurally Claude-only (Codex/Gemini share `BasePermissionHandler` which has no `mode` field). The Claude surface itself is being deleted in Phase 5 of the roadmap, so fixing this latent path pays nothing back. TypeScript blocks the misuse at compile time today (`PermissionResponse.mode: ClaudeSdkPermissionMode`). The latent code path stays as-is at `packages/happy-cli/src/claude/utils/permissionHandler.ts:87-89` until Phase 5 deletion removes the surface. See `.ralph/jobs/f-013-perms-closeout/plan.md` for full rationale.
 
 ---
 
@@ -155,7 +153,7 @@ Less-critical or sequenced-after-batch-1 ralph commands. Each is parallel-safe w
 > Parallel with everything outside the touched files. Bundle into one PR to amortize review.
 
 ```
-/plan-with-ralph "Polish PR — bundle remaining devtunnels-E findings: F-017 (device pair-code shortcut), F-001/F-002 (security Medium), F-003-F-007 (security Low). Per .ralph/jobs/devtunnels-E-cleanup/notepad.md — re-read each finding's exact text + severity + remediation before scoping. F-014 (tunnel label rename) is EXCLUDED from this bundle — needs server redeploy, separate effort. F-013, F-015, F-016 already addressed or deferred (don't include). For each F-* in scope, propose the fix in plan form FIRST, then implement after operator sign-off — security findings warrant explicit acknowledgement of the remediation choice before code lands. Read packages/happy-server/CLAUDE.md and packages/happy-app/CLAUDE.md sync invariants. Acceptance: each F-* has a green test (new or extended); all 5 happy-* package typechecks green; security findings explicitly mark severity + CVE-style remediation note in commit body. Test command: pnpm --filter '{packages/happy-server}' --filter '{packages/happy-app}' --filter '{packages/happy-cli}' exec vitest run 2>&1 | tee /tmp/codexu-polish-fs.log. ONE commit per F-finding (six commits) so each can be reverted independently if needed."
+/plan-with-ralph "Polish PR — bundle remaining devtunnels-E findings: F-017 (device pair-code shortcut), F-001/F-002 (security Medium), F-003-F-007 (security Low). Per .ralph/jobs/devtunnels-E-cleanup/notepad.md — re-read each finding's exact text + severity + remediation before scoping. F-014 (tunnel label rename) is EXCLUDED from this bundle — needs server redeploy, separate effort. F-013 closed (Sprint E review, obsolete-by-design 2026-05-13); F-015, F-016 deferred (don't include). For each F-* in scope, propose the fix in plan form FIRST, then implement after operator sign-off — security findings warrant explicit acknowledgement of the remediation choice before code lands. Read packages/happy-server/CLAUDE.md and packages/happy-app/CLAUDE.md sync invariants. Acceptance: each F-* has a green test (new or extended); all 5 happy-* package typechecks green; security findings explicitly mark severity + CVE-style remediation note in commit body. Test command: pnpm --filter '{packages/happy-server}' --filter '{packages/happy-app}' --filter '{packages/happy-cli}' exec vitest run 2>&1 | tee /tmp/codexu-polish-fs.log. ONE commit per F-finding (six commits) so each can be reverted independently if needed."
 ```
 
 ---
@@ -183,7 +181,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `perf-WS3` | Realtime perf — replay buffer | ⬜ not started | — |
 | `perf-WS2` | Realtime perf — placeholder (after WS3) | ⬜ blocked on WS3 | — |
 | `3a-skills` | Phase 3a — Ralph skills port | 🟡 in discovery (no code yet) | — |
-| `F-013-perms` | Claude permission latent override | ⬜ not started | — |
+| ~~`F-013-perms`~~ | Claude permission latent override | 🚫 closed (obsolete-by-design) | b5d18eb5 → close-out |
 | `F-015-toast` | Stale-creds toast on cold launch | ⬜ not started | — |
 | `mcp-discovery` | Codex agent project-.mcp.json parity | ⬜ not started | — |
 | `1a-fork-doc` | Phase 1a — fork strategy commit | ⬜ not started | — |

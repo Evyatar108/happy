@@ -330,11 +330,11 @@ conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
       server shape and the local on-disk shape persisted by `saveProfile`
       into MMKV.
   - **Review convergence:** Phase 5a code (3 rounds, 12 of 13 findings
-    fixed; F-013 latent override path, Low, deferred); Phase 5b docs (2
+    fixed; F-013 latent override path, Low, **closed 2026-05-13 obsolete-by-design** — superseded by Phase 5 drop-Claude; see `docs/operations/BOOX-TESTING-HANDOFF.md` and `.ralph/jobs/f-013-perms-closeout/plan.md`); Phase 5b docs (2
     rounds, 7 findings, all fixed); Phase 5c security (1 round, 0
     Critical/High, 2 Medium + 5 Low accepted as open). DSAT report at
     `.ralph/jobs/devtunnels-E-cleanup/dsat-report.md`.
-  - **Open findings (deferred to polish PR):** 1 code (F-013 Low); 7
+  - **Open findings (deferred to polish PR):** 0 code (F-013 closed obsolete-by-design 2026-05-13); 7
     security (F-001/F-002 Medium; F-003..F-007 Low); F-014 label rename
     (needs server redeploy); F-015 stale-creds profile-error toast on
     pre-pair launch (cosmetic); F-016 adb input tap on RN buttons (BOOX

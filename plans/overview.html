@@ -151,6 +151,8 @@
   .phase li .item-name { color: var(--fg); }
   .open { color: var(--accent); }
   .deferred { color: var(--muted); }
+  .item-name.closed { color: var(--ok); text-decoration: line-through; }
+  .card.closed { opacity: 0.6; border-color: var(--ok); }
   .donefade { color: var(--done); text-decoration: line-through; }
 
   .footnote { color: var(--muted); font-size: 12px; margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--border); }
@@ -170,7 +172,7 @@
   <ol>
     <li><strong>Agent A → realtime-sync-perf, all 3 workstreams sequentially.</strong> Biggest user-visible win. ~4 h. WS1 → WS3 → WS2 (WS3 simplifies WS2's scope).</li>
     <li><strong>🟡 Agent B (3a-skills) → already running.</strong> Currently in pre-code DISCOVERY phase per operator instruction — surveying Phase 3a prerequisites and committing them to <code>plans/codexu-roadmap.md</code> + <code>plans/parallel-assignments.md</code> + this file BEFORE writing skills-port code. <strong>Other Phase 3 sub-phases (`3b-agents`, `3d-workers`, `3fg-package`) are blocked on this discovery commit.</strong></li>
-    <li><strong>Agent C (optional) → one polish item (F-013 / F-015 / F-017).</strong> Tiny isolated surfaces, no overlap with A or B. Pick the one whose user-pain matches today.</li>
+    <li><strong>Agent C (optional) → one polish item (F-015 / F-017).</strong> Tiny isolated surfaces, no overlap with A or B. Pick the one whose user-pain matches today. (F-013 closed 2026-05-13 as obsolete-by-design — Phase 5 drop-Claude supersedes it.)</li>
     <li><strong>Agent D (optional) → mcp-discovery</strong> — codex agent project-<code>.mcp.json</code> parity gap. Small, isolated to <code>runCodex.ts</code>, ~30-45 min including tests. Closes the daily-driver gap where the codex agent doesn't see your <code>codexu/.mcp.json</code> (paper MCP server).</li>
     <li><strong>Defer:</strong> Phase 1b sub-tasks 3-5 (need a re-read against the now-resolved tunnel protocol first), Phase 2c/2d (upstream codex work, separate trees), Phase 4-7 (integration tests + drop-Claude-Code; gated on Phase 3 landing).</li>
   </ol>
@@ -270,14 +272,14 @@
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-title">F-013 — latent permission-mode override (Claude)</div>
-      <div class="sub">Low severity. Isolated to happy-cli claude permission handler. No overlap with perf work.</div>
+    <div class="card closed">
+      <div class="card-title">[CLOSED 2026-05-13] F-013 — latent permission-mode override (Claude)</div>
+      <div class="sub">Closed 2026-05-13 obsolete-by-design (superseded by Phase 5 drop-Claude). F-013 is structurally Claude-only — Codex/Gemini share `BasePermissionHandler` with no `mode` field. TypeScript blocks the misuse at compile time today. Original notepad missing; diagnosis reverse-engineered from code.</div>
       <div class="card-meta">
         <span class="pill area-cli">happy-cli</span>
         <span class="pill p-low">low</span>
-        <span>~1 h</span>
-        <span class="sub">.ralph/jobs/devtunnels-E-cleanup/notepad.md</span>
+        <span>closed</span>
+        <span class="sub">.ralph/jobs/f-013-perms-closeout/plan.md</span>
       </div>
     </div>
 
@@ -599,7 +601,7 @@
       <li><span class="item-name open">Realtime sync perf WS1 / WS2 / WS3</span> — see <a href="realtime-sync-perf.md">plan</a></li>
       <li><span class="item-name deferred">Realtime sync perf WS4</span> — conditional on WS3 outcome</li>
       <li><span class="item-name open">Codex agent project-.mcp.json parity</span> — happy-cli gap, ~45 min</li>
-      <li><span class="item-name open">Polish PR — F-013 / F-015 / F-017</span> — low-risk isolated</li>
+      <li><span class="item-name closed">Polish PR — F-013 closed</span> · <span class="item-name open">F-015 / F-017</span> — low-risk isolated</li>
       <li><span class="item-name deferred">F-014</span> — needs server redeploy</li>
       <li><span class="item-name deferred">F-016</span> — BOOX hardware quirk</li>
       <li><span class="item-name open">F-001/F-002 (Med) + F-003-F-007 (Low)</span> — security polish PR</li>
@@ -652,14 +654,14 @@
       <td>Documentation-only in <code>codex/docs/</code>. Zero code conflict.</td>
     </tr>
     <tr>
-      <td>F-013 / F-015 / F-017 + perf or Phase 3</td>
+      <td>~~F-013~~ closed / F-015 / F-017 + perf or Phase 3</td>
       <td class="yes">✅ yes</td>
       <td>Each F-* is one file in an unrelated tree.</td>
     </tr>
     <tr>
       <td>mcp-discovery + any batch-1 item</td>
       <td class="yes">✅ yes</td>
-      <td>Isolated to <code>packages/happy-cli/src/codex/runCodex.ts</code>. No overlap with perf (happy-app), Phase 3a (codex plugin), F-013 (claude permissions), or F-015 (happy-app auth).</td>
+      <td>Isolated to <code>packages/happy-cli/src/codex/runCodex.ts</code>. No overlap with perf (happy-app), Phase 3a (codex plugin), or F-015 (happy-app auth).</td>
     </tr>
     <tr>
       <td>mcp-discovery + 1b-multidev</td>

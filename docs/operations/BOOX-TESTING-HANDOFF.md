@@ -241,7 +241,7 @@ git push origin main
 
 After the cutover lands on `main`, address the deferred items:
 
-- **F-013** code Low (Sprint E review): latent override path, non-production-reachable. Quick polish commit.
+- **F-013** code Low (Sprint E review): latent override path in Claude permission handler, non-production-reachable. **Closed 2026-05-13** as obsolete-by-design — superseded by Phase 5 drop-Claude (see `plans/codexu-roadmap.md:541`). Code path intentionally left at `packages/happy-cli/src/claude/utils/permissionHandler.ts:87-89` until the Phase 5 deletion removes the Claude surface.
 - **F-001 / F-002** security Mediums (Sprint E notepad): see `.ralph/jobs/devtunnels-E-cleanup/notepad.md` for details.
 - **F-003..F-007** security Lows: queue for a polish PR.
 
@@ -326,6 +326,6 @@ The daemon runs an embedded happy-server. You don't need a separate happy-server
 3. Run Prisma migration + commit US-007.
 4. Run the cutover merge chain (Step 9 above).
 5. Push to `main`.
-6. Open a polish PR for the deferred items (F-013, F-001/F-002, F-003..F-007).
+6. Open a polish PR for the deferred items (~~F-013~~ closed, F-001/F-002, F-003..F-007).
 
 End state: `main` has the full Dev Tunnels migration; happy-app is shipping signed APKs with GitHub OAuth + Dev Tunnels; the migration is over.
