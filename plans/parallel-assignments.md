@@ -582,6 +582,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `codex-slash-commands` 🤖 | Gap 5 — `/clear` + `/compact` parity on codex path | ⬜ blocked on codex-hooks-parity | — |
 | `codex-polish-lows` 🤖 | Bundle of Gaps 8/9/11/12 (tool gating + codex-args passthrough + statusline + SDK init-metadata mirror) | ⬜ not started | — |
 | `codex-plan-mode-defensive` 🤖 | Gap 6 — defensive plan-mode mapping (v1; overlay v2 deferred) | ⬜ blocked on operator decision (a-defensive vs b-overlay) | — |
+| `codex-child-spawn-tools` 🤖 | Spike: codex child agents' `spawn_agent`/`wait_agent` tool surface — decision input for plugin-scope-agents + agent-comms | ⬜ ready | — (research-only; output `plans/codex-child-spawn-tools.md`) |
 | `polish-Fs` | F-017 + F-001/F-002 + F-003-F-007 | ⬜ not started | — |
 | `userid-cleanup` | Drop multi-tenant userId scoping in happy-server | ⬜ ready (unblocked — perf-WS3 shipped) | — |
 | `happy-upstream-sync` 🔄 | Periodic — review new slopus/happy commits since last sync | ⬜ next due ~4w from 2026-05-03 | — |

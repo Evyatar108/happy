@@ -1486,7 +1486,7 @@
   <details class="cmd" id="cmd-plugin-scope-agents" data-task-id="plugin-scope-agents">
     <summary><span class="cmd-name">plugin-scope-agents</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Plugin scoping with top-level-only plugins + agent-spawner pattern · unblocked (agent-view-research landed 2026-05-14)</span></summary>
     <div class="cmd-body">
-      <div class="cmd-warn">⚠️ Read <code>plans/agent-view-research.md</code> first — its findings define the spawner-pattern model this task implements.</div>
+      <div class="cmd-warn">⚠️ Read <code>plans/agent-view-research.md</code> first — its findings define the spawner-pattern model this task implements. Also coordinate with <code>codex-child-spawn-tools</code> (sibling spike): the agent-tree-rpc agent surfaced that pinned codex submodule child agents lack <code>spawn_agent</code>/<code>wait_agent</code> in their tool surface. If we keep that restriction (top-level-only spawning), the agent-spawner becomes the canonical path; if we want child-spawns-child, the codex-side tool surface needs an overlay or submodule bump. The spike's recommendation should land BEFORE this task scopes the spawner pattern.</div>
       <button class="copy-btn">Copy</button>
 <pre class="cmd-pre">/plan-with-ralph "Extend codex's plugin-scoping (Phase 2c — host vs agent context) with a third dimension: 'top-level-agent-only' plugins. Today's spec: scope=host|agent|both. New spec: scope=top-level|subagent|both (or equivalent — see plans/codexu-roadmap.md §Phase 2c for current shape). Some plugins like ralph-orchestration must be available only to TOP-LEVEL agents (operator-spawned sessions, or sessions spawned by a designated 'agent-spawner' agent) — never to sub-agents spawned via codex's multi_agents_v2/spawn.rs (recursion + context bloat). Build the spawner agent (similar to Claude Code's agent-view if the research from agent-view-research clarifies the model): it can SPAWN top-level sessions on behalf of the operator, those spawned sessions inherit top-level scope and have ralph-orchestration + similar host-tier plugins. Read plans/agent-view-research.md (output of agent-view-research) before scoping. Read codex/codex-rs-overlay/* for divergence-crate precedent (changes should land as overlay if they touch codex; happy-cli changes are fine). Plugin manifest schema lives in codex/external/repos/codex-patched/codex-rs/core-plugins/src/manifest.rs (READ-ONLY). Acceptance: ralph-orchestration plugin manifest declares scope=top-level; spawning a subagent that tries to load it fails or silently no-ops; spawning via the new agent-spawner succeeds and the new session sees ralph-orchestration. Tests: codex integration test with mock plugin in both scopes. Cross-package typecheck green. Surface to operator before merging — this changes the plugin-loading contract."</pre>
     </div>
@@ -1724,6 +1724,14 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
 <pre class="cmd-pre">/plan-with-ralph "Inject Claude's two safety rails into codex's main-agent base prompt as launcher-injected additional_instructions (overlay path per AGENTS.override.md tenet 1). Per audit-general-purpose-vs-worker finding (plans/native-agent-parity.md §2.4). Gap: Claude's general-purpose prompt has 'NEVER create files unless absolutely necessary' + 'NEVER proactively create *.md / README files' (D:/harness-efforts/claude-code/worktrees/main/src/tools/AgentTool/built-in/generalPurposeAgent.ts:15-16); codex's main-agent base prompt at codex/external/repos/codex-patched/codex-rs/core/prompts/gpt_5_2_prompt.md:156,158 has only weak abstract analogues ('surgical precision', 'don't gold-plate'). The audit established the correct fix-site is launcher-injected additional_instructions (NOT a worker-only TOML — that would skip the main-agent flow). Implementation: investigate the codex launcher seam — likely codex/codex-rs-overlay/codex-copilot-launcher/ (the precedent overlay crate) is the right place to add a `--additional-instructions` or equivalent flag that codex-core threads into the base prompt. Paraphrase the rule text (do NOT copy verbatim — license posture per plans/native-agent-parity.md §4); cite inspiration in the launcher's docs/source comment. Workflow (codex submodule): worktree at .ralph/jobs/<job-name>/codex-worktree/ pointed at gim-home/codex's main; commit on topic branch; push to gim-home/codex; bump the codexu submodule pointer as a separate commit on codexu main. PREREQUISITE INVESTIGATION: confirm whether codex already exposes an additional_instructions plumbing point, or whether the overlay crate needs to add one. Surface the choice (overlay-vs-upstream-patch) to operator BEFORE landing. Acceptance: cargo build --workspace green; new test asserting the additional_instructions reach the model's system prompt at session start; smoke 'codex exec' with a prompt asking to create a doc verifies the agent declines or asks first. NO happy-cli or happy-app changes — purely codex-submodule + the launcher overlay."</pre>
+    </div>
+  </details>
+
+  <details class="cmd" id="cmd-codex-child-spawn-tools" data-task-id="codex-child-spawn-tools">
+    <summary><span class="cmd-name">codex-child-spawn-tools</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Spike: do codex child agents get <code>spawn_agent</code>/<code>wait_agent</code> in their tool surface? Decision input for plugin-scope-agents + agent-comms. Spawned by <code>agent-tree-rpc</code> (US-006 AC4 gap).</span></summary>
+    <div class="cmd-body">
+      <button class="copy-btn">Copy Command</button>
+<pre class="cmd-pre">/plan-with-ralph "Investigation spike — surfaced by agent-tree-rpc's unmet US-006 AC4 (commit 11bc1ff4, plans/overview.html runs entry). The agent-tree-rpc agent tried to test nested A→B spawn (codex top-level spawns child, child spawns grandchild) and discovered the pinned codex submodule does NOT expose spawn_agent / wait_agent in child agents' tool surface. Investigate: (1) Is this an upstream codex design choice or an artifact of the pinned version? Look in codex/external/repos/codex-patched/codex-rs/multi_agents_v2/ for the tool-registration site (spawn.rs + the parent/child role distinction). (2) If upstream HEAD exposes these tools to children, recommend a submodule bump (and surface scope to operator). If not, design an overlay crate (codex/codex-rs-overlay/codex-child-spawn-tools/?) that enables them — sketch the registration seam + permission-profile implications. (3) Decision context: does codexu's roadmap actually need child→grandchild spawning, or is top-level-only spawning sufficient? Cross-reference plans/agent-view-research.md §6 (the agent-view-research follow-ups assume parent→child works) and plans/codexu-roadmap.md §Phase 2c (plugin-scope-agents) — if plugin-scope-agents adopts the agent-spawner pattern (one designated top-level agent spawns top-level sessions for the operator), child-spawn-tools may be unnecessary; if agent-comms Scope C (parent-spawned-child) needs in-session spawning, child-spawn-tools is required. Output: new doc plans/codex-child-spawn-tools.md with (a) factual findings (what upstream codex does, what pinned codex does, where the divergence is), (b) decision matrix for our roadmap (top-level-only vs child-can-spawn — affects plugin-scope-agents AND agent-comms scope), (c) recommended path (bump, overlay, or accept). Surface to operator BEFORE plugin-scope-agents fires — plugin-scope-agents is currently parallel-safe but its scoping model depends on this. NO code changes — research only. The ralph job for this spike should NOT require codex-submodule edits; reading is fine. ~2-4h."</pre>
     </div>
   </details>
 
@@ -2047,8 +2055,8 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T19:00:00Z",
-  "generatedFromCommit": "e9ac47dd",
+  "generatedAt": "2026-05-14T19:30:00Z",
+  "generatedFromCommit": "11bc1ff4",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -2096,6 +2104,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     "codex-slash-commands": "2026-05-14T17:00:00Z",
     "codex-polish-lows": "2026-05-14T17:00:00Z",
     "codex-plan-mode-defensive": "2026-05-14T18:30:00Z",
+    "codex-child-spawn-tools": "2026-05-14T19:30:00Z",
     "mcp-server-notifications": "2026-05-14T09:00:00Z",
     "codex-channels": "2026-05-14T09:00:00Z"
   },
@@ -2284,6 +2293,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     "codex-slash-commands": 3,
     "codex-polish-lows": 5,
     "codex-plan-mode-defensive": 2,
+    "codex-child-spawn-tools": 3,
     "mcp-server-notifications": 32,
     "codex-channels": 14
   },
@@ -2334,6 +2344,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     "codex-slash-commands": "medium",
     "codex-polish-lows": "low",
     "codex-plan-mode-defensive": "low",
+    "codex-child-spawn-tools": "low",
     "mcp-server-notifications": "medium",
     "codex-channels": "medium"
   },
@@ -2384,6 +2395,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     "codex-slash-commands": "codex-parity",
     "codex-polish-lows": "codex-parity",
     "codex-plan-mode-defensive": "codex-parity",
+    "codex-child-spawn-tools": "agent-arch",
     "mcp-server-notifications": "agent-arch",
     "codex-channels": "agent-arch"
   },
@@ -2434,6 +2446,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     "codex-slash-commands": "small",
     "codex-polish-lows": "small",
     "codex-plan-mode-defensive": "small",
+    "codex-child-spawn-tools": "small",
     "mcp-server-notifications": "large",
     "codex-channels": "medium"
   },
@@ -2459,6 +2472,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     "codex-slash-commands": "codex-parity-audit",
     "codex-polish-lows": "codex-parity-audit",
     "codex-plan-mode-defensive": "codex-parity-audit",
+    "codex-child-spawn-tools": "agent-tree-rpc",
     "mcp-server-notifications": "channels-research",
     "codex-channels": "channels-research"
   }
