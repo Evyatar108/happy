@@ -1357,9 +1357,9 @@
   </details>
 
   <details class="cmd" id="cmd-mcp-discovery" data-task-id="mcp-discovery">
-    <summary><span class="cmd-name">mcp-discovery</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Codex agent project-.mcp.json parity (happy-cli) · commit <code>462776df</code></span></summary>
+    <summary><span class="cmd-name">mcp-discovery</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Codex agent project-.mcp.json parity (happy-cli) · merge <code>1cf6b4e2</code></span></summary>
     <div class="cmd-body">
-      <button class="copy-btn">Copy</button>
+      <button class="copy-btn">Copy Command</button>
 <pre class="cmd-pre">/plan-with-ralph "Add per-cwd .mcp.json discovery for the codex agent under happy-cli. Per plans/codexu-roadmap.md 'Codex agent project-.mcp.json parity' bullet. Gap: the Claude agent under happy reads .mcp.json from session cwd (Claude Code's native convention), but the codex agent does NOT — packages/happy-cli/src/codex/runCodex.ts:700-705 builds the mcpServers object handed to client.startThread({ mcpServers }) with ONLY the 'happy' bridge entry; project-level MCP servers are silently dropped. The codex fork at gim-home/codex HEAD ed5d2fd has .mcp.json reading code only in the external-agent one-shot migrator and the plugin-internal loader; no per-thread cwd discovery exists upstream. Fix on the happy-cli side: read &lt;process.cwd()&gt;/.mcp.json (Claude shape: { mcpServers: Record&lt;string, { command: string; args?: string[]; env?: Record&lt;string,string&gt;; type?: 'stdio' | 'http'; url?: string }&gt; }), validate with a Zod schema, merge its mcpServers into the object passed to startThread AND resumeExistingThread (both call sites in runCodex.ts at lines ~724 and ~791). On malformed .mcp.json or individual entry validation failure, log a structured warning via @/ui/logger and skip that entry — never abort the session. Silently skip if .mcp.json is absent. Read packages/happy-cli/CLAUDE.md and packages/happy-cli/src/daemon/CLAUDE.md for the codex transport context. Acceptance: 3 new tests in packages/happy-cli/src/codex/runCodex.test.ts or sibling — (a) cwd with valid .mcp.json containing 1 entry, assert mcpServers passed to startThread mock contains BOTH 'happy' bridge AND the project entry; (b) absent .mcp.json, assert only 'happy' bridge passed; (c) malformed .mcp.json (broken JSON or invalid shape), assert warning logged + only 'happy' bridge passed. Test command: pnpm --filter '{packages/happy-cli}' exec vitest run 2&gt;&amp;1 | tee /tmp/codexu-mcp-disc.log. Cross-package typecheck stays green. Single commit referencing the roadmap bullet. Update the roadmap bullet to mark this delivered."</pre>
     </div>
   </details>
@@ -1983,8 +1983,8 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T14:00:00Z",
-  "generatedFromCommit": "205b54d2",
+  "generatedAt": "2026-05-14T14:30:00Z",
+  "generatedFromCommit": "1cf6b4e2",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -2043,7 +2043,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
       "taskId": "mcp-discovery",
       "ranAt": "2026-05-13T12:39:11-07:00",
       "outcome": "completed",
-      "commits": ["462776df"],
+      "commits": ["86f35fa8", "1cf6b4e2"],
       "summary": "per-cwd .mcp.json discovery for codex agent: Zod-validated loader for project-level MCP servers (stdio + HTTP transports with command-XOR-url superRefine, type-strip after validation, passthrough for Codex-supported extras), wired into both client.startThread and client.resumeThread call sites in runCodex.ts with a single captured cwdAtStart. Reserved 'happy' bridge name is case-insensitive + trimmed. 14 helper unit tests + 4 mocked acceptance tests (start ×3 + resume ×1 without mocking ./resumeExistingThread). Closes codexu-roadmap 'Codex agent project-.mcp.json parity' bullet and Gap 1 in codex-agent-parity-audit.md."
     },
     {
