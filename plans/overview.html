@@ -847,6 +847,23 @@
   }
   .copy-btn:hover { background: var(--accent); color: white; border-color: var(--accent); }
   .copy-btn.copied { background: var(--ok); color: white; border-color: var(--ok); }
+  .copy-name-btn {
+    position: absolute;
+    top: 6px;
+    right: 76px;
+    background: var(--card-hover);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    z-index: 1;
+    transition: background 0.1s, color 0.1s, border-color 0.1s;
+  }
+  .copy-name-btn:hover { color: var(--fg); border-color: var(--accent); }
+  .copy-name-btn.copied { background: var(--ok); color: white; border-color: var(--ok); }
   .cmd-warn {
     background: rgba(224,175,104,0.10);
     border-left: 3px solid var(--warn);
@@ -1982,8 +1999,8 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T09:00:00Z",
-  "generatedFromCommit": "073d4697",
+  "generatedAt": "2026-05-14T09:30:00Z",
+  "generatedFromCommit": "a31f6143",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -2301,18 +2318,47 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
 </script>
 
 <script>
-  // ===== Clipboard copy on .copy-btn click =====
+  // ===== Inject "Copy name" button into every cmd-body =====
+  (function injectCopyNameButtons() {
+    document.querySelectorAll('details.cmd[data-task-id]').forEach(function (cmd) {
+      var taskId = cmd.dataset.taskId;
+      if (!taskId) return;
+      var body = cmd.querySelector('.cmd-body');
+      if (!body || body.querySelector('.copy-name-btn')) return;
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'copy-name-btn';
+      btn.textContent = '📋 name';
+      btn.title = 'Copy task name "' + taskId + '" to clipboard';
+      btn.dataset.copyText = taskId;
+      body.appendChild(btn);
+    });
+  })();
+
+  // ===== Clipboard copy on .copy-btn / .copy-name-btn click =====
   document.addEventListener('click', function (e) {
     var btn = e.target;
-    if (!btn.classList || !btn.classList.contains('copy-btn')) return;
-    var pre = btn.parentElement.querySelector('.cmd-pre');
-    if (!pre) return;
-    var text = pre.textContent;
+    if (!btn.classList) return;
+    var isCopyName = btn.classList.contains('copy-name-btn');
+    var isCopy = btn.classList.contains('copy-btn');
+    if (!isCopy && !isCopyName) return;
+    var text;
+    var resetLabel;
+    if (isCopyName) {
+      text = btn.dataset.copyText || '';
+      resetLabel = '📋 name';
+    } else {
+      var pre = btn.parentElement.querySelector('.cmd-pre');
+      if (!pre) return;
+      text = pre.textContent;
+      resetLabel = 'Copy';
+    }
+    if (!text) return;
     var done = function (ok) {
       btn.textContent = ok ? '✓ Copied' : '✗ Failed';
       btn.classList.toggle('copied', ok);
       setTimeout(function () {
-        btn.textContent = 'Copy';
+        btn.textContent = resetLabel;
         btn.classList.remove('copied');
       }, 1500);
     };
