@@ -1,0 +1,291 @@
+# BOOX Testing Handoff — Dev Tunnels Migration Cutover Gate
+
+**Created:** 2026-05-12 (on `ralph/devtunnels-A-foundation` machine — Dev Box without Android SDK)
+**For:** Fresh agent on the BOOX-connected tablet-dev machine (the one with `D:/Android/Sdk` + keystore)
+**Branch:** `ralph/devtunnels-E-cleanup` (HEAD `b45c13cd`)
+
+This file is the single starting point. Read it top-to-bottom before doing anything else.
+
+---
+
+## Context: where the migration stands
+
+5 sprints of work converted happy-app from QR-code + libsodium pairing to GitHub OAuth device flow + Microsoft Dev Tunnels. Sprints A+B+C+D are merged. Sprint E is **5 of 7 stories complete**:
+
+- US-001 server route deletions ✓
+- US-002 Prisma schema reduction ✓ (schema edits committed; `prisma migrate dev` not yet run)
+- US-003 fan-out preservation integration test ✓
+- US-004 R-D18 path (b) `X-Tunnel-Connect` plumbing ✓
+- US-005 **THIS — BOOX hardware validation** (operator-blocked, what we're doing here)
+- US-006 docs sweep ✓
+- US-007 **THIS — Prisma migration commit + final cutover commit** (operator-blocked; depends on US-005 passing)
+
+Once US-005 + US-007 land, the merge chain runs:
+`ralph/devtunnels-E-cleanup` → `ralph/devtunnels-A-foundation` → `ralph/fan-out-survivors` → `main` → `git push origin main`.
+
+R-D18 (the Dev Tunnels public-tunnel reachability question) is RESOLVED via path (b) — see "R-D18" in `packages/happy-app/scripts/sprint-a-gap.md`. Path (a) `--allow-anonymous` is permanently REJECTED by operator policy. Do not reintroduce it anywhere.
+
+---
+
+## What you need on the BOOX-machine before starting
+
+| Prerequisite | Where | Notes |
+|--------------|-------|-------|
+| Repo + branch | Clone or fetch | `git fetch origin ralph/devtunnels-E-cleanup` then `git worktree add <path>/devtunnels-E-cleanup ralph/devtunnels-E-cleanup` OR `git checkout ralph/devtunnels-E-cleanup`. HEAD should be `b45c13cd`. |
+| `node` + `pnpm` | PATH | Versions per `package.json` engines fields. Run `pnpm install` at repo root after checkout. |
+| `D:/Android/Sdk` (or alt path) | Filesystem | Android SDK + platform-tools. Set `ANDROID_HOME` to its location. |
+| `adb` | On PATH (or via `ANDROID_HOME/platform-tools/`) | `adb devices` must list at least one BOOX. |
+| BOOX tablet | USB-connected, dev mode on, USB debugging allowed | Or use wireless adb if you've set it up. |
+| `D:/secrets/happy-app-release.keystore` | Filesystem | Production keystore. Required ONLY for Phase 6 of the validation (signed APK). Phases 1-5 work without it via Metro dev client. |
+| `packages/happy-app/keystore.properties` | In repo | References the keystore + alias. Required ONLY for Phase 6. |
+| happy-cli daemon running somewhere | On any machine you trust | The app pairs to a happy-cli daemon via Dev Tunnels. Daemon must have been initialized with `happy init` + `happy daemon start`. The daemon you pair to does NOT need to be the same machine running Metro. |
+| GitHub OAuth app | Already configured server-side | Sprint A locked the OAuth flow; nothing to change. |
+
+If any of the above is missing, set it up FIRST. Don't try to power through gaps.
+
+---
+
+## Step-by-step execution
+
+### Step 0 — Sanity check the worktree
+
+```bash
+cd <path>/devtunnels-E-cleanup
+git log --oneline -1
+# Should print: b45c13cd Merge main into ralph/devtunnels-E-cleanup: ...
+
+cat packages/happy-app/CHANGELOG.md | head -20
+# Should show Version 31 at the top
+
+pnpm install   # If you haven't yet
+```
+
+### Step 1 — First-time dev-client install on the BOOX
+
+Per the fork's CLAUDE.md, `expo run:android` is broken — go via gradle directly:
+
+```bash
+cd packages/happy-app/android
+ANDROID_HOME=D:/Android/Sdk APP_ENV=development ./gradlew installDebug -PreactNativeArchitectures=arm64-v8a
+```
+
+(Adjust `ANDROID_HOME` if your SDK is elsewhere.)
+
+This installs the dev variant (`com.slopus.happy.dev`) on the connected BOOX, ~10-15 min build.
+
+### Step 2 — adb-reverse Metro port
+
+```bash
+adb reverse tcp:8081 tcp:8081
+```
+
+(If multiple devices, target the BOOX explicitly with `adb -s <serial> reverse ...`.)
+
+### Step 3 — Start Metro
+
+```bash
+cd packages/happy-app
+pnpm exec expo start --dev-client
+```
+
+Leave Metro running. Open the dev-variant app on the BOOX — it should connect.
+
+### Step 4 — Pair to a happy-cli daemon
+
+You need a happy-cli daemon reachable via Dev Tunnels. Two options:
+
+- **(a)** Use the daemon on the BOOX-machine itself: in another terminal,
+  ```bash
+  cd packages/happy-cli && ./bin/happy.mjs init   # first time
+  ./bin/happy.mjs daemon start
+  ```
+- **(b)** Use a daemon on another trusted machine. The BOOX must be able to reach its Dev Tunnel.
+
+The app on the BOOX prompts "Sign in with GitHub" — complete the device flow on a browser. Pick the machine from the picker. The daemon mints a tunnel claim, the app stores it, you're paired.
+
+### Step 5 — Walk the BOOX validation template
+
+The template lives at `docs/validation/devtunnels-boox-result.md` (in the worktree). It has 6 phases:
+
+1. **Phase 1** — Pairing + machine discovery (no anonymous access)
+2. **Phase 2** — Session start + chat round-trip (verify e-ink readability)
+3. **Phase 3** — Refresh-per-request durability (idle 2 min, then send)
+4. **Phase 4** — Token revocation drill (revoke `ghu_*` token, verify re-pair prompt)
+5. **Phase 5** — Multi-device fan-out (requires 2 BOOX; SKIP if only one available)
+6. **Phase 6** — APK / Metro release procedure (signed APK + `apksigner verify --print-certs`)
+
+For each phase:
+- Run the steps
+- Capture evidence:
+  - Screenshots: `adb exec-out screencap -p > evidence/phase-N-<step>.png`
+  - **WARNING**: screencap captures the full-color framebuffer, NOT what the e-ink panel actually renders after quantization. If contrast is barely visible in the screencap, it's invisible on the device. See "User Message Styling" in `packages/happy-app/CLAUDE.md` for e-ink contrast guidance.
+  - Log snippets: pull from `~/.happy/logs/` on the daemon machine, or from the app's debug console
+- Fill in `PASS | FAIL | SKIPPED` and the Evidence section per phase
+- Save the markdown
+
+If any phase FAILs and you want to defer it as a non-blocker, also add an entry to `.ralph/jobs/devtunnels-E-cleanup/notepad.md` under a clear "BOOX deferral" heading explaining the operator decision.
+
+### Step 6 — Phase 6 specifically: signed APK + sign-verify
+
+When you reach Phase 6:
+
+1. Verify `packages/happy-app/keystore.properties` exists and points at `D:/secrets/happy-app-release.keystore` (or wherever your keystore lives).
+2. Build the signed APK without Firebase distribution (test locally first):
+   ```bash
+   cd packages/happy-app
+   pnpm release:android --no-distribute
+   ```
+3. The script auto-runs `parseChangelog.ts` (Version 31 should be picked up), bumps `versionCode`, builds, signs, and outputs the APK path. **`versionCode` must monotonically increase** — don't reuse a previous one.
+4. Run `apksigner verify --print-certs <apk-path>` and paste the full output into Phase 6's evidence block. This proves the APK is signed with the production keystore.
+5. Install on the tablet: `adb install -r <apk-path>`. Verify it installs over the dev variant cleanly. Open the production app on the BOOX, sanity-check that pairing still works (Phase 1 procedure but on the production-signed APK).
+6. (Optional but recommended) If you want to verify the Firebase App Distribution path: run `pnpm release:android` (without `--no-distribute`). Both BOOX tablets should get a notification within minutes. Note that Firebase requires `evyatar109@gmail.com` Google account access.
+
+### Step 7 — Commit the validation result + close US-005
+
+```bash
+cd <worktree-root>
+git add docs/validation/devtunnels-boox-result.md
+git commit -m "feat: US-005 — BOOX hardware validation result (PASS|PARTIAL|FAIL per phase)"
+```
+
+If you added a notepad deferral entry, commit that too in the same commit:
+```bash
+git add .ralph/jobs/devtunnels-E-cleanup/notepad.md
+```
+
+### Step 8 — Resume ralph on US-007 to land the final cutover commit
+
+Sprint E US-007 was waiting on US-005 (BOOX validation) and the Prisma migration.
+
+```bash
+# Run the Prisma migration outside the agent loop:
+cd packages/happy-server
+pnpm prisma migrate dev --name drop_legacy_models_sprint_e
+# Commit the generated migration file (auto-staged by prisma):
+cd ../..
+git add packages/happy-server/prisma/migrations/
+git commit -m "feat: US-007 — Prisma drop legacy models (Sprint E)"
+```
+
+Then resume ralph to land the final cutover commit:
+
+```bash
+# From the worktree root (or anywhere — ralph picks up the job dir from --job)
+/implement-with-ralph resume devtunnels-E-cleanup
+```
+
+Or, more conservatively, drive US-007 manually if ralph isn't available — the story owns: server route deletion verification, deploy-config docs (`HAPPY_TUNNEL_GITHUB_OWNER` mandatory in prod), and final merge-handoff doc updates.
+
+### Step 9 — Cutover merge chain
+
+After US-005 + US-007 + the Prisma migration commit are all on `ralph/devtunnels-E-cleanup`:
+
+```bash
+# 1. Merge E → A's foundation branch:
+git checkout ralph/devtunnels-A-foundation
+git merge --no-ff ralph/devtunnels-E-cleanup -m "Merge ralph/devtunnels-E-cleanup: Sprint E cleanup + cutover"
+
+# 2. Smoke-test the cross-package state:
+pnpm install
+pnpm --filter happy-server typecheck && pnpm --filter happy-server test
+pnpm --filter happy-cli typecheck
+pnpm --filter happy-agent typecheck && pnpm --filter happy-agent test
+pnpm --filter happy-app typecheck   # tests are slow; consider --project unit only
+pnpm --filter happy-wire typecheck && pnpm --filter happy-wire test
+
+# 3. Merge to fan-out-survivors:
+git checkout ralph/fan-out-survivors
+git merge --no-ff ralph/devtunnels-A-foundation -m "Merge devtunnels migration (A+B+C+D+E)"
+
+# 4. Merge to main:
+git checkout main
+git merge --no-ff ralph/fan-out-survivors -m "Merge fan-out + devtunnels migration"
+
+# 5. Push:
+git push origin main
+# If push fails with auth: handle manually (origin is Evyatar108/codexu; check token/SSH key).
+```
+
+### Step 10 — Post-cutover follow-up
+
+After the cutover lands on `main`, address the deferred items:
+
+- **F-013** code Low (Sprint E review): latent override path, non-production-reachable. Quick polish commit.
+- **F-001 / F-002** security Mediums (Sprint E notepad): see `.ralph/jobs/devtunnels-E-cleanup/notepad.md` for details.
+- **F-003..F-007** security Lows: queue for a polish PR.
+
+Then sub-tasks 3, 4, 5 of the Codex multi-device work resume per `plans/codexu-roadmap.md`.
+
+---
+
+## Important gotchas
+
+### `--allow-anonymous` is permanently rejected
+
+Operator decision 2026-05-12. Do NOT add `--allow-anonymous` to `tunnelManager.ts` or any production code path. The R-D18 resolution shipped in US-004 uses `X-Tunnel-Connect` header (private-tunnel auth channel). If any test, doc, or sample command mentions `--allow-anonymous`, it must be context-flagged as "manual local debug only" — never as a production path. See `packages/happy-app/scripts/sprint-a-gap.md`.
+
+### E-ink contrast for screenshots
+
+`adb exec-out screencap -p` captures the full-color framebuffer. On color e-ink BOOX panels, the quantizer washes light grays to pure white. Barely-visible in the screencap = definitely invisible on the device. Use this when iterating contrast issues. See `packages/happy-app/CLAUDE.md` "User Message Styling" + "Tappable Options on Color E-Ink" for full guidance.
+
+### Windows-specific Android build pitfalls
+
+The fork has several Windows-specific load-bearing gradle customizations. They're documented in `.agents/skills/happy-app-playstore-release/SKILL.md` "Common pitfalls". The non-obvious ones:
+
+- `expo-embed-wrapper.cjs` wraps `@expo/cli` to absolutize `--entry-file` (Windows path bug in `@react-native/gradle-plugin`).
+- `namespace 'com.slopus.happy.dev'` is FIXED; only `applicationId` is env-driven. Changing namespace breaks the committed Kotlin sources at `android/app/src/main/java/com/slopus/happy/dev/Main*.kt`.
+- `google-services.json` is DUPLICATED in two locations. Both must contain `com.evyatar109.happy` as a registered client.
+- CMake intermediate dir redirected to `C:\cxb\<root>-<module>\` to dodge Windows MAX_PATH.
+- R8 minification is OFF. APK is ~103 MB.
+- `pnpm prebuild` is STUBBED to error out — direct `npx expo prebuild` works but wipes every customization.
+
+### versionCode monotonicity
+
+`pnpm release:android` auto-bumps `versionCode`. **It must always monotonically increase, including across uninstalls** — otherwise tablets reject the install as `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. The script auto-bumps from the previous CHANGELOG entry's number, so always bump CHANGELOG.md before each release. Version 31 is current (committed).
+
+### CHANGELOG handoff state
+
+The Version 31 entry is already drafted and `sources/changelog/changelog.json` is regenerated (commit `0afb289d`). If you need to tweak the wording before release, edit the `## Version 31 - 2026-05-12` block in `packages/happy-app/CHANGELOG.md`, then re-run `npx tsx sources/scripts/parseChangelog.ts` and amend the commit.
+
+### Test failures in happy-app vitest
+
+Per the merged worktree CLAUDE.md, the disabled file `sources/-session/SessionView.sendWhenIdle.test.tsx.disabled` is intentional (RN-test-setup follow-up; react-native-reanimated bump Flow `import typeof` issue bypasses vitest stub). Don't try to re-enable it; it's tracked separately.
+
+### Daemon required
+
+The BOOX app pairs to a happy-cli daemon. If you don't have one running anywhere, you can't complete pairing tests. The daemon doesn't have to live on the BOOX-machine; any reachable Dev Tunnel works.
+
+### happy-server
+
+The daemon runs an embedded happy-server. You don't need a separate happy-server process. Sprint A landed `createHappyServer()` factory + dual-listener binding inside the daemon.
+
+---
+
+## File references in priority order for fresh context
+
+1. **This file** — handoff playbook (you're here)
+2. `docs/validation/devtunnels-boox-result.md` — the validation template you'll fill in
+3. `.ralph/jobs/devtunnels-A-foundation/FINAL-STATUS.md` — Sprint A foundation outcome + 5-round review audit trail
+4. `packages/happy-app/scripts/sprint-a-gap.md` — R-D18 history, rejected/acceptable resolution paths
+5. `.ralph/jobs/devtunnels-E-cleanup/plan.md` — Sprint E full plan (the original PRD reference)
+6. `.ralph/jobs/devtunnels-E-cleanup/notepad.md` — Sprint E deferred findings + reasoning
+7. `.ralph/jobs/devtunnels-commands.md` — orchestration sheet (5-sprint dependency chain + post-Sprint-A constraints + Sprint E command + cutover merge chain)
+8. `packages/happy-app/CLAUDE.md` — happy-app conventions, BOOX e-ink rendering invariants
+9. `packages/happy-cli/CLAUDE.md` — happy-cli conventions, daemon architecture
+10. `.agents/skills/happy-tablet-iterate/SKILL.md` — full Metro iteration loop (reload commands, hot-reload behavior)
+11. `.agents/skills/happy-app-playstore-release/SKILL.md` — full APK release procedure + Common pitfalls
+12. `docs/security-model.md` — Option A RPC payload contract (Sprint A US-A3)
+13. `docs/operations/sprint-e-merge-handoff.md` — original operator merge playbook (this BOOX handoff supersedes it for US-005, but `sprint-e-merge-handoff.md` still has good detail on US-007 + the merge chain)
+
+---
+
+## When you're done
+
+1. Fill out `docs/validation/devtunnels-boox-result.md` completely with PASS/FAIL/SKIPPED + evidence for every phase.
+2. Commit US-005 result.
+3. Run Prisma migration + commit US-007.
+4. Run the cutover merge chain (Step 9 above).
+5. Push to `main`.
+6. Open a polish PR for the deferred items (F-013, F-001/F-002, F-003..F-007).
+
+End state: `main` has the full Dev Tunnels migration; happy-app is shipping signed APKs with GitHub OAuth + Dev Tunnels; the migration is over.
