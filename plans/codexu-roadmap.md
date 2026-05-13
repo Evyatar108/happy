@@ -191,10 +191,13 @@ skip is green. Branch: `ralph/codex-discovery-reattach`; PR link:
 <https://github.com/Evyatar108/codexu/pull/new/ralph/codex-discovery-reattach>.
 
 **Next concrete deliverable:** Dev Tunnels migration — Sprints A, B, C, D
-**LANDED** on branch `ralph/devtunnels-A-foundation` (111 commits ahead of
-`ralph/fan-out-survivors`, not yet pushed/merged). Sprint E (server route
-deletions + Prisma migration + BOOX validation) is the only remaining
-sprint. 5-sprint plans live under
+**LANDED** on branch `ralph/devtunnels-A-foundation`. Sprint E is **PARTIALLY
+COMPLETE**: 5 of 7 stories passed on branch `ralph/devtunnels-E-cleanup`
+(@ `dc42a5d8`, 25 commits ahead of A's branch, not yet merged). The
+remaining two stories (US-005 BOOX hardware validation, US-007 Prisma
+migration) are **operator-blocked** — they require hardware testing +
+manual `pnpm prisma migrate dev` outside the agent loop. 5-sprint plans
+live under
 `.ralph/jobs/devtunnels-{A-foundation,B-cli,C-agent,D-app,E-cleanup}/plan.md`;
 master reference + 5-round review audit trail at
 `.ralph/jobs/devtunnels-migration/`. Orchestration sheet (per-sprint
@@ -231,26 +234,50 @@ conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
   **151 test files / 1452 tests pass, 0 failures**; all 5 package
   typechecks green (happy-server, happy-cli, happy-agent, happy-wire,
   happy-app).
-- **Sprint E — cleanup + cutover: PENDING.** Owns server-side legacy route
-  deletions, Prisma migration (HUMAN-only), fan-out preservation tests,
-  BOOX manual validation, and `ralph/devtunnels-A-foundation` →
-  `ralph/fan-out-survivors` merge. Plan at
-  `.ralph/jobs/devtunnels-E-cleanup/plan.md` (needs `/plan-with-ralph
-  --improve` before implementation — Sprint A+B+C+D landed differently
-  than the original E plan assumed).
+- **Sprint E — cleanup + cutover: 5/7 COMPLETE (operator-blocked).** 25
+  commits on `ralph/devtunnels-E-cleanup`. Passed stories:
+  - **US-001** server routes + socket handlers deleted (with caller-audit
+    gating; happy-agent `/v1/machines` migration first; happy-app friends
+    graph removed)
+  - **US-002** Prisma schema reduced (9 authorized drops + 5 zero-ref
+    over-drops; `PushToken` preserved)
+  - **US-003** fan-out preservation: Daemon Fan-Out Integration block
+    added to `daemon.integration.test.ts`; 3-agent test in 25.4s; Windows
+    ACL cleanup hardening
+  - **US-004** R-D18 path (b) **shipped**: `X-Tunnel-Connect` header
+    plumbed through happy-app + happy-agent; CORS allow-list updated
+  - **US-006** docs sweep: `security-model.md`, `api.md`,
+    `backend-architecture.md`, `cli-architecture.md`, `happy-wire`,
+    `protocol.md`, `deployment.md` all updated;
+    `packages/happy-agent/CLAUDE.md` created
+  - **Operator-blocked (cannot ship cutover without these):**
+    - **US-005** BOOX hardware 6-phase validation + `apksigner verify
+      --print-certs`. Template scaffolded at
+      `docs/validation/devtunnels-boox-result.md`.
+    - **US-007** run `pnpm prisma migrate dev --name
+      drop_legacy_models_sprint_e` outside the agent loop, commit the
+      migration, then re-invoke ralph on US-007. Template at
+      `docs/operations/sprint-e-merge-handoff.md`.
+  - **Review convergence:** Phase 5a code (3 rounds, 12 of 13 findings
+    fixed; F-013 latent override path, Low, deferred); Phase 5b docs (2
+    rounds, 7 findings, all fixed); Phase 5c security (1 round, 0
+    Critical/High, 2 Medium + 5 Low accepted as open). DSAT report at
+    `.ralph/jobs/devtunnels-E-cleanup/dsat-report.md`.
+  - **Open findings (deferred to notepad):** 1 code (F-013 Low); 7
+    security (F-001/F-002 Medium; F-003..F-007 Low).
+  - **Branch not yet merged into A's branch.** Operator-blocked tasks
+    must complete + US-007 final commit must land before the
+    A→fan-out-survivors→main merge chain can run. Step-by-step in
+    `docs/operations/sprint-e-merge-handoff.md`.
 
-**R-D18 open issue (pre-production gate):** Dev Tunnels public-tunnel
-reachability for unauthenticated `GET /pair/start` is unresolved. Sprint A
-creates tunnels PRIVATE-by-default (no `--allow-anonymous` flag), and
-operator policy 2026-05-12 **REJECTS** the original "Sprint C patches
-`tunnelManager.ts` to add `--allow-anonymous`" path. Public anonymous
-tunnels are out of scope for this fork's single-user self-host threat
-model. The two acceptable resolution paths are (b) private-tunnel auth
-channel — extending the Dev Tunnels gateway-auth model through to
-happy-server without exposing the surface anonymously — or (c) per-tunnel
-operator stopgap (`devtunnel access create --tunnel-id <id> --anonymous`
-run manually per-tunnel by the operator, acceptable only when operator
-and end-user are the same entity). Full record at
+**R-D18 (pre-production gate): RESOLVED.** Sprint E US-004 shipped
+resolution path **(b)** — a private-tunnel auth channel via the
+`X-Tunnel-Connect` header plumbed through happy-app and happy-agent (CORS
+allow-list updated). Operator policy 2026-05-12 **REJECTED** the original
+"Sprint C patches `tunnelManager.ts` to add `--allow-anonymous`" path
+(path (a)); path (b) avoids exposing happy-server anonymously while still
+allowing `/pair/start` reachability through the Dev Tunnels gateway.
+Operator stopgap (path (c)) is no longer needed. Full record at
 `packages/happy-app/scripts/sprint-a-gap.md` "R-D18".
 
 Phase 1b sub-tasks 3+ remain blocked until Sprint E lands and the merged
@@ -284,43 +311,66 @@ in the master plan and the per-sprint FINAL-STATUS files.
 2. `.ralph/jobs/devtunnels-A-foundation/FINAL-STATUS.md` — Sprint A
    completion record + 5-round review audit trail. Required reading
    before Sprint E.
-3. `.ralph/jobs/devtunnels-commands.md` — orchestration sheet with the
+3. `docs/operations/sprint-e-merge-handoff.md` — operator playbook for
+   the two operator-blocked Sprint E stories (US-005 BOOX validation,
+   US-007 Prisma migration) and the final
+   `ralph/devtunnels-E-cleanup` → `ralph/devtunnels-A-foundation` →
+   `ralph/fan-out-survivors` → `main` merge chain.
+4. `docs/validation/devtunnels-boox-result.md` — BOOX 6-phase manual
+   validation template (US-005).
+5. `.ralph/jobs/devtunnels-commands.md` — orchestration sheet with the
    5-sprint dependency chain, conflict-surface analysis, and post-Sprint-A
-   constraints (removed code paths, shared helpers, claim shape) that
-   Sprint E must reconcile against.
-4. `packages/happy-app/scripts/sprint-a-gap.md` — R-D18 open issue and
-   accepted resolution paths (b) / (c). Required for the production
-   readiness checklist before merging
-   `ralph/devtunnels-A-foundation` → `ralph/fan-out-survivors`.
-5. `.ralph/jobs/devtunnels-E-cleanup/plan.md` — pending sprint. Needs
-   `/plan-with-ralph --improve` against the actual merged branch state
-   before implementation.
-6. `docs/security-model.md` — Option A RPC payload contract (Sprint A
+   constraints (removed code paths, shared helpers, claim shape).
+6. `packages/happy-app/scripts/sprint-a-gap.md` — R-D18 history. Path (b)
+   shipped in Sprint E US-004; path (a) `--allow-anonymous` remains
+   permanently rejected.
+7. `.ralph/jobs/devtunnels-E-cleanup/notepad.md` — Sprint E deferred
+   findings + reasoning (1 code Low + 7 security findings: 2 Medium + 5 Low).
+8. `docs/security-model.md` — Option A RPC payload contract (Sprint A
    US-A3) — applied end-to-end across cli/agent/app via Sprints B+C+D
    encryption deletion.
-7. `docs/plans/codex-seamless-multi-device.md` — sub-task 1 spec at
+9. `docs/plans/codex-seamless-multi-device.md` — sub-task 1 spec at
    "Phase 1 — Persistent multi-client app-server with reattach". The
    tunnels-supersedes callout at the top lists what NOT to apply to
    sub-tasks 3+ (those resume after Sprint E lands and the merged branch
    reaches `ralph/fan-out-survivors`).
 
-**Recommended ralph workflow (next sprint):**
+**Recommended workflow (Sprint E completion):**
+
+Operator-blocked tasks must complete BEFORE the cutover merge chain runs.
+Step-by-step in `docs/operations/sprint-e-merge-handoff.md`. Summary:
+
 ```
-cd C:/harness-efforts/codexu
-/plan-with-ralph --improve C:/harness-efforts/codexu/.ralph/jobs/devtunnels-E-cleanup/plan.md
+# 1. Run the Prisma migration outside the agent loop, then commit:
+cd C:/harness-efforts/codexu/.ralph/jobs/devtunnels-E-cleanup/worktree
+pnpm prisma migrate dev --name drop_legacy_models_sprint_e
+git add prisma/migrations/* && git commit -m "feat: US-007 — Prisma drop legacy models"
+
+# 2. Run BOOX 6-phase validation, fill in docs/validation/devtunnels-boox-result.md
+#    and commit.
+
+# 3. Re-invoke ralph on US-007 to produce the final cutover commit:
+/implement-with-ralph resume devtunnels-E-cleanup
+
+# 4. Cutover merge chain (operator):
+git checkout ralph/devtunnels-A-foundation
+git merge --no-ff ralph/devtunnels-E-cleanup -m "Merge ralph/devtunnels-E-cleanup: Sprint E"
+git checkout ralph/fan-out-survivors
+git merge --no-ff ralph/devtunnels-A-foundation -m "Merge devtunnels migration"
+git checkout main
+git merge --no-ff ralph/fan-out-survivors -m "Merge fan-out + devtunnels migration"
+git push origin main
 ```
 
-After plan approval: `/implement-with-ralph --from-plan C:/harness-efforts/codexu/.ralph/jobs/devtunnels-E-cleanup/plan.md`
+After cutover lands on `main`, address F-001/F-002 security Mediums (deferred
+to Sprint E notepad) as a follow-up commit on `main` or a polish branch.
+Sub-tasks 3, 4, 5 of the Codex multi-device work resume only after Sprint E
+hits `ralph/fan-out-survivors`.
 
-Sprint E is the last serial sprint — owns server route deletions, Prisma
-migration (HUMAN-only), fan-out preservation tests, BOOX manual
-validation, and the final `ralph/devtunnels-A-foundation` →
-`ralph/fan-out-survivors` merge. See `.ralph/jobs/devtunnels-commands.md`
-for the invocation and base-branch chain.
-
-**Pause-point:** reached. Sprints A+B+C+D have all landed and merged onto
-`ralph/devtunnels-A-foundation`; stop here until Sprint E is planned and
-implemented. Sub-tasks 3, 4, 5 resume after Sprint E merges into
+**Pause-point:** reached. Sprints A+B+C+D are merged onto
+`ralph/devtunnels-A-foundation`; Sprint E is 5/7 done with US-005 + US-007
+operator-blocked. Stop here until the operator-blocked tasks complete.
+Sub-tasks 3, 4, 5 resume after the full cutover chain reaches
 `ralph/fan-out-survivors` (the migration's terminal step).
 
 ### Phase 2b — `.claude/skills` discovery via junctions (status 2026-05-03)
