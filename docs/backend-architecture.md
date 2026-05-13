@@ -362,7 +362,6 @@ This pattern is used for multi-write operations like batch KV mutation and sessi
 The default storage backend is the local filesystem under `<dataDir>/files`:
 - `storage/files.ts` exposes `configureFiles({ dataDir, publicUrl, s3? })`. With no `s3` config, `useLocalStorage` is `true` and `loadFiles()` simply ensures the local directory exists.
 - A `/files/*` route is registered on the Fastify instance when local storage is in use, serving files within the configured directory.
-- `uploadImage` writes assets to disk and records metadata in `UploadedFile`.
 
 S3-compatible storage is opt-in. Provide an `s3` block (or set `S3_HOST`/`S3_BUCKET`/`S3_PUBLIC_URL`/etc.) and the same module switches to MinIO-style uploads with public URLs derived from `S3_PUBLIC_URL`.
 
