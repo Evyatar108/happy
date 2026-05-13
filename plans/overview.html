@@ -236,6 +236,126 @@
   /* Highlight target of URL hash (e.g. on deep-link) */
   :target.cmd, :target.card { box-shadow: 0 0 0 2px var(--accent); }
 
+  /* Sticky toolbar — search + filter + bulk-copy */
+  .toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg);
+    padding: 10px 0;
+    margin: 16px 0 8px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  #search {
+    flex: 1; min-width: 220px;
+    padding: 7px 12px;
+    background: var(--card);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  #search:focus { outline: none; border-color: var(--accent); }
+  .filter-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .filter-chip {
+    background: var(--card);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.1s, color 0.1s, border-color 0.1s;
+  }
+  .filter-chip:hover { color: var(--fg); border-color: var(--accent); }
+  .filter-chip.active { background: var(--accent); color: white; border-color: var(--accent); }
+  .bulk-btn {
+    background: var(--accent);
+    color: white;
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .bulk-btn:disabled {
+    background: var(--card);
+    color: var(--muted);
+    border-color: var(--border);
+    cursor: not-allowed;
+  }
+  .kbd-hint {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: 4px;
+  }
+
+  /* Multi-select checkbox inside cmd summary */
+  .cmd-select {
+    margin: 0 6px 0 0;
+    cursor: pointer;
+    accent-color: var(--accent);
+  }
+
+  /* Search-filter visibility */
+  .cmd.cmd-hidden, .card.card-hidden { display: none; }
+  .cmd .search-match { background: rgba(224,175,104,0.35); padding: 0 2px; border-radius: 2px; }
+
+  /* "Jump to source / kanban / command" link */
+  .xref-link {
+    margin-left: 6px;
+    font-size: 11px;
+    color: var(--muted);
+    text-decoration: none;
+  }
+  .xref-link:hover { color: var(--accent); text-decoration: underline; }
+
+  /* Keyboard help overlay */
+  .kbd-help {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--card);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 20px 24px;
+    z-index: 100;
+    display: none;
+    font-size: 13px;
+    min-width: 280px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  }
+  .kbd-help.visible { display: block; }
+  .kbd-help h3 { margin: 0 0 12px; font-size: 14px; color: var(--accent); text-transform: none; letter-spacing: 0; }
+  .kbd-help table { width: 100%; }
+  .kbd-help td { padding: 3px 6px; }
+  .kbd-help td:first-child { text-align: right; width: 60px; }
+  .kbd-help kbd {
+    display: inline-block;
+    padding: 1px 7px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 11px;
+  }
+  .kbd-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 99;
+    display: none;
+  }
+  .kbd-backdrop.visible { display: block; }
+
   /* Collapsible top-level sections */
   details.section { margin: 24px 0 0; }
   details.section > summary {
@@ -376,6 +496,31 @@
   <span class="strip-label">Right now</span>
   <!-- Chips populated by JS from each ralph command's status badge -->
   <span class="strip-count" id="ready-strip-count"></span>
+</div>
+
+<div class="toolbar" id="toolbar" role="search">
+  <input type="search" id="search" placeholder="Search tasks…  (press / to focus, esc to clear)" aria-label="Filter tasks by name/description" />
+  <div class="filter-chips" id="filter-chips" aria-label="Filter by status">
+    <button class="filter-chip" data-filter-status="ready" type="button">⬜ ready</button>
+    <button class="filter-chip" data-filter-status="inflight" type="button">🟡 in flight</button>
+    <button class="filter-chip" data-filter-status="blocked" type="button">🔒 blocked</button>
+    <button class="filter-chip" data-filter-status="paused" type="button">⏸ paused</button>
+    <button class="filter-chip" data-filter-status="closed" type="button">🚫 closed</button>
+  </div>
+  <button id="bulk-copy" class="bulk-btn" type="button" disabled>Copy 0 selected</button>
+  <span class="kbd-hint" title="Press ? for keyboard shortcuts">?</span>
+</div>
+
+<div class="kbd-backdrop" id="kbd-backdrop"></div>
+<div class="kbd-help" id="kbd-help" role="dialog" aria-label="Keyboard shortcuts">
+  <h3>Keyboard shortcuts</h3>
+  <table>
+    <tr><td><kbd>/</kbd></td><td>Focus search</td></tr>
+    <tr><td><kbd>Esc</kbd></td><td>Clear search / close help</td></tr>
+    <tr><td><kbd>e</kbd></td><td>Expand all sections</td></tr>
+    <tr><td><kbd>c</kbd></td><td>Collapse all sections</td></tr>
+    <tr><td><kbd>?</kbd></td><td>Toggle this help</td></tr>
+  </table>
 </div>
 
 <details class="section">
@@ -1282,13 +1427,13 @@
   })();
 
   // ===== URL hash auto-open: expand ancestor <details> so the target is visible =====
-  (function expandHashTarget() {
-    function openAncestors(el) {
-      while (el && el !== document.body) {
-        if (el.tagName && el.tagName.toLowerCase() === 'details') el.open = true;
-        el = el.parentElement;
-      }
+  function openAncestors(el) {
+    while (el && el !== document.body) {
+      if (el.tagName && el.tagName.toLowerCase() === 'details') el.open = true;
+      el = el.parentElement;
     }
+  }
+  (function expandHashTarget() {
     function focusHash() {
       var hash = window.location.hash;
       if (!hash || hash.length < 2) return;
@@ -1301,6 +1446,189 @@
     window.addEventListener('hashchange', focusHash);
     focusHash();
   })();
+
+  // ===== Multi-select checkbox in each cmd row =====
+  (function injectCheckboxes() {
+    document.querySelectorAll('details.cmd').forEach(function (cmd) {
+      var summary = cmd.querySelector('summary');
+      if (!summary || summary.querySelector('.cmd-select')) return;
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'cmd-select';
+      cb.setAttribute('aria-label', 'Select ' + cmd.getAttribute('data-task-id') + ' for bulk copy');
+      cb.addEventListener('click', function (e) { e.stopPropagation(); });
+      cb.addEventListener('change', updateBulkButton);
+      // Closed rows have no <pre>; don't allow selecting them
+      if (!cmd.querySelector('.cmd-pre')) {
+        cb.disabled = true;
+        cb.title = 'No command to copy (closed / placeholder)';
+      }
+      summary.insertBefore(cb, summary.firstChild);
+    });
+  })();
+
+  function getSelectedCmds() {
+    return Array.prototype.slice.call(document.querySelectorAll('details.cmd .cmd-select:checked'))
+      .map(function (cb) { return cb.closest('details.cmd'); })
+      .filter(function (d) { return d && d.querySelector('.cmd-pre'); });
+  }
+  function updateBulkButton() {
+    var btn = document.getElementById('bulk-copy');
+    if (!btn) return;
+    var count = getSelectedCmds().length;
+    btn.textContent = 'Copy ' + count + ' selected';
+    btn.disabled = count === 0;
+  }
+
+  // ===== Bulk copy =====
+  document.getElementById('bulk-copy').addEventListener('click', function () {
+    var btn = this;
+    var cmds = getSelectedCmds();
+    if (cmds.length === 0) return;
+    var text = cmds.map(function (d) {
+      var name = d.getAttribute('data-task-id');
+      var pre = d.querySelector('.cmd-pre');
+      return '# === ' + name + ' ===\n' + (pre ? pre.textContent : '');
+    }).join('\n\n');
+    var done = function (ok) {
+      var orig = btn.textContent;
+      btn.textContent = ok ? '✓ Copied ' + cmds.length : '✗ Failed';
+      setTimeout(function () { btn.textContent = orig; }, 1500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); });
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { done(document.execCommand('copy')); } catch (_) { done(false); }
+      document.body.removeChild(ta);
+    }
+  });
+
+  // ===== Search filter =====
+  var search = document.getElementById('search');
+  var activeStatusFilters = new Set(); // empty = show all
+  function applyFilter() {
+    var q = (search.value || '').trim().toLowerCase();
+    document.querySelectorAll('details.cmd').forEach(function (cmd) {
+      var status = classifyCmd(cmd);
+      var statusOk = activeStatusFilters.size === 0 || activeStatusFilters.has(status);
+      var textOk = !q || cmd.textContent.toLowerCase().indexOf(q) >= 0;
+      var show = statusOk && textOk;
+      cmd.classList.toggle('cmd-hidden', !show);
+      if (show && q) openAncestors(cmd); // auto-expand sections when search reveals hits
+    });
+    document.querySelectorAll('.kanban .card').forEach(function (card) {
+      var textOk = !q || card.textContent.toLowerCase().indexOf(q) >= 0;
+      card.classList.toggle('card-hidden', !textOk);
+    });
+  }
+  if (search) {
+    search.addEventListener('input', applyFilter);
+    search.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        search.value = '';
+        applyFilter();
+        search.blur();
+      }
+    });
+  }
+
+  // ===== Status filter chips =====
+  document.querySelectorAll('.filter-chip').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      var s = chip.getAttribute('data-filter-status');
+      if (activeStatusFilters.has(s)) {
+        activeStatusFilters.delete(s);
+        chip.classList.remove('active');
+      } else {
+        activeStatusFilters.add(s);
+        chip.classList.add('active');
+      }
+      applyFilter();
+    });
+  });
+
+  // ===== "Blocked on <task>" -> clickable jump-links inside .cmd-warn.blocked =====
+  (function linkBlockedOn() {
+    var taskIds = Array.prototype.slice.call(document.querySelectorAll('details.cmd[data-task-id]'))
+      .map(function (d) { return d.getAttribute('data-task-id'); });
+    if (taskIds.length === 0) return;
+    document.querySelectorAll('.cmd-warn').forEach(function (warn) {
+      // Only rewrite <code>NAME</code> spans that match a known task id
+      warn.querySelectorAll('code').forEach(function (codeEl) {
+        var name = codeEl.textContent.trim();
+        if (taskIds.indexOf(name) < 0) return;
+        var a = document.createElement('a');
+        a.href = '#cmd-' + name;
+        a.textContent = codeEl.textContent;
+        a.title = 'Jump to ' + name;
+        a.style.cssText = 'color: inherit; text-decoration: underline; text-decoration-style: dotted;';
+        codeEl.replaceWith(a);
+        // wrap in <code> again for visual consistency
+        var code = document.createElement('code');
+        a.parentNode.insertBefore(code, a);
+        code.appendChild(a);
+      });
+    });
+  })();
+
+  // ===== Cross-section: add "→ command" link to kanban cards that match a task id =====
+  (function linkKanbanToCmds() {
+    var taskIds = Array.prototype.slice.call(document.querySelectorAll('details.cmd[data-task-id]'))
+      .map(function (d) { return d.getAttribute('data-task-id'); });
+    document.querySelectorAll('.kanban .card').forEach(function (card) {
+      var title = card.querySelector('.card-title');
+      if (!title) return;
+      // Match longest task id first to avoid 'F-013' matching 'F-013-perms' incorrectly (won't happen here but safe)
+      var sorted = taskIds.slice().sort(function (a, b) { return b.length - a.length; });
+      for (var i = 0; i < sorted.length; i++) {
+        if (title.textContent.indexOf(sorted[i]) >= 0) {
+          var a = document.createElement('a');
+          a.href = '#cmd-' + sorted[i];
+          a.className = 'xref-link';
+          a.textContent = '→ command';
+          a.title = 'Jump to ' + sorted[i] + ' ralph command';
+          title.appendChild(a);
+          break;
+        }
+      }
+    });
+  })();
+
+  // ===== Keyboard shortcuts =====
+  function setAllDetails(open) {
+    document.querySelectorAll('details').forEach(function (d) { d.open = open; });
+  }
+  function toggleHelp(force) {
+    var help = document.getElementById('kbd-help');
+    var back = document.getElementById('kbd-backdrop');
+    var show = force === undefined ? !help.classList.contains('visible') : force;
+    help.classList.toggle('visible', show);
+    back.classList.toggle('visible', show);
+  }
+  document.getElementById('kbd-backdrop').addEventListener('click', function () { toggleHelp(false); });
+  document.addEventListener('keydown', function (e) {
+    // Ignore when modifier keys pressed or typing in inputs
+    if (e.ctrlKey || e.altKey || e.metaKey) return;
+    var inField = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable);
+    if (e.key === '/' && !inField) {
+      e.preventDefault();
+      search.focus();
+      search.select();
+      return;
+    }
+    if (e.key === 'Escape') {
+      if (document.getElementById('kbd-help').classList.contains('visible')) { toggleHelp(false); return; }
+      if (inField) return; // search's own Esc handler clears value
+    }
+    if (inField) return;
+    if (e.key === 'e') { setAllDetails(true); }
+    else if (e.key === 'c') { setAllDetails(false); }
+    else if (e.key === '?') { toggleHelp(); }
+  });
 </script>
 </body>
 </html>
