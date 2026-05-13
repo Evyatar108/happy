@@ -148,14 +148,43 @@ async function postPairStatus(baseUrl: string, deviceCode: string, timeout?: num
     return resp.data as PairStatusResponse;
 }
 
+function parseTunnelIdFromUrl(url: string): string | null {
+    try {
+        const hostname = new URL(url).hostname;
+        return hostname.split('.')[0] ?? null;
+    } catch {
+        return null;
+    }
+}
+
 async function discoverAuthorizedMachines(status: PairStatusResponse, deviceCode: string, intervalSeconds: number, devTunnelsAccess: string | undefined): Promise<PairStatusMachine[]> {
-    const machines = [...(status.machines ?? [])];
     const provider = new DevTunnelsClientProvider({
         credentials: {
             getDevTunnelsToken: async () => devTunnelsAccess ?? null,
             setDevTunnelsToken: async () => undefined,
         },
     });
+
+    const machines: PairStatusMachine[] = [];
+    for (const primary of status.machines ?? []) {
+        const tunnelId = primary.tunnelId ?? parseTunnelIdFromUrl(primary.tunnelUrl);
+        if (!tunnelId) {
+            machines.push(primary);
+            continue;
+        }
+        if (!devTunnelsAccess) {
+            machines.push({ ...primary, tunnelId });
+            continue;
+        }
+        try {
+            const connectToken = await provider.getConnectToken(tunnelId);
+            const connectTokenExpiry = deriveConnectTokenExpiry();
+            machines.push({ ...primary, tunnelId, connectToken, connectTokenExpiry });
+        } catch {
+            machines.push({ ...primary, tunnelId });
+        }
+    }
+
     for (const discovered of status.discoveredMachines ?? []) {
         if (discovered.isOnline === false) {
             console.warn(`Skipping offline tunnel: ${discovered.displayName ?? discovered.tunnelUrl}`);
