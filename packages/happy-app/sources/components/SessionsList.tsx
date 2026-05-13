@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Pressable, FlatList, Platform } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { usePathname } from 'expo-router';
+import { Image } from 'expo-image';
 import { SessionListViewItem, SessionRowData } from '@/sync/storage';
 import { Ionicons } from '@expo/vector-icons';
 import { type SessionState, formatLastSeen, vibingMessages } from '@/utils/sessionUtils';
@@ -11,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useVisibleSessionListViewData } from '@/hooks/useVisibleSessionListViewData';
 import { Typography } from '@/constants/Typography';
 import { StatusDot } from './StatusDot';
-import { StyleSheet } from 'react-native-unistyles';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useIsTablet } from '@/utils/responsive';
 import { requestReview } from '@/utils/requestReview';
 import { UpdateBanner } from './UpdateBanner';
@@ -21,6 +22,52 @@ import { SessionActionsAnchor, SessionActionsPopover } from './SessionActionsPop
 import { useSessionActionAlert } from '@/hooks/useSessionQuickActions';
 import { useSettingMutable } from '@/sync/storage';
 import { t } from '@/text';
+import { newSessionAgentIcons } from './NewSessionAgentIcons';
+import type { Theme } from '@/theme';
+
+const MODEL_CODE_LABELS = new Set(['codex', 'opus', 'sonnet', 'haiku']);
+
+export function formatModelCode(code: string | null | undefined): string | null {
+    const trimmed = code?.trim();
+    if (!trimmed) {
+        return null;
+    }
+
+    const lastSegment = trimmed.split('-').at(-1);
+    if (lastSegment && MODEL_CODE_LABELS.has(lastSegment)) {
+        return lastSegment;
+    }
+
+    return trimmed.length > 12 ? `${trimmed.slice(0, 11)}…` : trimmed;
+}
+
+function permissionColorForCode(code: string | null | undefined, theme: Theme): string {
+    switch (code) {
+        case 'acceptEdits':
+            return theme.colors.permission.acceptEdits;
+        case 'bypassPermissions':
+            return theme.colors.permission.bypass;
+        case 'plan':
+            return theme.colors.permission.plan;
+        case 'read-only':
+            return theme.colors.permission.readOnly;
+        case 'safe-yolo':
+            return theme.colors.permission.safeYolo;
+        case 'yolo':
+            return theme.colors.permission.yolo;
+        case 'default':
+            return theme.colors.permission.default;
+        default:
+            return theme.colors.textSecondary;
+    }
+}
+
+function knownAgentIconForFlavor(flavor: string | null | undefined) {
+    if (flavor && Object.prototype.hasOwnProperty.call(newSessionAgentIcons, flavor)) {
+        return newSessionAgentIcons[flavor as keyof typeof newSessionAgentIcons];
+    }
+    return null;
+}
 
 const stylesheet = StyleSheet.create((theme) => ({
     container: {
@@ -65,7 +112,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         ...Typography.default(),
     },
     sessionItem: {
-        height: 88,
+        height: 108,
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
@@ -130,6 +177,30 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.textSecondary,
         marginBottom: 4,
         ...Typography.default(),
+    },
+    sessionRolePillRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: 4,
+        overflow: 'hidden',
+    },
+    sessionRolePill: {
+        flexShrink: 1,
+        minWidth: 0,
+        height: 20,
+        paddingHorizontal: 6,
+        borderRadius: 6,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: theme.colors.surfaceHighest,
+    },
+    sessionRolePillText: {
+        fontSize: 11,
+        lineHeight: 14,
+        color: theme.colors.textSecondary,
+        ...Typography.default('semiBold'),
     },
     statusRow: {
         flexDirection: 'row',
@@ -339,7 +410,7 @@ const STATUS_CONFIG: Record<SessionState, { color: string; dotColor: string; isP
     permission_required: { color: '#FF9500', dotColor: '#FF9500', isPulsing: true, isConnected: true },
 };
 
-const SessionItem = React.memo(({ session, selected, isFirst, isLast, isSingle }: {
+export const SessionItem = React.memo(({ session, selected, isFirst, isLast, isSingle }: {
     session: SessionRowData;
     selected?: boolean;
     isFirst?: boolean;
@@ -347,9 +418,14 @@ const SessionItem = React.memo(({ session, selected, isFirst, isLast, isSingle }
     isSingle?: boolean;
 }) => {
     const styles = stylesheet;
+    const { theme } = useUnistyles();
     const navigateToSession = useNavigateToSession();
     const [actionsAnchor, setActionsAnchor] = React.useState<SessionActionsAnchor | null>(null);
     const status = STATUS_CONFIG[session.state];
+    const flavorIcon = knownAgentIconForFlavor(session.flavor);
+    const modelCode = formatModelCode(session.currentModelCode);
+    const permissionCode = session.currentPermissionModeCode?.trim() || null;
+    const showRolePills = !!(flavorIcon || modelCode || permissionCode);
 
     const vibingMessage = React.useMemo(() => {
         return vibingMessages[Math.floor(Math.random() * vibingMessages.length)].toLowerCase() + '…';
@@ -436,6 +512,45 @@ const SessionItem = React.memo(({ session, selected, isFirst, isLast, isSingle }
                 <Text style={styles.sessionSubtitle} numberOfLines={1}>
                     {session.machineName ? `${session.subtitle} · ${session.machineName}` : session.subtitle}
                 </Text>
+
+                {showRolePills && (
+                    <View style={styles.sessionRolePillRow} testID="session-role-pill-row">
+                        {flavorIcon && (
+                            <View style={styles.sessionRolePill} testID="session-role-pill-flavor">
+                                <Image
+                                    source={flavorIcon}
+                                    style={{ width: 12, height: 12 }}
+                                    contentFit="contain"
+                                />
+                            </View>
+                        )}
+                        {modelCode && (
+                            <View style={styles.sessionRolePill} testID="session-role-pill-model">
+                                <Text
+                                    style={styles.sessionRolePillText}
+                                    numberOfLines={1}
+                                    ellipsizeMode="tail"
+                                >
+                                    {modelCode}
+                                </Text>
+                            </View>
+                        )}
+                        {permissionCode && (
+                            <View style={styles.sessionRolePill} testID="session-role-pill-permission">
+                                <Text
+                                    style={[
+                                        styles.sessionRolePillText,
+                                        { color: permissionColorForCode(permissionCode, theme) }
+                                    ]}
+                                    numberOfLines={1}
+                                    ellipsizeMode="tail"
+                                >
+                                    {permissionCode}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                )}
 
                 <View style={styles.statusRow}>
                     <View style={styles.statusDotContainer}>
