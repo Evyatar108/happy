@@ -38,6 +38,7 @@ describe('socketOptions', () => {
             'X-Happy-Client': 'ios/1.2.3',
         });
         expect((options.transportOptions as any).websocket.extraHeaders['X-Tunnel-Connect']).toBe('connect-jwt');
+        expect((options.auth as Record<string, unknown>)['X-Tunnel-Connect']).toBeUndefined();
         expect(JSON.stringify(options)).not.toContain('#dt=');
         expect(options.reconnection).toBe(false);
     });
