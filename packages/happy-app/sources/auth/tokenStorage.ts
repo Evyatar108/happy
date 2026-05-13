@@ -37,21 +37,41 @@ function isStoredMachineCredentials(value: unknown): value is StoredMachineCrede
         && (candidate.devTunnelsAccess === null || typeof candidate.devTunnelsAccess === 'string' || candidate.devTunnelsAccess === undefined);
 }
 
-function isAuthCredentials(value: unknown): value is AuthCredentials {
+const AUTH_CREDENTIALS_KEYS = new Set<string>([
+    'machineId', 'tunnelUrl', 'firstSeenAt',
+    'login', 'avatarUrl', 'deviceCode', 'deviceCodeExpiresAt',
+    'connectToken', 'connectTokenExpiry', 'tunnelId',
+]);
+
+function normalizeAuthCredentials(value: unknown): AuthCredentials | null {
     if (!value || typeof value !== 'object') {
-        return false;
+        return null;
     }
-    const candidate = value as Partial<AuthCredentials>;
-    return typeof candidate.machineId === 'string'
-        && typeof candidate.tunnelUrl === 'string'
-        && typeof candidate.firstSeenAt === 'number'
-        && (candidate.login === undefined || typeof candidate.login === 'string')
-        && (candidate.avatarUrl === undefined || typeof candidate.avatarUrl === 'string')
-        && (candidate.deviceCode === undefined || typeof candidate.deviceCode === 'string')
-        && (candidate.deviceCodeExpiresAt === undefined || typeof candidate.deviceCodeExpiresAt === 'number')
-        && (candidate.connectToken === undefined || typeof candidate.connectToken === 'string')
-        && (candidate.connectTokenExpiry === undefined || typeof candidate.connectTokenExpiry === 'number')
-        && (candidate.tunnelId === undefined || typeof candidate.tunnelId === 'string');
+    const candidate = value as Partial<AuthCredentials> & Record<string, unknown>;
+    if (typeof candidate.machineId !== 'string'
+        || typeof candidate.tunnelUrl !== 'string'
+        || typeof candidate.firstSeenAt !== 'number') {
+        return null;
+    }
+    if (isOldShape(candidate)) {
+        return null;
+    }
+    if ((candidate.login !== undefined && typeof candidate.login !== 'string')
+        || (candidate.avatarUrl !== undefined && typeof candidate.avatarUrl !== 'string')
+        || (candidate.deviceCode !== undefined && typeof candidate.deviceCode !== 'string')
+        || (candidate.deviceCodeExpiresAt !== undefined && typeof candidate.deviceCodeExpiresAt !== 'number')
+        || (candidate.connectToken !== undefined && typeof candidate.connectToken !== 'string')
+        || (candidate.connectTokenExpiry !== undefined && typeof candidate.connectTokenExpiry !== 'number')
+        || (candidate.tunnelId !== undefined && typeof candidate.tunnelId !== 'string')) {
+        return null;
+    }
+    const normalized: Record<string, unknown> = {};
+    for (const key of Object.keys(candidate)) {
+        if (AUTH_CREDENTIALS_KEYS.has(key)) {
+            normalized[key] = candidate[key];
+        }
+    }
+    return normalized as unknown as AuthCredentials;
 }
 
 export function isOldShape(credentials: Partial<AuthCredentials> | (Partial<AuthCredentials> & Record<string, unknown>)): boolean {
@@ -72,7 +92,7 @@ function parseStoredCredentials(stored: string | null): StoredMachineCredentials
     if (isStoredMachineCredentials(parsed)) {
         return {
             primaryMachineId: parsed.primaryMachineId,
-            machines: parsed.machines.filter(isAuthCredentials),
+            machines: parsed.machines.map(normalizeAuthCredentials).filter((m): m is AuthCredentials => m !== null),
             devTunnelsAccess: parsed.devTunnelsAccess ?? null,
         };
     }
@@ -139,11 +159,15 @@ export const TokenStorage = {
     },
 
     async setCredentials(credentials: AuthCredentials): Promise<boolean> {
+        const normalized = normalizeAuthCredentials(credentials);
+        if (!normalized) {
+            return false;
+        }
         const existing = await this.getStoredCredentials();
-        const machines = existing?.machines.filter(machine => machine.machineId !== credentials.machineId) ?? [];
-        machines.push(credentials);
+        const machines = existing?.machines.filter(machine => machine.machineId !== normalized.machineId) ?? [];
+        machines.push(normalized);
         const next: StoredMachineCredentials = {
-            primaryMachineId: credentials.machineId,
+            primaryMachineId: normalized.machineId,
             machines,
             devTunnelsAccess: existing?.devTunnelsAccess ?? null,
         };
@@ -156,13 +180,19 @@ export const TokenStorage = {
             return false;
         }
         let found = false;
-        const machines = existing.machines.map(machine => {
+        const machines: AuthCredentials[] = [];
+        for (const machine of existing.machines) {
             if (machine.machineId !== machineId) {
-                return machine;
+                machines.push(machine);
+                continue;
             }
             found = true;
-            return { ...machine, ...patch };
-        });
+            const merged = normalizeAuthCredentials({ ...machine, ...patch });
+            if (!merged) {
+                return false;
+            }
+            machines.push(merged);
+        }
         if (!found) {
             return false;
         }

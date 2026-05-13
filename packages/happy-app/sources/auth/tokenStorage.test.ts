@@ -169,6 +169,51 @@ describe('TokenStorage', () => {
         expect(secureStore.setItemAsync).not.toHaveBeenCalled();
     });
 
+    it('strips unknown fields (e.g. stale tunnelClaim) on load', async () => {
+        const staleBlob = { ...credentials, tunnelClaim: 'stale-claim', accountId: 'old-account' };
+        secureStore.getItemAsync.mockResolvedValue(JSON.stringify({
+            primaryMachineId: 'machine-1',
+            machines: [staleBlob],
+            devTunnelsAccess: null,
+        }));
+
+        await expect(TokenStorage.getCredentials()).resolves.toEqual(credentials);
+    });
+
+    it('does not re-persist unknown fields from a stale blob after updateMachineCredentials', async () => {
+        const staleBlob = { ...credentials, tunnelClaim: 'stale-claim', accountId: 'old-account' };
+        secureStore.getItemAsync.mockResolvedValue(JSON.stringify({
+            primaryMachineId: 'machine-1',
+            machines: [staleBlob],
+            devTunnelsAccess: null,
+        }));
+
+        await expect(TokenStorage.updateMachineCredentials('machine-1', { connectToken: 'new-token' })).resolves.toBe(true);
+
+        expect(secureStore.setItemAsync).toHaveBeenCalledWith(
+            'machine_credentials',
+            JSON.stringify({
+                primaryMachineId: 'machine-1',
+                machines: [{ ...credentials, connectToken: 'new-token' }],
+                devTunnelsAccess: null,
+            })
+        );
+    });
+
+    it('strips unknown fields when setting credentials', async () => {
+        const staleBlob = { ...credentials, tunnelClaim: 'stale-claim', accountId: 'old-account' } as AuthCredentials & Record<string, unknown>;
+        await expect(TokenStorage.setCredentials(staleBlob as AuthCredentials)).resolves.toBe(true);
+
+        expect(secureStore.setItemAsync).toHaveBeenCalledWith(
+            'machine_credentials',
+            JSON.stringify({
+                primaryMachineId: 'machine-1',
+                machines: [credentials],
+                devTunnelsAccess: null,
+            })
+        );
+    });
+
     it('detects old-shape records', () => {
         expect(isOldShape({ ...credentials, pinnedPubkey: 'ed-pubkey' })).toBe(true);
         expect(isOldShape({ ...credentials, sessionKey: 'shared-session-key' })).toBe(true);
