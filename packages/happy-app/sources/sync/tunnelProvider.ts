@@ -137,7 +137,6 @@ function ownerFor(tunnel: RawTunnel): string {
 function mapTunnel(tunnel: RawTunnel): MachineTunnel {
     const tunnelId = stringValue(tunnel.tunnelId) ?? stringValue(tunnel.id) ?? stringValue(tunnel.name);
     if (!tunnelId) throw new Error('Dev Tunnels response did not include a tunnel id');
-    console.log('[tunnelProvider] mapTunnel raw keys', Object.keys(tunnel), 'ports', JSON.stringify(tunnel.ports), 'endpoints', JSON.stringify(tunnel.endpoints));
     const labels = labelsFor(tunnel);
     return MachineTunnelSchema.parse({
         machineId: machineIdFor(tunnel, labels, tunnelId),

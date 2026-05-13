@@ -63,6 +63,7 @@ Object.freeze(profileDefaults);
 //
 
 export function profileParse(profile: unknown): Profile {
+    // V2 server shape (response from /v2/me/profile).
     const v2 = V2ProfileSchema.safeParse(profile);
     if (v2.success) {
         const [firstName, ...rest] = (v2.data.name ?? '').trim().split(/\s+/).filter(Boolean);
@@ -88,7 +89,12 @@ export function profileParse(profile: unknown): Profile {
             connectedServices: [],
         };
     }
-    throw new Error(`Failed to parse /v2/me/profile response: ${v2.error.message}`);
+    // Local app shape (what saveProfile persists into MMKV) — pass through.
+    const local = ProfileSchema.safeParse(profile);
+    if (local.success) {
+        return local.data;
+    }
+    throw new Error(`Failed to parse profile (neither V2 nor local shape): ${v2.error.message}`);
 }
 
 //

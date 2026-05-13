@@ -101,6 +101,13 @@ export async function fetchGitHubUserProfile(githubToken: string): Promise<GitHu
     }
 }
 
+// Aggressive client-side poll. GitHub's `interval` is just a hint; if we poll
+// too fast they return `slow_down` and we just keep going. The previous code
+// honored `interval` literally (5s+) which made the post-authorize wait feel
+// slow — the user often sees a 5-10s lag between completing the browser flow
+// and the app advancing. 2s is the sweet spot.
+const DEVICE_FLOW_POLL_INTERVAL_MS = 2000;
+
 export async function loginInteractive(): Promise<string> {
     const flow = await startDeviceTunnelFlow();
     await openAuthBrowser({
@@ -110,7 +117,7 @@ export async function loginInteractive(): Promise<string> {
     });
     const deadline = Date.now() + flow.expires_in * 1000;
     while (Date.now() < deadline) {
-        await new Promise(resolve => setTimeout(resolve, Math.max(flow.interval, 1) * 1000));
+        await new Promise(resolve => setTimeout(resolve, DEVICE_FLOW_POLL_INTERVAL_MS));
         const token = await pollDeviceTunnelFlow(flow.device_code);
         if (token) {
             await TokenStorage.setDevTunnelsToken(token);

@@ -16,6 +16,8 @@ import {
     completePair,
     fetchGitHubUserProfile,
     loginInteractive,
+    setAuthBrowserOpener,
+    type AuthBrowserInfo,
     type PairMachine,
 } from '@/auth/pairing';
 import { deriveConnectTokenExpiry } from '@/auth/connectTokenRefresh';
@@ -70,6 +72,7 @@ export function NotAuthenticated({ tunnelProvider }: NotAuthenticatedProps = {})
     const insets = useSafeAreaInsets();
     const [pendingPairing, setPendingPairing] = React.useState<PendingPairing | null>(null);
     const [connecting, setConnecting] = React.useState(false);
+    const [deviceFlowInfo, setDeviceFlowInfo] = React.useState<AuthBrowserInfo | null>(null);
     const provider = React.useMemo(() => tunnelProvider ?? new DevTunnelsClientProvider({
         credentials: TokenStorage,
         loginInteractive,
@@ -88,7 +91,27 @@ export function NotAuthenticated({ tunnelProvider }: NotAuthenticatedProps = {})
     const pairMachine = async () => {
         try {
             if (!(await provider.isLoggedIn())) {
-                await provider.loginInteractive();
+                const useDeviceCode = await Modal.confirm(
+                    'How do you want to sign in?',
+                    'Log in with GitHub in a browser on this device, or get a device code to enter on a browser elsewhere?',
+                    { cancelText: 'Log in with browser', confirmText: 'Use device code' },
+                );
+                if (useDeviceCode) {
+                    // Render the code as an inline banner so we can dismiss it
+                    // programmatically when polling succeeds. Modal.alert on Android
+                    // is a native dialog with no programmatic dismiss.
+                    setAuthBrowserOpener(async (info: AuthBrowserInfo) => {
+                        setDeviceFlowInfo(info);
+                    });
+                } else {
+                    setAuthBrowserOpener(null);
+                }
+                try {
+                    await provider.loginInteractive();
+                } finally {
+                    setAuthBrowserOpener(null);
+                    setDeviceFlowInfo(null);
+                }
             }
             const githubToken = await TokenStorage.getDevTunnelsToken();
             const githubProfile = githubToken ? await fetchGitHubUserProfile(githubToken) : { login: '', avatarUrl: '' };
@@ -209,6 +232,14 @@ export function NotAuthenticated({ tunnelProvider }: NotAuthenticatedProps = {})
         <>
             <HomeHeaderNotAuth />
             {isLandscape ? landscapeLayout : portraitLayout}
+            {deviceFlowInfo ? (
+                <View style={styles.deviceCodeBanner}>
+                    <Text style={styles.deviceCodeTitle}>Enter this code on another browser</Text>
+                    <Text style={styles.deviceCodeUrl}>{deviceFlowInfo.verification_uri}</Text>
+                    <Text style={styles.deviceCode}>{deviceFlowInfo.user_code}</Text>
+                    <Text style={styles.deviceCodeHint}>Auto-dismisses when authorized.</Text>
+                </View>
+            ) : null}
         </>
     )
 }
@@ -257,6 +288,41 @@ export function MachinePicker({ pendingPairing, connecting, onSelectMachine, onC
 }
 
 const styles = StyleSheet.create((theme) => ({
+    // Device-flow code banner (shown when "Use device code" is chosen)
+    deviceCodeBanner: {
+        position: 'absolute',
+        bottom: 24,
+        left: 16,
+        right: 16,
+        padding: 20,
+        borderRadius: 12,
+        backgroundColor: theme.colors.userMessageBackground,
+        borderWidth: 2,
+        borderColor: theme.colors.textSecondary,
+        alignItems: 'center',
+        gap: 8,
+    },
+    deviceCodeTitle: {
+        ...Typography.default('semiBold'),
+        fontSize: 16,
+        color: theme.colors.text,
+    },
+    deviceCodeUrl: {
+        ...Typography.mono(),
+        fontSize: 14,
+        color: theme.colors.text,
+    },
+    deviceCode: {
+        ...Typography.mono('semiBold'),
+        fontSize: 28,
+        letterSpacing: 2,
+        color: theme.colors.text,
+    },
+    deviceCodeHint: {
+        ...Typography.default(),
+        fontSize: 12,
+        color: theme.colors.textSecondary,
+    },
     // Machine picker styles
     pickerContainer: {
         flex: 1,
