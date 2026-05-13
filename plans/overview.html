@@ -1673,7 +1673,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
   </details>
 
   <details class="cmd" id="cmd-port-explorer-prompt" data-task-id="port-explorer-prompt">
-    <summary><span class="cmd-name">port-explorer-prompt</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Fill empty <code>explorer.toml</code> stub with a paraphrased Explore prompt. Spawned by <code>native-agent-parity</code>.</span></summary>
+    <summary><span class="cmd-name">port-explorer-prompt</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Filled empty <code>explorer.toml</code> stub with paraphrased Explore prompt · codex commit <code>e9fa64a0</code> · codexu pointer-bump <code>d279d49d</code>. Spawned by <code>native-agent-parity</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
 <pre class="cmd-pre">/plan-with-ralph "Fill the empty explorer.toml stub at codex/external/repos/codex-patched/codex-rs/core/src/agent/builtins/explorer.toml with a paraphrased Explore prompt — smallest delta from plans/native-agent-parity.md §2.1. Per plans/codexu-roadmap.md 'minimize-conflict-surface' tenet, this is the only built-in role port that requires NO core/src/agent/role.rs match-arm change (file is already wired in role.rs's config_file_contents() switch). Read the inspiration source at D:/harness-efforts/claude-code/worktrees/main/src/tools/AgentTool/built-in/exploreAgent.ts — paraphrase the prose per the license posture in plans/native-agent-parity.md §4 (keep structural patterns like READ-ONLY enforcement; rewrite all prose; cite inspiration in a comment header). Replace any 'Claude Code, Anthropic's CLI' references with codex-functional descriptions ('the codex agent'). Workflow: create a worktree of the codex submodule at .ralph/jobs/&lt;job-name&gt;/codex-worktree/ pointed at gim-home/codex's main; do edits there; commit on a topic branch in the submodule; push to gim-home/codex; then bump the codexu submodule pointer as a separate commit on codexu main. Acceptance: cargo build --workspace from codex/external/repos/codex-patched/codex-rs/ stays green; the role parses (check via existing agent_roles.rs tests or a tiny new test); a 1-minute smoke 'codex exec' against the new explorer role returns a sensible exploration of a small target. Surface to operator before committing — license-paraphrase review is gating. No happy-cli or happy-app changes; pure codex-submodule edit + submodule pointer bump."</pre>
@@ -2055,8 +2055,8 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T19:30:00Z",
-  "generatedFromCommit": "11bc1ff4",
+  "generatedAt": "2026-05-14T20:00:00Z",
+  "generatedFromCommit": "d279d49d",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -2095,7 +2095,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     "codex-attachments": "2026-05-14T18:00:00Z",
     "codex-system-prompts": "2026-05-14T08:30:00Z",
     "codex-hooks-parity": "2026-05-14T08:30:00Z",
-    "port-explorer-prompt": "2026-05-14T08:30:00Z",
+    "port-explorer-prompt": "2026-05-14T20:00:00Z",
     "port-plan-and-verification-roles": "2026-05-14T08:30:00Z",
     "audit-general-purpose-vs-worker": "2026-05-14T08:30:00Z",
     "3h-tail": "2026-05-14T16:30:00Z",
@@ -2117,6 +2117,14 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     "codex-upstream-rebase": "periodic"
   },
   "runs": [
+    {
+      "id": "port-explorer-prompt/2026-05-14",
+      "taskId": "port-explorer-prompt",
+      "ranAt": "2026-05-14T20:00:00Z",
+      "outcome": "completed",
+      "commits": ["e9fa64a0", "d279d49d"],
+      "summary": "Filled the previously empty explorer.toml stub at codex/external/repos/codex-patched/codex-rs/core/src/agent/builtins/explorer.toml with a paraphrased Explore prompt (1538 chars, no brand strings, no 6-word verbatim spans from Claude's source — license review approved per plans/native-agent-parity.md §4 posture). Codex-side commit e9fa64a0 on feat/explorer-role-prompt: 3 files +108/-7 — explorer.toml content, role_tests.rs updated (renamed test + new invariant test + session-flags assert + SANDBOX PATCH markers), codex/docs/implementation/patch-surface.md §17 new + §14 row 21. codexu pointer-bump d279d49d (1 file, +1/-1) bumping codex submodule from 17999363 → e9fa64a0. 9 of 10 stories closed (US-006 smoke deferred to post-publish workflow — local rebuild needs LLVM/xwin/V8 env; will be covered by /publish-sandbox-patch + /verify when run). License posture verified at <job_dir>/license-review-approval.md. First piece of the native-agent-parity follow-up wave to ship — no role.rs match-arm change needed (file already wired)."
+    },
     {
       "id": "codex-wire-spike/2026-05-14",
       "taskId": "codex-wire-spike",

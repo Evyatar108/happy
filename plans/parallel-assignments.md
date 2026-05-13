@@ -601,7 +601,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `codex-channels` | Stage B from channels-research: `experimental["codex/channel"]` envelope + prompt-queue policy | ⬜ deferred — operator decision before scoping | — |
 | `async-events-design` | Design async event listening for agents | 🔒 blocked on `mcp-server-notifications` (re-blocked 2026-05-14) | — (draft preserved at `plans/async-events-design.md`) |
 | `native-agent-parity` | Research codex parity with Claude Code's native subagents | ✅ landed 2026-05-14 | — (research-only; output `plans/native-agent-parity.md`) |
-| `port-explorer-prompt` 🤖 | Fill empty `explorer.toml` stub | ⬜ not started | — |
+| `port-explorer-prompt` 🤖 | Fill empty `explorer.toml` stub | ✅ shipped | e9fa64a0 (codex) + d279d49d (pointer) |
 | `port-plan-and-verification-roles` 🤖 | Add `plan.toml` + `verification.toml` built-ins | ⬜ blocked on §6 operator decisions | — |
 | `audit-general-purpose-vs-worker` 🤖 | 30-min prompt diff vs codex worker.toml | ⬜ not started | — |
 | `roadmap-plugin` 🛠 | Plugin: agents manage roadmap/overview.html via skill + MCP | ⬜ not started | — |
