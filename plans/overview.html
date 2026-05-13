@@ -1541,7 +1541,7 @@ Acceptance: design doc + per-scope working fixture: (B) two sessions on the same
   </details>
 
   <details class="cmd" id="cmd-async-events-design" data-task-id="async-events-design">
-    <summary><span class="cmd-name">async-events-design</span><span class="cmd-badge b-closed">✅ landed 2026-05-14</span><span class="cmd-desc">Design async event listening for agents · doc <a href="async-events-design.md">async-events-design.md</a> (520 lines) · 2 staged follow-ups (A0 long-poll MCP, A1 push notifications) · 3 operator Qs in §7</span></summary>
+    <summary><span class="cmd-name">async-events-design</span><span class="cmd-badge b-inflight">🟡 in progress</span><span class="cmd-desc">Design async event listening for agents (commit-merged, etc.) — unblocked by channels-research</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
 <pre class="cmd-pre">/plan-with-ralph "Design how an agent listens to async events — e.g., 'wake me when a commit lands on main', 'notify me when a periodic task fires', 'tell me when another agent finishes its turn'. Today an agent's only async-trigger model is: exit and be re-spawned (e.g., a periodic background task that exits to wake the operator/agent). That's not ideal — loses context, restart latency, can't subscribe to fine-grained events. Output: plans/async-events-design.md covering: (1) The use cases — at least these 4: git events (commit on main / branch updated / push), periodic-task firings, inter-agent notifications (sibling-agent completion / sibling-agent question), file-system events (file changed under cwd). (2) Current options in Claude Code — is there a 'wait for X' tool? hooks? streamable MCP? A 'send-when-idle' channel? Read C:/harness-efforts/claude-code/worktrees/main/ if accessible. (3) Current options in codex — codex's hook system (config/src/hook_config.rs), inter-agent fast path in multi_agents_v2/, MCP support. READ-ONLY on codex/external/repos/codex-patched/ per minimize-conflict-surface. (4) Design options for codexu — compare at least: (a) MCP with 2-way channels (depends on channels-research outcome); (b) periodic background task that exits to wake agent (current model — note limits); (c) long-poll MCP tool (block until event); (d) a 'subscription' RPC on the codex app-server side that streams events to the agent's session; (e) hybrid (use codex hooks for in-session triggers, channels for cross-session). (5) Recommendation with rationale; identify the smallest-viable subset that covers the 4 use cases. (6) Surface to operator before committing follow-up implementation tasks. NO CODE — design only. The output doc IS the deliverable."</pre>
@@ -1999,8 +1999,8 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T12:00:00Z",
-  "generatedFromCommit": "11c3eafb",
+  "generatedAt": "2026-05-14T13:00:00Z",
+  "generatedFromCommit": "0dcd8614",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -2025,7 +2025,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "plugin-scope-agents": "2026-05-14T03:00:00Z",
     "agent-comms": "2026-05-14T03:00:00Z",
     "channels-research": "2026-05-14T09:00:00Z",
-    "async-events-design": "2026-05-14T12:00:00Z",
+    "async-events-design": "2026-05-14T10:00:00Z",
     "native-agent-parity": "2026-05-14T08:00:00Z",
     "roadmap-plugin": "2026-05-14T05:00:00Z",
     "agent-tree-rpc": "2026-05-14T07:30:00Z",
@@ -2061,14 +2061,6 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
       "outcome": "completed",
       "commits": ["11c3eafb"],
       "summary": "Shipped the read-side parent/child session metadata contract: app schema (storageTypes.ts: parentSessionId + spawnedChildren) and CLI type mirror (api/types.ts), sync ingress normalization in storage.applySessions, pure storage relationship helpers (getSessionParent + getSessionChildren), and focused sync/storage coverage in storage.parent-children.spec.ts + storageTypes.spec.ts + sync.test.ts. Constraint: read-side parity only; CLI writer flows are deferred. Metadata stays server-authoritative (rejected applySessions overlay)."
-    },
-    {
-      "id": "async-events-design/2026-05-14",
-      "taskId": "async-events-design",
-      "ranAt": "2026-05-14T12:00:00Z",
-      "outcome": "completed",
-      "commits": [],
-      "summary": "Research-only deliverable: plans/async-events-design.md (520 lines). Recommends a two-stage rollout: A0 (v1, ~2-3d) — Node stdio MCP server folded into existing happyMcpStdioBridge.ts; producers for git (ref-SHA predicate), fs (chokidar+glob+debounce), timer; exposed as async_events_{subscribe,wait,list} long-poll tools. Zero codex upstream changes. Covers U1 (git), U2 (timer), U4 (fs), and U3a (existing wait_agent mailbox). A1 (fast-follow, ~3-5d) — Land channels-research §6.1's EventMsg::McpServerNotification bridge with the envelope filter from §6.2.1, flipping the same producers from agent-polled to agent-passive between turns. U3b (passive sibling notification) deferred to A2 (~0.5d when wanted); cross-device fan-out + channels-on-top deferred post-v1. §7 surfaces 3 operator decisions before any follow-up ralph rows: Q1 A0-first-vs-A1-first (recommend A0-first, ships in a week), Q2 replay stance (recommend best-effort with per-producer query-on-resume), Q3 producer hosting (recommend fold into happyMcpStdioBridge.ts). Follow-ups NOT pre-created — recommend-only pattern per the skill."
     },
     {
       "id": "audit-general-purpose-vs-worker/2026-05-14",

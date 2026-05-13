@@ -574,7 +574,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `channels-research` | Research Claude Code "channels" + codex 2-way MCP plan | ✅ done — `plans/channels-research.md` (2026-05-13) | — |
 | `mcp-server-notifications` | Stage A from channels-research: bridge rmcp notifications + sampling into codex agent event loop, feature-gated | ⬜ not started | — |
 | `codex-channels` | Stage B from channels-research: `experimental["codex/channel"]` envelope + prompt-queue policy | ⬜ deferred — operator decision before scoping | — |
-| `async-events-design` | Design async event listening for agents | ✅ landed 2026-05-14 | — (research-only; output `plans/async-events-design.md`) |
+| `async-events-design` | Design async event listening for agents | 🟡 in progress | — |
 | `native-agent-parity` | Research codex parity with Claude Code's native subagents | ✅ landed 2026-05-14 | — (research-only; output `plans/native-agent-parity.md`) |
 | `port-explorer-prompt` 🤖 | Fill empty `explorer.toml` stub | 🟡 in progress | — |
 | `port-plan-and-verification-roles` 🤖 | Add `plan.toml` + `verification.toml` built-ins | ⬜ blocked on §6 operator decisions | — |
