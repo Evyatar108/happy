@@ -60,7 +60,7 @@ Every proposed fix-site below explicitly states the tier and why.
 
 ---
 
-## Gap 1 — Project-cwd `.mcp.json` discovery — ✅ Shipped 2026-05-13
+## Gap 1 — Project-cwd `.mcp.json` discovery
 
 **Gap.** Claude Code reads `<cwd>/.mcp.json` natively at session start (project-MCP convention); the codex app-server path does NOT.
 
@@ -74,8 +74,6 @@ Every proposed fix-site below explicitly states the tier and why.
 **Effort.** Quick (~30–45 min including a Zod schema + a colocated test).
 
 **Severity.** **High.** Direct user-visible feature loss — every project that ships `.mcp.json` for Claude expects it to light up for codex too.
-
-**Status.** Shipped 2026-05-13 in `mcp-discovery`: happy-cli now reads `<cwd>/.mcp.json`, validates stdio and HTTP server entries with Zod, strips the transport `type` field before forwarding, and merges valid servers into both codex start and resume paths while keeping the Happy bridge authoritative.
 
 **Ralph-command shape.**
 > `mcp-discovery — codex project-.mcp.json parity`
@@ -94,17 +92,17 @@ Every proposed fix-site below explicitly states the tier and why.
 - *Codex side:* The codex-copilot launcher (`codex/codex-rs-overlay/codex-copilot-launcher/`) gates this behavior behind `auto_load_claude_md` in `~/.codex-copilot/config.toml` and, when true, appends `-c project_doc_fallback_filenames=["CLAUDE.md"]` to its codex-core child argv (see `codex/CLAUDE.md` confusion-points table). **happy-cli spawns `codex app-server` directly** — via `crossSpawn('codex', ['app-server', '--listen', ...])` in `packages/happy-cli/src/codex/codexAppServerClient.ts` — **bypassing the codex-copilot-launcher** and therefore bypassing the `-c project_doc_fallback_filenames=...` injection. Codex's native default project-doc filename remains `AGENTS.md`; users with only `CLAUDE.md` get no project doc.
 - *Wire protocol*: `NewConversationParams.config: Record<string, unknown> | null` (`codexAppServerTypes.ts:26`) and `ResumeConversationParams.config` (line 56) accept config overrides. happy-cli currently passes `null` for both (never set).
 
-**Proposed fix site.** (a) happy-cli. Either (i) pass `config: { project_doc_fallback_filenames: ["CLAUDE.md", "AGENTS.md"] }` in `NewConversationParams` / `ResumeConversationParams`, or (ii) append `-c project_doc_fallback_filenames=["CLAUDE.md"]` to the `codex app-server` spawn argv. Option (i) is preferable — per-session, doesn't leak into other codex invocations on the same machine, doesn't require argv quoting gymnastics, matches the existing `config` plumb point.
+**Proposed fix site.** (a) happy-cli. Pass `config: { project_doc_fallback_filenames: ["CLAUDE.md"] }` in `NewConversationParams` / `ResumeConversationParams` to recover `CLAUDE.md` for CLAUDE-only projects. The wire spike resolved the ordering question: same-directory CLAUDE-first cannot be achieved via this knob when `AGENTS.md` is also present because codex prepends `AGENTS.override.md` and `AGENTS.md` before configured fallback names in `agents_md.rs:285-319`. Mixed-file projects need an alternative path, such as generating a temporary merged instruction file, upstreaming a true precedence override, or documenting `AGENTS.md` as the codex-primary project doc.
 
-**Effort.** Quick (~30 min — single config field, no parsing logic). Decide AGENTS.md ordering policy with operator.
+**Effort.** Quick (~30 min — single config field, no parsing logic) for CLAUDE-only recovery; mixed-file CLAUDE-first requires a separate design choice.
 
 **Severity.** **High.** The vast majority of codexu's project-specific guidance for agents lives in `CLAUDE.md` files; losing them on the codex path means the codex agent flies blind on every cross-cutting concern.
 
-**Open question for operator.** Should the codex path read `CLAUDE.md` FIRST and `AGENTS.md` as fallback (Claude-first), or the inverse (Codex-native first, Claude as fallback)? The codex-copilot-launcher's design defaults to `["CLAUDE.md"]` overriding `AGENTS.md` per `codex/CLAUDE.md`. Recommend mirror: `["CLAUDE.md", "AGENTS.md"]` in `project_doc_fallback_filenames` (codex-core reads first non-empty match).
+**Wire-spike resolution.** `project_doc_fallback_filenames: ["CLAUDE.md"]` loads `CLAUDE.md` when it is the only project doc. `project_doc_fallback_filenames: ["CLAUDE.md", "AGENTS.md"]` does not make `CLAUDE.md` win when both files exist in the same directory; codex still loads `AGENTS.md` first. See [Wire spike results](#wire-spike-results-2026-05-13-codex-cli-01250-copilot-api8), §2.
 
 **Ralph-command shape.**
 > `codex-claude-md-autoload — project CLAUDE.md auto-load on codex path`
-> Pass `config: { project_doc_fallback_filenames: ["CLAUDE.md", "AGENTS.md"] }` in `client.startThread`'s `NewConversationParams` and `resumeExistingThread`'s `ResumeConversationParams`. Add a happy CLI flag `--codex-project-doc <name>` (default unset → use the dual fallback) so power users can override. Acceptance: with only `CLAUDE.md` present in cwd, codex agent reports awareness of the project doc in a smoke prompt; with both `CLAUDE.md` and `AGENTS.md` present, `CLAUDE.md` wins.
+> Pass `config: { project_doc_fallback_filenames: ["CLAUDE.md"] }` in `client.startThread`'s `NewConversationParams` and `resumeExistingThread`'s `ResumeConversationParams`. Add a happy CLI flag `--codex-project-doc <name>` (default unset → `CLAUDE.md`) so power users can override. Acceptance: with only `CLAUDE.md` present in cwd, codex agent reports awareness of the project doc in a smoke prompt; with both `CLAUDE.md` and `AGENTS.md` present, the PR either accepts codex-native `AGENTS.md` precedence or implements a separate mixed-file CLAUDE-first mechanism.
 
 ---
 
@@ -116,7 +114,7 @@ Every proposed fix-site below explicitly states the tier and why.
 - *Claude side:* `packages/happy-cli/src/claude/claudeRemote.ts:65-90` (`toClaudeUserContent`) inspects `MessageQueueAttachment[]` and produces `ContentBlockParam[]` with `{ type: 'image', source: { type: 'base64', media_type, data } }` for PNG/JPEG/GIF/WebP. Unsupported types are logged + skipped. Attachments flow through `messageQueue.push(text, mode, delivery)` (Claude path uses `OutgoingMessageQueue` and pulls attachments per-message).
 - *Codex side:* `packages/happy-cli/src/codex/runCodex.ts:321` does `messageQueue.push(message.content.text, enhancedMode, getMessageDelivery(message))` — `message.content.attachments` is read NOWHERE in the codex path. `sendTurnAndWait` (`codexAppServerClient.ts:1338-1341`) hardcodes `input: InputItem[] = [{ type: 'text', text: prompt }]`. The wire `InputItem` type (`codexAppServerTypes.ts:134-137`) DOES support `{ type: "image", url }` and `{ type: "localImage", path }`, but happy-cli never produces them.
 
-**Proposed fix site.** (a) happy-cli. Plumb attachments through `MessageQueue2`'s payload to `runCodex.ts`'s main loop, then synthesize `InputItem[]` in `sendTurnAndWait` (or a new wrapper) — either base64 data URLs as `{ type: "image", url: "data:image/png;base64,..." }` if codex accepts them, OR write to a tmp file and use `{ type: "localImage", path }`. Need to spike codex acceptance of data URLs first (5-min check against `codex-rs/protocol/src/lib.rs` `InputItem` deserializer).
+**Proposed fix site.** (a) happy-cli. Plumb attachments through `MessageQueue2`'s payload to `runCodex.ts`'s main loop, then synthesize `InputItem[]` in `sendTurnAndWait` (or a new wrapper). The wire spike confirmed codex accepts both base64 data URLs as `{ type: "image", url: "data:image/png;base64,..." }` and tmp-file paths as `{ type: "localImage", path }`; prefer data URLs unless payload size or API behavior forces a tmp-file fallback. See [Wire spike results](#wire-spike-results-2026-05-13-codex-cli-01250-copilot-api8), §1.
 
 **Effort.** Small (~2–3h). Includes spike + a colocated integration test that exercises a PNG attachment end-to-end against a real codex app-server.
 
@@ -124,7 +122,7 @@ Every proposed fix-site below explicitly states the tier and why.
 
 **Ralph-command shape.**
 > `codex-attachments — image attachments on codex path`
-> Plumb `MessageQueueAttachment[]` through the codex turn input. Path: extend `MessageQueue2` payload (or use `MessageBatch.attachments` from the existing claude path), build `InputItem[]` in `runCodex.ts` before calling `client.sendTurnAndWait`. Pre-flight: spike whether codex-core accepts `{ type: "image", url: "data:..." }` or whether `{ type: "localImage", path }` to a tmp file is required. Acceptance: send a PNG screenshot from the mobile app to a `happy codex` session; the codex agent acknowledges seeing it (e.g., describes contents in a smoke prompt). Unsupported MIME types are skipped + logged, not fatal.
+> Plumb `MessageQueueAttachment[]` through the codex turn input. Path: extend `MessageQueue2` payload (or use `MessageBatch.attachments` from the existing claude path), build `InputItem[]` in `runCodex.ts` before calling `client.sendTurnAndWait`. Use `{ type: "image", url: "data:..." }` for supported image MIME types, with `{ type: "localImage", path }` available as a fallback. Acceptance: send a PNG screenshot from the mobile app to a `happy codex` session; the codex agent acknowledges seeing it (e.g., describes contents in a smoke prompt). Unsupported MIME types are skipped + logged, not fatal.
 
 ---
 
@@ -164,13 +162,13 @@ Every proposed fix-site below explicitly states the tier and why.
 **Current state.**
 - *Claude side:* `packages/happy-cli/src/claude/runClaude.ts:541-577` calls `parseSpecialCommand(message.content.text)` and special-cases `/compact` and `/clear` — for `/compact`, the message is pushed with `pushIsolateAndClear` so it forms its own isolation batch; for `/clear`, the SDK is asked to reset session. Wrapped form `<command-name>/clear</command-name>` is also handled in `sessionProtocolMapper.ts` (`detectWrappedSlashCommandBoundary`) for the JSONL-replay path. See `packages/happy-cli/CLAUDE.md` "Wrapped-slash-command detection (F-012 / F-013)".
 - *Codex side:* `runCodex.ts:280-334` (`session.onUserMessage`) pushes the message text into `messageQueue` with no slash-command parsing. `parseSpecialCommand` is never imported in the codex path. Even if a user types `/compact` on a codex session, codex-core sees it as a literal string `/compact` in the user turn — codex-core's own slash-command handling may or may not fire (this is plugin-loaded into codex-core; outside the scope of happy-cli wire protocol).
-- Codex's wire surface DOES support compact: `NewConversationParams.compactPrompt: string | null` (`codexAppServerTypes.ts:29`) — but `client.startThread` (in `codexAppServerClient.ts`) never sets it.
+- Codex's wire surface supports compact through nested config plus `thread/compact/start`, not through happy-cli's current top-level type. The wire spike found `NewConversationParams.compactPrompt: string | null` (`codexAppServerTypes.ts:29`) is silently dropped by installed codex app-server, while `config: { compact_prompt: ... }` is honored. Fix both the stale type in `packages/happy-cli/src/codex/codexAppServerTypes.ts:29` and the start-thread/request plumbing in `packages/happy-cli/src/codex/codexAppServerClient.ts:1137`.
 
 **Proposed fix site.** (a) happy-cli — primary fix. Either:
 1. Match `/clear` on the codex path → call a codex-side reset (likely `client.disconnect()` + start a fresh thread; verify with a codex maintainer that this is the intended UX).
-2. Match `/compact` on the codex path → either let codex-core's own slash-command handling fire (verify it does), OR plumb a happy-side `compactPrompt` invocation that calls a codex-side compact RPC if one exists.
+2. Match `/compact` on the codex path → either let codex-core's own slash-command handling fire (verify it does), OR plumb a happy-side compact path that sets `config.compact_prompt` and calls `thread/compact/start`. Do not rely on top-level `compactPrompt`; it is not honored by the current app-server wire shape.
 
-Optionally (b) overlay-crate enhancement if codex doesn't natively understand `/compact` from the user turn text — but that's a codex-core concern, not happy-cli's. Defer until spiked.
+Optionally (b) overlay-crate enhancement if codex doesn't natively understand `/compact` from the user turn text — but that's a codex-core concern, not happy-cli's. The compact-prompt placement is resolved; the remaining slash-command spike is only about whether raw `/clear` and `/compact` user turns trigger codex-core behavior.
 
 **Effort.** Small (~2–4h) if codex-core natively handles `/clear` and `/compact` from user turn text (likely — codex's TUI does this). Larger if happy-cli has to implement codex-side equivalents.
 
@@ -178,7 +176,7 @@ Optionally (b) overlay-crate enhancement if codex doesn't natively understand `/
 
 **Ralph-command shape.**
 > `codex-slash-commands — /clear and /compact parity on codex path`
-> Spike: does codex-core's own slash-command handling fire when the user message is `/clear` or `/compact`? If yes, document and add a smoke test. If no, implement happy-cli-side interception via `parseSpecialCommand` (already shared with Claude) and a codex-side reset/compact mechanism. Coordinate with Gap 4's auto-compact context-boundary emission so manual `/compact` also emits `sendContextBoundary({ kind: 'compact', triggeredBy: 'user' })`.
+> Spike: does codex-core's own slash-command handling fire when the user message is `/clear` or `/compact`? If yes, document and add a smoke test. If no, implement happy-cli-side interception via `parseSpecialCommand` (already shared with Claude) and a codex-side reset/compact mechanism. For manual compact, fix `packages/happy-cli/src/codex/codexAppServerTypes.ts:29` and `packages/happy-cli/src/codex/codexAppServerClient.ts:1137` to use nested `config.compact_prompt`, then call `thread/compact/start`. Coordinate with Gap 4's auto-compact context-boundary emission so manual `/compact` also emits `sendContextBoundary({ kind: 'compact', triggeredBy: 'user' })`.
 
 ---
 
@@ -340,9 +338,9 @@ All proposed fix sites are **on the happy-cli side** with two exceptions:
 
 In order of recommended landing:
 
-1. ✅ **Gap 1 — `mcp-discovery`** — completed 2026-05-13; per-cwd `.mcp.json` discovery now ships on the codex start and resume paths.
+1. **Gap 1 — `mcp-discovery`** — already tracked in `plans/parallel-assignments.md`. Ship first; clears the known accidental discovery.
 2. **Gap 2 — `codex-claude-md-autoload`** — quick + high severity. Should be a separate small PR because it touches `NewConversationParams.config` which `mcp-discovery` doesn't.
-3. **Gap 3 — `codex-attachments`** — high severity, contained to `MessageQueue2` plumb + `sendTurnAndWait` synthesis. Requires a small spike on codex's image-input wire acceptance.
+3. **Gap 3 — `codex-attachments`** — high severity, contained to `MessageQueue2` plumb + `sendTurnAndWait` synthesis. The wire spike confirmed both data URL and local-file image inputs are accepted.
 4. **Gap 7 — `codex-system-prompts`** — medium severity, small effort, similar shape to Gap 2 (`NewConversationParams.baseInstructions`).
 5. **Gap 4 — `codex-hooks-parity`** — medium, larger; sequence after Gaps 1-3 land so the codex path is otherwise feature-complete.
 6. **Gap 5 — `codex-slash-commands`** — depends on Gap 4's auto-compact emission.
@@ -350,18 +348,208 @@ In order of recommended landing:
 8. Gaps 8, 9, 11, 12 are all small and can land in a single polish PR if desired.
 9. Gap 10 is docs-only; bundle with whichever PR rewrites `packages/happy-cli/CLAUDE.md` next.
 
-**Cross-cutting verification step (recommended before opening fix PRs).** Spike codex-core's acceptance of:
-- `{ type: "image", url: "data:image/png;base64,..." }` input items (Gap 3)
-- `config: { project_doc_fallback_filenames: [...] }` in NewConversationParams (Gap 2)
-- behavior of `compactPrompt` in NewConversationParams (Gap 5)
-
-A 30-minute spike against a real `codex app-server` build resolves all three.
+**Cross-cutting verification.** Completed by the [Wire spike results](#wire-spike-results-2026-05-13-codex-cli-01250-copilot-api8) against a real `codex app-server` build.
 
 ---
 
 ## Open questions surfaced by this audit
 
-1. **CLAUDE.md vs AGENTS.md precedence on codex** — the codex-copilot-launcher defaults to `["CLAUDE.md"]` overriding `AGENTS.md`. Should happy-cli mirror that (Claude-first) or invert it (codex-native-first)? See Gap 2.
+1. **CLAUDE.md vs AGENTS.md precedence on codex** — source and wire evidence show `project_doc_fallback_filenames` can recover CLAUDE-only projects but cannot make same-directory `CLAUDE.md` beat `AGENTS.md`. See Gap 2 and [Wire spike results](#wire-spike-results-2026-05-13-codex-cli-01250-copilot-api8), §2.
 2. **Plan mode parity strategy** — is the defensive `read-only` mapping acceptable for v1, or does the operator want a v2 overlay-crate immediately? See Gap 6.
 3. **Deferred-switch protocol for codex** — orthogonal to this audit but adjacent to Gap 4. Tracked in `.ralph/jobs/preserve-turn-on-mode-switch/plan.md` under the Codex open question.
 4. **Skill-format port direction** — Gap 10 is a category mismatch, not a happy-cli bug. Phase 3a's eventual scope (port Claude skills → codex plugin format, or vice versa, or both) is the right place for this. Mentioned here only so future audits don't re-flag.
+
+---
+
+## Wire spike results (2026-05-13, codex-cli 0.125.0-copilot-api.8)
+
+Harness: `tasks/spikes/codex-wire-spike.mjs` against a real `codex app-server` over JSON-RPC stdio. `.gitignore` decision: left unchanged because `tasks/` is not ignored in this worktree; the spike harness is committed directly.
+
+### §1 Image input - Gap 3
+
+Request payloads:
+
+```json
+[
+  {
+    "variant": "data-url",
+    "input": [
+      {
+        "type": "text",
+        "text": "This is an image transport probe. If the attached image is visible and predominantly red, reply exactly IMAGE_ACCEPTED_RED_CANARY. If no image is visible, reply exactly NO IMAGE RECEIVED."
+      },
+      {
+        "type": "image",
+        "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAMElEQVR4nO3OIQEAAAgDMGIg6Z+JLhDjZmJ+tT2XVAICAgICAgICAgICAgICAunAA9mpTHl4No2FAAAAAElFTkSuQmCC"
+      }
+    ]
+  },
+  {
+    "variant": "local-file",
+    "input": [
+      {
+        "type": "text",
+        "text": "This is an image transport probe. If the attached image is visible and predominantly red, reply exactly IMAGE_ACCEPTED_RED_CANARY. If no image is visible, reply exactly NO IMAGE RECEIVED."
+      },
+      {
+        "type": "localImage",
+        "path": "C:\\Users\\evmitran\\AppData\\Local\\Temp\\codex-wire-spike-99rB4d\\q1-local-file\\q1-red-canary.png"
+      }
+    ]
+  }
+]
+```
+
+Response/notification evidence:
+
+```json
+[
+  {
+    "variant": "data-url",
+    "eventMethods": ["turn/started", "item/completed", "item/completed", "item/agentMessage/delta", "item/completed", "turn/completed"],
+    "verdict": {
+      "status": "accepted",
+      "content": "IMAGE_ACCEPTED_RED_CANARY"
+    }
+  },
+  {
+    "variant": "local-file",
+    "eventMethods": ["turn/started", "item/completed", "item/completed", "item/agentMessage/delta", "item/completed", "turn/completed"],
+    "verdict": {
+      "status": "accepted",
+      "content": "IMAGE_ACCEPTED_RED_CANARY"
+    }
+  }
+]
+```
+
+**Verdict:** Codex accepts both `{ "type": "image", "url": "data:image/png;base64,..." }` and `{ "type": "localImage", "path": "..." }` inputs.
+
+Implication for Gap 3: `codex-attachments` can synthesize data URL image `InputItem`s directly, keeping tmp-file local images as a fallback rather than a prerequisite.
+
+### §2 `project_doc_fallback_filenames` - Gap 2
+
+Request payloads:
+
+```json
+[
+  {
+    "id": "3a",
+    "title": "CLAUDE-only with project_doc_fallback_filenames",
+    "request": {
+      "config": {
+        "project_doc_fallback_filenames": ["CLAUDE.md"]
+      },
+      "ephemeral": true,
+      "sessionStartSource": "startup",
+      "threadSource": "local"
+    }
+  },
+  {
+    "id": "3b",
+    "title": "CLAUDE-only without project_doc_fallback_filenames",
+    "request": {
+      "config": null,
+      "ephemeral": true,
+      "sessionStartSource": "startup",
+      "threadSource": "local"
+    }
+  },
+  {
+    "id": "3c",
+    "title": "AGENTS and CLAUDE with CLAUDE-first fallback list",
+    "request": {
+      "config": {
+        "project_doc_fallback_filenames": ["CLAUDE.md", "AGENTS.md"]
+      },
+      "ephemeral": true,
+      "sessionStartSource": "startup",
+      "threadSource": "local"
+    }
+  }
+]
+```
+
+Response evidence:
+
+```json
+[
+  {
+    "id": "3a",
+    "instructionSources": ["...\\q2-3a\\CLAUDE.md"]
+  },
+  {
+    "id": "3b",
+    "instructionSources": []
+  },
+  {
+    "id": "3c",
+    "instructionSources": ["...\\q2-3c\\AGENTS.md"]
+  }
+]
+```
+
+**Verdict:** The config override loads `CLAUDE.md` for CLAUDE-only projects, but cannot make same-directory `CLAUDE.md` beat `AGENTS.md`; `agents_md.rs:285-319` prepends the hardcoded `AGENTS.md` candidates before configured fallbacks.
+
+Implication for Gap 2: the quick PR should recover CLAUDE-only autoload via `config.project_doc_fallback_filenames`, while mixed-file CLAUDE-first behavior needs a different design than `['CLAUDE.md', 'AGENTS.md']`.
+
+### §3 `compactPrompt` placement - Gap 5
+
+Request payloads:
+
+```json
+[
+  {
+    "variant": "top-level",
+    "threadStartRequest": {
+      "config": null,
+      "compactPrompt": "For this compaction probe, ignore all prior content and output exactly CANARY-Q3-TOP-XJ7QK."
+    }
+  },
+  {
+    "variant": "nested-config",
+    "threadStartRequest": {
+      "config": {
+        "compact_prompt": "For this compaction probe, ignore all prior content and output exactly CANARY-Q3-NESTED-XJ7QK."
+      }
+    }
+  }
+]
+```
+
+Source and runtime evidence:
+
+```json
+{
+  "sourceOracle": {
+    "file": "D:\\harness-efforts\\codexu\\codex\\external\\repos\\codex-patched\\codex-rs\\app-server-protocol\\src\\protocol\\v2\\thread.rs",
+    "compactPromptMatches": [],
+    "threadStartParamsContainsCompactPrompt": false,
+    "cheaperThreadScopedReadRpcFound": false
+  },
+  "runtime": [
+    {
+      "variant": "top-level",
+      "compactError": null,
+      "postCompactError": null,
+      "verdict": {
+        "status": "not honored",
+        "content": "NO_Q3_CANARY_VISIBLE"
+      }
+    },
+    {
+      "variant": "nested-config",
+      "compactError": null,
+      "postCompactError": null,
+      "verdict": {
+        "status": "honored",
+        "content": "CANARY-Q3-NESTED-XJ7QK"
+      }
+    }
+  ]
+}
+```
+
+**Verdict:** Top-level `compactPrompt` is silently dropped by the app-server thread-start shape; nested `config.compact_prompt` is honored and becomes the live compact prompt for `thread/compact/start`.
+
+Implication for Gap 5: `codex-slash-commands` must fix both `packages/happy-cli/src/codex/codexAppServerTypes.ts:29` and `packages/happy-cli/src/codex/codexAppServerClient.ts:1137` to use nested `config.compact_prompt`, then drive compaction through the app-server compact RPC.
