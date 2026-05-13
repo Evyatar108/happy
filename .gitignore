@@ -105,3 +105,4 @@ packages/happy-server/logs/
 .cdp-scripts/
 happy-workspaces/
 docs/validation/boox-screenshots-*/
+.test-output/
