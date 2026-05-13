@@ -305,6 +305,48 @@ Acceptance: design doc + per-scope working fixture: (B) two sessions on the same
 
 ---
 
+## X — `roadmap-plugin` 🛠 — agents manage roadmap/overview.html programmatically
+
+> New "Tooling" workstream. Plugin in `packages/codexu-plugin/` that exposes roadmap-CRUD via skill commands and/or MCP server. Parallel with anything. Foundational for agent-driven planning workflows.
+
+```
+/plan-with-ralph "Build a plugin that lets agents manage the codexu roadmap (plans/overview.html + plans/parallel-assignments.md + plans/codexu-roadmap.md) programmatically. Plugin home: packages/codexu-plugin/.
+
+TWO INTERFACE SURFACES — surface design choice to operator before scoping the build:
+
+1. Skill commands (lower overhead, easier first version). Slash commands like /roadmap-add-task, /roadmap-update-status, /roadmap-record-run, /roadmap-take-task. Implementation: SKILL.md files under packages/codexu-plugin/skills/roadmap/. Each skill is a procedure the agent follows that reads/edits plans/overview.html's JSON block + plans/parallel-assignments.md's status table. Reuses the existing .agents/skills/roadmap-and-overview/SKILL.md as the data-model reference (it documents the JSON schema + update procedures exhaustively).
+
+2. MCP server (richer, agent-callable without slash commands). Stdio MCP server registered via packages/codexu-plugin/.codex-plugin/plugin.json's mcp_servers field. Tools exposed: roadmap.list, roadmap.addTask, roadmap.updateStatus, roadmap.recordRun, roadmap.takeTask. Server lives in packages/codexu-plugin/mcp-roadmap/ (new Node/TS subdir; can reuse @slopus/happy-wire for any shared types).
+
+CORE OPERATIONS (regardless of surface):
+- add-task: takes task metadata (id, status, workstream, sizeBucket, risk, effort, cadence?, ralphCommand string, optional blockedOn list). Writes a new <details class='cmd'> row in plans/overview.html + new lettered section in plans/parallel-assignments.md + entries in every JSON map. Validates against the data model documented in .agents/skills/roadmap-and-overview/SKILL.md.
+- update-status: takes (taskId, newStatus, optional commit sha + summary if flipping to closed). Flips badge class + text in HTML; updates lastTouched in JSON; updates parallel-assignments.md status table cell; if status='closed' appends a run record to runs[].
+- record-run: takes (taskId, ranAt ISO, outcome, commits[], summary). Appends to runs[]. If task is periodic, recomputes periodic[taskId].lastRunId + nextDueAt.
+- take-task: spawns a top-level agent session running the task's ralph command, then calls update-status to flip the task to in-progress. Spawn integration: call happy-cli's existing spawn-happy-session RPC. The MCP server (which runs as a stdio child of codex) needs to reach the daemon — via daemon's HTTP control surface at 127.0.0.1:<httpPort> (read from ~/.happy/daemon.state.json) OR via the daemon's existing socket. Surface this integration choice to operator.
+
+DEPENDENCIES / CROSS-REFERENCES:
+- READ .agents/skills/roadmap-and-overview/SKILL.md FIRST — it's the canonical data-model + per-operation procedure documentation. The plugin should automate exactly what that skill describes manually.
+- Read packages/codexu-plugin/README.md + Phase 1c scaffolding for the plugin layout.
+- For MCP transport: stdio MCP. Codex's MCP client docs in codex/external/repos/codex-patched/codex-rs/core/src/mcp_tool_call.rs (READ-ONLY per minimize-conflict-surface).
+- For task-taking spawn: packages/happy-cli/src/daemon/run.ts:spawnSession (daemon-side handler) + packages/happy-cli/src/api/apiMachine.ts (apiMachineClient with spawn-happy-session RPC method registration).
+- OVERLAPS WITH agent-comms: agent-comms's Scope B (same-daemon spawn/message) covers similar ground. Coordinate to avoid duplicating the spawn surface — this plugin can ship v1 using existing happy-cli RPCs without waiting for agent-comms; agent-comms can later subsume or refactor the spawn integration.
+
+ACCEPTANCE v1 (skill-only):
+- /roadmap-add-task with full metadata writes a new task and the operator sees it on reload.
+- /roadmap-update-status flips a task's badge + status table cell + JSON lastTouched.
+- /roadmap-record-run appends a run + updates periodic metadata if applicable.
+- /roadmap-take-task spawns a happy session with the ralph command and flips the task to in-progress.
+- The 4 skills are documented in packages/codexu-plugin/skills/roadmap/*/SKILL.md.
+
+ACCEPTANCE v1.5 (MCP add-on):
+- Same operations exposed as MCP tools.
+- An agent in a codex session with codexu-plugin enabled can call roadmap.addTask etc. without slash commands.
+
+Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE writing code. NO CODE until operator agrees on scope."
+```
+
+---
+
 ## O — `polish-Fs` — Bundle remaining F-* findings
 
 > Parallel with everything outside the touched files. Bundle into one PR to amortize review.
@@ -359,6 +401,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `channels-research` | Research Claude Code "channels" + codex 2-way MCP plan | ⬜ not started | — |
 | `async-events-design` | Design async event listening for agents | ⬜ blocked on channels-research | — |
 | `native-agent-parity` | Research codex parity with Claude Code's native subagents | ⬜ not started | — |
+| `roadmap-plugin` 🛠 | Plugin: agents manage roadmap/overview.html via skill + MCP | ⬜ not started | — |
 
 🟡 = in progress (agent actively working, not yet committed). Refresh after each landing.
 

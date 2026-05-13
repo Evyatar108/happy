@@ -445,6 +445,19 @@ conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
     Phase 2d "ask_user_question primitive", Phase 3b-i "subagents →
     agent roles", and Phase 6 "Long-lived teammates". New workstream
     value `agent-arch` in `plans/overview.html` filter axis.
+  - **Tooling workstream (new, 2026-05-14):** roadmap-meta automation —
+    a plugin in `packages/codexu-plugin/` that lets agents manage the
+    roadmap (`plans/overview.html` + `plans/parallel-assignments.md`)
+    programmatically via skill commands and/or an MCP server. Tools:
+    `add-task`, `update-status`, `record-run`, `take-task` (the last
+    spawns a top-level agent with the task's ralph command + flips the
+    task to in-progress). Builds on the manual procedure documented in
+    `.agents/skills/roadmap-and-overview/SKILL.md`. Overlaps with
+    `agent-comms` Scope B (same-daemon spawn) — the plugin can ship
+    v1 using existing happy-cli `spawn-happy-session` RPC without
+    waiting for the broader agent-comms design. New workstream value
+    `tooling` in `plans/overview.html` filter axis. Initial task:
+    `roadmap-plugin`.
   - **Periodic upstream sync (new workstream, 2026-05-13):** added two
     periodic-cadence maintenance tasks that should cycle every ~4 weeks:
     `happy-upstream-sync` (review new commits in `slopus/happy` since
