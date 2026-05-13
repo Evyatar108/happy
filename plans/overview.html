@@ -356,6 +356,81 @@
 
   /* Periodic-cadence indicator (rotating-arrows icon next to workstream pill) */
   .cadence-icon { font-size: 12px; line-height: 1; opacity: 0.8; cursor: help; }
+
+  /* Cadence "due in Nd / overdue Nd / first run pending" chip */
+  .cadence-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    border: 1px solid var(--border);
+  }
+  .cadence-chip.due-far  { color: var(--ok);  border-color: rgba(158,206,106,0.45); background: rgba(158,206,106,0.10); }
+  .cadence-chip.due-soon { color: var(--warn); border-color: rgba(224,175,104,0.50); background: rgba(224,175,104,0.12); }
+  .cadence-chip.overdue  { color: var(--bad); border-color: rgba(247,118,142,0.50); background: rgba(247,118,142,0.12); }
+  .cadence-chip.first-run { color: var(--muted); }
+
+  /* Run history block inside a cmd-body */
+  .run-history {
+    margin-top: 10px;
+    border-top: 1px dashed var(--border);
+    padding-top: 8px;
+  }
+  .run-history-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+  }
+  .run-entry {
+    display: grid;
+    grid-template-columns: max-content max-content 1fr;
+    gap: 6px 12px;
+    align-items: baseline;
+    padding: 6px 0;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .run-entry:first-of-type { border-top: none; }
+  .run-date { color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .run-sha {
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 11px;
+    background: rgba(127,127,127,0.10);
+    padding: 1px 5px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .run-summary { color: var(--fg); }
+  .run-entry.outcome-failed .run-sha { background: rgba(247,118,142,0.15); }
+  .run-entry.outcome-deferred .run-summary { color: var(--muted); font-style: italic; }
+
+  /* "Recently shipped" footer line on the Today panel */
+  .recently-shipped-line {
+    display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dotted var(--border);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .recently-shipped-line .label { font-weight: 600; }
+  .recently-shipped-line .chip-shipped {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: rgba(158,206,106,0.10);
+    border: 1px solid rgba(158,206,106,0.40);
+    color: var(--ok);
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 11px;
+    text-decoration: none !important;
+  }
+  .recently-shipped-line .chip-shipped:hover { background: rgba(158,206,106,0.25); }
   #search {
     flex: 1; min-width: 220px;
     padding: 7px 12px;
@@ -821,8 +896,8 @@
       </div>
     </div>
 
-    <div class="card" style="border-color: var(--warn);">
-      <div class="card-title">Realtime sync perf — WS3: server replay buffer + client lastSeenSeq <span class="sub">(in progress)</span></div>
+    <div class="card" style="border-color: var(--ok); opacity: 0.8;">
+      <div class="card-title">Realtime sync perf — WS3: server replay buffer + client lastSeenSeq <span class="sub">(shipped <code>197b0148</code>)</span></div>
       <div class="sub">Server keeps ring of last N events per user; client ships <code>lastSeenSeq</code> on reconnect handshake. Eliminates HTTP fallback on reconnect.</div>
       <div class="card-meta">
         <span class="pill area-multi">multi-package</span>
@@ -1156,7 +1231,7 @@
   </details>
 
   <details class="cmd" id="cmd-perf-WS3" data-task-id="perf-WS3">
-    <summary><span class="cmd-name">perf-WS3</span><span class="cmd-badge b-inflight">🟡 in progress</span><span class="cmd-desc">Realtime perf — server replay buffer + client lastSeenSeq (multi-package)</span></summary>
+    <summary><span class="cmd-name">perf-WS3</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Realtime perf — server replay buffer + client lastSeenSeq · commit <code>197b0148</code></span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
 <pre class="cmd-pre">/plan-with-ralph "Realtime sync perf — Workstream 3: server-side per-user event replay buffer + client lastSeenSeq handshake. Per plans/realtime-sync-perf.md §Workstream 3. Server: in packages/happy-server/sources/app/events/eventRouter.ts add a per-user ring buffer of last N events (cap MAX_REPLAY_BUFFER=1024 or MAX_REPLAY_AGE_MS=60_000, whichever is larger); every emitUpdate appends keyed by userId. In packages/happy-server/sources/app/api/socket.ts on connection check socket.handshake.auth.lastSeenSeq; if present and within buffer, replay events with seq &gt; lastSeenSeq in order; if older than oldest buffered seq respond { replayOverflow: true, currentSeq }. Client: in packages/happy-app/sources/sync/storage.ts add lastSeenUpdateSeq to MMKV-persisted state; persist on every applied update.seq. In packages/happy-app/sources/sync/socketOptions.ts:30 inside buildTunnelSocketOptions add lastSeenSeq to the auth object. On server replayOverflow, fall back to existing fetchSessions path. Read packages/happy-server/CLAUDE.md and packages/happy-app/CLAUDE.md sync invariants first. Document the in-memory-only nature: ring buffer is single-process state; cross-cluster Redis is deferred. Acceptance: unit test eventRouter — emit 10 events, disconnect, reconnect with lastSeenSeq=5, verify 6-10 in order; overflow test with cap and 2000 events. Client test — lastSeenUpdateSeq persists across applyUpdate calls. Test command: pnpm --filter '{packages/happy-server}' --filter '{packages/happy-app}' exec vitest run 2&gt;&amp;1 | tee /tmp/codexu-ws3.log. Single commit on main. Pitfall: do not reorder allocateUserSeq vs emitUpdate."</pre>
@@ -1572,8 +1647,8 @@
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T01:30:00Z",
-  "generatedFromCommit": "16eb1f87",
+  "generatedAt": "2026-05-14T02:30:00Z",
+  "generatedFromCommit": "6871afeb",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:00:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -1595,18 +1670,40 @@
     "happy-upstream-sync": "2026-05-14T01:30:00Z",
     "codex-upstream-rebase": "2026-05-14T01:30:00Z"
   },
+  "periodic": {
+    "happy-upstream-sync": { "intervalDays": 28, "lastRunId": "happy-upstream-sync/2026-05-03", "nextDueAt": "2026-05-31T00:00:00Z" },
+    "codex-upstream-rebase": { "intervalDays": 28, "lastRunId": null, "nextDueAt": null }
+  },
   "cadence": {
     "happy-upstream-sync": "periodic",
     "codex-upstream-rebase": "periodic"
   },
-  "cadenceWeeks": {
-    "happy-upstream-sync": 4,
-    "codex-upstream-rebase": 4
-  },
-  "lastRanAt": {
-    "happy-upstream-sync": "2026-05-03T00:00:00Z",
-    "codex-upstream-rebase": null
-  },
+  "runs": [
+    {
+      "id": "perf-WS3/2026-05-13",
+      "taskId": "perf-WS3",
+      "ranAt": "2026-05-13T15:56:26Z",
+      "outcome": "completed",
+      "commits": ["197b0148"],
+      "summary": "Shipped server-side per-user event replay buffer + client lastSeenSeq handshake. Per plans/realtime-sync-perf.md §WS3."
+    },
+    {
+      "id": "F-013-perms/2026-05-13",
+      "taskId": "F-013-perms",
+      "ranAt": "2026-05-13T21:00:00Z",
+      "outcome": "closed-obsolete",
+      "commits": ["bfe7ef67"],
+      "summary": "Closed as obsolete-by-design — Phase 5 drop-Claude supersedes. Latent path left at packages/happy-cli/src/claude/utils/permissionHandler.ts:87-89."
+    },
+    {
+      "id": "happy-upstream-sync/2026-05-03",
+      "taskId": "happy-upstream-sync",
+      "ranAt": "2026-05-03T00:00:00Z",
+      "outcome": "completed",
+      "commits": ["25fe2cf3"],
+      "summary": "Absorbed 79 upstream slopus/happy commits / 1971 files / 25 conflicts. Headline: codium plugin system, theme system, Codex OAuth via PKCE, Streamdown rendering, model adds (Opus 4.7, GPT 5.5)."
+    }
+  ],
   "effort": {
     "perf-WS1": 0.75,
     "perf-WS3": 3,
@@ -1770,7 +1867,7 @@
     // On-hold row: paused first, then blocked
     chipsInto('today-hold', byStatus.paused.concat(byStatus.blocked), '', '');
 
-    // Footer: capacity + dimmer counts (closed/blocked-paused totals)
+    // Footer: capacity + dimmer counts (closed/blocked-paused totals) + recently shipped
     var footer = document.getElementById('today-footer');
     if (footer) {
       // Capacity calc (ready only)
@@ -1791,6 +1888,35 @@
       if (capacity) parts.push(capacity);
       parts.push(counts.closed + ' closed');
       footer.textContent = parts.join('  ·  ');
+
+      // Recently shipped line — runs with ranAt within the last 7 days
+      if (data && Array.isArray(data.runs)) {
+        var weekAgo = Date.now() - 7 * 864e5;
+        var recent = data.runs
+          .filter(function (r) { return r.ranAt && Date.parse(r.ranAt) >= weekAgo; })
+          .sort(function (a, b) { return Date.parse(b.ranAt) - Date.parse(a.ranAt); });
+        if (recent.length > 0) {
+          var line = document.createElement('div');
+          line.className = 'recently-shipped-line';
+          var label = document.createElement('span');
+          label.className = 'label';
+          label.textContent = '✅ Recently shipped (7d):';
+          line.appendChild(label);
+          recent.forEach(function (r) {
+            var a = document.createElement('a');
+            a.className = 'chip-shipped';
+            a.href = '#cmd-' + r.taskId;
+            a.textContent = r.taskId;
+            var d = new Date(r.ranAt);
+            var daysAgo = Math.round((Date.now() - d.getTime()) / 864e5);
+            a.title = r.summary
+              ? (daysAgo + ' d ago · ' + (r.commits && r.commits.length ? r.commits[0] + ' · ' : '') + r.summary)
+              : (daysAgo + ' d ago');
+            line.appendChild(a);
+          });
+          footer.appendChild(line);
+        }
+      }
     }
 
     // Populate Ralph commands section-count summary
@@ -2016,21 +2142,52 @@
       if (!ws) return;
       var summary = cmd.querySelector('summary');
       if (!summary || summary.querySelector('.pill-workstream')) return;
-      // Periodic-cadence indicator (🔄) — added before the workstream pill
+      // Periodic-cadence indicator (🔄) + due/overdue chip — added before the workstream pill
       if (cad === 'periodic' && !summary.querySelector('.cadence-icon')) {
+        var periodicMeta = (data.periodic || {})[id] || {};
         var icon = document.createElement('span');
         icon.className = 'cadence-icon';
         icon.textContent = '🔄';
-        var weeks = (data.cadenceWeeks || {})[id];
-        var lastRan = (data.lastRanAt || {})[id];
         var titleParts = ['Periodic task'];
-        if (weeks) titleParts.push('cadence ~' + weeks + ' weeks');
-        if (lastRan) {
-          var daysAgo = Math.round((Date.now() - Date.parse(lastRan)) / 864e5);
+        if (periodicMeta.intervalDays) titleParts.push('cadence ~' + periodicMeta.intervalDays + ' days');
+        if (periodicMeta.nextDueAt) titleParts.push('next due ' + periodicMeta.nextDueAt.slice(0, 10));
+        // Find last-run timestamp from runs[]
+        var lastRunRecord = null;
+        if (Array.isArray(data.runs)) {
+          for (var i = 0; i < data.runs.length; i++) {
+            if (data.runs[i].taskId === id) {
+              if (!lastRunRecord || data.runs[i].ranAt > lastRunRecord.ranAt) lastRunRecord = data.runs[i];
+            }
+          }
+        }
+        if (lastRunRecord) {
+          var daysAgo = Math.round((Date.now() - Date.parse(lastRunRecord.ranAt)) / 864e5);
           titleParts.push('last run ' + daysAgo + ' d ago');
         }
         icon.title = titleParts.join(' · ');
         summary.appendChild(icon);
+
+        // Due/overdue chip
+        var chip = document.createElement('span');
+        chip.className = 'cadence-chip';
+        if (!lastRunRecord || !periodicMeta.nextDueAt) {
+          chip.textContent = 'first run pending';
+          chip.classList.add('first-run');
+        } else {
+          var daysUntil = Math.round((Date.parse(periodicMeta.nextDueAt) - Date.now()) / 864e5);
+          if (daysUntil < 0) {
+            chip.textContent = 'overdue ' + Math.abs(daysUntil) + 'd';
+            chip.classList.add('overdue');
+          } else if (daysUntil <= 7) {
+            chip.textContent = 'due in ' + daysUntil + 'd';
+            chip.classList.add('due-soon');
+          } else {
+            chip.textContent = 'due in ' + daysUntil + 'd';
+            chip.classList.add('due-far');
+          }
+        }
+        chip.title = icon.title;
+        summary.appendChild(chip);
       }
       var pill = document.createElement('a');
       pill.className = 'pill-workstream';
@@ -2169,6 +2326,52 @@
   })();
 
   // Capacity widget folded into the Today panel footer above (Tier V rebalance).
+
+  // ===== Per-task run history inside each cmd-body =====
+  (function injectRunHistory() {
+    var data = getRoadmapData();
+    if (!data || !Array.isArray(data.runs) || data.runs.length === 0) return;
+    // Group runs by taskId, newest first
+    var byTask = {};
+    data.runs.forEach(function (r) {
+      if (!r.taskId) return;
+      (byTask[r.taskId] = byTask[r.taskId] || []).push(r);
+    });
+    Object.keys(byTask).forEach(function (taskId) {
+      byTask[taskId].sort(function (a, b) { return Date.parse(b.ranAt) - Date.parse(a.ranAt); });
+    });
+    document.querySelectorAll('details.cmd[data-task-id]').forEach(function (cmd) {
+      var id = cmd.getAttribute('data-task-id');
+      var runs = byTask[id];
+      if (!runs || runs.length === 0) return;
+      var body = cmd.querySelector('.cmd-body');
+      if (!body || body.querySelector('.run-history')) return;
+      var wrap = document.createElement('div');
+      wrap.className = 'run-history';
+      var label = document.createElement('div');
+      label.className = 'run-history-label';
+      label.textContent = 'Run history — ' + runs.length + (runs.length === 1 ? ' run' : ' runs');
+      wrap.appendChild(label);
+      runs.forEach(function (r) {
+        var row = document.createElement('div');
+        row.className = 'run-entry outcome-' + (r.outcome || 'completed');
+        var dateEl = document.createElement('span');
+        dateEl.className = 'run-date';
+        dateEl.textContent = (r.ranAt || '').slice(0, 10);
+        row.appendChild(dateEl);
+        var shaEl = document.createElement('span');
+        shaEl.className = 'run-sha';
+        shaEl.textContent = (r.commits && r.commits[0]) ? r.commits[0] : (r.outcome || '—');
+        row.appendChild(shaEl);
+        var sumEl = document.createElement('span');
+        sumEl.className = 'run-summary';
+        sumEl.textContent = r.summary || '';
+        row.appendChild(sumEl);
+        wrap.appendChild(row);
+      });
+      body.appendChild(wrap);
+    });
+  })();
 
   // ===== Operator notes — inline textarea per cmd row, persisted in localStorage =====
   (function operatorNotes() {
