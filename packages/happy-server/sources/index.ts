@@ -87,6 +87,24 @@ function machineKeyToSeed(machineKey: string | Uint8Array) {
     return Buffer.from(machineKey).toString("base64");
 }
 
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "0:0:0:0:0:0:0:1", "localhost"]);
+
+export function isLoopbackHost(host: string | undefined): boolean {
+    if (!host) {
+        return true;
+    }
+    return LOOPBACK_HOSTS.has(host.toLowerCase());
+}
+
+export function assertOperatorIdentityGate(config: Pick<CreateAppConfig, "auth" | "host">): void {
+    const resolvedHost = config.host || "127.0.0.1";
+    if (config.auth !== "loopback" && !isLoopbackHost(resolvedHost)) {
+        const message = `CRITICAL: refusing to start happy-server tunnel listener bound to non-loopback host "${resolvedHost}". The tunnel listener collapses identity to tofuConfig.localUserId and relies on the Dev Tunnels gateway plus a loopback bind as its operator identity gate. Bind to 127.0.0.1 (or set auth: "loopback") instead.`;
+        console.error(message);
+        throw new Error(message);
+    }
+}
+
 function publicKeyToBase64(publicKey: string | Uint8Array): string {
     if (typeof publicKey === "string") {
         return publicKey;
@@ -95,6 +113,7 @@ function publicKeyToBase64(publicKey: string | Uint8Array): string {
 }
 
 export function createApp(config: CreateAppConfig): HappyServerHandle {
+    assertOperatorIdentityGate(config);
     const app = fastify({ logger: false });
     let isConfigured = false;
     let isStarted = false;
