@@ -1,8 +1,8 @@
 # BOOX Testing Handoff — Dev Tunnels Migration Cutover Gate
 
-**Created:** 2026-05-12 (on `ralph/devtunnels-A-foundation` machine — Dev Box without Android SDK)
-**For:** Fresh agent on the BOOX-connected tablet-dev machine (the one with `D:/Android/Sdk` + keystore)
-**Branch:** `ralph/devtunnels-E-cleanup` (HEAD `b45c13cd`)
+**Created:** 2026-05-12 (Dev Box without Android SDK), last updated 2026-05-12 after merge to main.
+**For:** Fresh agent on the BOOX-connected tablet-dev machine (the one with `D:/Android/Sdk` + keystore + USB BOOX).
+**Branch:** `main` (HEAD `2a8b4bf9` at handoff time; pull latest before starting).
 
 This file is the single starting point. Read it top-to-bottom before doing anything else.
 
@@ -10,7 +10,7 @@ This file is the single starting point. Read it top-to-bottom before doing anyth
 
 ## Context: where the migration stands
 
-5 sprints of work converted happy-app from QR-code + libsodium pairing to GitHub OAuth device flow + Microsoft Dev Tunnels. Sprints A+B+C+D are merged. Sprint E is **5 of 7 stories complete**:
+5 sprints of work converted happy-app from QR-code + libsodium pairing to GitHub OAuth device flow + Microsoft Dev Tunnels. **Sprints A+B+C+D+E (5/7 stories) are all merged to `main`.** Sprint E remaining:
 
 - US-001 server route deletions ✓
 - US-002 Prisma schema reduction ✓ (schema edits committed; `prisma migrate dev` not yet run)
@@ -18,12 +18,13 @@ This file is the single starting point. Read it top-to-bottom before doing anyth
 - US-004 R-D18 path (b) `X-Tunnel-Connect` plumbing ✓
 - US-005 **THIS — BOOX hardware validation** (operator-blocked, what we're doing here)
 - US-006 docs sweep ✓
-- US-007 **THIS — Prisma migration commit + final cutover commit** (operator-blocked; depends on US-005 passing)
+- US-007 **THIS — run Prisma migration; commit migration file** (operator-blocked; depends on US-005 passing for go/no-go)
 
-Once US-005 + US-007 land, the merge chain runs:
-`ralph/devtunnels-E-cleanup` → `ralph/devtunnels-A-foundation` → `ralph/fan-out-survivors` → `main` → `git push origin main`.
+Branch chain (`ralph/devtunnels-E-cleanup` → `A-foundation` → `fan-out-survivors`) has been collapsed: `main` now carries everything. US-005 + US-007 commits will land directly on `main`, no merge chain to run.
 
 R-D18 (the Dev Tunnels public-tunnel reachability question) is RESOLVED via path (b) — see "R-D18" in `packages/happy-app/scripts/sprint-a-gap.md`. Path (a) `--allow-anonymous` is permanently REJECTED by operator policy. Do not reintroduce it anywhere.
+
+Codex engine fork is now consumed as a **git submodule at `codex/`** pointing at `gim-home/codex` (private repo). This replaces the prior per-machine `mklink /J` junction.
 
 ---
 
@@ -31,13 +32,15 @@ R-D18 (the Dev Tunnels public-tunnel reachability question) is RESOLVED via path
 
 | Prerequisite | Where | Notes |
 |--------------|-------|-------|
-| Repo + branch | Clone or fetch | `git fetch origin ralph/devtunnels-E-cleanup` then `git worktree add <path>/devtunnels-E-cleanup ralph/devtunnels-E-cleanup` OR `git checkout ralph/devtunnels-E-cleanup`. HEAD should be `b45c13cd`. |
+| Repo on `main` | Clone or update | `git clone https://github.com/Evyatar108/codexu.git && cd codexu` OR `cd <existing>; git fetch origin; git checkout main; git pull --ff-only`. HEAD should be `2a8b4bf9` or newer. |
+| `gh` auth with `gim-home` org access | gh-cli + git credential cache | `gh auth login` must complete for a user that's a member of the `gim-home` GitHub org. Confirm with `gh api repos/gim-home/codex --jq .full_name` → should print `gim-home/codex`. The codex submodule clone requires this. |
+| Codex submodule populated | `codex/` directory | After clone: `git submodule update --init`. Verify `codex/.git` exists and `cd codex && git log -1` shows commit `69fc05e30` "feat(launcher): gate user-message background..." or newer. |
 | `node` + `pnpm` | PATH | Versions per `package.json` engines fields. Run `pnpm install` at repo root after checkout. |
 | `D:/Android/Sdk` (or alt path) | Filesystem | Android SDK + platform-tools. Set `ANDROID_HOME` to its location. |
 | `adb` | On PATH (or via `ANDROID_HOME/platform-tools/`) | `adb devices` must list at least one BOOX. |
 | BOOX tablet | USB-connected, dev mode on, USB debugging allowed | Or use wireless adb if you've set it up. |
 | `D:/secrets/happy-app-release.keystore` | Filesystem | Production keystore. Required ONLY for Phase 6 of the validation (signed APK). Phases 1-5 work without it via Metro dev client. |
-| `packages/happy-app/keystore.properties` | In repo | References the keystore + alias. Required ONLY for Phase 6. |
+| `packages/happy-app/keystore.properties` | In repo | References the keystore + alias. Required ONLY for Phase 6. Gitignored per-machine. |
 | happy-cli daemon running somewhere | On any machine you trust | The app pairs to a happy-cli daemon via Dev Tunnels. Daemon must have been initialized with `happy init` + `happy daemon start`. The daemon you pair to does NOT need to be the same machine running Metro. |
 | GitHub OAuth app | Already configured server-side | Sprint A locked the OAuth flow; nothing to change. |
 
@@ -47,17 +50,29 @@ If any of the above is missing, set it up FIRST. Don't try to power through gaps
 
 ## Step-by-step execution
 
-### Step 0 — Sanity check the worktree
+### Step 0 — Clone + populate submodule + install
 
 ```bash
-cd <path>/devtunnels-E-cleanup
+# If first time on this machine:
+gh auth login   # pick a user with gim-home org access; verify with `gh api repos/gim-home/codex`
+git clone https://github.com/Evyatar108/codexu.git
+cd codexu
+git submodule update --init    # populates codex/ from gim-home/codex; needs gim-home auth
+
+# If already cloned:
+cd <existing-codexu-checkout>
+git fetch origin
+git checkout main
+git pull --ff-only
+git submodule update --init --remote   # bump codex/ to latest main (optional)
+
 git log --oneline -1
-# Should print: b45c13cd Merge main into ralph/devtunnels-E-cleanup: ...
+# Should print: 2a8b4bf9 ... or newer
 
 cat packages/happy-app/CHANGELOG.md | head -20
 # Should show Version 31 at the top
 
-pnpm install   # If you haven't yet
+pnpm install
 ```
 
 ### Step 1 — First-time dev-client install on the BOOX
@@ -153,39 +168,37 @@ If you added a notepad deferral entry, commit that too in the same commit:
 git add .ralph/jobs/devtunnels-E-cleanup/notepad.md
 ```
 
-### Step 8 — Resume ralph on US-007 to land the final cutover commit
+### Step 8 — Run the Prisma migration; commit on main; complete US-007
 
-Sprint E US-007 was waiting on US-005 (BOOX validation) and the Prisma migration.
+Sprint E US-007 was waiting on US-005 (BOOX validation) and the Prisma migration. **The branch chain has been collapsed — you commit directly on `main` now**, no merge chain to run.
 
 ```bash
+# Make sure you're on main:
+git checkout main
+git pull --ff-only
+
 # Run the Prisma migration outside the agent loop:
 cd packages/happy-server
 pnpm prisma migrate dev --name drop_legacy_models_sprint_e
-# Commit the generated migration file (auto-staged by prisma):
+# Commit the generated migration file:
 cd ../..
 git add packages/happy-server/prisma/migrations/
 git commit -m "feat: US-007 — Prisma drop legacy models (Sprint E)"
 ```
 
-Then resume ralph to land the final cutover commit:
+Optionally resume ralph to land US-007's remaining items (server-route deletion verification, deploy-config docs, etc.):
 
 ```bash
-# From the worktree root (or anywhere — ralph picks up the job dir from --job)
+# Job state was carried over via the E-cleanup merge.
 /implement-with-ralph resume devtunnels-E-cleanup
 ```
 
-Or, more conservatively, drive US-007 manually if ralph isn't available — the story owns: server route deletion verification, deploy-config docs (`HAPPY_TUNNEL_GITHUB_OWNER` mandatory in prod), and final merge-handoff doc updates.
+Or drive US-007 manually if ralph isn't available — the story owns: server route deletion verification, deploy-config docs (`HAPPY_TUNNEL_GITHUB_OWNER` mandatory in prod), and final merge-handoff doc updates.
 
-### Step 9 — Cutover merge chain
-
-After US-005 + US-007 + the Prisma migration commit are all on `ralph/devtunnels-E-cleanup`:
+### Step 9 — Smoke-test + push to main
 
 ```bash
-# 1. Merge E → A's foundation branch:
-git checkout ralph/devtunnels-A-foundation
-git merge --no-ff ralph/devtunnels-E-cleanup -m "Merge ralph/devtunnels-E-cleanup: Sprint E cleanup + cutover"
-
-# 2. Smoke-test the cross-package state:
+# From the repo root:
 pnpm install
 pnpm --filter happy-server typecheck && pnpm --filter happy-server test
 pnpm --filter happy-cli typecheck
@@ -193,17 +206,14 @@ pnpm --filter happy-agent typecheck && pnpm --filter happy-agent test
 pnpm --filter happy-app typecheck   # tests are slow; consider --project unit only
 pnpm --filter happy-wire typecheck && pnpm --filter happy-wire test
 
-# 3. Merge to fan-out-survivors:
-git checkout ralph/fan-out-survivors
-git merge --no-ff ralph/devtunnels-A-foundation -m "Merge devtunnels migration (A+B+C+D+E)"
-
-# 4. Merge to main:
-git checkout main
-git merge --no-ff ralph/fan-out-survivors -m "Merge fan-out + devtunnels migration"
-
-# 5. Push:
+# Push:
 git push origin main
-# If push fails with auth: handle manually (origin is Evyatar108/codexu; check token/SSH key).
+# If push fails with auth:
+#   - origin (Evyatar108/codexu) needs an account with write access to Evyatar108/*
+#   - In our setup: `gh auth switch --user Evyatar108` before pushing.
+#   - Conversely, the codex submodule pull needs `gh auth switch --user evmitran_microsoft`
+#     (or whichever user is in the gim-home GitHub org).
+#   - You'll switch back and forth as needed for the same machine.
 ```
 
 ### Step 10 — Post-cutover follow-up
@@ -250,6 +260,15 @@ The Version 31 entry is already drafted and `sources/changelog/changelog.json` i
 ### Test failures in happy-app vitest
 
 Per the merged worktree CLAUDE.md, the disabled file `sources/-session/SessionView.sendWhenIdle.test.tsx.disabled` is intentional (RN-test-setup follow-up; react-native-reanimated bump Flow `import typeof` issue bypasses vitest stub). Don't try to re-enable it; it's tracked separately.
+
+### Dual gh-auth: gim-home vs Evyatar108
+
+This machine likely needs **two GitHub identities cached in `gh`**:
+
+- `evmitran_microsoft` (or equivalent gim-home org member) — to clone the codex submodule from `gim-home/codex` (private to the org).
+- `Evyatar108` — to push to `Evyatar108/codexu` (origin).
+
+Cycle with `gh auth switch --user <name>`. Confirm with `gh auth status`. Verify access with `gh api repos/<owner>/<repo> --jq .full_name` before fetch/push operations. Git's HTTPS credential cache for `github.com` is shared across both `gh` users so the most recently-active one wins — switch BEFORE running the git operation.
 
 ### Daemon required
 
