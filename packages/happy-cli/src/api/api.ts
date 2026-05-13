@@ -65,9 +65,9 @@ export class ApiClient {
           },
           body: JSON.stringify({
             tag: opts.tag,
-            metadata: encodeBase64(encrypt(encryptionKey, encryptionVariant, opts.metadata)),
-            agentState: opts.state ? encodeBase64(encrypt(encryptionKey, encryptionVariant, opts.state)) : null,
-            dataEncryptionKey: dataEncryptionKey ? encodeBase64(dataEncryptionKey) : null,
+            metadata: JSON.stringify(opts.metadata),
+            agentState: opts.state ? JSON.stringify(opts.state) : null,
+            dataEncryptionKey: null,
           }),
         }
       )
@@ -102,9 +102,9 @@ export class ApiClient {
       let session: Session = {
         id: raw.id,
         seq: raw.seq,
-        metadata: decrypt(encryptionKey, encryptionVariant, decodeBase64(raw.metadata)),
+        metadata: JSON.parse(raw.metadata),
         metadataVersion: raw.metadataVersion,
-        agentState: raw.agentState ? decrypt(encryptionKey, encryptionVariant, decodeBase64(raw.agentState)) : null,
+        agentState: raw.agentState ? JSON.parse(raw.agentState) : null,
         agentStateVersion: raw.agentStateVersion,
         encryptionKey: encryptionKey,
         encryptionVariant: encryptionVariant

@@ -321,18 +321,18 @@ export class ApiMachineClient {
 
             const answer = await socket.emitWithAck('machine-update-metadata', {
                 machineId: this.machine.id,
-                metadata: encodeBase64(encrypt(this.machine.encryptionKey, this.machine.encryptionVariant, updated)),
+                metadata: JSON.stringify(updated),
                 expectedVersion: this.machine.metadataVersion
             });
 
             if (answer.result === 'success') {
-                this.machine.metadata = decrypt(this.machine.encryptionKey, this.machine.encryptionVariant, decodeBase64(answer.metadata));
+                this.machine.metadata = JSON.parse(answer.metadata);
                 this.machine.metadataVersion = answer.version;
                 logger.debug('[API MACHINE] Metadata updated successfully');
             } else if (answer.result === 'version-mismatch') {
                 if (answer.version > this.machine.metadataVersion) {
                     this.machine.metadataVersion = answer.version;
-                    this.machine.metadata = decrypt(this.machine.encryptionKey, this.machine.encryptionVariant, decodeBase64(answer.metadata));
+                    this.machine.metadata = JSON.parse(answer.metadata);
                 }
                 throw new Error('Metadata version mismatch'); // Triggers retry
             }
@@ -352,18 +352,18 @@ export class ApiMachineClient {
 
             const answer = await socket.emitWithAck('machine-update-state', {
                 machineId: this.machine.id,
-                daemonState: encodeBase64(encrypt(this.machine.encryptionKey, this.machine.encryptionVariant, updated)),
+                daemonState: JSON.stringify(updated),
                 expectedVersion: this.machine.daemonStateVersion
             });
 
             if (answer.result === 'success') {
-                this.machine.daemonState = decrypt(this.machine.encryptionKey, this.machine.encryptionVariant, decodeBase64(answer.daemonState));
+                this.machine.daemonState = JSON.parse(answer.daemonState);
                 this.machine.daemonStateVersion = answer.version;
                 logger.debug('[API MACHINE] Daemon state updated successfully');
             } else if (answer.result === 'version-mismatch') {
                 if (answer.version > this.machine.daemonStateVersion) {
                     this.machine.daemonStateVersion = answer.version;
-                    this.machine.daemonState = decrypt(this.machine.encryptionKey, this.machine.encryptionVariant, decodeBase64(answer.daemonState));
+                    this.machine.daemonState = JSON.parse(answer.daemonState);
                 }
                 throw new Error('Daemon state version mismatch'); // Triggers retry
             }
@@ -424,13 +424,13 @@ export class ApiMachineClient {
 
                 if (update.metadata) {
                     logger.debug('[API MACHINE] Received external metadata update');
-                    this.machine.metadata = decrypt(this.machine.encryptionKey, this.machine.encryptionVariant, decodeBase64(update.metadata.value));
+                    this.machine.metadata = JSON.parse(update.metadata.value);
                     this.machine.metadataVersion = update.metadata.version;
                 }
 
                 if (update.daemonState) {
                     logger.debug('[API MACHINE] Received external daemon state update');
-                    this.machine.daemonState = decrypt(this.machine.encryptionKey, this.machine.encryptionVariant, decodeBase64(update.daemonState.value));
+                    this.machine.daemonState = JSON.parse(update.daemonState.value);
                     this.machine.daemonStateVersion = update.daemonState.version;
                 }
             } else {

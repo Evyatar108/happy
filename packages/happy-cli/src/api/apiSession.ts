@@ -308,11 +308,11 @@ export class ApiSessionClient extends EventEmitter {
                         this.receiveSync.invalidate();
                         return;
                     }
-                    if (typeof messageSeq !== 'number' || messageSeq !== this.lastSeq + 1 || data.body.message.content.t !== 'encrypted') {
+                    if (typeof messageSeq !== 'number' || messageSeq !== this.lastSeq + 1) {
                         this.receiveSync.invalidate();
                         return;
                     }
-                    const body = decrypt(this.encryptionKey, this.encryptionVariant, decodeBase64(data.body.message.content.c));
+                    const body = JSON.parse(data.body.message.content.c);
                     logger.debugLargeJson('[SOCKET] [UPDATE] Received update:', body)
                     this.routeIncomingMessage(body, {
                         id: data.body.message.id,
@@ -321,7 +321,7 @@ export class ApiSessionClient extends EventEmitter {
                     this.lastSeq = messageSeq;
                 } else if (data.body.t === 'update-session') {
                     if (data.body.metadata && data.body.metadata.version > this.metadataVersion) {
-                        const nextMetadata = decrypt(this.encryptionKey, this.encryptionVariant, decodeBase64(data.body.metadata.value));
+                        const nextMetadata = JSON.parse(data.body.metadata.value);
                         this.metadata = nextMetadata;
                         this.metadataVersion = data.body.metadata.version;
                         this.routeAgentConfigurationIfChanged(nextMetadata);
@@ -655,7 +655,7 @@ export class ApiSessionClient extends EventEmitter {
     }
 
     private enqueueMessageWithDelivery(content: unknown, invalidate: boolean = true): Promise<MessageDelivery> {
-        const encrypted = encodeBase64(encrypt(this.encryptionKey, this.encryptionVariant, content));
+        const encrypted = JSON.stringify(content);
         const localId = randomUUID();
         let resolve!: (delivery: MessageDelivery) => void;
         let reject!: (err: unknown) => void;
@@ -991,15 +991,15 @@ export class ApiSessionClient extends EventEmitter {
                 const socket = this.socket;
                 if (!socket) { throw new Error('socket not yet constructed'); }
                 let updated = handler(this.metadata!); // Weird state if metadata is null - should never happen but here we are
-                const answer = await socket.emitWithAck('update-metadata', { sid: this.sessionId, expectedVersion: this.metadataVersion, metadata: encodeBase64(encrypt(this.encryptionKey, this.encryptionVariant, updated)) });
+                const answer = await socket.emitWithAck('update-metadata', { sid: this.sessionId, expectedVersion: this.metadataVersion, metadata: JSON.stringify(updated) });
                 if (answer.result === 'success') {
-                    this.metadata = decrypt(this.encryptionKey, this.encryptionVariant, decodeBase64(answer.metadata));
+                    this.metadata = JSON.parse(answer.metadata);
                     this.metadataVersion = answer.version;
                     this.lastAppliedAgentConfiguration = agentConfigurationSnapshot(this.metadata);
                 } else if (answer.result === 'version-mismatch') {
                     if (answer.version > this.metadataVersion) {
                         this.metadataVersion = answer.version;
-                        this.metadata = decrypt(this.encryptionKey, this.encryptionVariant, decodeBase64(answer.metadata));
+                        this.metadata = JSON.parse(answer.metadata);
                         this.lastAppliedAgentConfiguration = agentConfigurationSnapshot(this.metadata);
                     }
                     throw new Error('Metadata version mismatch');
@@ -1022,9 +1022,9 @@ export class ApiSessionClient extends EventEmitter {
                 const socket = this.socket;
                 if (!socket) { throw new Error('socket not yet constructed'); }
                 let updated = handler(this.agentState || {});
-                const answer = await socket.emitWithAck('update-state', { sid: this.sessionId, expectedVersion: this.agentStateVersion, agentState: updated ? encodeBase64(encrypt(this.encryptionKey, this.encryptionVariant, updated)) : null });
+                const answer = await socket.emitWithAck('update-state', { sid: this.sessionId, expectedVersion: this.agentStateVersion, agentState: updated ? JSON.stringify(updated) : null });
                 if (answer.result === 'success') {
-                    this.agentState = answer.agentState ? decrypt(this.encryptionKey, this.encryptionVariant, decodeBase64(answer.agentState)) : null;
+                    this.agentState = answer.agentState ? JSON.parse(answer.agentState) : null;
                     this.agentStateVersion = answer.version;
                     logger.debug('Agent state updated', this.agentState);
                 } else if (answer.result === 'version-mismatch') {
