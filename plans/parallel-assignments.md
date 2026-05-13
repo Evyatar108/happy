@@ -2,7 +2,9 @@
 
 Self-contained `/plan-with-ralph` prompts for parallel-safe tasks. Drop into a fresh Claude session.
 
-**All five below are pairwise safe to run together.** Don't add a 6th "perf WS2" agent — it must wait until B (WS3) lands, because both touch `storage.ts` and WS3 changes WS2's scope.
+**Batch 1 (six tasks below) are pairwise safe to run together.** Don't add a "perf WS2" agent yet — it must wait until B (WS3) lands, because both touch `storage.ts` and WS3 changes WS2's scope.
+
+> **🛑 `3a-skills` is in pre-code discovery (2026-05-13).** The operator instructed that agent to survey prerequisites and update the roadmap + this file + `plans/overview.html` BEFORE starting code work. Phase 3 sub-phases that build on 3a's output — **`3b-agents`, `3d-workers`, `3fg-package` in batch 2** — should NOT be assigned until `3a-skills` either lands or commits its discovery pass. Re-read this file before firing those three.
 
 Per-task usage:
 
@@ -49,22 +51,18 @@ When each task lands, mark its row done at the bottom of this file.
 ## E — `F-015-toast` — Stale-creds toast on cold launch
 
 ```
-/plan-with-ralph "F-015 fix — stale-creds profile-parse error toast surfaces on cold app launch before pair completes (cosmetic). Per .ralph/jobs/devtunnels-E-cleanup/notepad.md F-015 entry — re-read exact text before scoping. Trace: app cold-launches → AuthContext loads persisted creds from TokenStorage → if a persisted profile is in the pre-Sprint-E shape, profileParse throws → an error toast surfaces before the user sees the pair screen. Files likely involved: packages/happy-app/sources/auth/AuthContext.tsx, packages/happy-app/sources/sync/profile.ts (profileParse), packages/happy-app/sources/auth/tokenStorage.ts. Fix: suppress the toast on the pre-pair branch (TokenStorage has no machine credentials yet); silently fall through to the pair screen. Do NOT add a backwards-compat shim to profileParse — per the production-quality-code preference, delete unused shape branches if they exist. Read packages/happy-app/CLAUDE.md sync invariants. Acceptance: cold launch with no creds → pair screen, zero error toast; cold launch with valid post-Sprint-E creds → session list as before; pollutes-MMKV launch (simulate by writing a v1 profile shape) → pair screen, zero toast. Test command: pnpm --filter '{packages/happy-app}' exec vitest run 2>&1 | tee /tmp/codexu-f015.log. Single commit; reference F-015."
+/plan-with-ralph "F-015 fix — stale-creds profile-parse error toast surfaces on cold app launch before pair completes (cosmetic). Per .ralph/jobs/devtunnels-E-cleanup/notepad.md F-015 entry — re-read exact text before scoping. Trace: app cold-launches → AuthContext loads persisted creds from TokenStorage → if a persisted profile is in the pre-Sprint-E shape, profileParse throws → an error toast surfaces before the user sees the pair screen. Files likely involved: packages/happy-app/sources/auth/AuthContext.tsx, packages/happy-app/sources/sync/profile.ts (profileParse), packages/happy-app/sources/auth/tokenStorage.ts. Fix: suppress the toast on the pre-pair branch (TokenStorage has no machine credentials yet); silently fall through to the pair screen. Do NOT add a backwards-compat shim to profileParse — per the production-quality-code preference, delete unused shape branches if they exist. Read packages/happy-app/CLAUDE.md sync invariants. Acceptance: cold launch with no creds → pair screen, zero error toast; cold launch with valid post-Sprint-E creds → session list as before; pollutes-MMKV launch (simulate by writing a v1 profile shape) → pair screen, zero toast. Test command: pnpm --filter '{packages/happy-app}' exec vitest run 2>&1 | tee /tmp/codexu-f015.log; reference F-015."
 ```
 
 ---
 
-## Status
+## F — `mcp-discovery` — Codex agent project-`.mcp.json` parity
 
-Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/overview.html` after.
+> Parallel with everything in batch 1 (different file from perf workstreams; isolated to `packages/happy-cli/src/codex/runCodex.ts`).
 
-| Tab title | Task | Status | Commit |
-|---|---|---|---|
-| `perf-WS1` | Realtime perf — refresh-skip | ⬜ not started | — |
-| `perf-WS3` | Realtime perf — replay buffer | ⬜ not started | — |
-| `3a-skills` | Phase 3a — Ralph skills port | ⬜ not started | — |
-| `F-013-perms` | Claude permission latent override | ⬜ not started | — |
-| `F-015-toast` | Stale-creds toast on cold launch | ⬜ not started | — |
+```
+/plan-with-ralph "Add per-cwd .mcp.json discovery for the codex agent under happy-cli. Per plans/codexu-roadmap.md 'Codex agent project-.mcp.json parity' bullet. Gap: the Claude agent under happy reads .mcp.json from session cwd (Claude Code's native convention), but the codex agent does NOT — packages/happy-cli/src/codex/runCodex.ts:700-705 builds the mcpServers object handed to client.startThread({ mcpServers }) with ONLY the 'happy' bridge entry; project-level MCP servers are silently dropped. The codex fork at gim-home/codex HEAD ed5d2fd has .mcp.json reading code only in the external-agent one-shot migrator and the plugin-internal loader; no per-thread cwd discovery exists upstream. Fix on the happy-cli side: read <process.cwd()>/.mcp.json (Claude shape: { mcpServers: Record<string, { command: string; args?: string[]; env?: Record<string,string>; type?: 'stdio' | 'http'; url?: string }> }), validate with a Zod schema, merge its mcpServers into the object passed to startThread AND resumeExistingThread (both call sites in runCodex.ts at lines ~724 and ~791). On malformed .mcp.json or individual entry validation failure, log a structured warning via @/ui/logger and skip that entry — never abort the session. Silently skip if .mcp.json is absent. Read packages/happy-cli/CLAUDE.md and packages/happy-cli/src/daemon/CLAUDE.md for the codex transport context. Acceptance: 3 new tests in packages/happy-cli/src/codex/runCodex.test.ts or sibling — (a) cwd with valid .mcp.json containing 1 entry, assert mcpServers passed to startThread mock contains BOTH 'happy' bridge AND the project entry; (b) absent .mcp.json, assert only 'happy' bridge passed; (c) malformed .mcp.json (broken JSON or invalid shape), assert warning logged + only 'happy' bridge passed. Test command: pnpm --filter '{packages/happy-cli}' exec vitest run 2>&1 | tee /tmp/codexu-mcp-disc.log. Cross-package typecheck stays green. Single commit referencing the roadmap bullet. Update the roadmap bullet to mark this delivered."
+```
 
 ---
 
@@ -72,7 +70,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 
 Less-critical or sequenced-after-batch-1 ralph commands. Each is parallel-safe with the batch-1 set (different file trees) **except as noted**. Mark batch-2 status in the bottom table.
 
-## F — `perf-WS2` — Realtime perf, optimistic placeholder
+## G — `perf-WS2` — Realtime perf, optimistic placeholder
 
 > **Wait until `perf-WS3` lands** — both touch `storage.ts` and WS3's replay-overflow semantics define WS2's fallback scope.
 
@@ -82,7 +80,7 @@ Less-critical or sequenced-after-batch-1 ralph commands. Each is parallel-safe w
 
 ---
 
-## G — `1a-fork-doc` — Phase 1a, Codex fork strategy commit
+## H — `1a-fork-doc` — Phase 1a, Codex fork strategy commit
 
 > Parallel with anything. Documentation-only in the codex submodule.
 
@@ -92,7 +90,7 @@ Less-critical or sequenced-after-batch-1 ralph commands. Each is parallel-safe w
 
 ---
 
-## H — `1b-multidev` — Phase 1b sub-tasks 3 + 4, multi-device
+## I — `1b-multidev` — Phase 1b sub-tasks 3 + 4, multi-device
 
 > Parallel with anything outside `packages/happy-cli/src/codex/` and the seamless-multi-device spec.
 
@@ -102,7 +100,7 @@ Less-critical or sequenced-after-batch-1 ralph commands. Each is parallel-safe w
 
 ---
 
-## I — `3b-agents` — Phase 3b-i + 3b-ii, subagents → agent roles
+## J — `3b-agents` — Phase 3b-i + 3b-ii, subagents → agent roles
 
 > Parallel with most things; serializes with other Phase 3 sub-phases that touch `packages/codexu-plugin/.codex-plugin/plugin.json`.
 
@@ -112,7 +110,7 @@ Less-critical or sequenced-after-batch-1 ralph commands. Each is parallel-safe w
 
 ---
 
-## J — `3c-hooks` — Phase 3c, Ralph hooks port
+## K — `3c-hooks` — Phase 3c, Ralph hooks port
 
 > Light verification task. Likely zero work. Parallel with anything.
 
@@ -122,7 +120,7 @@ Less-critical or sequenced-after-batch-1 ralph commands. Each is parallel-safe w
 
 ---
 
-## K — `3d-workers` — Phase 3d, codex-based workers via native spawn
+## L — `3d-workers` — Phase 3d, codex-based workers via native spawn
 
 > Parallel with batch-1 perf work; serializes with I (`3b-agents`) since both rely on the `[agents.<role>]` config.
 
@@ -132,7 +130,7 @@ Less-critical or sequenced-after-batch-1 ralph commands. Each is parallel-safe w
 
 ---
 
-## L — `3fg-package` — Phase 3f + 3g, asset migration + plugin packaging
+## M — `3fg-package` — Phase 3f + 3g, asset migration + plugin packaging
 
 > Serializes with I (3b-agents) and K (3d-workers) for plugin.json edits. Otherwise parallel.
 
@@ -142,7 +140,7 @@ Less-critical or sequenced-after-batch-1 ralph commands. Each is parallel-safe w
 
 ---
 
-## M — `3h-options` — Phase 3h, options-mode plugin migration
+## N — `3h-options` — Phase 3h, options-mode plugin migration
 
 > Separate plugin (options-mode) — parallel with everything else.
 
@@ -152,7 +150,7 @@ Less-critical or sequenced-after-batch-1 ralph commands. Each is parallel-safe w
 
 ---
 
-## N — `polish-Fs` — Bundle remaining F-* findings
+## O — `polish-Fs` — Bundle remaining F-* findings
 
 > Parallel with everything outside the touched files. Bundle into one PR to amortize review.
 
@@ -184,16 +182,19 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `perf-WS1` | Realtime perf — refresh-skip | ⬜ not started | — |
 | `perf-WS3` | Realtime perf — replay buffer | ⬜ not started | — |
 | `perf-WS2` | Realtime perf — placeholder (after WS3) | ⬜ blocked on WS3 | — |
-| `3a-skills` | Phase 3a — Ralph skills port | ⬜ not started | — |
+| `3a-skills` | Phase 3a — Ralph skills port | 🟡 in discovery (no code yet) | — |
 | `F-013-perms` | Claude permission latent override | ⬜ not started | — |
 | `F-015-toast` | Stale-creds toast on cold launch | ⬜ not started | — |
+| `mcp-discovery` | Codex agent project-.mcp.json parity | ⬜ not started | — |
 | `1a-fork-doc` | Phase 1a — fork strategy commit | ⬜ not started | — |
 | `1b-multidev` | Phase 1b sub-tasks 3 + 4 | ⬜ not started | — |
-| `3b-agents` | Phase 3b-i + ii — subagents → roles | ⬜ not started | — |
+| `3b-agents` | Phase 3b-i + ii — subagents → roles | ⬜ blocked on 3a discovery | — |
 | `3c-hooks` | Phase 3c — hooks port / verify | ⬜ not started | — |
-| `3d-workers` | Phase 3d — native worker spawn (after 3b) | ⬜ blocked on 3b | — |
-| `3fg-package` | Phase 3f + 3g — asset + packaging | ⬜ not started | — |
+| `3d-workers` | Phase 3d — native worker spawn (after 3b) | ⬜ blocked on 3a + 3b | — |
+| `3fg-package` | Phase 3f + 3g — asset + packaging | ⬜ blocked on 3a discovery | — |
 | `3h-options` | Phase 3h — options-mode migration | ⬜ not started | — |
 | `polish-Fs` | F-017 + F-001/F-002 + F-003-F-007 | ⬜ not started | — |
+
+🟡 = in flight (agent running but not yet committed). Refresh after each landing.
 
 When all of the above land, the roadmap's next gate is **Phase 4 — Coexistence verification** (13 integration sub-items 4a-4m). Those run sequentially per environment, not parallel, so they're not in this file.

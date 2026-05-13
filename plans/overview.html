@@ -169,8 +169,9 @@
   <h3>Recommended assignment order</h3>
   <ol>
     <li><strong>Agent A → realtime-sync-perf, all 3 workstreams sequentially.</strong> Biggest user-visible win. ~4 h. WS1 → WS3 → WS2 (WS3 simplifies WS2's scope).</li>
-    <li><strong>Agent B → Codex Phase 3a (skills port).</strong> Different repo / package tree from perf (<code>~/.claude</code> + ralph plugin → <code>~/.codex/plugins/</code>). Self-contained, ~13 skills to port, mechanically isolated from happy-app changes. Zero merge-conflict risk.</li>
+    <li><strong>🟡 Agent B (3a-skills) → already running.</strong> Currently in pre-code DISCOVERY phase per operator instruction — surveying Phase 3a prerequisites and committing them to <code>plans/codexu-roadmap.md</code> + <code>plans/parallel-assignments.md</code> + this file BEFORE writing skills-port code. <strong>Other Phase 3 sub-phases (`3b-agents`, `3d-workers`, `3fg-package`) are blocked on this discovery commit.</strong></li>
     <li><strong>Agent C (optional) → one polish item (F-013 / F-015 / F-017).</strong> Tiny isolated surfaces, no overlap with A or B. Pick the one whose user-pain matches today.</li>
+    <li><strong>Agent D (optional) → mcp-discovery</strong> — codex agent project-<code>.mcp.json</code> parity gap. Small, isolated to <code>runCodex.ts</code>, ~30-45 min including tests. Closes the daily-driver gap where the codex agent doesn't see your <code>codexu/.mcp.json</code> (paper MCP server).</li>
     <li><strong>Defer:</strong> Phase 1b sub-tasks 3-5 (need a re-read against the now-resolved tunnel protocol first), Phase 2c/2d (upstream codex work, separate trees), Phase 4-7 (integration tests + drop-Claude-Code; gated on Phase 3 landing).</li>
   </ol>
 </div>
@@ -225,14 +226,25 @@
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-title">Phase 3a — Ralph skills port to codex plugin</div>
-      <div class="sub">Port 4 user-invocable + 9 internal = 13 skills from Claude Code plugin format to codex plugin format. Conversion checklist + manifest field deltas in roadmap §3a.</div>
+    <div class="card" style="border-color: var(--warn);">
+      <div class="card-title">🟡 Phase 3a — Ralph skills port to codex plugin <span class="sub">(in flight)</span></div>
+      <div class="sub">Agent currently in pre-code discovery — surveying prerequisites and committing them to the roadmap before writing skills-port code. Phase 3 sub-phases that build on 3a (`3b-agents`, `3d-workers`, `3fg-package`) are blocked on the discovery commit.</div>
       <div class="card-meta">
         <span class="pill area-codex">codex / plugin</span>
         <span class="pill p-med">medium</span>
         <span>est. 1-2 d</span>
-        <span class="sub">see <code>plans/codexu-roadmap.md</code> §Phase 3a</span>
+        <span class="sub">see <code>plans/codexu-roadmap.md</code> §Phase 3a + "In-flight ralph jobs"</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">mcp-discovery — codex agent project-<code>.mcp.json</code> parity</div>
+      <div class="sub">happy-cli's <code>runCodex.ts</code> doesn't merge project-level <code>.mcp.json</code> into codex's mcpServers — only the <code>happy</code> bridge ships. Read <code>&lt;cwd&gt;/.mcp.json</code>, validate via Zod, merge into <code>client.startThread({ mcpServers })</code> + <code>resumeExistingThread</code>. Closes the gap where your <code>codexu/.mcp.json</code> (paper MCP) isn't visible to the codex agent today.</div>
+      <div class="card-meta">
+        <span class="pill area-cli">happy-cli</span>
+        <span class="pill p-low">low</span>
+        <span>~45 min</span>
+        <span class="sub">see <code>plans/codexu-roadmap.md</code> "Codex agent project-.mcp.json parity"</span>
       </div>
     </div>
 
@@ -530,15 +542,15 @@
   <div class="phase">
     <div class="phase-head">Phase 3 — Plugin migrations <span class="ptag">Claude Code → codex</span></div>
     <ul>
-      <li><span class="item-name open">3a Skills port</span> — 13 skills (4 user + 9 internal)</li>
-      <li><span class="item-name open">3b-i Subagents → [agents.&lt;role&gt;]</span> — 12 agents</li>
-      <li><span class="item-name open">3b-ii Tool permission audit</span> — collapsed to profile pick</li>
-      <li><span class="item-name open">3c Hooks port</span> — likely zero, verify</li>
-      <li><span class="item-name open">3d Codex-based workers (native spawn)</span></li>
+      <li><span class="item-name" style="color: var(--warn);">🟡 3a Skills port</span> — 13 skills, agent in pre-code discovery</li>
+      <li><span class="item-name deferred">3b-i Subagents → [agents.&lt;role&gt;]</span> — blocked on 3a discovery</li>
+      <li><span class="item-name deferred">3b-ii Tool permission audit</span> — blocked on 3a discovery</li>
+      <li><span class="item-name open">3c Hooks port</span> — likely zero, verify (parallel-safe)</li>
+      <li><span class="item-name deferred">3d Codex-based workers (native spawn)</span> — blocked on 3a + 3b</li>
       <li><span class="item-name donefade">3e Cross-vendor workers</span> — stays as shell scripts</li>
-      <li><span class="item-name open">3f Asset migration</span></li>
-      <li><span class="item-name open">3g Plugin packaging</span></li>
-      <li><span class="item-name open">3h options-mode plugin migration</span> — 575 LOC hooks</li>
+      <li><span class="item-name deferred">3f Asset migration</span> — blocked on 3a discovery</li>
+      <li><span class="item-name deferred">3g Plugin packaging</span> — blocked on 3a discovery</li>
+      <li><span class="item-name open">3h options-mode plugin migration</span> — 575 LOC hooks (separate plugin, parallel-safe)</li>
     </ul>
   </div>
 
@@ -582,10 +594,11 @@
   </div>
 
   <div class="phase">
-    <div class="phase-head">Devtunnels follow-on <span class="ptag">post-Sprint-E</span></div>
+    <div class="phase-head">Devtunnels follow-on / open gaps <span class="ptag">post-Sprint-E</span></div>
     <ul>
       <li><span class="item-name open">Realtime sync perf WS1 / WS2 / WS3</span> — see <a href="realtime-sync-perf.md">plan</a></li>
       <li><span class="item-name deferred">Realtime sync perf WS4</span> — conditional on WS3 outcome</li>
+      <li><span class="item-name open">Codex agent project-.mcp.json parity</span> — happy-cli gap, ~45 min</li>
       <li><span class="item-name open">Polish PR — F-013 / F-015 / F-017</span> — low-risk isolated</li>
       <li><span class="item-name deferred">F-014</span> — needs server redeploy</li>
       <li><span class="item-name deferred">F-016</span> — BOOX hardware quirk</li>
@@ -644,6 +657,21 @@
       <td>Each F-* is one file in an unrelated tree.</td>
     </tr>
     <tr>
+      <td>mcp-discovery + any batch-1 item</td>
+      <td class="yes">✅ yes</td>
+      <td>Isolated to <code>packages/happy-cli/src/codex/runCodex.ts</code>. No overlap with perf (happy-app), Phase 3a (codex plugin), F-013 (claude permissions), or F-015 (happy-app auth).</td>
+    </tr>
+    <tr>
+      <td>mcp-discovery + 1b-multidev</td>
+      <td class="no">❌ no</td>
+      <td>Both touch <code>runCodex.ts</code>. Land mcp-discovery first (45 min), then 1b-multidev rebases trivially.</td>
+    </tr>
+    <tr>
+      <td>3a-skills (in flight) + 3b-agents / 3d-workers / 3fg-package</td>
+      <td class="no">❌ no — wait for discovery</td>
+      <td>3a is in pre-code discovery; its commit may add prerequisites to these three. Hold all three until 3a's discovery pass lands.</td>
+    </tr>
+    <tr>
       <td>Phase 4 sub-items in parallel</td>
       <td class="partial">⚠️ careful</td>
       <td>Integration tests share fixtures + app-server state. Run sequentially per environment.</td>
@@ -685,6 +713,14 @@
     <tr>
       <td>BOOX Phases 2–6 before realtime-sync-perf WS1+WS2+WS3 land</td>
       <td>Will technically PASS but feel slow. Phase 2 chat round-trip will look broken to a non-internal validator.</td>
+    </tr>
+    <tr>
+      <td>🟡 3a-skills is in discovery — block dependents</td>
+      <td>Operator instructed `3a-skills` to commit a prerequisite-discovery pass to the roadmap BEFORE writing code. Until that commit lands, do NOT assign `3b-agents`, `3d-workers`, or `3fg-package` — the requirements they assume may change. Other Phase 3 sub-phases (`3c-hooks`, `3h-options`) are unaffected.</td>
+    </tr>
+    <tr>
+      <td>mcp-discovery</td>
+      <td>Touches `packages/happy-cli/src/codex/runCodex.ts`. Conflicts only with `1b-multidev` (same file). Land mcp-discovery first or rebase 1b on top.</td>
     </tr>
     <tr>
       <td>Phase 1b sub-task 3</td>

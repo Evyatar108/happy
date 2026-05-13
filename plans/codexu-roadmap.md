@@ -173,6 +173,21 @@ polish.
 - Upstream-derived doc/skill references to "Happy Coder", `slopus/happy`,
   and `happy.engineering` are HISTORICAL and stay as-is.
 
+### In-flight ralph jobs (2026-05-13)
+
+Track here when an agent is actively working a roadmap story. **Refresh after
+each commit lands or when scope shifts**.
+
+- **`3a-skills`** (Phase 3a — Ralph plugin skills port to codex plugin format):
+  in flight. Operator instructed the agent to first SURVEY prerequisites and
+  update this roadmap section + `plans/parallel-assignments.md` + `plans/overview.html`
+  with anything Phase 3a depends on (e.g., codex plugin format quirks, marketplace
+  schema constraints, scaffold-template gaps) BEFORE starting code work. Other
+  Phase 3 sub-phases that build on 3a (3b-i agents, 3d native worker spawn,
+  3fg packaging) may have their assignment scope adjusted once this discovery
+  pass commits. Do not assign `3b-agents`, `3d-workers`, or `3fg-package` until
+  `3a-skills` either lands or completes its discovery commit.
+
 ### Right now (2026-05-07): Phase 1b sub-task 2 shipped; pause before sub-task 3
 
 **Phase 1b sub-task 1 shipped:** Codex app-server transport refactor
@@ -338,6 +353,24 @@ conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
     `fetchMessages`). Targeted at a fresh agent with file paths, line refs,
     test plans, risks, pre-flight checklist. **This is the next concrete
     deliverable after Sprint E.**
+  - **Codex agent project-`.mcp.json` parity (open, surfaced 2026-05-13):**
+    The Claude agent under happy reads `.mcp.json` from the session cwd (Claude
+    Code's standard project-MCP convention) — so `codexu/.mcp.json` (with the
+    `paper` MCP server) lights up automatically. The **codex agent does NOT**.
+    `runCodex.ts:700-705` builds the `mcpServers` object handed to
+    `client.startThread({ mcpServers })` with ONLY the `happy` bridge entry;
+    project-level MCP servers are silently dropped. The gim-home/codex fork
+    (HEAD `ed5d2fd` as of the codex submodule pull 2026-05-13) has
+    `.mcp.json` reading code only in (1) the external-agent one-shot migrator
+    (`external-agent-migration/src/lib.rs`) and (2) the plugin-internal
+    `.mcp.json` loader (`core-plugins/src/loader.rs:715`, with new
+    `${CLAUDE_PLUGIN_ROOT}` substitution per commit `1b38e5b`). Neither covers
+    project-cwd runtime discovery. **Fix lives on the happy-cli side** (not
+    codex): merge `<cwd>/.mcp.json` `mcpServers` into the object passed to
+    `client.startThread` + `client.resumeExistingThread`. Validate with Zod;
+    log + skip malformed entries. Estimated ~30-45 min including tests. Plan:
+    ship as a small standalone PR — short ralph command in
+    `plans/parallel-assignments.md` (tab `mcp-discovery`).
 
 **R-D18 (pre-production gate): RESOLVED (corrected 2026-05-13).** Sprint E
 US-004 shipped resolution path **(b)** — a private-tunnel auth channel via
