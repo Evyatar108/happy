@@ -3,6 +3,7 @@ import type { SessionMessage as WireSessionMessage } from '@slopus/happy-wire';
 import type { Config } from './config';
 import { updateMachineConnectToken, type Credentials, type PersistedMachineCredentials } from './credentials';
 import { DevTunnelsClientProvider } from './tunnel/clientProvider';
+import { CONNECT_TOKEN_TTL_MS, CONNECT_TOKEN_REFRESH_SKEW_MS } from './auth';
 import {
     decodeBase64,
     encodeBase64,
@@ -48,35 +49,6 @@ export type DecryptedSession = {
     activeAt: number;
     metadata: unknown;
     agentState: unknown | null;
-    dataEncryptionKey: string | null;
-    encryption: RecordEncryption;
-};
-
-export type RawMachine = {
-    id: string;
-    seq: number;
-    createdAt: number;
-    updatedAt: number;
-    active: boolean;
-    activeAt: number;
-    metadata: string | null;
-    metadataVersion: number;
-    daemonState: string | null;
-    daemonStateVersion: number;
-    dataEncryptionKey: string | null;
-};
-
-export type DecryptedMachine = {
-    id: string;
-    seq: number;
-    createdAt: number;
-    updatedAt: number;
-    active: boolean;
-    activeAt: number;
-    metadata: unknown | null;
-    metadataVersion: number;
-    daemonState: unknown | null;
-    daemonStateVersion: number;
     dataEncryptionKey: string | null;
     encryption: RecordEncryption;
 };
@@ -129,8 +101,6 @@ type TunnelClaimPayload = {
     jti?: unknown;
 };
 
-const CONNECT_TOKEN_REFRESH_SKEW_MS = 60_000;
-const CONNECT_TOKEN_TTL_MS = 55 * 60_000;
 const connectTokenRefreshes = new Map<string, Promise<{ connectToken: string; connectTokenExpiry: number }>>();
 
 export type RawMessage = WireSessionMessage;
@@ -172,13 +142,6 @@ export function resolveSessionEncryption(
     return resolveRecordEncryption(session, creds, 'session');
 }
 
-export function resolveMachineEncryption(
-    machine: RawMachine,
-    creds: Credentials,
-): RecordEncryption {
-    return resolveRecordEncryption(machine, creds, 'machine');
-}
-
 // --- Decrypt helpers ---
 
 function decryptField(
@@ -204,24 +167,6 @@ function decryptSession(raw: RawSession, creds: Credentials): DecryptedSession {
         activeAt: raw.activeAt,
         metadata: decryptField(raw.metadata, encryption),
         agentState: decryptField(raw.agentState, encryption),
-        dataEncryptionKey: raw.dataEncryptionKey,
-        encryption,
-    };
-}
-
-function decryptMachine(raw: RawMachine, creds: Credentials): DecryptedMachine {
-    const encryption = resolveMachineEncryption(raw, creds);
-    return {
-        id: raw.id,
-        seq: raw.seq,
-        createdAt: raw.createdAt,
-        updatedAt: raw.updatedAt,
-        active: raw.active,
-        activeAt: raw.activeAt,
-        metadata: decryptField(raw.metadata, encryption),
-        metadataVersion: raw.metadataVersion,
-        daemonState: decryptField(raw.daemonState, encryption),
-        daemonStateVersion: raw.daemonStateVersion,
         dataEncryptionKey: raw.dataEncryptionKey,
         encryption,
     };

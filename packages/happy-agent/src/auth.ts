@@ -11,7 +11,8 @@ const DEFAULT_POLL_INTERVAL_SECONDS = 5;
 const MAX_POLL_INTERVAL_SECONDS = 30;
 const TARGET_DISCOVERY_TIMEOUT_MS = 10_000;
 const DEVTUNNEL_GITHUB_CLIENT_ID = 'Iv1.e7b89e013f801f03';
-const CONNECT_TOKEN_TTL_MS = 55 * 60_000;
+export const CONNECT_TOKEN_TTL_MS = 55 * 60_000;
+export const CONNECT_TOKEN_REFRESH_SKEW_MS = 60_000;
 
 type PairStartResponse = {
     device_code: string;
