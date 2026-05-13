@@ -320,6 +320,18 @@ conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
     e-ink quirk); F-017 enhancement device-pair-code shortcut;
     F-018 orphaned encryption test files (typecheck noise, no runtime
     impact); Phases 2–6 of BOOX validation (need follow-up session).
+  - **Realtime sync perf (deferred, drafted 2026-05-13):** Phase 1 surfaced
+    3 latency symptoms — multi-second foreground refresh, ~1 min new-message
+    latency on the "unknown session" path, and HTTP-fallback churn on socket
+    reconnect — that don't block Phase 1 PASS but should land before the
+    migration is declared production-ready. Plan at `plans/realtime-sync-perf.md`
+    covers 3 workstreams (skip `refreshTunnelClaim` when claim still valid;
+    optimistic placeholder session for unknown-session new-message path;
+    server-side per-user event replay buffer + client `lastSeenSeq`
+    handshake) + optional WS4 (full sockets-only `fetchSessions` /
+    `fetchMessages`). Targeted at a fresh agent with file paths, line refs,
+    test plans, risks, pre-flight checklist. **This is the next concrete
+    deliverable after Sprint E.**
 
 **R-D18 (pre-production gate): RESOLVED (corrected 2026-05-13).** Sprint E
 US-004 shipped resolution path **(b)** — a private-tunnel auth channel via

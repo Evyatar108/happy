@@ -155,3 +155,48 @@ Notes:
 | Phase | Issue | Deferred to notepad.md entry | Operator decision |
 |-------|-------|-------------------------------|-------------------|
 | <!-- e.g. 5 --> | <!-- description --> | <!-- notepad entry title --> | <!-- e.g. "defer to post-E hotfix" --> |
+
+---
+
+## Realtime sync perf (deferred)
+
+During Phase 1 the pair flow worked end-to-end but the operator observed three
+perf problems that don't block the Phase 1 PASS verdict and don't need to block
+Phases 2–6 either, but should be fixed before the migration is declared
+production-ready:
+
+- **Slow first-load on foreground.** Opening the BOOX Happy app (cold or after
+  the e-ink screensaver) takes several seconds before the chat list renders.
+  Most of the latency is in sequenced `tunnelFetch` calls — each one pays for
+  `ensureFreshConnectToken` → `refreshTunnelClaim` → the actual fetch, and the
+  claim-refresh round-trip currently runs even when the cached claim is still
+  valid for tens of minutes.
+- **New-message latency ≈ 1 min.** A message typed into a CLI `happy` session
+  takes up to a minute to surface on the BOOX. Diagnosed as the "unknown
+  session" code path in `packages/happy-app/sources/sync/sync.ts:1680-1710`:
+  when a `new-message` socket event arrives for a session the app's storage
+  doesn't know yet, the app **blocks** message rendering on a full
+  `/v1/sessions` re-fetch and then replays queued messages. The 1-min figure
+  matches the cost of that fetch over Dev Tunnels with the claim-refresh
+  serialization above.
+- **Slow reconnect after a transient.** Socket.IO without a server-side replay
+  buffer means events emitted during a disconnect window are lost on the
+  floor; the client falls back to HTTP re-fetch to reconcile. This makes the
+  "unknown session" path above fire whenever the BOOX backgrounds long enough
+  to drop the socket.
+
+Steady-state push **does work** — server emits `new-session`, `new-message`,
+`update-session`, `update-machine` to user-scoped + session-scoped rooms via
+`packages/happy-server/sources/app/events/eventRouter.ts:327-348`. The
+operator-visible latency comes entirely from the recovery / cold-path code,
+not from the live push path.
+
+**Plan:** see `plans/realtime-sync-perf.md` for the three workstreams
+(refresh-skip when claim still valid; optimistic placeholder session for the
+unknown-session new-message path; server-side per-user event replay buffer +
+client `lastSeenSeq` handshake) plus the optional workstream 4
+(sockets-only refactor of `fetchSessions` / `fetchMessages`).
+
+The plan doc is targeted at a fresh agent — it includes file paths, line
+references, expected outcomes, test plans, risks, and the pre-flight
+checklist.

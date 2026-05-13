@@ -19,8 +19,13 @@ The Sprint A migration shipped on main with several never-reached-end-to-end bug
 - **Tunnel id prefix**: `happy-<host>-<uuid>` → `codexu-<host>` (Microsoft caps tunnel ids at 49 chars; the long form overflowed). Tunnel label stays `happy-machine` for now (F-014 deferred — server query in `pairRoutes.ts` still uses that label).
 - **Port URL**: client + daemon now read `portForwardingUris` (plural array, what the Dev Tunnels API actually returns) and the daemon's `tunnelManager.parseTunnelUrl` also handles the CLI's `portUri` field. The base-tunnel URL `https://<tunnelId>.devtunnels.ms` (no port) does not resolve; the port-specific `https://<short-id>-<port>.<region>.devtunnels.ms` does.
 - **US-007 Prisma migration** committed under `prisma/migrations/20260512224500_drop_legacy_models_sprint_e/`.
+- **Encryption removed from happy-cli payload layer**: happy-app's decryption surface was already stripped in Sprint D (`encryptionDeletion.spec.ts` enforces this); happy-cli was the last holdout. Session/message/machine payloads are now plaintext JSON. Posture: single-tenant personal fork that trusts Dev Tunnels for transport auth.
 
 See `packages/happy-app/scripts/sprint-a-gap.md` "R-D18 path (b) implementation log" for the full corrected design.
+
+## Known issue for Phases 2–6: realtime sync perf
+
+Phase 1 passed but the operator observed (a) several-second foreground refresh, (b) ~1 min new-message latency, and (c) HTTP-fallback churn on reconnect. None of these block Phases 2–6 attempts (the chat round-trip itself works once the message arrives), but expect the BOOX experience to feel slow until they land. Full diagnosis + workstreams in `plans/realtime-sync-perf.md`; deferred-section summary in `docs/validation/devtunnels-boox-result.md` "Realtime sync perf (deferred)".
 
 ---
 
