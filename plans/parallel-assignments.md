@@ -581,8 +581,9 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `codex-base-prompt-safety-rails` 🤖 | Launcher-injected `additional_instructions` for the two safety rails missing from codex base prompt | ⬜ not started | — |
 | `codex-slash-commands` 🤖 | Gap 5 — `/clear` + `/compact` parity on codex path | ⬜ blocked on codex-hooks-parity | — |
 | `codex-polish-lows` 🤖 | Bundle of Gaps 8/9/11/12 (tool gating + codex-args passthrough + statusline + SDK init-metadata mirror) | ⬜ not started | — |
+| `codex-plan-mode-defensive` 🤖 | Gap 6 — defensive plan-mode mapping (v1; overlay v2 deferred) | ⬜ blocked on operator decision (a-defensive vs b-overlay) | — |
 | `polish-Fs` | F-017 + F-001/F-002 + F-003-F-007 | ⬜ not started | — |
-| `userid-cleanup` | Drop multi-tenant userId scoping in happy-server | ⬜ blocked on perf-WS3 | — |
+| `userid-cleanup` | Drop multi-tenant userId scoping in happy-server | ⬜ ready (unblocked — perf-WS3 shipped) | — |
 | `happy-upstream-sync` 🔄 | Periodic — review new slopus/happy commits since last sync | ⬜ next due ~4w from 2026-05-03 | — |
 | `codex-upstream-rebase` 🔄 | Periodic — rebase codex submodule on openai/codex | ⬜ first run pending | — |
 | `agent-view-research` | Research Claude Code's agent-view feature | ✅ landed 2026-05-14 | — (research-only; output `plans/agent-view-research.md`) |
@@ -592,7 +593,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `session-role-pill` 🤖 | Flavor + model + permission-mode pills in session row | ✅ shipped | 7e9f724c |
 | `spawn-from-app` 🤖 | "Spawn child session" affordance + RPC | ⬜ ready (unblocked 2026-05-14) | — |
 | `agent-status-stream` 🤖 | Live "active teammates" overlay (codex events → mobile) | ⬜ blocked on agent-tree-rpc | — |
-| `plugin-scope-agents` | Top-level-only plugin scoping + agent-spawner | ⬜ blocked on agent-view-research | — |
+| `plugin-scope-agents` | Top-level-only plugin scoping + agent-spawner | ⬜ ready (unblocked — agent-view-research landed) | — |
 | `agent-comms` | Top-level agent ↔ agent communication (MCP-based) | ⬜ blocked on plugin-scope-agents + channels-research | — |
 | `channels-research` | Research Claude Code "channels" + codex 2-way MCP plan | ✅ done — `plans/channels-research.md` (2026-05-13) | — |
 | `mcp-server-notifications` | Stage A from channels-research: bridge rmcp notifications + sampling into codex agent event loop, feature-gated | ⬜ not started | — |

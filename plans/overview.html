@@ -1442,9 +1442,9 @@
   </details>
 
   <details class="cmd" id="cmd-userid-cleanup" data-task-id="userid-cleanup">
-    <summary><span class="cmd-name">userid-cleanup</span><span class="cmd-badge b-blocked">🔒 blocked on WS3</span><span class="cmd-desc">Drop multi-tenant userId scoping in happy-server (~140 refs)</span></summary>
+    <summary><span class="cmd-name">userid-cleanup</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Drop multi-tenant userId scoping in happy-server (~140 refs) · unblocked (perf-WS3 shipped <code>197b0148</code>)</span></summary>
     <div class="cmd-body">
-      <div class="cmd-warn blocked">🔒 Sequence after <code>perf-WS3</code> lands. WS3's per-user replay-buffer ring partition gets stripped as part of this commit; firing this BEFORE WS3 would force a mid-flight redesign.</div>
+      <div class="cmd-warn">⚠️ Touches happy-server eventRouter + Prisma queries; conflicts with anything else mutating <code>packages/happy-server/sources/</code>. Run solo or pair only with research/codex-submodule tasks.</div>
       <button class="copy-btn">Copy</button>
 <pre class="cmd-pre">/plan-with-ralph "Drop multi-tenant userId scoping from happy-server. Per plans/codexu-roadmap.md 'Drop userId scoping in happy-server' bullet. Context: happy-server is now embedded inside the per-user daemon (Sprint A createHappyServer() + dualListenerBinding); exactly ONE user per process. Multi-tenant userId scoping (~140 refs across packages/happy-server/sources/) is dead weight. Scope: remove userId from request decorators (api.ts:88, loopbackCapability.ts:34); drop userId from Prisma queries on Session / SessionMessage / Machine; simplify eventRouter (packages/happy-server/sources/app/events/eventRouter.ts) to single-user fan-out (no per-user partition); drop allocateUserSeq's userId scoping (becomes process-global seq). Keep Prisma columns themselves — schema migration is OUT OF SCOPE; only code paths change. PREREQUISITE: perf-WS3 must already be on main; WS3's per-user ring buffer's userId partition gets stripped as part of this commit (mention this in commit body referencing the WS3 commit). Read packages/happy-server/CLAUDE.md before starting. Acceptance: cross-package typecheck green (happy-server + happy-cli + happy-app); all happy-server tests green; commit body lists every userId code path removed with file:line counts. Test command: pnpm --filter '{packages/happy-server}' exec vitest run 2&gt;&amp;1 | tee /tmp/codexu-userid-cleanup.log; cross-package: pnpm --filter '{packages/happy-server}' --filter '{packages/happy-cli}' --filter '{packages/happy-app}' exec tsc --noEmit 2&gt;&amp;1 | tee /tmp/codexu-userid-tc.log. Single commit on main. Pitfall: socket auth payload — clients still send a token; resolve it once at process start to the single-user identity, don't strip the auth layer."</pre>
     </div>
@@ -1469,7 +1469,7 @@
   <details class="cmd" id="cmd-polish-Fs" data-task-id="polish-Fs">
     <summary><span class="cmd-name">polish-Fs</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">F-017 + F-001/F-002 + F-003..F-007 bundled polish PR</span></summary>
     <div class="cmd-body">
-      <div class="cmd-warn">⚠️ Sequence after <code>perf-WS3</code> lands — polish-Fs touches happy-server for security findings; would collide with perf-WS3's eventRouter changes.</div>
+      <div class="cmd-warn">⚠️ Touches happy-server (security findings). Conflicts with <code>userid-cleanup</code> (same files); run one or the other, not both in parallel.</div>
       <button class="copy-btn">Copy</button>
 <pre class="cmd-pre">/plan-with-ralph "Polish PR — bundle remaining devtunnels-E findings: F-017 (device pair-code shortcut), F-001/F-002 (security Medium), F-003-F-007 (security Low). Per .ralph/jobs/devtunnels-E-cleanup/notepad.md — re-read each finding's exact text + severity + remediation before scoping. F-014 (tunnel label rename) is EXCLUDED from this bundle — needs server redeploy, separate effort. F-013 closed (Sprint E review, obsolete-by-design 2026-05-13); F-015, F-016 deferred (don't include). For each F-* in scope, propose the fix in plan form FIRST, then implement after operator sign-off — security findings warrant explicit acknowledgement of the remediation choice before code lands. Read packages/happy-server/CLAUDE.md and packages/happy-app/CLAUDE.md sync invariants. Acceptance: each F-* has a green test (new or extended); all 5 happy-* package typechecks green; security findings explicitly mark severity + CVE-style remediation note in commit body. Test command: pnpm --filter '{packages/happy-server}' --filter '{packages/happy-app}' --filter '{packages/happy-cli}' exec vitest run 2&gt;&amp;1 | tee /tmp/codexu-polish-fs.log. ONE commit per F-finding (six commits) so each can be reverted independently if needed."</pre>
     </div>
@@ -1484,9 +1484,9 @@
   </details>
 
   <details class="cmd" id="cmd-plugin-scope-agents" data-task-id="plugin-scope-agents">
-    <summary><span class="cmd-name">plugin-scope-agents</span><span class="cmd-badge b-blocked">🔒 blocked on agent-view-research</span><span class="cmd-desc">Plugin scoping with top-level-only plugins + agent-spawner pattern</span></summary>
+    <summary><span class="cmd-name">plugin-scope-agents</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Plugin scoping with top-level-only plugins + agent-spawner pattern · unblocked (agent-view-research landed 2026-05-14)</span></summary>
     <div class="cmd-body">
-      <div class="cmd-warn blocked">🔒 Blocked on <code>agent-view-research</code> landing — the spawner pattern depends on what that research uncovers about Claude Code's agent-view model.</div>
+      <div class="cmd-warn">⚠️ Read <code>plans/agent-view-research.md</code> first — its findings define the spawner-pattern model this task implements.</div>
       <button class="copy-btn">Copy</button>
 <pre class="cmd-pre">/plan-with-ralph "Extend codex's plugin-scoping (Phase 2c — host vs agent context) with a third dimension: 'top-level-agent-only' plugins. Today's spec: scope=host|agent|both. New spec: scope=top-level|subagent|both (or equivalent — see plans/codexu-roadmap.md §Phase 2c for current shape). Some plugins like ralph-orchestration must be available only to TOP-LEVEL agents (operator-spawned sessions, or sessions spawned by a designated 'agent-spawner' agent) — never to sub-agents spawned via codex's multi_agents_v2/spawn.rs (recursion + context bloat). Build the spawner agent (similar to Claude Code's agent-view if the research from agent-view-research clarifies the model): it can SPAWN top-level sessions on behalf of the operator, those spawned sessions inherit top-level scope and have ralph-orchestration + similar host-tier plugins. Read plans/agent-view-research.md (output of agent-view-research) before scoping. Read codex/codex-rs-overlay/* for divergence-crate precedent (changes should land as overlay if they touch codex; happy-cli changes are fine). Plugin manifest schema lives in codex/external/repos/codex-patched/codex-rs/core-plugins/src/manifest.rs (READ-ONLY). Acceptance: ralph-orchestration plugin manifest declares scope=top-level; spawning a subagent that tries to load it fails or silently no-ops; spawning via the new agent-spawner succeeds and the new session sees ralph-orchestration. Tests: codex integration test with mock plugin in both scopes. Cross-package typecheck green. Surface to operator before merging — this changes the plugin-loading contract."</pre>
     </div>
@@ -1734,6 +1734,15 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
       <div class="cmd-warn blocked">🔒 Blocked on <code>codex-hooks-parity</code> — Gap 5's <code>/compact</code> handling depends on Gap 4's auto-compact context-boundary emission so the manual <code>/compact</code> also fires <code>sendContextBoundary({ kind:'compact', triggeredBy:'user' })</code>.</div>
       <button class="copy-btn">Copy Command</button>
 <pre class="cmd-pre">/plan-with-ralph "Gap 5 from plans/codex-agent-parity-audit.md — /clear and /compact parity on the codex path. Today packages/happy-cli/src/codex/runCodex.ts:280-334 pushes the user message text into messageQueue with NO slash-command parsing — parseSpecialCommand (shared with the Claude path at runClaude.ts:541-577) is never imported on the codex side. Even if a user types /compact on a codex session, codex-core sees the literal string and codex-core's own slash-command handling may or may not fire. Codex's wire surface supports compact via NewConversationParams.compactPrompt (codexAppServerTypes.ts:29) but client.startThread (codexAppServerClient.ts) never sets it. PREREQUISITE: codex-hooks-parity (Gap 4) must have landed so the auto-compact context-boundary emission is in place — manual /compact should also fire sendContextBoundary({ kind:'compact', triggeredBy:'user' }) to keep the UI signal consistent. STEP 1 spike (~30 min): does codex-core's own slash-command handling fire when the user message is /clear or /compact? If YES → document + add a smoke test; pure happy-cli passthrough is fine. If NO → STEP 2: implement happy-cli-side interception via parseSpecialCommand (shared with Claude) — on /clear call client.disconnect() + start a fresh thread (verify with codex maintainer that this is intended UX); on /compact plumb a codex-side compact RPC if one exists, OR set compactPrompt on the NEXT startThread / similar. Also handle the wrapped form <command-name>/clear</command-name> in sessionProtocolMapper.ts (matches the Claude path's detectWrappedSlashCommandBoundary at packages/happy-cli/CLAUDE.md 'Wrapped-slash-command detection (F-012 / F-013)'). Acceptance: typing /clear on a happy codex session results in a fresh thread; typing /compact triggers codex's compact path AND emits sendContextBoundary({ kind:'compact', triggeredBy:'user' }). Workflow: codexu worktree at .worktrees/codex-slash-commands/ on topic branch ralph/codex-slash-commands. Test command: pnpm --filter '{packages/happy-cli}' exec vitest run 2>&1 | tee /tmp/codexu-slash.log. Single commit; update plans/codex-agent-parity-audit.md Gap 5 section to mark shipped."</pre>
+    </div>
+  </details>
+
+  <details class="cmd" id="cmd-codex-plan-mode-defensive" data-task-id="codex-plan-mode-defensive">
+    <summary><span class="cmd-name">codex-plan-mode-defensive</span><span class="cmd-badge b-blocked">🔒 blocked on operator decision</span><span class="cmd-desc">Gap 6 — defensive plan-mode mapping on codex path (v1, ~2h). V2 overlay-crate deferred. Spawned by <code>codex-parity-audit</code>.</span></summary>
+    <div class="cmd-body">
+      <div class="cmd-warn blocked">🔒 Operator-gated. Per <code>plans/codex-agent-parity-audit.md</code> Gap 6 — two-tier choice: (a) defensive parity now (map <code>plan</code> → codex <code>read-only</code> sandbox + UX hint that ExitPlanMode isn't available, ~2h) OR (b) full parity via a new overlay crate <code>codex/codex-rs-overlay/codex-plan-mode/</code> that injects an <code>exit_plan_mode</code> tool (Medium-to-Large, spike upstream codex's tool-registration seam first). Decide before scoping. Audit recommended (a) for v1.</div>
+      <button class="copy-btn">Copy Command</button>
+<pre class="cmd-pre">/plan-with-ralph "Gap 6 from plans/codex-agent-parity-audit.md — defensive plan-mode mapping on codex path. Today packages/happy-cli/src/codex/cliArgs.ts VALID_CODEX_REMOTE_PERMISSION_MODES (re-exported as VALID_REMOTE_PERMISSION_MODES in runCodex.ts:251) is restricted to default, read-only, safe-yolo, yolo — `plan` arriving from the mobile UI is silently ignored (runCodex.ts:287-294); the local CLI flag path falls into the defensive branch in executionPolicy.ts:24,39 returning untrusted+workspace-write. There is no ExitPlanMode codex tool. PREREQUISITE (operator-gated): confirm v1 scope is option (a) DEFENSIVE — map `plan` → codex `read-only` sandbox in executionPolicy.ts, AND emit a UI hint (session-event 'message') on first plan-mode entry: 'Plan mode on codex is approximated as read-only; ExitPlanMode tool is not available.' If operator wants option (b) overlay-crate full parity instead, defer this task and open a separate `codex-plan-mode-overlay` ralph command that lands an overlay crate codex/codex-rs-overlay/codex-plan-mode/ providing real plan-mode parity (model gets an exit_plan_mode tool, mode transitions on tool call) — spike upstream codex's tool-registration seam first. Acceptance for v1 (a): switching a codex session to plan mode results in sandbox: read-only, approvalPolicy: never, and the user sees the explanatory message; the existing mobile-UI plan-mode badge still renders correctly. Cross-package typecheck green. Test command: pnpm --filter '{packages/happy-cli}' exec vitest run 2&gt;&amp;1 | tee /tmp/codexu-plan-mode.log. Single commit referencing audit Gap 6. Update plans/codex-agent-parity-audit.md Gap 6 section to mark v1-defensive shipped; flag v2-overlay as still deferred. Workflow: codexu worktree at .worktrees/codex-plan-mode-defensive/ on topic branch ralph/codex-plan-mode-defensive off origin/main."</pre>
     </div>
   </details>
 
@@ -2039,8 +2048,8 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T18:00:00Z",
-  "generatedFromCommit": "69dfe294",
+  "generatedAt": "2026-05-14T18:30:00Z",
+  "generatedFromCommit": "e9ac47dd",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -2087,6 +2096,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     "codex-base-prompt-safety-rails": "2026-05-14T17:00:00Z",
     "codex-slash-commands": "2026-05-14T17:00:00Z",
     "codex-polish-lows": "2026-05-14T17:00:00Z",
+    "codex-plan-mode-defensive": "2026-05-14T18:30:00Z",
     "mcp-server-notifications": "2026-05-14T09:00:00Z",
     "codex-channels": "2026-05-14T09:00:00Z"
   },
@@ -2266,6 +2276,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     "codex-base-prompt-safety-rails": 4,
     "codex-slash-commands": 3,
     "codex-polish-lows": 5,
+    "codex-plan-mode-defensive": 2,
     "mcp-server-notifications": 32,
     "codex-channels": 14
   },
@@ -2315,6 +2326,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     "codex-base-prompt-safety-rails": "medium",
     "codex-slash-commands": "medium",
     "codex-polish-lows": "low",
+    "codex-plan-mode-defensive": "low",
     "mcp-server-notifications": "medium",
     "codex-channels": "medium"
   },
@@ -2364,6 +2376,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     "codex-base-prompt-safety-rails": "agent-arch",
     "codex-slash-commands": "codex-parity",
     "codex-polish-lows": "codex-parity",
+    "codex-plan-mode-defensive": "codex-parity",
     "mcp-server-notifications": "agent-arch",
     "codex-channels": "agent-arch"
   },
@@ -2413,6 +2426,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     "codex-base-prompt-safety-rails": "small",
     "codex-slash-commands": "small",
     "codex-polish-lows": "small",
+    "codex-plan-mode-defensive": "small",
     "mcp-server-notifications": "large",
     "codex-channels": "medium"
   },
@@ -2437,6 +2451,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     "codex-base-prompt-safety-rails": "audit-general-purpose-vs-worker",
     "codex-slash-commands": "codex-parity-audit",
     "codex-polish-lows": "codex-parity-audit",
+    "codex-plan-mode-defensive": "codex-parity-audit",
     "mcp-server-notifications": "channels-research",
     "codex-channels": "channels-research"
   }
