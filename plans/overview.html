@@ -1399,7 +1399,7 @@
   </details>
 
   <details class="cmd" id="cmd-1a-fork-doc" data-task-id="1a-fork-doc">
-    <summary><span class="cmd-name">1a-fork-doc</span><span class="cmd-badge b-inflight">🟡 in progress</span><span class="cmd-desc">Phase 1a — Codex fork strategy commit (codex submodule docs)</span></summary>
+    <summary><span class="cmd-name">1a-fork-doc</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Phase 1a — Codex fork strategy commit · codexu pointer-bump <code>7fa6ff3b</code></span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
 <pre class="cmd-pre">/plan-with-ralph "Phase 1a — Codex fork strategy commit. Per plans/codexu-roadmap.md §Phase 1a + Decisions still open #1 + §'Codex changes — minimize upstream conflict surface'. Document the current fork strategy: codex/ is a git submodule (gim-home/codex). Inside, codex/external/repos/codex-patched/codex-rs/ is a subtree mirror of openai/codex; divergence work lives in codex/codex-rs-overlay/ as overlay crates (codex-copilot, codex-copilot-launcher, codex-invariant-tests are the working precedent). Subtree pulls bring upstream openai/codex in; overlay crates Cargo-workspace-reference the subtree as their root. Documentation files to write (all in codex/docs/ or top-level codex/CLAUDE.md — DO NOT EDIT anything under codex/external/repos/codex-patched/ or codex/codex-rs-overlay/): codex/docs/implementation/architecture.md (new 'Fork strategy' section), codex/docs/implementation/patch-surface.md (note upcoming patches: plugin scoping per Phase 2c, AskUserQuestion primitive per Phase 2d, Claude-via-Copilot adapter per Phase 7), codex/CLAUDE.md (top-level pointer to codexu-roadmap.md and to the minimize-conflict-surface tenet). Read codexu's docs/plans/codex-fork-extension-strategy.md FIRST — that doc covers the consumer side of fork strategy (what codexu assumes about cadence + RPC contract version); do not pick a strategy that invalidates its assumptions. Workflow: create a worktree of the codex submodule at .ralph/jobs/&lt;job-name&gt;/codex-worktree/ pointed at gim-home/codex's main; do edits there; commit on a topic branch in the submodule; push to gim-home/codex; then bump the codexu submodule pointer as a separate commit on codexu main. Acceptance: 3 files updated in codex submodule with internally consistent strategy + cross-reference; codexu submodule pointer bumped; codexu-roadmap.md §Decisions made gets a new entry locking the strategy. No code changes, no tests. Surface choice to operator before final commit if more than one approach seems viable."</pre>
@@ -1541,7 +1541,7 @@ Acceptance: design doc + per-scope working fixture: (B) two sessions on the same
   </details>
 
   <details class="cmd" id="cmd-async-events-design" data-task-id="async-events-design">
-    <summary><span class="cmd-name">async-events-design</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Design async event listening for agents (commit-merged, etc.) — unblocked by channels-research</span></summary>
+    <summary><span class="cmd-name">async-events-design</span><span class="cmd-badge b-inflight">🟡 in progress</span><span class="cmd-desc">Design async event listening for agents (commit-merged, etc.) — unblocked by channels-research</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
 <pre class="cmd-pre">/plan-with-ralph "Design how an agent listens to async events — e.g., 'wake me when a commit lands on main', 'notify me when a periodic task fires', 'tell me when another agent finishes its turn'. Today an agent's only async-trigger model is: exit and be re-spawned (e.g., a periodic background task that exits to wake the operator/agent). That's not ideal — loses context, restart latency, can't subscribe to fine-grained events. Output: plans/async-events-design.md covering: (1) The use cases — at least these 4: git events (commit on main / branch updated / push), periodic-task firings, inter-agent notifications (sibling-agent completion / sibling-agent question), file-system events (file changed under cwd). (2) Current options in Claude Code — is there a 'wait for X' tool? hooks? streamable MCP? A 'send-when-idle' channel? Read C:/harness-efforts/claude-code/worktrees/main/ if accessible. (3) Current options in codex — codex's hook system (config/src/hook_config.rs), inter-agent fast path in multi_agents_v2/, MCP support. READ-ONLY on codex/external/repos/codex-patched/ per minimize-conflict-surface. (4) Design options for codexu — compare at least: (a) MCP with 2-way channels (depends on channels-research outcome); (b) periodic background task that exits to wake agent (current model — note limits); (c) long-poll MCP tool (block until event); (d) a 'subscription' RPC on the codex app-server side that streams events to the agent's session; (e) hybrid (use codex hooks for in-session triggers, channels for cross-session). (5) Recommendation with rationale; identify the smallest-viable subset that covers the 4 use cases. (6) Surface to operator before committing follow-up implementation tasks. NO CODE — design only. The output doc IS the deliverable."</pre>
@@ -1648,7 +1648,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
   </details>
 
   <details class="cmd" id="cmd-codex-wire-spike" data-task-id="codex-wire-spike">
-    <summary><span class="cmd-name">codex-wire-spike</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Pre-flight wire-acceptance spike for Gaps 2/3/5 (30 min, unblocks codex-attachments). Spawned by <code>codex-parity-audit</code>.</span></summary>
+    <summary><span class="cmd-name">codex-wire-spike</span><span class="cmd-badge b-inflight">🟡 in progress</span><span class="cmd-desc">Pre-flight wire-acceptance spike for Gaps 2/3/5 (30 min, unblocks codex-attachments). Spawned by <code>codex-parity-audit</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
 <pre class="cmd-pre">/plan-with-ralph "30-minute pre-flight spike against a real codex app-server to resolve wire-acceptance questions blocking Gaps 2, 3, 5 from plans/codex-agent-parity-audit.md. Spike 3 questions: (1) does codex-core accept InputItem `{ type: 'image', url: 'data:image/png;base64,...' }` or does it require `{ type: 'localImage', path }` (Gap 3)? (2) does codex-core honor `config: { project_doc_fallback_filenames: ['CLAUDE.md', 'AGENTS.md'] }` in NewConversationParams (Gap 2)? (3) what's the behavior of `compactPrompt` in NewConversationParams (Gap 5)? Method: spawn a real `codex app-server` and send hand-crafted JSON-RPC requests via netcat / node script. Read packages/happy-cli/src/codex/codexAppServerTypes.ts for the wire shape; read codex/external/repos/codex-patched/codex-rs/protocol/src/lib.rs for the deserializer behavior. Output: new section 'Wire spike results' appended to plans/codex-agent-parity-audit.md with concrete answers and any follow-up steps. NO production code changes — research/spike only. Acceptance: each of the 3 questions has a definitive answer in the doc (works / requires X / unsupported), with evidence (request + response payload or referenced source-line). This unblocks codex-attachments (Gap 3) and informs codex-claude-md-autoload (Gap 2) + future codex-slash-commands (Gap 5)."</pre>
@@ -1692,7 +1692,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
   </details>
 
   <details class="cmd" id="cmd-port-explorer-prompt" data-task-id="port-explorer-prompt">
-    <summary><span class="cmd-name">port-explorer-prompt</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Fill empty <code>explorer.toml</code> stub with a paraphrased Explore prompt. Spawned by <code>native-agent-parity</code>.</span></summary>
+    <summary><span class="cmd-name">port-explorer-prompt</span><span class="cmd-badge b-inflight">🟡 in progress</span><span class="cmd-desc">Fill empty <code>explorer.toml</code> stub with a paraphrased Explore prompt. Spawned by <code>native-agent-parity</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
 <pre class="cmd-pre">/plan-with-ralph "Fill the empty explorer.toml stub at codex/external/repos/codex-patched/codex-rs/core/src/agent/builtins/explorer.toml with a paraphrased Explore prompt — smallest delta from plans/native-agent-parity.md §2.1. Per plans/codexu-roadmap.md 'minimize-conflict-surface' tenet, this is the only built-in role port that requires NO core/src/agent/role.rs match-arm change (file is already wired in role.rs's config_file_contents() switch). Read the inspiration source at D:/harness-efforts/claude-code/worktrees/main/src/tools/AgentTool/built-in/exploreAgent.ts — paraphrase the prose per the license posture in plans/native-agent-parity.md §4 (keep structural patterns like READ-ONLY enforcement; rewrite all prose; cite inspiration in a comment header). Replace any 'Claude Code, Anthropic's CLI' references with codex-functional descriptions ('the codex agent'). Workflow: create a worktree of the codex submodule at .ralph/jobs/&lt;job-name&gt;/codex-worktree/ pointed at gim-home/codex's main; do edits there; commit on a topic branch in the submodule; push to gim-home/codex; then bump the codexu submodule pointer as a separate commit on codexu main. Acceptance: cargo build --workspace from codex/external/repos/codex-patched/codex-rs/ stays green; the role parses (check via existing agent_roles.rs tests or a tiny new test); a 1-minute smoke 'codex exec' against the new explorer role returns a sensible exploration of a small target. Surface to operator before committing — license-paraphrase review is gating. No happy-cli or happy-app changes; pure codex-submodule edit + submodule pointer bump."</pre>
@@ -1709,7 +1709,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
   </details>
 
   <details class="cmd" id="cmd-audit-general-purpose-vs-worker" data-task-id="audit-general-purpose-vs-worker">
-    <summary><span class="cmd-name">audit-general-purpose-vs-worker</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">30-min prompt-diff: Claude's <code>general-purpose</code> vs codex's <code>worker.toml</code>; merge missing rules. Spawned by <code>native-agent-parity</code>.</span></summary>
+    <summary><span class="cmd-name">audit-general-purpose-vs-worker</span><span class="cmd-badge b-inflight">🟡 in progress</span><span class="cmd-desc">30-min prompt-diff: Claude's <code>general-purpose</code> vs codex's <code>worker.toml</code>; merge missing rules. Spawned by <code>native-agent-parity</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
 <pre class="cmd-pre">/plan-with-ralph "30-minute prompt-diff task per plans/native-agent-parity.md §2.4. Compare D:/harness-efforts/claude-code/worktrees/main/src/tools/AgentTool/built-in/generalPurposeAgent.ts (or whichever file exposes Claude's general-purpose system prompt) against codex/external/repos/codex-patched/codex-rs/core/src/agent/builtins/worker.toml's developer_instructions. Identify guidance present in general-purpose that's missing from worker.toml — likely candidates per the research: 'NEVER create files unless absolutely necessary', 'NEVER create documentation files unless explicitly requested', other safety-rail rules. If worker.toml is sparser, fold the missing rules into worker.toml as a small targeted change (NOT a wholesale rewrite); keep the change minimal so codex's worker behavior shifts only at the margins. If worker.toml already covers the same ground (likely — codex's worker is mature), document this in plans/native-agent-parity.md §2.4 as a no-op finding. License posture: paraphrase any rule text from Claude's general-purpose; do NOT copy verbatim. Workflow: codex-submodule worktree; commit on topic branch; bump codexu submodule pointer. Acceptance: either (a) worker.toml updated with N paraphrased rule additions referenced in commit body, OR (b) plans/native-agent-parity.md §2.4 amended with a 'no merge needed, worker.toml already covers X/Y/Z' note. Surface to operator before merging. No happy-cli/happy-app changes."</pre>
@@ -1999,8 +1999,8 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T09:30:00Z",
-  "generatedFromCommit": "a31f6143",
+  "generatedAt": "2026-05-14T10:00:00Z",
+  "generatedFromCommit": "b855848d",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -2010,7 +2010,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "mcp-discovery": "2026-05-13T23:30:00Z",
     "codex-parity-audit": "2026-05-13T23:30:00Z",
     "perf-WS2": "2026-05-13T19:30:00Z",
-    "1a-fork-doc": "2026-05-13T23:30:00Z",
+    "1a-fork-doc": "2026-05-14T10:00:00Z",
     "1b-multidev": "2026-05-13T19:30:00Z",
     "3b-agents": "2026-05-13T19:30:00Z",
     "3c-hooks": "2026-05-13T23:30:00Z",
@@ -2025,7 +2025,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "plugin-scope-agents": "2026-05-14T03:00:00Z",
     "agent-comms": "2026-05-14T03:00:00Z",
     "channels-research": "2026-05-14T09:00:00Z",
-    "async-events-design": "2026-05-14T09:00:00Z",
+    "async-events-design": "2026-05-14T10:00:00Z",
     "native-agent-parity": "2026-05-14T08:00:00Z",
     "roadmap-plugin": "2026-05-14T05:00:00Z",
     "agent-tree-rpc": "2026-05-14T07:30:00Z",
@@ -2034,14 +2034,14 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "session-role-pill": "2026-05-14T07:30:00Z",
     "spawn-from-app": "2026-05-14T06:00:00Z",
     "agent-status-stream": "2026-05-14T06:00:00Z",
-    "codex-wire-spike": "2026-05-14T08:30:00Z",
+    "codex-wire-spike": "2026-05-14T10:00:00Z",
     "codex-claude-md-autoload": "2026-05-14T08:30:00Z",
     "codex-attachments": "2026-05-14T08:30:00Z",
     "codex-system-prompts": "2026-05-14T08:30:00Z",
     "codex-hooks-parity": "2026-05-14T08:30:00Z",
-    "port-explorer-prompt": "2026-05-14T08:30:00Z",
+    "port-explorer-prompt": "2026-05-14T10:00:00Z",
     "port-plan-and-verification-roles": "2026-05-14T08:30:00Z",
-    "audit-general-purpose-vs-worker": "2026-05-14T08:30:00Z",
+    "audit-general-purpose-vs-worker": "2026-05-14T10:00:00Z",
     "mcp-server-notifications": "2026-05-14T09:00:00Z",
     "codex-channels": "2026-05-14T09:00:00Z"
   },
@@ -2054,6 +2054,14 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "codex-upstream-rebase": "periodic"
   },
   "runs": [
+    {
+      "id": "1a-fork-doc/2026-05-14",
+      "taskId": "1a-fork-doc",
+      "ranAt": "2026-05-14T07:00:00Z",
+      "outcome": "completed",
+      "commits": ["7fa6ff3b"],
+      "summary": "Phase 1a — Codex fork strategy committed. Locks the codex submodule fork model: gim-home/codex as the submodule, openai/codex tracked as a subtree mirror under external/repos/codex-patched/codex-rs/, divergence work in codex-rs-overlay/ as overlay crates (precedent: codex-copilot, codex-copilot-launcher, codex-invariant-tests). Submodule-pointer bumps on codexu main are separate commits after the codex-side commit lands on gim-home/codex. Doc set: codex/docs/implementation/architecture.md (Fork strategy section), codex/docs/implementation/patch-surface.md (upcoming patches catalog — Phase 2c plugin scoping, Phase 2d AskUserQuestion, Phase 7 Claude-via-Copilot), codex/CLAUDE.md (top-level pointer + minimize-conflict-surface tenet). codexu submodule pointer bumped in commit 7fa6ff3b; roadmap §Decisions made entry added."
+    },
     {
       "id": "channels-research/2026-05-13",
       "taskId": "channels-research",

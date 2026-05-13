@@ -546,12 +546,12 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `F-015-toast` | Stale-creds toast on cold launch | ⏸ paused (awaiting reproduction) | — |
 | `mcp-discovery` | Codex agent project-.mcp.json parity | 🟡 in progress | — |
 | `codex-parity-audit` | Research: gaps in codex agent feature parity vs Claude | ✅ landed 2026-05-13 | — (research-only; output `plans/codex-agent-parity-audit.md`) |
-| `codex-wire-spike` 🤖 | Pre-flight wire-acceptance spike for Gaps 2/3/5 | ⬜ not started | — |
+| `codex-wire-spike` 🤖 | Pre-flight wire-acceptance spike for Gaps 2/3/5 | 🟡 in progress | — |
 | `codex-claude-md-autoload` 🤖 | Gap 2: project CLAUDE.md auto-load on codex path | ⬜ not started (conflicts with mcp-discovery) | — |
 | `codex-attachments` 🤖 | Gap 3: image attachments on codex turn input | ⬜ blocked on codex-wire-spike | — |
 | `codex-system-prompts` 🤖 | Gap 7: customSystemPrompt + appendSystemPrompt parity | ⬜ not started (conflicts with mcp-discovery) | — |
 | `codex-hooks-parity` 🤖 | Gap 4: fan codex events to happy turn-lifecycle handlers | ⬜ not started (sequence after earlier codex-* land) | — |
-| `1a-fork-doc` | Phase 1a — fork strategy commit | 🟡 in progress | — |
+| `1a-fork-doc` | Phase 1a — fork strategy commit | ✅ shipped | 7fa6ff3b |
 | `1b-multidev` | Phase 1b sub-tasks 3 + 4 | ⬜ not started | — |
 | `3b-agents` | Phase 3b-i + ii — subagents → roles | ⬜ blocked on 3a discovery | — |
 | `3c-hooks` | Phase 3c — hooks port / verify | 🟡 in progress | — |
@@ -574,11 +574,11 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `channels-research` | Research Claude Code "channels" + codex 2-way MCP plan | ✅ done — `plans/channels-research.md` (2026-05-13) | — |
 | `mcp-server-notifications` | Stage A from channels-research: bridge rmcp notifications + sampling into codex agent event loop, feature-gated | ⬜ not started | — |
 | `codex-channels` | Stage B from channels-research: `experimental["codex/channel"]` envelope + prompt-queue policy | ⬜ deferred — operator decision before scoping | — |
-| `async-events-design` | Design async event listening for agents | ⬜ unblocked (channels-research landed) | — |
+| `async-events-design` | Design async event listening for agents | 🟡 in progress | — |
 | `native-agent-parity` | Research codex parity with Claude Code's native subagents | ✅ landed 2026-05-14 | — (research-only; output `plans/native-agent-parity.md`) |
-| `port-explorer-prompt` 🤖 | Fill empty `explorer.toml` stub | ⬜ not started | — |
+| `port-explorer-prompt` 🤖 | Fill empty `explorer.toml` stub | 🟡 in progress | — |
 | `port-plan-and-verification-roles` 🤖 | Add `plan.toml` + `verification.toml` built-ins | ⬜ blocked on §6 operator decisions | — |
-| `audit-general-purpose-vs-worker` 🤖 | 30-min prompt diff vs codex worker.toml | ⬜ not started | — |
+| `audit-general-purpose-vs-worker` 🤖 | 30-min prompt diff vs codex worker.toml | 🟡 in progress | — |
 | `roadmap-plugin` 🛠 | Plugin: agents manage roadmap/overview.html via skill + MCP | ⬜ not started | — |
 
 🟡 = in progress (agent actively working, not yet committed). Refresh after each landing.
