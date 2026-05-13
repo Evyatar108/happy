@@ -46,6 +46,10 @@ Identity is read at pair time from `~/.happy/profile.json` (written by `happy au
 
 The Prometheus metrics endpoint is unchanged by this work. In standalone mode it still binds according to its configured host, including `0.0.0.0` when requested, and it does not use Dev Tunnels or loopback capability authentication.
 
+## Replay Protection (post-claim removal)
+
+Per-request anti-replay protection now lives at the Dev Tunnels gateway as part of its connect-token validation; no application-level replay cache is needed in happy-server. The previous Happy claim layer's `seenJti` cache (single-use `jti`, `MAX_CLAIM_LIFETIME_SECONDS=3600`) was removed together with `packages/happy-server/sources/app/api/auth/tunnelClaim.ts`. Backend code MUST NOT re-introduce its own replay cache without first re-introducing a verifiable backend-side claim that carries a server-checkable identifier; otherwise such a cache would key off attacker-controlled or gateway-stripped material and provide no real protection.
+
 ## Web TokenStorage Threat Model
 
 Native happy-app stores credentials in `expo-secure-store`. On web, `sources/auth/tokenStorage.ts` stores `devTunnelsAccess` and per-machine tunnel credentials in `localStorage`. That is an accepted trade-off for the single-user self-host posture: the operator controls the browser environment, the app does not mix untrusted third-party scripts into its origin, and XSS is out of scope. If the fork ever ships a public multi-user web build, this must be revisited with session-only tokens or a backend-for-frontend that holds tokens server-side.
