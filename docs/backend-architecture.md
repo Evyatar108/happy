@@ -356,7 +356,7 @@ flowchart TD
 - Automatic retry on `P2034` (serialization failures).
 - `afterTx()` to emit socket updates after commit.
 
-This pattern is used for multi-write operations like batch KV mutation and session deletion.
+This pattern is used for multi-write operations like session deletion.
 
 ### Blob storage (local-first)
 The default storage backend is the local filesystem under `<dataDir>/files`:
