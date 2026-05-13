@@ -566,10 +566,10 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `codex-upstream-rebase` 🔄 | Periodic — rebase codex submodule on openai/codex | ⬜ first run pending | — |
 | `agent-view-research` | Research Claude Code's agent-view feature | ✅ landed 2026-05-14 | — (research-only; output `plans/agent-view-research.md`) |
 | `agent-tree-rpc` 🤖 | App-server RPC for codex live spawn tree | 🟡 in progress | — |
-| `session-parent-link` 🤖 | Add parentSessionId + spawnedChildren to Session metadata | 🟡 in progress | — |
-| `mobile-tree-view` 🤖 | Tree-style session list with depth indentation | ⬜ blocked on session-parent-link | — |
+| `session-parent-link` 🤖 | Add parentSessionId + spawnedChildren to Session metadata | ✅ shipped (read path; writer deferred) | 11c3eafb |
+| `mobile-tree-view` 🤖 | Tree-style session list with depth indentation | ⬜ ready (unblocked 2026-05-14) | — |
 | `session-role-pill` 🤖 | Flavor + model + permission-mode pills in session row | ✅ shipped | 7e9f724c |
-| `spawn-from-app` 🤖 | "Spawn child session" affordance + RPC | ⬜ blocked on session-parent-link | — |
+| `spawn-from-app` 🤖 | "Spawn child session" affordance + RPC | ⬜ ready (unblocked 2026-05-14) | — |
 | `agent-status-stream` 🤖 | Live "active teammates" overlay (codex events → mobile) | ⬜ blocked on agent-tree-rpc | — |
 | `plugin-scope-agents` | Top-level-only plugin scoping + agent-spawner | ⬜ blocked on agent-view-research | — |
 | `agent-comms` | Top-level agent ↔ agent communication (MCP-based) | ⬜ blocked on plugin-scope-agents + channels-research | — |

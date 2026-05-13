@@ -1589,7 +1589,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
   </details>
 
   <details class="cmd" id="cmd-session-parent-link" data-task-id="session-parent-link">
-    <summary><span class="cmd-name">session-parent-link</span><span class="cmd-badge b-inflight">🟡 in progress</span><span class="cmd-desc">Add parentSessionId + spawnedChildren[] to Session metadata (foundation for tree view + spawn-from-app). Spawned by <code>agent-view-research</code>.</span></summary>
+    <summary><span class="cmd-name">session-parent-link</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Added parentSessionId + spawnedChildren[] to Session metadata · commit <code>11c3eafb</code> · unblocks mobile-tree-view + spawn-from-app. Spawned by <code>agent-view-research</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
 <pre class="cmd-pre">/plan-with-ralph "Add parentSessionId + spawnedChildren tracking to Session metadata end-to-end. Per plans/agent-view-research.md §6 task `session-parent-link`. Today Session has no concept of parent-child (packages/happy-app/sources/sync/storageTypes.ts:130-163) — the mobile app shows a flat list. Add: Metadata.parentSessionId?: string and Metadata.spawnedChildren?: string[] (composite session IDs). Plumb through: (1) happy-server schema/wire shape — if backend tracks the link, add columns; if metadata-only, just extend the JSON contract; surface choice to operator. (2) happy-app storageTypes.ts Session/Metadata types. (3) storage.ts:395-570 applySessions reducer — preserve the new fields on update merges. (4) New helper getSessionChildren(sid) and getSessionParent(sid) in sources/sync/storage.ts. NO UI changes yet — that's mobile-tree-view's job. Acceptance: writing a Session with parentSessionId='m1:abc' and spawnedChildren=['m1:def','m1:ghi'] round-trips through happy-server → app → MMKV → re-fetch unchanged; helpers return correct neighbours; cross-package typecheck green. Read packages/happy-app/CLAUDE.md sync invariants — composite-id (machineSessionId.ts) helpers must be respected for parent refs. Single commit on main. Pitfall: existing sessions have no parent — null parentSessionId means top-level; don't backfill spawnedChildren=[] on every existing session (use undefined/null to distinguish missing-field from empty-children)."</pre>
@@ -1597,9 +1597,8 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
   </details>
 
   <details class="cmd" id="cmd-mobile-tree-view" data-task-id="mobile-tree-view">
-    <summary><span class="cmd-name">mobile-tree-view</span><span class="cmd-badge b-blocked">🔒 blocked on session-parent-link</span><span class="cmd-desc">Tree-style happy-app session list with depth indentation + expand/collapse. Spawned by <code>agent-view-research</code>.</span></summary>
+    <summary><span class="cmd-name">mobile-tree-view</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Tree-style happy-app session list with depth indentation + expand/collapse — unblocked 2026-05-14 (session-parent-link shipped <code>11c3eafb</code>). Spawned by <code>agent-view-research</code>.</span></summary>
     <div class="cmd-body">
-      <div class="cmd-warn blocked">🔒 Blocked on <code>session-parent-link</code> landing the parentSessionId/spawnedChildren fields.</div>
       <button class="copy-btn">Copy</button>
 <pre class="cmd-pre">/plan-with-ralph "Convert the happy-app session list from flat-with-date-groups to a tree with depth indentation + expand/collapse. Per plans/agent-view-research.md §6 task `mobile-tree-view`. PREREQUISITE: session-parent-link must have landed so Session.metadata.parentSessionId + spawnedChildren are queryable. Files: packages/happy-app/sources/sync/storage.ts:250-343 buildSessionListViewData — change from flat SessionListViewItem[] to depth-tagged flattened-tree (each item carries `depth: number` and `hasChildren: boolean`). packages/happy-app/sources/components/SessionsList.tsx:193-333 FlatList — keep FlatList but consume the new depth-tagged data; SessionsList.tsx:342-463 SessionItem memo — render depth-based left indent (e.g., depth × 20px) + chevron icon when hasChildren; toggle expanded state in a new MMKV-persisted Map&lt;sid, boolean&gt;. Active-vs-inactive grouping: when a parent is in the active group, render its children inline beneath it (still in the active group); otherwise children appear inside their date group, indented under parent if the parent is in the SAME date group, otherwise as orphans (rare). Read packages/happy-app/CLAUDE.md sync invariants — renderWindow + seq-based pagination must not be touched. Acceptance: vitest snapshot of buildSessionListViewData with mocked parent + 2 children → correct depth ordering; manual smoke: cold-launch with synthetic parentSessionId data → tree renders, chevron toggles expand/collapse, persists across refresh. Cross-package typecheck green. Single commit on main. Pitfall: SessionItem memo must include depth + expanded in its keyExtractor / memo deps, or stale rows will render at wrong depth on tree mutations."</pre>
     </div>
@@ -1614,9 +1613,8 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
   </details>
 
   <details class="cmd" id="cmd-spawn-from-app" data-task-id="spawn-from-app">
-    <summary><span class="cmd-name">spawn-from-app</span><span class="cmd-badge b-blocked">🔒 blocked on session-parent-link</span><span class="cmd-desc">"Spawn child session" affordance in app + spawnSessionFromSession RPC end-to-end. Spawned by <code>agent-view-research</code>.</span></summary>
+    <summary><span class="cmd-name">spawn-from-app</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">"Spawn child session" affordance in app + spawnSessionFromSession RPC end-to-end — unblocked 2026-05-14 (session-parent-link shipped <code>11c3eafb</code>). Spawned by <code>agent-view-research</code>.</span></summary>
     <div class="cmd-body">
-      <div class="cmd-warn blocked">🔒 Blocked on <code>session-parent-link</code> landing the parentSessionId carrier field.</div>
       <button class="copy-btn">Copy</button>
 <pre class="cmd-pre">/plan-with-ralph "Add a 'spawn child session' affordance to the happy-app session detail view + new spawnSessionFromSession RPC end-to-end. Per plans/agent-view-research.md §6 task `spawn-from-app`. PREREQUISITE: session-parent-link must have landed so the new child can carry parentSessionId. New RPC shape: spawnSessionFromSession(parentSid: compositeSessionId, config: { agent, path?, permissionMode?, model?, initialMessage? }) → newSid. happy-cli side (packages/happy-cli/src/api/apiSession.ts or apiMachine.ts): register the handler; resolve parent's machineId from compositeSessionId; call existing machineSpawnNewSession-equivalent path with auto-set Metadata.parentSessionId = parentSid; also update parent's metadata.spawnedChildren via sessionUpdateMetadata. happy-app side (packages/happy-app/sources/sync/ops.ts): add machineSpawnSessionFromSession wrapper; in session detail view (sources/app/(app)/session/[id].tsx or wherever the detail screen lives), add a 'Spawn child agent' action button that opens a sheet with agent flavor/permission/model pickers and an optional initial-message field. Read packages/happy-app/CLAUDE.md sync invariants. Acceptance: vitest fixture in happy-cli — call spawnSessionFromSession against a mocked parent; assert new session created with parentSessionId set + parent's spawnedChildren contains new sid. Manual smoke from app: tap 'spawn child' on a session → new child appears in list with parent linkage visible (if mobile-tree-view has landed, indented under parent; otherwise just present in flat list with correct metadata). Cross-package typecheck green. Single commit on main per side (happy-cli commit, happy-app commit). Pitfall: cycle prevention — if a user tries to spawn under a session that's already a child of the new child (cycle), the handler must reject; document the limit (max-depth 1? unlimited with hop counter?). Coordinate with the agent-comms task — spawnSessionFromSession is the same RPC Scope C will need; this lands the wire shape first."</pre>
     </div>
@@ -1983,8 +1981,8 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T14:30:00Z",
-  "generatedFromCommit": "1cf6b4e2",
+  "generatedAt": "2026-05-14T15:00:00Z",
+  "generatedFromCommit": "f52e257b",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -2013,7 +2011,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "native-agent-parity": "2026-05-14T08:00:00Z",
     "roadmap-plugin": "2026-05-14T05:00:00Z",
     "agent-tree-rpc": "2026-05-14T07:30:00Z",
-    "session-parent-link": "2026-05-14T07:30:00Z",
+    "session-parent-link": "2026-05-14T15:00:00Z",
     "mobile-tree-view": "2026-05-14T06:00:00Z",
     "session-role-pill": "2026-05-14T14:00:00Z",
     "spawn-from-app": "2026-05-14T06:00:00Z",
@@ -2038,6 +2036,14 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "codex-upstream-rebase": "periodic"
   },
   "runs": [
+    {
+      "id": "session-parent-link/2026-05-14",
+      "taskId": "session-parent-link",
+      "ranAt": "2026-05-14T15:00:00Z",
+      "outcome": "completed",
+      "commits": ["11c3eafb"],
+      "summary": "Shipped parentSessionId + spawnedChildren[] on Session.metadata (read path only; CLI writer wiring deferred to a separate session-parent-link-writer task). Files: packages/happy-app/sources/sync/storageTypes.ts (schema extended + .spec.ts coverage), packages/happy-cli/src/api/types.ts (CLI mirror), packages/happy-app/sources/sync/sync.ts (new normalizeMetadataParentChildRefs called from toCompositeSession + update-session ingress — drops non-string parentSessionId / non-array spawnedChildren), packages/happy-app/sources/sync/storage.ts (new getSessionParent + getSessionChildren helpers with typeof/Array.isArray backstop), packages/happy-app/CLAUDE.md (sync-invariants paragraph). Phase 5a converged in 2 rounds: 10 findings (1 High = crash path on malformed wire payloads, 8 fixed + 2 already-fixed-by-prior-commit). 1085/1085 happy-app tests pass. Unblocks mobile-tree-view + spawn-from-app per plans/agent-view-research.md §6. Deferred: CLI writer wiring (createSessionMetadata, daemon/forkSession HAPPY_FORKED_FROM_SESSION_ID, codex/runCodex, apiSession.updateMetadata) — tracked as a separate session-parent-link-writer task per the plan's Open Questions."
+    },
     {
       "id": "mcp-discovery/2026-05-13",
       "taskId": "mcp-discovery",
