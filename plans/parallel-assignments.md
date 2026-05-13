@@ -468,7 +468,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `agent-comms` | Top-level agent ↔ agent communication (MCP-based) | ⬜ blocked on plugin-scope-agents + channels-research | — |
 | `channels-research` | Research Claude Code "channels" + codex 2-way MCP plan | 🟡 in progress | — |
 | `async-events-design` | Design async event listening for agents | ⬜ blocked on channels-research | — |
-| `native-agent-parity` | Research codex parity with Claude Code's native subagents | 🟡 in progress | — |
+| `native-agent-parity` | Research codex parity with Claude Code's native subagents | ✅ landed 2026-05-14 | — (research-only; output `plans/native-agent-parity.md`) |
 | `roadmap-plugin` 🛠 | Plugin: agents manage roadmap/overview.html via skill + MCP | ⬜ not started | — |
 
 🟡 = in progress (agent actively working, not yet committed). Refresh after each landing.

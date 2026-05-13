@@ -1533,7 +1533,7 @@ Acceptance: design doc + per-scope working fixture: (B) two sessions on the same
   </details>
 
   <details class="cmd" id="cmd-native-agent-parity" data-task-id="native-agent-parity">
-    <summary><span class="cmd-name">native-agent-parity</span><span class="cmd-badge b-inflight">🟡 in progress</span><span class="cmd-desc">Research codex parity with Claude Code's native subagents (Explore, etc.)</span></summary>
+    <summary><span class="cmd-name">native-agent-parity</span><span class="cmd-badge b-closed">✅ landed 2026-05-14</span><span class="cmd-desc">Research codex parity with Claude Code's native subagents · doc <a href="native-agent-parity.md">native-agent-parity.md</a> · 3 follow-ups recommended (explorer, plan, verification)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
 <pre class="cmd-pre">/plan-with-ralph "Research whether (and how) we want codex parity with Claude Code's native subagent palette — e.g., Explore (fast codebase exploration), Plan (architect), claude-code-guide, statusline-setup, etc. Today codex's [agents.&lt;role&gt;] TOML system is operator-defined; Claude Code ships preset subagent types with curated system prompts. Output: plans/native-agent-parity.md covering: (1) Enumerate Claude Code's preset subagents — use the Agent tool yourself if accessible to list them, or grep C:/harness-efforts/claude-code/worktrees/main/ for the subagent registry. For each: name, purpose, tool allowlist, model preference, system prompt. (2) For each, assess whether it makes sense for codex too: high-value port (e.g., Explore — every developer benefits from a fast codebase-explorer subagent) vs Claude-specific (e.g., claude-code-guide — references Claude Code features that may not apply). (3) Implementation packaging — should codex parity ship as: (a) a plugin in packages/codexu-plugin/ that registers default [agents.&lt;role&gt;] entries; (b) an overlay crate in codex/codex-rs-overlay/ that bakes them into the binary; (c) a one-time `codex agent install --preset claude-code-equivalents` migration. Discuss tradeoffs. (4) Should we LEVERAGE Claude Code's system prompts as inspiration? Yes — they're battle-tested. Should we copy verbatim (license / attribution question — check Claude Code's license) or paraphrase? Recommend. (5) Cross-reference Phase 3b-i (subagents → [agents.&lt;role&gt;] for ralph's 12 internal subagents) — that's the analogous port but operator-private; this is the public-facing 'native palette' port. (6) Pick top 3 most-valuable to port first. NO CODE — research + decision doc. Surface recommendations to operator before opening follow-up implementation tasks."</pre>
@@ -1897,8 +1897,8 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T07:30:00Z",
-  "generatedFromCommit": "a5eaeefe",
+  "generatedAt": "2026-05-14T08:00:00Z",
+  "generatedFromCommit": "4e4fff9d",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -1924,7 +1924,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "agent-comms": "2026-05-14T03:00:00Z",
     "channels-research": "2026-05-13T23:30:00Z",
     "async-events-design": "2026-05-14T04:00:00Z",
-    "native-agent-parity": "2026-05-13T23:30:00Z",
+    "native-agent-parity": "2026-05-14T08:00:00Z",
     "roadmap-plugin": "2026-05-14T05:00:00Z",
     "agent-tree-rpc": "2026-05-14T07:30:00Z",
     "session-parent-link": "2026-05-14T07:30:00Z",
@@ -1942,6 +1942,14 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "codex-upstream-rebase": "periodic"
   },
   "runs": [
+    {
+      "id": "native-agent-parity/2026-05-14",
+      "taskId": "native-agent-parity",
+      "ranAt": "2026-05-14T08:00:00Z",
+      "outcome": "completed",
+      "commits": [],
+      "summary": "Research-only deliverable: plans/native-agent-parity.md. Surveyed Claude Code's 6 built-in subagents; verdicts: PORT 3 (explorer — fill existing empty stub; plan — new built-in; verification — new built-in with VERDICT:PASS|FAIL|PARTIAL contract); SKIP 3 (general-purpose redundant with codex's worker; statusline-setup Claude-specific; claude-code-guide defer). Packaging: ship via include_str!() in role.rs match-arm (tolerable conflict with AGENTS.override.md tenet 1) first, plugin distribution later when manifest learns [agents.<role>]. License: paraphrase prose (research-only license on the source-mapped Claude Code checkout), keep structural patterns. Recommended 3 follow-up tasks: port-explorer-prompt (smallest), port-plan-and-verification-roles (combined PR), audit-general-purpose-vs-worker (30-min diff). 6 open questions to resolve before implementation."
+    },
     {
       "id": "codex-parity-audit/2026-05-13",
       "taskId": "codex-parity-audit",
