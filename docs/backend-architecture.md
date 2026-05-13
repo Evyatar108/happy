@@ -167,19 +167,19 @@ sequenceDiagram
 
     Note over Mobile: User enters user_code on github.com
 
-    Mobile->>Server: POST /pair/status (device_code, mobileEcdhPublicKey)
+    Mobile->>Server: POST /pair/status (device_code)
     Server->>GH: POST /login/oauth/access_token
     GH-->>Server: access_token (or pending)
     Server->>GH: GET /user
     GH-->>Server: { login }
     Server->>Server: Optional: enforce HAPPY_TUNNEL_GITHUB_OWNER match
-    Server->>Server: ECDH: nacl.box.before(mobilePub, x25519SecretKey)
-    Server-->>Mobile: machines[{ machineId, tunnelUrl, ed25519PublicKey, x25519PublicKey, ed25519Fingerprint, tunnelClaim }]
+    Server->>Server: Sign Happy envelope: ed25519.sign(payload{sub,iat,exp,jti})
+    Server-->>Mobile: machines[{ machineId, tunnelUrl, ed25519PublicKey, ed25519Fingerprint, tunnelClaim }]
 
     Note over Mobile,Server: Subsequent requests
 
     Mobile->>Server: Request + X-Tunnel-Authorization: tunnel <base64url-claim>
-    Server->>Server: authenticate decorator: parse claim, check sub == localUserId, iat within 24h
+    Server->>Server: authenticate decorator: verify ed25519 sig, check sub == localUserId, exp + jti replay protection, 1h max TTL
     Server-->>Mobile: Response
 ```
 

@@ -179,7 +179,7 @@ graph TB
 graph LR
     subgraph "ApiSessionClient"
         S_In[Receive: update]
-        S_Out[Emit: message, update-metadata,<br/>update-state, session-alive, usage-report]
+        S_Out[Emit: message, update-metadata,<br/>update-state, session-alive]
     end
 
     subgraph "ApiMachineClient"
@@ -193,7 +193,7 @@ graph LR
 
 `ApiSessionClient` (`src/api/apiSession.ts`) connects to Socket.IO as a **session-scoped** client:
 - Receives `update` events and decrypts message content.
-- Emits `message`, `update-metadata`, `update-state`, `session-alive`, and `usage-report`.
+- Emits `message`, `update-metadata`, `update-state`, and `session-alive`.
 
 `ApiMachineClient` (`src/api/apiMachine.ts`) connects as a **machine-scoped** client:
 - Sends `machine-alive` heartbeats.
