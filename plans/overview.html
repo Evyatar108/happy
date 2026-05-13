@@ -1,0 +1,712 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>codexu plan overview — 2026-05-13</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --fg: #e8e8e8;
+    --muted: #8a8f98;
+    --border: #2a2f37;
+    --card: #181b21;
+    --card-hover: #1f242c;
+    --accent: #7aa2f7;
+    --ok: #9ece6a;
+    --warn: #e0af68;
+    --bad: #f7768e;
+    --info: #7dcfff;
+    --done: #565f89;
+    --purple: #bb9af7;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #fafafa;
+      --fg: #1c1c1c;
+      --muted: #5a5f68;
+      --border: #d4d4d4;
+      --card: #fff;
+      --card-hover: #f0f0f0;
+      --accent: #2563eb;
+      --ok: #16803c;
+      --warn: #a16207;
+      --bad: #b91c1c;
+      --info: #0369a1;
+      --done: #6b7280;
+      --purple: #7c3aed;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 32px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 14px; margin: 0 0 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  code, .mono { font-family: 'SF Mono', 'Cascadia Code', Menlo, monospace; font-size: 12px; background: rgba(127,127,127,0.12); padding: 1px 4px; border-radius: 3px; }
+  .sub { color: var(--muted); font-size: 13px; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .kanban {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  @media (max-width: 1100px) { .kanban { grid-template-columns: 1fr; } }
+  .col {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .col-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+  }
+  .col-head h3 { margin: 0; }
+  .badge {
+    display: inline-block; padding: 1px 7px; border-radius: 10px;
+    font-size: 11px; font-weight: 600;
+  }
+  .b-now { background: rgba(122,162,247,0.18); color: var(--accent); }
+  .b-soon { background: rgba(125,207,255,0.18); color: var(--info); }
+  .b-block { background: rgba(224,175,104,0.18); color: var(--warn); }
+
+  .card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+    margin-bottom: 8px;
+  }
+  .card:hover { background: var(--card-hover); }
+  .card-title { font-weight: 600; margin-bottom: 4px; font-size: 13px; }
+  .card-meta {
+    display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: 11px;
+    color: var(--muted); margin-top: 6px;
+  }
+  .pill {
+    display: inline-block; padding: 1px 6px; border-radius: 3px;
+    border: 1px solid var(--border); font-size: 11px;
+  }
+  .p-low { color: var(--ok); border-color: rgba(158,206,106,0.35); }
+  .p-med { color: var(--warn); border-color: rgba(224,175,104,0.35); }
+  .p-high { color: var(--bad); border-color: rgba(247,118,142,0.35); }
+  .area-app { color: var(--info); border-color: rgba(125,207,255,0.35); }
+  .area-server { color: var(--accent); border-color: rgba(122,162,247,0.35); }
+  .area-cli { color: var(--purple); border-color: rgba(187,154,247,0.35); }
+  .area-codex { color: #ff9e64; border-color: rgba(255,158,100,0.35); }
+  .area-multi { color: var(--warn); border-color: rgba(224,175,104,0.35); }
+  .area-docs { color: var(--muted); }
+
+  table.tbl {
+    width: 100%; border-collapse: collapse; margin-top: 12px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    overflow: hidden;
+  }
+  table.tbl th, table.tbl td {
+    padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left;
+    font-size: 13px; vertical-align: top;
+  }
+  table.tbl th { background: var(--card-hover); font-weight: 600; }
+  table.tbl tr:last-child td { border-bottom: none; }
+  .yes { color: var(--ok); font-weight: 600; }
+  .no  { color: var(--bad); font-weight: 600; }
+  .partial { color: var(--warn); font-weight: 600; }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 12px; margin: 8px 0 16px;
+    font-size: 12px; color: var(--muted);
+  }
+  .legend .pill { background: transparent; }
+
+  .stack-rec {
+    background: linear-gradient(135deg, rgba(122,162,247,0.08), rgba(158,206,106,0.05));
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 16px 0;
+  }
+  .stack-rec h3 { color: var(--accent); margin-bottom: 8px; }
+  .stack-rec ol { margin: 4px 0; padding-left: 22px; }
+  .stack-rec li { margin-bottom: 4px; }
+
+  .phase-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  @media (max-width: 900px) { .phase-grid { grid-template-columns: 1fr; } }
+  .phase {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px;
+  }
+  .phase-head { font-weight: 600; font-size: 13px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+  .phase-head .ptag { font-size: 11px; color: var(--muted); font-weight: 400; }
+  .phase ul { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.7; }
+  .phase li { color: var(--muted); }
+  .phase li .item-name { color: var(--fg); }
+  .open { color: var(--accent); }
+  .deferred { color: var(--muted); }
+  .donefade { color: var(--done); text-decoration: line-through; }
+
+  .footnote { color: var(--muted); font-size: 12px; margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<h1>codexu — plan overview</h1>
+<div class="sub">
+  Generated 2026-05-13 against <code>main</code> HEAD <code>03352678</code>.
+  Sources: <code>plans/codexu-roadmap.md</code> (Phases 1-7 + Sprint E),
+  <code>plans/realtime-sync-perf.md</code>, devtunnels-E notepad (F-* findings).
+</div>
+
+<div class="stack-rec">
+  <h3>Recommended assignment order</h3>
+  <ol>
+    <li><strong>Agent A → realtime-sync-perf, all 3 workstreams sequentially.</strong> Biggest user-visible win. ~4 h. WS1 → WS3 → WS2 (WS3 simplifies WS2's scope).</li>
+    <li><strong>Agent B → Codex Phase 3a (skills port).</strong> Different repo / package tree from perf (<code>~/.claude</code> + ralph plugin → <code>~/.codex/plugins/</code>). Self-contained, ~13 skills to port, mechanically isolated from happy-app changes. Zero merge-conflict risk.</li>
+    <li><strong>Agent C (optional) → one polish item (F-013 / F-015 / F-017).</strong> Tiny isolated surfaces, no overlap with A or B. Pick the one whose user-pain matches today.</li>
+    <li><strong>Defer:</strong> Phase 1b sub-tasks 3-5 (need a re-read against the now-resolved tunnel protocol first), Phase 2c/2d (upstream codex work, separate trees), Phase 4-7 (integration tests + drop-Claude-Code; gated on Phase 3 landing).</li>
+  </ol>
+</div>
+
+<h2>Kanban — assignable now</h2>
+<div class="legend">
+  <span class="pill area-app">happy-app</span>
+  <span class="pill area-server">happy-server</span>
+  <span class="pill area-cli">happy-cli</span>
+  <span class="pill area-codex">codex / plugin</span>
+  <span class="pill area-multi">multi-package</span>
+  <span class="pill p-low">low risk</span>
+  <span class="pill p-med">medium risk</span>
+  <span class="pill p-high">high risk</span>
+</div>
+
+<div class="kanban">
+
+  <div class="col">
+    <div class="col-head"><h3>Ready now</h3><span class="badge b-now">assignable</span></div>
+
+    <div class="card">
+      <div class="card-title">Realtime sync perf — WS1: skip refreshTunnelClaim when valid</div>
+      <div class="sub">Parse <code>exp</code>, skip roundtrip when claim valid 60-120 s ahead. Foreground fan-out 6×~2.5 s → 1×~2.5 s + 5×~0.5 s.</div>
+      <div class="card-meta">
+        <span class="pill area-app">happy-app</span>
+        <span class="pill p-low">low</span>
+        <span>~45 min</span>
+        <span><a href="realtime-sync-perf.md">plan §WS1</a></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Realtime sync perf — WS2: optimistic placeholder session</div>
+      <div class="sub">Don't block <code>new-message</code> on a full <code>/v1/sessions</code> re-fetch when sid unknown. UI updates immediately; metadata back-fills.</div>
+      <div class="card-meta">
+        <span class="pill area-app">happy-app</span>
+        <span class="pill p-med">medium</span>
+        <span>~1.5 h</span>
+        <span><a href="realtime-sync-perf.md">plan §WS2</a></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Realtime sync perf — WS3: server replay buffer + client lastSeenSeq</div>
+      <div class="sub">Server keeps ring of last N events per user; client ships <code>lastSeenSeq</code> on reconnect handshake. Eliminates HTTP fallback on reconnect.</div>
+      <div class="card-meta">
+        <span class="pill area-multi">multi-package</span>
+        <span class="pill p-med">medium</span>
+        <span>~3 h</span>
+        <span><a href="realtime-sync-perf.md">plan §WS3</a></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Phase 3a — Ralph skills port to codex plugin</div>
+      <div class="sub">Port 4 user-invocable + 9 internal = 13 skills from Claude Code plugin format to codex plugin format. Conversion checklist + manifest field deltas in roadmap §3a.</div>
+      <div class="card-meta">
+        <span class="pill area-codex">codex / plugin</span>
+        <span class="pill p-med">medium</span>
+        <span>est. 1-2 d</span>
+        <span class="sub">see <code>plans/codexu-roadmap.md</code> §Phase 3a</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Phase 3h — options-mode plugin migration</div>
+      <div class="sub">575 LOC of Node hook logic + slash command + statusline. Codex hook parity verified OK 2026-05-02. Heavier than 3a but self-contained.</div>
+      <div class="card-meta">
+        <span class="pill area-codex">codex / plugin</span>
+        <span class="pill p-med">medium</span>
+        <span>est. 2-3 d</span>
+        <span class="sub">roadmap §Phase 3h</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Phase 1a — Codex fork strategy commit</div>
+      <div class="sub">Documentation only. Decide between options under "Decisions still open #1" and write to <code>codex/docs/implementation/architecture.md</code> "Fork strategy" section + 3 sibling files.</div>
+      <div class="card-meta">
+        <span class="pill area-codex">codex docs</span>
+        <span class="pill p-low">low</span>
+        <span>~2 h</span>
+        <span class="sub">roadmap §Phase 1a</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">F-013 — latent permission-mode override (Claude)</div>
+      <div class="sub">Low severity. Isolated to happy-cli claude permission handler. No overlap with perf work.</div>
+      <div class="card-meta">
+        <span class="pill area-cli">happy-cli</span>
+        <span class="pill p-low">low</span>
+        <span>~1 h</span>
+        <span class="sub">.ralph/jobs/devtunnels-E-cleanup/notepad.md</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">F-015 — stale-creds toast on pre-pair launch</div>
+      <div class="sub">Cosmetic. Profile-parse error surfaces on cold launch before pair completes. App-only.</div>
+      <div class="card-meta">
+        <span class="pill area-app">happy-app</span>
+        <span class="pill p-low">low</span>
+        <span>~45 min</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">F-017 — device pair-code shortcut</div>
+      <div class="sub">Enhancement. Paste-from-clipboard for device code on second-machine pair. App-only.</div>
+      <div class="card-meta">
+        <span class="pill area-app">happy-app</span>
+        <span class="pill p-low">low</span>
+        <span>~1 h</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="col-head"><h3>Unblocked, needs re-read</h3><span class="badge b-soon">soon</span></div>
+
+    <div class="card">
+      <div class="card-title">Phase 1b sub-task 3 — multi-device discoverability hint</div>
+      <div class="sub">Terminal-startup hint. Sprint E satisfied the "tunnels protocol resolved" gate. Re-read against finalized header + pair-complete shape, then assign.</div>
+      <div class="card-meta">
+        <span class="pill area-cli">happy-cli</span>
+        <span class="pill p-low">low</span>
+        <span>~0.5 d</span>
+        <span class="sub">roadmap §1b · plans/codex-seamless-multi-device.md</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Phase 1b sub-task 4 — multi-client approval fan-out</div>
+      <div class="sub">Conflict-resolution UX when same approval fires on phone + laptop. Re-derive against tunnel-direct attach (no server relay).</div>
+      <div class="card-meta">
+        <span class="pill area-cli">happy-cli</span>
+        <span class="pill p-med">medium</span>
+        <span>~0.5-1 d</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Phase 1b sub-task 5 — walkthrough verification</div>
+      <div class="sub">Manual end-to-end verification of multi-device. Same tunnel re-derivation note.</div>
+      <div class="card-meta">
+        <span class="pill area-multi">manual</span>
+        <span>~1 d</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Realtime sync perf — WS4 (optional)</div>
+      <div class="sub">Full sockets-only refactor of <code>fetchSessions</code> / <code>fetchMessages</code>. Conditional on WS3 outcome — defer scope until WS3 re-measure.</div>
+      <div class="card-meta">
+        <span class="pill area-app">happy-app</span>
+        <span class="pill p-med">medium</span>
+        <span>defer</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Phase 3b-i + 3b-ii — Subagents → codex agent roles</div>
+      <div class="sub">12 ralph subagents convert to <code>[agents.&lt;role&gt;]</code> TOML. No <code>tools:</code> allowlists declared → 3b-ii collapses to "pick read-only vs workspace-write per role" (mapping table in roadmap).</div>
+      <div class="card-meta">
+        <span class="pill area-codex">codex / plugin</span>
+        <span class="pill p-med">medium</span>
+        <span>est. 1-2 d</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Phase 3c — Hooks port</div>
+      <div class="sub">Toolkit ralph plugin says "skills-only" — verify by inspection. If hooks present, port to codex hook system.</div>
+      <div class="card-meta">
+        <span class="pill area-codex">codex / plugin</span>
+        <span class="pill p-low">low</span>
+        <span>~0.5 d</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Phase 3d — Codex-based workers via native spawn</div>
+      <div class="sub">Replace ralph's <code>codex-exec.sh</code> bash invocation with native <code>spawn-agent-role</code>. Compatibility audit (3d-i) verified in roadmap.</div>
+      <div class="card-meta">
+        <span class="pill area-codex">codex / plugin</span>
+        <span class="pill p-med">medium</span>
+        <span>est. 1-2 d</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Phase 3f + 3g — Asset migration + Plugin packaging</div>
+      <div class="sub">Port shell libs, statusline scripts; convert to <code>.codex-plugin/plugin.json</code>; publish marketplace catalog.</div>
+      <div class="card-meta">
+        <span class="pill area-codex">codex / plugin</span>
+        <span class="pill p-low">low</span>
+        <span>~1 d combined</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">F-001/F-002 — security findings (Medium)</div>
+      <div class="sub">From devtunnels-E Phase 5c security review. Re-read remediation in notepad before assigning.</div>
+      <div class="card-meta">
+        <span class="pill area-server">happy-server</span>
+        <span class="pill p-med">medium</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">F-003..F-007 — security findings (Low)</div>
+      <div class="sub">Five Low-severity items; bundle into a single polish PR.</div>
+      <div class="card-meta">
+        <span class="pill area-multi">multi-package</span>
+        <span class="pill p-low">low</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Phase 2a Test 3 — execpolicy sandbox denial</div>
+      <div class="sub">Deferred 2026-05-03. Local config is <code>danger-full-access</code>; needs a non-trusted dir or config flip. Verify codex sandbox enforces denial.</div>
+      <div class="card-meta">
+        <span class="pill area-codex">codex</span>
+        <span class="pill p-low">low</span>
+        <span>~30 min</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Phase 1c residual — TUI plugin install verification</div>
+      <div class="sub">Operator-side smoke test: codex TUI → plugins picker → enable codexu-plugin → verify <code>hello-world</code> in /skills.</div>
+      <div class="card-meta">
+        <span class="pill area-multi">manual</span>
+        <span>~15 min</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="col-head"><h3>Blocked / operator-only / upstream</h3><span class="badge b-block">blocked</span></div>
+
+    <div class="card">
+      <div class="card-title">BOOX validation Phases 2–6</div>
+      <div class="sub">Chat round-trip, refresh-per-request, token revocation, multi-device fan-out, signed-APK release. Manual hardware. Will feel slow before realtime-sync-perf lands.</div>
+      <div class="card-meta">
+        <span class="pill area-multi">manual</span>
+        <span>operator only</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">F-014 — tunnel-label rename (server)</div>
+      <div class="sub">Code change trivial. Blocked on happy-server redeploy window. Bundle with another server change.</div>
+      <div class="card-meta">
+        <span class="pill area-server">happy-server</span>
+        <span>deploy gated</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">F-016 — BOOX adb tap on RN buttons</div>
+      <div class="sub">E-ink hardware quirk. Adb tap doesn't reliably trigger RN button presses. Not actionable without hardware-side investigation.</div>
+      <div class="card-meta">
+        <span class="pill area-multi">hardware</span>
+        <span>deferred</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Phase 2c — Plugin scoping (host vs agent)</div>
+      <div class="sub"><strong>Upstream codex patch.</strong> Add <code>scope: "host" | "agent" | "both"</code> to plugin manifest; loader checks <code>next_thread_spawn_depth</code>. Lives in <code>codex/</code> submodule, not codexu.</div>
+      <div class="card-meta">
+        <span class="pill area-codex">upstream codex</span>
+        <span>separate repo</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Phase 2d — ask_user_question sibling tool</div>
+      <div class="sub"><strong>Upstream codex patch.</strong> Clone/adapt <code>request_user_input</code> for structured choices. Lives in codex submodule.</div>
+      <div class="card-meta">
+        <span class="pill area-codex">upstream codex</span>
+        <span>separate repo</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Phase 4 — Coexistence verification (4a–4m)</div>
+      <div class="sub">13 end-to-end integration tests across codexu × codex × ralph × phone. Gated on Phase 3 landing; failures file back into the appropriate phase.</div>
+      <div class="card-meta">
+        <span class="pill area-multi">integration</span>
+        <span>post-Phase-3</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Phase 5 — Drop Claude Code (5a–5f)</div>
+      <div class="sub">Dual-stack dogfood buffer, audit remaining flows, archive configs, uninstall, update personal docs. Gated on Phase 4 passing.</div>
+      <div class="card-meta">
+        <span class="pill area-multi">cutover</span>
+        <span>post-Phase-4</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Phase 6 — Long-lived teammates</div>
+      <div class="sub">Deferred polish. Per-role <code>keepalive</code>, workflow conventions, codexu phone UI for active teammates. Un-defer when re-spawning friction hits 3+ times/week.</div>
+      <div class="card-meta">
+        <span class="pill area-codex">codex</span>
+        <span>deferred</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Phase 7 — Claude model via Copilot adapter</div>
+      <div class="sub">Deferred, spike-first. <code>codex login</code> + <code>curl</code> Copilot <code>/models</code> + branch table. Wide effort range pending spike.</div>
+      <div class="card-meta">
+        <span class="pill area-codex">codex</span>
+        <span>spike pending</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>Codex specialization roadmap — phase-by-phase status</h2>
+<div class="sub" style="margin-bottom:12px;">
+  Compact view of <code>plans/codexu-roadmap.md</code> Phases 1-7. Strike-through = done.
+</div>
+
+<div class="phase-grid">
+
+  <div class="phase">
+    <div class="phase-head">Phase 1 — Foundations <span class="ptag">parallel</span></div>
+    <ul>
+      <li><span class="item-name open">1a Codex fork strategy commit</span> — docs-only, open</li>
+      <li><span class="item-name donefade">1b.1 Transport refactor stdio→ws</span></li>
+      <li><span class="item-name donefade">1b.2 Discovery + reattach</span></li>
+      <li><span class="item-name open">1b.3 Multi-device discoverability hint</span> — unblocked, re-read</li>
+      <li><span class="item-name open">1b.4 Multi-client approval fan-out</span> — unblocked, re-read</li>
+      <li><span class="item-name open">1b.5 Walkthrough verification</span> — manual</li>
+      <li><span class="item-name donefade">1c Personal codex plugin scaffolding</span> — 90%, TUI smoke residual</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <div class="phase-head">Phase 2 — Codex divergences</div>
+    <ul>
+      <li><span class="item-name donefade">2a Verify upstream features</span> — 2/3 tests, T3 deferred</li>
+      <li><span class="item-name donefade">2b .claude/skills discovery via junctions</span></li>
+      <li><span class="item-name deferred">2c Plugin scoping (host vs agent)</span> — upstream codex patch</li>
+      <li><span class="item-name deferred">2d ask_user_question sibling tool</span> — upstream codex patch</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <div class="phase-head">Phase 3 — Plugin migrations <span class="ptag">Claude Code → codex</span></div>
+    <ul>
+      <li><span class="item-name open">3a Skills port</span> — 13 skills (4 user + 9 internal)</li>
+      <li><span class="item-name open">3b-i Subagents → [agents.&lt;role&gt;]</span> — 12 agents</li>
+      <li><span class="item-name open">3b-ii Tool permission audit</span> — collapsed to profile pick</li>
+      <li><span class="item-name open">3c Hooks port</span> — likely zero, verify</li>
+      <li><span class="item-name open">3d Codex-based workers (native spawn)</span></li>
+      <li><span class="item-name donefade">3e Cross-vendor workers</span> — stays as shell scripts</li>
+      <li><span class="item-name open">3f Asset migration</span></li>
+      <li><span class="item-name open">3g Plugin packaging</span></li>
+      <li><span class="item-name open">3h options-mode plugin migration</span> — 575 LOC hooks</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <div class="phase-head">Phase 4 — Coexistence verification <span class="ptag">gated on Phase 3</span></div>
+    <ul>
+      <li>4a codex from codexu works (smoke)</li>
+      <li>4b ralph from codex works</li>
+      <li>4c ralph + codexu combined (laptop + phone)</li>
+      <li>4d Plugin scoping works (host vs agent)</li>
+      <li>4e Cross-vendor fan-out</li>
+      <li>4f AskUserQuestion fan-out</li>
+      <li>4g App-server lifecycle (reattach)</li>
+      <li>4h End-to-end trace IDs</li>
+      <li>4i Pre-Phase-3 ralph state migrates</li>
+      <li>4j Reviewer fan-out determinism</li>
+      <li>4k Output-file contract migration</li>
+      <li>4l Sandbox-bypass parity</li>
+      <li>4m Stop-hook tag enforcement post-port</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <div class="phase-head">Phase 5 — Drop Claude Code <span class="ptag">gated on Phase 4</span></div>
+    <ul>
+      <li>5a Dual-stack dogfood (2-week buffer)</li>
+      <li>5b Audit remaining Claude Code workflows</li>
+      <li>5c Archive Claude Code configs</li>
+      <li>5d Uninstall Claude Code binary</li>
+      <li>5e Update personal docs</li>
+      <li>5f Mark migration complete</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <div class="phase-head">Phase 6 + 7 — Deferred polish</div>
+    <ul>
+      <li><span class="item-name deferred">6 Long-lived teammates</span> — un-defer when respawn friction ≥3×/week</li>
+      <li><span class="item-name deferred">7 Claude model via Copilot adapter</span> — spike first, wide effort range</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <div class="phase-head">Devtunnels follow-on <span class="ptag">post-Sprint-E</span></div>
+    <ul>
+      <li><span class="item-name open">Realtime sync perf WS1 / WS2 / WS3</span> — see <a href="realtime-sync-perf.md">plan</a></li>
+      <li><span class="item-name deferred">Realtime sync perf WS4</span> — conditional on WS3 outcome</li>
+      <li><span class="item-name open">Polish PR — F-013 / F-015 / F-017</span> — low-risk isolated</li>
+      <li><span class="item-name deferred">F-014</span> — needs server redeploy</li>
+      <li><span class="item-name deferred">F-016</span> — BOOX hardware quirk</li>
+      <li><span class="item-name open">F-001/F-002 (Med) + F-003-F-007 (Low)</span> — security polish PR</li>
+      <li><span class="item-name deferred">BOOX Phases 2–6</span> — operator manual validation</li>
+    </ul>
+  </div>
+
+</div>
+
+<h2>Parallelism — what can run together</h2>
+
+<table class="tbl">
+  <thead>
+    <tr><th>Pair</th><th>Safe?</th><th>Why</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Realtime perf (any WS) + Phase 3 (any sub-phase)</td>
+      <td class="yes">✅ yes</td>
+      <td>Different package trees entirely. Perf = <code>packages/happy-app/sources/sync/</code>. Phase 3 = <code>~/.codex/plugins/</code> + <code>codex/</code> submodule.</td>
+    </tr>
+    <tr>
+      <td>WS1 + WS2 (refresh-skip + placeholder)</td>
+      <td class="yes">✅ yes</td>
+      <td>Disjoint: WS1 = <code>refreshClaim.ts</code>; WS2 = <code>sync.ts</code> + <code>storage.ts</code>.</td>
+    </tr>
+    <tr>
+      <td>WS1 + WS3 (refresh-skip + replay buffer)</td>
+      <td class="yes">✅ yes</td>
+      <td>Disjoint: WS3 = server + <code>socketOptions.ts</code> + <code>storage.ts</code>.</td>
+    </tr>
+    <tr>
+      <td>WS2 + WS3 (placeholder + replay buffer)</td>
+      <td class="no">❌ no</td>
+      <td>Both touch <code>storage.ts</code>; WS3 changes WS2's scope. Sequence: WS3 → WS2.</td>
+    </tr>
+    <tr>
+      <td>Phase 3a (skills) + Phase 3b-i (subagents)</td>
+      <td class="yes">✅ yes</td>
+      <td>Different output files. Skills in <code>plugin/skills/</code>; agent roles in <code>~/.codex/agents/</code> + <code>config.toml</code>.</td>
+    </tr>
+    <tr>
+      <td>Phase 3h (options-mode) + any other Phase 3</td>
+      <td class="yes">✅ yes</td>
+      <td>options-mode is a SEPARATE plugin in a separate directory. Self-contained migration.</td>
+    </tr>
+    <tr>
+      <td>Phase 1a (fork strategy doc) + anything</td>
+      <td class="yes">✅ yes</td>
+      <td>Documentation-only in <code>codex/docs/</code>. Zero code conflict.</td>
+    </tr>
+    <tr>
+      <td>F-013 / F-015 / F-017 + perf or Phase 3</td>
+      <td class="yes">✅ yes</td>
+      <td>Each F-* is one file in an unrelated tree.</td>
+    </tr>
+    <tr>
+      <td>Phase 4 sub-items in parallel</td>
+      <td class="partial">⚠️ careful</td>
+      <td>Integration tests share fixtures + app-server state. Run sequentially per environment.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Dependencies — order gotchas</h2>
+
+<table class="tbl">
+  <thead>
+    <tr><th>If you assign…</th><th>Be aware that…</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>WS2 before WS3</td>
+      <td>WS2's placeholder must handle "session never arrives" defensively. WS3 later makes those defenses redundant.</td>
+    </tr>
+    <tr>
+      <td>WS4 (sockets-only)</td>
+      <td>Conditional on WS3 outcome — defer until WS3 lands and operator re-measures.</td>
+    </tr>
+    <tr>
+      <td>Phase 3b-i (subagents) before Phase 1a (fork strategy commit)</td>
+      <td>3b-i depends on knowing the fork's release cadence + RPC contract version. Land 1a first or pick a stub version.</td>
+    </tr>
+    <tr>
+      <td>Phase 3d (native worker spawn) before Phase 2c (plugin scoping)</td>
+      <td>3d spawns worker threads which may pull in host-scope plugins (recursion). Without 2c's scope check, you get context bloat. Bundle 2c upstream or accept temporary bloat.</td>
+    </tr>
+    <tr>
+      <td>Phase 4 anything before Phase 3 lands</td>
+      <td>Phase 4 verifies the ported plugins. Pointless to run before they exist.</td>
+    </tr>
+    <tr>
+      <td>Phase 5 (drop Claude Code) before Phase 4 passes</td>
+      <td>Phase 4 is the safety check that Phase 3 didn't regress. Dropping Claude Code without it = no fallback when something breaks.</td>
+    </tr>
+    <tr>
+      <td>BOOX Phases 2–6 before realtime-sync-perf WS1+WS2+WS3 land</td>
+      <td>Will technically PASS but feel slow. Phase 2 chat round-trip will look broken to a non-internal validator.</td>
+    </tr>
+    <tr>
+      <td>Phase 1b sub-task 3</td>
+      <td>Sprint E gate satisfied (2026-05-13). Master plan at <code>docs/plans/codex-seamless-multi-device.md</code> still has the pre-Sprint-E protocol; re-read against the final tunnel header / pair-complete shape before assigning.</td>
+    </tr>
+    <tr>
+      <td>F-014 server label rename</td>
+      <td>Trivial code change; gating factor is the redeploy window. Bundle with another server change.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="footnote">
+  <strong>Sync contract:</strong> this file is a derivative snapshot of
+  <code>plans/codexu-roadmap.md</code>. When the roadmap changes assignment readiness,
+  blocks, or phase status, refresh this file in the same commit.
+  Other sources: <code>plans/realtime-sync-perf.md</code>,
+  <code>.ralph/jobs/devtunnels-E-cleanup/notepad.md</code> (F-* findings),
+  <code>docs/plans/codex-seamless-multi-device.md</code> (Phase 1b sub-task spec).
+  The markdown files are authoritative; if this HTML disagrees, trust the markdown
+  and regenerate.
+</div>
+
+</body>
+</html>

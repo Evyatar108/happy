@@ -2,6 +2,12 @@
 
 *Living doc. First captured 2026-05-02. Holistic 3-way review (Claude × Claude × Codex) applied 2026-05-02. Project rename to "codexu" attempted 2026-05-02; **package-level rebrand REVERTED 2026-05-03** to enable clean upstream merge with `slopus/happy`. Update as decisions land or evidence shifts.*
 
+> **🔄 Companion snapshot:** `plans/overview.html` is a visual kanban + phase-tree
+> snapshot of this roadmap. **When you edit this file in a way that changes
+> assignment readiness, blocks, or phase status, refresh `plans/overview.html`
+> in the same commit.** The HTML is a derivative view — the markdown is
+> authoritative.
+
 ## 🚀 Status — fresh agents start here
 
 **Project name:** **codexu** — umbrella brand for the multi-device +
@@ -348,13 +354,18 @@ gateway.
 Operator stopgap (path (c)) is no longer needed. Full record at
 `packages/happy-app/scripts/sprint-a-gap.md` "R-D18".
 
-Phase 1b sub-tasks 3+ remain blocked until Sprint E lands and the merged
-branch reaches `ralph/fan-out-survivors`. OAuth app vs GitHub app, token
-contract (locked: signed Ed25519 envelope `{ p, s }` carrying `{ sub,
-iat, exp, jti, accountId? }` in `X-Tunnel-Authorization`), access path
-(resolved by US-A1 spike), and local WS port policy (locked:
-dual-listener on tunnel-port + loopback-port) decisions are documented
-in the master plan and the per-sprint FINAL-STATUS files.
+Phase 1b sub-tasks 3+ became **unblocked when Sprint E completed
+2026-05-13**. Before assigning, re-read the master plan
+(`docs/plans/codex-seamless-multi-device.md`) against the now-resolved
+tunnels protocol (header rename `X-Tunnel-Authorization` /
+`X-Codexu-Authorization`, single `POST /pair/complete`, `codexu-<host>`
+tunnel id, `portForwardingUris` plural — see "BOOX validation 2026-05-13"
+above). OAuth app vs GitHub app, token contract (locked: signed Ed25519
+envelope `{ p, s }` carrying `{ sub, iat, exp, jti, accountId? }` in
+`X-Codexu-Authorization`), access path (resolved by US-A1 spike), and
+local WS port policy (locked: dual-listener on tunnel-port +
+loopback-port) decisions are documented in the master plan and the
+per-sprint FINAL-STATUS files.
 
 **Shipped vs deferred:**
 - Shipped: `JsonRpcConnection`, extracted stdio transport, ws transport,
