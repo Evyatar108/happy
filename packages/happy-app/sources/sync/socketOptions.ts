@@ -19,7 +19,7 @@ function getTunnelHappyClientId(): string {
 export async function buildTunnelSocketOptions(credentials: AuthCredentials, machineId = credentials.machineId): Promise<TunnelSocketOptions> {
     const happyClient = getTunnelHappyClientId();
     const tunnelHeaders = await getMachineAuthHeaders(credentials, machineId);
-    const socketAuthHeaders = { 'X-Tunnel-Authorization': tunnelHeaders['X-Tunnel-Authorization'] };
+    const socketAuthHeaders = { 'X-Codexu-Authorization': tunnelHeaders['X-Codexu-Authorization'] };
     const headers = {
         ...tunnelHeaders,
         'X-Happy-Client': happyClient,

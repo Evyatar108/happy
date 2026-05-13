@@ -141,7 +141,7 @@ async function postPairStatus(baseUrl: string, deviceCode: string, timeout?: num
     }, {
         headers: {
             'X-Happy-Client': 'cli-control-plane/0.1.0',
-            ...(connectToken ? { 'X-Tunnel-Connect': connectToken } : {}),
+            ...(connectToken ? { 'X-Tunnel-Authorization': `tunnel ${connectToken}` } : {}),
         },
         ...(timeout ? { timeout } : {}),
     });

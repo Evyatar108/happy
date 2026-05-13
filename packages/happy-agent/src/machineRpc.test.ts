@@ -13,8 +13,8 @@ const rpcMock = vi.hoisted(() => {
     return {
         emitWithAck,
         socket,
-        io: vi.fn((_url: string, options: { auth?: { tunnelAuthorization?: string } }) => {
-            if (!options.auth?.tunnelAuthorization?.startsWith('tunnel ')) {
+        io: vi.fn((_url: string, options: { auth?: { codexuAuthorization?: string } }) => {
+            if (!options.auth?.codexuAuthorization?.startsWith('tunnel ')) {
                 emitWithAck.mockRejectedValueOnce(new Error('missing_tunnel_authorization'));
             }
             return socket;
@@ -28,7 +28,7 @@ vi.mock('socket.io-client', () => ({
 
 const { resumeSessionOnMachine, spawnInWorktreeOnMachine, spawnSessionOnMachine } = await import('./machineRpc');
 
-function lastIoCall(): [string, { auth: { tunnelAuthorization: string }; extraHeaders: Record<string, string>; transportOptions: { websocket: { extraHeaders: Record<string, string> }; polling: { extraHeaders: Record<string, string> } }; path: string; transports: string[]; autoConnect: boolean; reconnection: boolean }] {
+function lastIoCall(): [string, { auth: { codexuAuthorization: string }; extraHeaders: Record<string, string>; transportOptions: { websocket: { extraHeaders: Record<string, string> }; polling: { extraHeaders: Record<string, string> } }; path: string; transports: string[]; autoConnect: boolean; reconnection: boolean }] {
     return rpcMock.io.mock.calls.at(-1) as ReturnType<typeof lastIoCall>;
 }
 
@@ -55,8 +55,8 @@ describe('machine RPC client', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         rpcMock.socket.connected = true;
-        rpcMock.io.mockImplementation((_url: string, options: { auth?: { tunnelAuthorization?: string } }) => {
-            if (!options.auth?.tunnelAuthorization?.startsWith('tunnel ')) {
+        rpcMock.io.mockImplementation((_url: string, options: { auth?: { codexuAuthorization?: string } }) => {
+            if (!options.auth?.codexuAuthorization?.startsWith('tunnel ')) {
                 rpcMock.emitWithAck.mockRejectedValueOnce(new Error('missing_tunnel_authorization'));
             }
             return rpcMock.socket;
@@ -84,18 +84,18 @@ describe('machine RPC client', () => {
         const [url, options] = lastIoCall();
         expect(url).toBe('https://abc.devtunnels.ms');
         expect(options).toMatchObject({
-            auth: { tunnelAuthorization: 'tunnel claim-1' },
-            extraHeaders: { 'X-Tunnel-Connect': 'connect-1' },
+            auth: { codexuAuthorization: 'tunnel claim-1' },
+            extraHeaders: { 'X-Tunnel-Authorization': 'tunnel connect-1' },
             transportOptions: {
-                websocket: { extraHeaders: { 'X-Tunnel-Connect': 'connect-1' } },
-                polling: { extraHeaders: { 'X-Tunnel-Connect': 'connect-1' } },
+                websocket: { extraHeaders: { 'X-Tunnel-Authorization': 'tunnel connect-1' } },
+                polling: { extraHeaders: { 'X-Tunnel-Authorization': 'tunnel connect-1' } },
             },
             path: '/v1/updates',
             transports: ['websocket'],
             autoConnect: false,
             reconnection: false,
         });
-        expect(options.auth.tunnelAuthorization.startsWith('tunnel ')).toBe(true);
+        expect(options.auth.codexuAuthorization.startsWith('tunnel ')).toBe(true);
         expect(lastRpcCall().method).toBe('machine-1:spawn-in-worktree');
         expectPlainParams(lastRpcCall().params);
         expect(lastRpcCall().params).toEqual({
@@ -192,9 +192,9 @@ describe('machine RPC client', () => {
         })).rejects.toThrow('RPC call returned unexpected data');
     });
 
-    it('local mock rejects missing tunnelAuthorization prefix', async () => {
+    it('local mock rejects missing codexuAuthorization prefix', async () => {
         const socket = rpcMock.io('https://abc.devtunnels.ms', {
-            auth: { tunnelAuthorization: 'claim-without-prefix' },
+            auth: { codexuAuthorization: 'claim-without-prefix' },
         });
 
         await expect(socket.timeout(30_000).emitWithAck('rpc-call', { method: 'machine-1:spawn-happy-session', params: {} }))

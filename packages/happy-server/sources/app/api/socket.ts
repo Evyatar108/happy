@@ -72,8 +72,8 @@ export function createSocketAuthMiddleware(tofuConfig: TofuHandshakeConfig, sock
             socket.data.userId = tofuConfig.localUserId;
         } else {
             const authHeader = (
-                socket.handshake.headers['x-tunnel-authorization'] as string | undefined
-            ) || (socket.handshake.auth.tunnelAuthorization as string | undefined);
+                socket.handshake.headers['x-codexu-authorization'] as string | undefined
+            ) || (socket.handshake.auth.codexuAuthorization as string | undefined);
 
             const claim = await verifyTunnelClaim(authHeader, tofuConfig);
             if (!claim.ok) {
@@ -120,7 +120,7 @@ export function startSocket(app: Fastify, tofuConfig: TofuHandshakeConfig = { lo
             origin: allowedOrigins.length === 0 ? false : allowedOrigins,
             methods: ["GET", "POST", "OPTIONS"],
             credentials: true,
-            allowedHeaders: ["X-Tunnel-Authorization", "X-Loopback-Capability", "X-Happy-Client", "Content-Type", "X-Tunnel-Connect"]
+            allowedHeaders: ["X-Tunnel-Authorization", "X-Codexu-Authorization", "X-Loopback-Capability", "X-Happy-Client", "Content-Type"]
         },
         transports: ['websocket', 'polling'],
         pingTimeout: 45000,

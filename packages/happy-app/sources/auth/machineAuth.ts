@@ -66,7 +66,7 @@ export async function getMachineAuthHeaders(credentials: AuthCredentials, machin
     const { connectToken, connectTokenExpiry } = await ensureFreshConnectToken(credentials, machineId);
     const freshClaim = await refreshTunnelClaim({ ...credentials, connectToken, connectTokenExpiry }, machineId);
     return {
-        'X-Tunnel-Authorization': `tunnel ${freshClaim}`,
-        'X-Tunnel-Connect': connectToken,
+        'X-Tunnel-Authorization': `tunnel ${connectToken}`,
+        'X-Codexu-Authorization': `tunnel ${freshClaim}`,
     };
 }

@@ -5,8 +5,28 @@ import { decodeBase64Url } from '@/utils/base64url';
 import { DevTunnelsClientProvider, type MachineTunnel } from '@/sync/tunnelProvider';
 // devtunnel's public GitHub App — no client secret required (device flow public client)
 const DEVTUNNEL_GITHUB_CLIENT_ID = 'Iv1.e7b89e013f801f03';
-const PAIRING_FALLBACK_EXPIRY_SECONDS = 15 * 60;
-const MIN_PAIR_POLL_INTERVAL_SECONDS = 12;
+
+export type AuthBrowserInfo = {
+    user_code: string;
+    verification_uri: string;
+    verification_uri_complete?: string;
+};
+
+export type AuthBrowserOpener = (info: AuthBrowserInfo) => Promise<void>;
+
+let activeAuthOpener: AuthBrowserOpener | null = null;
+
+export function setAuthBrowserOpener(opener: AuthBrowserOpener | null): void {
+    activeAuthOpener = opener;
+}
+
+async function openAuthBrowser(info: AuthBrowserInfo): Promise<void> {
+    if (activeAuthOpener) {
+        await activeAuthOpener(info);
+        return;
+    }
+    await WebBrowser.openBrowserAsync(info.verification_uri_complete ?? info.verification_uri);
+}
 
 export type DeviceTunnelFlowResponse = {
     device_code: string;
@@ -83,7 +103,11 @@ export async function fetchGitHubUserProfile(githubToken: string): Promise<GitHu
 
 export async function loginInteractive(): Promise<string> {
     const flow = await startDeviceTunnelFlow();
-    await WebBrowser.openBrowserAsync(flow.verification_uri_complete ?? flow.verification_uri);
+    await openAuthBrowser({
+        user_code: flow.user_code,
+        verification_uri: flow.verification_uri,
+        verification_uri_complete: flow.verification_uri_complete,
+    });
     const deadline = Date.now() + flow.expires_in * 1000;
     while (Date.now() < deadline) {
         await new Promise(resolve => setTimeout(resolve, Math.max(flow.interval, 1) * 1000));
@@ -96,29 +120,15 @@ export async function loginInteractive(): Promise<string> {
     throw new Error('GitHub device authorization expired');
 }
 
-export type PairStartResponse = {
-    device_code: string;
-    user_code: string;
-    verification_uri: string;
-    verification_uri_complete?: string;
-    expires_in?: number;
-    interval: number;
-};
-
 export type PairMachine = {
     machineId: string;
     tunnelUrl: string;
     tunnelClaim: string;
 };
 
-export type PairStatusResponse = {
-    status: 'pending' | 'authorized';
-    githubLogin?: string;
-    machines?: PairMachine[];
-};
-
-export type PollPairStatusResult = PairStatusResponse & {
-    retryAfterMs?: number;
+export type PairCompleteResponse = {
+    githubLogin: string;
+    machine: PairMachine;
 };
 
 export class PairingClaimMissingAccountId extends Error {
@@ -134,55 +144,30 @@ export async function acquireConnectTokenForPair(machine: MachineTunnel): Promis
     return { connectToken };
 }
 
-export async function startPairFlow(machine: MachineTunnel, connectToken: string): Promise<PairStartResponse> {
-    const response = await fetch(`${machine.url}/pair/start`, {
-        headers: { 'X-Tunnel-Connect': connectToken },
-    });
-    if (!response.ok) {
-        throw new Error(`Failed to start pairing: ${response.status}`);
-    }
-    const data = await response.json() as PairStartResponse;
-    return {
-        ...data,
-        expires_in: data.expires_in ?? PAIRING_FALLBACK_EXPIRY_SECONDS,
-        interval: Math.max(data.interval ?? MIN_PAIR_POLL_INTERVAL_SECONDS, MIN_PAIR_POLL_INTERVAL_SECONDS),
-    };
-}
-
-export async function pollPairStatus(machine: MachineTunnel, deviceCode: string, intervalSeconds: number, connectToken: string): Promise<PollPairStatusResult> {
-    const response = await fetch(`${machine.url}/pair/status`, {
+/** Single-step pair against the daemon's /pair/complete endpoint. Gateway
+ *  X-Tunnel-Authorization is the identity gate; the daemon mints a signed
+ *  tunnel claim using identity from its local profile.json. Also used for
+ *  refresh — same endpoint returns a fresh claim every call. */
+export async function completePair(machine: MachineTunnel, connectToken: string): Promise<PairCompleteResponse> {
+    const response = await fetch(`${machine.url}/pair/complete`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Tunnel-Connect': connectToken },
-        body: JSON.stringify({ device_code: deviceCode }),
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Tunnel-Authorization': `tunnel ${connectToken}`,
+        },
+        body: JSON.stringify({}),
     });
-    if (response.status === 429) {
-        const body = await response.json().catch(() => null) as { error?: unknown } | null;
-        if (body?.error === 'rate_limited') {
-            return { status: 'pending', retryAfterMs: MIN_PAIR_POLL_INTERVAL_SECONDS * 1000 };
-        }
-    }
     if (!response.ok) {
-        throw new Error(`Failed to poll pairing: ${response.status}`);
+        throw new Error(`Failed to complete pairing: ${response.status}`);
     }
-    const data = await response.json() as PairStatusResponse;
-    if (data.status === 'authorized') {
-        assertPrimaryMachineHasAccountId(data);
-    }
-    return {
-        ...data,
-        retryAfterMs: Math.max(intervalSeconds, MIN_PAIR_POLL_INTERVAL_SECONDS) * 1000,
-    };
-}
-
-export async function openGitHubDeviceFlow(pairing: PairStartResponse): Promise<void> {
-    await WebBrowser.openBrowserAsync(pairing.verification_uri_complete ?? pairing.verification_uri);
+    const data = await response.json() as PairCompleteResponse;
+    assertMachineHasAccountId(data.machine);
+    return data;
 }
 
 export function credentialsFromPairMachine(machine: MachineTunnel, pairMachine: PairMachine, metadata: {
     login?: string;
     avatarUrl?: string;
-    deviceCode: string;
-    deviceCodeExpiresAt: number;
     connectToken: string;
     connectTokenExpiry: number;
 }): AuthCredentials {
@@ -194,24 +179,9 @@ export function credentialsFromPairMachine(machine: MachineTunnel, pairMachine: 
         firstSeenAt: Date.now(),
         login: metadata.login ?? '',
         avatarUrl: metadata.avatarUrl ?? '',
-        deviceCode: metadata.deviceCode,
-        deviceCodeExpiresAt: metadata.deviceCodeExpiresAt,
         connectToken: metadata.connectToken,
         connectTokenExpiry: metadata.connectTokenExpiry,
     };
-}
-
-export async function waitForPairStatus(machine: MachineTunnel, flow: PairStartResponse, connectToken: string): Promise<PairStatusResponse> {
-    const interval = Math.max(flow.interval, MIN_PAIR_POLL_INTERVAL_SECONDS);
-    const deadline = Date.now() + (flow.expires_in ?? PAIRING_FALLBACK_EXPIRY_SECONDS) * 1000;
-    let delayMs = interval * 1000;
-    while (Date.now() < deadline) {
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-        const status = await pollPairStatus(machine, flow.device_code, interval, connectToken);
-        if (status.status === 'authorized') return status;
-        delayMs = status.retryAfterMs ?? interval * 1000;
-    }
-    throw new Error('GitHub device authorization expired');
 }
 
 type TunnelClaimPayload = {
@@ -228,10 +198,8 @@ export function parseTunnelClaimPayload(tunnelClaim: string): TunnelClaimPayload
     return JSON.parse(decodeBase64Url(envelope.p)) as TunnelClaimPayload;
 }
 
-function assertPrimaryMachineHasAccountId(status: PairStatusResponse): void {
-    const machines = status.machines ?? [];
-    if (machines.length !== 1) throw new Error(`Pairing response must contain exactly one machine, got ${machines.length}`);
-    const payload = parseTunnelClaimPayload(machines[0].tunnelClaim);
+function assertMachineHasAccountId(machine: PairMachine): void {
+    const payload = parseTunnelClaimPayload(machine.tunnelClaim);
     if (payload.accountId === undefined) {
         throw new PairingClaimMissingAccountId();
     }

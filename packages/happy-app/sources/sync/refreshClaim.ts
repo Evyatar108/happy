@@ -54,10 +54,6 @@ function validateFreshClaim(tunnelClaim: string): void {
 }
 
 async function refreshTunnelClaimOnce(credentials: AuthCredentials, machineId: string): Promise<string> {
-    if (!credentials.deviceCode || !credentials.deviceCodeExpiresAt || credentials.deviceCodeExpiresAt <= Date.now()) {
-        throw new DeviceCodeExpired(machineId);
-    }
-
     const { connectToken } = await ensureFreshConnectToken(credentials, machineId);
 
     const previous = lastRefreshAt.get(machineId) ?? 0;
@@ -66,39 +62,23 @@ async function refreshTunnelClaimOnce(credentials: AuthCredentials, machineId: s
         await delay(waitMs);
     }
 
-    const response = await fetch(`${credentials.tunnelUrl}/pair/status`, {
+    const response = await fetch(`${credentials.tunnelUrl}/pair/complete`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Tunnel-Connect': connectToken },
-        body: JSON.stringify({ device_code: credentials.deviceCode }),
+        headers: { 'Content-Type': 'application/json', 'X-Tunnel-Authorization': `tunnel ${connectToken}` },
+        body: JSON.stringify({}),
     });
     lastRefreshAt.set(machineId, Date.now());
 
-    const body = await response.json().catch(() => null) as {
-        status?: string;
-        error?: string;
-        machines?: Array<{ machineId?: string; tunnelClaim?: string }>;
-    } | null;
-
     if (!response.ok) {
-        if (response.status >= 400 && response.status < 500 && (body?.error === 'device_code_expired' || body?.error === 'access_denied')) {
-            throw new DeviceCodeExpired(machineId);
-        }
         throw new Error(`Failed to refresh tunnel claim: ${response.status}`);
     }
-    if (body?.error === 'device_code_expired' || body?.error === 'access_denied') {
-        throw new DeviceCodeExpired(machineId);
-    }
 
-    const machines = body?.machines ?? [];
-    if (machines.length !== 1) {
-        throw new Error(`Pair status response must contain exactly one machine, got ${machines.length}`);
-    }
-    const machine = machines.find(item => item.machineId === machineId);
-    if (!machine?.tunnelClaim) {
+    const body = await response.json() as { machine?: { machineId?: string; tunnelClaim?: string } };
+    if (!body.machine || body.machine.machineId !== machineId || !body.machine.tunnelClaim) {
         throw new MachineNotInRefreshResponse(machineId);
     }
-    validateFreshClaim(machine.tunnelClaim);
-    return machine.tunnelClaim;
+    validateFreshClaim(body.machine.tunnelClaim);
+    return body.machine.tunnelClaim;
 }
 
 export function refreshTunnelClaim(credentials: AuthCredentials, machineId: string): Promise<string> {

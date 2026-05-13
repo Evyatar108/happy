@@ -159,7 +159,7 @@ export async function tunnelFetch(path: string, init: RequestInit = {}): Promise
   const makeRequest = async () => await fetch(appendPath(baseUrl, path), {
     ...init,
     signal: init.signal ?? AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    headers: mergeHeaders(init, { 'X-Tunnel-Authorization': await mintTunnelClaim() }),
+    headers: mergeHeaders(init, { 'X-Codexu-Authorization': await mintTunnelClaim() }),
   });
 
   let response = await makeRequest();
@@ -172,11 +172,11 @@ export async function tunnelFetch(path: string, init: RequestInit = {}): Promise
   return response;
 }
 
-export async function tunnelSocketIOOptions(): Promise<{ url: string; auth: { tunnelAuthorization: string } }> {
+export async function tunnelSocketIOOptions(): Promise<{ url: string; auth: { codexuAuthorization: string } }> {
   await ensureDaemonReady();
   return {
     url: await getTunnelLocalBaseUrl(),
-    auth: { tunnelAuthorization: await mintTunnelClaim() },
+    auth: { codexuAuthorization: await mintTunnelClaim() },
   };
 }
 

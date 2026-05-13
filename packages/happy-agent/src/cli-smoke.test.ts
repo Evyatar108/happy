@@ -394,17 +394,17 @@ describe('Smoke: spawn and resume tunnel RPC wiring', () => {
                 res.end(JSON.stringify({ sessions: [rawSession] }));
                 return;
             }
-            if (req.method === 'POST' && req.url === '/pair/status') {
+            if (req.method === 'POST' && req.url === '/pair/complete') {
                 pairStatusCalls += 1;
                 const now = Math.floor(Date.now() / 1000);
                 res.writeHead(200, { 'content-type': 'application/json' });
                 res.end(JSON.stringify({
-                    status: 'authorized',
-                    machines: [{
+                    githubLogin: 'octocat',
+                    machine: {
                         machineId: 'machine-1',
                         tunnelUrl,
                         tunnelClaim: encodeTunnelClaim({ accountId: 123, iat: now, exp: now + 600, jti: `jti-${pairStatusCalls}` }),
-                    }],
+                    },
                 }));
                 return;
             }
@@ -470,7 +470,7 @@ describe('Smoke: spawn and resume tunnel RPC wiring', () => {
             expect(rpcCalls[0].params).toMatchObject({ machineId: 'machine-1', type: 'spawn-in-directory', directory: '/repo' });
             expect(rpcCalls[1].params).toMatchObject({ machineId: 'machine-1', repoPath: '/repo', agent: 'codex' });
             expect(rpcCalls[2].params).toEqual({ machineId: 'machine-1', sessionId: 'session-source' });
-            expect(rpcCalls.every(call => (call.auth as { tunnelAuthorization?: string }).tunnelAuthorization?.startsWith('tunnel '))).toBe(true);
+            expect(rpcCalls.every(call => (call.auth as { codexuAuthorization?: string }).codexuAuthorization?.startsWith('tunnel '))).toBe(true);
         } finally {
             ioServer.close();
             server.close();

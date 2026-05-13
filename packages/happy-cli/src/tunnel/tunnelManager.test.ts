@@ -20,6 +20,14 @@ describe('TunnelManager', () => {
     return dir;
   }
 
+  it('composes tunnelName as codexu-<hostname> under the 49-char limit', () => {
+    const manager = new TunnelManager({ happyHomeDir: tempHome() });
+    const name = manager.tunnelName();
+    expect(name).toMatch(/^codexu-[a-z0-9][a-z0-9-]*[a-z0-9]$/);
+    expect(name.length).toBeLessThanOrEqual(49);
+    expect(name.length).toBeGreaterThanOrEqual(8);
+  });
+
   it('renews tunnels older than 25 days', async () => {
     const calls: string[][] = [];
     const runner: CommandRunner = (command, args) => {
@@ -65,7 +73,7 @@ describe('TunnelManager', () => {
     }, happyHomeDir);
 
     const manager = new TunnelManager({ happyHomeDir, runner });
-    const config = await manager.init('machine-123', 62000);
+    const config = await manager.init(62000);
 
     expect(config.tunnelId).toBe('existing-tunnel');
     expect(calls.some((call) => call[1] === 'create')).toBe(false);

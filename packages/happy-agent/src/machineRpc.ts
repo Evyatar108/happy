@@ -65,15 +65,15 @@ async function callMachineRpc(
     method: string,
     params: MachineRpcParams,
 ): Promise<SpawnMachineSessionResult> {
-    const connectHeaders = { 'X-Tunnel-Connect': connectToken };
+    const gatewayHeaders = { 'X-Tunnel-Authorization': `tunnel ${connectToken}`, 'X-Codexu-Authorization': `tunnel ${tunnelClaim}` };
     const socket = io(tunnelUrl, {
         auth: {
-            tunnelAuthorization: `tunnel ${tunnelClaim}`,
+            codexuAuthorization: `tunnel ${tunnelClaim}`,
         },
-        extraHeaders: connectHeaders,
+        extraHeaders: gatewayHeaders,
         transportOptions: {
-            websocket: { extraHeaders: connectHeaders },
-            polling: { extraHeaders: connectHeaders },
+            websocket: { extraHeaders: gatewayHeaders },
+            polling: { extraHeaders: gatewayHeaders },
         },
         path: '/v1/updates',
         transports: ['websocket'],

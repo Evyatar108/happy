@@ -65,7 +65,7 @@ export class DevTunnelsDaemonProvider implements DaemonTunnelProvider {
   }
 
   async createHostTunnel(options: CreateHostTunnelOptions): Promise<TunnelConfig> {
-    const config = await this.manager.init(options.machineId, options.port);
+    const config = await this.manager.init(options.port);
     this.applyTags(config.tunnelId, normalizeTags(options.machineId, options.extraTags));
     this.manager.startHost(config, options.port);
     return config;
@@ -85,7 +85,7 @@ export class DevTunnelsDaemonProvider implements DaemonTunnelProvider {
   private applyTags(tunnelId: string, tags: string[]): void {
     if (!this.runner || tags.length === 0) return;
 
-    const result = this.runner('devtunnel', ['update', tunnelId, '--labels', tags.join(',')]);
+    const result = this.runner('devtunnel', ['update', tunnelId, '--add-labels', tags.join(',')]);
     if (result.status !== 0) {
       throw new Error(`Failed to apply Dev Tunnel labels to ${tunnelId}: ${result.stderr || result.stdout || 'unknown error'}`);
     }

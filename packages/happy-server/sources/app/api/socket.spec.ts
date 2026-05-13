@@ -152,7 +152,7 @@ describe("createSocketAuthMiddleware — AC-A10 loopback vs tunnel auth", () => 
             auth: "loopback",
             paths: { loopbackCap: capabilityPath },
         });
-        const socket = fakeSocket({ "x-tunnel-authorization": `tunnel ${claim}` });
+        const socket = fakeSocket({ "x-codexu-authorization": `tunnel ${claim}` });
         const next = vi.fn();
 
         await middleware(socket, next);
@@ -167,7 +167,7 @@ describe("createSocketAuthMiddleware — AC-A10 loopback vs tunnel auth", () => 
             tunnelConfig.ed25519SecretKey
         );
         const middleware = createSocketAuthMiddleware(tunnelConfig, { auth: "tunnel" });
-        const socket = fakeSocket({ "x-tunnel-authorization": `tunnel ${claim}` });
+        const socket = fakeSocket({ "x-codexu-authorization": `tunnel ${claim}` });
         const next = vi.fn();
 
         await middleware(socket, next);

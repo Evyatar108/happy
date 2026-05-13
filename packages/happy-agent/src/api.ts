@@ -315,9 +315,9 @@ export async function listKnownMachines(
             const connectToken = await ensureMachineConnectToken(config, creds, machine);
             const resp = await axios.get(`${machine.tunnelUrl}/v2/me/machine`, {
                 headers: {
-                    'X-Tunnel-Authorization': `tunnel ${machine.tunnelClaim}`,
+                    'X-Tunnel-Authorization': `tunnel ${connectToken}`,
+                    'X-Codexu-Authorization': `tunnel ${machine.tunnelClaim}`,
                     'X-Happy-Client': 'cli-control-plane/0.1.0',
-                    'X-Tunnel-Connect': connectToken,
                 },
                 timeout: 10_000,
             });
@@ -362,15 +362,13 @@ export async function refreshTunnelClaim(
     }
 
     const connectToken = await ensureMachineConnectToken(config, creds, target);
-    let response: PairStatusResponse;
+    let response: { githubLogin?: string; machine?: { machineId?: string; tunnelUrl?: string; tunnelClaim?: string } };
     try {
-        const resp = await axios.post(`${target.tunnelUrl}/pair/status`, {
-            device_code: creds.deviceCode,
-        }, {
-            headers: { 'X-Happy-Client': 'cli-control-plane/0.1.0', 'X-Tunnel-Connect': connectToken },
+        const resp = await axios.post(`${target.tunnelUrl}/pair/complete`, {}, {
+            headers: { 'Content-Type': 'application/json', 'X-Happy-Client': 'cli-control-plane/0.1.0', 'X-Tunnel-Authorization': `tunnel ${connectToken}` },
             timeout: 30_000,
         });
-        response = resp.data as PairStatusResponse;
+        response = resp.data as typeof response;
     } catch (error) {
         if (error instanceof AxiosError) {
             if (error.response?.status === 401) throw new RefreshFailedError();
@@ -380,27 +378,19 @@ export async function refreshTunnelClaim(
         throw new NetworkError(error instanceof Error ? error.message : String(error));
     }
 
-    if (response.status === 'expired') {
-        throw new RefreshFailedError("Device code expired. Run 'happy-agent auth login'");
-    }
-    if (response.status !== 'authorized' || !response.machines?.[0]) {
-        throw new RefreshFailedError(`Unexpected tunnel refresh status: ${response.status}`);
-    }
-
-    const refreshed = response.machines[0];
-    if (refreshed.machineId !== machineId) {
-        throw new RefreshFailedError(`Pair status returned machine ${refreshed.machineId}, expected ${machineId}`);
+    if (!response.machine || response.machine.machineId !== machineId || !response.machine.tunnelUrl || !response.machine.tunnelClaim) {
+        throw new RefreshFailedError(`Pair complete returned machine ${response.machine?.machineId ?? 'unknown'}, expected ${machineId}`);
     }
     try {
-        new URL(refreshed.tunnelUrl);
+        new URL(response.machine.tunnelUrl);
     } catch {
-        throw new InvalidTunnelUrlError(refreshed.tunnelUrl);
+        throw new InvalidTunnelUrlError(response.machine.tunnelUrl);
     }
     return {
-        tunnelUrl: refreshed.tunnelUrl,
-        tunnelClaim: refreshed.tunnelClaim,
+        tunnelUrl: response.machine.tunnelUrl,
+        tunnelClaim: response.machine.tunnelClaim,
         connectToken,
-        accountId: accountIdFromTunnelClaim(refreshed.tunnelClaim),
+        accountId: accountIdFromTunnelClaim(response.machine.tunnelClaim),
     };
 }
 

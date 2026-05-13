@@ -60,7 +60,7 @@ describe("/v2/me routes", () => {
         configureApi(loopbackApp, tofuConfig, { ...options, auth: "loopback" });
 
         const tunnelClaim = await encodeTunnelClaim({ sub: "local-user", iat: Math.floor(Date.now() / 1000), accountId: 42 }, tofuConfig.ed25519SecretKey!);
-        const tunnelHeaders = { "X-Tunnel-Authorization": `tunnel ${tunnelClaim}` };
+        const tunnelHeaders = { "X-Codexu-Authorization": `tunnel ${tunnelClaim}` };
         const loopbackHeaders = { "X-Loopback-Capability": "capability-token" };
 
         await expect(tunnelApp.inject({ method: "GET", url: "/v2/me/profile", headers: tunnelHeaders }).then(r => r.json())).resolves.toEqual({
@@ -116,7 +116,7 @@ describe("/v2/me routes", () => {
         const response = await tunnelApp.inject({
             method: "PUT",
             url: "/v2/me/settings",
-            headers: { "X-Tunnel-Authorization": `tunnel ${tunnelClaim}`, "Content-Type": "application/json" },
+            headers: { "X-Codexu-Authorization": `tunnel ${tunnelClaim}`, "Content-Type": "application/json" },
             payload: JSON.stringify(oversized),
         });
         expect(response.statusCode).toBe(413);
@@ -159,7 +159,7 @@ describe("/v2/me routes", () => {
         const legacyResponse = await tunnelApp.inject({
             method: "GET",
             url: "/v2/me/profile",
-            headers: { "X-Tunnel-Authorization": `tunnel ${legacyClaim}` },
+            headers: { "X-Codexu-Authorization": `tunnel ${legacyClaim}` },
         });
         expect(legacyResponse.statusCode).toBe(401);
         expect(legacyResponse.json()).toEqual({ error: "account_id_required" });
@@ -167,7 +167,7 @@ describe("/v2/me routes", () => {
         const tunnelClaimOnLoopback = await loopbackApp.inject({
             method: "GET",
             url: "/v2/me/profile",
-            headers: { "X-Tunnel-Authorization": `tunnel ${validClaim}` },
+            headers: { "X-Codexu-Authorization": `tunnel ${validClaim}` },
         });
         expect(tunnelClaimOnLoopback.statusCode).toBe(401);
         expect(tunnelClaimOnLoopback.json()).toEqual({ error: "invalid_loopback_capability" });

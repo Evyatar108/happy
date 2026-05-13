@@ -62,7 +62,7 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
     const allowedOrigins = parseCorsOrigins();
     fastifyApp.register(import('@fastify/cors'), {
         origin: allowedOrigins.length === 0 ? false : allowedOrigins,
-        allowedHeaders: ['X-Tunnel-Authorization', 'X-Loopback-Capability', 'X-Happy-Client', 'Content-Type', 'X-Tunnel-Connect'],
+        allowedHeaders: ['X-Tunnel-Authorization', 'X-Codexu-Authorization', 'X-Loopback-Capability', 'X-Happy-Client', 'Content-Type'],
         methods: ['GET', 'POST', 'PUT', 'DELETE']
     });
     fastifyApp.get('/', function (request, reply) {
@@ -79,7 +79,7 @@ export function configureApi(app: any, tofuConfig: TofuHandshakeConfig = { local
     enableErrorHandlers(typed);
     typed.decorate('verifyLoopbackCapability', verifyLoopbackCapability(options.paths, tofuConfig.localUserId));
     typed.decorate('authenticateTunnelClaim', async function (request: any, reply: any) {
-        const authHeader = request.headers['x-tunnel-authorization'] as string | undefined;
+        const authHeader = request.headers['x-codexu-authorization'] as string | undefined;
         const result = await verifyTunnelClaim(authHeader, tofuConfig);
         if (!result.ok) {
             const status = result.reason === 'tunnel_verification_unavailable' ? 503 : 401;

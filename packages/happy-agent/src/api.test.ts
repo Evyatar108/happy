@@ -229,18 +229,17 @@ describe('api', () => {
     });
 
     describe('refreshTunnelClaim', () => {
-        it('refreshes a known machine claim with a 30s pair/status request', async () => {
+        it('refreshes a known machine claim with a 30s /pair/complete request', async () => {
             const now = Math.floor(Date.now() / 1000);
             const tunnelClaim = encodeTunnelClaim({ accountId: 456, iat: now, exp: now + 600, jti: 'fresh-jti' });
             mockedAxios.post.mockResolvedValueOnce({
                 data: {
-                    status: 'authorized',
-                    machines: [{
+                    githubLogin: 'octocat',
+                    machine: {
                         machineId: 'machine-1',
                         tunnelUrl: 'https://machine-1.devtunnels.ms',
                         tunnelClaim,
-                        accountId: 999,
-                    }],
+                    },
                 },
             });
 
@@ -253,9 +252,9 @@ describe('api', () => {
                 accountId: 456,
             });
             expect(mockedAxios.post).toHaveBeenCalledWith(
-                'https://machine-1.devtunnels.ms/pair/status',
-                { device_code: 'device-code' },
-                { headers: { 'X-Happy-Client': 'cli-control-plane/0.1.0', 'X-Tunnel-Connect': 'connect-jwt' }, timeout: 30_000 },
+                'https://machine-1.devtunnels.ms/pair/complete',
+                {},
+                { headers: { 'Content-Type': 'application/json', 'X-Happy-Client': 'cli-control-plane/0.1.0', 'X-Tunnel-Authorization': 'tunnel connect-jwt' }, timeout: 30_000 },
             );
         });
 
@@ -303,32 +302,31 @@ describe('api', () => {
 
         it('throws RefreshFailedError before claim decode when response machineId does not match requested machineId', async () => {
             const now = Math.floor(Date.now() / 1000);
-            const mismatchedResponse = {
+            mockedAxios.post.mockResolvedValueOnce({
                 data: {
-                    status: 'authorized',
-                    machines: [{
+                    githubLogin: 'octocat',
+                    machine: {
                         machineId: 'machine-9',
                         tunnelUrl: 'https://machine-9.devtunnels.ms',
                         tunnelClaim: encodeTunnelClaim({ accountId: 456, iat: now, exp: now + 600, jti: 'fresh-jti' }),
-                    }],
+                    },
                 },
-            };
-            mockedAxios.post.mockResolvedValueOnce(mismatchedResponse);
+            });
 
             await expect(refreshTunnelClaim(config, creds, 'machine-1')).rejects.toThrow(
-                new RefreshFailedError('Pair status returned machine machine-9, expected machine-1'),
+                new RefreshFailedError('Pair complete returned machine machine-9, expected machine-1'),
             );
         });
 
         it('rejects tunnel claims without required signed-envelope payload fields', async () => {
             mockedAxios.post.mockResolvedValueOnce({
                 data: {
-                    status: 'authorized',
-                    machines: [{
+                    githubLogin: 'octocat',
+                    machine: {
                         machineId: 'machine-1',
                         tunnelUrl: 'https://machine-1.devtunnels.ms',
                         tunnelClaim: encodeTunnelClaim({ accountId: 'bad', iat: 1, exp: 2, jti: 'jti' }),
-                    }],
+                    },
                 },
             });
 
@@ -339,12 +337,12 @@ describe('api', () => {
             const now = Math.floor(Date.now() / 1000);
             mockedAxios.post.mockResolvedValueOnce({
                 data: {
-                    status: 'authorized',
-                    machines: [{
+                    githubLogin: 'octocat',
+                    machine: {
                         machineId: 'machine-1',
                         tunnelUrl: 'https://machine-1.devtunnels.ms',
                         tunnelClaim: encodeTunnelClaim({ accountId: 456, iat: now - 600, exp: now - 1, jti: 'jti-expired' }),
-                    }],
+                    },
                 },
             });
 
@@ -356,12 +354,12 @@ describe('api', () => {
             const now = Math.floor(Date.now() / 1000);
             mockedAxios.post.mockResolvedValueOnce({
                 data: {
-                    status: 'authorized',
-                    machines: [{
+                    githubLogin: 'octocat',
+                    machine: {
                         machineId: 'machine-1',
                         tunnelUrl: 'https://machine-1.devtunnels.ms',
                         tunnelClaim: encodeTunnelClaim({ accountId: 456, iat: now, exp: now + 600, jti: 'fresh-jti' }),
-                    }],
+                    },
                 },
             });
 
@@ -391,9 +389,9 @@ describe('api', () => {
                 'https://machine-1.devtunnels.ms/v2/me/machine',
                 {
                     headers: {
-                        'X-Tunnel-Authorization': `tunnel ${creds.machines[0].tunnelClaim}`,
+                        'X-Tunnel-Authorization': 'tunnel connect-jwt',
+                        'X-Codexu-Authorization': `tunnel ${creds.machines[0].tunnelClaim}`,
                         'X-Happy-Client': 'cli-control-plane/0.1.0',
-                        'X-Tunnel-Connect': 'connect-jwt',
                     },
                     timeout: 10_000,
                 },

@@ -13,11 +13,9 @@ import { t } from '@/text';
 import {
     credentialsFromPairMachine,
     acquireConnectTokenForPair,
+    completePair,
     fetchGitHubUserProfile,
     loginInteractive,
-    openGitHubDeviceFlow,
-    startPairFlow,
-    waitForPairStatus,
     type PairMachine,
 } from '@/auth/pairing';
 import { deriveConnectTokenExpiry } from '@/auth/connectTokenRefresh';
@@ -77,10 +75,10 @@ export function NotAuthenticated({ tunnelProvider }: NotAuthenticatedProps = {})
         loginInteractive,
     }), [tunnelProvider]);
 
-    const completePairing = async (
+    const persistPairedCredentials = async (
         sourceMachine: MachineTunnel,
         machine: PairMachine,
-        metadata: { login: string; avatarUrl: string; deviceCode: string; deviceCodeExpiresAt: number; connectToken: string; connectTokenExpiry: number },
+        metadata: { login: string; avatarUrl: string; connectToken: string; connectTokenExpiry: number },
     ) => {
         const credentials = credentialsFromPairMachine(sourceMachine, machine, metadata);
         await auth.login(credentials);
@@ -119,19 +117,11 @@ export function NotAuthenticated({ tunnelProvider }: NotAuthenticatedProps = {})
         avatarUrl: string,
     ) => {
         const { connectToken } = await acquireConnectTokenForPair(machine);
-        const flow = await startPairFlow(machine, connectToken);
-        const deviceCodeExpiresAt = Date.now() + (flow.expires_in ?? 15 * 60) * 1000;
-        await openGitHubDeviceFlow(flow);
-        const status = await waitForPairStatus(machine, flow, connectToken);
+        const { machine: pairedMachine } = await completePair(machine, connectToken);
         const connectTokenExpiry = deriveConnectTokenExpiry();
-        const paired = status.machines?.[0];
-        if (!paired) throw new Error(t('welcome.pairingFailed'));
-
-        await completePairing(machine, paired, {
+        await persistPairedCredentials(machine, pairedMachine, {
             login,
             avatarUrl,
-            deviceCode: flow.device_code,
-            deviceCodeExpiresAt,
             connectToken,
             connectTokenExpiry,
         });

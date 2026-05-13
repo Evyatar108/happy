@@ -81,10 +81,35 @@ function portUrl(tunnel: RawTunnel): string | null {
     for (const port of ports) {
         if (typeof port !== 'object' || port === null) continue;
         const values = port as RawTunnel;
-        const url = stringValue(values.portForwardingUri) ?? stringValue(values.webForwardingUri) ?? stringValue(values.url);
-        if (url) return url;
+        const uris = values.portForwardingUris;
+        if (Array.isArray(uris)) {
+            for (const candidate of uris) {
+                const url = stringValue(candidate);
+                if (url) return stripTrailingSlash(url);
+            }
+        }
+        const fallback = stringValue(values.portUri)
+            ?? stringValue(values.portForwardingUri)
+            ?? stringValue(values.webForwardingUri)
+            ?? stringValue(values.url);
+        if (fallback) return stripTrailingSlash(fallback);
     }
     return null;
+}
+
+function endpointUrl(tunnel: RawTunnel): string | null {
+    const endpoints = Array.isArray(tunnel.endpoints) ? tunnel.endpoints : [];
+    for (const endpoint of endpoints) {
+        if (typeof endpoint !== 'object' || endpoint === null) continue;
+        const values = endpoint as RawTunnel;
+        const url = stringValue(values.tunnelUri) ?? stringValue(values.webForwardingUri);
+        if (url) return stripTrailingSlash(url);
+    }
+    return null;
+}
+
+function stripTrailingSlash(url: string): string {
+    return url.endsWith('/') ? url.slice(0, -1) : url;
 }
 
 function machineIdFor(tunnel: RawTunnel, labels: string[], tunnelId: string): string {
@@ -112,16 +137,18 @@ function ownerFor(tunnel: RawTunnel): string {
 function mapTunnel(tunnel: RawTunnel): MachineTunnel {
     const tunnelId = stringValue(tunnel.tunnelId) ?? stringValue(tunnel.id) ?? stringValue(tunnel.name);
     if (!tunnelId) throw new Error('Dev Tunnels response did not include a tunnel id');
+    console.log('[tunnelProvider] mapTunnel raw keys', Object.keys(tunnel), 'ports', JSON.stringify(tunnel.ports), 'endpoints', JSON.stringify(tunnel.endpoints));
     const labels = labelsFor(tunnel);
     return MachineTunnelSchema.parse({
         machineId: machineIdFor(tunnel, labels, tunnelId),
         tunnelId,
-        url: stringValue(tunnel.tunnelUri)
+        url: portUrl(tunnel)
+            ?? stringValue(tunnel.tunnelUri)
             ?? stringValue(tunnel.webForwardingUri)
             ?? stringValue(tunnel.connectUrl)
             ?? stringValue(tunnel.url)
-            ?? portUrl(tunnel)
-            ?? `https://${tunnelId}.devtunnels.ms`,
+            ?? endpointUrl(tunnel)
+            ?? (() => { throw new Error(`Dev Tunnels response did not include a usable URL for tunnel ${tunnelId}`); })(),
         tags: labels,
         lastSeenAt: stringValue(tunnel.lastHostConnectionTime) ?? stringValue(tunnel.updatedAt) ?? Date.now(),
         owner: ownerFor(tunnel),

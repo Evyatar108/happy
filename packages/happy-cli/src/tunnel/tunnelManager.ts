@@ -72,29 +72,42 @@ function safeTunnelPart(value: string): string {
     .slice(0, 48);
 }
 
+function stripTrailingSlash(url: string): string {
+  return url.endsWith('/') ? url.slice(0, -1) : url;
+}
+
 function parseTunnelUrl(output: string, tunnelId: string): string {
+  // Prefer the port-specific URL (Microsoft assigns a short id like
+  // `58l8c10h-51371.usw2.devtunnels.ms`) so HTTP forwarding hits the right port.
+  // Falls back to base tunnel URL or text-extracted URL, then errors out — never
+  // silently composes `https://${tunnelId}.devtunnels.ms`, which Microsoft rejects.
   const jsonStart = output.indexOf('{');
   if (jsonStart >= 0) {
     try {
       const parsed = JSON.parse(output.slice(jsonStart));
-      for (const value of [parsed?.tunnelUri, parsed?.webForwardingUri, parsed?.connectUrl, parsed?.url]) {
-        if (typeof value === 'string' && /^https:\/\//.test(value)) return value;
-      }
-      const ports = Array.isArray(parsed?.ports) ? parsed.ports : [];
+      const tunnel = parsed?.tunnel ?? parsed;
+      const ports = Array.isArray(tunnel?.ports) ? tunnel.ports : [];
       for (const port of ports) {
-        for (const value of [port?.portForwardingUri, port?.webForwardingUri, port?.url]) {
-          if (typeof value === 'string' && /^https:\/\//.test(value)) return value;
+        const candidates = [port?.portUri, port?.portForwardingUri, port?.webForwardingUri, port?.url];
+        if (Array.isArray(port?.portForwardingUris)) {
+          candidates.push(...port.portForwardingUris);
         }
+        for (const value of candidates) {
+          if (typeof value === 'string' && /^https:\/\//.test(value)) return stripTrailingSlash(value);
+        }
+      }
+      for (const value of [tunnel?.tunnelUri, tunnel?.webForwardingUri, tunnel?.connectUrl, tunnel?.url]) {
+        if (typeof value === 'string' && /^https:\/\//.test(value)) return stripTrailingSlash(value);
       }
     } catch {
       // Fall through to text parsing.
     }
   }
 
-  const url = output.match(/https:\/\/[^\s"']+/)?.[0];
-  if (url) return url;
+  const url = output.match(/https:\/\/[A-Za-z0-9][A-Za-z0-9.-]*-\d+\.[a-z0-9.-]+\.devtunnels\.ms[^\s"']*/)?.[0];
+  if (url) return stripTrailingSlash(url);
 
-  return `https://${tunnelId}.devtunnels.ms`;
+  throw new Error(`Could not parse a Dev Tunnels port URL for ${tunnelId} from devtunnel output`);
 }
 
 function daysBetween(now: Date, then: Date): number {
@@ -139,8 +152,8 @@ export class TunnelManager {
     this.now = options.now ?? (() => new Date());
   }
 
-  tunnelName(machineId: string): string {
-    return `happy-${safeTunnelPart(os.hostname())}-${safeTunnelPart(machineId)}`;
+  tunnelName(): string {
+    return `codexu-${safeTunnelPart(os.hostname())}`;
   }
 
   checkDevTunnelVersion(): { installed: boolean; version: string | null; warning: string | null } {
@@ -175,7 +188,7 @@ export class TunnelManager {
     }
   }
 
-  async init(machineId: string, localPort: number): Promise<TunnelConfig> {
+  async init(localPort: number): Promise<TunnelConfig> {
     const version = this.checkDevTunnelVersion();
     if (version.warning) {
       console.warn(version.warning);
@@ -189,11 +202,18 @@ export class TunnelManager {
     const existing = readTunnelConfig(this.happyHomeDir);
     if (existing) {
       await this.ensurePort(existing.tunnelId, localPort);
-      await this.persistTunnelUrl(existing.tunnelUrl);
-      return existing;
+      // Re-derive the port-specific URL via `devtunnel show --json` so callers
+      // never inherit a stale base-tunnel URL from earlier buggy runs.
+      const show = this.runner('devtunnel', ['show', existing.tunnelId, '--json']);
+      const refreshedUrl = parseTunnelUrl(show.stdout + show.stderr, existing.tunnelId);
+      if (refreshedUrl !== existing.tunnelUrl) {
+        await writeTunnelConfig({ ...existing, tunnelUrl: refreshedUrl }, this.happyHomeDir);
+      }
+      await this.persistTunnelUrl(refreshedUrl);
+      return { ...existing, tunnelUrl: refreshedUrl };
     }
 
-    const tunnelId = this.tunnelName(machineId);
+    const tunnelId = this.tunnelName();
     const create = this.runner('devtunnel', [
       'create',
       tunnelId,
@@ -228,14 +248,22 @@ export class TunnelManager {
 
     await this.autoRenewIfNeeded(config);
     await this.ensurePort(config.tunnelId, localPort);
-    await this.persistTunnelUrl(config.tunnelUrl);
-    return config;
+    // Always re-derive the port-specific URL from `devtunnel show --json` so the
+    // daemon never publishes a stale base-tunnel URL into `tofuConfig.publicUrl`.
+    const show = this.runner('devtunnel', ['show', config.tunnelId, '--json']);
+    const refreshedUrl = parseTunnelUrl(show.stdout + show.stderr, config.tunnelId);
+    const refreshed = { ...config, tunnelUrl: refreshedUrl };
+    if (refreshedUrl !== config.tunnelUrl) {
+      await writeTunnelConfig(refreshed, this.happyHomeDir);
+    }
+    await this.persistTunnelUrl(refreshedUrl);
+    return refreshed;
   }
 
   startHost(config: TunnelConfig, localPort: number): void {
     if (this.hostProcess) return;
 
-    this.hostProcess = this.spawner('devtunnel', ['host', config.tunnelId, '--port-number', String(localPort)]);
+    this.hostProcess = this.spawner('devtunnel', ['host', config.tunnelId]);
     this.hostProcess.on('error', (error) => {
       logger.debug(`[TUNNEL] Dev Tunnel host failed for ${config.tunnelId}: ${error.message}`);
     });
@@ -312,7 +340,7 @@ export async function runInitCommand(): Promise<void> {
   }
 
   const manager = new TunnelManager();
-  const config = await manager.init(settings.machineId, machineState.tunnelPort);
+  const config = await manager.init(machineState.tunnelPort);
   await writeMachineState({
     ...machineState,
     tunnelId: config.tunnelId,

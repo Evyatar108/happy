@@ -55,13 +55,13 @@ describe('DevTunnelsDaemonProvider', () => {
     });
 
     expect(result).toBe(config);
-    expect(manager.init).toHaveBeenCalledWith('machine-123', 62000);
+    expect(manager.init).toHaveBeenCalledWith(62000);
     expect(manager.startHost).toHaveBeenCalledWith(config, 62000);
     expect(calls).toContainEqual([
       'devtunnel',
       'update',
       'happy-test-machine',
-      '--labels',
+      '--add-labels',
       'happy-machine,machineId:machine-123,desktop',
     ]);
   });
@@ -85,7 +85,7 @@ describe('DevTunnelsDaemonProvider', () => {
       ([cmd, args]) => cmd === 'devtunnel' && Array.isArray(args) && (args as string[]).includes('update'),
     );
     expect(labelCall).toBeDefined();
-    expect(labelCall?.[1]).toEqual(['update', 'happy-test-machine', '--labels', 'happy-machine,machineId:machine-456']);
+    expect(labelCall?.[1]).toEqual(['update', 'happy-test-machine', '--add-labels', 'happy-machine,machineId:machine-456']);
   });
 
   it('rejects machineId with invalid characters before invoking spawnSync', async () => {

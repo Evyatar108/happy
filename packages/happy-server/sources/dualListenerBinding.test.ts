@@ -86,7 +86,7 @@ describe("dual-listener network binding", () => {
         await loopback.listen({ port: loopbackPort, host: "127.0.0.1" });
 
         const claim = await encodeTunnelClaim({ sub: "machine-1", iat: Math.floor(Date.now() / 1000), accountId: 42 }, secretKey);
-        const tunnelHeaders = { "X-Tunnel-Authorization": `tunnel ${claim}` };
+        const tunnelHeaders = { "X-Codexu-Authorization": `tunnel ${claim}` };
         const loopbackHeaders = { "X-Loopback-Capability": "capability-token" };
 
         await expect(fetch(`http://127.0.0.1:${tunnelPort}/v2/me/profile`, { headers: tunnelHeaders }).then(async response => ({ status: response.status, body: await response.json() }))).resolves.toEqual({
