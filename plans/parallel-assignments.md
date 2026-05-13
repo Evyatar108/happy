@@ -48,7 +48,7 @@ If you have spare capacity, three more lanes are also parallel-safe with all fiv
 
 ### Sequencing after batch 1
 
-Once perf-WS3 lands → fire `perf-WS2`.
+Once perf-WS3 lands → fire `perf-WS2` AND `userid-cleanup` (the latter strips WS3's now-trivial userId partition).
 Once perf-WS3 + F-015 land → fire `polish-Fs` (different operator may also choose to fire F-014 deploy when convenient).
 Once 3a-skills is re-spawned and lands its discovery → fire `3b-agents`, `3d-workers`, `3fg-package` (themselves serialized internally per plan).
 Once codex-parity-audit lands → operator triages the gaps and may queue new per-gap ralph commands.
@@ -103,6 +103,16 @@ Once codex-parity-audit lands → operator triages the gaps and may queue new pe
 
 ```
 /plan-with-ralph "Add per-cwd .mcp.json discovery for the codex agent under happy-cli. Per plans/codexu-roadmap.md 'Codex agent project-.mcp.json parity' bullet. Gap: the Claude agent under happy reads .mcp.json from session cwd (Claude Code's native convention), but the codex agent does NOT — packages/happy-cli/src/codex/runCodex.ts:700-705 builds the mcpServers object handed to client.startThread({ mcpServers }) with ONLY the 'happy' bridge entry; project-level MCP servers are silently dropped. The codex fork at gim-home/codex HEAD ed5d2fd has .mcp.json reading code only in the external-agent one-shot migrator and the plugin-internal loader; no per-thread cwd discovery exists upstream. Fix on the happy-cli side: read <process.cwd()>/.mcp.json (Claude shape: { mcpServers: Record<string, { command: string; args?: string[]; env?: Record<string,string>; type?: 'stdio' | 'http'; url?: string }> }), validate with a Zod schema, merge its mcpServers into the object passed to startThread AND resumeExistingThread (both call sites in runCodex.ts at lines ~724 and ~791). On malformed .mcp.json or individual entry validation failure, log a structured warning via @/ui/logger and skip that entry — never abort the session. Silently skip if .mcp.json is absent. Read packages/happy-cli/CLAUDE.md and packages/happy-cli/src/daemon/CLAUDE.md for the codex transport context. Acceptance: 3 new tests in packages/happy-cli/src/codex/runCodex.test.ts or sibling — (a) cwd with valid .mcp.json containing 1 entry, assert mcpServers passed to startThread mock contains BOTH 'happy' bridge AND the project entry; (b) absent .mcp.json, assert only 'happy' bridge passed; (c) malformed .mcp.json (broken JSON or invalid shape), assert warning logged + only 'happy' bridge passed. Test command: pnpm --filter '{packages/happy-cli}' exec vitest run 2>&1 | tee /tmp/codexu-mcp-disc.log. Cross-package typecheck stays green. Single commit referencing the roadmap bullet. Update the roadmap bullet to mark this delivered."
+```
+
+---
+
+## `userid-cleanup` — drop multi-tenant `userId` scoping from happy-server
+
+> **Sequence after `perf-WS3` lands.** WS3's current plan adds a per-user replay-buffer ring; this cleanup strips that partition (and ~140 other `userId` references) since happy-server is embedded in a single-user daemon. Doing this BEFORE WS3 lands would force WS3's mid-flight redesign — wait.
+
+```
+/plan-with-ralph "Drop multi-tenant userId scoping from happy-server. Per plans/codexu-roadmap.md 'Drop userId scoping in happy-server' bullet. Context: happy-server is now embedded inside the per-user daemon (Sprint A createHappyServer() + dualListenerBinding); exactly ONE user per process. Multi-tenant userId scoping (~140 refs across packages/happy-server/sources/) is dead weight. Scope: remove userId from request decorators (api.ts:88, loopbackCapability.ts:34); drop userId from Prisma queries on Session / SessionMessage / Machine; simplify eventRouter (packages/happy-server/sources/app/events/eventRouter.ts) to single-user fan-out (no per-user partition); drop allocateUserSeq's userId scoping (becomes process-global seq). Keep Prisma columns themselves — schema migration is OUT OF SCOPE; only code paths change. PREREQUISITE: perf-WS3 must already be on main; WS3's per-user ring buffer's userId partition gets stripped as part of this commit (mention this in commit body referencing the WS3 commit). Read packages/happy-server/CLAUDE.md before starting. Acceptance: cross-package typecheck green (happy-server + happy-cli + happy-app); all happy-server tests green; commit body lists every userId code path removed with file:line counts. Test command: pnpm --filter '{packages/happy-server}' exec vitest run 2>&1 | tee /tmp/codexu-userid-cleanup.log; cross-package: pnpm --filter '{packages/happy-server}' --filter '{packages/happy-cli}' --filter '{packages/happy-app}' exec tsc --noEmit 2>&1 | tee /tmp/codexu-userid-tc.log. Single commit on main. Pitfall: socket auth payload — clients still send a token; resolve it once at process start to the single-user identity, don't strip the auth layer."
 ```
 
 ---
@@ -246,6 +256,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `3fg-package` | Phase 3f + 3g — asset + packaging | ⬜ blocked on 3a discovery | — |
 | `3h-options` | Phase 3h — options-mode migration | ⬜ not started | — |
 | `polish-Fs` | F-017 + F-001/F-002 + F-003-F-007 | ⬜ not started | — |
+| `userid-cleanup` | Drop multi-tenant userId scoping in happy-server | ⬜ blocked on perf-WS3 | — |
 
 🟡 = in flight (agent running but not yet committed). Refresh after each landing.
 

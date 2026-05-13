@@ -538,6 +538,17 @@
     </div>
 
     <div class="card">
+      <div class="card-title">userid-cleanup — drop multi-tenant userId scoping in happy-server</div>
+      <div class="sub">happy-server is embedded in the single-user daemon since Sprint A; ~140 <code>userId</code> refs across <code>packages/happy-server/sources/</code> are dead weight. Strip from request decorators, Prisma queries, eventRouter fan-out, and <code>allocateUserSeq</code>. <strong>Blocked on perf-WS3</strong> — WS3's per-user ring buffer's userId partition gets stripped as part of this commit.</div>
+      <div class="card-meta">
+        <span class="pill area-server">happy-server</span>
+        <span class="pill p-med">medium</span>
+        <span>blocked on WS3</span>
+        <span class="sub">see <code>plans/codexu-roadmap.md</code> "Drop userId scoping"</span>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="card-title">F-014 — tunnel-label rename (server)</div>
       <div class="sub">Code change trivial. Blocked on happy-server redeploy window. Bundle with another server change.</div>
       <div class="card-meta">
@@ -744,6 +755,15 @@
   </details>
 
   <details class="cmd">
+    <summary><span class="cmd-name">userid-cleanup</span><span class="cmd-badge b-blocked">🔒 blocked on WS3</span><span class="cmd-desc">Drop multi-tenant userId scoping in happy-server (~140 refs)</span></summary>
+    <div class="cmd-body">
+      <div class="cmd-warn blocked">🔒 Sequence after <code>perf-WS3</code> lands. WS3's per-user replay-buffer ring partition gets stripped as part of this commit; firing this BEFORE WS3 would force a mid-flight redesign.</div>
+      <button class="copy-btn">Copy</button>
+<pre class="cmd-pre">/plan-with-ralph "Drop multi-tenant userId scoping from happy-server. Per plans/codexu-roadmap.md 'Drop userId scoping in happy-server' bullet. Context: happy-server is now embedded inside the per-user daemon (Sprint A createHappyServer() + dualListenerBinding); exactly ONE user per process. Multi-tenant userId scoping (~140 refs across packages/happy-server/sources/) is dead weight. Scope: remove userId from request decorators (api.ts:88, loopbackCapability.ts:34); drop userId from Prisma queries on Session / SessionMessage / Machine; simplify eventRouter (packages/happy-server/sources/app/events/eventRouter.ts) to single-user fan-out (no per-user partition); drop allocateUserSeq's userId scoping (becomes process-global seq). Keep Prisma columns themselves — schema migration is OUT OF SCOPE; only code paths change. PREREQUISITE: perf-WS3 must already be on main; WS3's per-user ring buffer's userId partition gets stripped as part of this commit (mention this in commit body referencing the WS3 commit). Read packages/happy-server/CLAUDE.md before starting. Acceptance: cross-package typecheck green (happy-server + happy-cli + happy-app); all happy-server tests green; commit body lists every userId code path removed with file:line counts. Test command: pnpm --filter '{packages/happy-server}' exec vitest run 2&gt;&amp;1 | tee /tmp/codexu-userid-cleanup.log; cross-package: pnpm --filter '{packages/happy-server}' --filter '{packages/happy-cli}' --filter '{packages/happy-app}' exec tsc --noEmit 2&gt;&amp;1 | tee /tmp/codexu-userid-tc.log. Single commit on main. Pitfall: socket auth payload — clients still send a token; resolve it once at process start to the single-user identity, don't strip the auth layer."</pre>
+    </div>
+  </details>
+
+  <details class="cmd">
     <summary><span class="cmd-name">polish-Fs</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">F-017 + F-001/F-002 + F-003..F-007 bundled polish PR</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⚠️ Sequence after <code>perf-WS3</code> lands — polish-Fs touches happy-server for security findings; would collide with perf-WS3's eventRouter changes.</div>
@@ -844,6 +864,7 @@
       <li><span class="item-name open">Realtime sync perf WS1 / WS2 / WS3</span> — see <a href="realtime-sync-perf.md">plan</a></li>
       <li><span class="item-name deferred">Realtime sync perf WS4</span> — conditional on WS3 outcome</li>
       <li><span class="item-name open">Codex agent project-.mcp.json parity</span> — happy-cli gap, ~45 min</li>
+      <li><span class="item-name deferred">Drop userId scoping (happy-server cleanup)</span> — ~140 refs, blocked on perf-WS3</li>
       <li><span class="item-name closed">Polish PR — F-013 closed</span> · <span class="item-name open">F-015 / F-017</span> — low-risk isolated</li>
       <li><span class="item-name deferred">F-014</span> — needs server redeploy</li>
       <li><span class="item-name deferred">F-016</span> — BOOX hardware quirk</li>

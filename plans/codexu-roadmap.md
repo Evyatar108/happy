@@ -392,6 +392,25 @@ conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
     `fetchMessages`). Targeted at a fresh agent with file paths, line refs,
     test plans, risks, pre-flight checklist. **This is the next concrete
     deliverable after Sprint E.**
+  - **Drop `userId` scoping in happy-server (open, surfaced 2026-05-13):**
+    happy-server is now embedded inside the per-user daemon (Sprint A
+    `createHappyServer()` + `dualListenerBinding()`). There is exactly ONE user
+    per process; multi-tenant `userId` scoping is dead weight. ~140 `userId`
+    references across `packages/happy-server/sources/` today — query WHERE
+    clauses, socket auth payloads, event-router fan-out keys, log fields,
+    Prisma column hints. Cleanup: remove `userId` from socket auth + request
+    decorators (everything resolves to a single static identity per process),
+    drop `userId` from Prisma queries (sessions/messages/machines), simplify
+    `eventRouter` to single-user fan-out (no per-user partition), drop
+    `allocateUserSeq`'s userId scoping (becomes process-global seq). Keep
+    Prisma columns themselves if cheap (re-introducing multi-tenancy later
+    would re-require them); the cleanup is at the code-path level. **Coordinate
+    with `perf-WS3`:** WS3's plan currently spec's a per-user replay-buffer
+    ring; in single-user mode the partition is trivial. Land the userId
+    cleanup AFTER WS3 lands so WS3 doesn't have to re-design mid-flight; the
+    cleanup then strips WS3's trivial userId partition. Estimated medium —
+    140 refs but mostly mechanical. Plan: `userid-cleanup` ralph command in
+    `plans/parallel-assignments.md`.
   - **Codex agent project-`.mcp.json` parity (open, surfaced 2026-05-13):**
     The Claude agent under happy reads `.mcp.json` from the session cwd (Claude
     Code's standard project-MCP convention) — so `codexu/.mcp.json` (with the
