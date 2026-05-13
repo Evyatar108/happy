@@ -231,6 +231,36 @@ Less-critical or sequenced-after-batch-1 ralph commands. Each is parallel-safe w
 
 ---
 
+## R — `agent-view-research` — Research Claude Code's agent-view feature
+
+> Research-only ralph job. Output: `plans/agent-view-research.md` + a decomposition into follow-up tasks. Parallel with anything.
+
+```
+/plan-with-ralph "Research Claude Code's 'agent view' feature (released recently). Output: a research doc at plans/agent-view-research.md that covers: (1) what the feature IS — how it presents agents, what UI affordances it gives, what spawning model it uses, what state it persists, what permissions / scoping it enforces; (2) where it lives in Claude Code (file paths, schema, RPC surface) — read the relevant source if accessible from C:/harness-efforts/claude-code/worktrees/main; (3) how it differs from codex's existing multi_agents_v2/spawn.rs and codex's [agents.<role>] TOML world (read codex/external/repos/codex-patched/codex-rs/multi_agents_v2/spawn.rs as reference — READ-ONLY per the minimize-conflict-surface tenet in plans/codexu-roadmap.md); (4) what concepts we'd want to bring to codexu: spawning model, state, persistence, communication, plugin-scoping. Output: the doc + a decomposition into follow-up ralph tasks with file:line refs and effort estimates. NO CODE CHANGES — research-only. Add new task entries to plans/parallel-assignments.md and plans/overview.html roadmap-data JSON for each follow-up that emerges from the research. Cross-reference plans/codexu-roadmap.md §Phase 6 'Long-lived teammates' since this feature likely overlaps. Surface to operator before opening any follow-up code task — the research output is itself the deliverable."
+```
+
+---
+
+## S — `plugin-scope-agents` — top-level-only plugins + agent-spawner pattern
+
+> Blocked on `agent-view-research`. Extends Phase 2c (host vs agent context) with a "top-level only" plugin scope, plus a designated agent-spawner so top-level-scope plugins remain reachable through it.
+
+```
+/plan-with-ralph "Extend codex's plugin-scoping (Phase 2c — host vs agent context) with a third dimension: 'top-level-agent-only' plugins. Today's spec: scope=host|agent|both. New spec: scope=top-level|subagent|both (or equivalent — see plans/codexu-roadmap.md §Phase 2c for current shape). Some plugins like ralph-orchestration must be available only to TOP-LEVEL agents (operator-spawned sessions, or sessions spawned by a designated 'agent-spawner' agent) — never to sub-agents spawned via codex's multi_agents_v2/spawn.rs (recursion + context bloat). Build the spawner agent (similar to Claude Code's agent-view if the research from agent-view-research clarifies the model): it can SPAWN top-level sessions on behalf of the operator, those spawned sessions inherit top-level scope and have ralph-orchestration + similar host-tier plugins. Read plans/agent-view-research.md (output of agent-view-research) before scoping. Read codex/codex-rs-overlay/* for divergence-crate precedent (changes should land as overlay if they touch codex; happy-cli changes are fine). Plugin manifest schema lives in codex/external/repos/codex-patched/codex-rs/core-plugins/src/manifest.rs (READ-ONLY). Acceptance: ralph-orchestration plugin manifest declares scope=top-level; spawning a subagent that tries to load it fails or silently no-ops; spawning via the new agent-spawner succeeds and the new session sees ralph-orchestration. Tests: codex integration test with mock plugin in both scopes. Cross-package typecheck green. Surface to operator before merging — this changes the plugin-loading contract."
+```
+
+---
+
+## T — `agent-comms` — top-level agent ↔ top-level agent communication
+
+> Blocked on `plugin-scope-agents`. MCP-based design (spawning channel + message-passing channel; surface the choice to operator).
+
+```
+/plan-with-ralph "Build top-level-agent ↔ top-level-agent communication. Constraint: a top-level agent (one with host-tier plugins like ralph-orchestration) should be able to talk to OTHER top-level agents — regardless of whether the operator spawned them directly or they were spawned by another agent-spawner (see plugin-scope-agents). Two channels to consider: (1) an MCP server for SPAWNING — top-level agents can request another top-level agent be spawned with specific role/cwd/plugins; (2) an MCP server for MESSAGE PASSING between live top-level sessions — request-response or pub-sub. Surface the design choice to operator before coding (MCP-only vs MCP + native happy-cli RPC vs codex inter-agent fast path extension). Read plans/agent-view-research.md (research output), plans/agent-view-followups.md if exists, and codex/external/repos/codex-patched/codex-rs/multi_agents_v2/ for codex's existing inter-agent plumbing. Read packages/happy-cli/src/api/apiMachine.ts for how spawn-happy-session is currently exposed to clients — the agent-comms MCP may live there. Acceptance: a top-level agent can spawn another top-level agent via MCP; both can exchange a message; both have host-tier plugins enabled. Test: end-to-end fixture in packages/happy-cli/. Pitfall: cycle-prevention — agent A spawns agent B which spawns agent A → infinite loop. Need a hop counter or operator-approval gate. Surface architectural choices to operator BEFORE landing code."
+```
+
+---
+
 ## O — `polish-Fs` — Bundle remaining F-* findings
 
 > Parallel with everything outside the touched files. Bundle into one PR to amortize review.
@@ -279,6 +309,9 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `userid-cleanup` | Drop multi-tenant userId scoping in happy-server | ⬜ blocked on perf-WS3 | — |
 | `happy-upstream-sync` 🔄 | Periodic — review new slopus/happy commits since last sync | ⬜ next due ~4w from 2026-05-03 | — |
 | `codex-upstream-rebase` 🔄 | Periodic — rebase codex submodule on openai/codex | ⬜ first run pending | — |
+| `agent-view-research` | Research Claude Code's agent-view feature | ⬜ not started | — |
+| `plugin-scope-agents` | Top-level-only plugin scoping + agent-spawner | ⬜ blocked on agent-view-research | — |
+| `agent-comms` | Top-level agent ↔ agent communication (MCP-based) | ⬜ blocked on plugin-scope-agents | — |
 
 🟡 = in progress (agent actively working, not yet committed). Refresh after each landing.
 

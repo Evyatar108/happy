@@ -411,6 +411,20 @@ conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
     cleanup then strips WS3's trivial userId partition. Estimated medium —
     140 refs but mostly mechanical. Plan: `userid-cleanup` ralph command in
     `plans/parallel-assignments.md`.
+  - **Agent architecture workstream (new, 2026-05-13):** three coupled
+    tasks investigating multi-agent topology — `agent-view-research`
+    (research-only spike on Claude Code's recently-released "agent view"
+    feature, output = `plans/agent-view-research.md` + follow-up
+    decomposition), `plugin-scope-agents` (extend Phase 2c plugin
+    scoping with a top-level-only tier + an agent-spawner that can
+    spawn top-level sessions on behalf of the operator, so plugins
+    like `ralph-orchestration` stay scoped-out from sub-agents but
+    reachable through the spawner), and `agent-comms` (MCP-based
+    communication: spawn-other-top-level + message-passing between
+    live top-level sessions). Dependency chain: research → scoping
+    → comms. Cross-references Phase 2c "Plugin scoping (host vs agent
+    context)" and Phase 6 "Long-lived teammates". New workstream value
+    `agent-arch` in `plans/overview.html` filter axis.
   - **Periodic upstream sync (new workstream, 2026-05-13):** added two
     periodic-cadence maintenance tasks that should cycle every ~4 weeks:
     `happy-upstream-sync` (review new commits in `slopus/happy` since

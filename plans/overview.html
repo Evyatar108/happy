@@ -819,6 +819,7 @@
           <button class="filter-chip" data-filter-value="polish" type="button">Polish &amp; fixes</button>
           <button class="filter-chip" data-filter-value="cleanup" type="button">Cleanup</button>
           <button class="filter-chip" data-filter-value="upstream" type="button">🔄 Upstream sync</button>
+          <button class="filter-chip" data-filter-value="agent-arch" type="button">Agent architecture</button>
         </div>
       </div>
       <div class="filter-group">
@@ -1381,6 +1382,32 @@
     </div>
   </details>
 
+  <details class="cmd" id="cmd-agent-view-research" data-task-id="agent-view-research">
+    <summary><span class="cmd-name">agent-view-research</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Research Claude Code's `agent view` feature; decompose into follow-up tasks</span></summary>
+    <div class="cmd-body">
+      <button class="copy-btn">Copy</button>
+<pre class="cmd-pre">/plan-with-ralph "Research Claude Code's 'agent view' feature (released recently). Output: a research doc at plans/agent-view-research.md that covers: (1) what the feature IS — how it presents agents, what UI affordances it gives, what spawning model it uses, what state it persists, what permissions / scoping it enforces; (2) where it lives in Claude Code (file paths, schema, RPC surface) — read the relevant source if accessible from C:/harness-efforts/claude-code/worktrees/main; (3) how it differs from codex's existing multi_agents_v2/spawn.rs and codex's [agents.&lt;role&gt;] TOML world (read codex/external/repos/codex-patched/codex-rs/multi_agents_v2/spawn.rs as reference — READ-ONLY per the minimize-conflict-surface tenet in plans/codexu-roadmap.md); (4) what concepts we'd want to bring to codexu: spawning model, state, persistence, communication, plugin-scoping. Output: the doc + a decomposition into follow-up ralph tasks with file:line refs and effort estimates. NO CODE CHANGES — research-only. Add new task entries to plans/parallel-assignments.md and plans/overview.html roadmap-data JSON for each follow-up that emerges from the research. Cross-reference plans/codexu-roadmap.md §Phase 6 'Long-lived teammates' since this feature likely overlaps. Surface to operator before opening any follow-up code task — the research output is itself the deliverable."</pre>
+    </div>
+  </details>
+
+  <details class="cmd" id="cmd-plugin-scope-agents" data-task-id="plugin-scope-agents">
+    <summary><span class="cmd-name">plugin-scope-agents</span><span class="cmd-badge b-blocked">🔒 blocked on agent-view-research</span><span class="cmd-desc">Plugin scoping with top-level-only plugins + agent-spawner pattern</span></summary>
+    <div class="cmd-body">
+      <div class="cmd-warn blocked">🔒 Blocked on <code>agent-view-research</code> landing — the spawner pattern depends on what that research uncovers about Claude Code's agent-view model.</div>
+      <button class="copy-btn">Copy</button>
+<pre class="cmd-pre">/plan-with-ralph "Extend codex's plugin-scoping (Phase 2c — host vs agent context) with a third dimension: 'top-level-agent-only' plugins. Today's spec: scope=host|agent|both. New spec: scope=top-level|subagent|both (or equivalent — see plans/codexu-roadmap.md §Phase 2c for current shape). Some plugins like ralph-orchestration must be available only to TOP-LEVEL agents (operator-spawned sessions, or sessions spawned by a designated 'agent-spawner' agent) — never to sub-agents spawned via codex's multi_agents_v2/spawn.rs (recursion + context bloat). Build the spawner agent (similar to Claude Code's agent-view if the research from agent-view-research clarifies the model): it can SPAWN top-level sessions on behalf of the operator, those spawned sessions inherit top-level scope and have ralph-orchestration + similar host-tier plugins. Read plans/agent-view-research.md (output of agent-view-research) before scoping. Read codex/codex-rs-overlay/* for divergence-crate precedent (changes should land as overlay if they touch codex; happy-cli changes are fine). Plugin manifest schema lives in codex/external/repos/codex-patched/codex-rs/core-plugins/src/manifest.rs (READ-ONLY). Acceptance: ralph-orchestration plugin manifest declares scope=top-level; spawning a subagent that tries to load it fails or silently no-ops; spawning via the new agent-spawner succeeds and the new session sees ralph-orchestration. Tests: codex integration test with mock plugin in both scopes. Cross-package typecheck green. Surface to operator before merging — this changes the plugin-loading contract."</pre>
+    </div>
+  </details>
+
+  <details class="cmd" id="cmd-agent-comms" data-task-id="agent-comms">
+    <summary><span class="cmd-name">agent-comms</span><span class="cmd-badge b-blocked">🔒 blocked on plugin-scope-agents</span><span class="cmd-desc">Top-level agent ↔ top-level agent communication (MCP-based?)</span></summary>
+    <div class="cmd-body">
+      <div class="cmd-warn blocked">🔒 Blocked on <code>plugin-scope-agents</code> + <code>agent-view-research</code> landing. The communication channel design depends on the spawner pattern's chosen model.</div>
+      <button class="copy-btn">Copy</button>
+<pre class="cmd-pre">/plan-with-ralph "Build top-level-agent ↔ top-level-agent communication. Constraint: a top-level agent (one with host-tier plugins like ralph-orchestration) should be able to talk to OTHER top-level agents — regardless of whether the operator spawned them directly or they were spawned by another agent-spawner (see plugin-scope-agents). Two channels to consider: (1) an MCP server for SPAWNING — top-level agents can request another top-level agent be spawned with specific role/cwd/plugins; (2) an MCP server for MESSAGE PASSING between live top-level sessions — request-response or pub-sub. Surface the design choice to operator before coding (MCP-only vs MCP + native happy-cli RPC vs codex inter-agent fast path extension). Read plans/agent-view-research.md (research output), plans/agent-view-followups.md if exists, and codex/external/repos/codex-patched/codex-rs/multi_agents_v2/ for codex's existing inter-agent plumbing. Read packages/happy-cli/src/api/apiMachine.ts for how spawn-happy-session is currently exposed to clients — the agent-comms MCP may live there. Acceptance: a top-level agent can spawn another top-level agent via MCP; both can exchange a message; both have host-tier plugins enabled. Test: end-to-end fixture in packages/happy-cli/. Pitfall: cycle-prevention — agent A spawns agent B which spawns agent A → infinite loop. Need a hop counter or operator-approval gate. Surface architectural choices to operator BEFORE landing code."</pre>
+    </div>
+  </details>
+
 </div>
 
 </details>
@@ -1647,8 +1674,8 @@
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T02:30:00Z",
-  "generatedFromCommit": "6871afeb",
+  "generatedAt": "2026-05-14T03:00:00Z",
+  "generatedFromCommit": "b5fc97c4",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:00:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -1668,7 +1695,10 @@
     "userid-cleanup": "2026-05-13T21:45:00Z",
     "polish-Fs": "2026-05-13T19:30:00Z",
     "happy-upstream-sync": "2026-05-14T01:30:00Z",
-    "codex-upstream-rebase": "2026-05-14T01:30:00Z"
+    "codex-upstream-rebase": "2026-05-14T01:30:00Z",
+    "agent-view-research": "2026-05-14T03:00:00Z",
+    "plugin-scope-agents": "2026-05-14T03:00:00Z",
+    "agent-comms": "2026-05-14T03:00:00Z"
   },
   "periodic": {
     "happy-upstream-sync": { "intervalDays": 28, "lastRunId": "happy-upstream-sync/2026-05-03", "nextDueAt": "2026-05-31T00:00:00Z" },
@@ -1723,7 +1753,10 @@
     "userid-cleanup": 6,
     "polish-Fs": 8,
     "happy-upstream-sync": 6,
-    "codex-upstream-rebase": 8
+    "codex-upstream-rebase": 8,
+    "agent-view-research": 4,
+    "plugin-scope-agents": 12,
+    "agent-comms": 16
   },
   "risk": {
     "perf-WS1": "low",
@@ -1744,7 +1777,10 @@
     "userid-cleanup": "medium",
     "polish-Fs": "medium",
     "happy-upstream-sync": "medium",
-    "codex-upstream-rebase": "medium"
+    "codex-upstream-rebase": "medium",
+    "agent-view-research": "low",
+    "plugin-scope-agents": "medium",
+    "agent-comms": "high"
   },
   "workstream": {
     "perf-WS1": "perf",
@@ -1765,7 +1801,10 @@
     "polish-Fs": "polish",
     "userid-cleanup": "cleanup",
     "happy-upstream-sync": "upstream",
-    "codex-upstream-rebase": "upstream"
+    "codex-upstream-rebase": "upstream",
+    "agent-view-research": "agent-arch",
+    "plugin-scope-agents": "agent-arch",
+    "agent-comms": "agent-arch"
   },
   "sizeBucket": {
     "perf-WS1": "quick",
@@ -1786,7 +1825,10 @@
     "userid-cleanup": "medium",
     "polish-Fs": "medium",
     "happy-upstream-sync": "medium",
-    "codex-upstream-rebase": "medium"
+    "codex-upstream-rebase": "medium",
+    "agent-view-research": "small",
+    "plugin-scope-agents": "large",
+    "agent-comms": "large"
   }
 }
 </script>
@@ -2128,7 +2170,8 @@
       'codex-parity': 'Codex parity',
       'polish': 'Polish & fixes',
       'cleanup': 'Cleanup',
-      'upstream': 'Upstream sync'
+      'upstream': 'Upstream sync',
+      'agent-arch': 'Agent architecture'
     };
     // 1. Ralph command rows
     document.querySelectorAll('details.cmd').forEach(function (cmd) {
