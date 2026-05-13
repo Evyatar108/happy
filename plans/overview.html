@@ -356,6 +356,45 @@
   }
   .kbd-backdrop.visible { display: block; }
 
+  /* "What's new since last visit" banner */
+  .whatsnew-banner {
+    background: rgba(122,162,247,0.10);
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin: 12px 0;
+    display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+    font-size: 13px;
+  }
+  .whatsnew-banner .wn-label { color: var(--accent); font-weight: 600; }
+  .whatsnew-banner .wn-dismiss {
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 4px;
+    padding: 4px 12px;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: inherit;
+  }
+  .whatsnew-banner .wn-dismiss:hover { color: var(--fg); border-color: var(--accent); }
+  .new-badge {
+    background: var(--accent);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: 8px;
+    margin-left: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  details.cmd.cmd-changed > summary {
+    background: rgba(122,162,247,0.06);
+    border-radius: 4px;
+  }
+
   /* Collapsible top-level sections */
   details.section { margin: 24px 0 0; }
   details.section > summary {
@@ -475,7 +514,7 @@
 
 <h1>codexu — plan overview</h1>
 <div class="sub">
-  Generated 2026-05-13 against <code>main</code> HEAD <code>03352678</code>.
+  Generated 2026-05-13 against <code>main</code> HEAD <code>f05fccf8</code>. <span id="freshness-hint" class="sub"></span>
   Sources: <code>plans/codexu-roadmap.md</code> (Phases 1-7 + Sprint E),
   <code>plans/realtime-sync-perf.md</code>, devtunnels-E notepad (F-* findings).
 </div>
@@ -1629,6 +1668,142 @@
     else if (e.key === 'c') { setAllDetails(false); }
     else if (e.key === '?') { toggleHelp(); }
   });
+
+  // ===== Roadmap-data parser (shared with What's New + freshness hint) =====
+  function getRoadmapData() {
+    var dataEl = document.getElementById('roadmap-data');
+    if (!dataEl) return null;
+    try { return JSON.parse(dataEl.textContent); } catch (_) { return null; }
+  }
+
+  // ===== Freshness hint in the page header =====
+  (function freshnessHint() {
+    var data = getRoadmapData();
+    var hint = document.getElementById('freshness-hint');
+    if (!data || !hint || !data.generatedAt) return;
+    var gen = new Date(data.generatedAt);
+    if (isNaN(gen.getTime())) return;
+    var hrsAgo = (Date.now() - gen.getTime()) / 36e5;
+    var ago = hrsAgo < 1 ? '< 1 h ago'
+      : hrsAgo < 24 ? Math.round(hrsAgo) + ' h ago'
+      : Math.round(hrsAgo / 24) + ' d ago';
+    hint.textContent = '(snapshot ' + ago + ')';
+  })();
+
+  // ===== "What's new since last visit" =====
+  (function whatsNewSinceLastVisit() {
+    var data = getRoadmapData();
+    if (!data || !data.lastTouched) return;
+
+    var VISIT_KEY = 'codexu-overview-last-visit-v1';
+    var lastVisit = localStorage.getItem(VISIT_KEY);
+    var now = new Date().toISOString();
+
+    if (!lastVisit) {
+      // First visit on this machine — record silently, no banner
+      try { localStorage.setItem(VISIT_KEY, now); } catch (_) {}
+      return;
+    }
+
+    // Find tasks touched since last visit
+    var changed = [];
+    Object.keys(data.lastTouched).forEach(function (taskId) {
+      var ts = data.lastTouched[taskId];
+      if (ts && ts > lastVisit) changed.push({ id: taskId, touchedAt: ts });
+    });
+
+    if (changed.length === 0) {
+      // Update visit timestamp regardless — gives the operator a clean "you're current" state
+      try { localStorage.setItem(VISIT_KEY, now); } catch (_) {}
+      return;
+    }
+
+    // Mark each changed row in the DOM
+    changed.forEach(function (c) {
+      var row = document.getElementById('cmd-' + c.id);
+      if (!row) return;
+      row.classList.add('cmd-changed');
+      var summary = row.querySelector('summary');
+      if (summary && !summary.querySelector('.new-badge')) {
+        var badge = document.createElement('span');
+        badge.className = 'new-badge';
+        badge.textContent = 'NEW';
+        badge.title = 'Changed since your last visit (' + c.touchedAt + ')';
+        summary.appendChild(badge);
+      }
+    });
+
+    // Build the banner
+    var banner = document.createElement('div');
+    banner.className = 'whatsnew-banner';
+    var hrsAgo = Math.round((Date.now() - Date.parse(lastVisit)) / 36e5);
+    var when = hrsAgo < 24
+      ? hrsAgo + ' h ago'
+      : Math.round(hrsAgo / 24) + ' d ago';
+    var label = document.createElement('span');
+    label.className = 'wn-label';
+    label.textContent = '🆕 ' + changed.length + ' task' + (changed.length === 1 ? '' : 's') + ' changed since your last visit (' + when + ')';
+    banner.appendChild(label);
+    changed.forEach(function (c) {
+      var a = document.createElement('a');
+      a.href = '#cmd-' + c.id;
+      a.className = 'chip chip-ready';
+      a.textContent = c.id;
+      banner.appendChild(a);
+    });
+    var dismiss = document.createElement('button');
+    dismiss.className = 'wn-dismiss';
+    dismiss.type = 'button';
+    dismiss.textContent = 'Mark all seen';
+    dismiss.addEventListener('click', function () {
+      try { localStorage.setItem(VISIT_KEY, now); } catch (_) {}
+      banner.remove();
+      document.querySelectorAll('details.cmd.cmd-changed').forEach(function (r) {
+        r.classList.remove('cmd-changed');
+        var b = r.querySelector('.new-badge');
+        if (b) b.remove();
+      });
+    });
+    banner.appendChild(dismiss);
+
+    // Insert banner just under the ready-strip
+    var anchor = document.getElementById('ready-strip');
+    if (anchor && anchor.parentNode) {
+      anchor.parentNode.insertBefore(banner, anchor.nextSibling);
+    } else {
+      document.body.insertBefore(banner, document.body.firstChild);
+    }
+  })();
+</script>
+
+<!-- Hand-curated task metadata. Update lastTouched ISO timestamps when a task's
+     state in the visualization changes (status flip, scope edit, plan rewrite).
+     The HTML's data attributes remain authoritative for everything else (id,
+     status badge, area pill, blocked reason). -->
+<script type="application/json" id="roadmap-data">
+{
+  "generatedAt": "2026-05-13T22:30:00Z",
+  "generatedFromCommit": "f05fccf8",
+  "lastTouched": {
+    "perf-WS1": "2026-05-13T22:00:00Z",
+    "perf-WS3": "2026-05-13T22:00:00Z",
+    "3a-skills": "2026-05-13T21:30:00Z",
+    "F-013-perms": "2026-05-13T21:00:00Z",
+    "F-015-toast": "2026-05-13T20:00:00Z",
+    "mcp-discovery": "2026-05-13T21:30:00Z",
+    "codex-parity-audit": "2026-05-13T21:30:00Z",
+    "perf-WS2": "2026-05-13T19:30:00Z",
+    "1a-fork-doc": "2026-05-13T21:30:00Z",
+    "1b-multidev": "2026-05-13T19:30:00Z",
+    "3b-agents": "2026-05-13T19:30:00Z",
+    "3c-hooks": "2026-05-13T19:30:00Z",
+    "3d-workers": "2026-05-13T19:30:00Z",
+    "3fg-package": "2026-05-13T19:30:00Z",
+    "3h-options": "2026-05-13T19:30:00Z",
+    "userid-cleanup": "2026-05-13T21:45:00Z",
+    "polish-Fs": "2026-05-13T19:30:00Z"
+  }
+}
 </script>
 </body>
 </html>
