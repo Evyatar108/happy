@@ -87,6 +87,8 @@ export interface SessionRowData {
     subtitle: string;
     avatarId: string;
     flavor: string | null;
+    currentModelCode?: string | null;
+    currentPermissionModeCode?: string | null;
     summaryText?: string;
     metadataName?: string;
     pinnedAvatarImageIndex?: number;
@@ -129,6 +131,8 @@ function buildSessionRowData(session: Session, machines: Record<string, Machine>
         subtitle: getSessionSubtitle(session),
         avatarId: getSessionAvatarId(session),
         flavor: session.metadata?.flavor ?? null,
+        currentModelCode: session.metadata?.currentModelCode ?? null,
+        currentPermissionModeCode: session.metadata?.currentPermissionModeCode ?? null,
         summaryText: session.metadata?.summary?.text,
         metadataName: session.metadata?.name,
         pinnedAvatarImageIndex: session.pinnedAvatarImageIndex,
