@@ -1,8 +1,19 @@
 # Realtime Sync Perf Plan
 
 **Status:** drafted 2026-05-13 for a fresh agent. Not yet started.
-**Branch:** `main` (origin/main HEAD after BOOX-validation push).
-**Related history:** see `docs/validation/devtunnels-boox-result.md` "Realtime sync perf (deferred)" subsection (added in this same drafting session) for the empirical evidence that motivated this work, and `packages/happy-app/scripts/sprint-a-gap.md` "R-D18 path (b) implementation log" for the gateway/claim header design these calls run on top of.
+**Branch:** `main` (origin/main HEAD after BOOX-validation push and the 2026-05-13 apiSocket scope-builder consolidation in commit `7ef13b21`).
+**Related history:**
+- `docs/validation/devtunnels-boox-result.md` "Realtime sync perf (deferred)" subsection — empirical symptoms that motivated this work
+- `packages/happy-app/scripts/sprint-a-gap.md` "R-D18 path (b) implementation log" — gateway/claim header design these calls run on top of
+- `packages/happy-app/CLAUDE.md` — read the "Session/machine-scoped network calls MUST go through `apiSocket.forSession(sid)` …" invariant. The new scope-builder API is the baseline. There is **no** `apiSocket.request` / `apiSocket.emitWithAck` / `apiSocket.sessionRPC` / `apiSocket.machineRPC` / `apiSocket.requestForSession`. Any code this plan asks you to add to `apiSocket.ts` MUST follow the scope builder pattern.
+
+## Baseline state (verified 2026-05-13)
+
+Line numbers below were captured against commit `19c84daf`. If the fresh
+agent picks this up much later, sanity-check the references with grep
+(`sessionInitInFlight`, `pendingNewMessages`, `sessionsSync.invalidate`,
+`MIN_REFRESH_INTERVAL_MS`, `buildTunnelSocketOptions`) before relying on
+them.
 
 ## Operator-observed symptoms
 
@@ -31,12 +42,12 @@ Searched `packages/happy-app/sources/sync/sync.ts`:
 |---|---|---|
 | 296 | AppState `'active'` (foreground) | every time the BOOX wakes from screensaver / backgrounded |
 | 396 | (post-auth init path) | once per auth |
-| 1204 | (caller-driven `invalidateAndAwait`) | rare |
-| 1655 | (incoming socket `update-session`) | rare |
-| 1699 | **`new-message` event for an unknown session** | every new-session-message race |
-| 1765 | **incoming socket `new-session` event** | every session creation from any machine |
+| 1203 | (caller-driven `invalidateAndAwait`) | rare |
+| 1656 | (incoming socket `update-session`) | rare |
+| 1698 | **`new-message` event for an unknown session** | every new-session-message race |
+| 1766 | **incoming socket `new-session` event** | every session creation from any machine |
 
-Lines 1697-1707 are the dominant source of perceived latency for symptom (2):
+Lines 1698–1708 are the dominant source of perceived latency for symptom (2):
 
 ```ts
 if (!this.sessionInitInFlight.has(sid)) {
@@ -97,8 +108,8 @@ Each workstream stands on its own. Recommend executing in the order presented (c
 **Pain it relieves:** when a `new-message` event arrives for a session the app's storage doesn't know yet (race after `new-session` event was missed during a socket disconnect, or session is brand-new), the app pauses message rendering for an entire `fetchSessions` round-trip (often ~1 minute observed).
 
 **Files to read:**
-- `packages/happy-app/sources/sync/sync.ts:1680-1710` — the current "unknown session, queue, fetch sessions, then replay" path
-- `packages/happy-app/sources/sync/sync.ts:1763-1765` — `new-session` event handler (also calls `sessionsSync.invalidate`, but doesn't block since this path doesn't need the message replay)
+- `packages/happy-app/sources/sync/sync.ts:1693-1710` — the current "unknown session, queue, fetch sessions, then replay" path
+- `packages/happy-app/sources/sync/sync.ts:1766` — `new-session` event handler (also calls `sessionsSync.invalidate`, but doesn't block since this path doesn't need the message replay)
 - `packages/happy-app/sources/sync/typesRaw.ts` — `NormalizedMessage`, session/message normalizers
 - `packages/happy-app/sources/sync/storage.ts` — `applySessions`, `enqueueMessages`, session lifecycle
 
@@ -131,7 +142,8 @@ Each workstream stands on its own. Recommend executing in the order presented (c
 - `packages/happy-server/sources/app/events/eventRouter.ts` — `EventRouter` class that does the actual `io.to(rooms).emit(...)`. This is where the replay buffer needs to live.
 - `packages/happy-server/sources/app/api/socket/sessionUpdateHandler.ts:263` — `allocateUserSeq(userId)` already produces monotonic per-user seqs; replay just needs to remember `{ userId, seq, eventName, payload }` for a bounded window.
 - `packages/happy-server/sources/app/api/socket.ts` — Socket.IO handshake; the `auth.lastSeenSeq` (new field) lives here on reconnect.
-- `packages/happy-app/sources/sync/apiSocket.ts` — client-side connect/reconnect lifecycle. Add `auth.lastSeenSeq = storage.getState().lastSeenUpdateSeq` on reconnect.
+- `packages/happy-app/sources/sync/socketOptions.ts:30` — `buildTunnelSocketOptions` builds the Socket.IO `auth: { ... }` object. Add `lastSeenSeq` to that auth object so every connect/reconnect ships it.
+- `packages/happy-app/sources/sync/apiSocket.ts:217` — calls `buildTunnelSocketOptions` inside `connect()`. No edit needed here if `socketOptions.ts` reads `storage.getState().lastSeenUpdateSeq` directly; just confirm the import is wired.
 - `packages/happy-app/sources/sync/storage.ts` — track `lastSeenUpdateSeq` in MMKV-persisted state.
 
 **What to do:**
