@@ -137,7 +137,7 @@ You need a happy-cli daemon reachable via Dev Tunnels. Two options:
   ```
 - **(b)** Use a daemon on another trusted machine. The BOOX must be able to reach its Dev Tunnel.
 
-The app on the BOOX prompts "Sign in with GitHub" — complete the device flow on a browser. Pick the machine from the picker. The daemon mints a tunnel claim, the app stores it, you're paired.
+The app on the BOOX prompts "Sign in with GitHub" — complete the device flow on a browser. Pick the machine from the picker. The daemon validates Dev Tunnels gateway auth, returns machine metadata, and the app stores credentials — you're paired.
 
 ### Step 5 — Walk the BOOX validation template
 
