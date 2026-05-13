@@ -566,7 +566,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `agent-tree-rpc` 🤖 | App-server RPC for codex live spawn tree | 🟡 in progress | — |
 | `session-parent-link` 🤖 | Add parentSessionId + spawnedChildren to Session metadata | 🟡 in progress | — |
 | `mobile-tree-view` 🤖 | Tree-style session list with depth indentation | ⬜ blocked on session-parent-link | — |
-| `session-role-pill` 🤖 | Flavor + model + permission-mode pills in session row | 🟡 in progress | — |
+| `session-role-pill` 🤖 | Flavor + model + permission-mode pills in session row | ✅ done | — |
 | `spawn-from-app` 🤖 | "Spawn child session" affordance + RPC | ⬜ blocked on session-parent-link | — |
 | `agent-status-stream` 🤖 | Live "active teammates" overlay (codex events → mobile) | ⬜ blocked on agent-tree-rpc | — |
 | `plugin-scope-agents` | Top-level-only plugin scoping + agent-spawner | ⬜ blocked on agent-view-research | — |
