@@ -1,0 +1,7 @@
+{
+  "hook_event_name": "Stop",
+  "session_id": "codex-stop-tag-missing-session",
+  "transcript_path": "D:/tmp/codex-stop-tag-missing.jsonl",
+  "last_assistant_message": "Plain prose with no options tag at all.",
+  "stop_hook_active": false
+}

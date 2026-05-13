@@ -559,7 +559,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `3c-hooks` | Phase 3c — hooks port / verify | 🟡 in progress | — |
 | `3d-workers` | Phase 3d — native worker spawn (after 3b) | ⬜ blocked on 3a + 3b | — |
 | `3fg-package` | Phase 3f + 3g — asset + packaging | ⬜ blocked on 3a discovery | — |
-| `3h-options` | Phase 3h — options-mode migration | 🟡 in progress | — |
+| `3h-options` | Phase 3h — options-mode migration | ✅ shipped (merged from `phase-3h-options-mode-plugin`) | 756d4290 + merge |
 | `polish-Fs` | F-017 + F-001/F-002 + F-003-F-007 | ⬜ not started | — |
 | `userid-cleanup` | Drop multi-tenant userId scoping in happy-server | ⬜ blocked on perf-WS3 | — |
 | `happy-upstream-sync` 🔄 | Periodic — review new slopus/happy commits since last sync | ⬜ next due ~4w from 2026-05-03 | — |

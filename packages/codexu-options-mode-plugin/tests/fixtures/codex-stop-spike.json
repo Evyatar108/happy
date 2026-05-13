@@ -1,0 +1,6 @@
+{
+  "session_id": "codex-stop-spike-session",
+  "transcript_path": "D:/tmp/codex-stop-spike.jsonl",
+  "last_assistant_message": "Plain prose without an options tag.",
+  "stop_hook_active": false
+}

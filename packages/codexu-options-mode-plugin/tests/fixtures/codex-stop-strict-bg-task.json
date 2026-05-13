@@ -1,0 +1,7 @@
+{
+  "hook_event_name": "Stop",
+  "session_id": "codex-stop-strict-bg-task-session",
+  "transcript_path": "D:/tmp/codex-stop-strict-bg-task.jsonl",
+  "last_assistant_message": "Build is still running, waiting for output.\n<options-mode>background-task</options-mode>",
+  "stop_hook_active": false
+}

@@ -1,0 +1,12 @@
+{
+  "name": "codexu-options-mode-plugin",
+  "version": "0.1.0",
+  "description": "Codex port of the options-mode tag enforcement plugin.",
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "codexu options-mode",
+    "shortDescription": "Enforce options-mode response tags in Codex",
+    "developerName": "Evyatar Mitrani"
+  }
+}

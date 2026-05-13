@@ -33,6 +33,7 @@
             "packages/happy-wire",
             "packages/happy-app-logs",
             "packages/codexu-plugin",
+            "packages/codexu-options-mode-plugin",
             "packages/codium"
         ]
     },

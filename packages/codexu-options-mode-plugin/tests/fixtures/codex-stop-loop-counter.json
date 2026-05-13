@@ -1,0 +1,7 @@
+{
+  "hook_event_name": "Stop",
+  "session_id": "codex-stop-loop-counter-session",
+  "transcript_path": "D:/tmp/codex-stop-loop-counter.jsonl",
+  "last_assistant_message": "Plain prose without an options tag.",
+  "stop_hook_active": false
+}

@@ -1,0 +1,7 @@
+{
+  "hook_event_name": "Stop",
+  "session_id": "codex-stop-continuation-session",
+  "transcript_path": "D:/tmp/codex-stop-continuation.jsonl",
+  "last_assistant_message": "Continuing from the previous turn. Here is the next step.\n<options-mode>no-question</options-mode>",
+  "stop_hook_active": false
+}

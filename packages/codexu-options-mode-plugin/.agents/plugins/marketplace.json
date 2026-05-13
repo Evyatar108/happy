@@ -1,0 +1,15 @@
+{
+  "name": "codexu-options-mode",
+  "interface": {
+    "displayName": "codexu options-mode"
+  },
+  "plugins": [
+    {
+      "name": "codexu-options-mode-plugin",
+      "source": {
+        "source": "local",
+        "path": "."
+      }
+    }
+  ]
+}

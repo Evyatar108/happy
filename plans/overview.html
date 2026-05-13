@@ -1025,13 +1025,13 @@
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-title">Phase 3h — options-mode plugin migration</div>
-      <div class="sub">575 LOC of Node hook logic + slash command + statusline. Codex hook parity verified OK 2026-05-02. Heavier than 3a but self-contained.</div>
+    <div class="card" style="border-color: var(--ok); opacity: 0.8;">
+      <div class="card-title">Phase 3h — options-mode plugin migration <span class="sub">(shipped 2026-05-13)</span></div>
+      <div class="sub">Shipped <code>packages/codexu-options-mode-plugin/</code> with SessionStart, UserPromptSubmit, Stop hook wiring, docs, statusline script copies, and a reproducible smoke script. Phase 3h-tail keeps statusline plugin slot + AskUserQuestion auto-intercept as engine follow-ups.</div>
       <div class="card-meta">
         <span class="pill area-codex">codex / plugin</span>
         <span class="pill p-med">medium</span>
-        <span>est. 2-3 d</span>
+        <span>Phase 3h done</span>
         <span class="sub">roadmap §Phase 3h</span>
       </div>
     </div>
@@ -1434,7 +1434,7 @@
   </details>
 
   <details class="cmd" id="cmd-3h-options" data-task-id="3h-options">
-    <summary><span class="cmd-name">3h-options</span><span class="cmd-badge b-inflight">🟡 in progress</span><span class="cmd-desc">Phase 3h — options-mode plugin migration (separate plugin, parallel-safe)</span></summary>
+    <summary><span class="cmd-name">3h-options</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Phase 3h — options-mode plugin migration · <code>packages/codexu-options-mode-plugin/</code> (14 commits merged from <code>phase-3h-options-mode-plugin</code>)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
 <pre class="cmd-pre">/plan-with-ralph "Phase 3h — migrate options-mode plugin from Claude Code (575 LOC of Node.js hook logic + slash command + statusline + tag-protocol enforcement) to codex plugin format. Per plans/codexu-roadmap.md §Phase 3h. Source: C:/ai-developer-toolkit/plugins/options-mode/ — 4 hook files (SessionStart, UserPromptSubmit, Stop, statusline), slash command /options-mode, PowerShell + Bash statusline scripts. What it does today: SessionStart injects rules (agent must close every turn with &lt;options-mode&gt;continue&lt;/options-mode&gt; tag OR structured choice prompt); UserPromptSubmit handles /options-mode on|off|status toggle; Stop hook reads JSONL transcript, deterministically checks for closing tag, blocks turn-end if missing; statusline shows enabled/disabled state; NO LLM classification — pure tag detection. Codex hook parity (verified 2026-05-02, see roadmap §3h codex hook parity check): config/src/hook_config.rs:42 defines Stop hook kind — capabilities options-mode needs are supported. Target: new codex plugin packages/codexu-options-mode-plugin/ (or under codexu-plugin/, your choice — surface to operator). Convert Node hooks to codex hook format; convert slash command; preserve tag-protocol enforcement byte-identically. CRITICAL: the Stop hook reads codex JSONL transcript shape (NOT Claude's) — verify against codex thread JSONL format and adapt the last_assistant_message detection per roadmap note. Read C:/ai-developer-toolkit/plugins/options-mode/CLAUDE.md if present. Acceptance: enable plugin; agent ends turn WITHOUT tag → Stop hook returns decision:'block' with reason + continuation prompt; agent ends turn WITH &lt;options-mode&gt;continue&lt;/options-mode&gt; tag → Stop allows turn end; /options-mode off → Stop becomes pass-through; statusline shows current state. Test command: integration test against codex exec session with mock transcript shapes. Single commit; reference Phase 3h."</pre>
@@ -1981,8 +1981,8 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T15:00:00Z",
-  "generatedFromCommit": "f52e257b",
+  "generatedAt": "2026-05-14T16:00:00Z",
+  "generatedFromCommit": "086ca08f",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -1998,7 +1998,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "3c-hooks": "2026-05-13T23:30:00Z",
     "3d-workers": "2026-05-13T19:30:00Z",
     "3fg-package": "2026-05-13T19:30:00Z",
-    "3h-options": "2026-05-13T23:30:00Z",
+    "3h-options": "2026-05-14T16:00:00Z",
     "userid-cleanup": "2026-05-13T21:45:00Z",
     "polish-Fs": "2026-05-13T19:30:00Z",
     "happy-upstream-sync": "2026-05-14T01:30:00Z",
@@ -2091,6 +2091,14 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
       "outcome": "completed",
       "commits": [],
       "summary": "Research-only deliverable: plans/native-agent-parity.md. Surveyed Claude Code's 6 built-in subagents; verdicts: PORT 3 (explorer — fill existing empty stub; plan — new built-in; verification — new built-in with VERDICT:PASS|FAIL|PARTIAL contract); SKIP 3 (general-purpose redundant with codex's worker; statusline-setup Claude-specific; claude-code-guide defer). Packaging: ship via include_str!() in role.rs match-arm (tolerable conflict with AGENTS.override.md tenet 1) first, plugin distribution later when manifest learns [agents.<role>]. License: paraphrase prose (research-only license on the source-mapped Claude Code checkout), keep structural patterns. Recommended 3 follow-up tasks: port-explorer-prompt (smallest), port-plan-and-verification-roles (combined PR), audit-general-purpose-vs-worker (30-min diff). 6 open questions to resolve before implementation."
+    },
+    {
+      "id": "3h-options/2026-05-14",
+      "taskId": "3h-options",
+      "ranAt": "2026-05-14T16:00:00Z",
+      "outcome": "completed",
+      "commits": ["3bb42395", "e8284585", "2eb3f440", "a52d149b", "4eb1a9a9", "756d4290"],
+      "summary": "Shipped packages/codexu-options-mode-plugin via merge of phase-3h-options-mode-plugin branch (14 commits: 6 stories + 7 review-fix + 1 docs sync; 37 files / +2251 / -136). Stories: US-001 scaffold + workspace registration; US-002 config.js port with PLUGIN_DATA-based state; US-003 session-start.js + user-prompt-submit.js port; US-004 stop.js rewrite for codex last_assistant_message + transcript scan; US-005 hooks.json + .codex-plugin/plugin.json wiring; US-006 SKILL.md discoverability + README + CLAUDE.md + statusline + roadmap closure. Phase 5a code review: 11 findings fixed in 1 round (4 High in stop.js: fail-open empty message, fail-open missing transcript, false 'hook auto-responds' claim, silenced PLUGIN_DATA-required throws + 7 Low/Medium). Phase 5b docs: 5 findings fixed. Phase 5c security: 0 findings. 37/37 plugin tests pass. 7 load-bearing invariants verified. Deferred to Phase 3h-tail: (a) codex TUI statusline plugin slot (no plugin slot exists in status_line_setup.rs), (b) codex request_user_input handler pre_tool_use_payload() override for auto-mode AskUserQuestion inter-mode."
     },
     {
       "id": "codex-parity-audit/2026-05-13",

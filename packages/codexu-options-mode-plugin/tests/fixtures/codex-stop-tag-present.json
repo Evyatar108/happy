@@ -1,0 +1,7 @@
+{
+  "hook_event_name": "Stop",
+  "session_id": "codex-stop-tag-present-session",
+  "transcript_path": "D:/tmp/codex-stop-tag-present.jsonl",
+  "last_assistant_message": "Here is a summary of the changes made.\n<options-mode>no-question</options-mode>",
+  "stop_hook_active": false
+}

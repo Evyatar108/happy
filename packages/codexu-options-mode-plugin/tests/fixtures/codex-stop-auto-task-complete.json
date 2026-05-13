@@ -1,0 +1,7 @@
+{
+  "hook_event_name": "Stop",
+  "session_id": "codex-stop-auto-task-complete-session",
+  "transcript_path": "D:/tmp/codex-stop-auto-task-complete.jsonl",
+  "last_assistant_message": "All files have been updated and tests pass.\n<options-mode>task-complete</options-mode>",
+  "stop_hook_active": false
+}

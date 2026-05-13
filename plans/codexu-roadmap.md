@@ -186,6 +186,13 @@ each commit lands or when scope shifts**.
   writing any code). Phase 3 sub-phases that build on 3a — `3b-agents`,
   `3d-workers`, `3fg-package` — remain blocked on 3a's eventual discovery
   commit. `3c-hooks` and `3h-options` are parallel-safe and unaffected.
+- **`3h-options`** (Phase 3h — options-mode plugin migration):
+  ✅ **DONE 2026-05-13**. Shipped `packages/codexu-options-mode-plugin/`
+  with Codex SessionStart, UserPromptSubmit, and Stop hook wiring, docs,
+  smoke script, marketplace registration, and tests. Two parity gaps remain
+  explicit Phase 3h-tail engine follow-ups: a Codex TUI plugin statusline slot
+  and a `request_user_input` `pre_tool_use_payload()` override for
+  AskUserQuestion auto-intercept.
 
 ### Codex changes — minimize upstream conflict surface
 
@@ -2235,124 +2242,155 @@ to codex plugin format (`.codex-plugin/plugin.json`):
 - `<ralph-codex-plugin>/.codex-plugin/plugin.json`
 - `<options-mode-codex-plugin>/.codex-plugin/plugin.json`
 - Update install instructions in
-  `C:/ai-developer-toolkit/plugins/ralph/CLAUDE.md` and
-  `plugins/options-mode/CLAUDE.md`
+  `C:/ai-developer-toolkit/plugins/ralph/CLAUDE.md` and the in-repo
+  `packages/codexu-options-mode-plugin/README.md` +
+  `packages/codexu-options-mode-plugin/CLAUDE.md`
 
-#### 3h. options-mode plugin migration
+#### 3h. options-mode plugin migration - DONE 2026-05-13
 
-**The plugin is NOT skills.** `C:/ai-developer-toolkit/plugins/options-mode/`
-is **575 LOC of Node.js hook logic across 4 files** + slash command +
-PowerShell + Bash statusline + tag-protocol enforcement. Migrating it
-needs explicit treatment.
+**Status:** Phase 3h shipped as `packages/codexu-options-mode-plugin/`.
+The port keeps the upstream tag protocol and Codex hook integration while
+adapting Stop enforcement to Codex's plain-string `last_assistant_message`
+and JSONL `function_call` shape. The plugin includes install docs, a
+documentation-only `/codexu-options-mode-plugin:options-mode` skill,
+forward-compatible statusline script copies, and
+`scripts/smoke.mjs` for reproducible local verification.
 
-What it does today:
-- **SessionStart hook** injects rules: agent must close every assistant
-  turn with either an `<options-mode>continue</options-mode>` tag (intent
-  to continue) OR a structured choice prompt
-- **UserPromptSubmit hook** handles `/options-mode on|off|status` slash
-  command (the user-side toggle)
-- **Stop hook** reads JSONL transcript, deterministically checks for
-  the closing tag; if missing, blocks turn-end and instructs the model
-  to either tag-and-continue or ask a structured choice
-- **Statusline** scripts (`.ps1` + `.sh`) show enabled/disabled state
-- No LLM classification — pure tag detection (deterministic)
+**Phase 3h-tail follow-ups:**
+- Codex TUI statusline plugin slot so `apps/statusline/` can be wired into
+  the visible statusline instead of SessionStart in-band context.
+- Codex `request_user_input` handler `pre_tool_use_payload()` override so
+  AskUserQuestion auto-intercept can be restored for auto mode.
 
-**Codex hook parity check — verified mostly OK 2026-05-02:**
+**The plugin is hook-driven, not skill-driven.** The shipped port at
+`packages/codexu-options-mode-plugin/` is Node.js hook logic
+(SessionStart + UserPromptSubmit + Stop) plus a documentation-only
+skill and forward-compat statusline scripts. Tag-protocol enforcement
+runs deterministically in the Stop hook against codex's pre-extracted
+`last_assistant_message`.
 
-Codex DOES support Stop hooks with the capabilities options-mode needs:
-- `config/src/hook_config.rs:42` — `Stop` hook is a defined kind
-- `core/src/session/turn.rs:513` — `StopRequest` passes `transcript_path`
-  + `last_assistant_message` into the hook
-- `core/src/session/turn.rs:534` — hook can record a prompt fragment
-  back into the conversation, then loop the turn (functionally:
-  block + continue with a reason)
+What it does today (shipped reality):
+- **SessionStart hook** injects mode-specific rules (`on` / `strict` /
+  `auto`) and emits an in-band `options-mode: <mode>` line via
+  `additionalContext` (substitutes for a TUI statusline badge until
+  codex grows a plugin statusline slot).
+- **UserPromptSubmit hook** is the **primary** `/options-mode <args>`
+  toggle surface. It intercepts the literal slash text (codex TUI
+  passes unknown slash commands through to hooks per
+  `chat_composer.rs:2797-2823`) and toggles
+  `on|off|strict|auto|status`.
+- **Stop hook** reads `input.last_assistant_message` directly (plain
+  `string | null` per codex's `serde(transparent)` `NullableString` at
+  `hooks/src/schema.rs:34-35`) and enforces the active mode's tag
+  contract. Tags recognised:
+  - `<options-mode>no-question</options-mode>` — plain-prose escape
+    hatch (valid in `on` mode only)
+  - `<options-mode>task-complete</options-mode>` — task done, no
+    follow-up question (valid in `auto` mode)
+  - `<options-mode>background-task</options-mode>` — polling a
+    background task (valid in `strict` + `auto`)
+  - `<options-mode>background-agent</options-mode>` — polling a
+    background agent (valid in `strict` + `auto`)
+  There is **NO** `<options-mode>continue</options-mode>` tag in the
+  codex port; the upstream "continue" sentinel was replaced by the
+  four explicit terminators above plus AskUserQuestion detection.
+- **AskUserQuestion detection** for an empty `last_assistant_message`
+  scans the codex JSONL transcript for a trailing
+  `payload.type: "function_call"` with `name: "request_user_input"` or
+  `"ask_user_question"` (forward-compat — both names accepted) after
+  the last `payload.type: "message"` line.
+- **No LLM classification** — pure tag + function-call detection
+  (deterministic).
 
-**Real residual risk — JSONL transcript format incompatibility.**
-Confirmed 2026-05-02:
-- Claude transcript: `{type:"assistant", message:{content:[{type:"text"}, {type:"tool_use", name:"AskUserQuestion"}]}}` with envelope `uuid`
-- Codex transcript: `{timestamp, type:"response_item", payload:{type:"message", role:"assistant", content:[{type:"output_text", text:...}]}}` — no `uuid`, tool calls are SEPARATE `RolloutItem::ResponseItem(FunctionCall{...})` lines (NOT inline `tool_use` blocks)
-- Existing `stop.js:43-49` parser matches `envelope.type === 'assistant' || envelope.role === 'assistant'` and reads `message.content` — **will MISS codex assistant lines entirely**
+**Config root contract** (`hooks/config.js`):
+- `getConfigRoot()` reads the **`PLUGIN_DATA`** env var that codex sets
+  during plugin discovery (`hooks/src/engine/discovery.rs:184-186`).
+- **Fail-loud:** if `PLUGIN_DATA` is unset, `getConfigRoot()` throws
+  `ERR_OPTIONS_PLUGIN_DATA_REQUIRED`. There is **no fallback** to
+  `CODEX_HOME`, `~/.codex/`, or `~/.claude/` — by design. This keeps
+  state co-located with the plugin install and matches codex's plugin
+  data convention.
+- All state paths (session flag files under
+  `options-mode/sessions-configs/`, `options.json`, `options.log`) hang
+  off `PLUGIN_DATA`. TOCTOU symlink window in `safeWriteFlag` /
+  `_writeConfigJsonAtomic` is accepted as out-of-threat-model (a local
+  attacker with write access to `PLUGIN_DATA` already owns plugin state).
 
-**🔑 Critical mitigation:** Codex's `StopCommandInput`
-(`hooks/src/schema.rs:404`) already passes `last_assistant_message`
-as a string directly. The JSONL walk in `stop.js:27-49` and
-`normalizeAssistantContent` (`stop.js:51-75`) can be **deleted
-entirely** — port reads `input.last_assistant_message` instead.
-Collapses ~60 LOC of risk.
-
-**AskUserQuestion detection** (the early-return at `stop.js:67-70`
-that prevents block when agent properly asked a structured choice)
-needs new signal: walk transcript for the most recent
-`RolloutItem::ResponseItem(FunctionCall{name:"ask_user_question"})`
-after the last assistant message, OR (post Phase 2d) detect via the
-codex-native `ask_user_question` tool name. If options-mode ships
-before Phase 2d, this detection works against
-`request_user_input` (the existing tool).
-
-**Decompose the LOC inventory** (verified 2026-05-02):
-- `hooks/config.js` — 284 LOC, shared config / state-file path
-  resolution. **Update `getConfigRoot()` line 32-34: hardcoded
-  `~/.claude` → prefer `CODEX_HOME` env or `~/.codex/`.** Flag prefix
-  `.options-active-<sha>` and counter `.options-stop-counter-<sha>`
-  paths move accordingly. (TOCTOU symlink window: preserve.)
-- `hooks/session-start.js` — 54 LOC. `hasStatusLine` reads Claude's
-  `settings.json` — drop the reminder branch or rewrite for
-  `~/.codex/config.toml`.
-- `hooks/user-prompt-submit.js` — 83 LOC. Largely unchanged. Verify
-  `additionalContext` JSON output (line 41-46) matches codex's
-  `UserPromptSubmit` output parser format.
-- `hooks/stop.js` — 154 LOC. Replace `parseTranscript` +
-  `normalizeAssistantContent` with `input.last_assistant_message`.
-  Re-derive `hasAskUserQuestion` (see signal change above).
-  `assistantKey` falls back to SHA when `envelope.uuid` is absent —
-  already handled.
-- `commands/options-mode.toml` — 2 LOC. **Codex slash commands are
-  built-ins** (`tui/src/bottom_pane/slash_commands.rs:27`); plugin
-  `commands/*.toml` doesn't register native slash commands. Two
-  options: (1) rely on `UserPromptSubmit` hook intercepting unknown
-  slash text (current options-mode actually works this way at
-  `user-prompt-submit.js:25` — should still function if codex submits
-  unknown slash commands as plain text to hooks), OR (2) convert to
-  a skill (`skills/options-mode-toggle/SKILL.md`).
-- `hooks/options-mode-statusline.{ps1,sh}` — 32+23 LOC. **Codex
-  statusline is built-in `StatusLineItem` enum**
-  (`tui/src/bottom_pane/status_line_setup.rs:50`); plugin shell
-  scripts don't plug in. Drop, OR upstream a new `StatusLineItem`
-  variant for plugin-driven badges.
-- `hooks/hooks.json` — migrate to `.codex-plugin/plugin.json` `hooks`
-  field per `manifest.rs:53-56`.
-
-**Port target language:** keep Node.js (codex hooks support exec'ing
-arbitrary scripts). Rewriting in Rust offers little benefit. Slash
-command and statusline scripts: drop or repurpose per above.
-
-**After Phase 2d (`ask_user_question`) ships:**
-- The "structured choice prompt" half of options-mode collapses into
-  agent-callable `ask_user_question` invocations
-- Tag-protocol enforcement (Stop hook) likely still needed — unless
-  codex grows native "must end turn with explicit continue/yield"
-  semantics
-
-**Files to author:**
-- `<options-mode-codex-plugin>/.codex-plugin/plugin.json` (with `hooks`
-  field referencing the ported scripts)
-- Ported hook scripts under `<plugin>/apps/hooks/` (Node.js, ported
-  from existing implementations with `last_assistant_message`
-  adaptations)
-- Skill: `skills/options-mode-toggle/SKILL.md` if going the skill
-  route for `/options-mode on|off|status`
-
-**Codex hook capabilities required and verified** (2026-05-02):
-- `Stop` kind defined: `config/src/hook_config.rs:42`
-- `StopRequest` carries `transcript_path`, `last_assistant_message`,
-  `stop_hook_active`: `core/src/session/turn.rs:513-522`
+**Codex hook surface verified:**
+- `Stop` kind: `config/src/hook_config.rs:42`
+- `StopCommandInput` carries `transcript_path`, `last_assistant_message`,
+  `stop_hook_active` as plain `string | null` / `bool` per
+  `hooks/src/schema.rs:34-35`
+- `stop_hook_active` semantics are byte-identical to upstream Claude:
+  initialised `false` (`turn.rs:366`), set to `true` after a Stop hook
+  block (`turn.rs:557`). The upstream
+  `if (input.stop_hook_active === true) return;` guard is preserved
+  verbatim — do NOT invert.
 - Block + continue: hook returns `decision:"block"` + `reason`; codex
-  records continuation prompt and loops: `turn.rs:534-547`
-- `SessionStart` carries `session_id`, `cwd`, `transcript_path`,
-  `model`, `permission_mode`, `source`: `hook_runtime.rs:111`
-- `UserPromptSubmit` carries `prompt`: `hook_runtime.rs:256`
-- `CLAUDE_PLUGIN_ROOT` env preserved (also `PLUGIN_ROOT`,
-  `CLAUDE_PLUGIN_DATA`): `hooks/src/engine/discovery.rs:177`
+  records the continuation prompt and loops (`turn.rs:534-547`).
+- `${CLAUDE_PLUGIN_ROOT}` is set by codex during discovery
+  (`discovery.rs:181-186`) — `hooks.json` uses this literal for
+  byte-identical parity with upstream.
+
+**Slash command + skill surface** (shipped):
+- Codex TUI does **not** reject unknown slash commands; the composer
+  falls through to normal submission (`chat_composer.rs:2797-2823`).
+  The UserPromptSubmit hook is therefore the **primary** toggle
+  surface — typing `/options-mode strict` invokes the hook directly.
+- The skill `/codexu-options-mode-plugin:options-mode` is
+  **documentation-only**. It has no `--cmd` flag and never shells out;
+  it tells the user/agent to type `/options-mode <args>` literally so
+  the hook handles it.
+- Codex slash commands remain built-ins
+  (`tui/src/bottom_pane/slash_commands.rs:27`); plugin
+  `commands/*.toml` files do not register native slash commands and
+  are NOT used by this port.
+
+**Statusline** (forward-compat, not wired):
+- `apps/statusline/options-mode-statusline.{ps1,sh}` ship in the
+  plugin but are **not wired** into a manifest entry. Codex has no
+  plugin statusline slot yet — the SessionStart `additionalContext`
+  `options-mode: <mode>` prefix is the in-band substitute. The scripts
+  are shipped so they can be hooked up the moment codex grows a
+  statusline plugin slot (Phase 3h-tail).
+
+**Phase 2d interaction (`ask_user_question`):** Codex currently emits
+`request_user_input` (verified at
+`core/src/tools/handlers/request_user_input.rs`). `config.js` exports
+`FUNCTION_CALL_NAMES = ['request_user_input', 'ask_user_question']` so
+detection scans both names for forward-compat with any future rename.
+The "structured choice prompt" half of options-mode is already
+agent-callable via either tool name today.
+
+**Files shipped** (under `packages/codexu-options-mode-plugin/`):
+- `.codex-plugin/plugin.json` — codex plugin manifest
+- `hooks/hooks.json` — registers SessionStart, UserPromptSubmit, Stop
+  hooks (NO PreToolUse — deferred to Phase 3h-tail)
+- `hooks/config.js`, `hooks/session-start.js`,
+  `hooks/user-prompt-submit.js`, `hooks/stop.js` — Node.js hook
+  implementations (note: hooks live under `hooks/`, NOT `apps/hooks/`)
+- `skills/options-mode/SKILL.md` — documentation-only skill
+- `apps/statusline/options-mode-statusline.{ps1,sh}` — forward-compat
+  statusline scripts, not wired
+- `README.md` + `CLAUDE.md` — in-repo install + engine docs
+- `scripts/smoke.mjs` — reproducible local verification
+- `tests/` — vitest coverage for hooks + config
+
+**Phase 3h-tail (deferred follow-ups):**
+- **Codex TUI statusline plugin slot** — once codex exposes a
+  `StatusLineItem` variant for plugin-driven badges (or equivalent
+  manifest entry), wire `apps/statusline/` in and drop the
+  SessionStart `additionalContext` in-band substitute.
+- **`request_user_input` `pre_tool_use_payload()` override** — codex's
+  `request_user_input` handler currently has no
+  `pre_tool_use_payload()` override
+  (`core/src/tools/handlers/request_user_input.rs`), which is why this
+  port deliberately does NOT register a PreToolUse hook in
+  `hooks.json`. Auto-mode enforcement falls back to the Stop hook
+  (function_call detection passes through; bare prose blocks). Once
+  codex grows that override, restore the upstream `pre-tool-use.js`
+  auto-intercept path so AskUserQuestion can be enforced before the
+  tool runs.
 
 #### Phase 3 summary — behavior parity is the cost, not syntax
 

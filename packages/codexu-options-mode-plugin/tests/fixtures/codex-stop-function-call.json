@@ -1,0 +1,7 @@
+{
+  "hook_event_name": "Stop",
+  "session_id": "codex-stop-function-call-session",
+  "transcript_path": "D:/tmp/codex-stop-function-call.jsonl",
+  "last_assistant_message": "",
+  "stop_hook_active": false
+}

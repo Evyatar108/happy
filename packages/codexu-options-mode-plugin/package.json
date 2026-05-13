@@ -1,0 +1,17 @@
+{
+  "name": "codexu-options-mode-plugin",
+  "version": "0.1.0",
+  "description": "Codex options-mode plugin port for the codexu stack.",
+  "type": "module",
+  "scripts": {
+    "smoke": "node scripts/smoke.mjs",
+    "verify-static": "node scripts/verify-static.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vitest": "3.2.4"
+  },
+  "packageManager": "pnpm@10.11.0"
+}

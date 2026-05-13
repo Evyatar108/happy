@@ -1,0 +1,7 @@
+{
+  "hook_event_name": "Stop",
+  "session_id": "codex-stop-disabled-session",
+  "transcript_path": "D:/tmp/codex-stop-disabled.jsonl",
+  "last_assistant_message": "Plain prose without any options tag.",
+  "stop_hook_active": false
+}
