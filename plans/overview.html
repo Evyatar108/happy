@@ -1400,11 +1400,36 @@
   </details>
 
   <details class="cmd" id="cmd-agent-comms" data-task-id="agent-comms">
-    <summary><span class="cmd-name">agent-comms</span><span class="cmd-badge b-blocked">🔒 blocked on plugin-scope-agents</span><span class="cmd-desc">Top-level agent ↔ top-level agent communication (MCP-based?)</span></summary>
+    <summary><span class="cmd-name">agent-comms</span><span class="cmd-badge b-blocked">🔒 blocked on plugin-scope-agents + channels-research</span><span class="cmd-desc">Top-level agent ↔ top-level agent communication (MCP-based?)</span></summary>
     <div class="cmd-body">
-      <div class="cmd-warn blocked">🔒 Blocked on <code>plugin-scope-agents</code> + <code>agent-view-research</code> landing. The communication channel design depends on the spawner pattern's chosen model.</div>
+      <div class="cmd-warn blocked">🔒 Blocked on <code>plugin-scope-agents</code> + <code>agent-view-research</code> + <code>channels-research</code> landing. The communication channel design depends on the spawner pattern's chosen model AND on whether MCP "channels" (2-way) are available as the transport.</div>
       <button class="copy-btn">Copy</button>
-<pre class="cmd-pre">/plan-with-ralph "Build top-level-agent ↔ top-level-agent communication. Constraint: a top-level agent (one with host-tier plugins like ralph-orchestration) should be able to talk to OTHER top-level agents — regardless of whether the operator spawned them directly or they were spawned by another agent-spawner (see plugin-scope-agents). Two channels to consider: (1) an MCP server for SPAWNING — top-level agents can request another top-level agent be spawned with specific role/cwd/plugins; (2) an MCP server for MESSAGE PASSING between live top-level sessions — request-response or pub-sub. Surface the design choice to operator before coding (MCP-only vs MCP + native happy-cli RPC vs codex inter-agent fast path extension). Read plans/agent-view-research.md (research output), plans/agent-view-followups.md if exists, and codex/external/repos/codex-patched/codex-rs/multi_agents_v2/ for codex's existing inter-agent plumbing. Read packages/happy-cli/src/api/apiMachine.ts for how spawn-happy-session is currently exposed to clients — the agent-comms MCP may live there. Acceptance: a top-level agent can spawn another top-level agent via MCP; both can exchange a message; both have host-tier plugins enabled. Test: end-to-end fixture in packages/happy-cli/. Pitfall: cycle-prevention — agent A spawns agent B which spawns agent A → infinite loop. Need a hop counter or operator-approval gate. Surface architectural choices to operator BEFORE landing code."</pre>
+<pre class="cmd-pre">/plan-with-ralph "Build top-level-agent ↔ top-level-agent communication. Constraint: a top-level agent (one with host-tier plugins like ralph-orchestration) should be able to talk to OTHER top-level agents — regardless of whether the operator spawned them directly or they were spawned by another agent-spawner (see plugin-scope-agents). Two channels to consider: (1) an MCP server for SPAWNING — top-level agents can request another top-level agent be spawned with specific role/cwd/plugins; (2) an MCP server for MESSAGE PASSING between live top-level sessions — request-response or pub-sub. Surface the design choice to operator before coding (MCP-only vs MCP + native happy-cli RPC vs codex inter-agent fast path extension). Read plans/agent-view-research.md (research output), plans/channels-research.md (output of channels-research), plans/agent-view-followups.md if exists, and codex/external/repos/codex-patched/codex-rs/multi_agents_v2/ for codex's existing inter-agent plumbing. Read packages/happy-cli/src/api/apiMachine.ts for how spawn-happy-session is currently exposed to clients — the agent-comms MCP may live there. Acceptance: a top-level agent can spawn another top-level agent via MCP; both can exchange a message; both have host-tier plugins enabled. Test: end-to-end fixture in packages/happy-cli/. Pitfall: cycle-prevention — agent A spawns agent B which spawns agent A → infinite loop. Need a hop counter or operator-approval gate. Surface architectural choices to operator BEFORE landing code."</pre>
+    </div>
+  </details>
+
+  <details class="cmd" id="cmd-channels-research" data-task-id="channels-research">
+    <summary><span class="cmd-name">channels-research</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Research Claude Code's `channels` (MCP 2-way) + codex implementation plan</span></summary>
+    <div class="cmd-body">
+      <button class="copy-btn">Copy</button>
+<pre class="cmd-pre">/plan-with-ralph "Research Claude Code's 'channels' concept and design a codex equivalent if it doesn't exist there. Goal: 2-way communication between agents and MCP servers (today MCP is largely request-response from the agent; we want the MCP to be able to push messages back / stream state changes / interrupt the agent). Output: plans/channels-research.md covering: (1) What Claude Code calls 'channels' — read the relevant Claude Code source (C:/harness-efforts/claude-code/worktrees/main/ if accessible) + Anthropic's docs/changelog. Capture the wire shape, lifecycle (open/close), back-pressure model, how an MCP server discovers/registers a channel, how the agent subscribes. (2) Codex's current MCP support — `codex` ships an MCP client; what does it support today? Read codex/external/repos/codex-patched/codex-rs/ (READ-ONLY per minimize-conflict-surface tenet) for mcp_tool_call.rs / mcp_client / rmcp_client modules. Identify whether codex's MCP transport (stdio? sse? streamable-http? something else?) admits server-initiated messages. (3) Gap analysis: if codex doesn't support 2-way channels, what's the minimal patch? An overlay crate in codex/codex-rs-overlay/ that extends mcp_client with channel semantics? A new tool type? A protocol upgrade? (4) Implementation sketch: file:line refs for where the patches would land, effort estimate, risk areas. (5) Cross-reference Phase 2d (ask_user_question primitive) and the MCP spec evolution (https://spec.modelcontextprotocol.io/) — channels might already be standardized. NO CODE — research + design only. Add follow-up ralph task entries to plans/parallel-assignments.md if the gap analysis surfaces concrete next steps. Surface to operator before committing the doc."</pre>
+    </div>
+  </details>
+
+  <details class="cmd" id="cmd-async-events-design" data-task-id="async-events-design">
+    <summary><span class="cmd-name">async-events-design</span><span class="cmd-badge b-blocked">🔒 blocked on channels-research</span><span class="cmd-desc">Design async event listening for agents (commit-merged, etc.)</span></summary>
+    <div class="cmd-body">
+      <div class="cmd-warn blocked">🔒 Blocked on <code>channels-research</code> — if MCP channels (2-way) are available or buildable, they're the leading candidate transport. The design has to know what's actually on the table.</div>
+      <button class="copy-btn">Copy</button>
+<pre class="cmd-pre">/plan-with-ralph "Design how an agent listens to async events — e.g., 'wake me when a commit lands on main', 'notify me when a periodic task fires', 'tell me when another agent finishes its turn'. Today an agent's only async-trigger model is: exit and be re-spawned (e.g., a periodic background task that exits to wake the operator/agent). That's not ideal — loses context, restart latency, can't subscribe to fine-grained events. Output: plans/async-events-design.md covering: (1) The use cases — at least these 4: git events (commit on main / branch updated / push), periodic-task firings, inter-agent notifications (sibling-agent completion / sibling-agent question), file-system events (file changed under cwd). (2) Current options in Claude Code — is there a 'wait for X' tool? hooks? streamable MCP? A 'send-when-idle' channel? Read C:/harness-efforts/claude-code/worktrees/main/ if accessible. (3) Current options in codex — codex's hook system (config/src/hook_config.rs), inter-agent fast path in multi_agents_v2/, MCP support. READ-ONLY on codex/external/repos/codex-patched/ per minimize-conflict-surface. (4) Design options for codexu — compare at least: (a) MCP with 2-way channels (depends on channels-research outcome); (b) periodic background task that exits to wake agent (current model — note limits); (c) long-poll MCP tool (block until event); (d) a 'subscription' RPC on the codex app-server side that streams events to the agent's session; (e) hybrid (use codex hooks for in-session triggers, channels for cross-session). (5) Recommendation with rationale; identify the smallest-viable subset that covers the 4 use cases. (6) Surface to operator before committing follow-up implementation tasks. NO CODE — design only. The output doc IS the deliverable."</pre>
+    </div>
+  </details>
+
+  <details class="cmd" id="cmd-native-agent-parity" data-task-id="native-agent-parity">
+    <summary><span class="cmd-name">native-agent-parity</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Research codex parity with Claude Code's native subagents (Explore, etc.)</span></summary>
+    <div class="cmd-body">
+      <button class="copy-btn">Copy</button>
+<pre class="cmd-pre">/plan-with-ralph "Research whether (and how) we want codex parity with Claude Code's native subagent palette — e.g., Explore (fast codebase exploration), Plan (architect), claude-code-guide, statusline-setup, etc. Today codex's [agents.&lt;role&gt;] TOML system is operator-defined; Claude Code ships preset subagent types with curated system prompts. Output: plans/native-agent-parity.md covering: (1) Enumerate Claude Code's preset subagents — use the Agent tool yourself if accessible to list them, or grep C:/harness-efforts/claude-code/worktrees/main/ for the subagent registry. For each: name, purpose, tool allowlist, model preference, system prompt. (2) For each, assess whether it makes sense for codex too: high-value port (e.g., Explore — every developer benefits from a fast codebase-explorer subagent) vs Claude-specific (e.g., claude-code-guide — references Claude Code features that may not apply). (3) Implementation packaging — should codex parity ship as: (a) a plugin in packages/codexu-plugin/ that registers default [agents.&lt;role&gt;] entries; (b) an overlay crate in codex/codex-rs-overlay/ that bakes them into the binary; (c) a one-time `codex agent install --preset claude-code-equivalents` migration. Discuss tradeoffs. (4) Should we LEVERAGE Claude Code's system prompts as inspiration? Yes — they're battle-tested. Should we copy verbatim (license / attribution question — check Claude Code's license) or paraphrase? Recommend. (5) Cross-reference Phase 3b-i (subagents → [agents.&lt;role&gt;] for ralph's 12 internal subagents) — that's the analogous port but operator-private; this is the public-facing 'native palette' port. (6) Pick top 3 most-valuable to port first. NO CODE — research + decision doc. Surface recommendations to operator before opening follow-up implementation tasks."</pre>
     </div>
   </details>
 
@@ -1674,8 +1699,8 @@
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T03:00:00Z",
-  "generatedFromCommit": "b5fc97c4",
+  "generatedAt": "2026-05-14T04:00:00Z",
+  "generatedFromCommit": "5d80d5fb",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:00:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -1698,7 +1723,10 @@
     "codex-upstream-rebase": "2026-05-14T01:30:00Z",
     "agent-view-research": "2026-05-14T03:00:00Z",
     "plugin-scope-agents": "2026-05-14T03:00:00Z",
-    "agent-comms": "2026-05-14T03:00:00Z"
+    "agent-comms": "2026-05-14T03:00:00Z",
+    "channels-research": "2026-05-14T04:00:00Z",
+    "async-events-design": "2026-05-14T04:00:00Z",
+    "native-agent-parity": "2026-05-14T04:00:00Z"
   },
   "periodic": {
     "happy-upstream-sync": { "intervalDays": 28, "lastRunId": "happy-upstream-sync/2026-05-03", "nextDueAt": "2026-05-31T00:00:00Z" },
@@ -1756,7 +1784,10 @@
     "codex-upstream-rebase": 8,
     "agent-view-research": 4,
     "plugin-scope-agents": 12,
-    "agent-comms": 16
+    "agent-comms": 16,
+    "channels-research": 4,
+    "async-events-design": 6,
+    "native-agent-parity": 4
   },
   "risk": {
     "perf-WS1": "low",
@@ -1780,7 +1811,10 @@
     "codex-upstream-rebase": "medium",
     "agent-view-research": "low",
     "plugin-scope-agents": "medium",
-    "agent-comms": "high"
+    "agent-comms": "high",
+    "channels-research": "low",
+    "async-events-design": "low",
+    "native-agent-parity": "low"
   },
   "workstream": {
     "perf-WS1": "perf",
@@ -1804,7 +1838,10 @@
     "codex-upstream-rebase": "upstream",
     "agent-view-research": "agent-arch",
     "plugin-scope-agents": "agent-arch",
-    "agent-comms": "agent-arch"
+    "agent-comms": "agent-arch",
+    "channels-research": "agent-arch",
+    "async-events-design": "agent-arch",
+    "native-agent-parity": "agent-arch"
   },
   "sizeBucket": {
     "perf-WS1": "quick",
@@ -1828,7 +1865,10 @@
     "codex-upstream-rebase": "medium",
     "agent-view-research": "small",
     "plugin-scope-agents": "large",
-    "agent-comms": "large"
+    "agent-comms": "large",
+    "channels-research": "small",
+    "async-events-design": "medium",
+    "native-agent-parity": "small"
   }
 }
 </script>
