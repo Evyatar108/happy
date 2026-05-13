@@ -41,7 +41,7 @@ The US-A1 spike is recorded in `docs/spikes/devtunnel-api-discovery-result.md` a
 - Sprint A auth stories should derive `accountId` from the `api.github.com/user` response already in scope during `/pair/status`, without a cross-request identity cache.
 - Crash recovery should prefer persisted `tunnelId` reuse before creating or deleting tunnels.
 
-Sprint A therefore keeps `/pair/connect` unchanged, extends the Happy tunnel claim with optional `accountId`, derives that `accountId` unconditionally from `/pair/status`'s GitHub identity result, and treats Dev Tunnels JWT verification as transport-access validation rather than account identity.
+Historical Sprint A direction (obsolete after remove-tunnel-claim-layer): Sprint A therefore keeps `/pair/connect` unchanged, extends the Happy tunnel claim with optional `accountId`, derives that `accountId` unconditionally from `/pair/status`'s GitHub identity result, and treats Dev Tunnels JWT verification as transport-access validation rather than account identity. The Happy tunnel claim layer has since been removed entirely; Dev Tunnels gateway auth (`X-Tunnel-Authorization`) is now the sole remote identity gate, and happy-server collapses identity to the local user id. See `docs/security-model.md`.
 
 ---
 
@@ -237,7 +237,7 @@ The Sprint A spike result is documented in `docs/spikes/devtunnel-api-discovery-
 
 - Use direct Dev Tunnels REST calls for user-token discovery and label-filtered tunnel listing.
 - Do not rely on Dev Tunnels connect JWTs for GitHub account identity.
-- Use the in-scope `api.github.com/user` result from `/pair/status` as the source for numeric `accountId` in Happy claims.
+- Historical Sprint A direction (obsolete after remove-tunnel-claim-layer): Use the in-scope `api.github.com/user` result from `/pair/status` as the source for numeric `accountId` in Happy claims. The Happy tunnel claim layer has since been removed entirely; Dev Tunnels gateway auth (`X-Tunnel-Authorization`) is now the sole remote identity gate, and happy-server collapses identity to the local user id. See `docs/security-model.md`.
 
 The older Phase 0 path (a)/(b) split below is retained as background for the eventual app-to-live-tunnel cutover. It is no longer a blocker for Sprint A foundation stories.
 
