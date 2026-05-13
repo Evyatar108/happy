@@ -578,7 +578,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `native-agent-parity` | Research codex parity with Claude Code's native subagents | ✅ landed 2026-05-14 | — (research-only; output `plans/native-agent-parity.md`) |
 | `port-explorer-prompt` 🤖 | Fill empty `explorer.toml` stub | 🟡 in progress | — |
 | `port-plan-and-verification-roles` 🤖 | Add `plan.toml` + `verification.toml` built-ins | ⬜ blocked on §6 operator decisions | — |
-| `audit-general-purpose-vs-worker` 🤖 | 30-min prompt diff vs codex worker.toml | 🟡 in progress | — |
+| `audit-general-purpose-vs-worker` 🤖 | 30-min prompt diff vs codex worker.toml | ✅ landed 2026-05-14 (no-op) | — (research-only; finding in `plans/native-agent-parity.md` §2.4) |
 | `roadmap-plugin` 🛠 | Plugin: agents manage roadmap/overview.html via skill + MCP | ⬜ not started | — |
 
 🟡 = in progress (agent actively working, not yet committed). Refresh after each landing.

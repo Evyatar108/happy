@@ -116,9 +116,30 @@ Six subagents shipped by Claude Code today:
 - *Inspiration source:* `D:/harness-efforts/claude-code/worktrees/main/src/tools/AgentTool/built-in/verificationAgent.ts`
 - *Permission profile reference:* `codex/external/repos/codex-patched/codex-rs/core/src/config/permission_profile.rs` (verify name and capabilities — TODO during implementation)
 
-### 2.4 `general-purpose` → codex `worker` (**SKIP — already covered**)
+### 2.4 `general-purpose` → codex `worker` (**SKIP — no merge; structural mismatch**)
 
-**Verdict: redundant.** Codex already has a `worker` built-in role for "execution & production work" (`role.rs:356–416`). Compare the two prompts during implementation of #1–3 above; if Claude's `general-purpose` has guidance `worker` lacks (e.g., the "NEVER create files unless absolutely necessary" rule, "NEVER create documentation files"), fold those rules into `worker.toml`. Do not add a third overlapping catch-all.
+**Original framing:** "Compare the two prompts; if Claude's `general-purpose` has guidance `worker` lacks, fold those rules into `worker.toml`."
+
+**Audit result (2026-05-13 follow-up to §6 Q6, closes task `audit-general-purpose-vs-worker` from §recommended-follow-up):** **no-op merge.** On inspection the original framing was wrong about the seam — codex's `worker` role has **no `developer_instructions` layer at all**. The role is declared at `role.rs:382–394` with `config_file: None`, so there is no `worker.toml` on disk and no per-role prompt to merge rules into. The `description` field on `AgentRoleConfig` is plumbed to the *parent* agent's `spawn_agent` tool description (`role.rs::spawn_tool_spec::format_role` at lines 308–349), not to the spawned worker. Claude Code's `general-purpose` ships a per-agent system prompt; codex's `worker` ships only a selection guide to the spawner. The two are not parallel files.
+
+**The two candidate rules are real gaps**, just not at the `worker` layer:
+
+| Rule (Claude `general-purpose`, `generalPurposeAgent.ts:15–16`) | Codex base prompt (`core/gpt_5_2_prompt.md`) |
+|---|---|
+| "NEVER create files unless they're absolutely necessary for achieving your goal. ALWAYS prefer editing an existing file to creating a new one." | Weaker abstract analogue at line 156 ("surgical precision … don't overstep") and line 158 ("don't gold-plate"). No explicit "prefer edit over create" or "NEVER create files unless necessary." |
+| "NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested." | **Absent.** No equivalent guidance anywhere in the base prompt. |
+
+**Why no merge here:**
+
+1. **`worker` is not the right seam.** A `developer_instructions` block on `worker` would only affect agents spawned with `agent_type="worker"`. File-creation discipline should apply to the top-level codex session and to every role, not just worker. Adding rules to worker leaves the main-agent flow untouched — which is the more common path.
+2. **The right seam is the base prompt, which is upstream-canonical.** `core/gpt_5_2_prompt.md` (and the `gpt_5_1` / `gpt-5.2-codex` / `gpt-5.1-codex-max` variants) is upstream-owned. Patching them directly violates `AGENTS.override.md` core tenet 1 (minimize upstream-canonical conflict surface). Acceptable overlay paths are: (a) launcher-injected `additional_instructions` via `~/.codex-copilot/config.toml`, or (b) a clean-room paraphrase added to a future intentional `worker.toml` *after* deciding worker should have a developer_instructions layer. Either is larger than this 30-minute audit task was scoped to.
+3. **The behavioral gap is real but not load-bearing today.** No reported regressions trace to codex worker over-creating files or generating unsolicited READMEs. Codex's "surgical precision / don't overstep / don't gold-plate" framing covers the same intent with weaker enforcement.
+
+**Follow-up tracking (not part of Phase 3b parity port):**
+- Decide whether codex should sharpen base file-creation discipline via launcher-injected `additional_instructions`. Opens a separate question about which other Claude-Code rules (emoji guidance, absolute-path guidance — appended by `enhanceSystemPromptWithEnvDetails` on the Claude side) merit similar treatment.
+- If a future PR introduces `worker.toml` for unrelated reasons (e.g., model pinning, reasoning-effort lock), these rules can ride along as paraphrased text. Creating `worker.toml` solely for them is unjustified ceremony.
+
+**Closure:** no `worker.toml` created, no `role.rs` change, no codex submodule bump. Edit confined to this markdown amendment in codexu.
 
 ### 2.5 `statusline-setup` (**SKIP — Claude-specific**)
 
@@ -246,7 +267,7 @@ These are **gating** questions — they should be answered before the first foll
 
 5. **Test/regression baseline.** What's the smoke-test plan for "a built-in role parses, dispatches, and produces sensible output"? Should we add to `codex-invariant-tests` (the overlay test crate, `codex/codex-rs-overlay/codex-invariant-tests/`), or piggyback on existing `agent_roles.rs` tests in upstream core?
 
-6. **`general-purpose` vs `worker` prompt diff.** Before merging anything, line up Claude's `general-purpose` prompt against codex's current `worker` system prompt. If `worker.toml` has substantively similar guidance, no action. If `worker.toml` is sparser, fold Claude's "NEVER create files / documentation" rules into `worker.toml` as a small separate change. The roadmap is silent on whether `worker.toml` exists today (research showed `default`, `explorer`, `worker` as the three built-ins but did not read each TOML body) — needs a 5-minute follow-up check.
+6. **`general-purpose` vs `worker` prompt diff.** ~~Before merging anything, line up Claude's `general-purpose` prompt against codex's current `worker` system prompt.~~ **Resolved 2026-05-13 — see §2.4 audit result.** Outcome: no-op merge. `worker.toml` does not exist (worker has `config_file: None` at `role.rs:382–394`); the two candidate rules are gaps in codex's *base* prompt, not at the worker layer, and the right seam for sharpening them is overlay-injected `additional_instructions` — out of scope for the parity port.
 
 ---
 
@@ -296,6 +317,6 @@ Three implementation tasks, opened in this order:
 
 1. **`port-explorer-prompt`** — Fill `explorer.toml` with a paraphrased Explore prompt. Smallest delta, fastest validation. No `role.rs` change needed (file already wired).
 2. **`port-plan-and-verification-roles`** — Add `plan.toml` + `verification.toml` + their `role.rs` match arms. One PR; both new built-ins share the same plumbing change. Resolve §6 questions 1, 4, and 5 before opening.
-3. **`audit-general-purpose-vs-worker`** — 30-minute task: diff Claude's `general-purpose` prompt against codex's current `worker.toml` content; merge any missing rules. Can run in parallel with #1.
+3. ~~**`audit-general-purpose-vs-worker`** — 30-minute task: diff Claude's `general-purpose` prompt against codex's current `worker.toml` content; merge any missing rules.~~ **Done 2026-05-13.** Outcome: no-op merge — see §2.4 audit result. The original framing assumed `worker.toml` existed; it doesn't. Real gaps live at the base-prompt layer and need a different seam.
 
 Tasks #4+ (plugin distribution per 3b, `codex-guide` analog per 2.6, upstream registration-seam patch per §6 Q1) are deferred until #1–3 land.

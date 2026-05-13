@@ -1709,7 +1709,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
   </details>
 
   <details class="cmd" id="cmd-audit-general-purpose-vs-worker" data-task-id="audit-general-purpose-vs-worker">
-    <summary><span class="cmd-name">audit-general-purpose-vs-worker</span><span class="cmd-badge b-inflight">🟡 in progress</span><span class="cmd-desc">30-min prompt-diff: Claude's <code>general-purpose</code> vs codex's <code>worker.toml</code>; merge missing rules. Spawned by <code>native-agent-parity</code>.</span></summary>
+    <summary><span class="cmd-name">audit-general-purpose-vs-worker</span><span class="cmd-badge b-closed">✅ landed 2026-05-14 — no-op</span><span class="cmd-desc">Prompt-diff finding: worker role is description-only (no developer_instructions); real gaps live in the base prompt at a different layer. Spawned by <code>native-agent-parity</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
 <pre class="cmd-pre">/plan-with-ralph "30-minute prompt-diff task per plans/native-agent-parity.md §2.4. Compare D:/harness-efforts/claude-code/worktrees/main/src/tools/AgentTool/built-in/generalPurposeAgent.ts (or whichever file exposes Claude's general-purpose system prompt) against codex/external/repos/codex-patched/codex-rs/core/src/agent/builtins/worker.toml's developer_instructions. Identify guidance present in general-purpose that's missing from worker.toml — likely candidates per the research: 'NEVER create files unless absolutely necessary', 'NEVER create documentation files unless explicitly requested', other safety-rail rules. If worker.toml is sparser, fold the missing rules into worker.toml as a small targeted change (NOT a wholesale rewrite); keep the change minimal so codex's worker behavior shifts only at the margins. If worker.toml already covers the same ground (likely — codex's worker is mature), document this in plans/native-agent-parity.md §2.4 as a no-op finding. License posture: paraphrase any rule text from Claude's general-purpose; do NOT copy verbatim. Workflow: codex-submodule worktree; commit on topic branch; bump codexu submodule pointer. Acceptance: either (a) worker.toml updated with N paraphrased rule additions referenced in commit body, OR (b) plans/native-agent-parity.md §2.4 amended with a 'no merge needed, worker.toml already covers X/Y/Z' note. Surface to operator before merging. No happy-cli/happy-app changes."</pre>
@@ -1999,8 +1999,8 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T10:00:00Z",
-  "generatedFromCommit": "b855848d",
+  "generatedAt": "2026-05-14T11:00:00Z",
+  "generatedFromCommit": "345c3f80",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -2041,7 +2041,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "codex-hooks-parity": "2026-05-14T08:30:00Z",
     "port-explorer-prompt": "2026-05-14T10:00:00Z",
     "port-plan-and-verification-roles": "2026-05-14T08:30:00Z",
-    "audit-general-purpose-vs-worker": "2026-05-14T10:00:00Z",
+    "audit-general-purpose-vs-worker": "2026-05-14T11:00:00Z",
     "mcp-server-notifications": "2026-05-14T09:00:00Z",
     "codex-channels": "2026-05-14T09:00:00Z"
   },
@@ -2054,6 +2054,14 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "codex-upstream-rebase": "periodic"
   },
   "runs": [
+    {
+      "id": "audit-general-purpose-vs-worker/2026-05-14",
+      "taskId": "audit-general-purpose-vs-worker",
+      "ranAt": "2026-05-14T11:00:00Z",
+      "outcome": "completed",
+      "commits": [],
+      "summary": "No-op merge finding (acceptance path b). Codex's worker role is description-only (role.rs:382-394, config_file: None) — there's no developer_instructions layer to merge Claude's safety rails into. The two real gaps (Claude's 'NEVER create files unless absolutely necessary' + 'NEVER proactively create *.md / README files') ARE missing from codex's base prompt at gpt_5_2_prompt.md:156,158 (only weak abstract analogues), but the correct fix-site is launcher-injected additional_instructions (overlay path per AGENTS.override.md tenet 1), not worker-only enforcement which would skip the main-agent flow. Recommend: land port-explorer-prompt + port-plan-and-verification-roles first; revisit base-prompt overlay separately. plans/native-agent-parity.md §2.4 updated with the finding; §6 Q6 marked resolved."
+    },
     {
       "id": "1a-fork-doc/2026-05-14",
       "taskId": "1a-fork-doc",
