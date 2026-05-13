@@ -18,6 +18,43 @@ When each task lands, mark its row done at the bottom of this file.
 
 ---
 
+## 🚀 Recommended parallel lanes — fire now
+
+Five batch-1 tasks are pairwise file-disjoint and can run concurrently:
+
+| Lane | Tab | Files touched | Why safe with the others |
+|---|---|---|---|
+| 1 | `perf-WS1` | `packages/happy-app/sources/sync/refreshClaim.ts` + its test | Only file in its tree |
+| 2 | `perf-WS3` | server `eventRouter.ts` + `socket.ts`; app `storage.ts` + `socketOptions.ts` | Server side untouched by any other lane; app-side files distinct from lanes 1/3/4 |
+| 3 | `mcp-discovery` | `packages/happy-cli/src/codex/runCodex.ts` + test | Only happy-cli codex file edited in batch 1 |
+| 4 | `F-015-toast` | `packages/happy-app/sources/auth/AuthContext.tsx`, `sync/profile.ts`, `auth/tokenStorage.ts` | Auth surface, not sync — no overlap with perf |
+| 5 | `codex-parity-audit` | `plans/codex-agent-parity-audit.md` (new), `plans/codexu-roadmap.md`, `plans/overview.html` | Docs-only; runs in parallel with anything |
+
+If you have spare capacity, three more lanes are also parallel-safe with all five above:
+
+| Lane | Tab | Why safe |
+|---|---|---|
+| 6 | `1a-fork-doc` | Codex submodule docs-only (uses its own `.ralph/jobs/<name>/codex-worktree/`). No overlap with codexu files. |
+| 7 | `3c-hooks` | Verifies the ralph plugin for hooks; likely zero work; touches `C:/ai-developer-toolkit/plugins/ralph/`. |
+| 8 | `3h-options` | Separate plugin (options-mode); its own directory. |
+
+### ❌ Do NOT fire concurrently
+
+- **`perf-WS2` + `perf-WS3`** — both touch `storage.ts`; WS3 changes WS2's scope. Fire WS2 only after WS3 lands.
+- **`mcp-discovery` + `1b-multidev`** — both touch `runCodex.ts`. Fire mcp-discovery first (45 min), then 1b-multidev rebases trivially.
+- **`polish-Fs` + `perf-WS3`** — polish-Fs touches happy-server for the security findings; could collide with perf-WS3's eventRouter changes. Fire polish-Fs after perf-WS3 lands, or coordinate which server file each agent owns.
+- **`3a-skills`** — paused; not fire-able until prerequisites are re-established (operator gate).
+- **`3b-agents` / `3d-workers` / `3fg-package`** — blocked on 3a-skills's discovery commit (which doesn't exist yet).
+
+### Sequencing after batch 1
+
+Once perf-WS3 lands → fire `perf-WS2`.
+Once perf-WS3 + F-015 land → fire `polish-Fs` (different operator may also choose to fire F-014 deploy when convenient).
+Once 3a-skills is re-spawned and lands its discovery → fire `3b-agents`, `3d-workers`, `3fg-package` (themselves serialized internally per plan).
+Once codex-parity-audit lands → operator triages the gaps and may queue new per-gap ralph commands.
+
+---
+
 ## A — `perf-WS1` — Realtime perf, refresh-skip
 
 ```
