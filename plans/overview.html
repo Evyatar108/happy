@@ -157,6 +157,32 @@
 
   .footnote { color: var(--muted); font-size: 12px; margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--border); }
 
+  /* Collapsible top-level sections */
+  details.section { margin: 24px 0 0; }
+  details.section > summary {
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    user-select: none;
+  }
+  details.section > summary::-webkit-details-marker { display: none; }
+  details.section > summary::before {
+    content: '▶';
+    color: var(--muted);
+    font-size: 12px;
+    transition: transform 0.2s;
+    min-width: 12px;
+  }
+  details.section[open] > summary::before { transform: rotate(90deg); }
+  details.section > summary:hover { color: var(--accent); }
+
   /* Collapsible command list */
   .cmd-list { display: flex; flex-direction: column; gap: 6px; }
   .cmd {
@@ -267,7 +293,8 @@
   </ol>
 </div>
 
-<h2>Kanban — assignable now</h2>
+<details class="section">
+<summary class="section-head">Kanban — assignable now</summary>
 <div class="legend">
   <span class="pill area-app">happy-app</span>
   <span class="pill area-server">happy-server</span>
@@ -622,7 +649,10 @@
   </div>
 </div>
 
-<h2>Ralph commands — click to expand, button to copy</h2>
+</details>
+
+<details class="section">
+<summary class="section-head">Ralph commands — click to expand, button to copy</summary>
 <div class="sub" style="margin-bottom:12px;">
   Self-contained <code>/plan-with-ralph</code> prompts mirrored from <code>plans/parallel-assignments.md</code>. Click a row to reveal the full command and copy with one click. Status badge reflects current state.
 </div>
@@ -774,7 +804,10 @@
 
 </div>
 
-<h2>Codex specialization roadmap — phase-by-phase status</h2>
+</details>
+
+<details class="section">
+<summary class="section-head">Codex specialization roadmap — phase-by-phase status</summary>
 <div class="sub" style="margin-bottom:12px;">
   Compact view of <code>plans/codexu-roadmap.md</code> Phases 1-7. Strike-through = done.
 </div>
@@ -875,7 +908,10 @@
 
 </div>
 
-<h2>Parallelism — what can run together</h2>
+</details>
+
+<details class="section">
+<summary class="section-head">Parallelism — what can run together</summary>
 
 <table class="tbl">
   <thead>
@@ -945,7 +981,10 @@
   </tbody>
 </table>
 
-<h2>Dependencies — order gotchas</h2>
+</details>
+
+<details class="section">
+<summary class="section-head">Dependencies — order gotchas</summary>
 
 <table class="tbl">
   <thead>
@@ -1002,6 +1041,8 @@
     </tr>
   </tbody>
 </table>
+
+</details>
 
 <div class="footnote">
   <strong>Sync contract:</strong> this file is a derivative snapshot of
