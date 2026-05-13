@@ -395,6 +395,90 @@
     border-radius: 4px;
   }
 
+  /* Operator notes — inline textarea per cmd row */
+  .notes-toggle {
+    position: absolute;
+    top: 6px;
+    right: 80px; /* sits next to the Copy button */
+    background: var(--card-hover);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    z-index: 1;
+  }
+  .notes-toggle:hover { background: var(--accent); color: white; border-color: var(--accent); }
+  .notes-toggle.has-note { border-color: var(--ok); color: var(--ok); }
+  .notes-toggle.has-note::before { content: '● '; }
+  .notes-panel {
+    display: none;
+    margin-top: 8px;
+  }
+  .notes-panel.visible { display: block; }
+  .notes-panel textarea {
+    width: 100%;
+    min-height: 70px;
+    padding: 8px 10px;
+    background: var(--bg);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Cascadia Code', Menlo, monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    resize: vertical;
+    box-sizing: border-box;
+  }
+  .notes-panel textarea:focus { outline: none; border-color: var(--accent); }
+  .notes-panel .notes-meta { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* Capacity-line sub-row in the ready strip */
+  .ready-strip .capacity-line {
+    flex-basis: 100%;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* BOOX / coarse-pointer / narrow-viewport tweaks
+     E-ink (BOOX) quantizes muted greys to pure white. We boost contrast,
+     enlarge tap targets, and drop subtle decorations. */
+  @media (max-width: 900px), (pointer: coarse) {
+    body { font-size: 15px; }
+    .sub, .cmd-desc, .card-meta, .footnote, .section-counts, .strip-count, .kbd-hint {
+      color: var(--fg);
+    }
+    .copy-btn, .bulk-btn, .notes-toggle, .wn-dismiss {
+      padding: 10px 16px;
+      font-size: 13px;
+      min-height: 40px;
+    }
+    .copy-btn { top: 4px; right: 4px; }
+    .notes-toggle { right: 100px; }
+    .cmd-select { width: 22px; height: 22px; cursor: pointer; }
+    .filter-chip { padding: 8px 14px; font-size: 13px; min-height: 36px; }
+    .chip { padding: 6px 12px; font-size: 13px; }
+    #search { padding: 10px 14px; font-size: 14px; min-height: 40px; }
+    .kanban { grid-template-columns: 1fr; }
+    .phase-grid { grid-template-columns: 1fr; }
+    /* Higher-contrast borders for e-ink readability */
+    .card, .cmd, .phase, .kbd-help, .ready-strip {
+      border-color: var(--fg);
+    }
+    /* Drop the area-color left border subtlety — e-ink crushes it; keep solid full border for visibility */
+    .card[class*="area-bdr-"] { border-left-width: 4px; }
+    /* Make section-head chevron larger */
+    details.section > summary { font-size: 18px; padding: 10px 0; }
+    details.section > summary::before { font-size: 14px; min-width: 16px; }
+    details.cmd > summary { font-size: 14px; padding: 4px 0; }
+    /* Banner inline buttons easier to tap */
+    .whatsnew-banner { padding: 16px; }
+    .whatsnew-banner .wn-dismiss { padding: 10px 16px; }
+  }
+
   /* Collapsible top-level sections */
   details.section { margin: 24px 0 0; }
   details.section > summary {
@@ -514,7 +598,7 @@
 
 <h1>codexu — plan overview</h1>
 <div class="sub">
-  Generated 2026-05-13 against <code>main</code> HEAD <code>f05fccf8</code>. <span id="freshness-hint" class="sub"></span>
+  Generated against <code>main</code> HEAD <code id="gen-sha">…</code>. <span id="freshness-hint" class="sub"></span>
   Sources: <code>plans/codexu-roadmap.md</code> (Phases 1-7 + Sprint E),
   <code>plans/realtime-sync-perf.md</code>, devtunnels-E notepad (F-* findings).
 </div>
@@ -1676,11 +1760,14 @@
     try { return JSON.parse(dataEl.textContent); } catch (_) { return null; }
   }
 
-  // ===== Freshness hint in the page header =====
+  // ===== Freshness hint + commit SHA in the page header =====
   (function freshnessHint() {
     var data = getRoadmapData();
+    if (!data) return;
+    var shaEl = document.getElementById('gen-sha');
+    if (shaEl && data.generatedFromCommit) shaEl.textContent = data.generatedFromCommit;
     var hint = document.getElementById('freshness-hint');
-    if (!data || !hint || !data.generatedAt) return;
+    if (!hint || !data.generatedAt) return;
     var gen = new Date(data.generatedAt);
     if (isNaN(gen.getTime())) return;
     var hrsAgo = (Date.now() - gen.getTime()) / 36e5;
@@ -1688,6 +1775,108 @@
       : hrsAgo < 24 ? Math.round(hrsAgo) + ' h ago'
       : Math.round(hrsAgo / 24) + ' d ago';
     hint.textContent = '(snapshot ' + ago + ')';
+  })();
+
+  // ===== Capacity widget (ready-queue effort + risk breakdown) =====
+  (function capacityWidget() {
+    var data = getRoadmapData();
+    if (!data) return;
+    var effort = data.effort || {};
+    var risk = data.risk || {};
+    var totalEffort = 0;
+    var riskCounts = { low: 0, medium: 0, high: 0 };
+    document.querySelectorAll('details.cmd').forEach(function (cmd) {
+      if (classifyCmd(cmd) !== 'ready') return;
+      var id = cmd.getAttribute('data-task-id');
+      if (!id) return;
+      totalEffort += (typeof effort[id] === 'number' ? effort[id] : 0);
+      var r = risk[id];
+      if (r && riskCounts.hasOwnProperty(r)) riskCounts[r] += 1;
+    });
+    var strip = document.getElementById('ready-strip');
+    if (!strip) return;
+    var line = document.createElement('span');
+    line.className = 'capacity-line';
+    var totalLabel = totalEffort < 10
+      ? '≈ ' + totalEffort.toFixed(1).replace(/\.0$/, '') + ' h'
+      : '≈ ' + Math.round(totalEffort) + ' h (~' + Math.round(totalEffort / 8) + ' d)';
+    line.textContent = 'Ready queue capacity: ' + totalLabel
+      + '  ·  ' + riskCounts.low + ' low'
+      + '  ·  ' + riskCounts.medium + ' medium'
+      + '  ·  ' + riskCounts.high + ' high';
+    strip.appendChild(line);
+  })();
+
+  // ===== Operator notes — inline textarea per cmd row, persisted in localStorage =====
+  (function operatorNotes() {
+    var NOTES_KEY = 'codexu-overview-notes-v1';
+    var notes;
+    try { notes = JSON.parse(localStorage.getItem(NOTES_KEY) || '{}'); } catch (_) { notes = {}; }
+
+    function persist() {
+      try { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); } catch (_) {}
+    }
+
+    document.querySelectorAll('details.cmd').forEach(function (cmd) {
+      var id = cmd.getAttribute('data-task-id');
+      var body = cmd.querySelector('.cmd-body');
+      if (!id || !body) return;
+
+      // Toggle button (sits next to the Copy button in the cmd-body)
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'notes-toggle';
+      btn.textContent = '📝 Notes';
+      btn.title = 'Toggle scratch notes (saved in your browser only)';
+      if (notes[id]) btn.classList.add('has-note');
+
+      // Panel with textarea
+      var panel = document.createElement('div');
+      panel.className = 'notes-panel';
+      var ta = document.createElement('textarea');
+      ta.placeholder = 'Scratch notes for ' + id + ' — what you tried, what broke, what to revisit. Stored only in this browser.';
+      ta.value = notes[id] || '';
+      ta.spellcheck = true;
+      panel.appendChild(ta);
+      var meta = document.createElement('div');
+      meta.className = 'notes-meta';
+      meta.textContent = 'Saves automatically as you type.';
+      panel.appendChild(meta);
+
+      var saveTimer;
+      ta.addEventListener('input', function () {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(function () {
+          var v = ta.value.trim();
+          if (v) { notes[id] = ta.value; btn.classList.add('has-note'); }
+          else { delete notes[id]; btn.classList.remove('has-note'); }
+          persist();
+        }, 250);
+      });
+
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        panel.classList.toggle('visible');
+        if (panel.classList.contains('visible')) {
+          setTimeout(function () { ta.focus(); }, 50);
+        }
+      });
+
+      body.appendChild(btn);
+      body.appendChild(panel);
+    });
+
+    // Expose an export hook on window for power users (devtools / bookmarklet)
+    window.exportOverviewNotes = function () {
+      var blob = new Blob([JSON.stringify(notes, null, 2)], { type: 'application/json' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'codexu-overview-notes-' + new Date().toISOString().slice(0, 10) + '.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    };
   })();
 
   // ===== "What's new since last visit" =====
@@ -1782,8 +1971,8 @@
      status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-13T22:30:00Z",
-  "generatedFromCommit": "f05fccf8",
+  "generatedAt": "2026-05-13T23:00:00Z",
+  "generatedFromCommit": "edddea14",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:00:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -1802,6 +1991,44 @@
     "3h-options": "2026-05-13T19:30:00Z",
     "userid-cleanup": "2026-05-13T21:45:00Z",
     "polish-Fs": "2026-05-13T19:30:00Z"
+  },
+  "effort": {
+    "perf-WS1": 0.75,
+    "perf-WS3": 3,
+    "3a-skills": 12,
+    "F-013-perms": 0,
+    "F-015-toast": 0.75,
+    "mcp-discovery": 0.75,
+    "codex-parity-audit": 2,
+    "perf-WS2": 1.5,
+    "1a-fork-doc": 2,
+    "1b-multidev": 8,
+    "3b-agents": 12,
+    "3c-hooks": 4,
+    "3d-workers": 12,
+    "3fg-package": 8,
+    "3h-options": 16,
+    "userid-cleanup": 6,
+    "polish-Fs": 8
+  },
+  "risk": {
+    "perf-WS1": "low",
+    "perf-WS3": "medium",
+    "3a-skills": "medium",
+    "F-013-perms": "low",
+    "F-015-toast": "low",
+    "mcp-discovery": "low",
+    "codex-parity-audit": "low",
+    "perf-WS2": "medium",
+    "1a-fork-doc": "low",
+    "1b-multidev": "medium",
+    "3b-agents": "medium",
+    "3c-hooks": "low",
+    "3d-workers": "medium",
+    "3fg-package": "low",
+    "3h-options": "medium",
+    "userid-cleanup": "medium",
+    "polish-Fs": "medium"
   }
 }
 </script>
