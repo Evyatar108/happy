@@ -69,7 +69,6 @@ describe('socketOptions', () => {
         const credentials: AuthCredentials = {
             machineId: 'machine-1',
             tunnelUrl: 'https://machine.example.test',
-            tunnelClaim: 'stale-claim',
             firstSeenAt: 123,
             connectToken: 'connect-jwt',
             deviceCode: 'device-1',
