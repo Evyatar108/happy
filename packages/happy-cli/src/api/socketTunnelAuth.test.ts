@@ -83,16 +83,6 @@ vi.mock('@/modules/common/registerCommonHandlers', () => ({
 
 type Handler = (...args: any[]) => void;
 
-function tunnelClaim(jti: string): string {
-    return `tunnel ${Buffer.from(JSON.stringify({ jti })).toString('base64url')}.signature`;
-}
-
-function claimJti(claim: string): string {
-    const [, envelope] = claim.split(' ');
-    const [payload] = envelope.split('.');
-    return JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')).jti;
-}
-
 function makeSocket() {
     const handlers = new Map<string, Handler[]>();
     const managerHandlers = new Map<string, Handler[]>();
@@ -110,6 +100,8 @@ function makeSocket() {
             handlers.set(event, [...(handlers.get(event) ?? []), handler]);
         }),
         connect: vi.fn(),
+        disconnect: vi.fn(),
+        removeAllListeners: vi.fn(),
         close: vi.fn(),
         emit: vi.fn(),
         emitWithAck: vi.fn(),
@@ -176,13 +168,13 @@ async function waitFor(check: () => void): Promise<void> {
     throw lastError;
 }
 
-describe('Socket.IO tunnel auth refresh', () => {
+describe('Socket.IO tunnel listener reconnect', () => {
     beforeEach(() => {
         vi.useFakeTimers();
         vi.clearAllMocks();
         mockTunnelSocketIOOptions
-            .mockResolvedValueOnce({ url: 'http://127.0.0.1:7010', auth: { tunnelAuthorization: tunnelClaim('jti-1') } })
-            .mockResolvedValueOnce({ url: 'http://127.0.0.1:7010', auth: { tunnelAuthorization: tunnelClaim('jti-2') } });
+            .mockResolvedValueOnce({ url: 'http://127.0.0.1:7010', auth: {} })
+            .mockResolvedValueOnce({ url: 'http://127.0.0.1:7010', auth: {} });
     });
 
     afterEach(() => {
@@ -190,9 +182,14 @@ describe('Socket.IO tunnel auth refresh', () => {
         vi.restoreAllMocks();
     });
 
-    it('retargets the machine socket to tunnel auth and refreshes auth after connect_error', async () => {
+    it('retargets the machine socket to the tunnel listener without Happy claim auth', async () => {
         const socket = makeSocket();
-        mockIo.mockReturnValue(socket);
+        mockIo.mockImplementation((url: string, options: any) => {
+            socket.io.uri = url;
+            socket.io.opts = options;
+            socket.auth = options.auth;
+            return socket;
+        });
         const client = new ApiMachineClient('token', createMachine());
 
         client.connect();
@@ -202,32 +199,35 @@ describe('Socket.IO tunnel auth refresh', () => {
                 auth: expect.objectContaining({
                     clientType: 'machine-scoped',
                     machineId: 'machine-1',
-                    tunnelAuthorization: expect.stringMatching(/^tunnel /),
                 }),
                 path: '/v1/updates',
                 reconnection: false,
             }));
             expect(socket.connect).toHaveBeenCalledTimes(1);
         });
+        expect((mockIo.mock.calls[0][1] as any).auth).not.toHaveProperty('tunnelAuthorization');
+        expect((mockIo.mock.calls[0][1] as any).auth).not.toHaveProperty('codexuAuthorization');
 
-        const firstJti = claimJti((mockIo.mock.calls[0][1] as any).auth.tunnelAuthorization);
         socket.trigger('connect_error', new Error('Unauthorized'));
         await vi.advanceTimersByTimeAsync(1_000);
 
         await waitFor(() => {
             expect(socket.connect).toHaveBeenCalledTimes(2);
-            expect(claimJti((socket.auth as any).tunnelAuthorization)).toBe('jti-2');
-            expect(claimJti(((socket.io as any).opts.auth as any).tunnelAuthorization)).toBe('jti-2');
         });
-        expect(firstJti).toBe('jti-1');
-        expect(claimJti((socket.auth as any).tunnelAuthorization)).not.toBe(firstJti);
+        expect((socket.auth as any).tunnelAuthorization).toBeUndefined();
+        expect((socket.auth as any).codexuAuthorization).toBeUndefined();
 
         client.shutdown();
     });
 
-    it('retargets the session socket before initial connect and refreshes auth after connect_error', async () => {
+    it('retargets the session socket before initial connect without Happy claim auth', async () => {
         const socket = makeSocket();
-        mockIo.mockReturnValue(socket);
+        mockIo.mockImplementation((url: string, options: any) => {
+            socket.io.uri = url;
+            socket.io.opts = options;
+            socket.auth = options.auth;
+            return socket;
+        });
         const client = new ApiSessionClient('token', createSession());
 
         await waitFor(() => {
@@ -236,24 +236,23 @@ describe('Socket.IO tunnel auth refresh', () => {
             expect(socket.auth).toMatchObject({
                 clientType: 'session-scoped',
                 sessionId: 'session-1',
-                tunnelAuthorization: expect.stringMatching(/^tunnel /),
             });
             expect((socket.io as any).opts.auth).toMatchObject({
                 clientType: 'session-scoped',
                 sessionId: 'session-1',
-                tunnelAuthorization: expect.stringMatching(/^tunnel /),
             });
         });
-        const firstJti = claimJti((socket.auth as any).tunnelAuthorization);
+        expect((socket.auth as any).tunnelAuthorization).toBeUndefined();
+        expect((socket.auth as any).codexuAuthorization).toBeUndefined();
 
         socket.trigger('connect_error', new Error('Unauthorized'));
         await vi.advanceTimersByTimeAsync(1_000);
 
         await waitFor(() => {
             expect(socket.connect).toHaveBeenCalledTimes(2);
-            expect(claimJti((socket.auth as any).tunnelAuthorization)).toBe('jti-2');
         });
-        expect(claimJti((socket.auth as any).tunnelAuthorization)).not.toBe(firstJti);
+        expect((socket.auth as any).tunnelAuthorization).toBeUndefined();
+        expect((socket.auth as any).codexuAuthorization).toBeUndefined();
 
         await client.close();
     });

@@ -3,9 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 import { configuration } from '@/configuration';
 import { readMachineState, readSettings } from '@/persistence';
-import { loadOrCreateTofuKeypairs } from '@/tofu/keypairManager';
 
-import { getLocalTunnelClaim } from './getLocalTunnelClaim';
 import { loopbackCapabilityPath } from './loopbackCapability';
 import { ensureDaemonRunning } from './ensureDaemonRunning';
 
@@ -15,7 +13,6 @@ const TCP_PROBE_TIMEOUT_MS = 250;
 const FETCH_TIMEOUT_MS = 30_000;
 
 let cachedCapability: string | null = null;
-let cachedClaimMaterial: Promise<{ machineId: string; ed25519PrivateKey: Uint8Array }> | null = null;
 
 export interface EnsureDaemonReadyOptions {
   timeoutMs?: number;
@@ -102,25 +99,6 @@ export function invalidateCapability(): void {
   cachedCapability = null;
 }
 
-async function claimMaterial(): Promise<{ machineId: string; ed25519PrivateKey: Uint8Array }> {
-  if (!cachedClaimMaterial) {
-    cachedClaimMaterial = (async () => {
-      const settings = await readSettings();
-      const machineId = settings.machineId ?? (await readMachineState())?.machineId;
-      if (!machineId) {
-        throw new Error('Happy daemon machine ID is unavailable; run happy daemon start');
-      }
-      const keypairs = await loadOrCreateTofuKeypairs(configuration.happyHomeDir);
-      return { machineId, ed25519PrivateKey: keypairs.ed25519PrivateKey };
-    })();
-  }
-  return await cachedClaimMaterial;
-}
-
-export async function mintTunnelClaim(): Promise<string> {
-  return await getLocalTunnelClaim(await claimMaterial());
-}
-
 function mergeHeaders(init: RequestInit | undefined, headers: Record<string, string>): Headers {
   const merged = new Headers(init?.headers);
   for (const [name, value] of Object.entries(headers)) {
@@ -156,31 +134,20 @@ export async function loopbackFetch(path: string, init: RequestInit = {}): Promi
 export async function tunnelFetch(path: string, init: RequestInit = {}): Promise<Response> {
   await ensureDaemonReady();
   const baseUrl = await getTunnelLocalBaseUrl();
-  const makeRequest = async () => await fetch(appendPath(baseUrl, path), {
+  return await fetch(appendPath(baseUrl, path), {
     ...init,
     signal: init.signal ?? AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    headers: mergeHeaders(init, { 'X-Codexu-Authorization': await mintTunnelClaim() }),
   });
-
-  let response = await makeRequest();
-  if (response.status !== 401) return response;
-
-  response = await makeRequest();
-  if (response.status === 401) {
-    throw new Error(`Tunnel request failed after claim refresh: ${path}`);
-  }
-  return response;
 }
 
-export async function tunnelSocketIOOptions(): Promise<{ url: string; auth: { codexuAuthorization: string } }> {
+export async function tunnelSocketIOOptions(): Promise<{ url: string; auth: Record<string, never> }> {
   await ensureDaemonReady();
   return {
     url: await getTunnelLocalBaseUrl(),
-    auth: { codexuAuthorization: await mintTunnelClaim() },
+    auth: {},
   };
 }
 
 export function __resetDaemonClientForTests(): void {
   cachedCapability = null;
-  cachedClaimMaterial = null;
 }
