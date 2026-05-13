@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { apiSocket, getHappyClientId } from '@/sync/apiSocket';
 import { AuthCredentials, TokenStorage } from '@/auth/tokenStorage';
-import { tunnelFetch, registerDeviceCodeExpiredHandler } from '@/auth/machineAuth';
+import { tunnelFetch } from '@/auth/machineAuth';
 import { storage } from './storage';
 import { ApiEphemeralUpdateSchema, ApiMessage, ApiUpdateContainerSchema } from './apiTypes';
 import type { ApiEphemeralActivityUpdate } from './apiTypes';
@@ -368,15 +368,6 @@ class Sync {
     }
 
     async #init() {
-
-        // Centralized DeviceCodeExpired / ClaimExpired handler for all tunnelFetch call sites.
-        // Registered once per init so every HTTP call through tunnelFetch (fetchSessions,
-        // fetchMachines, syncSettings, fetchProfile, apiSocket.requestForMachine,
-        // apiPush, etc.) triggers disconnect-and-notify without duplicating catch blocks.
-        registerDeviceCodeExpiredHandler((machineId) => {
-            storage.getState().markMachineDisconnected(machineId, Date.now());
-            this.notifyDeviceCodeExpired(machineId);
-        });
 
         // Subscribe to updates
         this.subscribeToUpdates();

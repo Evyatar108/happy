@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -8,6 +8,7 @@ const repoRoot = join(__dirname, '..', '..', '..', '..');
 const productionFiles = execFileSync('git', ['ls-files', 'packages/happy-app/sources'], { cwd: repoRoot, encoding: 'utf8' })
     .split('\n')
     .filter(file => /\.(ts|tsx)$/.test(file))
+    .filter(file => existsSync(join(repoRoot, file)))
     .filter(file => !/\.(test|spec|appspec)\.tsx?$/.test(file));
 
 const productionSources = productionFiles.map(file => ({

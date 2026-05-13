@@ -1,7 +1,6 @@
 import * as WebBrowser from 'expo-web-browser';
 
 import { AuthCredentials, TokenStorage } from './tokenStorage';
-import { decodeBase64Url } from '@/utils/base64url';
 import { DevTunnelsClientProvider, type MachineTunnel } from '@/sync/tunnelProvider';
 // devtunnel's public GitHub App — no client secret required (device flow public client)
 const DEVTUNNEL_GITHUB_CLIENT_ID = 'Iv1.e7b89e013f801f03';
@@ -130,20 +129,12 @@ export async function loginInteractive(): Promise<string> {
 export type PairMachine = {
     machineId: string;
     tunnelUrl: string;
-    tunnelClaim: string;
 };
 
 export type PairCompleteResponse = {
     githubLogin: string;
     machine: PairMachine;
 };
-
-export class PairingClaimMissingAccountId extends Error {
-    constructor() {
-        super('Pairing response did not include accountId in tunnel claim.');
-        this.name = 'PairingClaimMissingAccountId';
-    }
-}
 
 export async function acquireConnectTokenForPair(machine: MachineTunnel): Promise<{ connectToken: string }> {
     const provider = new DevTunnelsClientProvider({ credentials: TokenStorage });
@@ -152,9 +143,7 @@ export async function acquireConnectTokenForPair(machine: MachineTunnel): Promis
 }
 
 /** Single-step pair against the daemon's /pair/complete endpoint. Gateway
- *  X-Tunnel-Authorization is the identity gate; the daemon mints a signed
- *  tunnel claim using identity from its local profile.json. Also used for
- *  refresh — same endpoint returns a fresh claim every call. */
+ *  X-Tunnel-Authorization is the identity gate. */
 export async function completePair(machine: MachineTunnel, connectToken: string): Promise<PairCompleteResponse> {
     const response = await fetch(`${machine.url}/pair/complete`, {
         method: 'POST',
@@ -167,9 +156,7 @@ export async function completePair(machine: MachineTunnel, connectToken: string)
     if (!response.ok) {
         throw new Error(`Failed to complete pairing: ${response.status}`);
     }
-    const data = await response.json() as PairCompleteResponse;
-    assertMachineHasAccountId(data.machine);
-    return data;
+    return await response.json() as PairCompleteResponse;
 }
 
 export function credentialsFromPairMachine(machine: MachineTunnel, pairMachine: PairMachine, metadata: {
@@ -182,32 +169,10 @@ export function credentialsFromPairMachine(machine: MachineTunnel, pairMachine: 
         machineId: pairMachine.machineId,
         tunnelUrl: pairMachine.tunnelUrl,
         tunnelId: machine.tunnelId,
-        tunnelClaim: pairMachine.tunnelClaim,
         firstSeenAt: Date.now(),
         login: metadata.login ?? '',
         avatarUrl: metadata.avatarUrl ?? '',
         connectToken: metadata.connectToken,
         connectTokenExpiry: metadata.connectTokenExpiry,
     };
-}
-
-type TunnelClaimPayload = {
-    sub?: unknown;
-    iat?: unknown;
-    exp?: unknown;
-    jti?: unknown;
-    accountId?: unknown;
-};
-
-export function parseTunnelClaimPayload(tunnelClaim: string): TunnelClaimPayload {
-    const envelope = JSON.parse(decodeBase64Url(tunnelClaim)) as { p?: unknown };
-    if (typeof envelope.p !== 'string') throw new Error('Invalid tunnel claim envelope');
-    return JSON.parse(decodeBase64Url(envelope.p)) as TunnelClaimPayload;
-}
-
-function assertMachineHasAccountId(machine: PairMachine): void {
-    const payload = parseTunnelClaimPayload(machine.tunnelClaim);
-    if (payload.accountId === undefined) {
-        throw new PairingClaimMissingAccountId();
-    }
 }

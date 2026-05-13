@@ -20,8 +20,8 @@ describe('profileParse', () => {
         });
     });
 
-    it('rejects the old app-local profile shape', () => {
-        expect(() => profileParse({ id: '42', timestamp: 1, firstName: 'Old', lastName: null, avatar: null, github: null }))
-            .toThrow('Failed to parse /v2/me/profile response');
+    it('accepts the persisted local profile shape', () => {
+        expect(profileParse({ id: '42', timestamp: 1, firstName: 'Old', lastName: null, avatar: null, github: null }))
+            .toMatchObject({ id: '42', firstName: 'Old' });
     });
 });

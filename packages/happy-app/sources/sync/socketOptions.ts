@@ -19,7 +19,6 @@ function getTunnelHappyClientId(): string {
 export async function buildTunnelSocketOptions(credentials: AuthCredentials, machineId = credentials.machineId): Promise<TunnelSocketOptions> {
     const happyClient = getTunnelHappyClientId();
     const tunnelHeaders = await getMachineAuthHeaders(credentials, machineId);
-    const socketAuthHeaders = { 'X-Codexu-Authorization': tunnelHeaders['X-Codexu-Authorization'] };
     const headers = {
         ...tunnelHeaders,
         'X-Happy-Client': happyClient,
@@ -31,7 +30,6 @@ export async function buildTunnelSocketOptions(credentials: AuthCredentials, mac
             clientType: 'user-scoped' as const,
             happyClient,
             machineId,
-            ...socketAuthHeaders,
         },
         extraHeaders: headers,
         transportOptions: {

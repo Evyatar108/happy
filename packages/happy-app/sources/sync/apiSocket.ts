@@ -3,7 +3,7 @@ import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import { AuthCredentials, TokenStorage } from '@/auth/tokenStorage';
 import { storage } from './storage';
-import { tunnelFetch, DeviceCodeExpired, ClaimExpired } from '@/auth/machineAuth';
+import { tunnelFetch } from '@/auth/machineAuth';
 import { buildTunnelSocketOptions } from './socketOptions';
 import { localizeSessionPath, parseCompositeSessionId, MachineSessionRef } from './machineSessionId';
 import {
@@ -213,16 +213,7 @@ class ApiSocket {
             this.updateMachineStatus(mid, 'connecting');
             connection.intentionalDisconnect = false;
             let socketOptions;
-            try {
-                socketOptions = await buildTunnelSocketOptions(connection.config.credentials);
-            } catch (error) {
-                if (error instanceof DeviceCodeExpired || error instanceof ClaimExpired) {
-                    this.updateMachineStatus(mid, 'error');
-                    this.deviceCodeExpiredListeners.forEach(listener => listener(mid));
-                    continue;
-                }
-                throw error;
-            }
+            socketOptions = await buildTunnelSocketOptions(connection.config.credentials);
             connection.socket = io(connection.config.endpoint, socketOptions);
             this.setupEventHandlers(connection);
         }

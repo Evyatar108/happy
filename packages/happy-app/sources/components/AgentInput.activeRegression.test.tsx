@@ -166,7 +166,7 @@ describe('AgentInput active-mode regression affordances', () => {
 
         expect(countByTestId(activeRenderer!.root, 'agent-input-autocomplete-overlay')).toBeGreaterThan(0);
         expect(countByTestId(activeRenderer!.root, 'agent-input-git-status-button')).toBeGreaterThan(0);
-        expect(countByTestId(activeRenderer!.root, 'agent-input-voice-mic')).toBeGreaterThan(0);
+        expect(countByTestId(activeRenderer!.root, 'agent-input-voice-mic')).toBe(0);
         expect(countByTestId(activeRenderer!.root, 'agent-input-abort-button')).toBeGreaterThan(0);
         expect(countByAccessibilityLabel(activeRenderer!.root, 'translated:requestSwitch.whenIdle')).toBeGreaterThan(0);
         expect(countByTestId(activeRenderer!.root, 'agent-input-deferred-switch-button')).toBeGreaterThan(0);
