@@ -1541,8 +1541,9 @@ Acceptance: design doc + per-scope working fixture: (B) two sessions on the same
   </details>
 
   <details class="cmd" id="cmd-async-events-design" data-task-id="async-events-design">
-    <summary><span class="cmd-name">async-events-design</span><span class="cmd-badge b-inflight">🟡 in progress</span><span class="cmd-desc">Design async event listening for agents (commit-merged, etc.) — unblocked by channels-research</span></summary>
+    <summary><span class="cmd-name">async-events-design</span><span class="cmd-badge b-blocked">🔒 blocked on mcp-server-notifications</span><span class="cmd-desc">Design async event listening for agents — re-blocked 2026-05-14 to wait for channels primitive before locking v1 transport</span></summary>
     <div class="cmd-body">
+      <div class="cmd-warn blocked">🔒 Re-blocked 2026-05-14. Was briefly run — its draft (working tree only at <code>plans/async-events-design.md</code>) recommends long-poll MCP for v1 and channels-research's notification bridge as fast-follow. Operator decided the design should be informed by an actually-landed channels primitive (Stage A — <code>mcp-server-notifications</code>) before locking the v1 transport. Resume after that ships. Working-tree draft is preserved as a starting point.</div>
       <button class="copy-btn">Copy Command</button>
 <pre class="cmd-pre">/plan-with-ralph "Design how an agent listens to async events — e.g., 'wake me when a commit lands on main', 'notify me when a periodic task fires', 'tell me when another agent finishes its turn'. Today an agent's only async-trigger model is: exit and be re-spawned (e.g., a periodic background task that exits to wake the operator/agent). That's not ideal — loses context, restart latency, can't subscribe to fine-grained events. Output: plans/async-events-design.md covering: (1) The use cases — at least these 4: git events (commit on main / branch updated / push), periodic-task firings, inter-agent notifications (sibling-agent completion / sibling-agent question), file-system events (file changed under cwd). (2) Current options in Claude Code — is there a 'wait for X' tool? hooks? streamable MCP? A 'send-when-idle' channel? Read C:/harness-efforts/claude-code/worktrees/main/ if accessible. (3) Current options in codex — codex's hook system (config/src/hook_config.rs), inter-agent fast path in multi_agents_v2/, MCP support. READ-ONLY on codex/external/repos/codex-patched/ per minimize-conflict-surface. (4) Design options for codexu — compare at least: (a) MCP with 2-way channels (depends on channels-research outcome); (b) periodic background task that exits to wake agent (current model — note limits); (c) long-poll MCP tool (block until event); (d) a 'subscription' RPC on the codex app-server side that streams events to the agent's session; (e) hybrid (use codex hooks for in-session triggers, channels for cross-session). (5) Recommendation with rationale; identify the smallest-viable subset that covers the 4 use cases. (6) Surface to operator before committing follow-up implementation tasks. NO CODE — design only. The output doc IS the deliverable."</pre>
     </div>
@@ -1999,8 +2000,8 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T13:00:00Z",
-  "generatedFromCommit": "0dcd8614",
+  "generatedAt": "2026-05-14T13:30:00Z",
+  "generatedFromCommit": "c0d7fae0",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -2025,7 +2026,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "plugin-scope-agents": "2026-05-14T03:00:00Z",
     "agent-comms": "2026-05-14T03:00:00Z",
     "channels-research": "2026-05-14T09:00:00Z",
-    "async-events-design": "2026-05-14T10:00:00Z",
+    "async-events-design": "2026-05-14T13:30:00Z",
     "native-agent-parity": "2026-05-14T08:00:00Z",
     "roadmap-plugin": "2026-05-14T05:00:00Z",
     "agent-tree-rpc": "2026-05-14T07:30:00Z",
