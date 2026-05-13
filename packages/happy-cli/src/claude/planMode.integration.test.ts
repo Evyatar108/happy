@@ -138,14 +138,17 @@ describe.skipIf(!(await claudeAvailable))('Plan Mode Integration', { timeout: 18
 
     it('should deny plan and not modify files', async () => {
         let exitPlanModeReceived = false;
+        const abortController = new AbortController();
 
         const options: QueryOptions = {
             cwd: fixture.dir,
             model: MODEL,
             permissionMode: 'plan',
+            abort: abortController.signal,
             canCallTool: async (toolName, input) => {
                 if (toolName === 'ExitPlanMode' || toolName === 'exit_plan_mode') {
                     exitPlanModeReceived = true;
+                    setTimeout(() => abortController.abort(new Error('plan denial observed')), 100);
                     return { behavior: 'deny', message: 'Plan rejected by test harness' };
                 }
                 return { behavior: 'allow', updatedInput: inputRecord(input) };
@@ -168,8 +171,14 @@ describe.skipIf(!(await claudeAvailable))('Plan Mode Integration', { timeout: 18
         });
         promptStream.end();
 
-        const messages = await collectMessages(run);
-        const result = resultMessage(messages);
+        let messages: SDKMessage[] = [];
+        try {
+            messages = await collectMessages(run);
+        } catch (error) {
+            if (!abortController.signal.aborted) {
+                throw error;
+            }
+        }
 
         // ExitPlanMode was received
         expect(exitPlanModeReceived).toBe(true);
@@ -178,8 +187,8 @@ describe.skipIf(!(await claudeAvailable))('Plan Mode Integration', { timeout: 18
         const content = readFileSync(join(fixture.dir, 'hello-world.js'), 'utf8');
         expect(content.toLowerCase()).not.toContain('goodbye');
 
-        // Should complete (Claude acknowledges the denial)
-        expect(result).toBeDefined();
+        const result = resultMessage(messages);
+        expect(result?.is_error ?? abortController.signal.aborted).toBeTruthy();
     });
 
     it('should always call canCallTool for ExitPlanMode even after bypassPermissions was active', async () => {

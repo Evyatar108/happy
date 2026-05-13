@@ -16,6 +16,7 @@ export const LocalSettingsSchema = z.object({
     commandPaletteEnabled: z.boolean().describe('Enable CMD+K command palette (web only)'),
     themePreference: z.enum(['light', 'dark', 'adaptive']).describe('Theme preference: light, dark, or adaptive (follows system)'),
     markdownCopyV2: z.boolean().describe('Replace native paragraph selection with long-press modal for full markdown copy'),
+    unifiedNewSessionComposer: z.boolean().describe('Enable the unified composer on the new-session screen'),
     consoleLoggingEnabled: z.boolean().describe('Enable console output in production builds'),
     verboseLogging: z.boolean().describe('Log all network requests and responses'),
     // Tablet UX
@@ -49,6 +50,7 @@ export const localSettingsDefaults: LocalSettings = {
     commandPaletteEnabled: false,
     themePreference: 'adaptive',
     markdownCopyV2: false,
+    unifiedNewSessionComposer: false,
     consoleLoggingEnabled: false,
     verboseLogging: false,
     sidebarMode: 'expanded',

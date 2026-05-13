@@ -58,6 +58,16 @@ export default defineConfig({
                 replacement: resolve('./sources/_test-stubs/reactNativeMmkvStub.ts'),
             },
             {
+                // expo-modules-core reads `globalThis.expo.EventEmitter` at
+                // module-evaluation time; that global is absent in the node
+                // runner. Stub the surface so any expo-* package that imports
+                // it (expo-image-picker, expo-image-manipulator, expo-document-picker,
+                // expo-file-system, ...) loads cleanly. Specs that exercise real
+                // expo behaviour mock the higher-level hook directly.
+                find: /^expo-modules-core$/,
+                replacement: resolve('./sources/_test-stubs/expoModulesCoreStub.ts'),
+            },
+            {
                 find: /^@\//,
                 replacement: resolve('./sources') + '/',
             },

@@ -61,7 +61,10 @@ Missing the concept of **workspace** (aka project) that spans multiple machines,
 - Right panel context (changes, files) is per-checkout, but workspace groups checkouts across machines
 
 [hard]
-- Attachments in composer / in agent output [hard, encrypted attachments, extra storage - needs design]
+- ~~Attachments in composer / in agent output~~ **partially shipped (2026-05-11):**
+    - **Composer (inline images)** — P2 Unified Adaptive Composer landed inline-base64 image attachments via `UserMessageSchema.content.attachments` (Claude only, ≤4 MB encoded, AES-GCM round-trip verified). Behind `LocalSettingsSchema.unifiedNewSessionComposer` flag; flag default remains `false` pending AC-005 telemetry pre-merge gate (wrong-target-send rate <5% baseline ≥1 week before flag-on flip).
+    - **Composer (file links)** — P4 file-link attachments via `MessageMetaSchema.attachmentRefs` shipped earlier; renders via `AttachmentChip` in `MessageView`. Provider-agnostic (no Claude-only constraint). Both attachment systems coexist additively at the schema layer.
+    - **Agent output** — still future. Encrypted attachments originating from the agent side (e.g. screenshots from a tool call) are not yet wired through the storage tier.
 - Terminal embedded in app
 
 ## Underlying Assistant Upkeep

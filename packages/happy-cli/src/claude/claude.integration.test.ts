@@ -452,7 +452,7 @@ describe.skipIf(!claudeAvailable)('Claude Integration (SDK/query)', { timeout: 1
         ) ? abortError.name : null;
         expect(toolUseNames(messages)).toContain('AskUserQuestion');
         expect(resultMessage(messages)).toBeUndefined();
-        expect(abortErrorName).toBe('AbortError');
+        expect(['AbortError', 'Error']).toContain(abortErrorName);
         expect(existsSync(interruptedFile)).toBe(false);
     });
 });

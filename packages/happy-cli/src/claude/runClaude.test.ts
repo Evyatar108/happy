@@ -142,6 +142,14 @@ function createTextUserMessage(text: string, meta: MessageMeta = {}) {
     };
 }
 
+function createTextUserMessageWithAttachments(text: string, attachments: Array<{ type: 'image'; ref: string; mimeType?: string }>, meta: MessageMeta = {}) {
+    return {
+        role: 'user',
+        content: { type: 'text', text, attachments },
+        meta,
+    };
+}
+
 function createLocalSessionState(overrides: Partial<{
     pendingSwitch: unknown;
     deferredSwitchCompleting: boolean;
@@ -275,6 +283,25 @@ describe('runClaude deferred switch protocol coverage', () => {
             expect(localSession.deferredSwitchCompleting).toBe(false);
             expect(opts.messageQueue.queue).toHaveLength(1);
             expect(opts.messageQueue.queue[0].message).toBe('hello');
+            return 0;
+        });
+
+        await runClaudeWithStartingModeUntilExit('local');
+    });
+
+    it('queues user-message attachments with the text payload', async () => {
+        const attachments = [{ type: 'image' as const, ref: 'base64-image', mimeType: 'image/png' }];
+        const localSession = createLocalSessionState();
+        mocks.mockLoop.mockImplementation(async (opts: any) => {
+            opts.onSessionReady(localSession);
+            mocks.getUserMessageHandler()?.(createTextUserMessageWithAttachments('look', attachments));
+            await Promise.resolve();
+            expect(opts.messageQueue.queue).toHaveLength(1);
+            expect(opts.messageQueue.queue[0]).toMatchObject({
+                message: 'look',
+                attachments,
+                isolate: false,
+            });
             return 0;
         });
 

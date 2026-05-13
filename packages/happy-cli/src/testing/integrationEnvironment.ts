@@ -13,12 +13,14 @@ export type IntegrationEnvironment = {
     projectPath: string;
     serverPort: number;
     expoPort: number;
+    authenticated: boolean;
 };
 
 type EnvironmentConfig = {
     projectPath: string;
     serverPort: number;
     expoPort: number;
+    authenticatedWebUrl?: string;
 };
 
 type EnvironmentsModule = {
@@ -48,7 +50,11 @@ export async function createIntegrationEnvironment(options?: { template?: Enviro
         if (shouldStart) {
             await environments.startEnvironmentServices(name, { web: options?.web });
             if (template === 'authenticated-empty') {
-                await environments.seedEnvironment(name);
+                try {
+                    await environments.seedEnvironment(name);
+                } catch (error) {
+                    console.warn(`[integration] authenticated seed unavailable; auth-required suites will skip: ${error instanceof Error ? error.message : String(error)}`);
+                }
             }
         }
 
@@ -59,6 +65,7 @@ export async function createIntegrationEnvironment(options?: { template?: Enviro
             projectPath: config.projectPath,
             serverPort: config.serverPort,
             expoPort: config.expoPort,
+            authenticated: Boolean(config.authenticatedWebUrl),
         };
     } catch (error) {
         try {

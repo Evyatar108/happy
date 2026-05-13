@@ -264,6 +264,8 @@ export const it: TranslationStructure = {
         commandPaletteDisabled: 'Accesso rapido ai comandi disabilitato',
         markdownCopyV2: 'Markdown Copy v2',
         markdownCopyV2Subtitle: 'Pressione lunga apre la finestra di copia',
+        unifiedNewSessionComposer: 'Compositore unificato per nuova sessione',
+        unifiedNewSessionComposerSubtitle: 'Usa il compositore condiviso nella schermata nuova sessione',
         hideInactiveSessions: 'Nascondi sessioni inattive',
         hideInactiveSessionsSubtitle: 'Mostra solo le chat attive nella tua lista',
         privacy: 'Privacy',
@@ -301,6 +303,9 @@ export const it: TranslationStructure = {
         attachmentPerFileTooLarge: 'Ogni allegato deve essere di 25 MB o meno',
         attachmentTotalTooLarge: 'Gli allegati devono totalizzare 100 MB o meno',
         attachmentUploadFailed: 'Impossibile allegare il file. Riprova.',
+        attachmentTooLarge: 'Image attachments must be 4 MB or smaller',
+        attachmentUnsupportedType: 'Only JPEG and PNG images can be attached',
+        attachmentPickFailed: 'Failed to attach image',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -321,6 +326,7 @@ export const it: TranslationStructure = {
         title: 'Avvia nuova sessione',
         selectMachineRequired: 'Seleziona una macchina',
         machineOffline: 'La macchina è offline',
+        imageAttachment: 'Image attachment',
         switchMachinesHint: '• Cambia macchina cliccando sulla macchina sopra',
     },
 

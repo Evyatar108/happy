@@ -53,6 +53,12 @@ const rawTextContentSchema = z.object({
 }).passthrough();  // ROBUST: Accept unknown fields for future API compatibility
 export type RawTextContent = z.infer<typeof rawTextContentSchema>;
 
+const userMessageAttachmentSchema = z.object({
+    type: z.literal('image'),
+    ref: z.string(),
+    mimeType: z.string().optional(),
+});
+
 const rawToolUseContentSchema = z.object({
     type: z.literal('tool_use'),
     id: z.string(),
@@ -355,7 +361,8 @@ const rawRecordSchema = z.preprocess(
             role: z.literal('user'),
             content: z.object({
                 type: z.literal('text'),
-                text: z.string()
+                text: z.string(),
+                attachments: z.array(userMessageAttachmentSchema).optional()
             }),
             meta: MessageMetaSchema.optional()
         }),
@@ -473,6 +480,11 @@ type NormalizedMessageBase = ({
     content: {
         type: 'text';
         text: string;
+        attachments?: Array<{
+            type: 'image';
+            ref: string;
+            mimeType?: string;
+        }>;
     }
 } | {
     role: 'agent'

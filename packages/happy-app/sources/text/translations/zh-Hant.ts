@@ -266,6 +266,8 @@ export const zhHant: TranslationStructure = {
         commandPaletteDisabled: '快速命令存取已停用',
         markdownCopyV2: 'Markdown 複製 v2',
         markdownCopyV2Subtitle: '長按開啟複製強制回應視窗',
+        unifiedNewSessionComposer: '統一新工作階段輸入框',
+        unifiedNewSessionComposerSubtitle: '在新工作階段畫面使用共用輸入框',
         hideInactiveSessions: '隱藏非活躍工作階段',
         hideInactiveSessionsSubtitle: '僅在清單中顯示活躍的聊天',
         privacy: '隱私',
@@ -303,6 +305,9 @@ export const zhHant: TranslationStructure = {
         attachmentPerFileTooLarge: '每個附件必須不超過 25 MB',
         attachmentTotalTooLarge: '附件總大小必須不超過 100 MB',
         attachmentUploadFailed: '無法附加檔案。請重試。',
+        attachmentTooLarge: 'Image attachments must be 4 MB or smaller',
+        attachmentUnsupportedType: 'Only JPEG and PNG images can be attached',
+        attachmentPickFailed: 'Failed to attach image',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -323,6 +328,7 @@ export const zhHant: TranslationStructure = {
         title: '開始新工作階段',
         selectMachineRequired: '請選擇一台裝置',
         machineOffline: '裝置離線',
+        imageAttachment: 'Image attachment',
         switchMachinesHint: '• 點擊上方的裝置來切換裝置',
     },
 

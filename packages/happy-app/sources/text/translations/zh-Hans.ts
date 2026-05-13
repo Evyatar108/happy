@@ -267,6 +267,8 @@ export const zhHans: TranslationStructure = {
         commandPaletteDisabled: '快速命令访问已禁用',
         markdownCopyV2: 'Markdown 复制 v2',
         markdownCopyV2Subtitle: '长按打开复制模态框',
+        unifiedNewSessionComposer: '统一新会话输入框',
+        unifiedNewSessionComposerSubtitle: '在新会话屏幕使用共享输入框',
         hideInactiveSessions: '隐藏非活跃会话',
         hideInactiveSessionsSubtitle: '仅在列表中显示活跃的聊天',
         privacy: '隐私',
@@ -304,6 +306,9 @@ export const zhHans: TranslationStructure = {
         attachmentPerFileTooLarge: '每个附件必须不超过 25 MB',
         attachmentTotalTooLarge: '附件总大小必须不超过 100 MB',
         attachmentUploadFailed: '无法附加文件。请重试。',
+        attachmentTooLarge: 'Image attachments must be 4 MB or smaller',
+        attachmentUnsupportedType: 'Only JPEG and PNG images can be attached',
+        attachmentPickFailed: 'Failed to attach image',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -324,6 +329,7 @@ export const zhHans: TranslationStructure = {
         title: '开始新会话',
         selectMachineRequired: '请选择一台设备',
         machineOffline: '设备离线',
+        imageAttachment: 'Image attachment',
         switchMachinesHint: '• 点击上方的设备来切换设备',
     },
 

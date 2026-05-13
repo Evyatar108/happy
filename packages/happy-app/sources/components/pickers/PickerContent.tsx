@@ -1,11 +1,11 @@
 import React from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Ionicons, Octicons } from '@expo/vector-icons';
 import { useUnistyles } from 'react-native-unistyles';
 import { pickerStyles } from './pickerStyles';
 import { t } from '@/text';
 
-export type PickerItem = { key: string; label: string; subtitle?: string; dimmed?: boolean };
+export type PickerItem = { key: string; label: string; subtitle?: string; dimmed?: boolean; disabled?: boolean };
 
 export function PickerContent({
     title,
@@ -14,6 +14,7 @@ export function PickerContent({
     selectedKey,
     onSelect,
     searchPlaceholder,
+    autoFocusSearch,
 }: {
     title: string;
     fixedItems?: PickerItem[];
@@ -21,9 +22,17 @@ export function PickerContent({
     selectedKey: string | null;
     onSelect: (key: string) => void;
     searchPlaceholder?: string;
+    autoFocusSearch?: boolean;
 }) {
     const { theme } = useUnistyles();
     const [search, setSearch] = React.useState('');
+    const searchInputRef = React.useRef<TextInput>(null);
+
+    React.useEffect(() => {
+        if (autoFocusSearch && Platform.OS === 'web') {
+            searchInputRef.current?.focus();
+        }
+    }, [autoFocusSearch]);
 
     const filtered = React.useMemo(() => {
         if (!search) return items;
@@ -36,14 +45,23 @@ export function PickerContent({
         return (
             <Pressable
                 key={item.key}
-                style={(p) => [pickerStyles.option, p.pressed && pickerStyles.optionPressed, item.dimmed && { opacity: 0.45 }]}
-                onPress={() => onSelect(item.key)}
+                style={(p) => [pickerStyles.option, p.pressed && !item.disabled && pickerStyles.optionPressed, item.dimmed && { opacity: 0.45 }]}
+                onPress={() => {
+                    if (!item.disabled) {
+                        onSelect(item.key);
+                    }
+                }}
+                disabled={item.disabled}
             >
-                <Octicons
-                    name={isSelected ? 'check-circle-fill' : 'circle'}
-                    size={16}
-                    color={isSelected ? theme.colors.button.primary.background : theme.colors.textSecondary}
-                />
+                {item.disabled ? (
+                    <View style={{ width: 16 }} />
+                ) : (
+                    <Octicons
+                        name={isSelected ? 'check-circle-fill' : 'circle'}
+                        size={16}
+                        color={isSelected ? theme.colors.button.primary.background : theme.colors.textSecondary}
+                    />
+                )}
                 <View style={{ flex: 1 }}>
                     <Text style={[pickerStyles.optionText, { color: theme.colors.text }]}>{item.label}</Text>
                     {item.subtitle && (
@@ -63,6 +81,7 @@ export function PickerContent({
             >
                 <Ionicons name="search" size={16} color={theme.colors.textSecondary} />
                 <TextInput
+                    ref={searchInputRef}
                     value={search}
                     onChangeText={setSearch}
                     placeholder={searchPlaceholder ?? 'search...'}

@@ -37,11 +37,13 @@ If draft permission mode is missing:
 - Draft default: `default`
 
 ### 3) New session UI defaults
-`packages/happy-app/sources/app/(app)/new/index.tsx`
-`packages/happy-app/sources/components/NewSessionWizard.tsx`
+`packages/happy-app/sources/components/NewSessionContextRow.tsx` (now owns default selection via `useNewSessionContextRowController()`)
+`packages/happy-app/sources/app/(app)/new/index.tsx` (host screen)
 
-Default selection:
-- `default`
+Resolution chain:
+1. `draft.permissionMode` (the persisted draft value)
+2. `getDefaultPermissionModeKey(selectedAgent)`
+3. First available mode in `permissionModes`
 
 If selected mode is invalid for the currently selected agent, UI resets to agent default above.
 

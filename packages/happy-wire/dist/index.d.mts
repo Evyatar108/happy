@@ -935,12 +935,35 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
     content: z.ZodObject<{
         type: z.ZodLiteral<"text">;
         text: z.ZodString;
+        attachments: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            type: z.ZodLiteral<"image">;
+            ref: z.ZodString;
+            mimeType: z.ZodOptional<z.ZodString>;
+        }, "strip", z.ZodTypeAny, {
+            type: "image";
+            ref: string;
+            mimeType?: string | undefined;
+        }, {
+            type: "image";
+            ref: string;
+            mimeType?: string | undefined;
+        }>, "many">>;
     }, "strip", z.ZodTypeAny, {
         type: "text";
         text: string;
+        attachments?: {
+            type: "image";
+            ref: string;
+            mimeType?: string | undefined;
+        }[] | undefined;
     }, {
         type: "text";
         text: string;
+        attachments?: {
+            type: "image";
+            ref: string;
+            mimeType?: string | undefined;
+        }[] | undefined;
     }>;
     localKey: z.ZodOptional<z.ZodString>;
     meta: z.ZodOptional<z.ZodObject<{
@@ -1008,6 +1031,11 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
     content: {
         type: "text";
         text: string;
+        attachments?: {
+            type: "image";
+            ref: string;
+            mimeType?: string | undefined;
+        }[] | undefined;
     };
     localKey?: string | undefined;
     meta?: {
@@ -1033,6 +1061,11 @@ declare const MessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.ZodObject
     content: {
         type: "text";
         text: string;
+        attachments?: {
+            type: "image";
+            ref: string;
+            mimeType?: string | undefined;
+        }[] | undefined;
     };
     localKey?: string | undefined;
     meta?: {
@@ -3016,12 +3049,35 @@ declare const UserMessageSchema: z.ZodObject<{
     content: z.ZodObject<{
         type: z.ZodLiteral<"text">;
         text: z.ZodString;
+        attachments: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            type: z.ZodLiteral<"image">;
+            ref: z.ZodString;
+            mimeType: z.ZodOptional<z.ZodString>;
+        }, "strip", z.ZodTypeAny, {
+            type: "image";
+            ref: string;
+            mimeType?: string | undefined;
+        }, {
+            type: "image";
+            ref: string;
+            mimeType?: string | undefined;
+        }>, "many">>;
     }, "strip", z.ZodTypeAny, {
         type: "text";
         text: string;
+        attachments?: {
+            type: "image";
+            ref: string;
+            mimeType?: string | undefined;
+        }[] | undefined;
     }, {
         type: "text";
         text: string;
+        attachments?: {
+            type: "image";
+            ref: string;
+            mimeType?: string | undefined;
+        }[] | undefined;
     }>;
     localKey: z.ZodOptional<z.ZodString>;
     meta: z.ZodOptional<z.ZodObject<{
@@ -3089,6 +3145,11 @@ declare const UserMessageSchema: z.ZodObject<{
     content: {
         type: "text";
         text: string;
+        attachments?: {
+            type: "image";
+            ref: string;
+            mimeType?: string | undefined;
+        }[] | undefined;
     };
     localKey?: string | undefined;
     meta?: {
@@ -3114,6 +3175,11 @@ declare const UserMessageSchema: z.ZodObject<{
     content: {
         type: "text";
         text: string;
+        attachments?: {
+            type: "image";
+            ref: string;
+            mimeType?: string | undefined;
+        }[] | undefined;
     };
     localKey?: string | undefined;
     meta?: {
@@ -3262,12 +3328,35 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
     content: z.ZodObject<{
         type: z.ZodLiteral<"text">;
         text: z.ZodString;
+        attachments: z.ZodOptional<z.ZodArray<z.ZodObject<{
+            type: z.ZodLiteral<"image">;
+            ref: z.ZodString;
+            mimeType: z.ZodOptional<z.ZodString>;
+        }, "strip", z.ZodTypeAny, {
+            type: "image";
+            ref: string;
+            mimeType?: string | undefined;
+        }, {
+            type: "image";
+            ref: string;
+            mimeType?: string | undefined;
+        }>, "many">>;
     }, "strip", z.ZodTypeAny, {
         type: "text";
         text: string;
+        attachments?: {
+            type: "image";
+            ref: string;
+            mimeType?: string | undefined;
+        }[] | undefined;
     }, {
         type: "text";
         text: string;
+        attachments?: {
+            type: "image";
+            ref: string;
+            mimeType?: string | undefined;
+        }[] | undefined;
     }>;
     localKey: z.ZodOptional<z.ZodString>;
     meta: z.ZodOptional<z.ZodObject<{
@@ -3335,6 +3424,11 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
     content: {
         type: "text";
         text: string;
+        attachments?: {
+            type: "image";
+            ref: string;
+            mimeType?: string | undefined;
+        }[] | undefined;
     };
     localKey?: string | undefined;
     meta?: {
@@ -3360,6 +3454,11 @@ declare const LegacyMessageContentSchema: z.ZodDiscriminatedUnion<"role", [z.Zod
     content: {
         type: "text";
         text: string;
+        attachments?: {
+            type: "image";
+            ref: string;
+            mimeType?: string | undefined;
+        }[] | undefined;
     };
     localKey?: string | undefined;
     meta?: {

@@ -143,12 +143,34 @@ export function generateLocalMessageId() {
     return randomUUID();
 }
 
+type UserMessageAttachment = {
+    type: 'image';
+    ref: string;
+    mimeType?: string;
+};
+
+const MAX_ENCODED_ATTACHMENT_BYTES = 4 * 1024 * 1024;
+const DATA_URL_BASE64_PREFIX = /^data:[a-zA-Z0-9!#$&^_+\-./]+;base64,/;
+
+function getEncodedAttachmentSize(ref: string): number {
+    const match = DATA_URL_BASE64_PREFIX.exec(ref);
+    if (match) {
+        return ref.length - match[0].length;
+    }
+    return ref.length;
+}
+
+function hasOversizeAttachment(attachments: UserMessageAttachment[] | undefined): boolean {
+    return attachments?.some(attachment => getEncodedAttachmentSize(attachment.ref) > MAX_ENCODED_ATTACHMENT_BYTES) ?? false;
+}
+
 export type SendMessageOptions = {
     displayText?: string;
     localId?: string;
     attachmentRefs?: AttachmentRef[];
     source?: MessageSentSource;
     switchMode?: 'now' | 'when-idle' | 'none';
+    attachments?: UserMessageAttachment[];
 };
 
 type RequestSwitchResponse = {
@@ -837,6 +859,11 @@ class Sync {
 
         const { permissionMode, model, thinkingLevel } = resolveMessageModeMeta(session);
         const { attachmentRefs, displayText, localId, source = 'chat' } = options ?? {};
+        const attachments = session.metadata?.flavor === 'claude' ? options?.attachments : undefined;
+        if (hasOversizeAttachment(attachments)) {
+            Modal.alert(t('common.error'), t('errors.attachmentTooLarge'));
+            return;
+        }
         const shouldRequestDeferredSwitch = isWhenIdle
             && session.metadata?.flavor === 'claude'
             && getSessionMode(session) === 'local';
@@ -878,6 +905,7 @@ class Sync {
                 model,
                 thinkingLevel,
                 tagDeferredSwitch,
+                attachments,
             });
         } catch (error) {
             if (isWhenIdle) {
@@ -900,6 +928,7 @@ class Sync {
             model: string | null;
             thinkingLevel: string | undefined;
             tagDeferredSwitch: boolean;
+            attachments?: UserMessageAttachment[];
         }
     ) {
         const localId = options.localId ?? generateLocalMessageId();
@@ -928,7 +957,8 @@ class Sync {
             role: 'user',
             content: {
                 type: 'text',
-                text
+                text,
+                ...(options.attachments !== undefined && { attachments: options.attachments })
             },
             meta: {
                 sentFrom,

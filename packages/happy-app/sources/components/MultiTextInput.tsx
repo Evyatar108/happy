@@ -3,11 +3,13 @@ import { Text, TextInput, Platform, View, NativeSyntheticEvent, TextInputKeyPres
 import { useUnistyles } from 'react-native-unistyles';
 import { Typography } from '@/constants/Typography';
 
-export type SupportedKey = 'Enter' | 'Escape' | 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight' | 'Tab';
+export type SupportedKey = 'Enter' | 'Escape' | 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight' | 'Tab' | '/';
 
 export interface KeyPressEvent {
     key: SupportedKey;
     shiftKey: boolean;
+    ctrlKey?: boolean;
+    metaKey?: boolean;
 }
 
 export type OnKeyPressCallback = (event: KeyPressEvent) => boolean;
@@ -119,12 +121,17 @@ export const MultiTextInput = React.forwardRef<MultiTextInputHandle, MultiTextIn
             case 'Tab':
                 normalizedKey = 'Tab';
                 break;
+            case '/':
+                normalizedKey = '/';
+                break;
         }
 
         if (normalizedKey) {
             const keyEvent: KeyPressEvent = {
                 key: normalizedKey,
-                shiftKey: (nativeEvent as any).shiftKey || false
+                shiftKey: (nativeEvent as any).shiftKey || false,
+                ctrlKey: (nativeEvent as any).ctrlKey || false,
+                metaKey: (nativeEvent as any).metaKey || false,
             };
             
             const handled = onKeyPress(keyEvent);

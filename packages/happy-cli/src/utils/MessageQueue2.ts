@@ -1,9 +1,16 @@
 import { logger } from "@/ui/logger";
 
+export type MessageQueueAttachment = {
+    type: 'image';
+    ref: string;
+    mimeType?: string;
+};
+
 interface QueueItem<T> {
     message: string;
     mode: T;
     modeHash: string;
+    attachments?: MessageQueueAttachment[];
     isolate?: boolean; // If true, this message must be processed alone
     delivery?: MessageDelivery;
 }
@@ -19,6 +26,7 @@ export type MessageBatch<T> = {
     isolate: boolean;
     hash: string;
     consumedMessages: MessageDelivery[];
+    attachments?: MessageQueueAttachment[];
 };
 
 /**
@@ -52,6 +60,29 @@ export class MessageQueue2<T> {
      * Push a message to the queue with a mode.
      */
     push(message: string, mode: T, delivery?: MessageDelivery): void {
+        this.pushItem(message, mode, undefined, delivery);
+    }
+
+    /**
+     * Push a message with inline attachments (e.g. images). Attachment-bearing
+     * messages are processed in isolation (never batched with sibling text)
+     * so the attachments stay paired with their prompt.
+     */
+    pushWithAttachments(
+        message: string,
+        mode: T,
+        attachments?: MessageQueueAttachment[],
+        delivery?: MessageDelivery
+    ): void {
+        this.pushItem(message, mode, attachments, delivery);
+    }
+
+    private pushItem(
+        message: string,
+        mode: T,
+        attachments?: MessageQueueAttachment[],
+        delivery?: MessageDelivery
+    ): void {
         if (this.closed) {
             throw new Error('Cannot push to closed queue');
         }
@@ -63,6 +94,7 @@ export class MessageQueue2<T> {
             message,
             mode,
             modeHash,
+            attachments,
             isolate: false,
             delivery,
         });
@@ -261,7 +293,14 @@ export class MessageQueue2<T> {
     }
 
     /**
-     * Collect a batch of messages with the same mode, respecting isolation requirements
+     * Collect a batch of messages with the same mode, respecting isolation requirements.
+     *
+     * Isolation triggers when EITHER:
+     *   - the item is explicitly marked `isolate: true` (pushIsolateAndClear), OR
+     *   - the item carries `attachments` (inline images via pushWithAttachments).
+     *
+     * Attachment-bearing items must never be newline-joined with sibling text,
+     * otherwise the attachment loses its anchoring prompt.
      */
     private collectBatch(): MessageBatch<T> | null {
         if (this.queue.length === 0) {
@@ -274,18 +313,26 @@ export class MessageQueue2<T> {
         let mode = firstItem.mode;
         let isolate = firstItem.isolate ?? false;
         const targetModeHash = firstItem.modeHash;
+        let attachments: MessageQueueAttachment[] | undefined;
 
-        // If the first message requires isolation, only process it alone
-        if (firstItem.isolate) {
+        // If the first message requires isolation (either explicit isolate
+        // flag or attachment-bearing), only process it alone.
+        if (firstItem.isolate || firstItem.attachments) {
             const item = this.queue.shift()!;
             sameModeMessages.push(item.message);
             if (item.delivery) consumedMessages.push(item.delivery);
+            attachments = item.attachments;
+            // Attachment-bearing batches are always reported as isolated so
+            // downstream consumers do not concatenate them with sibling text.
+            isolate = true;
             logger.debug(`[MessageQueue2] Collected isolated message with mode hash: ${targetModeHash}`);
         } else {
-            // Collect all messages with the same mode until we hit an isolated message
+            // Collect all messages with the same mode until we hit either an
+            // explicitly-isolated message OR an attachment-bearing message.
             while (this.queue.length > 0 &&
                 this.queue[0].modeHash === targetModeHash &&
-                !this.queue[0].isolate) {
+                !this.queue[0].isolate &&
+                !this.queue[0].attachments) {
                 const item = this.queue.shift()!;
                 sameModeMessages.push(item.message);
                 if (item.delivery) consumedMessages.push(item.delivery);
@@ -302,6 +349,7 @@ export class MessageQueue2<T> {
             hash: targetModeHash,
             isolate,
             consumedMessages,
+            attachments,
         };
     }
 

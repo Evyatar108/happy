@@ -267,6 +267,8 @@ export const ja: TranslationStructure = {
         commandPaletteDisabled: 'クイックコマンドアクセスは無効',
         markdownCopyV2: 'Markdownコピー v2',
         markdownCopyV2Subtitle: '長押しでコピーモーダルを開く',
+        unifiedNewSessionComposer: '統合新規セッションコンポーザー',
+        unifiedNewSessionComposerSubtitle: '新規セッション画面で共有コンポーザーを使用',
         hideInactiveSessions: '非アクティブセッションを非表示',
         hideInactiveSessionsSubtitle: 'アクティブなチャットのみをリストに表示',
         privacy: 'プライバシー',
@@ -304,6 +306,9 @@ export const ja: TranslationStructure = {
         attachmentPerFileTooLarge: '各添付ファイルは25 MB以下にしてください',
         attachmentTotalTooLarge: '添付ファイルの合計は100 MB以下にしてください',
         attachmentUploadFailed: 'ファイルを添付できませんでした。もう一度お試しください。',
+        attachmentTooLarge: 'Image attachments must be 4 MB or smaller',
+        attachmentUnsupportedType: 'Only JPEG and PNG images can be attached',
+        attachmentPickFailed: 'Failed to attach image',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -324,6 +329,7 @@ export const ja: TranslationStructure = {
         title: '新しいセッションを開始',
         selectMachineRequired: 'マシンを選択してください',
         machineOffline: 'マシンがオフラインです',
+        imageAttachment: 'Image attachment',
         switchMachinesHint: '• 上のマシンをクリックしてマシンを切り替えてください',
     },
 

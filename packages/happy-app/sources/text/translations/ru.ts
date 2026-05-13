@@ -254,6 +254,8 @@ export const ru: TranslationStructure = {
         commandPaletteDisabled: 'Быстрый доступ к командам отключён',
         markdownCopyV2: 'Markdown Copy v2',
         markdownCopyV2Subtitle: 'Долгое нажатие открывает модальное окно копирования',
+        unifiedNewSessionComposer: 'Единый редактор новой сессии',
+        unifiedNewSessionComposerSubtitle: 'Использовать общий редактор на экране новой сессии',
         hideInactiveSessions: 'Скрывать неактивные сессии',
         hideInactiveSessionsSubtitle: 'Показывать в списке только активные чаты',
         privacy: 'Конфиденциальность',
@@ -291,6 +293,9 @@ export const ru: TranslationStructure = {
         attachmentPerFileTooLarge: 'Каждое вложение должно быть не больше 25 МБ',
         attachmentTotalTooLarge: 'Общий размер вложений не должен превышать 100 МБ',
         attachmentUploadFailed: 'Не удалось прикрепить файл. Повторите попытку.',
+        attachmentTooLarge: 'Image attachments must be 4 MB or smaller',
+        attachmentUnsupportedType: 'Only JPEG and PNG images can be attached',
+        attachmentPickFailed: 'Failed to attach image',
 
         // Error functions with context
         fieldError: ({ field, reason }: { field: string; reason: string }) =>
@@ -311,6 +316,7 @@ export const ru: TranslationStructure = {
         title: 'Начать новую сессию',
         selectMachineRequired: 'Выберите машину',
         machineOffline: 'Машина недоступна',
+        imageAttachment: 'Image attachment',
         switchMachinesHint: '• Переключите машину, нажав на неё выше',
     },
 
