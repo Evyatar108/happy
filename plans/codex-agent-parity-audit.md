@@ -60,7 +60,7 @@ Every proposed fix-site below explicitly states the tier and why.
 
 ---
 
-## Gap 1 — Project-cwd `.mcp.json` discovery
+## Gap 1 — Project-cwd `.mcp.json` discovery — ✅ Shipped 2026-05-13
 
 **Gap.** Claude Code reads `<cwd>/.mcp.json` natively at session start (project-MCP convention); the codex app-server path does NOT.
 
@@ -74,6 +74,8 @@ Every proposed fix-site below explicitly states the tier and why.
 **Effort.** Quick (~30–45 min including a Zod schema + a colocated test).
 
 **Severity.** **High.** Direct user-visible feature loss — every project that ships `.mcp.json` for Claude expects it to light up for codex too.
+
+**Status.** Shipped 2026-05-13 in `mcp-discovery`: happy-cli now reads `<cwd>/.mcp.json`, validates stdio and HTTP server entries with Zod, strips the transport `type` field before forwarding, and merges valid servers into both codex start and resume paths while keeping the Happy bridge authoritative.
 
 **Ralph-command shape.**
 > `mcp-discovery — codex project-.mcp.json parity`
@@ -338,7 +340,7 @@ All proposed fix sites are **on the happy-cli side** with two exceptions:
 
 In order of recommended landing:
 
-1. **Gap 1 — `mcp-discovery`** — already tracked in `plans/parallel-assignments.md`. Ship first; clears the known accidental discovery.
+1. ✅ **Gap 1 — `mcp-discovery`** — completed 2026-05-13; per-cwd `.mcp.json` discovery now ships on the codex start and resume paths.
 2. **Gap 2 — `codex-claude-md-autoload`** — quick + high severity. Should be a separate small PR because it touches `NewConversationParams.config` which `mcp-discovery` doesn't.
 3. **Gap 3 — `codex-attachments`** — high severity, contained to `MessageQueue2` plumb + `sendTurnAndWait` synthesis. Requires a small spike on codex's image-input wire acceptance.
 4. **Gap 7 — `codex-system-prompts`** — medium severity, small effort, similar shape to Gap 2 (`NewConversationParams.baseInstructions`).

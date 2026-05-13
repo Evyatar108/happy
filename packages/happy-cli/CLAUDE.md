@@ -38,6 +38,7 @@ Happy CLI (`handy-cli`) is a command-line tool that wraps Claude Code to enable 
 - Descriptive test names and proper async handling
 - On Windows/Git Bash, run the package test script as `npm_config_script_shell=bash pnpm --filter happy test` so `$npm_execpath` expands correctly.
 - For file-scoped CLI validation, use `pnpm --filter happy exec vitest run <paths>`; passing paths through the package `test` script can still invoke the broader suite.
+- When a `runCodex` test mocks `node:child_process`, use a partial mock that preserves real exports and overrides only `execSync`; `@slopus/happy-wire/node` reaches `execFile` through persistence imports.
 
 ### Logging
 - All debugging through file logs to avoid disturbing Claude sessions
@@ -233,29 +234,16 @@ happy-cli today does NOT catch up agent-CLI activity that happened while it was 
 - **Claude**: `processedMessageKeys` in `claude/utils/sessionScanner.ts:35` is in-memory only; on cold-start the scanner only watches sids registered via Claude's `SessionStart` hook (i.e., sessions launched by happy-cli itself). A bare `claude` invocation outside happy-cli writes to its own JSONL with a sid happy-cli never learns about. Orphan JSONLs are invisible. Server dedup is by `localId` (random `randomUUID()` per `enqueueMessage` at `apiSession.ts:402-412`), NOT by wire/realID — so naive re-forwarding on a future restart would create server-side duplicates. No persisted scanner offset on disk.
 - **Codex**: architecturally different — happy-cli spawns or reattaches to `codex app-server` from the `CodexAppServerClient.connect` transport branch in `codex/codexAppServerClient.ts` and consumes JSON-RPC over either of two adapters: a loopback WebSocket (default; `--listen ws://127.0.0.1:<port>` via `createWsTransport`) or newline-delimited stdio (opt-in via `--codex-transport stdio`, and auto-forced when sandbox is enabled on non-Windows so the seatbelt-wrapped child stays on stdio). In ws mode, a detached app-server can outlive the foreground happy-cli process and be rediscovered from `~/.happy/codex-active-<cwdHash>.json`; stdio mode remains foreground-process-owned and skips discovery. The remaining gap is "happy-cli crash mid-turn loses any unsent in-memory `pendingOutbox` events" plus "external `codex` invocations are permanently invisible — no rollout-file enumeration in `~/.codex/sessions/`."
 
-## Codex Agent Feature Parity (open gaps)
+## Codex Agent Feature Parity
 
-The codex agent under happy doesn't match every Claude-Code project-level
-convention. Known gap, surfaced 2026-05-13, fix pending:
+Project-cwd `.mcp.json` discovery shipped 2026-05-13; see
+`plans/codexu-roadmap.md` for the closed bullet.
 
-- **Project-cwd `.mcp.json` discovery.** Claude Code reads `<cwd>/.mcp.json` at
-  session start. Codex doesn't — and `runCodex.ts:700-705` only passes the
-  `happy` bridge MCP server to `client.startThread({ mcpServers })`. Per-cwd
-  MCP servers are silently dropped. Fix lives on this side (read + Zod-validate
-  `<cwd>/.mcp.json`, merge into `mcpServers` at `startThread` AND
-  `resumeExistingThread`); the codex submodule itself only reads `.mcp.json`
-  inside the external-agent one-shot migrator and the plugin-internal loader,
-  neither runtime-cwd-scoped. Ralph plan: `mcp-discovery` tab in
-  `plans/parallel-assignments.md`.
-- **Broader audit landed 2026-05-13.** The full inventory is at
-  `plans/codex-agent-parity-audit.md` — 12 gaps catalogued with file:line
-  evidence, severity (3 High / 4 Medium / 5 Low), and a ralph-command shape
-  per gap. The `.mcp.json` gap is Gap 1; project-CLAUDE.md auto-load is Gap 2;
-  image attachments dropped on the codex path is Gap 3. All proposed fix-sites
-  are happy-cli-side except Gap 6 (plan mode) which has a deferred overlay-crate
-  option. Tracked follow-up ralph commands: `codex-claude-md-autoload`,
-  `codex-attachments`, `codex-system-prompts`, `codex-hooks-parity`, plus a
-  pre-flight `codex-wire-spike` covering Gaps 2/3/5.
+- **Broader audit complete.** The `.mcp.json` gap was found by accident. The
+  `codex-parity-audit` ralph command produced
+  `plans/codex-agent-parity-audit.md`, which tracks the remaining codex-vs-Claude
+  parity gaps (project-CLAUDE.md auto-load, hooks parity, plan mode, attachment
+  handling, etc.).
 
 When adding new MCP-server plumbing or thread-start hooks, check `runCodex.ts`
 for the `mcpServers` build site and respect the per-cwd discovery semantics
