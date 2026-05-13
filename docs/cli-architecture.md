@@ -204,8 +204,8 @@ graph LR
 
 CLI and daemon traffic uses two independent credentials when crossing a private Dev Tunnel:
 
-- `X-Tunnel-Connect` is the Dev Tunnels connect token obtained through `ClientTunnelProvider.getConnectToken(tunnelId)`.
-- `X-Tunnel-Authorization` is the signed Happy tunnel claim minted by `/pair/status` and verified by happy-server.
+- `X-Tunnel-Authorization: tunnel <connect-jwt>` carries the Dev Tunnels connect token (Microsoft's gateway auth scheme; obtained through `ClientTunnelProvider.getConnectToken(tunnelId)`). The Dev Tunnels gateway consumes and strips this header before forwarding to the backend.
+- `X-Codexu-Authorization: tunnel <happy-claim>` is the signed Happy tunnel claim minted by `POST /pair/complete` and verified by happy-server's `authenticateTunnelClaim` middleware.
 
 `src/tunnel/tunnelManager.ts` creates private tunnels and must not add anonymous access flags. The app and happy-agent refresh connect tokens and Happy claims before tunnel HTTP/Socket.IO calls.
 

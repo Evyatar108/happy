@@ -160,9 +160,16 @@ machine-update Socket.IO events can CAS against version 1 immediately.
 
 Local callers that need the embedded listeners should go through
 `daemonClient.ts`: loopback requests use `X-Loopback-Capability`, tunnel
-requests and Socket.IO auth use a freshly minted `tunnel <claim>` value. Do not
-cache signed tunnel claims because the embedded server rejects replayed `jti`s;
-cache only stable key material or rereadable capability state.
+requests use `X-Codexu-Authorization: <signed claim>` and Socket.IO auth uses
+`{ codexuAuthorization: <signed claim> }`. Do not cache signed tunnel claims
+because the embedded server rejects replayed `jti`s; cache only stable key
+material or rereadable capability state.
+
+**Header rename log (2026-05-13):** the daemon-side tunnel-claim header was
+renamed from `X-Tunnel-Authorization` to `X-Codexu-Authorization` because
+Microsoft's Dev Tunnels gateway consumes `X-Tunnel-Authorization: tunnel <jwt>`
+for its own auth and strips it before forwarding to the backend. The Sprint A
+spec that wired both names into the same header was never reachable end-to-end.
 
 ### Lock File
 - Created with O_EXCL flag for atomic acquisition

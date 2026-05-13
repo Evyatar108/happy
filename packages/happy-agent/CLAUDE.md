@@ -32,6 +32,8 @@ The package-level inventory that docs and tests should keep valid is:
 
 ## Dev Tunnels Connect Tokens
 
-`ClientTunnelProvider.getConnectToken()` is active production plumbing, not scaffolding. happy-agent uses it to attach `X-Tunnel-Connect` for private Dev Tunnels gateway authentication, while `X-Tunnel-Authorization` remains the Happy claim consumed by happy-server.
+`ClientTunnelProvider.getConnectToken()` is active production plumbing, not scaffolding. happy-agent attaches **`X-Tunnel-Authorization: tunnel <connect-jwt>`** for Dev Tunnels gateway authentication (Microsoft's standard header — `WWW-Authenticate: tunnel`), and **`X-Codexu-Authorization: tunnel <happy-claim>`** for the signed Happy Ed25519 envelope consumed by happy-server.
+
+The earlier name pairing (`X-Tunnel-Connect` for gateway, `X-Tunnel-Authorization` for happy claim) was never reachable end-to-end because the Dev Tunnels gateway rejects `X-Tunnel-Connect` and strips `X-Tunnel-Authorization` before forwarding. Corrected during BOOX validation 2026-05-13 — see `packages/happy-app/scripts/sprint-a-gap.md` "R-D18 path (b) implementation log".
 
 Connect-token refresh is serialized per machine and persisted through the credentials helpers so legacy credential JSON still loads with the new optional fields absent.

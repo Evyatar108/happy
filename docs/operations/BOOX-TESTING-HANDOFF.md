@@ -1,10 +1,26 @@
 # BOOX Testing Handoff — Dev Tunnels Migration Cutover Gate
 
-**Created:** 2026-05-12 (Dev Box without Android SDK), last updated 2026-05-12 after merge to main.
+**Created:** 2026-05-12 (Dev Box without Android SDK), updated 2026-05-13 after
+the first end-to-end BOOX validation surfaced multiple bugs in the Sprint A
+migration. The original `main` HEAD `2a8b4bf9` did **not** pair end-to-end;
+several files were modified during validation.
+
 **For:** Fresh agent on the BOOX-connected tablet-dev machine (the one with `D:/Android/Sdk` + keystore + USB BOOX).
-**Branch:** `main` (HEAD `2a8b4bf9` at handoff time; pull latest before starting).
+**Branch:** `main` (pull latest before starting; the validation work is uncommitted on this checkout).
 
 This file is the single starting point. Read it top-to-bottom before doing anything else.
+
+## Recent design corrections (2026-05-13)
+
+The Sprint A migration shipped on main with several never-reached-end-to-end bugs. The validation session corrected them in source:
+
+- **Header rename**: client sends `X-Tunnel-Authorization: tunnel <connect-jwt>` (Microsoft's gateway auth) AND `X-Codexu-Authorization: tunnel <happy-claim>` (custom header so the gateway-strip doesn't eat the claim). The old `X-Tunnel-Connect` name is gone.
+- **Pair protocol simplified**: `/pair/start` + `/pair/status` + per-machine GitHub device flow are replaced by a single `POST /pair/complete` that uses local `profile.json` identity. No `GITHUB_CLIENT_ID` env var needed.
+- **Tunnel id prefix**: `happy-<host>-<uuid>` → `codexu-<host>` (Microsoft caps tunnel ids at 49 chars; the long form overflowed). Tunnel label stays `happy-machine` for now (F-014 deferred — server query in `pairRoutes.ts` still uses that label).
+- **Port URL**: client + daemon now read `portForwardingUris` (plural array, what the Dev Tunnels API actually returns) and the daemon's `tunnelManager.parseTunnelUrl` also handles the CLI's `portUri` field. The base-tunnel URL `https://<tunnelId>.devtunnels.ms` (no port) does not resolve; the port-specific `https://<short-id>-<port>.<region>.devtunnels.ms` does.
+- **US-007 Prisma migration** committed under `prisma/migrations/20260512224500_drop_legacy_models_sprint_e/`.
+
+See `packages/happy-app/scripts/sprint-a-gap.md` "R-D18 path (b) implementation log" for the full corrected design.
 
 ---
 
@@ -15,7 +31,7 @@ This file is the single starting point. Read it top-to-bottom before doing anyth
 - US-001 server route deletions ✓
 - US-002 Prisma schema reduction ✓ (schema edits committed; `prisma migrate dev` not yet run)
 - US-003 fan-out preservation integration test ✓
-- US-004 R-D18 path (b) `X-Tunnel-Connect` plumbing ✓
+- US-004 R-D18 path (b) gateway-auth plumbing ✓ (the header was renamed from `X-Tunnel-Connect` to `X-Tunnel-Authorization: tunnel <connect-jwt>` during BOOX validation; the happy-claim header was renamed from `X-Tunnel-Authorization` to `X-Codexu-Authorization` to avoid collision with the gateway header)
 - US-005 **THIS — BOOX hardware validation** (operator-blocked, what we're doing here)
 - US-006 docs sweep ✓
 - US-007 **THIS — run Prisma migration; commit migration file** (operator-blocked; depends on US-005 passing for go/no-go)
@@ -41,8 +57,8 @@ Codex engine fork is now consumed as a **git submodule at `codex/`** pointing at
 | BOOX tablet | USB-connected, dev mode on, USB debugging allowed | Or use wireless adb if you've set it up. |
 | `D:/secrets/happy-app-release.keystore` | Filesystem | Production keystore. Required ONLY for Phase 6 of the validation (signed APK). Phases 1-5 work without it via Metro dev client. |
 | `packages/happy-app/keystore.properties` | In repo | References the keystore + alias. Required ONLY for Phase 6. Gitignored per-machine. |
-| happy-cli daemon running somewhere | On any machine you trust | The app pairs to a happy-cli daemon via Dev Tunnels. Daemon must have been initialized with `happy init` + `happy daemon start`. The daemon you pair to does NOT need to be the same machine running Metro. |
-| GitHub OAuth app | Already configured server-side | Sprint A locked the OAuth flow; nothing to change. |
+| Microsoft Dev Tunnels CLI (`devtunnel`) | On PATH | Required by `happy init`. Install: `winget install Microsoft.devtunnel`. Then `devtunnel user login -g` to auth with GitHub. |
+| happy-cli daemon running somewhere | On any machine you trust | The app pairs to a happy-cli daemon via Dev Tunnels. Daemon must have been initialized with `happy auth login --force` (GitHub device flow, writes `~/.happy/profile.json`) THEN `happy init` (creates Dev Tunnel) THEN `happy daemon start`. The daemon you pair to does NOT need to be the same machine running Metro. |
 
 If any of the above is missing, set it up FIRST. Don't try to power through gaps.
 
@@ -193,7 +209,7 @@ Optionally resume ralph to land US-007's remaining items (server-route deletion 
 /implement-with-ralph resume devtunnels-E-cleanup
 ```
 
-Or drive US-007 manually if ralph isn't available — the story owns: server route deletion verification, deploy-config docs (`HAPPY_TUNNEL_GITHUB_OWNER` mandatory in prod), and final merge-handoff doc updates.
+Or drive US-007 manually if ralph isn't available — the story owns: server route deletion verification and final merge-handoff doc updates. (`HAPPY_TUNNEL_GITHUB_OWNER` is no longer relevant — it was removed during BOOX validation along with the per-machine GitHub device flow.)
 
 ### Step 9 — Smoke-test + push to main
 
@@ -232,7 +248,7 @@ Then sub-tasks 3, 4, 5 of the Codex multi-device work resume per `plans/codexu-r
 
 ### `--allow-anonymous` is permanently rejected
 
-Operator decision 2026-05-12. Do NOT add `--allow-anonymous` to `tunnelManager.ts` or any production code path. The R-D18 resolution shipped in US-004 uses `X-Tunnel-Connect` header (private-tunnel auth channel). If any test, doc, or sample command mentions `--allow-anonymous`, it must be context-flagged as "manual local debug only" — never as a production path. See `packages/happy-app/scripts/sprint-a-gap.md`.
+Operator decision 2026-05-12. Do NOT add `--allow-anonymous` to `tunnelManager.ts` or any production code path. The R-D18 resolution shipped in US-004 (corrected during BOOX validation 2026-05-13) uses `X-Tunnel-Authorization: tunnel <connect-jwt>` for the Microsoft Dev Tunnels gateway auth channel. If any test, doc, or sample command mentions `--allow-anonymous`, it must be context-flagged as "manual local debug only" — never as a production path. See `packages/happy-app/scripts/sprint-a-gap.md`.
 
 ### E-ink contrast for screenshots
 

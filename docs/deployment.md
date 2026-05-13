@@ -36,15 +36,13 @@ Operator-owned state lives under `~/.happy/`:
 
 ## Production Requirements
 
-### `HAPPY_TUNNEL_GITHUB_OWNER` (required in production)
+### Operator identity (revised 2026-05-13)
 
-`pairRoutes.ts` returns HTTP 503 with body `{ error: "happy_tunnel_github_owner_unset" }` from `/pair/status` whenever `NODE_ENV=production` and `HAPPY_TUNNEL_GITHUB_OWNER` is unset. Set it to the GitHub login, case-sensitive, of the operator who owns the tunnel:
-
-```bash
-HAPPY_TUNNEL_GITHUB_OWNER=evyatar108
-```
-
-This is an authorization gate, not just an identity hint: requests authenticated as a different GitHub user are rejected with HTTP 403.
+The previous `HAPPY_TUNNEL_GITHUB_OWNER` env var and the per-machine GitHub
+device flow on `/pair/status` are **gone**. Identity is now read at pair time
+from `~/.happy/profile.json` (written when the operator runs
+`happy auth login --force`); whoever has the daemon's local filesystem and
+can reach its Dev Tunnel **is** the operator. There's nothing else to configure.
 
 ### Private Dev Tunnels
 
@@ -222,16 +220,20 @@ Dev Tunnel host started for https://happy-myhost-machine123.devtunnels.ms
 
 This is the first mobile pair step.
 
-Open the Happy mobile app and start pairing. The app calls the machine tunnel's `/pair/start`, asks GitHub for device-flow authorization, polls `/pair/status`, then shows the machine Ed25519 fingerprint before saving credentials. The app obtains the Dev Tunnels connect token automatically and uses it for private-tunnel gateway access.
+Open the Happy mobile app and start pairing. The app does a GitHub device flow once against `Iv1.e7b89e013f801f03` (devtunnel's public OAuth app) to obtain a `ghu_*` token for the Dev Tunnels API, then calls the machine tunnel's `POST /pair/complete` with `X-Tunnel-Authorization: tunnel <connect-jwt>` (the Dev Tunnels gateway auth — gateway strips it before forwarding to the daemon). The daemon mints a signed tunnel claim using its locally-onboarded identity from `~/.happy/profile.json`. The app stores credentials and is paired.
 
 ### Windows Operator
 
 Expected terminal state:
 
 ```text
-Dev Tunnel host started for https://happy-myhost-machine123.devtunnels.ms
+Dev Tunnel host started for https://58l8c10h-51371.usw2.devtunnels.ms
 TOFU handshake accepted: machine123, clientType: user-scoped, client: android/0.x.y
 ```
+
+(Where `58l8c10h-51371.usw2` is the Microsoft-assigned short-id + port + region.
+Tunnel ids are `codexu-<host>` after 2026-05-13; the old `happy-<host>-<uuid>`
+form overflowed Microsoft's 49-char tunnel-id limit.)
 
 Expected mobile state:
 

@@ -243,17 +243,45 @@ tokens server-side and exposes only a same-site session cookie to the SPA.
 ## R-D18 path (b) implementation log
 
 Sprint E resolves R-D18 with private Dev Tunnels plus an explicit gateway-auth
-carrier:
+carrier. **Corrected during BOOX validation 2026-05-13** — the original Sprint A
+spec had the header names backwards relative to what Microsoft's Dev Tunnels
+gateway actually accepts. The correct end-to-end design:
 
-- `X-Tunnel-Connect` carries the Dev Tunnels connect token to the gateway.
-- `X-Tunnel-Authorization` carries the signed Happy claim to happy-server.
+- **`X-Tunnel-Authorization: tunnel <connect-jwt>`** — carries the Dev Tunnels
+  connect token to the gateway. This is Microsoft's standard header for HTTP
+  port forwarding auth (`WWW-Authenticate: tunnel`). The gateway **strips** this
+  header before forwarding to the backend, verified empirically: sending
+  `X-Tunnel-Authorization: tunnel <jwt>` at the gateway and the daemon's
+  `request.headers['x-tunnel-authorization']` reads undefined.
+- **`X-Codexu-Authorization: tunnel <claim>`** — carries the signed Happy
+  Ed25519 envelope to the daemon (happy-server). Custom header name so it does
+  not collide with the gateway header. happy-server reads
+  `request.headers['x-codexu-authorization']` in `app.api.authenticateTunnelClaim`.
 - happy-app obtains connect tokens through `sources/sync/tunnelProvider.ts`
-  and refreshes them through `sources/auth/connectTokenRefresh.ts` before
-  pre-pair and post-pair tunnel calls.
+  and refreshes them through `sources/auth/connectTokenRefresh.ts` before each
+  tunnel call. Both headers are attached by `sources/auth/machineAuth.ts:getMachineAuthHeaders`.
 - happy-agent obtains connect tokens through `ClientTunnelProvider` and
-  persists refreshed token fields in its machine credentials.
-- happy-server only allow-lists the header for CORS; it does not authorize the
-  Dev Tunnels token itself.
+  attaches both headers via `src/api.ts`.
+- happy-cli loopback callers attach only `X-Codexu-Authorization` (loopback
+  bypasses the gateway).
+
+The earlier spec wording (`X-Tunnel-Connect` for gateway, `X-Tunnel-Authorization`
+for happy claim) was never reachable end-to-end because Microsoft's gateway
+returns 401 with `WWW-Authenticate: tunnel` for `X-Tunnel-Connect`. The migration
+was demonstrably not validated against a real tunnel until 2026-05-13.
+
+### Pair protocol (simplified post-validation)
+
+Sprint A originally specified a two-step `/pair/start` + `/pair/status` device
+flow plus a per-machine GitHub device flow on the daemon side. That was redundant
+on a personal fork — ownership of the Dev Tunnel already proves the operator's
+identity. Replaced with a **single `POST /pair/complete`**:
+
+- Gateway authorizes via `X-Tunnel-Authorization: tunnel <connect-token>`.
+- Daemon reads its locally-onboarded identity from `~/.happy/profile.json`
+  (written by `happy auth login --force`) and mints a fresh signed tunnel claim.
+- Same endpoint serves both initial pair and ongoing tunnel-claim refresh.
+- No per-machine `GITHUB_CLIENT_ID`, no `HAPPY_TUNNEL_GITHUB_OWNER` required.
 
 No anonymous Dev Tunnels access is part of the production path. The BOOX
 operator smoke evidence for private-tunnel pairing is recorded in

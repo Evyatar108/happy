@@ -49,7 +49,7 @@ graph TB
 - Database: PGlite (embedded Postgres) by default via Prisma; external Postgres is opt-in for the standalone deployment shape.
 - Cache/bus: Redis is optional. When `REDIS_URL` is set, the Socket.IO Redis-streams adapter is enabled for multi-process fan-out. In the embedded per-machine deployment Redis is not used.
 - Blob storage: local filesystem (`<dataDir>/files`) by default; S3-compatible storage is opt-in when `S3_HOST` and friends are set.
-- Auth: TOFU handshake middleware verifies `X-Tunnel-Authorization: tunnel <base64url-claim>` against the embedded server identity, one-hour `exp`, and replay-protected `jti`. Private Dev Tunnels gateway access is carried separately by `X-Tunnel-Connect`.
+- Auth: TOFU handshake middleware verifies `X-Codexu-Authorization: tunnel <base64url-claim>` against the embedded server identity, one-hour `exp`, and replay-protected `jti`. Private Dev Tunnels gateway access is carried separately by `X-Tunnel-Authorization: tunnel <connect-jwt>` (Microsoft's standard scheme; consumed + stripped by the gateway).
 - Crypto: privacy-kit `KeyTree` derived from the per-machine `HANDY_MASTER_SECRET` (set by `createHappyServer()` from the configured `machineKey`). Used only for server-side service-token storage.
 - Push: Expo push notifications are delivered directly from happy-server via `sendSessionPushEvent` to tokens stored per (machineId, deviceId).
 - Metrics: Prometheus-style `/metrics` server + per-request HTTP metrics.
@@ -152,46 +152,40 @@ HTTP routes are organized by domain:
 
 Sprint E removed the obsolete route modules for artifacts, access keys, key-value store, users/friends/feed, voice, and the server-side machine directory. Multi-tenant account creation, GitHub OAuth-via-server callback, and challenge-based Bearer issuance no longer exist on the server.
 
-## Authentication and pairing
+## Authentication and pairing (revised 2026-05-13)
 
 ```mermaid
 sequenceDiagram
     participant Mobile
+    participant Gateway as Dev Tunnels Gateway
     participant Server as happy-server (embedded)
-    participant GH as GitHub Device Flow
 
-    Mobile->>Server: GET /pair/start
-    Server->>GH: POST /login/device/code (client_id)
-    GH-->>Server: device_code, user_code, verification_uri
-    Server-->>Mobile: device_code, user_code, verification_uri
-
-    Note over Mobile: User enters user_code on github.com
-
-    Mobile->>Server: POST /pair/status (device_code)
-    Server->>GH: POST /login/oauth/access_token
-    GH-->>Server: access_token (or pending)
-    Server->>GH: GET /user
-    GH-->>Server: { login }
-    Server->>Server: Optional: enforce HAPPY_TUNNEL_GITHUB_OWNER match
-    Server->>Server: Sign Happy envelope: ed25519.sign(payload{sub,iat,exp,jti})
-    Server-->>Mobile: machines[{ machineId, tunnelUrl, ed25519PublicKey, ed25519Fingerprint, tunnelClaim }]
+    Note over Mobile: User has ghu_* token from earlier devtunnel GitHub device flow
+    Mobile->>Gateway: POST /pair/complete + X-Tunnel-Authorization: tunnel <connect-jwt>
+    Gateway->>Gateway: Verify connect token, strip header
+    Gateway->>Server: POST /pair/complete (forwarded, no X-Tunnel-Authorization)
+    Server->>Server: Read identity from ~/.happy/profile.json
+    Server->>Server: Sign Happy envelope ed25519.sign(payload{sub,iat,exp,jti,accountId})
+    Server-->>Gateway: { githubLogin, machine: { machineId, tunnelUrl, ed25519PublicKey, ed25519Fingerprint, tunnelClaim } }
+    Gateway-->>Mobile: 200 + body
 
     Note over Mobile,Server: Subsequent requests
 
-    Mobile->>Server: Request + X-Tunnel-Authorization: tunnel <base64url-claim>
-    Server->>Server: authenticate decorator: verify ed25519 sig, check sub == localUserId, exp + jti replay protection, 1h max TTL
+    Mobile->>Gateway: Request + X-Tunnel-Authorization: tunnel <connect-jwt> + X-Codexu-Authorization: tunnel <claim>
+    Gateway->>Gateway: Verify connect token, strip X-Tunnel-Authorization
+    Gateway->>Server: Request + X-Codexu-Authorization (passed through)
+    Server->>Server: authenticate decorator reads x-codexu-authorization; verify ed25519 sig, sub == localUserId, exp + jti replay protection, 1h max TTL
     Server-->>Mobile: Response
 ```
 
-The backend does not store accounts or passwords. Pairing happens entirely through GitHub's device flow plus TOFU pubkey pinning:
+The backend does not store accounts or passwords. Pairing identity comes from `~/.happy/profile.json`, which is written when the operator runs `happy auth login --force` on the daemon machine (one-time GitHub device flow against `Iv1.e7b89e013f801f03`, the public devtunnel OAuth app).
 
-- `GET /pair/start` proxies to GitHub's `/login/device/code` and returns the user code + verification URI.
-- `POST /pair/status` polls GitHub for the access token, fetches the GitHub user, optionally enforces `HAPPY_TUNNEL_GITHUB_OWNER`, and returns the embedded server's TOFU public keys (Ed25519 + X25519) along with a signed `tunnelClaim` - a base64url-encoded envelope `{ p: base64url(payload), s: hex(ed25519-signature) }` where payload is `{ sub, iat, exp, jti, accountId? }`. The mobile client trust-on-first-use pins the Ed25519 key and stores the claim.
-- All subsequent HTTP and WebSocket calls present `X-Tunnel-Authorization: tunnel <claim>`. The `authenticate` decorator and Socket.IO middleware base64url-decode the claim, require `payload.sub === tofuConfig.localUserId`, enforce `exp`, and reject replayed `jti` values.
+- `POST /pair/complete` is the single pair + refresh endpoint. The Dev Tunnels gateway's `X-Tunnel-Authorization: tunnel <connect-jwt>` check is the identity gate; the daemon's signed Ed25519 envelope binds the claim to its local Ed25519 key + the operator's GitHub identity (`accountId` from profile.json). The mobile client trust-on-first-use pins the daemon's Ed25519 public key on first pair.
+- All subsequent HTTP and WebSocket calls present BOTH `X-Tunnel-Authorization: tunnel <connect-jwt>` (gateway, consumed + stripped) AND `X-Codexu-Authorization: tunnel <happy-claim>` (passes through to the daemon).
 
 The claim is Ed25519-signed by the embedded server. Tunnel-facing routes and Socket.IO middleware base64url-decode the envelope, verify the signature against the configured Ed25519 public key, then check `sub === localUserId`, enforce `exp`, and reject replayed `jti` values from the in-memory cache. Optional `accountId` carries the GitHub numeric user id.
 
-The refresh-per-request model is intentional: app and agent callers refresh the Happy claim before protected HTTP calls and Socket.IO handshakes, while `X-Tunnel-Connect` carries the private-tunnel gateway token independently.
+The refresh-per-request model is intentional: app and agent callers refresh the Happy claim before protected HTTP calls and Socket.IO handshakes by re-hitting `/pair/complete`. The gateway connect-token is refreshed separately by the client via `connectTokenRefresh.ts` against the Dev Tunnels API.
 
 The legacy `auth` module (`sources/app/auth/auth.ts`) still exists and is initialized at startup, but it is no longer used to authenticate HTTP requests. It is retained for internal helpers (e.g., the GitHub ephemeral token used by integrations) and for the standalone deployment shape.
 
@@ -406,7 +400,7 @@ graph TB
 - The server only encrypts/decrypts GitHub OAuth material it owns using the KeyTree derived from `HANDY_MASTER_SECRET`. In the embedded deployment that secret is the per-machine `machineKey` configured by `happy-cli`, not a shared cloud master.
 
 ## Integrations
-- **GitHub**: device-flow OAuth used inside `pairRoutes` to authenticate the operator and (optionally) enforce ownership via `HAPPY_TUNNEL_GITHUB_OWNER`. The legacy multi-tenant GitHub callback / connect flow is no longer wired into HTTP routes.
+- **GitHub**: device-flow OAuth is no longer wired into HTTP routes. Operator identity is read at pair time from `~/.happy/profile.json` (written when the operator runs `happy auth login --force` on the daemon machine via the one-time devtunnel GitHub device flow). The previous `HAPPY_TUNNEL_GITHUB_OWNER` env var and per-machine `GITHUB_CLIENT_ID` are removed.
 - **Push tokens**: stored per `(machineId, deviceId)` for direct Expo delivery.
 
 ## Observability

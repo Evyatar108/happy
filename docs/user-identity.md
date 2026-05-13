@@ -4,16 +4,12 @@ Happy is now single-tenant per operator machine. The local daemon owns the embed
 
 ## Primary Identity
 
-The operator proves identity through GitHub device flow during mobile pairing:
+The operator proves identity in two phases (revised 2026-05-13):
 
-1. Mobile calls the machine tunnel's `/pair/start` endpoint.
-2. The embedded server starts GitHub device flow and returns the user code.
-3. Mobile polls `/pair/status` against the same machine tunnel.
-4. After GitHub authorizes the flow, the server fetches the GitHub login.
-5. If `HAPPY_TUNNEL_GITHUB_OWNER` is set, the login must match it.
-6. The server returns the local machine entry, tunnel URL, tunnel JWT, and TOFU public keys.
+1. **One-time daemon onboarding**: on the daemon machine, the operator runs `happy auth login --force` which does a GitHub device flow against `Iv1.e7b89e013f801f03` (the public devtunnel OAuth app). The flow writes `~/.happy/profile.json` with the operator's GitHub identity (login, numeric id, name, avatar).
+2. **Mobile pair**: the mobile app calls `POST /pair/complete` on the daemon's Dev Tunnel. The Dev Tunnels gateway's `X-Tunnel-Authorization: tunnel <connect-jwt>` check is the only identity gate — anyone who can reach the daemon's Dev Tunnel and present a valid connect token is treated as the operator. The daemon reads identity from `profile.json` and returns the tunnel claim.
 
-GitHub identity is used to prove that the person pairing the phone controls the expected GitHub login. It is not converted into a Happy-hosted user record.
+The previous per-machine GitHub device flow (Sprint A `/pair/start` + `/pair/status` + `HAPPY_TUNNEL_GITHUB_OWNER` enforcement) was deleted during BOOX validation because tunnel ownership already proves operator identity in the single-operator personal-fork posture. A public multi-tenant deployment would need to reintroduce a per-tunnel ownership check.
 
 ## Local Machine Identity
 

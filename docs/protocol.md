@@ -22,12 +22,12 @@ The protocol is designed to stay minimal, explicit, and resilient under intermit
 If a new protocol field or event is proposed, it should answer: does this create a durable sync primitive, or can it be encoded inside existing encrypted payloads without expanding the API surface?
 
 ## Authentication
-The embedded `happy-server` runs per machine and is reached over a Microsoft Dev Tunnel. Private-tunnel gateway access is authenticated with `X-Tunnel-Connect`. Happy authorization is a separate signed tunnel claim: a base64url-encoded envelope `{ p, s }` where `p` is the base64url JSON payload `{ sub, iat, exp, jti, accountId? }` and `s` is the hex Ed25519 signature, issued during pairing and stored in `AuthCredentials.tunnelClaim`. Dev Tunnels JWT fallback is removed.
+The embedded `happy-server` runs per machine and is reached over a Microsoft Dev Tunnel. Private-tunnel gateway access is authenticated with `X-Tunnel-Authorization: tunnel <connect-jwt>` (Microsoft's standard `WWW-Authenticate: tunnel` scheme; consumed + stripped by the gateway). Happy authorization is a separate signed tunnel claim: a base64url-encoded envelope `{ p, s }` where `p` is the base64url JSON payload `{ sub, iat, exp, jti, accountId? }` and `s` is the hex Ed25519 signature, issued during pairing and stored in `AuthCredentials.tunnelClaim`. Dev Tunnels JWT fallback is removed.
 
 The claim is sent on every request as the HTTP header:
 
 ```
-X-Tunnel-Authorization: tunnel <base64url(claim)>
+X-Codexu-Authorization: tunnel <base64url(claim)>
 ```
 
 The server rejects connections that omit the header, present a malformed or non-JSON claim, do not match the local user (`sub`), exceed the claim expiry, or replay a previously seen `jti`. Payload encryption boundaries are described in `security-model.md`. For the HTTP endpoint catalog and pairing flows, see `api.md`.
@@ -39,14 +39,14 @@ Connect with Socket.IO using:
 ```
 path: "/v1/updates"
 extraHeaders: {
-  "X-Tunnel-Connect": "<dev-tunnels-connect-token>",
-  "X-Tunnel-Authorization": "tunnel <base64url(claim)>"
+  "X-Tunnel-Authorization": "tunnel <dev-tunnels-connect-token>",
+  "X-Codexu-Authorization": "tunnel <base64url(claim)>"
 }
 auth: {
   clientType: "user-scoped" | "session-scoped" | "machine-scoped",
   sessionId?: "<session id>",
   machineId?: "<machine id>",
-  tunnelAuthorization?: "tunnel <base64url(claim)>"
+  codexuAuthorization?: "tunnel <base64url(claim)>"
 }
 ```
 

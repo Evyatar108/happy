@@ -125,8 +125,8 @@ sources/
 
 ### Key Architectural Patterns
 
-1. **Authentication Flow**: GitHub device flow discovers Dev Tunnels machines, then `/pair/start` and `/pair/status` mint tunnel claims. Before private-tunnel calls, `sources/sync/tunnelProvider.ts:getConnectToken()` obtains the Dev Tunnels connect token used as `X-Tunnel-Connect`.
-2. **Data Synchronization**: HTTP and Socket.IO calls authenticate with fresh Happy tunnel claims in `X-Tunnel-Authorization` and Dev Tunnels connect tokens in `X-Tunnel-Connect`; reconnects create replacement sockets instead of reusing stale claims.
+1. **Authentication Flow**: One-time GitHub device flow (against `Iv1.e7b89e013f801f03`, devtunnel's public OAuth app) yields a `ghu_*` token used to enumerate Dev Tunnels machines. Per machine, a single `POST /pair/complete` against the daemon's tunnel mints the signed Happy tunnel claim. Before private-tunnel calls, `sources/sync/tunnelProvider.ts:getConnectToken()` obtains the Dev Tunnels connect token used as `X-Tunnel-Authorization: tunnel <connect-jwt>` (Microsoft's gateway auth — stripped by the gateway before reaching the backend).
+2. **Data Synchronization**: HTTP and Socket.IO calls authenticate with fresh Happy tunnel claims in `X-Codexu-Authorization` and Dev Tunnels connect tokens in `X-Tunnel-Authorization`; reconnects create replacement sockets instead of reusing stale claims.
 3. **Credential Storage**: `TokenStorage` stores a nullable primary machine id, per-machine tunnel credentials/connect-token fields, and top-level Dev Tunnels OAuth access.
 4. **State Management**: React Context for auth state, custom reducer for sync state
 5. **Platform-Specific Code**: Separate implementations for web vs native when needed

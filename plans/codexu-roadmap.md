@@ -248,8 +248,16 @@ conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
   - **US-003** fan-out preservation: Daemon Fan-Out Integration block
     added to `daemon.integration.test.ts`; 3-agent test in 25.4s; Windows
     ACL cleanup hardening
-  - **US-004** R-D18 path (b) **shipped**: `X-Tunnel-Connect` header
-    plumbed through happy-app + happy-agent; CORS allow-list updated
+  - **US-004** R-D18 path (b) **shipped (header design corrected during BOOX
+    validation 2026-05-13)**: `X-Tunnel-Authorization: tunnel <connect-jwt>`
+    for the Dev Tunnels gateway (Microsoft's `WWW-Authenticate: tunnel`
+    scheme; gateway strips before forwarding) +
+    `X-Codexu-Authorization: tunnel <happy-claim>` for the daemon-side claim.
+    The original Sprint A `X-Tunnel-Connect` name was never reachable
+    end-to-end. Plumbed through happy-app + happy-agent + happy-cli + CORS
+    allow-list. Pair protocol simplified to a single `POST /pair/complete`
+    (deletes `/pair/start`, `/pair/status`, per-machine GitHub device flow,
+    `GITHUB_CLIENT_ID`, and `HAPPY_TUNNEL_GITHUB_OWNER`).
   - **US-006** docs sweep: `security-model.md`, `api.md`,
     `backend-architecture.md`, `cli-architecture.md`, `happy-wire`,
     `protocol.md`, `deployment.md` all updated;
@@ -274,13 +282,18 @@ conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
     A→fan-out-survivors→main merge chain can run. Step-by-step in
     `docs/operations/sprint-e-merge-handoff.md`.
 
-**R-D18 (pre-production gate): RESOLVED.** Sprint E US-004 shipped
-resolution path **(b)** — a private-tunnel auth channel via the
-`X-Tunnel-Connect` header plumbed through happy-app and happy-agent (CORS
-allow-list updated). Operator policy 2026-05-12 **REJECTED** the original
-"Sprint C patches `tunnelManager.ts` to add `--allow-anonymous`" path
-(path (a)); path (b) avoids exposing happy-server anonymously while still
-allowing `/pair/start` reachability through the Dev Tunnels gateway.
+**R-D18 (pre-production gate): RESOLVED (corrected 2026-05-13).** Sprint E
+US-004 shipped resolution path **(b)** — a private-tunnel auth channel via
+`X-Tunnel-Authorization: tunnel <connect-jwt>` (Microsoft's standard
+`WWW-Authenticate: tunnel` gateway-auth scheme). Plumbed through happy-app,
+happy-agent, and happy-cli; CORS allow-list updated. The daemon-side Happy
+claim moved to `X-Codexu-Authorization` to avoid colliding with the gateway
+header. The original Sprint A `X-Tunnel-Connect` naming was never reachable
+end-to-end — corrected during BOOX validation. Operator policy 2026-05-12
+**REJECTED** the original "Sprint C patches `tunnelManager.ts` to add
+`--allow-anonymous`" path (path (a)); path (b) avoids exposing happy-server
+anonymously while still allowing pair reachability through the Dev Tunnels
+gateway.
 Operator stopgap (path (c)) is no longer needed. Full record at
 `packages/happy-app/scripts/sprint-a-gap.md` "R-D18".
 

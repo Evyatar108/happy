@@ -2,16 +2,16 @@
 
 Audience: developers working on Happy's daemon, server, agent, and app transport layers.
 
-This document records the current Dev Tunnels security contract. Sprints A through E have landed the signed Happy claim envelope, removed the transitional JWT fallback, deleted the X25519 RPC payload encryption layer, and resolved R-D18 with path (b): private Dev Tunnels plus an explicit `X-Tunnel-Connect` gateway-auth header.
+This document records the current Dev Tunnels security contract. Sprints A through E have landed the signed Happy claim envelope, removed the transitional JWT fallback, deleted the X25519 RPC payload encryption layer, and resolved R-D18 with path (b): private Dev Tunnels plus an `X-Tunnel-Authorization: tunnel <connect-jwt>` gateway-auth header (Microsoft's standard `WWW-Authenticate: tunnel` scheme; corrected from the original Sprint A `X-Tunnel-Connect` naming during BOOX validation 2026-05-13).
 
 ## Trust Model
 
 The Dev Tunnels design uses two layers:
 
-- Transport: Microsoft Dev Tunnels TLS protects bytes in flight between clients and the user's daemon listener. Private tunnel access is authenticated to the gateway with `X-Tunnel-Connect`.
-- Identity: Happy's signed tunnel claim identifies the Happy account and machine authorization context for the request.
+- Transport: Microsoft Dev Tunnels TLS protects bytes in flight between clients and the user's daemon listener. Private tunnel access is authenticated to the gateway with `X-Tunnel-Authorization: tunnel <connect-jwt>` (Microsoft consumes and strips this header before forwarding to the backend).
+- Identity: Happy's signed tunnel claim, carried in `X-Codexu-Authorization`, identifies the Happy account and machine authorization context for the request.
 
-The tunnel claim is the Happy authorization artifact. It is issued by `/pair/status`, signed by the daemon's embedded server, and verified by tunnel-facing routes and Socket.IO handshakes. The accepted payload shape is `{ sub, iat, exp, jti, accountId? }` with a one-hour maximum lifetime and an in-memory replay cache keyed by `jti`.
+The tunnel claim is the Happy authorization artifact. It is issued by `POST /pair/complete`, signed by the daemon's embedded server, and verified by tunnel-facing routes and Socket.IO handshakes (which read `x-codexu-authorization`). The accepted payload shape is `{ sub, iat, exp, jti, accountId? }` with a one-hour maximum lifetime and an in-memory replay cache keyed by `jti`.
 
 Trusted parties:
 
@@ -41,16 +41,16 @@ Happy claims are base64url-encoded envelopes:
 
 Sprint E implements R-D18 path (b): all private-tunnel HTTP and Socket.IO callers carry a Dev Tunnels connect token separately from the Happy claim.
 
-- `X-Tunnel-Connect` is consumed by the Dev Tunnels gateway.
-- `X-Tunnel-Authorization` is consumed by happy-server.
+- `X-Tunnel-Authorization: tunnel <connect-jwt>` is consumed by the Dev Tunnels gateway and stripped before forwarding to the backend.
+- `X-Codexu-Authorization: tunnel <happy-claim>` is consumed by happy-server; the gateway forwards it unchanged.
 - happy-app obtains connect tokens from `DevTunnelsClientProvider.getConnectToken(tunnelId)` through its local provider implementation.
 - happy-agent obtains connect tokens from the same provider contract and persists refreshed token fields in its machine credentials.
 
-The server does not authorize `X-Tunnel-Connect`; it only includes the header in HTTP and Socket.IO CORS allow-lists so web clients can reach private tunnels.
+happy-server never sees `X-Tunnel-Authorization` (gateway strips it). CORS allow-lists in `app/api/api.ts` and `app/api/socket.ts` include both headers so web clients can preflight properly.
 
-## Production Owner Gate
+## Operator Identity Gate
 
-`HAPPY_TUNNEL_GITHUB_OWNER` is mandatory when `NODE_ENV=production`. If it is unset, `/pair/status` returns `503 { error: "happy_tunnel_github_owner_unset" }`. If it is set and the paired GitHub login differs, `/pair/status` returns `403`. This gate binds a self-hosted production server to the operator-owned GitHub identity that owns the private tunnel.
+Identity is read at pair time from `~/.happy/profile.json` (written by `happy auth login --force` on the daemon machine via a one-time GitHub device flow against `Iv1.e7b89e013f801f03`, the public devtunnel OAuth app). The previous `HAPPY_TUNNEL_GITHUB_OWNER` enforcement gate was removed during BOOX validation 2026-05-13 — tunnel ownership at the Dev Tunnels gateway is now the only identity gate. Anyone who has the daemon's local filesystem AND can reach its Dev Tunnel **is** the operator. This is appropriate for the single-operator personal-fork posture; a public multi-tenant deployment would need to reintroduce a per-tunnel ownership check.
 
 ## Web TokenStorage Threat Model
 

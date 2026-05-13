@@ -172,7 +172,31 @@ The project has pending Prisma migrations that need to be applied:
 
 The active route surface is intentionally small: `pairRoutes`, `accountRoutes`, `machineSelfRoutes`, `sessionRoutes`, `v3SessionRoutes`, `pushRoutes`, `versionRoutes`, and `devRoutes`. The obsolete artifact, feed, voice, key-value, access-key, user/friends, usage, and machine-directory modules were deleted in Sprint E and must not be re-registered without a new plan.
 
-`HAPPY_TUNNEL_GITHUB_OWNER` is required when `NODE_ENV=production`; `/pair/status` returns `happy_tunnel_github_owner_unset` when it is missing. Keep this documented in `.env.dev` and `docs/deployment.md`.
+### Pair protocol (BOOX-validated 2026-05-13)
+
+`pairRoutes` exposes **one** pair endpoint: `POST /pair/complete`. Identity is read
+from the locally-onboarded `~/.happy/profile.json` (written by `happy auth login --force`);
+the Dev Tunnels gateway's `X-Tunnel-Authorization` check is the only identity gate.
+
+- The earlier `/pair/start` (GET) + `/pair/status` (POST) two-step device flow,
+  along with the per-machine `GITHUB_CLIENT_ID` and `HAPPY_TUNNEL_GITHUB_OWNER`
+  env vars, are **deleted**. They were redundant on a personal fork because
+  tunnel ownership already proves operator identity.
+- `/pair/complete` doubles as the tunnel-claim refresh endpoint
+  (`refreshClaim.ts` in happy-app calls it on every claim refresh).
+- `/pair/connect` (separate post-pair re-auth endpoint) is retained.
+
+### Tunnel-auth headers (BOOX-validated 2026-05-13)
+
+happy-server reads the Happy tunnel claim from `X-Codexu-Authorization`
+(`request.headers['x-codexu-authorization']`), **not** `X-Tunnel-Authorization`.
+Microsoft's Dev Tunnels gateway consumes `X-Tunnel-Authorization: tunnel <connect-jwt>`
+and strips it before forwarding to the backend, so the backend never sees that
+header. The custom `X-Codexu-Authorization` name avoids the collision.
+
+CORS allowlists in `app/api/api.ts` and `app/api/socket.ts` include both
+`X-Tunnel-Authorization` (for preflight pass-through to the gateway) and
+`X-Codexu-Authorization` (for the daemon's claim verifier).
 
 ## Production Deployment (NOT needed for local standalone dev)
 

@@ -15,8 +15,8 @@ The API stays deliberately small. Sprint E removed the legacy artifact, feed, vo
 
 Tunnel-facing requests authenticate with two distinct headers:
 
-- `X-Tunnel-Connect: <connect token>` authenticates the client to the Microsoft Dev Tunnels gateway for private tunnel access.
-- `X-Tunnel-Authorization: tunnel <claim>` authenticates the request to happy-server after it reaches the embedded server.
+- `X-Tunnel-Authorization: tunnel <connect-jwt>` authenticates the client to the Microsoft Dev Tunnels gateway for private tunnel access. The gateway consumes and strips this header before forwarding to the backend.
+- `X-Codexu-Authorization: tunnel <claim>` authenticates the request to happy-server after it reaches the embedded server. The gateway forwards it unchanged.
 
 The Happy claim is a base64url-encoded Ed25519-signed envelope `{ p, s }`. The decoded payload is `{ sub, iat, exp, jti, accountId? }`:
 
@@ -27,29 +27,24 @@ The Happy claim is a base64url-encoded Ed25519-signed envelope `{ p, s }`. The d
 
 `verifyTunnelClaim()` accepts only this signed Happy envelope. Dev Tunnels JWT fallback is removed.
 
-## Pairing Flow
+## Pairing Flow (revised 2026-05-13)
 
-- `GET /pair/start`
-  - Starts GitHub device flow against the embedded server's GitHub OAuth client.
-  - Response: `{ device_code, user_code, verification_uri, verification_uri_complete?, expires_in, interval }`.
-
-- `POST /pair/status`
-  - Body: `{ device_code }` plus pairing metadata.
-  - Polls GitHub for OAuth completion, enforces `HAPPY_TUNNEL_GITHUB_OWNER` when configured, and returns machine credentials.
-  - Response while pending: `{ status: "pending" }`.
-  - Response when authorized: `{ status: "authorized", githubLogin, machines: [...] }` where each machine includes `machineId`, `tunnelUrl`, TOFU public keys, `tunnelClaim`, and the app-carried Dev Tunnels connect token fields.
+- `POST /pair/complete`
+  - Single-step pair + ongoing claim refresh. Gateway `X-Tunnel-Authorization: tunnel <connect-jwt>` is the identity gate; the daemon reads its locally-onboarded identity from `~/.happy/profile.json` (written by `happy auth login --force`).
+  - Body: `{ mobileEcdhPublicKey? }`.
+  - Response: `{ githubLogin, machine: { machineId, tunnelUrl, ed25519PublicKey, x25519PublicKey, ed25519Fingerprint?, tunnelClaim, mobileSharedSecret? } }`.
+  - Same endpoint serves the initial pair AND every subsequent tunnel-claim refresh (`refreshClaim.ts` in happy-app polls it).
 
 - `POST /pair/connect`
   - Completes the machine connect step after the client has accepted the TOFU identity.
 
-In `NODE_ENV=production`, `HAPPY_TUNNEL_GITHUB_OWNER` is mandatory for `/pair/status`. Missing configuration returns `503 { error: "happy_tunnel_github_owner_unset" }`; mismatched GitHub users return `403`.
+The old `/pair/start` (GET) + `/pair/status` (POST) two-step device flow, the per-machine `GITHUB_CLIENT_ID` env var, and the `HAPPY_TUNNEL_GITHUB_OWNER` enforcement check were all deleted during BOOX validation 2026-05-13 — they were redundant on a personal fork because tunnel ownership already proves operator identity. See `packages/happy-app/scripts/sprint-a-gap.md` "R-D18 path (b) implementation log".
 
 ## Endpoint Catalog
 
 ### Pairing
 
-- `GET /pair/start`
-- `POST /pair/status`
+- `POST /pair/complete`
 - `POST /pair/connect`
 
 ### Self (`/v2/me/*`)
@@ -79,7 +74,7 @@ When `options.auth === "tunnel"`, every self route requires a numeric `accountId
 
 - `/v1/updates` - Socket.IO mount for user, session, and machine scoped realtime updates.
 
-Socket.IO handshakes carry the same Happy claim as HTTP through either `extraHeaders.X-Tunnel-Authorization` or `auth.tunnelAuthorization`. Private Dev Tunnels access is carried separately with `X-Tunnel-Connect` where the platform can set headers.
+Socket.IO handshakes carry the Happy claim through either `extraHeaders.X-Codexu-Authorization` or `auth.codexuAuthorization`. Private Dev Tunnels access is carried separately as `X-Tunnel-Authorization: tunnel <connect-jwt>` (Microsoft's gateway auth) where the platform can set headers.
 
 ### Push Tokens
 
