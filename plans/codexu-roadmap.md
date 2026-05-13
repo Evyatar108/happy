@@ -194,13 +194,12 @@ for ws reattach, force-restart non-hang behavior, and stdio discovery
 skip is green. Branch: `ralph/codex-discovery-reattach`; PR link:
 <https://github.com/Evyatar108/codexu/pull/new/ralph/codex-discovery-reattach>.
 
-**Next concrete deliverable:** Dev Tunnels migration — Sprints A, B, C, D
-**LANDED** on branch `ralph/devtunnels-A-foundation`. Sprint E is **PARTIALLY
-COMPLETE**: 5 of 7 stories passed on branch `ralph/devtunnels-E-cleanup`
-(@ `dc42a5d8`, 25 commits ahead of A's branch, not yet merged). The
-remaining two stories (US-005 BOOX hardware validation, US-007 Prisma
-migration) are **operator-blocked** — they require hardware testing +
-manual `pnpm prisma migrate dev` outside the agent loop. 5-sprint plans
+**Next concrete deliverable:** Dev Tunnels migration — **all 5 sprints landed on
+`main`** (Sprints A+B+C+D earlier; Sprint E 5/7 collapsed in 2026-05-12, then
+the remaining US-005 BOOX validation + US-007 Prisma migration finished
+2026-05-13 with substantial corrections to the originally-shipped design — see
+"BOOX validation 2026-05-13" sub-bullet under Sprint E below). Local `main` is
+**6 commits ahead of origin/main** awaiting push. 5-sprint plans
 live under
 `.ralph/jobs/devtunnels-{A-foundation,B-cli,C-agent,D-app,E-cleanup}/plan.md`;
 master reference + 5-round review audit trail at
@@ -238,8 +237,13 @@ conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
   **151 test files / 1452 tests pass, 0 failures**; all 5 package
   typechecks green (happy-server, happy-cli, happy-agent, happy-wire,
   happy-app).
-- **Sprint E — cleanup + cutover: 5/7 COMPLETE (operator-blocked).** 25
-  commits on `ralph/devtunnels-E-cleanup`. Passed stories:
+- **Sprint E — cleanup + cutover: COMPLETE (with corrections).** 25
+  commits originally on `ralph/devtunnels-E-cleanup`, collapsed to `main`
+  2026-05-12, then US-005 + US-007 finished 2026-05-13. **The migration as
+  originally shipped did not pair end-to-end** — BOOX validation surfaced
+  bugs that required real code/design changes (header design, pair protocol,
+  tunnel id format, port URL parsing — see "BOOX validation 2026-05-13"
+  below). Passed stories:
   - **US-001** server routes + socket handlers deleted (with caller-audit
     gating; happy-agent `/v1/machines` migration first; happy-app friends
     graph removed)
@@ -262,25 +266,60 @@ conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
     `backend-architecture.md`, `cli-architecture.md`, `happy-wire`,
     `protocol.md`, `deployment.md` all updated;
     `packages/happy-agent/CLAUDE.md` created
-  - **Operator-blocked (cannot ship cutover without these):**
-    - **US-005** BOOX hardware 6-phase validation + `apksigner verify
-      --print-certs`. Template scaffolded at
-      `docs/validation/devtunnels-boox-result.md`.
-    - **US-007** run `pnpm prisma migrate dev --name
-      drop_legacy_models_sprint_e` outside the agent loop, commit the
-      migration, then re-invoke ralph on US-007. Template at
-      `docs/operations/sprint-e-merge-handoff.md`.
+  - **US-005** BOOX hardware Phase 1 (pairing + machine discovery)
+    **PASS 2026-05-13** after substantial design corrections. Phases 2–6
+    (chat round-trip, refresh-per-request, token revocation, multi-device
+    fan-out, signed-APK release) deferred to a follow-up session — operator
+    paused validation after Phase 1 to commit the design corrections.
+    Evidence + findings table at `docs/validation/devtunnels-boox-result.md`.
+  - **US-007** Prisma migration `20260512224500_drop_legacy_models_sprint_e/`
+    hand-written and applied via `standalone migrate` against PGLite
+    (Prisma's `migrate dev` needs an external Postgres for shadow DB, which
+    we don't have on the daemon path). Migration drops 18 legacy tables
+    (Account, Friendship, Feed, etc.), drops `accountId` from Machine and
+    Session, creates `PushToken`. Commit `a12a5e46`.
+
+  - **BOOX validation 2026-05-13 — corrections landed in 5 commits.** The
+    Sprint A migration as shipped did not work end-to-end. See
+    `docs/validation/devtunnels-boox-result.md` for the full findings
+    table; high-level corrections:
+    - **Header design**: Microsoft's gateway requires
+      `X-Tunnel-Authorization: tunnel <connect-jwt>` (not the Sprint A
+      `X-Tunnel-Connect`) AND strips that header before forwarding. The
+      Happy claim moved to `X-Codexu-Authorization` so it survives gateway
+      pass-through. Commit `fe1626a2`.
+    - **Pair protocol**: `/pair/start` + `/pair/status` + per-machine
+      GitHub device flow + `GITHUB_CLIENT_ID` + `HAPPY_TUNNEL_GITHUB_OWNER`
+      all deleted. Replaced with a single `POST /pair/complete` that reads
+      identity from `~/.happy/profile.json`. Commit `fe1626a2`.
+    - **Tunnel id**: `happy-<host>-<uuid>` (58 chars) overflowed
+      Microsoft's 49-char limit. Renamed to `codexu-<host>` (22 chars).
+      Tunnel label stays `happy-machine` (server discovery query) — F-014
+      deferred to a future label rename + happy-server redeploy.
+    - **Port URL**: client + daemon were reading `portForwardingUri`
+      (singular) — Dev Tunnels API actually returns `portForwardingUris`
+      (plural array). Fixed in both `tunnelProvider.ts` (app) and
+      `tunnelManager.ts` (daemon). Daemon now re-derives the port URL via
+      `devtunnel show --json` on every `loadForDaemon`.
+    - **Pair UX**: chooser modal (browser vs device code) before login,
+      inline auto-dismissing banner for the device code, 2-second poll
+      interval. Needed because the operator's enterprise GitHub identity
+      can't sign in on the BOOX's browser. Commit `fed4a1cd`.
+    - **Stale persisted profile**: `profileParse` now accepts both V2
+      server shape and the local on-disk shape persisted by `saveProfile`
+      into MMKV.
   - **Review convergence:** Phase 5a code (3 rounds, 12 of 13 findings
     fixed; F-013 latent override path, Low, deferred); Phase 5b docs (2
     rounds, 7 findings, all fixed); Phase 5c security (1 round, 0
     Critical/High, 2 Medium + 5 Low accepted as open). DSAT report at
     `.ralph/jobs/devtunnels-E-cleanup/dsat-report.md`.
-  - **Open findings (deferred to notepad):** 1 code (F-013 Low); 7
-    security (F-001/F-002 Medium; F-003..F-007 Low).
-  - **Branch not yet merged into A's branch.** Operator-blocked tasks
-    must complete + US-007 final commit must land before the
-    A→fan-out-survivors→main merge chain can run. Step-by-step in
-    `docs/operations/sprint-e-merge-handoff.md`.
+  - **Open findings (deferred to polish PR):** 1 code (F-013 Low); 7
+    security (F-001/F-002 Medium; F-003..F-007 Low); F-014 label rename
+    (needs server redeploy); F-015 stale-creds profile-error toast on
+    pre-pair launch (cosmetic); F-016 adb input tap on RN buttons (BOOX
+    e-ink quirk); F-017 enhancement device-pair-code shortcut;
+    F-018 orphaned encryption test files (typecheck noise, no runtime
+    impact); Phases 2–6 of BOOX validation (need follow-up session).
 
 **R-D18 (pre-production gate): RESOLVED (corrected 2026-05-13).** Sprint E
 US-004 shipped resolution path **(b)** — a private-tunnel auth channel via
