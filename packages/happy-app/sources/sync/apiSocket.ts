@@ -139,7 +139,6 @@ class ApiSocket {
     private reconnectedListeners: Set<(machineId: string) => void> = new Set();
     private statusListeners: Set<(status: SyncSocketStatus) => void> = new Set();
     private machineDisconnectListeners: Set<(machineId: string, lastSeenAt: number) => void> = new Set();
-    private deviceCodeExpiredListeners: Set<(machineId: string) => void> = new Set();
     private currentStatus: SyncSocketStatus = 'disconnected';
 
     async initialize(config: SyncSocketConfig) {
@@ -277,11 +276,6 @@ class ApiSocket {
     onMachineDisconnected = (listener: (machineId: string, lastSeenAt: number) => void) => {
         this.machineDisconnectListeners.add(listener);
         return () => this.machineDisconnectListeners.delete(listener);
-    };
-
-    onDeviceCodeExpired = (listener: (machineId: string) => void) => {
-        this.deviceCodeExpiredListeners.add(listener);
-        return () => this.deviceCodeExpiredListeners.delete(listener);
     };
 
     onMessage(event: string, handler: MessageHandler) {

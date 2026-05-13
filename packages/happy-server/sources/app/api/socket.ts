@@ -66,9 +66,6 @@ export function createSocketAuthMiddleware(tofuConfig: TofuHandshakeConfig, sock
                 next(new Error('Unauthorized'));
                 return;
             }
-            socket.data.userId = tofuConfig.localUserId;
-        } else {
-            socket.data.userId = tofuConfig.localUserId;
         }
 
         const clientType = socket.handshake.auth.clientType as 'session-scoped' | 'user-scoped' | 'machine-scoped' | undefined;

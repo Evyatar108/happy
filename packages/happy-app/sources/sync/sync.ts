@@ -1622,23 +1622,12 @@ class Sync {
         }
     }
 
-    private notifyDeviceCodeExpired = (machineId: string) => {
-        Modal.alert(
-            t('errors.deviceCodeExpiredTitle'),
-            t('errors.deviceCodeExpiredMessage', { machineId }),
-            [{ text: t('common.ok'), style: 'cancel' }],
-        );
-    };
-
     private subscribeToUpdates = () => {
         // Subscribe to message updates
         apiSocket.onMessage('update', (update, machineId) => this.handleUpdate(update, false, machineId));
         apiSocket.onMessage('ephemeral', (update, machineId) => this.handleEphemeralUpdate(update, machineId));
         apiSocket.onMachineDisconnected((machineId, lastSeenAt) => {
             storage.getState().markMachineDisconnected(machineId, lastSeenAt);
-        });
-        apiSocket.onDeviceCodeExpired((machineId) => {
-            this.notifyDeviceCodeExpired(machineId);
         });
 
         // Subscribe to connection state changes
