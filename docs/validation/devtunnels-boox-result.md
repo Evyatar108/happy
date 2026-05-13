@@ -1,26 +1,37 @@
 # Dev Tunnels Sprint E — BOOX Hardware Validation Result
 
-**Operator:** <!-- name or initials -->
-**Date:** <!-- YYYY-MM-DD -->
-**Device(s):** <!-- e.g. BOOX Air5C, BOOX TabXC -->
-**Build SHA / APK name:** <!-- e.g. happy-release-1.2.3.apk -->
+**Operator:** evmitran (Microsoft enterprise GitHub identity `evmitran_microsoft`)
+**Date:** 2026-05-13
+**Device(s):** BOOX NoteAir5C (serial `76a140c3`)
+**Build:** Metro dev client on `main` (5 commits ahead of origin/main with the validation-driven fixes)
 
 ---
 
 ## Overall Verdict
 
-<!-- Replace with: PASS | FAIL | PARTIAL -->
-**PENDING — operator must complete all phases and record verdict here**
+**PARTIAL — Phase 1 PASS after substantial design corrections; Phases 2-6 not yet attempted in this session.**
 
-> If any FAIL item is deferred, it MUST also be filed in
-> `.ralph/jobs/devtunnels-E-cleanup/notepad.md` with an explicit
-> operator deferral decision.
+The Sprint A migration as originally shipped on `main` (`2a8b4bf9`) did not pair end-to-end. Validation surfaced bugs that required real code/design changes:
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| `X-Tunnel-Connect` header rejected by Microsoft Dev Tunnels gateway | Blocker | Renamed to `X-Tunnel-Authorization: tunnel <connect-jwt>` (Microsoft's standard). Happy claim moved to `X-Codexu-Authorization` because gateway strips `X-Tunnel-Authorization` before forwarding. |
+| Per-machine `/pair/start` + `/pair/status` device flow needed `GITHUB_CLIENT_ID` + `HAPPY_TUNNEL_GITHUB_OWNER` env vars and was redundant on a personal fork | Blocker | Replaced with a single `POST /pair/complete` that reads identity from `~/.happy/profile.json`. |
+| Tunnel id `happy-<host>-<uuid>` overflowed Microsoft's 49-char limit | Blocker | Renamed to `codexu-<host>`. Dropped UUID component (hostname is unique under a single Microsoft account). |
+| `devtunnel host <id> --port-number <port>` errored when port already registered | Blocker | Removed redundant `--port-number` from `startHost`; `ensurePort` already adds the port. |
+| Client + daemon read wrong field from Dev Tunnels API for port URL (`portForwardingUri` singular vs actual `portForwardingUris` plural array) | Blocker | Fixed in both `packages/happy-app/sources/sync/tunnelProvider.ts` and `packages/happy-cli/src/tunnel/tunnelManager.ts`. |
+| Daemon returned base-tunnel URL (no port suffix) as `tunnelUrl` to clients | Blocker | Daemon re-derives port URL via `devtunnel show --json` on every `loadForDaemon`. |
+| Pair UX: device-flow code only available via browser open; enterprise GitHub accounts blocked by conditional access on unmanaged BOOX browser | Blocker for this operator | Added chooser modal (browser vs device code) + inline auto-dismissing banner showing the code so operator can complete on a desktop browser. |
+| Stale persisted `profile` in MMKV breaks app startup after schema rename | Blocker after pair | `profileParse` now also accepts the local on-disk shape. |
+| Polling per-`flow.interval` (5-12s) made post-authorize wait feel like minutes | UX nit | Flat 2s poll. |
+
+Five commits land all of the above on local `main`: `a12a5e46`, `fe1626a2`, `2b77d8bb`, `7312e162`, `fed4a1cd`. Awaiting push approval.
 
 ---
 
 ## Phase 1 — Pairing + machine discovery
 
-**Result:** <!-- PASS | FAIL | SKIPPED -->
+**Result:** PASS
 
 Steps:
 1. Pair BOOX over GitHub device flow.
@@ -28,16 +39,16 @@ Steps:
 3. Machine picker displays current machine.
 
 Evidence:
-- happy-server startup log excerpt (must show zero `--allow-anonymous` occurrences):
+- happy-server runtime log excerpt — no `--allow-anonymous` invocation; daemon uses `devtunnel host codexu-desktop-212evnk` (no port arg, no anonymous flag):
   ```
-  <!-- paste excerpt here -->
+  [TUNNEL] Started Dev Tunnel host for codexu-desktop-212evnk -> 127.0.0.1:51371
+  [DAEMON RUN] Embedded happy-server tunnel listener started on 127.0.0.1:51371
+  [DAEMON RUN] Dev Tunnel host started for https://58l8c10h-51371.usw2.devtunnels.ms
   ```
-- Pair-success evidence (screenshot path or operator note):
-  <!-- e.g. "Screenshot saved to ~/screenshots/phase1-pair.png" -->
-- Confirmation that `devtunnel access create --anonymous` was NOT invoked:
-  <!-- e.g. "Verified — no anonymous access step used" -->
+- Pair-success evidence: BOOX app advanced from the unauthenticated landing screen ("Pair machine" button) past `POST /pair/complete` to the authenticated session-ready state. Curl repro of the same flow (with the same connect token + headers the app uses) returned HTTP 200 with a fully-formed `{ githubLogin, machine: { machineId, tunnelUrl, ed25519PublicKey, x25519PublicKey, ed25519Fingerprint, tunnelClaim } }` payload.
+- Confirmation that `devtunnel access create --anonymous` was NOT invoked: verified — `packages/happy-cli/src/tunnel/tunnelManager.ts` does not call `devtunnel access` at all; only `devtunnel create`, `port create`, `host`, `show`. Searching the daemon log for `allow-anonymous` returns no hits.
 
-Notes:
+Notes: Phases 2-6 not yet attempted in this session — operator paused validation here to commit the design corrections. Resume from Phase 2 in a follow-up session against the same paired BOOX + daemon.
 <!-- optional per-phase notes -->
 
 ---
