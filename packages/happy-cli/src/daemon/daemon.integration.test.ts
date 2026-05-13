@@ -17,7 +17,7 @@ import { promisify } from 'node:util';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import path from 'path';
 import * as ed from '@noble/ed25519';
-import { createApp, encodeTunnelClaim, type HappyServerHandle } from 'happy-server';
+import { createApp, type HappyServerHandle } from 'happy-server';
 import { io as ioClient, type Socket as ClientSocket } from 'socket.io-client';
 import type { Metadata } from '@/api/types';
 import { getIntegrationEnv } from '@/testing/currentIntegrationEnv';
@@ -65,14 +65,6 @@ async function stopAllTrackedSessions(): Promise<void> {
     ),
   );
 }
-
-type TunnelClaimPayload = {
-  sub: string;
-  iat: number;
-  exp: number;
-  jti: string;
-  accountId: number;
-};
 
 type FanoutServer = {
   handle: HappyServerHandle;
@@ -140,24 +132,8 @@ async function createFanoutRepo(): Promise<string> {
   return root;
 }
 
-function decodeTunnelClaimPayload(authHeader: string): TunnelClaimPayload {
-  const encoded = authHeader.slice('tunnel '.length);
-  const envelope = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as { p: string };
-  return JSON.parse(Buffer.from(envelope.p, 'base64url').toString('utf8')) as TunnelClaimPayload;
-}
-
-async function mintTunnelAuth(secretKey: Uint8Array, accountId: number): Promise<{ authHeader: string; payload: TunnelClaimPayload }> {
-  const iat = Math.floor(Date.now() / 1000);
-  const payload: TunnelClaimPayload = {
-    sub: 'machine-1',
-    iat,
-    exp: iat + 3600,
-    jti: randomUUID(),
-    accountId,
-  };
-  const claim = await encodeTunnelClaim(payload, secretKey);
-  const authHeader = `tunnel ${claim}`;
-  return { authHeader, payload: decodeTunnelClaimPayload(authHeader) };
+function makeFakeTunnelAuth(): string {
+  return `tunnel ${randomUUID()}`;
 }
 
 async function connectFanoutSocket(url: string, auth: Record<string, unknown>): Promise<ClientSocket> {
@@ -292,9 +268,8 @@ describe('Daemon Fan-Out Integration', { timeout: 180_000 }, () => {
     tempRoots.push(daemonHome);
     fanoutServer = await startFanoutServer(dataDir);
 
-    const daemonAuth = await mintTunnelAuth(fanoutServer.secretKey, 9001);
     const daemonSocket = await connectFanoutSocket(fanoutServer.url, {
-      tunnelAuthorization: daemonAuth.authHeader,
+      tunnelAuthorization: makeFakeTunnelAuth(),
       clientType: 'machine-scoped',
       machineId: 'machine-1',
       happyClient: 'cli-daemon/fanout-test',
@@ -360,16 +335,15 @@ describe('Daemon Fan-Out Integration', { timeout: 180_000 }, () => {
     });
     await registerRpc(daemonSocket, 'machine-1:spawn-in-worktree');
 
-    const agentAuths = await Promise.all(Array.from({ length: 3 }, () => mintTunnelAuth(fanoutServer!.secretKey, 9001)));
-    const results = await Promise.all(agentAuths.map((auth, index) => callSpawnInWorktree(fanoutServer!.url, auth.authHeader, {
+    const agentAuthHeaders = Array.from({ length: 3 }, () => makeFakeTunnelAuth());
+    const results = await Promise.all(agentAuthHeaders.map((authHeader, index) => callSpawnInWorktree(fanoutServer!.url, authHeader, {
       repoPath,
       worktreePath: path.join(repoPath, '.dev', 'worktree', randomUUID()),
       runId: `fanout-${index + 1}`,
-      agentAccountId: auth.payload.accountId,
+      agentAccountId: 9001,
     })));
 
-    expect(new Set(agentAuths.map(auth => auth.payload.jti)).size).toBe(3);
-    expect(agentAuths.every(auth => auth.payload.accountId === 9001)).toBe(true);
+    expect(new Set(agentAuthHeaders).size).toBe(3);
     expect(new Set(results.map(result => result.worktreePath)).size).toBe(3);
     expect(results.every(result => /^[0-9a-f-]{36}$/i.test(path.basename(result.worktreePath)))).toBe(true);
 

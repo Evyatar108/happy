@@ -74,6 +74,5 @@ declare module 'happy-server' {
 
   export function createApp(config: CreateAppConfig): HappyServerHandle;
   export function createHappyServer(config: HappyServerConfig): HappyServerHandle;
-  export function encodeTunnelClaim(payload: unknown, ed25519SecretKey: Uint8Array): Promise<string>;
   export function bootstrapMachineForEmbedded(input: BootstrapMachineForEmbeddedInput): Promise<void>;
 }
