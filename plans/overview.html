@@ -48,7 +48,9 @@
   }
   h1 { font-size: 22px; margin: 0 0 4px; }
   h2 { font-size: 16px; margin: 32px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
-  h3 { font-size: 14px; margin: 0 0 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  h3 { font-size: 14px; margin: 0 0 8px; color: var(--muted); }
+  /* Restrict the uppercase + letter-spacing treatment to small contextual labels only */
+  .col-head h3, .strip-label, .today-label { text-transform: uppercase; letter-spacing: 0.04em; }
   code, .mono { font-family: 'SF Mono', 'Cascadia Code', Menlo, monospace; font-size: 12px; background: rgba(127,127,127,0.12); padding: 1px 4px; border-radius: 3px; }
   .sub { color: var(--muted); font-size: 13px; }
   a { color: var(--accent); text-decoration: none; }
@@ -127,16 +129,45 @@
   }
   .legend .pill { background: transparent; }
 
-  .stack-rec {
-    background: linear-gradient(135deg, rgba(122,162,247,0.08), rgba(158,206,106,0.05));
-    border: 1px solid var(--accent);
+  /* Today decision panel — primary always-visible lede */
+  .today-panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
     border-radius: 8px;
-    padding: 14px 16px;
+    padding: 14px 18px;
     margin: 16px 0;
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 8px 16px;
+    align-items: center;
   }
-  .stack-rec h3 { color: var(--accent); margin-bottom: 8px; }
-  .stack-rec ol { margin: 4px 0; padding-left: 22px; }
-  .stack-rec li { margin-bottom: 4px; }
+  .today-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .today-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .today-empty { color: var(--muted); font-style: italic; font-size: 12px; }
+  .today-footer {
+    grid-column: 1 / -1;
+    border-top: 1px dashed var(--border);
+    padding-top: 8px;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* Mental-model subtitle above the section stack */
+  .mental-model {
+    color: var(--muted);
+    font-size: 12px;
+    margin: 20px 0 4px;
+    text-align: center;
+    font-style: italic;
+  }
+  .mental-model code { font-style: normal; }
 
   .phase-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
   @media (max-width: 900px) { .phase-grid { grid-template-columns: 1fr; } }
@@ -147,8 +178,9 @@
   .phase-head { font-weight: 600; font-size: 13px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
   .phase-head .ptag { font-size: 11px; color: var(--muted); font-weight: 400; }
   .phase ul { margin: 4px 0 0; padding-left: 18px; font-size: 12px; line-height: 1.7; }
-  .phase li { color: var(--muted); }
+  .phase li { color: var(--fg); }
   .phase li .item-name { color: var(--fg); }
+  /* Only deferred / done items are muted; everything else reads at full contrast */
   .open { color: var(--accent); }
   .deferred { color: var(--muted); }
   .item-name.closed { color: var(--ok); text-decoration: line-through; }
@@ -192,12 +224,9 @@
   .chip-inflight { border-color: rgba(224,175,104,0.55); background: rgba(224,175,104,0.12); }
   .strip-count { margin-left: auto; font-size: 11px; color: var(--muted); }
 
-  /* Area-color left borders for kanban cards */
-  .card.area-bdr-app { border-left: 3px solid var(--info); }
-  .card.area-bdr-server { border-left: 3px solid var(--accent); }
-  .card.area-bdr-cli { border-left: 3px solid var(--purple); }
-  .card.area-bdr-codex { border-left: 3px solid #ff9e64; }
-  .card.area-bdr-multi { border-left: 3px solid var(--warn); }
+  /* Area-color left-borders removed in Tier V — status owns the color channel.
+     The area is still encoded as a neutral .pill inside each card's card-meta.
+     BOOX media query below re-thickens borders for e-ink contrast regardless. */
 
   /* Status count chips inside section summaries */
   .section-counts {
@@ -249,6 +278,37 @@
     align-items: center;
     gap: 10px;
     border-bottom: 1px solid var(--border);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+  /* Compact filter chips behind a "Filter ⏷" toggle to keep the toolbar
+     to one row by default. Click to expand. */
+  details.toolbar-filters { display: inline-block; }
+  details.toolbar-filters > summary {
+    cursor: pointer;
+    list-style: none;
+    background: var(--card);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+  }
+  details.toolbar-filters > summary::-webkit-details-marker { display: none; }
+  details.toolbar-filters > summary::after { content: ' ⏷'; opacity: 0.7; }
+  details.toolbar-filters[open] > summary::after { content: ' ⏶'; }
+  details.toolbar-filters > summary:hover { color: var(--fg); border-color: var(--accent); }
+  details.toolbar-filters[open] > summary { background: var(--accent); color: white; border-color: var(--accent); }
+  details.toolbar-filters .filter-chips {
+    position: absolute;
+    margin-top: 6px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    z-index: 11;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
   }
   #search {
     flex: 1; min-width: 220px;
@@ -555,15 +615,16 @@
     border: 1px solid var(--border);
     border-radius: 4px;
     padding: 10px 12px;
-    padding-right: 90px;
+    padding-right: 100px;
     font-family: 'SF Mono', 'Cascadia Code', Menlo, monospace;
     font-size: 12px;
-    line-height: 1.5;
+    line-height: 1.6;
     white-space: pre-wrap;
-    word-break: break-word;
+    overflow-wrap: anywhere;
     max-height: 360px;
     overflow-y: auto;
     margin: 0;
+    tab-size: 2;
   }
   .copy-btn {
     position: absolute;
@@ -603,33 +664,28 @@
   <code>plans/realtime-sync-perf.md</code>, devtunnels-E notepad (F-* findings).
 </div>
 
-<div class="stack-rec">
-  <h3>Recommended assignment order</h3>
-  <ol>
-    <li><strong>Agent A → realtime-sync-perf, all 3 workstreams sequentially.</strong> Biggest user-visible win. ~4 h. WS1 → WS3 → WS2 (WS3 simplifies WS2's scope).</li>
-    <li><strong>⏸ 3a-skills paused.</strong> Operator closed the session 2026-05-13 because the agent's prerequisites weren't yet met. Don't re-spawn until that context is re-established. Phase 3 sub-phases that build on 3a (<code>3b-agents</code>, <code>3d-workers</code>, <code>3fg-package</code>) remain blocked on its eventual discovery commit. <code>3c-hooks</code> + <code>3h-options</code> unaffected.</li>
-    <li><strong>Agent B (optional) → one polish item (F-015 / F-017).</strong> Tiny isolated surfaces. Pick the one whose user-pain matches today. (F-013 closed 2026-05-13 as obsolete-by-design — Phase 5 drop-Claude supersedes it.)</li>
-    <li><strong>Agent C (optional) → mcp-discovery</strong> — codex agent project-<code>.mcp.json</code> parity gap. Small, isolated to <code>runCodex.ts</code>, ~30-45 min including tests. Closes the daily-driver gap where the codex agent doesn't see your <code>codexu/.mcp.json</code> (paper MCP server).</li>
-    <li><strong>Agent D (optional) → codex-parity-audit</strong> — research-only ralph job. Survey every Claude-Code feature the codex agent doesn't match (project-CLAUDE.md auto-load, hooks, plan mode, permission profile mapping, etc.); output doc names fix-site (happy-cli vs overlay crate vs upstream patch) + effort + severity per gap. No code commits; runs in parallel with everything.</li>
-    <li><strong>Defer:</strong> Phase 1b sub-tasks 3-5 (need a re-read against the now-resolved tunnel protocol first), Phase 2c/2d (upstream codex work, separate trees), Phase 4-7 (integration tests + drop-Claude-Code; gated on Phase 3 landing).</li>
-  </ol>
-</div>
-
-<div class="ready-strip" id="ready-strip" aria-label="Right-now lane status">
-  <span class="strip-label">Right now</span>
-  <!-- Chips populated by JS from each ralph command's status badge -->
-  <span class="strip-count" id="ready-strip-count"></span>
+<div id="today-panel" class="today-panel" aria-label="Today — running / ready / on hold">
+  <span class="today-label">🟡 Running</span>
+  <span class="today-chips" id="today-running"></span>
+  <span class="today-label">⬜ Ready</span>
+  <span class="today-chips" id="today-ready"></span>
+  <span class="today-label">🔒 On hold</span>
+  <span class="today-chips" id="today-hold"></span>
+  <div class="today-footer" id="today-footer"></div>
 </div>
 
 <div class="toolbar" id="toolbar" role="search">
   <input type="search" id="search" placeholder="Search tasks…  (press / to focus, esc to clear)" aria-label="Filter tasks by name/description" />
-  <div class="filter-chips" id="filter-chips" aria-label="Filter by status">
-    <button class="filter-chip" data-filter-status="ready" type="button">⬜ ready</button>
-    <button class="filter-chip" data-filter-status="inflight" type="button">🟡 in progress</button>
-    <button class="filter-chip" data-filter-status="blocked" type="button">🔒 blocked</button>
-    <button class="filter-chip" data-filter-status="paused" type="button">⏸ paused</button>
-    <button class="filter-chip" data-filter-status="closed" type="button">🚫 closed</button>
-  </div>
+  <details class="toolbar-filters">
+    <summary>Filter by status</summary>
+    <div class="filter-chips" id="filter-chips" aria-label="Filter by status">
+      <button class="filter-chip" data-filter-status="ready" type="button">⬜ ready</button>
+      <button class="filter-chip" data-filter-status="inflight" type="button">🟡 in progress</button>
+      <button class="filter-chip" data-filter-status="blocked" type="button">🔒 blocked</button>
+      <button class="filter-chip" data-filter-status="paused" type="button">⏸ paused</button>
+      <button class="filter-chip" data-filter-status="closed" type="button">🚫 closed</button>
+    </div>
+  </details>
   <button id="bulk-copy" class="bulk-btn" type="button" disabled>Copy 0 selected</button>
   <span class="kbd-hint" title="Press ? for keyboard shortcuts">?</span>
 </div>
@@ -645,6 +701,8 @@
     <tr><td><kbd>?</kbd></td><td>Toggle this help</td></tr>
   </table>
 </div>
+
+<p class="mental-model"><strong>Kanban</strong> to choose · <strong>Ralph commands</strong> to execute · <strong>Phase tree</strong> to orient</p>
 
 <details class="section">
 <summary class="section-head">Kanban — assignable now <span class="section-counts" id="counts-kanban"></span></summary>
@@ -665,7 +723,7 @@
     <div class="col-head"><h3>Ready now</h3><span class="badge b-now">assignable</span></div>
 
     <div class="card" style="border-color: var(--warn);">
-      <div class="card-title">🟡 Realtime sync perf — WS1: skip refreshTunnelClaim when valid <span class="sub">(in progress)</span></div>
+      <div class="card-title">Realtime sync perf — WS1: skip refreshTunnelClaim when valid <span class="sub">(in progress)</span></div>
       <div class="sub">Parse <code>exp</code>, skip roundtrip when claim valid 60-120 s ahead. Foreground fan-out 6×~2.5 s → 1×~2.5 s + 5×~0.5 s.</div>
       <div class="card-meta">
         <span class="pill area-app">happy-app</span>
@@ -687,7 +745,7 @@
     </div>
 
     <div class="card" style="border-color: var(--warn);">
-      <div class="card-title">🟡 Realtime sync perf — WS3: server replay buffer + client lastSeenSeq <span class="sub">(in progress)</span></div>
+      <div class="card-title">Realtime sync perf — WS3: server replay buffer + client lastSeenSeq <span class="sub">(in progress)</span></div>
       <div class="sub">Server keeps ring of last N events per user; client ships <code>lastSeenSeq</code> on reconnect handshake. Eliminates HTTP fallback on reconnect.</div>
       <div class="card-meta">
         <span class="pill area-multi">multi-package</span>
@@ -1457,31 +1515,63 @@
     return 'unknown';
   }
 
-  // ===== Build the Ready Now strip from existing cmd rows =====
-  (function buildReadyStrip() {
-    var strip = document.getElementById('ready-strip');
-    var countEl = document.getElementById('ready-strip-count');
-    if (!strip) return;
+  // ===== Build the Today decision panel from existing cmd rows =====
+  (function buildTodayPanel() {
     var rows = document.querySelectorAll('details.cmd');
     var counts = { ready: 0, inflight: 0, paused: 0, blocked: 0, closed: 0 };
-    var insertBefore = countEl;
+    var byStatus = { ready: [], inflight: [], blocked: [], paused: [], closed: [] };
     rows.forEach(function (r) {
       var status = classifyCmd(r);
       counts[status] = (counts[status] || 0) + 1;
-      if (status !== 'ready' && status !== 'inflight') return;
       var name = r.getAttribute('data-task-id');
-      if (!name) return;
-      var chip = document.createElement('a');
-      chip.className = 'chip chip-' + status;
-      chip.href = '#cmd-' + name;
-      chip.textContent = (status === 'inflight' ? '🟡 ' : '⬜ ') + name;
-      chip.title = (status === 'inflight' ? 'In progress — ' : 'Ready — ') + name;
-      strip.insertBefore(chip, insertBefore);
+      if (name && byStatus[status]) byStatus[status].push(name);
     });
-    if (countEl) {
-      countEl.textContent = counts.inflight + ' in progress · ' + counts.ready + ' ready · ' + counts.blocked + ' blocked · ' + counts.paused + ' paused · ' + counts.closed + ' closed';
+
+    function chipsInto(elId, names, chipClass, prefix) {
+      var el = document.getElementById(elId);
+      if (!el) return;
+      if (!names.length) {
+        el.innerHTML = '<span class="today-empty">—</span>';
+        return;
+      }
+      names.forEach(function (n) {
+        var a = document.createElement('a');
+        a.href = '#cmd-' + n;
+        a.className = 'chip ' + (chipClass || '');
+        a.textContent = (prefix || '') + n;
+        a.title = (chipClass === 'chip-inflight' ? 'In progress — ' : 'Jump to ') + n;
+        el.appendChild(a);
+      });
     }
-    // Also populate the Ralph commands section-count summary
+    chipsInto('today-running', byStatus.inflight, 'chip-inflight', '');
+    chipsInto('today-ready', byStatus.ready, 'chip-ready', '');
+    // On-hold row: paused first, then blocked
+    chipsInto('today-hold', byStatus.paused.concat(byStatus.blocked), '', '');
+
+    // Footer: capacity + dimmer counts (closed/blocked-paused totals)
+    var footer = document.getElementById('today-footer');
+    if (footer) {
+      // Capacity calc (ready only)
+      var data = (typeof getRoadmapData === 'function') ? getRoadmapData() : null;
+      var totalEffort = 0;
+      if (data && data.effort) {
+        byStatus.ready.forEach(function (n) {
+          if (typeof data.effort[n] === 'number') totalEffort += data.effort[n];
+        });
+      }
+      var capacity = '';
+      if (totalEffort > 0) {
+        capacity = totalEffort < 10
+          ? '≈ ' + totalEffort.toFixed(1).replace(/\.0$/, '') + ' h ready'
+          : '≈ ' + Math.round(totalEffort) + ' h ready (~' + Math.round(totalEffort / 8) + ' d)';
+      }
+      var parts = [];
+      if (capacity) parts.push(capacity);
+      parts.push(counts.closed + ' closed');
+      footer.textContent = parts.join('  ·  ');
+    }
+
+    // Populate Ralph commands section-count summary
     var cmds = document.getElementById('counts-cmds');
     if (cmds) {
       var total = rows.length;
@@ -1510,24 +1600,7 @@
     el.innerHTML = parts.join('');
   })();
 
-  // ===== Auto-tag kanban cards with area-bdr-* from the area pill inside =====
-  (function tagKanbanCardsByArea() {
-    var pillToArea = {
-      'area-app': 'area-bdr-app',
-      'area-server': 'area-bdr-server',
-      'area-cli': 'area-bdr-cli',
-      'area-codex': 'area-bdr-codex',
-      'area-multi': 'area-bdr-multi'
-    };
-    document.querySelectorAll('.kanban .card').forEach(function (card) {
-      for (var pillClass in pillToArea) {
-        if (card.querySelector('.pill.' + pillClass)) {
-          card.classList.add(pillToArea[pillClass]);
-          break;
-        }
-      }
-    });
-  })();
+  // Area-color left-border tagging removed in Tier V — status owns the color channel.
 
   // ===== localStorage persistence of <details> open state =====
   (function persistDetails() {
@@ -1777,35 +1850,7 @@
     hint.textContent = '(snapshot ' + ago + ')';
   })();
 
-  // ===== Capacity widget (ready-queue effort + risk breakdown) =====
-  (function capacityWidget() {
-    var data = getRoadmapData();
-    if (!data) return;
-    var effort = data.effort || {};
-    var risk = data.risk || {};
-    var totalEffort = 0;
-    var riskCounts = { low: 0, medium: 0, high: 0 };
-    document.querySelectorAll('details.cmd').forEach(function (cmd) {
-      if (classifyCmd(cmd) !== 'ready') return;
-      var id = cmd.getAttribute('data-task-id');
-      if (!id) return;
-      totalEffort += (typeof effort[id] === 'number' ? effort[id] : 0);
-      var r = risk[id];
-      if (r && riskCounts.hasOwnProperty(r)) riskCounts[r] += 1;
-    });
-    var strip = document.getElementById('ready-strip');
-    if (!strip) return;
-    var line = document.createElement('span');
-    line.className = 'capacity-line';
-    var totalLabel = totalEffort < 10
-      ? '≈ ' + totalEffort.toFixed(1).replace(/\.0$/, '') + ' h'
-      : '≈ ' + Math.round(totalEffort) + ' h (~' + Math.round(totalEffort / 8) + ' d)';
-    line.textContent = 'Ready queue capacity: ' + totalLabel
-      + '  ·  ' + riskCounts.low + ' low'
-      + '  ·  ' + riskCounts.medium + ' medium'
-      + '  ·  ' + riskCounts.high + ' high';
-    strip.appendChild(line);
-  })();
+  // Capacity widget folded into the Today panel footer above (Tier V rebalance).
 
   // ===== Operator notes — inline textarea per cmd row, persisted in localStorage =====
   (function operatorNotes() {
@@ -1955,8 +2000,8 @@
     });
     banner.appendChild(dismiss);
 
-    // Insert banner just under the ready-strip
-    var anchor = document.getElementById('ready-strip');
+    // Insert banner just under the Today panel
+    var anchor = document.getElementById('today-panel');
     if (anchor && anchor.parentNode) {
       anchor.parentNode.insertBefore(banner, anchor.nextSibling);
     } else {
@@ -1971,8 +2016,8 @@
      status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-13T23:00:00Z",
-  "generatedFromCommit": "edddea14",
+  "generatedAt": "2026-05-13T23:45:00Z",
+  "generatedFromCommit": "257b43b3",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:00:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
