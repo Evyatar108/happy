@@ -2,6 +2,28 @@
 
 This document contains the development guidelines and instructions for the Happy Server project. This guide OVERRIDES any default behaviors and MUST be followed exactly.
 
+## Architecture posture (Sprint A onward)
+
+happy-server **runs embedded inside each user's daemon process**, not as a
+standalone multi-tenant service. The codexu fork dropped the public hosted
+deployment after Sprint A landed `createHappyServer()` + `dualListenerBinding()`
+in happy-cli's daemon. There is **exactly one user per process**.
+
+Consequence for the code surface: the multi-tenant `userId` scoping that
+remains throughout `sources/` (request decorators, Prisma WHERE clauses,
+`eventRouter` per-user fan-out keys, `allocateUserSeq`'s userId partition —
+~140 references total) is dead weight. A tracked cleanup is queued as
+`userid-cleanup` in `plans/parallel-assignments.md`, sequenced after
+`perf-WS3` lands (WS3 currently spec's a per-user replay-buffer ring; in
+single-user mode that partition is trivial and gets stripped as part of
+the cleanup commit). Until that lands, treat `userId` plumbing as
+deprecated-but-functional — don't add new `userId` scoping in new code,
+but don't strip existing scoping ad-hoc either.
+
+The "Local Development" section below still describes how to run the server
+in standalone mode for testing; production use is via the embedded path in
+the daemon.
+
 ## Project Overview
 
 **Name**: happy-server  

@@ -147,6 +147,16 @@ Subsequent inspection:
 grep -E "FAIL|×|✗|error TS" /tmp/codexu-*.log
 ```
 
+## Codex submodule edits (minimize conflict surface)
+
+`codex/` is a git submodule pointing at `gim-home/codex`. When a ralph plan needs codex source changes, follow `plans/codexu-roadmap.md` §"Codex changes — minimize upstream conflict surface":
+
+1. **Avoid editing codex source if possible** — most happy-cli work doesn't need it; reading codex source for schema / call-site signatures is fine.
+2. **When new behavior IS needed in codex, prefer a new package alongside** in `codex/codex-rs-overlay/`. The working precedents are `codex-copilot`, `codex-copilot-launcher`, and `codex-invariant-tests` (all overlay crates).
+3. **If patching `codex/external/repos/codex-patched/codex-rs/` (the openai/codex subtree mirror) is unavoidable, keep the diff minimal** and surface to operator review — every local edit there creates a merge conflict on the next subtree pull.
+4. **Work in a `.ralph/jobs/<name>/codex-worktree/`** git worktree of the submodule (`git -C codex worktree add ../.ralph/jobs/<name>/codex-worktree -b ralph/<name>`), not in the parent codexu's checkout. This isolates the agent's in-flight codex edits.
+5. **Submodule pointer bumps in codexu** are a separate commit on codexu `main` after the codex-side commit lands and is pushed to `gim-home/codex`.
+
 ## Releasing
 
 Do not publish by hand. Use `/release` — it handles npm publish, git tags, GitHub releases, and the smoke check.

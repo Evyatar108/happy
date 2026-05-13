@@ -87,7 +87,7 @@ Core Claude Code integration layer.
 
 ### Permission Mode Protocol
 
-The Happy wire protocol uses a 7-mode permission enum: `default`, `acceptEdits`, `bypassPermissions`, `plan`, `read-only`, `safe-yolo`, and `yolo`. Claude Code's SDK accepts a smaller 4-mode enum, so Claude-specific mapping stays in `src/claude/permissions.ts` via `mapToClaudeMode(...)`; do not pass app wire keys directly to the SDK.
+The Happy wire protocol uses a 7-mode permission enum: `default`, `acceptEdits`, `bypassPermissions`, `plan`, `read-only`, `safe-yolo`, and `yolo`. Claude Code's SDK accepts a smaller 4-mode enum, so Claude-specific mapping stays in `src/claude/utils/permissionMode.ts` via `mapToClaudeMode(...)`; do not pass app wire keys directly to the SDK.
 
 Claude and Codex runners publish their effective mode to session metadata as `currentPermissionModeCode`. Claude seeds the initial value in the metadata object passed to `api.getOrCreateSession(...)`, then publishes later changes through `publishPermissionModeIfChanged(...)`. Codex publishes explicit user picks through the same helper, and also publishes an initial `yolo` once after `client.connect()` when Happy's sandbox forces full-access behavior.
 
@@ -232,6 +232,52 @@ happy-cli today does NOT catch up agent-CLI activity that happened while it was 
 
 - **Claude**: `processedMessageKeys` in `claude/utils/sessionScanner.ts:35` is in-memory only; on cold-start the scanner only watches sids registered via Claude's `SessionStart` hook (i.e., sessions launched by happy-cli itself). A bare `claude` invocation outside happy-cli writes to its own JSONL with a sid happy-cli never learns about. Orphan JSONLs are invisible. Server dedup is by `localId` (random `randomUUID()` per `enqueueMessage` at `apiSession.ts:402-412`), NOT by wire/realID — so naive re-forwarding on a future restart would create server-side duplicates. No persisted scanner offset on disk.
 - **Codex**: architecturally different — happy-cli spawns or reattaches to `codex app-server` from the `CodexAppServerClient.connect` transport branch in `codex/codexAppServerClient.ts` and consumes JSON-RPC over either of two adapters: a loopback WebSocket (default; `--listen ws://127.0.0.1:<port>` via `createWsTransport`) or newline-delimited stdio (opt-in via `--codex-transport stdio`, and auto-forced when sandbox is enabled on non-Windows so the seatbelt-wrapped child stays on stdio). In ws mode, a detached app-server can outlive the foreground happy-cli process and be rediscovered from `~/.happy/codex-active-<cwdHash>.json`; stdio mode remains foreground-process-owned and skips discovery. The remaining gap is "happy-cli crash mid-turn loses any unsent in-memory `pendingOutbox` events" plus "external `codex` invocations are permanently invisible — no rollout-file enumeration in `~/.codex/sessions/`."
+
+## Codex Agent Feature Parity (open gaps)
+
+The codex agent under happy doesn't match every Claude-Code project-level
+convention. Known gap, surfaced 2026-05-13, fix pending:
+
+- **Project-cwd `.mcp.json` discovery.** Claude Code reads `<cwd>/.mcp.json` at
+  session start. Codex doesn't — and `runCodex.ts:700-705` only passes the
+  `happy` bridge MCP server to `client.startThread({ mcpServers })`. Per-cwd
+  MCP servers are silently dropped. Fix lives on this side (read + Zod-validate
+  `<cwd>/.mcp.json`, merge into `mcpServers` at `startThread` AND
+  `resumeExistingThread`); the codex submodule itself only reads `.mcp.json`
+  inside the external-agent one-shot migrator and the plugin-internal loader,
+  neither runtime-cwd-scoped. Ralph plan: `mcp-discovery` tab in
+  `plans/parallel-assignments.md`.
+- **Broader audit pending.** The `.mcp.json` gap was found by accident. A
+  `codex-parity-audit` ralph command in `plans/parallel-assignments.md` runs
+  a structured survey of every Claude-Code project convention the codex agent
+  doesn't yet match (project-CLAUDE.md auto-load, hooks parity, plan mode,
+  attachment handling, etc.) and outputs `plans/codex-agent-parity-audit.md`.
+
+When adding new MCP-server plumbing or thread-start hooks, check `runCodex.ts`
+for the `mcpServers` build site and respect the per-cwd discovery semantics
+(if landed) so future codex changes don't regress the parity story.
+
+## Codex Submodule Edits (minimize conflict surface)
+
+The `codex/` directory is a git submodule (`gim-home/codex`). Inside it,
+`codex/external/repos/codex-patched/codex-rs/` is a subtree mirror of
+openai/codex; divergence work lives in `codex/codex-rs-overlay/` as overlay
+crates (`codex-copilot`, `codex-copilot-launcher`, `codex-invariant-tests` are
+the working precedent). Tenet for any ralph plan that needs codex changes
+(see `plans/codexu-roadmap.md` §"Codex changes — minimize upstream conflict
+surface"):
+
+1. **Avoid editing codex source if possible.** Most happy-cli work doesn't
+   need it; reading codex source for schema/signatures is fine.
+2. **When new behavior IS needed, add a new package alongside in
+   `codex/codex-rs-overlay/`.** Don't edit upstream-canonical files.
+3. **If patching `codex/external/repos/codex-patched/codex-rs/` is
+   unavoidable, keep the diff minimal** and surface to operator review —
+   every local edit there creates a merge conflict on the next subtree pull.
+4. **Work in a `.ralph/jobs/<name>/codex-worktree/`** git worktree of the
+   submodule, not in the parent codexu's checkout.
+5. **Submodule pointer bumps in codexu** are a separate commit after the
+   codex-side commit lands and is pushed to gim-home/codex.
 
 ## Codex Transport Security Model
 
