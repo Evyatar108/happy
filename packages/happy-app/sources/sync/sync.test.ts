@@ -252,16 +252,15 @@ describe('sync.sendMessage switch policy', () => {
         expect(getPendingRecord().meta.capabilities).toBeUndefined();
     });
 
-    it('includes image attachments in the encrypted user message content', async () => {
-        const { encryptRawRecord } = installSyncHarness();
+    it('includes image attachments in the user message content', async () => {
+        installSyncHarness();
         const attachments = [
             { type: 'image' as const, ref: 'data:image/png;base64,abc123', mimeType: 'image/png' }
         ];
 
         await sync.sendMessage('session-1', 'hello', { attachments });
 
-        expect(encryptRawRecord).toHaveBeenCalledOnce();
-        expect(encryptRawRecord.mock.calls[0][0].content).toEqual({
+        expect(getPendingRecord().content).toEqual({
             type: 'text',
             text: 'hello',
             attachments,
@@ -271,31 +270,30 @@ describe('sync.sendMessage switch policy', () => {
     it.each([
         ['codex', makeSession({ metadata: { flavor: 'codex', path: '/repo', host: 'host' } })],
         ['undefined flavor', makeSession({ metadata: { path: '/repo', host: 'host' } })],
-    ])('strips image attachments before encryption for non-Claude flavor: %s', async (_name, session) => {
-        const { encryptRawRecord } = installSyncHarness({ session });
+    ])('strips image attachments for non-Claude flavor: %s', async (_name, session) => {
+        installSyncHarness({ session });
         const attachments = [
             { type: 'image' as const, ref: 'data:image/png;base64,abc123', mimeType: 'image/png' }
         ];
 
         await sync.sendMessage('session-1', 'hello', { attachments });
 
-        expect(encryptRawRecord).toHaveBeenCalledOnce();
-        expect(encryptRawRecord.mock.calls[0][0].content).toEqual({
+        expect(getPendingRecord().content).toEqual({
             type: 'text',
             text: 'hello',
         });
-        expect(encryptRawRecord.mock.calls[0][0].content.attachments).toBeUndefined();
+        expect(getPendingRecord().content.attachments).toBeUndefined();
     });
 
-    it('rejects image attachments larger than 4 MB encoded before encrypting', async () => {
-        const { encryptRawRecord } = installSyncHarness();
+    it('rejects image attachments larger than 4 MB encoded', async () => {
+        installSyncHarness();
         const attachments = [
             { type: 'image' as const, ref: 'data:image/png;base64,' + 'a'.repeat(4 * 1024 * 1024 + 1), mimeType: 'image/png' }
         ];
 
         await sync.sendMessage('session-1', 'hello', { attachments });
 
-        expect(encryptRawRecord).not.toHaveBeenCalled();
+        expect((sync as any).pendingOutbox.get('session-1') ?? []).toHaveLength(0);
         expect(Modal.alert).toHaveBeenCalledWith('common.error', 'errors.attachmentTooLarge');
     });
 
