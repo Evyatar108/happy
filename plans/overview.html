@@ -357,6 +357,49 @@
   /* Periodic-cadence indicator (rotating-arrows icon next to workstream pill) */
   .cadence-icon { font-size: 12px; line-height: 1; opacity: 0.8; cursor: help; }
 
+  /* Spawn relationship — "spawned from X" pill in child rows */
+  .pill-spawned-from {
+    display: inline-block;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 500;
+    text-decoration: none;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    padding: 1px 8px;
+    white-space: nowrap;
+    transition: color 0.1s, border-color 0.1s, border-style 0.1s;
+  }
+  .pill-spawned-from:hover { color: var(--accent); border-color: var(--accent); border-style: solid; }
+  .pill-spawned-from .from-arrow { margin-right: 3px; opacity: 0.8; }
+
+  /* Parent → children list inside cmd-body */
+  .spawned-children {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--border);
+    display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+    font-size: 11px;
+  }
+  .spawned-children .sc-label {
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .spawned-children .sc-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: var(--card);
+    color: var(--fg);
+    border: 1px dashed var(--border);
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 11px;
+    text-decoration: none !important;
+  }
+  .spawned-children .sc-chip:hover { background: var(--accent); color: white; border-color: var(--accent); border-style: solid; }
+
   /* Cadence "due in Nd / overdue Nd / first run pending" chip */
   .cadence-chip {
     display: inline-block;
@@ -1387,7 +1430,7 @@
     <summary><span class="cmd-name">agent-view-research</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Research Claude Code's `agent view` feature; decompose into follow-up tasks</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
-<pre class="cmd-pre">/plan-with-ralph "Research Claude Code's 'agent view' feature (released recently). Output: a research doc at plans/agent-view-research.md that covers: (1) what the feature IS — how it presents agents, what UI affordances it gives, what spawning model it uses, what state it persists, what permissions / scoping it enforces; (2) where it lives in Claude Code (file paths, schema, RPC surface) — read the relevant source if accessible from C:/harness-efforts/claude-code/worktrees/main; (3) how it differs from codex's existing multi_agents_v2/spawn.rs and codex's [agents.&lt;role&gt;] TOML world (read codex/external/repos/codex-patched/codex-rs/multi_agents_v2/spawn.rs as reference — READ-ONLY per the minimize-conflict-surface tenet in plans/codexu-roadmap.md); (4) what concepts we'd want to bring to codexu: spawning model, state, persistence, communication, plugin-scoping. Output: the doc + a decomposition into follow-up ralph tasks with file:line refs and effort estimates. NO CODE CHANGES — research-only. Add new task entries to plans/parallel-assignments.md and plans/overview.html roadmap-data JSON for each follow-up that emerges from the research. Cross-reference plans/codexu-roadmap.md §Phase 6 'Long-lived teammates' since this feature likely overlaps. Surface to operator before opening any follow-up code task — the research output is itself the deliverable."</pre>
+<pre class="cmd-pre">/plan-with-ralph "Research Claude Code's 'agent view' feature (released recently). Output: a research doc at plans/agent-view-research.md that covers: (1) what the feature IS — how it presents agents, what UI affordances it gives, what spawning model it uses, what state it persists, what permissions / scoping it enforces; (2) where it lives in Claude Code (file paths, schema, RPC surface) — read the relevant source if accessible from C:/harness-efforts/claude-code/worktrees/main; (3) how it differs from codex's existing multi_agents_v2/spawn.rs and codex's [agents.&lt;role&gt;] TOML world (read codex/external/repos/codex-patched/codex-rs/multi_agents_v2/spawn.rs as reference — READ-ONLY per the minimize-conflict-surface tenet in plans/codexu-roadmap.md); (4) what concepts we'd want to bring to codexu: spawning model, state, persistence, communication, plugin-scoping; (5) what concepts we'd want to bring to the HAPPY/CODEXU MOBILE APP UI — today the app shows a flat list of sessions, but agent view might surface a richer model (agent roles visible per session, spawn relationships drawn as a tree, parent-child status rolled up, ability to spawn-a-named-agent from the app). Read packages/happy-app/sources/app/(app)/index.tsx for the current session-list surface and packages/happy-app/CLAUDE.md for the sync invariants the app honors. Output for each finding: whether it applies to (a) codex agent runtime, (b) codexu mobile app UI, or (c) both — different fix-sites have different package targets. Output: the doc + a decomposition into follow-up ralph tasks with file:line refs and effort estimates per applicability bucket. NO CODE CHANGES — research-only. Add new task entries to plans/parallel-assignments.md and plans/overview.html roadmap-data JSON for each follow-up that emerges from the research, AND set spawnedFrom='agent-view-research' on each new task's entry in the roadmap-data JSON so the spawn relationship is captured. Cross-reference plans/codexu-roadmap.md §Phase 6 'Long-lived teammates' since this feature likely overlaps. Surface to operator before opening any follow-up code task — the research output is itself the deliverable."</pre>
     </div>
   </details>
 
@@ -1754,8 +1797,8 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T05:00:00Z",
-  "generatedFromCommit": "fdd7ea7b",
+  "generatedAt": "2026-05-13T18:30:00Z",
+  "generatedFromCommit": "5122dd57",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:00:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -1929,6 +1972,9 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "async-events-design": "medium",
     "native-agent-parity": "small",
     "roadmap-plugin": "large"
+  },
+  "spawnedFrom": {
+    "_comment": "Map of childTaskId -> parentTaskId. Populated when a research task or audit task lands and surfaces new follow-up tasks. E.g., when agent-view-research lands and produces 3 follow-up tasks, each gets spawnedFrom='agent-view-research'. Empty today; populated as research lands."
   }
 }
 </script>
@@ -2470,6 +2516,62 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
   })();
 
   // Capacity widget folded into the Today panel footer above (Tier V rebalance).
+
+  // ===== Spawn relationship — "from <parent>" pill + "spawned: X, Y" children list =====
+  (function injectSpawnRelationships() {
+    var data = getRoadmapData();
+    if (!data) return;
+    var spawnedFrom = data.spawnedFrom || {};
+    // Build reverse index: parent -> [children]
+    var children = {};
+    Object.keys(spawnedFrom).forEach(function (childId) {
+      if (childId.indexOf('_') === 0) return; // skip _comment and other reserved
+      var parentId = spawnedFrom[childId];
+      if (!parentId || typeof parentId !== 'string') return;
+      (children[parentId] = children[parentId] || []).push(childId);
+    });
+
+    document.querySelectorAll('details.cmd[data-task-id]').forEach(function (cmd) {
+      var id = cmd.getAttribute('data-task-id');
+      var parentId = spawnedFrom[id];
+
+      // 1. Child → parent pill in summary
+      if (parentId && typeof parentId === 'string' && parentId.indexOf('_') !== 0) {
+        var summary = cmd.querySelector('summary');
+        if (summary && !summary.querySelector('.pill-spawned-from')) {
+          var pill = document.createElement('a');
+          pill.className = 'pill-spawned-from';
+          pill.href = '#cmd-' + parentId;
+          pill.title = 'Spawned from ' + parentId + ' (click to jump)';
+          pill.innerHTML = '<span class="from-arrow">↗</span>from ' + parentId;
+          summary.appendChild(pill);
+        }
+      }
+
+      // 2. Parent → children list at the bottom of cmd-body
+      var kids = children[id];
+      if (kids && kids.length > 0) {
+        var body = cmd.querySelector('.cmd-body');
+        if (body && !body.querySelector('.spawned-children')) {
+          var wrap = document.createElement('div');
+          wrap.className = 'spawned-children';
+          var label = document.createElement('span');
+          label.className = 'sc-label';
+          label.textContent = 'Spawned follow-ups (' + kids.length + ')';
+          wrap.appendChild(label);
+          kids.forEach(function (kidId) {
+            var a = document.createElement('a');
+            a.className = 'sc-chip';
+            a.href = '#cmd-' + kidId;
+            a.textContent = kidId;
+            a.title = 'Jump to ' + kidId;
+            wrap.appendChild(a);
+          });
+          body.appendChild(wrap);
+        }
+      }
+    });
+  })();
 
   // ===== Per-task run history inside each cmd-body =====
   (function injectRunHistory() {

@@ -44,10 +44,11 @@ Schema (as of 2026-05-14):
   "lastTouched": { "<taskId>": "ISO timestamp of last metadata change" },
   "effort":      { "<taskId>": <hours> },
   "risk":        { "<taskId>": "low" | "medium" | "high" },
-  "workstream":  { "<taskId>": "perf" | "codex-spec" | "codex-parity" | "polish" | "cleanup" | "upstream" | "agent-arch" },
+  "workstream":  { "<taskId>": "perf" | "codex-spec" | "codex-parity" | "polish" | "cleanup" | "upstream" | "agent-arch" | "tooling" },
   "sizeBucket":  { "<taskId>": "quick" | "small" | "medium" | "large" },
   "cadence":     { "<taskId>": "periodic" },
   "periodic":    { "<taskId>": { "intervalDays": <n>, "lastRunId": "...", "nextDueAt": "ISO" } },
+  "spawnedFrom": { "<childTaskId>": "<parentTaskId>" },
   "runs": [
     { "id": "<taskId>/<YYYY-MM-DD>",
       "taskId": "...",
@@ -63,6 +64,19 @@ Two cadence axes: `one-shot` (default — task lives until status=closed)
 or `periodic` (cycles ready → in-progress → completed → ready after
 `intervalDays`). Every periodic task must have an entry in `periodic{}`;
 runs persist in `runs[]`.
+
+Two task-relationship axes:
+
+- **Blocks-on / depends-on** — encoded inline on the cmd row via
+  `cmd-warn blocked` banners and badge classes; surfaces as the 🔒
+  blocked emoji. Captures hard prerequisites.
+- **Spawned-from** — encoded as `spawnedFrom{ childId: parentId }`
+  in the JSON; surfaces as an `↗ from <parent>` pill on the child's
+  summary, and a "Spawned follow-ups (N) <chips>" line at the bottom
+  of the parent's cmd-body. Captures research/audit lineage — i.e.,
+  this task only exists because that earlier research surfaced it.
+  Keys starting with `_` (e.g., `_comment`) are reserved and skipped
+  by the renderer.
 
 ## When to update what
 
@@ -166,13 +180,47 @@ and the cadence chip recomputes the days-until-next from `nextDueAt`.
 3. `lastTouched` updated.
 4. Status-table cell + `plans/codexu-roadmap.md` mention if material.
 
-### E. Adding a new workstream
+### E. When a research/audit task spawns follow-up tasks
+
+A research task (e.g., `agent-view-research`, `native-agent-parity`,
+`channels-research`) is expected to land its findings as a markdown
+document AND surface 2-N follow-up implementation tasks. When that
+happens:
+
+1. **Add each follow-up task** via procedure A (full row, JSON entries,
+   parallel-assignments.md entry).
+2. **For each new follow-up task**, add an entry to `spawnedFrom`:
+   ```json
+   "spawnedFrom": {
+     "new-follow-up-1": "agent-view-research",
+     "new-follow-up-2": "agent-view-research"
+   }
+   ```
+3. **No change needed to the parent task** — the reverse-index
+   ("Spawned follow-ups (N) ...") is rendered automatically by the
+   `injectSpawnRelationships` IIFE from the same `spawnedFrom` map.
+4. **If the parent ralph command explicitly instructs the agent to
+   set spawnedFrom** (e.g., the agent-view-research command does),
+   the agent committing the research will populate it; don't
+   double-populate.
+5. Mention the relationship in `plans/codexu-roadmap.md` only if the
+   parent-child relationship is conceptually important (e.g., "Phase
+   3a spawned the codex-plugin-format-spike task after the audit
+   landed").
+
+The pill on the child links to `#cmd-<parentId>` — make sure the
+parent task still exists with a matching `id="cmd-<parentId>"` row.
+If you delete a parent that has surfaced children, either reassign
+their `spawnedFrom` to a different ancestor or delete the entry
+(broken pills will 404 inside the page).
+
+### F. Adding a new workstream
 
 1. In the toolbar's filter popover (HTML), find `<div class="filter-chips" data-filter-axis="workstream">` and add a `<button class="filter-chip" data-filter-value="<workstream-id>" type="button">Workstream Label</button>`.
 2. In the main `<script>`, find the `injectWorkstreamPills` IIFE's `labels` object and add `'<workstream-id>': 'Workstream Label'`.
 3. Assign tasks to it in the `workstream{}` JSON map.
 
-### F. Adding a new visualization feature
+### G. Adding a new visualization feature
 
 If you're adding a new view (e.g., a new section, a new filter axis, a new badge):
 
@@ -193,6 +241,7 @@ If you're adding a new view (e.g., a new section, a new filter axis, a new badge
 - **`lastTouched` is not the same as `lastRanAt`.** `lastTouched` means "this task's plan/metadata was edited"; `runs[]` records mean "this task actually ran and produced code". The what's-new banner uses `lastTouched`; the Recently-shipped footer uses `runs[]`.
 - **Status counts in `<summary>` headers** are auto-populated by the `buildTodayPanel` IIFE from the cmd rows' badge classes. Manually-edited badge text won't be reflected unless the class is also right (e.g., a row marked `<span class="cmd-badge b-ready">🟡 in progress</span>` will be counted as ready, not in-progress, because the class is what classifies).
 - **`localStorage` keys** in use: `codexu-overview-details-state-v1` (open/closed state), `codexu-overview-last-visit-v1` (for what's-new banner), `codexu-overview-notes-v1` (operator scratch notes). Don't reuse these for new features; pick a new versioned key.
+- **`spawnedFrom` is one-directional and flat** — child → parent. The reverse index (parent → children) is computed at runtime by `injectSpawnRelationships`. Don't try to encode a tree shape; one child can only have one parent (use blocks-on for multi-prereq relationships instead). If a child was spawned by multiple ancestors, pick the most-proximate one and mention the others in prose.
 
 ## File map at a glance
 
