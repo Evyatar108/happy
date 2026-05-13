@@ -2,8 +2,8 @@
 
 > **Multi-device + multi-agent stack built around the codex engine.**
 > CLI, app, server, and personal plugin — all consuming a patched
-> [codex](https://github.com/Evyatar108/codex-patched) fork as the
-> runtime.
+> codex fork as the runtime. The fork is pinned as a git submodule at
+> [`codex/`](./codex) (target repo: `gim-home/codex`).
 
 > **Rebrand status (2026-05-03):** package-level rebrand from
 > `happy-*` → `codexu-*` was attempted then reverted to enable a clean
@@ -31,15 +31,18 @@ Codexu is the consumer-facing surface for a personal AI-coding stack:
   AskUserQuestion-using workflows). Installed via `codex plugin
   marketplace add`. NEW; not part of upstream slopus/happy.
 
-The codex engine itself lives in a separate repo
-([Evyatar108/codex-patched](https://github.com/Evyatar108/codex-patched))
-— this monorepo consumes it.
+The codex engine lives in a separate private repo (`gim-home/codex`)
+pinned as a git submodule at [`codex/`](./codex). On a fresh clone,
+run `git submodule update --init` to populate it. The submodule
+requires authenticated access to the `gim-home` GitHub org — local
+git credentials must point at a user with org access (e.g. via
+`gh auth switch`).
 
-> **Codex sync note (2026-05-03):** active codex patches currently live
-> on a separate working fork; `codex-patched` is the canonical public
-> mirror that periodic sync will keep up to date. Pinning happy-cli at a
-> specific `codex-patched` revision (and the sync workflow itself) lands
-> in roadmap Phase 1a.
+[Evyatar108/codex-patched](https://github.com/Evyatar108/codex-patched)
+remains as an optional public mirror for openai/codex absorption
+tracking, but codexu does NOT pin it. Public-mirror sync (gim-home
+→ codex-patched) is now a "nice to have" rather than a release
+blocker.
 
 ## Roadmap
 

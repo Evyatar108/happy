@@ -16,7 +16,7 @@ merges from `slopus/happy`.
 - ✅ Local dir renamed `C:/harness-efforts/happy` → `C:/harness-efforts/codexu`
 - ✅ NEW `packages/codexu-plugin/` scaffold added
 - ✅ Roadmap moved to `codexu/plans/codexu-roadmap.md`
-- ✅ Workspace junctions (`codexu/codex`, `codexu/ralph`, etc.) created
+- ✅ Workspace junctions/submodule (`codexu/codex` is now a submodule pointing at gim-home/codex; `codexu/ralph`, `codexu/options-mode`, `codexu/inspirations/*` remain per-machine junctions)
 - ❌ Package-level rebrand (happy-cli → codexu-cli, npm names, bin
    names, `@slopus/happy-wire` → `codexu-wire`) was applied then
    **REVERTED** 2026-05-03. Reason: 79 upstream commits + 1971-file diff
@@ -95,37 +95,41 @@ review before renaming.
 | Upstream (resumed tracking) | n/a | `slopus/happy` |
 | Roadmap (this file) | `C:/harness-efforts/codexu/plans/codexu-roadmap.md` | (in codexu monorepo) |
 
-Workspace junctions inside `C:/harness-efforts/codexu/`:
+Workspace dependencies inside `C:/harness-efforts/codexu/`:
 
 ```
-codexu/codex          → C:/harness-efforts/codex
-codexu/ralph          → C:/ai-developer-toolkit/plugins/ralph
-codexu/options-mode   → C:/ai-developer-toolkit/plugins/options-mode
-codexu/inspirations/oh-my-codex      → C:/harness-efforts/oh-my-codex
-codexu/inspirations/just-every-code  → C:/harness-efforts/just-every-code
-codexu/inspirations/claude-code      → C:/harness-efforts/claude-code/worktrees/main
+codexu/codex          → git submodule (gim-home/codex, pinned SHA in .gitmodules)
+codexu/ralph          → C:/ai-developer-toolkit/plugins/ralph             (per-machine junction)
+codexu/options-mode   → C:/ai-developer-toolkit/plugins/options-mode      (per-machine junction)
+codexu/inspirations/oh-my-codex      → C:/harness-efforts/oh-my-codex      (per-machine junction)
+codexu/inspirations/just-every-code  → C:/harness-efforts/just-every-code  (per-machine junction)
+codexu/inspirations/claude-code      → C:/harness-efforts/claude-code/worktrees/main (per-machine junction)
 ```
 
-These are per-machine (gitignored). `mklink /J` recipe lives in
-README — replicate on a fresh machine before working in this tree.
+`codex/` is a real git submodule (committed since 2026-05-12); fresh
+clone needs `git submodule update --init` to populate it, AND `gh auth
+switch` to a user with `gim-home` org access (only that user's git
+credentials can clone gim-home/codex which is private). The four
+non-codex paths above remain per-machine `mklink /J` junctions
+(gitignored); the recipe lives in README — replicate on a fresh
+machine before working in this tree.
 
-**Codex fork stays separate.** Canonical public engine reference is
-`Evyatar108/codex-patched` — the public fork that codexu-cli pins to
-as a Cargo / git dep. Codex fork structure to evolve per
-just-every/code's pattern: `codex-rs/` as read-only mirror of upstream
-codex + `codexu-rs/` (or similar name) as fork-divergence dir. **Hard
-rule:** never edit `codex-rs/` files directly — minimizes upstream-merge
-conflicts. All patches go in `codexu-rs/`.
+**Codex fork stays separate.** The runtime codex engine is `gim-home/codex`,
+pinned via the `codex/` submodule. Inside that fork, the structure follows
+the just-every/code pattern: `external/repos/codex-patched/codex-rs/` as a
+subtree mirror of upstream openai/codex + gim-home's overlay crates for
+fork-divergence work. **Hard rule:** never edit upstream-mirror files
+inside the subtree directly — minimizes upstream-merge conflicts. All
+patches go in the overlay crates.
 
-**Engine fork sync status (2026-05-03).** Active codex dev currently
-happens on a SEPARATE working fork (`origin` of the local `codex` git
-worktree, distinct from `Evyatar108/codex-patched`). The active fork
-holds all custom patches (Copilot routing, plans/, CLAUDE.md, etc.); the
-public `Evyatar108/codex-patched` mirror is currently stale relative to
-that. **Periodic sync from active-fork → `codex-patched`** is a Phase 1a
-deliverable. Until that sync ships, treat references to
-`codex-patched` in codexu docs as canonical-target naming, not
-canonical-current state.
+**Engine fork sync status (2026-05-12).** codexu now pins gim-home/codex
+directly via the `codex/` submodule (commit `8c520489`), eliminating the
+prior "canonical-target naming" gap. `Evyatar108/codex-patched` still
+exists as an optional public mirror, but codexu does NOT pin it — public
+mirror sync is now a "nice to have" for openai/codex absorption tracking
+rather than a release blocker. The 142 gim-home-only subtree commits
+remain unpushed to codex-patched; Phase 1a sync becomes opportunistic
+polish.
 
 ### Settled decisions — do NOT relitigate
 
@@ -561,7 +565,7 @@ Read in order, ~20 minutes:
 
 | Component | Working tree | Origin remote | Role |
 |---|---|---|---|
-| codex (patched) | `C:/harness-efforts/codex/` | `gim-home/codex.git` | runtime fork (wraps `external/repos/codex-patched/` submodule). Already routes to Copilot API; ditches non-LLM network paths. |
+| codex (patched) | `C:/harness-efforts/codexu/codex/` (git submodule of `gim-home/codex.git`) | `gim-home/codex.git` | runtime fork (wraps `external/repos/codex-patched/` subtree). Already routes to Copilot API; ditches non-LLM network paths. Pinned by codexu via `.gitmodules`. |
 | codexu | `C:/harness-efforts/codexu/` | `Evyatar108/codexu` | multi-device transport fork |
 | ralph plugin | `C:/ai-developer-toolkit/plugins/ralph/` | `gim-home/ai-developer-toolkit` | autonomous-loop workflow driver (Claude Code plugin → codex plugin) |
 | options-mode plugin | `C:/ai-developer-toolkit/plugins/options-mode/` | `gim-home/ai-developer-toolkit` | structured-choice prompt mode (Claude Code plugin → codex plugin); collapses into Phase 2d's AskUserQuestion primitive |
@@ -2261,16 +2265,23 @@ billing, single auth.
 
 **Fresh-machine bootstrap appendix** (TBD — populate after Phase 1c
 solidifies):
-1. Install `codex` npm package (the patched fork via `gim-home/codex`)
-2. Install `codexu` npm package
-3. `git submodule update --init --recursive` if codex repo uses
-   submodules
-4. `codex plugin marketplace add <catalog-source>` to install ralph + options-mode + personal plugins from the catalog. Then run
-   options-mode + personal
-5. `~/.codex/config.toml` — add `[agents.<role>]` entries from each
-   plugin's documentation
-6. `codexu login` — auth chain
-7. Verify: `codex` opens; `/skills` shows installed skills; `codexu codex` starts; phone pairs
+1. `gh auth login` with a user that has `gim-home` org access (needed
+   for the codex submodule clone)
+2. `git clone https://github.com/Evyatar108/codexu.git && cd codexu`
+3. `git submodule update --init` — populates `codex/` from
+   `gim-home/codex` at the pinned SHA. Re-run with `--remote` to bump
+   to the latest `main`.
+4. `pnpm install`
+5. Create the per-machine junctions (gitignored) for ralph,
+   options-mode, and inspirations/* — see "Workspace dependencies"
+   above. `mklink /J` recipe lives in the top-level README.
+6. `codex plugin marketplace add <catalog-source>` to install ralph +
+   options-mode + personal codex plugins from the catalog.
+7. `~/.codex/config.toml` — add `[agents.<role>]` entries from each
+   plugin's documentation.
+8. `codexu login` — auth chain.
+9. Verify: `codex` opens; `/skills` shows installed skills;
+   `codexu codex` starts; phone pairs.
 
 **App-server lifecycle acceptance tests** (Phase 4g):
 - Idle exit: all clients disconnect; app-server eventually exits per
