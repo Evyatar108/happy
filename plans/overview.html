@@ -661,9 +661,6 @@
 
   /* Operator notes — inline textarea per cmd row */
   .notes-toggle {
-    position: absolute;
-    top: 6px;
-    right: 204px; /* leftmost — sits left of "Copy Name" + "Copy Command" pair */
     background: var(--card-hover);
     color: var(--fg);
     border: 1px solid var(--border);
@@ -672,7 +669,6 @@
     font-size: 11px;
     font-family: inherit;
     cursor: pointer;
-    z-index: 1;
   }
   .notes-toggle:hover { background: var(--accent); color: white; border-color: var(--accent); }
   .notes-toggle.has-note { border-color: var(--ok); color: var(--ok); }
@@ -720,9 +716,7 @@
       font-size: 13px;
       min-height: 40px;
     }
-    .copy-btn { top: 4px; right: 4px; }
-    .notes-toggle { right: 260px; }
-    .copy-name-btn { top: 4px; right: 160px; }
+    .cmd-actions { top: 4px; right: 4px; gap: 4px; }
     .cmd-select { width: 22px; height: 22px; cursor: pointer; }
     .filter-chip { padding: 8px 14px; font-size: 13px; min-height: 36px; }
     .chip { padding: 6px 12px; font-size: 13px; }
@@ -831,10 +825,20 @@
     margin: 0;
     tab-size: 2;
   }
-  .copy-btn {
+  /* Action-button cluster anchored top-right of each cmd-body.
+     Uses flex-direction: row-reverse so the first child rendered (the
+     static Copy Command button) sits rightmost; later-appended buttons
+     stack to its left with consistent gap. */
+  .cmd-actions {
     position: absolute;
     top: 6px;
     right: 6px;
+    display: flex;
+    flex-direction: row-reverse;
+    gap: 6px;
+    z-index: 1;
+  }
+  .copy-btn {
     background: var(--card-hover);
     color: var(--fg);
     border: 1px solid var(--border);
@@ -843,15 +847,11 @@
     font-size: 11px;
     font-family: inherit;
     cursor: pointer;
-    z-index: 1;
     transition: background 0.1s, color 0.1s;
   }
   .copy-btn:hover { background: var(--accent); color: white; border-color: var(--accent); }
   .copy-btn.copied { background: var(--ok); color: white; border-color: var(--ok); }
   .copy-name-btn {
-    position: absolute;
-    top: 6px;
-    right: 124px; /* sits directly left of .copy-btn (right: 6px, ~110px wide) — paired with it */
     background: var(--card-hover);
     color: var(--muted);
     border: 1px solid var(--border);
@@ -860,7 +860,6 @@
     font-size: 11px;
     font-family: inherit;
     cursor: pointer;
-    z-index: 1;
     transition: background 0.1s, color 0.1s, border-color 0.1s;
   }
   .copy-name-btn:hover { color: var(--fg); border-color: var(--accent); }
@@ -2319,20 +2318,38 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
 </script>
 
 <script>
-  // ===== Inject "Copy name" button into every cmd-body =====
+  // Helper: get or create the .cmd-actions flex wrapper for a cmd-body,
+  // moving any pre-existing top-level .copy-btn into it. The wrapper is
+  // position: absolute / row-reverse, so the first-appended child sits
+  // rightmost — keep Copy Command as that anchor.
+  function getOrCreateCmdActions(body) {
+    var existing = body.querySelector(':scope > .cmd-actions');
+    if (existing) return existing;
+    var wrap = document.createElement('div');
+    wrap.className = 'cmd-actions';
+    // Move the static Copy Command button into the wrapper first so it's
+    // the rightmost slot (row-reverse → child[0] is rightmost).
+    var copyBtn = body.querySelector(':scope > .copy-btn');
+    if (copyBtn) wrap.appendChild(copyBtn);
+    body.insertBefore(wrap, body.firstChild);
+    return wrap;
+  }
+
+  // ===== Inject "Copy Name" button into every cmd-body =====
   (function injectCopyNameButtons() {
     document.querySelectorAll('details.cmd[data-task-id]').forEach(function (cmd) {
       var taskId = cmd.dataset.taskId;
       if (!taskId) return;
       var body = cmd.querySelector('.cmd-body');
       if (!body || body.querySelector('.copy-name-btn')) return;
+      var wrap = getOrCreateCmdActions(body);
       var btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'copy-name-btn';
       btn.textContent = 'Copy Name';
       btn.title = 'Copy task name "' + taskId + '" to clipboard';
       btn.dataset.copyText = taskId;
-      body.appendChild(btn);
+      wrap.appendChild(btn);
     });
   })();
 
@@ -3099,7 +3116,15 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
         }
       });
 
-      body.appendChild(btn);
+      // Route the toggle into the .cmd-actions wrapper so all 3 action
+      // buttons share the same flex container and have consistent gaps.
+      // (Falls back to body.appendChild if the wrapper helper isn't
+      // available yet — order independence.)
+      if (typeof getOrCreateCmdActions === 'function') {
+        getOrCreateCmdActions(body).appendChild(btn);
+      } else {
+        body.appendChild(btn);
+      }
       body.appendChild(panel);
     });
 
