@@ -159,17 +159,16 @@ Bootstrap the embedded Machine row before `ApiMachineClient.connect()` so
 machine-update Socket.IO events can CAS against version 1 immediately.
 
 Local callers that need the embedded listeners should go through
-`daemonClient.ts`: loopback requests use `X-Loopback-Capability`, tunnel
-requests use `X-Codexu-Authorization: <signed claim>` and Socket.IO auth uses
-`{ codexuAuthorization: <signed claim> }`. Do not cache signed tunnel claims
-because the embedded server rejects replayed `jti`s; cache only stable key
-material or rereadable capability state.
+`daemonClient.ts`: loopback requests use `X-Loopback-Capability`, and tunnel
+requests rely on the Dev Tunnels gateway auth already performed before the
+request reaches the embedded server. Cache only stable key material or
+rereadable capability state.
 
-**Header rename log (2026-05-13):** the daemon-side tunnel-claim header was
-renamed from `X-Tunnel-Authorization` to `X-Codexu-Authorization` because
-Microsoft's Dev Tunnels gateway consumes `X-Tunnel-Authorization: tunnel <jwt>`
-for its own auth and strips it before forwarding to the backend. The Sprint A
-spec that wired both names into the same header was never reachable end-to-end.
+**Header rename log (2026-05-13):** Microsoft's Dev Tunnels gateway consumes
+`X-Tunnel-Authorization: tunnel <jwt>` for its own auth and strips it before
+forwarding to the backend. The Sprint A spec that tried to reuse that header
+for Happy daemon auth was never reachable end-to-end, and the later
+Happy-specific daemon header has now been removed.
 
 ### Lock File
 - Created with O_EXCL flag for atomic acquisition

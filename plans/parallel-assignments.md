@@ -14,10 +14,10 @@ When each task lands, mark its row done at the bottom of this file.
 
 ---
 
-## A — `perf-WS1` — Realtime perf, refresh-skip
+## A — `perf-WS1` — Realtime perf, obsolete
 
 ```
-/plan-with-ralph "Realtime sync perf — Workstream 1: skip refreshTunnelClaim roundtrip when current claim is still valid. Per plans/realtime-sync-perf.md §Workstream 1. In packages/happy-app/sources/sync/refreshClaim.ts, before doing the HTTP POST to /pair/complete, parse the cached credentials.tunnelClaim via parseTunnelClaimPayload (from packages/happy-app/sources/auth/pairing.ts) and skip the network call when exp - now > SAFETY_WINDOW_S (suggest 60-120s). Keep the existing MIN_REFRESH_INTERVAL_MS as a secondary guard. Read packages/happy-app/CLAUDE.md sync invariants (especially 'Session/machine-scoped network calls') before editing. Acceptance: existing refreshClaim tests stay green; add one new test asserting no fetch when cached claim still has exp > now + SAFETY_WINDOW_S. Test command: pnpm --filter '{packages/happy-app}' exec vitest run sources/sync/refreshClaim.test.ts 2>&1 | tee /tmp/codexu-ws1.log. Cross-package typecheck must stay green. Single commit on main with body referencing plans/realtime-sync-perf.md §WS1. Update plans/realtime-sync-perf.md and docs/validation/devtunnels-boox-result.md 'Realtime sync perf (deferred)' subsection to mark WS1 done."
+/plan-with-ralph "Realtime sync perf — Workstream 1 is obsolete after remove-tunnel-claim-layer. Do not assign the old claim-refresh optimization. Start from plans/realtime-sync-perf.md §Workstream 2 or later. Read packages/happy-app/CLAUDE.md sync invariants (especially 'Session/machine-scoped network calls') before editing. Cross-package typecheck must stay green."
 ```
 
 ---

@@ -230,7 +230,7 @@ conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
   and the daemon Socket.IO middleware `socket.data.accountId` wiring (US-B5).
   Merged into A's branch.
 - **Sprint C — happy-agent migration: COMPLETE.** 15 commits including
-  credentials reshape, `discoverMachineTunnels` + `refreshTunnelClaim`,
+  credentials reshape, `discoverMachineTunnels` + the historical claim-refresh helper,
   `monitor.ts` adoption of the new pipeline, and RPC encryption deletion
   on the caller side. Merged into A's branch.
 - **Sprint D — happy-app cleanup: COMPLETE.** 30 commits (6 stories + 19
@@ -262,7 +262,7 @@ conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
     validation 2026-05-13)**: `X-Tunnel-Authorization: tunnel <connect-jwt>`
     for the Dev Tunnels gateway (Microsoft's `WWW-Authenticate: tunnel`
     scheme; gateway strips before forwarding) +
-    `X-Codexu-Authorization: tunnel <happy-claim>` for the daemon-side claim.
+    a separate daemon-side Happy claim header, later retired by remove-tunnel-claim-layer work.
     The original Sprint A `X-Tunnel-Connect` name was never reachable
     end-to-end. Plumbed through happy-app + happy-agent + happy-cli + CORS
     allow-list. Pair protocol simplified to a single `POST /pair/complete`
@@ -292,8 +292,8 @@ conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
     - **Header design**: Microsoft's gateway requires
       `X-Tunnel-Authorization: tunnel <connect-jwt>` (not the Sprint A
       `X-Tunnel-Connect`) AND strips that header before forwarding. The
-      Happy claim moved to `X-Codexu-Authorization` so it survives gateway
-      pass-through. Commit `fe1626a2`.
+      Happy claim moved to a separate daemon header so it survived gateway
+      pass-through. That separate claim layer has since been removed. Commit `fe1626a2`.
     - **Pair protocol**: `/pair/start` + `/pair/status` + per-machine
       GitHub device flow + `GITHUB_CLIENT_ID` + `HAPPY_TUNNEL_GITHUB_OWNER`
       all deleted. Replaced with a single `POST /pair/complete` that reads
@@ -331,7 +331,7 @@ conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
     latency on the "unknown session" path, and HTTP-fallback churn on socket
     reconnect — that don't block Phase 1 PASS but should land before the
     migration is declared production-ready. Plan at `plans/realtime-sync-perf.md`
-    covers 3 workstreams (skip `refreshTunnelClaim` when claim still valid;
+    covers 3 workstreams (the former claim-refresh workstream is now obsolete;
     optimistic placeholder session for unknown-session new-message path;
     server-side per-user event replay buffer + client `lastSeenSeq`
     handshake) + optional WS4 (full sockets-only `fetchSessions` /
@@ -344,8 +344,8 @@ US-004 shipped resolution path **(b)** — a private-tunnel auth channel via
 `X-Tunnel-Authorization: tunnel <connect-jwt>` (Microsoft's standard
 `WWW-Authenticate: tunnel` gateway-auth scheme). Plumbed through happy-app,
 happy-agent, and happy-cli; CORS allow-list updated. The daemon-side Happy
-claim moved to `X-Codexu-Authorization` to avoid colliding with the gateway
-header. The original Sprint A `X-Tunnel-Connect` naming was never reachable
+claim originally moved to a separate daemon header to avoid colliding with the gateway
+header; that separate claim layer has since been removed. The original Sprint A `X-Tunnel-Connect` naming was never reachable
 end-to-end — corrected during BOOX validation. Operator policy 2026-05-12
 **REJECTED** the original "Sprint C patches `tunnelManager.ts` to add
 `--allow-anonymous`" path (path (a)); path (b) avoids exposing happy-server
@@ -357,12 +357,10 @@ Operator stopgap (path (c)) is no longer needed. Full record at
 Phase 1b sub-tasks 3+ became **unblocked when Sprint E completed
 2026-05-13**. Before assigning, re-read the master plan
 (`docs/plans/codex-seamless-multi-device.md`) against the now-resolved
-tunnels protocol (header rename `X-Tunnel-Authorization` /
-`X-Codexu-Authorization`, single `POST /pair/complete`, `codexu-<host>`
+tunnels protocol (`X-Tunnel-Authorization`, single `POST /pair/complete`, `codexu-<host>`
 tunnel id, `portForwardingUris` plural — see "BOOX validation 2026-05-13"
-above). OAuth app vs GitHub app, token contract (locked: signed Ed25519
-envelope `{ p, s }` carrying `{ sub, iat, exp, jti, accountId? }` in
-`X-Codexu-Authorization`), access path (resolved by US-A1 spike), and
+above). OAuth app vs GitHub app, the now-retired signed Ed25519 envelope contract,
+access path (resolved by US-A1 spike), and
 local WS port policy (locked: dual-listener on tunnel-port +
 loopback-port) decisions are documented in the master plan and the
 per-sprint FINAL-STATUS files.

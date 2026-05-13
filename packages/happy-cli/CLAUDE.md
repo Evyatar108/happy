@@ -47,7 +47,7 @@ Happy CLI (`handy-cli`) is a command-line tool that wraps Claude Code to enable 
 ### Dev Tunnels
 - `src/tunnel/tunnelManager.ts` owns Microsoft Dev Tunnel CLI calls. Keep subprocess access injectable through `CommandRunner`/`ProcessSpawner` so renewal and reuse behavior can be unit-tested without creating real tunnels.
 - The Dev Tunnels CLI uses `--port-number` for both `devtunnel port create` and `devtunnel host`; `--port` is not accepted by current Windows builds.
-- Tunnels are private by default. Do not add anonymous-access flags in production code. Sprint E path (b) uses **`X-Tunnel-Authorization: tunnel <connect-jwt>`** for Microsoft's Dev Tunnels gateway auth (gateway strips it before forwarding to the backend) and **`X-Codexu-Authorization: tunnel <happy-claim>`** for the Happy Ed25519 claim consumed by happy-server. The earlier `X-Tunnel-Connect` name (Sprint A spec) was never reachable end-to-end because the gateway rejects it — corrected during BOOX validation 2026-05-13. See `packages/happy-app/scripts/sprint-a-gap.md` "R-D18 path (b) implementation log" and `docs/security-model.md`.
+- Tunnels are private by default. Do not add anonymous-access flags in production code. Sprint E path (b) uses **`X-Tunnel-Authorization: tunnel <connect-jwt>`** for Microsoft's Dev Tunnels gateway auth (gateway strips it before forwarding to the backend). The separate Happy Ed25519 tunnel claim layer has been retired. The earlier `X-Tunnel-Connect` name (Sprint A spec) was never reachable end-to-end because the gateway rejects it — corrected during BOOX validation 2026-05-13. See `packages/happy-app/scripts/sprint-a-gap.md` "R-D18 path (b) implementation log" and `docs/security-model.md`.
 
 ## Architecture & Key Components
 

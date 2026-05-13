@@ -182,21 +182,20 @@ the Dev Tunnels gateway's `X-Tunnel-Authorization` check is the only identity ga
   along with the per-machine `GITHUB_CLIENT_ID` and `HAPPY_TUNNEL_GITHUB_OWNER`
   env vars, are **deleted**. They were redundant on a personal fork because
   tunnel ownership already proves operator identity.
-- `/pair/complete` doubles as the tunnel-claim refresh endpoint
-  (`refreshClaim.ts` in happy-app calls it on every claim refresh).
+- `/pair/complete` is the single pair endpoint and does not mint or refresh a
+  Happy-specific tunnel claim.
 - `/pair/connect` (separate post-pair re-auth endpoint) is retained.
 
-### Tunnel-auth headers (BOOX-validated 2026-05-13)
+### Tunnel-auth headers (BOOX-validated 2026-05-13, updated after claim removal)
 
-happy-server reads the Happy tunnel claim from `X-Codexu-Authorization`
-(`request.headers['x-codexu-authorization']`), **not** `X-Tunnel-Authorization`.
 Microsoft's Dev Tunnels gateway consumes `X-Tunnel-Authorization: tunnel <connect-jwt>`
-and strips it before forwarding to the backend, so the backend never sees that
-header. The custom `X-Codexu-Authorization` name avoids the collision.
+and strips it before forwarding to the backend, so happy-server normally never
+sees that header. The removed Happy-specific daemon claim header must not be
+reintroduced. Tunnel requests collapse to `tofuConfig.localUserId`; loopback
+requests continue to require `X-Loopback-Capability`.
 
-CORS allowlists in `app/api/api.ts` and `app/api/socket.ts` include both
-`X-Tunnel-Authorization` (for preflight pass-through to the gateway) and
-`X-Codexu-Authorization` (for the daemon's claim verifier).
+CORS allowlists in `app/api/api.ts` and `app/api/socket.ts` include
+`X-Tunnel-Authorization` for browser preflight pass-through to the gateway.
 
 ## Production Deployment (NOT needed for local standalone dev)
 

@@ -13,27 +13,18 @@ The API stays deliberately small. Sprint E removed the legacy artifact, feed, vo
 
 ## Authentication
 
-Tunnel-facing requests authenticate with two distinct headers:
+Tunnel-facing requests use the Dev Tunnels gateway as the remote identity gate:
 
 - `X-Tunnel-Authorization: tunnel <connect-jwt>` authenticates the client to the Microsoft Dev Tunnels gateway for private tunnel access. The gateway consumes and strips this header before forwarding to the backend.
-- `X-Codexu-Authorization: tunnel <claim>` authenticates the request to happy-server after it reaches the embedded server. The gateway forwards it unchanged.
-
-The Happy claim is a base64url-encoded Ed25519-signed envelope `{ p, s }`. The decoded payload is `{ sub, iat, exp, jti, accountId? }`:
-
-- `sub` is the embedded server's local machine/user id.
-- `iat` and `exp` bound the one-hour claim lifetime.
-- `jti` is single-use within the server's in-memory replay cache.
-- `accountId` is the optional GitHub numeric user id returned during pairing.
-
-`verifyTunnelClaim()` accepts only this signed Happy envelope. Dev Tunnels JWT fallback is removed.
+- After forwarding, happy-server treats tunnel requests as the single local operator and sets request identity from `tofuConfig.localUserId`.
+- Loopback callers do not use the Dev Tunnels header; they must present `X-Loopback-Capability` on the loopback listener.
 
 ## Pairing Flow (revised 2026-05-13)
 
 - `POST /pair/complete`
-  - Single-step pair + ongoing claim refresh. Gateway `X-Tunnel-Authorization: tunnel <connect-jwt>` is the identity gate; the daemon reads its locally-onboarded identity from `~/.happy/profile.json` (written by `happy auth login --force`).
+  - Single-step pair. Gateway `X-Tunnel-Authorization: tunnel <connect-jwt>` is the identity gate; the daemon reads its locally-onboarded identity from `~/.happy/profile.json` (written by `happy auth login --force`).
   - Body: `{ mobileEcdhPublicKey? }`.
-  - Response: `{ githubLogin, machine: { machineId, tunnelUrl, ed25519PublicKey, x25519PublicKey, ed25519Fingerprint?, tunnelClaim, mobileSharedSecret? } }`.
-  - Same endpoint serves the initial pair AND every subsequent tunnel-claim refresh (`refreshClaim.ts` in happy-app polls it).
+  - Response: `{ githubLogin, machine: { machineId, tunnelUrl, ed25519PublicKey, x25519PublicKey, ed25519Fingerprint?, mobileSharedSecret? } }`.
 
 - `POST /pair/connect`
   - Completes the machine connect step after the client has accepted the TOFU identity.
@@ -56,7 +47,7 @@ Self routes are mounted on both tunnel and loopback listeners. They expose the p
 - `PUT /v2/me/settings` - atomically writes machine-local account settings.
 - `GET /v2/me/machine` - returns the injected machine state, or `503 { error: "machine_state_unavailable" }` when standalone mode has no machine-state provider.
 
-When `options.auth === "tunnel"`, every self route requires a numeric `accountId` claim.
+When `options.auth === "tunnel"`, every self route resolves identity to the embedded server's configured local user id.
 
 ### Sessions And Messages
 
@@ -74,7 +65,7 @@ When `options.auth === "tunnel"`, every self route requires a numeric `accountId
 
 - `/v1/updates` - Socket.IO mount for user, session, and machine scoped realtime updates.
 
-Socket.IO handshakes carry the Happy claim through either `extraHeaders.X-Codexu-Authorization` or `auth.codexuAuthorization`. Private Dev Tunnels access is carried separately as `X-Tunnel-Authorization: tunnel <connect-jwt>` (Microsoft's gateway auth) where the platform can set headers.
+Socket.IO handshakes over the tunnel rely on `X-Tunnel-Authorization: tunnel <connect-jwt>` for Dev Tunnels gateway access where the platform can set headers. The backend assigns the socket user id from `tofuConfig.localUserId`. Loopback Socket.IO handshakes continue to require `X-Loopback-Capability`.
 
 ### Push Tokens
 
@@ -101,4 +92,3 @@ Sprint E removed obsolete happy-server modules for artifacts, feed, voice, key-v
 - Session routes: `packages/happy-server/sources/app/api/routes/sessionRoutes.ts` and `packages/happy-server/sources/app/api/routes/v3SessionRoutes.ts`
 - Push routes: `packages/happy-server/sources/app/api/routes/pushRoutes.ts`
 - Socket.IO wiring: `packages/happy-server/sources/app/api/socket.ts`
-- Claim verification: `packages/happy-server/sources/app/api/auth/tunnelClaim.ts`

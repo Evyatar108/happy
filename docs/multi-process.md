@@ -88,12 +88,9 @@ rpc-call from web client
 daemon (machine-scoped or session-scoped)
 .
 ├── connect to handy-server
-│   └── server: read X-Tunnel-Authorization header (or
-│       socket.handshake.auth.tunnelAuthorization) → must start with
-│       `tunnel `; base64url-decode the JSON claim → reject unless
-│       `claim.sub === tofuConfig.localUserId` and
-│       `now - claim.iat <= 24h` (TOFU tunnel claim validation, no
-│       Bearer/userId token lookup) → tag socket.data with userId,
+│   └── server: tunnel listener is admitted by the Dev Tunnels gateway;
+│       loopback listener validates X-Loopback-Capability; accepted sockets
+│       are tagged with tofuConfig.localUserId,
 │       clientType, sessionId/machineId, tofuPublicKeys
 │       └── on connection: emit `tofu-pubkeys` if configured, then
 │           attach rpcHandler / *UpdateHandler / etc
