@@ -1845,8 +1845,8 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-13T23:00:00Z",
-  "generatedFromCommit": "b59f234b",
+  "generatedAt": "2026-05-13T23:10:00Z",
+  "generatedFromCommit": "17fd5970",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -2414,6 +2414,9 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
       applyFilter();
     });
   });
+
+  // Run once on load so URL-driven filters (?tasks=...) take effect immediately.
+  applyFilter();
 
   // ===== Workstream pill injection on cmd rows + kanban cards =====
   (function injectWorkstreamPills() {
