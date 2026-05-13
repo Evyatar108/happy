@@ -98,6 +98,28 @@ The schema lives at `packages/happy-wire/src/ledger.ts` and is consumed by the h
 
 For the deeper per-field schema reference see `packages/happy-wire/README.md` (`### ledger.ts exports`).
 
+### 6. Agent tree wire schemas
+
+Shared from `@slopus/happy-wire` (re-exported from `agentTree.ts`):
+- queryable snapshot shape (returned by the `sessionGetAgentTree` RPC):
+  - `AgentTreeNodeSchema` / `AgentTreeNode`: `{ threadId, agentRole, nickname (nullable), status, lastTaskMessage?, spawnedAt }`
+  - `AgentTreeEdgeSchema` / `AgentTreeEdge`: `{ parent, child }`
+  - `AgentTreeSnapshotSchema` / `AgentTreeSnapshot`: `{ nodes, edges, seq }`
+- streaming delta surface, a discriminated union keyed on `type`:
+  - `AgentTreePendingSpawnStartedDeltaSchema` (`type: 'pending-spawn-started'`, `seq`, `callId`, `parentThreadId`, `agentRole`, `nickname`, optional `taskMessage`, `startedAt`)
+  - `AgentTreeNodeAddedDeltaSchema` (`type: 'node-added'`, `seq`, `node`, `edge`)
+  - `AgentTreeNodeStatusChangedDeltaSchema` (`type: 'node-status-changed'`, `seq`, `threadId`, `status`, optional `lastTaskMessage`)
+  - `AgentTreeNodeRemovedDeltaSchema` (`type: 'node-removed'`, `seq`, `threadId`)
+  - aggregate: `AgentTreeDeltaSchema` / `AgentTreeDelta`
+- Socket.IO payload schemas for the `agent-tree-update` frame:
+  - `AgentTreeUpdateInboundPayloadSchema` / `AgentTreeUpdateInboundPayload`: `{ delta }` (CLI → server)
+  - `AgentTreeUpdateOutboundPayloadSchema` / `AgentTreeUpdateOutboundPayload`: `{ sessionId, delta }` (server → client)
+- RPC envelope schemas for the `sessionGetAgentTree` request/response:
+  - `SessionGetAgentTreeRequestSchema` / `SessionGetAgentTreeRequest`: `{ sessionId }`
+  - `SessionGetAgentTreeResponseSchema` / `SessionGetAgentTreeResponse`: alias of `AgentTreeSnapshotSchema`
+
+These schemas are the shared contract for exposing codex's in-process agent spawn tree as both a queryable snapshot (`sessionGetAgentTree` RPC) and a streaming surface (`agent-tree-update` Socket.IO frame). They are consumed by the happy-cli `runCodex` agent-tree bridge (emitter side) and by happy-server's `sessionUpdateHandler` + `eventRouter` fan-out (relay side), so producers and subscribers stay structurally aligned without touching the codex Rust submodule.
+
 ## Migration in this repository
 
 ### CLI (`packages/happy-cli`)

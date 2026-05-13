@@ -809,6 +809,33 @@ describe('ApiSessionClient v3 messages API migration', () => {
         });
     });
 
+    it('sends agent tree deltas over the session-scoped socket without sid', async () => {
+        const client = new ApiSessionClient('fake-token', session);
+        await waitForSocketInit(mockSocket);
+
+        client.sendAgentTreeUpdate({
+            type: 'pending-spawn-started',
+            seq: 1,
+            callId: 'call-a',
+            parentThreadId: 'root-thread',
+            agentRole: 'explorer',
+            nickname: 'A',
+            startedAt: 10,
+        });
+
+        expect(mockSocket.emit).toHaveBeenCalledWith('agent-tree-update', {
+            delta: {
+                type: 'pending-spawn-started',
+                seq: 1,
+                callId: 'call-a',
+                parentThreadId: 'root-thread',
+                agentRole: 'explorer',
+                nickname: 'A',
+                startedAt: 10,
+            },
+        });
+    });
+
     it('sends session events through enqueueMessage', async () => {
         const client = new ApiSessionClient('fake-token', session);
         mockAxiosPost.mockResolvedValueOnce({

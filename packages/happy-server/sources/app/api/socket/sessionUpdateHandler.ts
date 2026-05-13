@@ -8,6 +8,7 @@ import { log } from "@/utils/log";
 import { randomKeyNaked } from "@/utils/randomKeyNaked";
 import { sendSessionPushEvent } from "@/app/push/pushNotifications";
 import { Socket } from "socket.io";
+import { AgentTreeUpdateInboundPayloadSchema } from "@slopus/happy-wire";
 
 export function sessionUpdateHandler(userId: string, socket: Socket, connection: ClientConnection, eventRouter: EventRouter) {
     const labels = getMetricsLabelsFromSocket(socket);
@@ -47,6 +48,23 @@ export function sessionUpdateHandler(userId: string, socket: Socket, connection:
         } catch (error) {
             log({ module: 'websocket', level: 'error' }, `Error in codex-finish: ${error}`);
         }
+    });
+
+    socket.on('agent-tree-update', (data: unknown) => {
+        if (connection.connectionType !== 'session-scoped') {
+            return;
+        }
+
+        const parsed = AgentTreeUpdateInboundPayloadSchema.safeParse(data);
+        if (!parsed.success) {
+            return;
+        }
+
+        eventRouter.emitAgentTreeUpdate({
+            userId,
+            sessionId: connection.sessionId,
+            delta: parsed.data.delta
+        });
     });
 
     socket.on('update-metadata', async (data: any, callback: (response: any) => void) => {

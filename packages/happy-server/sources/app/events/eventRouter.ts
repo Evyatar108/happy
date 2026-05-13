@@ -4,7 +4,7 @@ import { log } from "@/utils/log";
 import { GitHubProfile } from "@/app/api/types";
 import { AccountProfile } from "@/types";
 import { getPublicUrl } from "@/storage/files";
-import type { SessionMessageContent } from "@slopus/happy-wire";
+import type { AgentTreeDelta, SessionMessageContent } from "@slopus/happy-wire";
 
 // === CONNECTION TYPES ===
 
@@ -203,6 +203,11 @@ export interface EphemeralPayload {
     [key: string]: any;
 }
 
+export interface AgentTreeUpdatePayload {
+    sessionId: string;
+    delta: AgentTreeDelta;
+}
+
 export interface BufferedUpdate {
     payload: UpdatePayload;
     recipientFilter: RecipientFilter;
@@ -227,7 +232,7 @@ let currentSeq = 0;
 type RoutedSocketEvent = {
     sourceId: string;
     userId: string;
-    eventName: 'update' | 'ephemeral';
+    eventName: 'update' | 'ephemeral' | 'agent-tree-update';
     payload: any;
     recipientFilter: RecipientFilter;
     skipSenderConnection?: ClientConnection;
@@ -249,6 +254,12 @@ export interface EventRouter {
         userId: string;
         payload: EphemeralPayload;
         recipientFilter?: RecipientFilter;
+        skipSenderConnection?: ClientConnection;
+    }): void;
+    emitAgentTreeUpdate(params: {
+        userId: string;
+        sessionId: string;
+        delta: AgentTreeDelta;
         skipSenderConnection?: ClientConnection;
     }): void;
     close(): void;
@@ -355,6 +366,21 @@ class EventRouterSink implements EventRouter {
         });
     }
 
+    emitAgentTreeUpdate(params: {
+        userId: string;
+        sessionId: string;
+        delta: AgentTreeDelta;
+        skipSenderConnection?: ClientConnection;
+    }): void {
+        this.publish({
+            userId: params.userId,
+            eventName: 'agent-tree-update',
+            payload: { sessionId: params.sessionId, delta: params.delta },
+            recipientFilter: { type: 'all-interested-in-session', sessionId: params.sessionId },
+            skipSenderConnection: params.skipSenderConnection
+        });
+    }
+
     // === PRIVATE ROUTING LOGIC ===
 
     private appendToReplayBuffer(payload: UpdatePayload, recipientFilter: RecipientFilter): void {
@@ -399,7 +425,7 @@ class EventRouterSink implements EventRouter {
 
     private publish(params: {
         userId: string;
-        eventName: 'update' | 'ephemeral';
+        eventName: 'update' | 'ephemeral' | 'agent-tree-update';
         payload: any;
         recipientFilter: RecipientFilter;
         skipSenderConnection?: ClientConnection;

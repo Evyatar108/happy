@@ -42,6 +42,7 @@ import { HAPPY_FORKED_FROM_SESSION_ID } from '@/utils/envNames';
 import { createCodexPatchApprovalInput } from './codexApprovalSnapshot';
 import type { LedgerRecord } from '@slopus/happy-wire';
 import { loadProjectMcpServers } from './projectMcpConfig';
+import { createAgentTreeState, type AgentTreeEvent } from './agentTreeState';
 
 function getMessageDelivery(message: { messageId?: string; seq?: number }): MessageDelivery | undefined {
     return typeof message.messageId === 'string' && typeof message.seq === 'number'
@@ -372,6 +373,7 @@ export async function runCodex(opts: {
             logger.debug('[Codex] Failed to send ready push', pushError);
         }
     };
+    const agentTreeState = createAgentTreeState();
 
     // Debug helper: log active handles/requests if DEBUG is enabled
     function logActiveHandles(tag: string) {
@@ -465,8 +467,10 @@ export async function runCodex(opts: {
      */
     const handleKillSession = async () => {
         closing = true;
+        session.rpcHandlerManager.unregisterHandler('sessionGetAgentTree');
         logger.debug('[Codex] Kill session requested - terminating process');
         await handleAbort();
+        agentTreeState.clear();
         logger.debug('[Codex] Abort completed, proceeding with termination');
 
         // Update lifecycle state to archived before closing
@@ -500,6 +504,7 @@ export async function runCodex(opts: {
 
     // Register abort handler
     session.rpcHandlerManager.registerHandler('abort', handleAbort);
+    session.rpcHandlerManager.registerHandler('sessionGetAgentTree', () => agentTreeState.snapshot());
 
     registerKillSessionHandler(session.rpcHandlerManager, handleKillSession);
 
@@ -586,6 +591,11 @@ export async function runCodex(opts: {
     // Event handler: same EventMsg types as the legacy MCP server — no changes needed
     client.setEventHandler((msg) => {
         logger.debug(`[Codex] Event: ${JSON.stringify(msg)}`);
+
+        const agentTreeDeltas = agentTreeState.applyEvent(msg as AgentTreeEvent);
+        for (const delta of agentTreeDeltas) {
+            if (!closing) session.sendAgentTreeUpdate(delta);
+        }
 
         // Add messages to the ink UI buffer based on message type
         if (msg.type === 'agent_message') {

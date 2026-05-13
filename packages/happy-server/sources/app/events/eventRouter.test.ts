@@ -8,6 +8,7 @@ import {
     __resetEventRouterReplayStateForTests,
     createEventRouter
 } from "./eventRouter";
+import type { AgentTreeDelta } from "@slopus/happy-wire";
 import type { ClientConnection, RecipientFilter, UpdatePayload } from "./eventRouter";
 
 // Producer coverage for US-005b: route handler (v3SessionRoutes) and socket
@@ -76,6 +77,18 @@ function createUpdatePayload(seq: number): UpdatePayload {
         seq,
         body: { t: "update-account", userId: "user-1" },
         createdAt: 1700000000000 + seq
+    };
+}
+
+function createAgentTreeDelta(seq: number): AgentTreeDelta {
+    return {
+        type: "pending-spawn-started",
+        seq,
+        callId: `call-${seq}`,
+        parentThreadId: "root-thread",
+        agentRole: "explorer",
+        nickname: "A",
+        startedAt: 1700000000000 + seq
     };
 }
 
@@ -281,6 +294,33 @@ describe("createEventRouter", () => {
             expect(replay.overflow).toBe(false);
             expect(replay.events.map((event) => event.seq)).toEqual(item.expectedSeqs);
         }
+
+        router.close();
+    });
+
+    it("fans agent-tree updates to session and user-scoped listeners without replaying", () => {
+        const io = new FakeIo();
+        const router = createEventRouter(io as any, new EventEmitter());
+        const sessionSocket = createSocket("session-s1", io);
+        const userSocket = createSocket("user", io);
+        const machineSocket = createSocket("machine-other", io);
+        const delta = createAgentTreeDelta(1);
+
+        router.addConnection("user-1", sessionConnection(sessionSocket, "s1"));
+        router.addConnection("user-1", userConnection(userSocket));
+        router.addConnection("user-1", machineConnection(machineSocket, "machine-other"));
+
+        router.emitAgentTreeUpdate({
+            userId: "user-1",
+            sessionId: "s1",
+            delta
+        });
+
+        const expectedPayload = { sessionId: "s1", delta };
+        expect(sessionSocket.received).toEqual([{ eventName: "agent-tree-update", payload: expectedPayload }]);
+        expect(userSocket.received).toEqual([{ eventName: "agent-tree-update", payload: expectedPayload }]);
+        expect(machineSocket.received).toEqual([]);
+        expect(__getEventRouterReplayStateForTests()).toEqual({ replayBuffer: [], currentSeq: 0 });
 
         router.close();
     });

@@ -496,6 +496,69 @@ const LedgerRecordSchema = z__namespace.discriminatedUnion("eventType", [
   ErrorLedgerRecordSchema
 ]);
 
+const AgentTreeNodeSchema = z__namespace.object({
+  threadId: z__namespace.string(),
+  agentRole: z__namespace.string(),
+  nickname: z__namespace.string().nullable(),
+  status: z__namespace.string(),
+  lastTaskMessage: z__namespace.string().optional(),
+  spawnedAt: z__namespace.number()
+});
+const AgentTreeEdgeSchema = z__namespace.object({
+  parent: z__namespace.string(),
+  child: z__namespace.string()
+});
+const AgentTreeSnapshotSchema = z__namespace.object({
+  nodes: z__namespace.array(AgentTreeNodeSchema),
+  edges: z__namespace.array(AgentTreeEdgeSchema),
+  seq: z__namespace.number()
+});
+const AgentTreePendingSpawnStartedDeltaSchema = z__namespace.object({
+  type: z__namespace.literal("pending-spawn-started"),
+  seq: z__namespace.number(),
+  callId: z__namespace.string(),
+  parentThreadId: z__namespace.string(),
+  agentRole: z__namespace.string(),
+  nickname: z__namespace.string().nullable(),
+  taskMessage: z__namespace.string().optional(),
+  startedAt: z__namespace.number()
+});
+const AgentTreeNodeAddedDeltaSchema = z__namespace.object({
+  type: z__namespace.literal("node-added"),
+  seq: z__namespace.number(),
+  node: AgentTreeNodeSchema,
+  edge: AgentTreeEdgeSchema
+});
+const AgentTreeNodeStatusChangedDeltaSchema = z__namespace.object({
+  type: z__namespace.literal("node-status-changed"),
+  seq: z__namespace.number(),
+  threadId: z__namespace.string(),
+  status: z__namespace.string(),
+  lastTaskMessage: z__namespace.string().optional()
+});
+const AgentTreeNodeRemovedDeltaSchema = z__namespace.object({
+  type: z__namespace.literal("node-removed"),
+  seq: z__namespace.number(),
+  threadId: z__namespace.string()
+});
+const AgentTreeDeltaSchema = z__namespace.discriminatedUnion("type", [
+  AgentTreePendingSpawnStartedDeltaSchema,
+  AgentTreeNodeAddedDeltaSchema,
+  AgentTreeNodeStatusChangedDeltaSchema,
+  AgentTreeNodeRemovedDeltaSchema
+]);
+const AgentTreeUpdateInboundPayloadSchema = z__namespace.object({
+  delta: AgentTreeDeltaSchema
+});
+const AgentTreeUpdateOutboundPayloadSchema = z__namespace.object({
+  sessionId: z__namespace.string(),
+  delta: AgentTreeDeltaSchema
+});
+const SessionGetAgentTreeRequestSchema = z__namespace.object({
+  sessionId: z__namespace.string()
+});
+const SessionGetAgentTreeResponseSchema = AgentTreeSnapshotSchema;
+
 const MachineTunnelSchema = z__namespace.object({
   machineId: z__namespace.string(),
   tunnelId: z__namespace.string(),
@@ -506,6 +569,16 @@ const MachineTunnelSchema = z__namespace.object({
 });
 
 exports.AgentMessageSchema = AgentMessageSchema;
+exports.AgentTreeDeltaSchema = AgentTreeDeltaSchema;
+exports.AgentTreeEdgeSchema = AgentTreeEdgeSchema;
+exports.AgentTreeNodeAddedDeltaSchema = AgentTreeNodeAddedDeltaSchema;
+exports.AgentTreeNodeRemovedDeltaSchema = AgentTreeNodeRemovedDeltaSchema;
+exports.AgentTreeNodeSchema = AgentTreeNodeSchema;
+exports.AgentTreeNodeStatusChangedDeltaSchema = AgentTreeNodeStatusChangedDeltaSchema;
+exports.AgentTreePendingSpawnStartedDeltaSchema = AgentTreePendingSpawnStartedDeltaSchema;
+exports.AgentTreeSnapshotSchema = AgentTreeSnapshotSchema;
+exports.AgentTreeUpdateInboundPayloadSchema = AgentTreeUpdateInboundPayloadSchema;
+exports.AgentTreeUpdateOutboundPayloadSchema = AgentTreeUpdateOutboundPayloadSchema;
 exports.ApiMessageSchema = ApiMessageSchema;
 exports.ApiUpdateMachineStateSchema = ApiUpdateMachineStateSchema;
 exports.ApiUpdateNewMessageSchema = ApiUpdateNewMessageSchema;
@@ -524,6 +597,8 @@ exports.MessageContentSchema = MessageContentSchema;
 exports.MessageMetaSchema = MessageMetaSchema;
 exports.MessageSentLedgerRecordSchema = MessageSentLedgerRecordSchema;
 exports.PendingPermissionLedgerRecordSchema = PendingPermissionLedgerRecordSchema;
+exports.SessionGetAgentTreeRequestSchema = SessionGetAgentTreeRequestSchema;
+exports.SessionGetAgentTreeResponseSchema = SessionGetAgentTreeResponseSchema;
 exports.SessionMessageContentSchema = SessionMessageContentSchema;
 exports.SessionMessageRangeRequestSchema = SessionMessageRangeRequestSchema;
 exports.SessionMessageRangeResponseSchema = SessionMessageRangeResponseSchema;

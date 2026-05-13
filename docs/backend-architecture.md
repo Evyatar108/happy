@@ -229,6 +229,7 @@ The Socket.IO middleware in `sources/app/api/socket.ts` enforces the same tunnel
 `EventRouter` (`sources/app/events/eventRouter.ts`) maintains per-user connection sets and routes:
 - **Persistent `update` events**: database-backed changes with a user-level monotonic `seq`.
 - **Ephemeral events**: presence signals that are not persisted.
+- **`agent-tree-update` events**: codex spawn-tree deltas fanned out to all connections interested in a given session via the `all-interested-in-session` filter (both session-scoped and user-scoped subscribers). Not persisted and not replayed; emitted as a distinct event name so clients that don't decode the agent-tree shape can ignore it. See [happy-wire.md](./happy-wire.md) for the payload schema.
 
 The router implements recipient filters so updates go only to interested connections (e.g., all session listeners or a specific machine).
 

@@ -54,7 +54,7 @@ Rules enforced server-side:
 - `machine-scoped`: used by daemons; receives machine updates and emits machine state.
 
 ### Server -> client events
-The server emits two event types:
+The server emits three event types:
 
 #### `update`
 Persistent sync events. Payload shape:
@@ -75,6 +75,25 @@ Transient presence events. Payload shape:
   ...
 }
 ```
+
+#### `agent-tree-update`
+Transient, session-scoped fan-out of in-process agent-spawn tree deltas. Not persisted, not assigned a `seq` from the per-user update sequence, and not replayed on reconnect. Clients that join an active session and need the current tree call the `sessionGetAgentTree` RPC (see below) to obtain a full snapshot, then apply subsequent `agent-tree-update` deltas. Each delta carries its own monotonic per-tree `seq` (allocated by the producing CLI) for client-side ordering and gap detection.
+
+Outbound payload shape (server -> client):
+```
+{
+  sessionId: string,
+  delta: AgentTreeDelta
+}
+```
+
+`AgentTreeDelta` is a discriminated union (`type` field) of:
+- `pending-spawn-started`: `{ type, seq, callId, parentThreadId, agentRole, nickname, taskMessage?, startedAt }`
+- `node-added`: `{ type, seq, node, edge }`
+- `node-status-changed`: `{ type, seq, threadId, status, lastTaskMessage? }`
+- `node-removed`: `{ type, seq, threadId }`
+
+Recipient filter is `all-interested-in-session` for the originating session: session-scoped subscribers for that `sessionId` plus user-scoped subscribers under the same user receive the event.
 
 ### Update event types
 Field names below match on-wire payloads.
@@ -153,6 +172,20 @@ Field names below match on-wire payloads.
 - `rpc-call`
   - `{ method, params }` -> callback `{ ok, result? | error? }`
   - Server forwards to the registered socket via `rpc-request` (ack-based).
+
+- `agent-tree-update` (inbound, session-scoped only)
+  - `{ delta: AgentTreeDelta }`
+  - Payload is validated with `AgentTreeUpdateInboundPayloadSchema` from `@slopus/happy-wire`. The CLI does **not** include `sessionId` in the inbound payload; the server reads `sessionId` from the trusted session-scoped connection record and fans the event out as `{ sessionId, delta }` to session-scoped + user-scoped subscribers under the same user (see `agent-tree-update` under "Server -> client events").
+  - **Authorization**: the handler is a no-op unless `connectionType === 'session-scoped'`. The connection's `sessionId` is the only authoritative source — client-supplied session identifiers are never honored.
+  - Not persisted, not acknowledged, no `seq` allocated against the per-user update sequence. Drop-on-floor semantics if the payload fails schema validation.
+
+### Session-scoped RPC methods
+Session-scoped RPC methods are invoked over the existing `rpc-call` plumbing (the CLI registers handlers via `rpc-register`; mobile/web callers invoke them via `rpc-call`).
+
+- `sessionGetAgentTree`
+  - Params: `{ sessionId: string }` (`SessionGetAgentTreeRequestSchema` in `@slopus/happy-wire`)
+  - Response: `{ nodes: AgentTreeNode[], edges: AgentTreeEdge[], seq: number }` (`SessionGetAgentTreeResponseSchema` / `AgentTreeSnapshotSchema`) — a full snapshot of the live in-process agent-spawn tree as known to the CLI at call time, with `seq` matching the latest delta already applied locally. Clients use this snapshot as the baseline before applying subsequent `agent-tree-update` deltas (whose own `seq` is comparable to the snapshot's).
+  - Registered by the CLI for the lifetime of an active codex session and unregistered on kill-session.
 
 ## HTTP endpoints by area
 See `api.md` for the full HTTP endpoint catalog and auth flows.

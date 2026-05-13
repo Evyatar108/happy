@@ -125,6 +125,7 @@ The goal is to keep CLI/app/server/agent on the same wire contract and avoid sch
 - `src/tofu.ts`
 - `src/nonRenderablePolicy.ts`
 - `src/ledger.ts`
+- `src/agentTree.ts`
 
 ### `messages.ts` exports
 
@@ -276,6 +277,44 @@ Discriminated union and inferred type:
 
 `runId` and `sessionId` are validated against `^[A-Za-z0-9_-]+$` so they remain
 safe path components for the on-disk ledger file location.
+
+### `agentTree.ts` exports
+
+Shared schemas for the live agent spawn tree surfaced by `happy-cli`/`happy-server`
+through the `sessionGetAgentTree` RPC and the `agent-tree-update` Socket.IO
+frame. Tree state is maintained server-side without modifying the codex Rust
+submodule; both producers (CLI) and consumers (server/app) import these schemas
+so the wire contract stays in sync.
+
+Snapshot schemas + inferred types:
+- `AgentTreeNodeSchema` — `{ threadId, agentRole, nickname (nullable), status, lastTaskMessage?, spawnedAt }`
+- `AgentTreeNode`
+- `AgentTreeEdgeSchema` — `{ parent, child }` (both `string` thread IDs)
+- `AgentTreeEdge`
+- `AgentTreeSnapshotSchema` — `{ nodes: AgentTreeNode[], edges: AgentTreeEdge[], seq: number }`
+- `AgentTreeSnapshot`
+
+Per-delta record schemas (each carries `seq: number` for ordering):
+- `AgentTreePendingSpawnStartedDeltaSchema` — `type: 'pending-spawn-started'` with `callId`, `parentThreadId`, `agentRole`, `nickname` (nullable), optional `taskMessage`, `startedAt`.
+- `AgentTreeNodeAddedDeltaSchema` — `type: 'node-added'` with `node: AgentTreeNode` and `edge: AgentTreeEdge`.
+- `AgentTreeNodeStatusChangedDeltaSchema` — `type: 'node-status-changed'` with `threadId`, `status`, optional `lastTaskMessage`.
+- `AgentTreeNodeRemovedDeltaSchema` — `type: 'node-removed'` with `threadId`.
+
+Discriminated union and inferred type:
+- `AgentTreeDeltaSchema` — discriminated union on `type` covering the 4 delta variants above.
+- `AgentTreeDelta`
+
+Socket.IO `agent-tree-update` frame payloads:
+- `AgentTreeUpdateInboundPayloadSchema` — `{ delta: AgentTreeDelta }` (CLI -> server).
+- `AgentTreeUpdateInboundPayload`
+- `AgentTreeUpdateOutboundPayloadSchema` — `{ sessionId: string, delta: AgentTreeDelta }` (server -> app).
+- `AgentTreeUpdateOutboundPayload`
+
+`sessionGetAgentTree` RPC envelopes:
+- `SessionGetAgentTreeRequestSchema` — `{ sessionId: string }`.
+- `SessionGetAgentTreeRequest`
+- `SessionGetAgentTreeResponseSchema` — alias for `AgentTreeSnapshotSchema`.
+- `SessionGetAgentTreeResponse`
 
 ## Wire Type Specifications
 

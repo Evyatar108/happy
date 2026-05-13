@@ -1581,7 +1581,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
   </details>
 
   <details class="cmd" id="cmd-agent-tree-rpc" data-task-id="agent-tree-rpc">
-    <summary><span class="cmd-name">agent-tree-rpc</span><span class="cmd-badge b-inflight">🟡 in progress</span><span class="cmd-desc">App-server RPC exposing codex's live spawn tree (sessionGetAgentTree + agent-tree-update events). Spawned by <code>agent-view-research</code>.</span></summary>
+    <summary><span class="cmd-name">agent-tree-rpc</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">App-server RPC exposing codex's live spawn tree (sessionGetAgentTree + agent-tree-update events). Spawned by <code>agent-view-research</code>. Branch <code>agent-tree-rpc</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
 <pre class="cmd-pre">/plan-with-ralph "Expose codex's live spawn tree as a queryable + streamable app-server RPC. Per plans/agent-view-research.md §6 task `agent-tree-rpc`. Today codex already has the data — AgentRegistry.agent_tree (codex/external/repos/codex-patched/codex-rs/core/src/agent/registry.rs), control.rs:832-840 subscribe_status, and CollabAgentSpawnBegin/EndEvent are emitted (spawn.rs:71-205) — but nothing exposes the live tree as a single queryable surface that mobile clients can render. Minimize-conflict-surface tenet per plans/codexu-roadmap.md: codex source READ-ONLY; add the RPC bridge on the happy-cli side (packages/happy-cli/src/codex/codexAppServerClient.ts + runCodex.ts) by subscribing to codex's existing event stream and re-emitting structured spawn-tree updates over happy-server's Socket.IO. Add two RPC shapes: (1) sessionGetAgentTree(sessionId) → { nodes: AgentTreeNode[], edges: { parent, child }[] } where AgentTreeNode = { threadId, agentRole, nickname, status, lastTaskMessage, spawnedAt }; (2) socket subscription event 'agent-tree-update' emitting incremental deltas (node-added, node-status-changed, node-removed). Read codex/external/repos/codex-patched/codex-rs/core/src/agent/registry.rs + control.rs (READ-ONLY) for the data shape. Read packages/happy-cli/src/codex/runCodex.ts for the existing codex event subscription pattern. Read packages/happy-server/sources/app/events/eventRouter.ts for the fan-out primitive. Acceptance: codex spawns 2 sub-agents via spawn_agent → happy-cli detects + emits agent-tree-update events → happy-server fans out → vitest assertion that subscribed clients receive both spawn-begin and spawn-end deltas in correct order with parent linkage. Cross-package typecheck green. Single commit on main, NO codex submodule edits. Pitfall: subscribe_status returns a tokio watch::Receiver that lives in codex's process — happy-cli's bridge must hold the receiver in a task that survives across the agent's lifetime, not just for one tool call."</pre>
@@ -1621,11 +1621,10 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
   </details>
 
   <details class="cmd" id="cmd-agent-status-stream" data-task-id="agent-status-stream">
-    <summary><span class="cmd-name">agent-status-stream</span><span class="cmd-badge b-blocked">🔒 blocked on agent-tree-rpc</span><span class="cmd-desc">Live "active teammates" overlay in app — bridges codex spawn events through happy-cli/server to mobile. Spawned by <code>agent-view-research</code>.</span></summary>
+    <summary><span class="cmd-name">agent-status-stream</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Live "active teammates" overlay in app — bridges shipped agent-tree-update events through happy-cli/server to mobile. Spawned by <code>agent-view-research</code>.</span></summary>
     <div class="cmd-body">
-      <div class="cmd-warn blocked">🔒 Blocked on <code>agent-tree-rpc</code> landing the agent-tree-update wire shape.</div>
       <button class="copy-btn">Copy</button>
-<pre class="cmd-pre">/plan-with-ralph "Bridge codex's per-session spawn-tree updates from agent-tree-rpc through to a live 'active teammates' overlay in the happy-app session detail view. Per plans/agent-view-research.md §6 task `agent-status-stream`. PREREQUISITE: agent-tree-rpc must have landed so happy-server emits 'agent-tree-update' events with structured deltas. happy-app side: (1) sources/sync/storage.ts — add agentTreeBySession: Record&lt;sid, AgentTreeNode[]&gt; reducer state; subscribe to agent-tree-update events via the existing socket plumbing; apply deltas with monotonic guard (use the codex thread's spawn timestamp as the seq, since this is out-of-band from message seq). (2) sources/app/(app)/session/[id].tsx — add a collapsible 'Active teammates' overlay panel showing the spawn tree (parent thread + spawned sub-agents) with live status indicators ('running' / 'idle' / 'completed' / 'failed' pulsed dot); tap a teammate row to peek its last-task-message + lastN messages (separate RPC, follow-up). Reuse mobile-tree-view's depth-indentation pattern for the teammate sub-tree rendering. Read packages/happy-app/CLAUDE.md sync invariants — the new reducer state is in-memory only (ephemeral; don't persist to MMKV); reconnect should re-fetch full tree via sessionGetAgentTree(sid) once and then resume incremental deltas. Acceptance: integration test — happy-cli emits 'agent-tree-update' with 2 spawn events, app receives both, panel shows 2 teammates with correct status; status transition to 'completed' updates the panel pulsed dot. Cross-package typecheck green. ONE commit per side (happy-app commit; happy-cli changes minimal since agent-tree-rpc already lands the wire shape). Pitfall: subscribe_status's watch::Receiver fires aggressively (every internal state tick); happy-cli's bridge must coalesce to status-changed deltas only — verify the bridge dedupes idempotent re-emissions before fanning out to clients. Surface UX choice to operator BEFORE building: should the 'Active teammates' overlay auto-show when a session has > 0 children, or only after user opens it from a menu?"</pre>
+<pre class="cmd-pre">/plan-with-ralph "Bridge codex's per-session spawn-tree updates from agent-tree-rpc through to a live 'active teammates' overlay in the happy-app session detail view. Per plans/agent-view-research.md §6 task `agent-status-stream`. PREREQUISITE: agent-tree-rpc must have landed so happy-server emits 'agent-tree-update' events with structured deltas. happy-app side: (1) sources/sync/storage.ts — add agentTreeBySession: Record&lt;sid, AgentTreeNode[]&gt; reducer state; subscribe to agent-tree-update events via the existing socket plumbing; apply deltas with a per-session monotonic guard using the shipped delta.seq field (server frames are { sessionId, delta }). (2) sources/app/(app)/session/[id].tsx — add a collapsible 'Active teammates' overlay panel showing the spawn tree (parent thread + spawned sub-agents) with live status indicators ('running' / 'idle' / 'completed' / 'failed' pulsed dot); tap a teammate row to peek its last-task-message + lastN messages (separate RPC, follow-up). Reuse mobile-tree-view's depth-indentation pattern for the teammate sub-tree rendering. Read packages/happy-app/CLAUDE.md sync invariants — the new reducer state is in-memory only (ephemeral; don't persist to MMKV); reconnect should re-fetch full tree via sessionGetAgentTree(sid) once and then resume incremental deltas. Acceptance: integration test — happy-cli emits 'agent-tree-update' with 2 spawn events, app receives both, panel shows 2 teammates with correct status; status transition to 'completed' updates the panel pulsed dot. Cross-package typecheck green. ONE commit per side (happy-app commit; happy-cli changes minimal since agent-tree-rpc already lands the wire shape). Pitfall: subscribe_status's watch::Receiver fires aggressively (every internal state tick); happy-cli's bridge must coalesce to status-changed deltas only — verify the bridge dedupes idempotent re-emissions before fanning out to clients. Surface UX choice to operator BEFORE building: should the 'Active teammates' overlay auto-show when a session has > 0 children, or only after user opens it from a menu?"</pre>
     </div>
   </details>
 
@@ -2048,7 +2047,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T18:30:00Z",
+  "generatedAt": "2026-05-14T19:00:00Z",
   "generatedFromCommit": "e9ac47dd",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
@@ -2077,12 +2076,12 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     "async-events-design": "2026-05-14T13:30:00Z",
     "native-agent-parity": "2026-05-14T08:00:00Z",
     "roadmap-plugin": "2026-05-14T05:00:00Z",
-    "agent-tree-rpc": "2026-05-14T07:30:00Z",
+    "agent-tree-rpc": "2026-05-14T19:00:00Z",
     "session-parent-link": "2026-05-14T15:00:00Z",
     "mobile-tree-view": "2026-05-14T06:00:00Z",
     "session-role-pill": "2026-05-14T14:00:00Z",
     "spawn-from-app": "2026-05-14T06:00:00Z",
-    "agent-status-stream": "2026-05-14T06:00:00Z",
+    "agent-status-stream": "2026-05-14T19:00:00Z",
     "codex-wire-spike": "2026-05-14T18:00:00Z",
     "codex-claude-md-autoload": "2026-05-14T08:30:00Z",
     "codex-attachments": "2026-05-14T18:00:00Z",
@@ -2228,6 +2227,14 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
       "outcome": "completed",
       "commits": [],
       "summary": "Research-only deliverable: plans/agent-view-research.md. Surveyed Claude Code's teammate-view feature (D:/harness-efforts/claude-code/worktrees/main/), codex's existing multi_agents_v2/spawn.rs primitives (READ-ONLY), and happy-app's session-list surface. Decomposed into 6 follow-up tasks tagged spawnedFrom=agent-view-research: agent-tree-rpc, session-parent-link, mobile-tree-view, session-role-pill, spawn-from-app, agent-status-stream. Effort by bucket — (a) codex runtime: 8h; (b) mobile UI: 19h; (c) both: 18h. These follow-ups ARE the Phase 6 'Long-lived teammates' implementation."
+    },
+    {
+      "id": "agent-tree-rpc/2026-05-13",
+      "taskId": "agent-tree-rpc",
+      "ranAt": "2026-05-13T20:29:11Z",
+      "outcome": "completed",
+      "commits": ["4f5762f9", "6f327e9c", "e1a19de8", "f37c9542", "b2826f89"],
+      "summary": "Shipped agent-tree RPC plumbing on branch agent-tree-rpc: shared wire schemas, happy-cli reducer and sessionGetAgentTree RPC, live agent-tree-update delta emission, Codex v2/legacy spawn-event parsing, and happy-server validation plus session/user-scoped fan-out. Real-Codex nested child acceptance remains blocked by child-agent tool availability."
     }
   ],
   "effort": {

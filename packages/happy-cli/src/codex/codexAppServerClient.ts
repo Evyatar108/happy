@@ -164,6 +164,29 @@ function normalizeRawFileChangeList(changes: unknown): LegacyPatchChanges | unde
     return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 
+function stringField(value: unknown): string | undefined {
+    return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function stringArrayField(value: unknown): string[] {
+    return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0) : [];
+}
+
+function firstStringField(...values: unknown[]): string | undefined {
+    for (const value of values) {
+        const stringValue = stringField(value);
+        if (stringValue) return stringValue;
+        const [first] = stringArrayField(value);
+        if (first) return first;
+    }
+    return undefined;
+}
+
+function nullableStringField(value: unknown): string | null | undefined {
+    if (value === null) return null;
+    return stringField(value);
+}
+
 export class CodexAppServerClient {
     private connection: JsonRpcConnection | null = null;
     private nextId = 1;
@@ -321,6 +344,92 @@ export class CodexAppServerClient {
         });
     }
 
+    private emitRawCollabAgentToolCall(method: string, params: any, item: Record<string, unknown>): boolean {
+        const callId = stringField(item.id) ?? '';
+        const tool = stringField(item.tool) ?? '';
+        const parentThreadId = firstStringField(item.senderThreadId, item.parentThreadId, params?.threadId);
+        const threadId = firstStringField(item.receiverThreadIds, item.receiverThreadId, item.threadId, item.targetThreadId);
+        const taskMessage = stringField(item.prompt) ?? stringField(item.message) ?? stringField(item.input);
+        const thread = params?.thread && typeof params.thread === 'object' ? params.thread : null;
+        const agentRole = stringField(item.agentRole) ?? stringField(item.agent_role) ?? stringField(thread?.agentRole) ?? 'agent';
+        const nickname = nullableStringField(item.agentNickname)
+            ?? nullableStringField(item.nickname)
+            ?? nullableStringField(thread?.agentNickname)
+            ?? null;
+
+        if (tool === 'spawnAgent') {
+            if (method === 'item/started' && parentThreadId) {
+                this.eventHandler?.({
+                    type: 'collab_agent_spawn_begin',
+                    call_id: callId,
+                    callId,
+                    parent_thread_id: parentThreadId,
+                    parentThreadId,
+                    agent_role: agentRole,
+                    agentRole,
+                    nickname,
+                    ...(taskMessage ? { task_message: taskMessage, taskMessage } : {}),
+                });
+            }
+
+            if (method === 'item/completed' && parentThreadId && threadId) {
+                this.eventHandler?.({
+                    type: 'collab_agent_spawn_end',
+                    call_id: callId,
+                    callId,
+                    parent_thread_id: parentThreadId,
+                    parentThreadId,
+                    thread_id: threadId,
+                    threadId,
+                    agent_role: agentRole,
+                    agentRole,
+                    nickname,
+                    ...(taskMessage ? { task_message: taskMessage, taskMessage } : {}),
+                });
+            }
+            return true;
+        }
+
+        if (tool === 'sendInput' || tool === 'wait' || tool === 'closeAgent' || tool === 'resumeAgent') {
+            const phase = method === 'item/started' ? 'started' : 'completed';
+            const itemStatus = stringField(item.status);
+            const targetThreadIds = stringArrayField(item.receiverThreadIds);
+            const singleFallback = firstStringField(item.receiverThreadId, item.threadId, item.targetThreadId);
+            const targets = targetThreadIds.length > 0 ? targetThreadIds : (singleFallback ? [singleFallback] : []);
+            if (targets.length > 0) {
+                for (const targetId of targets) {
+                    this.eventHandler?.({
+                        type: 'collabAgentToolCall',
+                        call_id: callId,
+                        callId,
+                        tool,
+                        phase,
+                        ...(itemStatus ? { status: itemStatus } : {}),
+                        thread_id: targetId,
+                        threadId: targetId,
+                        targetThreadId: targetId,
+                        ...(parentThreadId ? { parent_thread_id: parentThreadId, parentThreadId } : {}),
+                        ...(taskMessage ? { message: taskMessage, input: taskMessage } : {}),
+                    });
+                }
+            } else {
+                this.eventHandler?.({
+                    type: 'collabAgentToolCall',
+                    call_id: callId,
+                    callId,
+                    tool,
+                    phase,
+                    ...(itemStatus ? { status: itemStatus } : {}),
+                    ...(parentThreadId ? { parent_thread_id: parentThreadId, parentThreadId } : {}),
+                    ...(taskMessage ? { message: taskMessage, input: taskMessage } : {}),
+                });
+            }
+            return true;
+        }
+
+        return true;
+    }
+
     private handleRawNotification(method: string, params: any): boolean {
         if (!this.shouldHandleRawNotification(method)) {
             return false;
@@ -371,6 +480,10 @@ export class CodexAppServerClient {
         const item = params?.item;
         if (!item || typeof item !== 'object') {
             return method.startsWith('item/');
+        }
+
+        if ((method === 'item/started' || method === 'item/completed') && item.type === 'collabAgentToolCall') {
+            return this.emitRawCollabAgentToolCall(method, params, item as Record<string, unknown>);
         }
 
         if (method === 'item/started' && item.type === 'commandExecution') {
@@ -437,10 +550,12 @@ export class CodexAppServerClient {
 
         if (method === 'item/completed' && item.type === 'agentMessage') {
             const text = typeof item.text === 'string' ? item.text : '';
+            const threadId = firstStringField(params?.threadId, item.threadId);
             if (text.length > 0) {
                 this.eventHandler?.({
                     type: 'agent_message',
                     message: text,
+                    ...(threadId ? { threadId } : {}),
                     item_id: item.id,
                     phase: item.phase,
                 });

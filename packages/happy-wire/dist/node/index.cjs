@@ -34,9 +34,18 @@ async function applyOwnerOnlyPerms(filePath) {
     return;
   }
   try {
+    await execFileAsync("icacls", [
+      filePath,
+      "/remove:g",
+      "*S-1-1-0",
+      "/remove:g",
+      "BUILTIN\\Users",
+      "/remove:g",
+      "Authenticated Users"
+    ]);
     await execFileAsync("icacls", [filePath, "/inheritance:r", "/grant:r", `${node_os.userInfo().username}:(R,W)`]);
-  } catch {
-    await fs__namespace.chmod(filePath, 384);
+  } catch (err) {
+    throw new Error(`applyOwnerOnlyPerms: failed to set owner-only ACL on "${filePath}": ${err}`);
   }
 }
 

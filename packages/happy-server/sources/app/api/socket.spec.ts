@@ -156,6 +156,7 @@ function createFakeEventRouter() {
         getReplayForConnection: vi.fn<(lastSeenSeq: number, connection: unknown) => ReplayResult>(() => ({ events: [], overflow: false, currentSeq: 0 })),
         emitEphemeral: vi.fn(),
         emitUpdate: vi.fn(),
+        emitAgentTreeUpdate: vi.fn(),
         close: vi.fn(),
     };
 }

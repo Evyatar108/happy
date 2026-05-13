@@ -13,6 +13,7 @@ import { RpcHandlerManager } from './rpc/RpcHandlerManager';
 import { registerCommonHandlers } from '../modules/common/registerCommonHandlers';
 import { shouldReconnect } from '@/utils/lidState';
 import {
+    type AgentTreeDelta,
     createEnvelope,
     findSenderDropEntry,
     type SessionContextBoundaryEvent,
@@ -926,6 +927,11 @@ export class ApiSessionClient extends EventEmitter {
             return;
         }
         this.socket.emit('push-event', payload);
+    }
+
+    sendAgentTreeUpdate(delta: AgentTreeDelta) {
+        if (!this.socket) return;
+        this.socket.emit('agent-tree-update', { delta });
     }
 
     /**

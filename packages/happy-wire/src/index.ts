@@ -5,4 +5,5 @@ export * from './tofu';
 export * from './voice';
 export * from './nonRenderablePolicy';
 export * from './ledger';
+export * from './agentTree';
 export * from './tunnel/types';

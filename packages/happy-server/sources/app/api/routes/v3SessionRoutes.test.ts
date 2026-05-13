@@ -243,6 +243,7 @@ async function createApp() {
         getReplayForConnection: vi.fn(() => ({ events: [], overflow: false, currentSeq: 0 })),
         emitUpdate: emitUpdateMock,
         emitEphemeral: vi.fn(),
+        emitAgentTreeUpdate: vi.fn(),
         close: vi.fn()
     });
     await typed.ready();

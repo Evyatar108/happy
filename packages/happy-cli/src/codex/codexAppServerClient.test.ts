@@ -1529,6 +1529,259 @@ describe('CodexAppServerClient sandbox integration', () => {
     });
 
     it.each([{ transport: 'stdio' as const }, { transport: 'ws' as const }])(
+        'maps raw collab agent tool call items into agent tree events over $transport',
+        async ({ transport }) => {
+            const collabItem = (id: string, tool: string, receiverThreadIds: string[], prompt: string | null) => ({
+                type: 'collabAgentToolCall',
+                id,
+                tool,
+                status: 'inProgress',
+                senderThreadId: 'root-thread',
+                receiverThreadIds,
+                prompt,
+            });
+
+            await mockNextAppServer(transport, {
+                pid: 3011,
+                onRequest: (msg, send) => {
+                    if (msg.method === 'thread/start' && msg.id != null) {
+                        setTimeout(() => {
+                            send({
+                                id: msg.id,
+                                result: {
+                                    thread: { id: 'root-thread', path: '/tmp/root-thread' },
+                                    model: 'gpt-test',
+                                    modelProvider: 'openai',
+                                    cwd: '/tmp/project',
+                                    approvalPolicy: 'never',
+                                    sandbox: { type: 'dangerFullAccess' },
+                                    reasoningEffort: null,
+                                },
+                            });
+                        }, 0);
+                    }
+
+                    if (msg.method === 'turn/start' && msg.id != null) {
+                        setTimeout(() => {
+                            send({ id: msg.id, result: { turn: { id: 'turn-collab-1', items: [], status: 'inProgress', error: null } } });
+                            send({
+                                method: 'turn/started',
+                                params: {
+                                    threadId: 'root-thread',
+                                    turn: { id: 'turn-collab-1', items: [], status: 'inProgress', error: null },
+                                },
+                            });
+                            send({
+                                method: 'item/started',
+                                params: {
+                                    threadId: 'root-thread',
+                                    turnId: 'turn-collab-1',
+                                    item: {
+                                        ...collabItem('spawn-call-1', 'spawnAgent', [], 'work on A'),
+                                        agentRole: 'explorer',
+                                        agentNickname: 'A',
+                                    },
+                                },
+                            });
+                            send({
+                                method: 'item/completed',
+                                params: {
+                                    threadId: 'root-thread',
+                                    turnId: 'turn-collab-1',
+                                    item: {
+                                        ...collabItem('spawn-call-1', 'spawnAgent', ['child-thread'], 'work on A'),
+                                        status: 'completed',
+                                        agentRole: 'explorer',
+                                        agentNickname: 'A',
+                                    },
+                                },
+                            });
+                            for (const [id, tool, prompt] of [
+                                ['send-call-1', 'sendInput', 'continue'],
+                                ['wait-call-1', 'wait', null],
+                                ['close-call-1', 'closeAgent', null],
+                                ['resume-call-1', 'resumeAgent', null],
+                            ] as const) {
+                                send({
+                                    method: 'item/started',
+                                    params: {
+                                        threadId: 'root-thread',
+                                        turnId: 'turn-collab-1',
+                                        item: collabItem(id, tool, ['child-thread'], prompt),
+                                    },
+                                });
+                            }
+                            send({
+                                method: 'item/completed',
+                                params: {
+                                    threadId: 'child-thread',
+                                    turnId: 'turn-collab-1',
+                                    item: { type: 'agentMessage', id: 'msg-child', text: 'child update', phase: 'message' },
+                                },
+                            });
+                            send({
+                                method: 'turn/completed',
+                                params: {
+                                    threadId: 'root-thread',
+                                    turn: { id: 'turn-collab-1', items: [], status: 'completed', error: null },
+                                },
+                            });
+                            send({
+                                method: 'codex/event',
+                                params: {
+                                    msg: {
+                                        type: 'CollabAgentSpawnBegin',
+                                        call_id: 'legacy-spawn-1',
+                                        parent_thread_id: 'root-thread',
+                                    },
+                                },
+                            });
+                        }, 0);
+                    }
+                },
+            });
+
+            const { CodexAppServerClient } = await import('./codexAppServerClient');
+            const client = new CodexAppServerClient(undefined, { transport });
+            const events: Array<Record<string, unknown>> = [];
+            client.setEventHandler((msg) => {
+                events.push(msg as Record<string, unknown>);
+            });
+
+            await client.connect();
+            await client.startThread({
+                model: 'gpt-test',
+                cwd: '/tmp/project',
+                approvalPolicy: 'never',
+                sandbox: 'danger-full-access',
+            });
+
+            await expect(client.sendTurnAndWait('spawn A')).resolves.toEqual({ aborted: false });
+
+            expect(events).toEqual(expect.arrayContaining([
+                expect.objectContaining({
+                    type: 'collab_agent_spawn_begin',
+                    callId: 'spawn-call-1',
+                    parentThreadId: 'root-thread',
+                    agentRole: 'explorer',
+                    nickname: 'A',
+                    taskMessage: 'work on A',
+                }),
+                expect.objectContaining({
+                    type: 'collab_agent_spawn_end',
+                    callId: 'spawn-call-1',
+                    parentThreadId: 'root-thread',
+                    threadId: 'child-thread',
+                    agentRole: 'explorer',
+                    nickname: 'A',
+                    taskMessage: 'work on A',
+                }),
+                expect.objectContaining({
+                    type: 'collabAgentToolCall',
+                    callId: 'send-call-1',
+                    tool: 'sendInput',
+                    threadId: 'child-thread',
+                    input: 'continue',
+                }),
+                expect.objectContaining({ type: 'collabAgentToolCall', callId: 'wait-call-1', tool: 'wait', threadId: 'child-thread' }),
+                expect.objectContaining({ type: 'collabAgentToolCall', callId: 'close-call-1', tool: 'closeAgent', threadId: 'child-thread' }),
+                expect.objectContaining({ type: 'collabAgentToolCall', callId: 'resume-call-1', tool: 'resumeAgent', threadId: 'child-thread' }),
+                expect.objectContaining({ type: 'CollabAgentSpawnBegin', call_id: 'legacy-spawn-1', parent_thread_id: 'root-thread' }),
+                expect.objectContaining({ type: 'agent_message', message: 'child update', threadId: 'child-thread' }),
+            ]));
+
+            await client.disconnect({ terminateAppServer: true });
+        });
+
+    it.each([{ transport: 'stdio' as const }, { transport: 'ws' as const }])(
+        'emits one collabAgentToolCall event per target when receiverThreadIds has multiple entries over $transport',
+        async ({ transport }) => {
+            await mockNextAppServer(transport, {
+                pid: 3012,
+                onRequest: (msg, send) => {
+                    if (msg.method === 'thread/start' && msg.id != null) {
+                        setTimeout(() => {
+                            send({
+                                id: msg.id,
+                                result: {
+                                    thread: { id: 'root-multi', path: '/tmp/root-multi' },
+                                    model: 'gpt-test',
+                                    modelProvider: 'openai',
+                                    cwd: '/tmp/project',
+                                    approvalPolicy: 'never',
+                                    sandbox: { type: 'dangerFullAccess' },
+                                    reasoningEffort: null,
+                                },
+                            });
+                        }, 0);
+                    }
+
+                    if (msg.method === 'turn/start' && msg.id != null) {
+                        setTimeout(() => {
+                            send({ id: msg.id, result: { turn: { id: 'turn-multi-1', items: [], status: 'inProgress', error: null } } });
+                            send({
+                                method: 'turn/started',
+                                params: {
+                                    threadId: 'root-multi',
+                                    turn: { id: 'turn-multi-1', items: [], status: 'inProgress', error: null },
+                                },
+                            });
+                            send({
+                                method: 'item/started',
+                                params: {
+                                    threadId: 'root-multi',
+                                    turnId: 'turn-multi-1',
+                                    item: {
+                                        type: 'collabAgentToolCall',
+                                        id: 'wait-multi-1',
+                                        tool: 'wait',
+                                        status: 'inProgress',
+                                        senderThreadId: 'root-multi',
+                                        receiverThreadIds: ['child-a', 'child-b', 'child-c'],
+                                    },
+                                },
+                            });
+                            send({
+                                method: 'turn/completed',
+                                params: {
+                                    threadId: 'root-multi',
+                                    turn: { id: 'turn-multi-1', items: [], status: 'completed', error: null },
+                                },
+                            });
+                        }, 0);
+                    }
+                },
+            });
+
+            const { CodexAppServerClient } = await import('./codexAppServerClient');
+            const client = new CodexAppServerClient(undefined, { transport });
+            const events: Array<Record<string, unknown>> = [];
+            client.setEventHandler((msg) => {
+                events.push(msg as Record<string, unknown>);
+            });
+
+            await client.connect();
+            await client.startThread({
+                model: 'gpt-test',
+                cwd: '/tmp/project',
+                approvalPolicy: 'never',
+                sandbox: 'danger-full-access',
+            });
+
+            await expect(client.sendTurnAndWait('wait for children')).resolves.toEqual({ aborted: false });
+
+            const waitEvents = events.filter((e) => e.type === 'collabAgentToolCall' && e.tool === 'wait');
+            expect(waitEvents).toHaveLength(3);
+            expect(waitEvents).toEqual(expect.arrayContaining([
+                expect.objectContaining({ callId: 'wait-multi-1', tool: 'wait', threadId: 'child-a', phase: 'started' }),
+                expect.objectContaining({ callId: 'wait-multi-1', tool: 'wait', threadId: 'child-b', phase: 'started' }),
+                expect.objectContaining({ callId: 'wait-multi-1', tool: 'wait', threadId: 'child-c', phase: 'started' }),
+            ]));
+
+            await client.disconnect({ terminateAppServer: true });
+        });
+
+    it.each([{ transport: 'stdio' as const }, { transport: 'ws' as const }])(
         'maps raw file change items into legacy patch events over $transport',
         async ({ transport }) => {
         await mockNextAppServer(transport, {

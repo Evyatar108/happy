@@ -47,6 +47,8 @@ The server uses room membership as the source of truth for who currently owns an
 4. When transient presence changes, the server emits `ephemeral` events to the matching rooms.
 5. On reconnect, clients can re-fetch state if they missed anything while offline.
 
+In addition to `update` and `ephemeral`, `eventRouter` fans out an `agent-tree-update` frame for codex's live in-process agent spawn tree. The payload shape is `{ sessionId, delta }`, and the frame is published with the `all-interested-in-session` recipient filter — so both session-scoped subscribers for that `sessionId` and any user-scoped listeners receive it. The frame is transient: it does **not** allocate an update `seq` and is **not** appended to the replay buffer, so clients that miss it while offline must re-query the snapshot via the `sessionGetAgentTree` RPC on reconnect rather than relying on replay.
+
 ## RPC Flow
 
 1. A caller emits `rpc-call` with a method name and params.

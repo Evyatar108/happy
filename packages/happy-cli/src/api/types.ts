@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { SessionContextBoundaryKind, Update, UpdateMachineBody } from '@slopus/happy-wire';
+import type { AgentTreeDelta, SessionContextBoundaryKind, Update, UpdateMachineBody } from '@slopus/happy-wire';
 import { UsageSchema } from '@/claude/types'
 import type { SDKSystemMessage } from '@/claude/sdk'
 import type { SandboxConfig } from '@/persistence'
@@ -46,6 +46,7 @@ export type Usage = z.infer<typeof UsageSchema>
  */
 export interface ServerToClientEvents {
   update: (data: Update) => void
+  'agent-tree-update': (data: { sessionId: string, delta: AgentTreeDelta }) => void
   'rpc-request': (data: { method: string, params: unknown }, callback: (response: unknown) => void) => void
   'rpc-registered': (data: { method: string }) => void
   'rpc-unregistered': (data: { method: string }) => void
@@ -75,6 +76,7 @@ export interface ClientToServerEvents {
     [key: string]: unknown;
   }) => void,
   'codex-finish': (data: { sid: string; summary?: string | null; [key: string]: unknown }) => void,
+  'agent-tree-update': (data: { delta: AgentTreeDelta }) => void,
   'update-metadata': (data: { sid: string, expectedVersion: number, metadata: string }, cb: (answer: {
     result: 'error'
   } | {

@@ -193,6 +193,13 @@ each commit lands or when scope shifts**.
   explicit Phase 3h-tail engine follow-ups: a Codex TUI plugin statusline slot
   and a `request_user_input` `pre_tool_use_payload()` override for
   AskUserQuestion auto-intercept.
+- **`agent-tree-rpc`** (Phase 6 / agent architecture): ✅ **DELIVERED
+  2026-05-13** on branch `agent-tree-rpc`. Shipped shared agent-tree wire
+  schemas, happy-cli reducer/RPC/delta emission, Codex v2 + legacy spawn-event
+  parsing, and happy-server validation/fan-out for live `agent-tree-update`
+  frames. The real-Codex nested-child acceptance remains blocked by the pinned
+  child-agent tool surface, but downstream app work can consume the shipped
+  `sessionGetAgentTree` snapshot and `{ sessionId, delta }` fan-out semantics.
 
 ### Codex changes — minimize upstream conflict surface
 
