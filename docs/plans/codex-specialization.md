@@ -90,7 +90,7 @@ The previous discussion landed on doing the cancel-loser, reconnect, and presenc
 - Native `codex --remote` TUI clients (a real option once we're codex-specialized) get the same fixes
 - Codexu CLI stays thin
 
-The trade-off becomes the rebase tax against upstream codex, which we mitigate via additive patterns (new files for new logic, minimal touches to upstream-shared files, `#[experimental]` gating).
+The trade-off becomes the rebase tax against upstream codex, which we mitigate via additive patterns (new files for new logic, minimal touches to upstream-shared files, `#[experimental]` gating). **Anyone planning a specific fork extension under this commitment MUST follow the codexu roadmap's "Phase 2 prerequisite — minimize upstream-canonical conflict surface" rules** (`C:/harness-efforts/codexu/plans/codexu-roadmap.md`): default new code to `codex-rs-overlay/` (fork-exclusive crates, never conflict surface), explicitly evaluate overlay-first / minimized-seam / upstream-PR alternatives before any subtree edit, and register every patch site in `codex/docs/implementation/patch-surface.md` §14+§15 and the audit scripts. `docs/plans/codex-fork-extension-strategy.md` localizes those rules into the three-gate pre-work checklist for brainstorm + plan rounds.
 
 ## Product implications
 

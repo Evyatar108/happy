@@ -157,7 +157,23 @@ Some triggers that should cause a re-think rather than mechanical execution:
 
 ## Pre-work that gates any future fork patch (D-002 / D-003 / D-004 / TUI socket / etc.)
 
-Before committing to any new fork patch, capture upstream churn data for the candidate patch surface(s) in `openai/codex` over the last 6 months:
+Before committing to any new fork patch, two gates must clear. **Both are required** — they are the codexu-roadmap's "Phase 2 prerequisite — minimize upstream-canonical conflict surface" rules localized to this doc's brainstorm/plan rounds. See `C:/harness-efforts/codexu/plans/codexu-roadmap.md` ("Phase 2 prerequisite — minimize upstream-canonical conflict surface") for the authoritative version and the six hard rules.
+
+### Gate 1 — Overlay-first design exploration (REQUIRED)
+
+The default landing place for ANY new fork code is `codex-rs-overlay/` (fork-exclusive crates, never conflict surface on upstream pulls). Existing precedents: `codex-rs-overlay/codex-copilot-launcher/` (W-3 deliverable from `codex/docs/plans/reduce-conflict-surface.md`), `codex-rs-overlay/codex-copilot/` (W-3), `codex-rs-overlay/codex-invariant-tests/` (D-001).
+
+For every candidate fork patch on this doc's roadmap, the brainstorm MUST evaluate:
+
+1. **Can the new functionality live entirely in a new `codex-rs-overlay/codex-<name>/` crate?** If yes, zero subtree edits — the rebase-tax cost is permanently zero. This should be the default.
+2. **If a subtree seam is genuinely required**, can the seam be minimized to a single registration call or trait-impl point, with the bulk of the implementation in the overlay crate?
+3. **Is the patch upstream-PR-able?** Pure improvements (security hardening, accessibility, generic bug fixes, new hook variants like the D-004 Generic hook) should be filed as upstream PRs in parallel. Every accepted upstream PR removes a permanent fork patch.
+
+A plan that defaults straight to "edit files in `external/repos/codex-patched/codex-rs/`" without addressing (1)-(3) in writing fails this gate.
+
+### Gate 2 — Upstream churn data (REQUIRED for any subtree edit)
+
+For every file inside `external/repos/codex-patched/codex-rs/` the plan proposes to edit, capture upstream churn data over the last 6 months:
 
 ```bash
 git log --oneline --since="6 months ago" -- \
@@ -171,6 +187,17 @@ git log --oneline --since="6 months ago" -- \
 Capture commit count + recent commit hashes per file in this doc. Heuristic: any file averaging > 2 commits/month should drop off the patch list — the rebase tax outweighs the extension value. The remaining list is the actual workable patch surface.
 
 This data is the empirical input to D-001's gap log: "we know this fork patch is feasible because the file changes rarely and we know it's needed because workflow X failed without it."
+
+### Gate 3 — Patch registration (REQUIRED before merge, not just before brainstorm)
+
+Every subtree edit that lands must, in the same PR:
+
+- Add a `// SANDBOX PATCH:` marker block at the patch site.
+- Add the file to `scripts/audit_network_calls.sh::KNOWN_PATCH_FILES` (if it touches network surface) and/or `scripts/audit_invariants.sh` (if it adds an invariant that must survive rebases).
+- Add a row to `codex/docs/implementation/patch-surface.md` §14 (invariant + enforcing test/guard) and §15 (rebase-replant recipe with `file:line` precision and the exact 1-2-line marker block).
+- Add an invariant test in `codex-rs-overlay/codex-invariant-tests/` if the patch enforces a runtime invariant that an upstream refactor could silently remove.
+
+The silent-drop trap (v0.129+v0.130 rebase narratives in `codex/docs/implementation/regression-history.md` "Silent-drop patches recovered" tables) reliably eats unregistered patches. A patch the audit script doesn't know about WILL be silently dropped by a future merge driver. Treat registration as load-bearing, not paperwork.
 
 ---
 
