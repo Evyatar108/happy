@@ -431,6 +431,22 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
 
 ---
 
+## MM — `3h-tail` — Phase 3h-tail codex-submodule follow-ups
+
+> Spawned by `3h-options`. Two distinct codex-submodule deferrals: (1) TUI statusline plugin slot, (2) `request_user_input` pre_tool_use_payload override for auto-mode AskUserQuestion. ~8h total; medium risk; medium. Surface to operator whether to ship together or split. Codex-submodule worktree per the minimize-conflict-surface tenet.
+
+```
+/plan-with-ralph "Phase 3h-tail — two codex-submodule follow-ups deferred during the 3h-options-mode plugin migration (commit 756d4290 + merge e71497eb). Per plans/codexu-roadmap.md §Phase 3h closure. Read the deferred-items log in packages/codexu-options-mode-plugin/README.md (or the 3h-options run record at plans/overview.html — runs['3h-options/2026-05-14']) for what's outstanding. Two distinct deferrals — surface to operator whether to ship together or split:
+
+ITEM 1 — codex TUI statusline plugin slot. The codex TUI's status_line_setup.rs currently exposes NO plugin slot for plugins to contribute statusline content; the options-mode plugin had to fall back to an in-band 'options-mode: <mode>' prefix injected via SessionStart additionalContext. The proper fix is upstream-style: add a plugin-slot registration seam in codex/external/repos/codex-patched/codex-rs/tui/src/status_line_setup.rs (or wherever the TUI status line is composed) that plugins can call to contribute a segment. Prefer an overlay-crate approach (codex/codex-rs-overlay/codex-statusline-slots/?) over editing status_line_setup.rs directly to honor the minimize-conflict-surface tenet (plans/codexu-roadmap.md §'Codex changes — minimize upstream conflict surface'). If overlay isn't viable, fall back to a minimal sandbox-patch seam in status_line_setup.rs.
+
+ITEM 2 — codex request_user_input handler override for auto-mode AskUserQuestion. The options-mode plugin's auto-mode wants to intercept AskUserQuestion (or codex's request_user_input equivalent) and respond with a default-continuation envelope so an unattended session doesn't stall. Codex currently has no override seam for request_user_input handling. Probe: codex/external/repos/codex-patched/codex-rs/ for request_user_input call sites + the handler trait; design a pre_tool_use_payload() override seam that plugins can register.
+
+Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<job-name>/codex-worktree/ pointed at gim-home/codex's main; do edits there on a topic branch; push to gim-home/codex; bump the codexu submodule pointer as a separate commit on codexu main. Cargo build --workspace from codex/external/repos/codex-patched/codex-rs/ must stay green. For each item: surface design choice to operator BEFORE landing — overlay-crate vs sandbox-patch seam, registration shape, default behavior. Acceptance: (1) options-mode plugin can register a TUI statusline segment via the new slot, and the statusline-script fallback in packages/codexu-options-mode-plugin/apps/statusline/ is reduced or eliminated; (2) options-mode plugin's auto-mode hook can override request_user_input to inject a default-continuation envelope without the existing transcript-scan workaround. Tests under codex/codex-rs-overlay/codex-invariant-tests/ if a new overlay crate is created. NO happy-cli or happy-app changes — purely codex-submodule + the options-mode plugin's hook code consuming the new seams."
+```
+
+---
+
 ## EE — `codex-wire-spike` — Pre-flight wire-acceptance spike for parity gaps 2/3/5
 
 > Spawned by `codex-parity-audit`. 30 minutes. No code changes — research only. Unblocks `codex-attachments` and informs `codex-claude-md-autoload`. Parallel-safe.
@@ -560,6 +576,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `3d-workers` | Phase 3d — native worker spawn (after 3b) | ⬜ blocked on 3a + 3b | — |
 | `3fg-package` | Phase 3f + 3g — asset + packaging | ⬜ blocked on 3a discovery | — |
 | `3h-options` | Phase 3h — options-mode migration | ✅ shipped (merged from `phase-3h-options-mode-plugin`) | 756d4290 + merge |
+| `3h-tail` 🤖 | Codex TUI statusline plugin slot + `request_user_input` override | ⬜ not started | — |
 | `polish-Fs` | F-017 + F-001/F-002 + F-003-F-007 | ⬜ not started | — |
 | `userid-cleanup` | Drop multi-tenant userId scoping in happy-server | ⬜ blocked on perf-WS3 | — |
 | `happy-upstream-sync` 🔄 | Periodic — review new slopus/happy commits since last sync | ⬜ next due ~4w from 2026-05-03 | — |

@@ -1698,6 +1698,20 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
+  <details class="cmd" id="cmd-3h-tail" data-task-id="3h-tail">
+    <summary><span class="cmd-name">3h-tail</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Phase 3h-tail — two codex-submodule follow-ups deferred during 3h-options: (1) TUI statusline plugin slot, (2) request_user_input pre_tool_use_payload override. Spawned by <code>3h-options</code>.</span></summary>
+    <div class="cmd-body">
+      <button class="copy-btn">Copy Command</button>
+<pre class="cmd-pre">/plan-with-ralph "Phase 3h-tail — two codex-submodule follow-ups deferred during the 3h-options-mode plugin migration (commit 756d4290 + merge e71497eb). Per plans/codexu-roadmap.md §Phase 3h closure. Read the deferred-items log in packages/codexu-options-mode-plugin/README.md (or the 3h-options run record at plans/overview.html — runs['3h-options/2026-05-14']) for what's outstanding. Two distinct deferrals — surface to operator whether to ship together or split:
+
+ITEM 1 — codex TUI statusline plugin slot. The codex TUI's status_line_setup.rs currently exposes NO plugin slot for plugins to contribute statusline content; the options-mode plugin had to fall back to an in-band 'options-mode: &lt;mode&gt;' prefix injected via SessionStart additionalContext. The proper fix is upstream-style: add a plugin-slot registration seam in codex/external/repos/codex-patched/codex-rs/tui/src/status_line_setup.rs (or wherever the TUI status line is composed) that plugins can call to contribute a segment. Prefer an overlay-crate approach (codex/codex-rs-overlay/codex-statusline-slots/?) over editing status_line_setup.rs directly to honor the minimize-conflict-surface tenet (plans/codexu-roadmap.md §'Codex changes — minimize upstream conflict surface'). If overlay isn't viable, fall back to a minimal sandbox-patch seam in status_line_setup.rs.
+
+ITEM 2 — codex request_user_input handler override for auto-mode AskUserQuestion. The options-mode plugin's auto-mode wants to intercept AskUserQuestion (or codex's request_user_input equivalent) and respond with a default-continuation envelope so an unattended session doesn't stall. Codex currently has no override seam for request_user_input handling. Probe: codex/external/repos/codex-patched/codex-rs/ for request_user_input call sites + the handler trait; design a pre_tool_use_payload() override seam that plugins can register.
+
+Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<job-name>/codex-worktree/ pointed at gim-home/codex's main; do edits there on a topic branch; push to gim-home/codex; bump the codexu submodule pointer as a separate commit on codexu main. Cargo build --workspace from codex/external/repos/codex-patched/codex-rs/ must stay green. For each item: surface design choice to operator BEFORE landing — overlay-crate vs sandbox-patch seam, registration shape, default behavior. Acceptance: (1) options-mode plugin can register a TUI statusline segment via the new slot, and the statusline-script fallback in packages/codexu-options-mode-plugin/apps/statusline/ is reduced or eliminated; (2) options-mode plugin's auto-mode hook can override request_user_input to inject a default-continuation envelope without the existing transcript-scan workaround. Tests under codex/codex-rs-overlay/codex-invariant-tests/ if a new overlay crate is created. NO happy-cli or happy-app changes — purely codex-submodule + the options-mode plugin's hook code consuming the new seams."</pre>
+    </div>
+  </details>
+
   <details class="cmd" id="cmd-mcp-server-notifications" data-task-id="mcp-server-notifications">
     <summary><span class="cmd-name">mcp-server-notifications</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Stage A: bridge rmcp notification handlers + sampling into codex agent event loop, feature-gated. Spawned by <code>channels-research</code>.</span></summary>
     <div class="cmd-body">
@@ -1981,8 +1995,8 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T16:00:00Z",
-  "generatedFromCommit": "086ca08f",
+  "generatedAt": "2026-05-14T16:30:00Z",
+  "generatedFromCommit": "e71497eb",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -2024,6 +2038,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "port-explorer-prompt": "2026-05-14T08:30:00Z",
     "port-plan-and-verification-roles": "2026-05-14T08:30:00Z",
     "audit-general-purpose-vs-worker": "2026-05-14T08:30:00Z",
+    "3h-tail": "2026-05-14T16:30:00Z",
     "mcp-server-notifications": "2026-05-14T09:00:00Z",
     "codex-channels": "2026-05-14T09:00:00Z"
   },
@@ -2190,6 +2205,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "port-explorer-prompt": 3,
     "port-plan-and-verification-roles": 6,
     "audit-general-purpose-vs-worker": 0.5,
+    "3h-tail": 8,
     "mcp-server-notifications": 32,
     "codex-channels": 14
   },
@@ -2234,6 +2250,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "port-explorer-prompt": "low",
     "port-plan-and-verification-roles": "medium",
     "audit-general-purpose-vs-worker": "low",
+    "3h-tail": "medium",
     "mcp-server-notifications": "medium",
     "codex-channels": "medium"
   },
@@ -2278,6 +2295,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "port-explorer-prompt": "agent-arch",
     "port-plan-and-verification-roles": "agent-arch",
     "audit-general-purpose-vs-worker": "agent-arch",
+    "3h-tail": "codex-spec",
     "mcp-server-notifications": "agent-arch",
     "codex-channels": "agent-arch"
   },
@@ -2322,6 +2340,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "port-explorer-prompt": "small",
     "port-plan-and-verification-roles": "medium",
     "audit-general-purpose-vs-worker": "quick",
+    "3h-tail": "medium",
     "mcp-server-notifications": "large",
     "codex-channels": "medium"
   },
@@ -2341,6 +2360,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     "port-explorer-prompt": "native-agent-parity",
     "port-plan-and-verification-roles": "native-agent-parity",
     "audit-general-purpose-vs-worker": "native-agent-parity",
+    "3h-tail": "3h-options",
     "mcp-server-notifications": "channels-research",
     "codex-channels": "channels-research"
   }
