@@ -353,6 +353,9 @@
   }
   .pill-workstream:hover { color: var(--accent); border-color: var(--accent); }
   .pill-workstream.active-filter { background: var(--accent); color: white; border-color: var(--accent); }
+
+  /* Periodic-cadence indicator (rotating-arrows icon next to workstream pill) */
+  .cadence-icon { font-size: 12px; line-height: 1; opacity: 0.8; cursor: help; }
   #search {
     flex: 1; min-width: 220px;
     padding: 7px 12px;
@@ -740,6 +743,13 @@
           <button class="filter-chip" data-filter-value="codex-parity" type="button">Codex parity</button>
           <button class="filter-chip" data-filter-value="polish" type="button">Polish &amp; fixes</button>
           <button class="filter-chip" data-filter-value="cleanup" type="button">Cleanup</button>
+          <button class="filter-chip" data-filter-value="upstream" type="button">🔄 Upstream sync</button>
+        </div>
+      </div>
+      <div class="filter-group">
+        <h4>Cadence</h4>
+        <div class="filter-chips" data-filter-axis="cadence" aria-label="Filter by cadence">
+          <button class="filter-chip" data-filter-value="periodic" type="button">🔄 Periodic only</button>
         </div>
       </div>
       <div class="filter-group">
@@ -1271,6 +1281,22 @@
     </div>
   </details>
 
+  <details class="cmd" id="cmd-happy-upstream-sync" data-task-id="happy-upstream-sync">
+    <summary><span class="cmd-name">happy-upstream-sync</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Periodic — review new commits in slopus/happy since last sync</span></summary>
+    <div class="cmd-body">
+      <button class="copy-btn">Copy</button>
+<pre class="cmd-pre">/plan-with-ralph "Run the happy-upstream-sync periodic procedure. Per the skill at .agents/skills/happy-upstream-sync/SKILL.md (read end-to-end first). Anchor on the latest upstream release: gh api repos/slopus/happy/releases/latest --jq '{tag,sha:.target_commitish}'. Resume from the previous sync's upstream commit (look in docs/fork-notes.md and the 'Upstream merge YYYY-MM-DD' bullet in plans/codexu-roadmap.md — last full sync was 2026-05-03 at slopus/happy commit absorbed in our 25fe2cf3). For each commit in the range: classify cherry-pick / manual / defer / skip per the heuristics in the skill (file-location-based fast filter; happy-app/sources/sync is usually Manual; happy-server is usually Skip; happy-app/sources/components UI is usually Cherry-pick; bug-fix commits in code we still have are usually Cherry-pick; libsodium/account-auth/multi-tenant code is Skip). Apply decisions. Run cross-package typecheck + happy-app vitest (skill has the exact tee commands). Update the 4 sync-trail docs in one commit: docs/fork-notes.md, plans/codexu-roadmap.md 'Upstream merge' bullet, packages/happy-app/CHANGELOG.md if user-visible, regenerate sources/changelog/changelog.json. Final commit message: 'chore(upstream-sync): absorb slopus/happy through <tag> (<N> commits triaged)' with per-bucket counts in body. Surface to operator if cherry-pick volume is &gt;30 (split into batches) or if any pick fails typecheck after manual conflict resolution. Pitfall: react-native-reanimated bumps break the vitest RN stub; ToolDiffView changes are likely Manual not Cherry-pick (we collapsed it post-merge). After commit, bump the lastRanAt timestamp for happy-upstream-sync in plans/overview.html's roadmap-data JSON to today's date."</pre>
+    </div>
+  </details>
+
+  <details class="cmd" id="cmd-codex-upstream-rebase" data-task-id="codex-upstream-rebase">
+    <summary><span class="cmd-name">codex-upstream-rebase</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Periodic — rebase codex submodule on openai/codex upstream</span></summary>
+    <div class="cmd-body">
+      <button class="copy-btn">Copy</button>
+<pre class="cmd-pre">/plan-with-ralph "Run the codex-submodule upstream rebase. The procedure lives in the codex submodule itself: codex/.claude/commands/rebase-upstream.md and codex/.claude/commands/sync-upstream.md (read both end-to-end before starting). Workflow: cd into a worktree of the codex submodule at .ralph/jobs/&lt;job-name&gt;/codex-worktree/ pointed at gim-home/codex's main (don't edit the parent codexu checkout's submodule directly — minimize-conflict-surface tenet from plans/codexu-roadmap.md). Run the subtree pull from openai/codex per the codex submodule's sync-upstream skill. Resolve conflicts between upstream and our overlay crates (codex-rs-overlay/codex-copilot, codex-copilot-launcher, codex-invariant-tests). Run cargo build --workspace from inside codex/external/repos/codex-patched/codex-rs to verify. Commit on a topic branch IN THE SUBMODULE; push to gim-home/codex; then in this codexu repo bump the submodule pointer as a SEPARATE commit on codexu main. After commit, bump the lastRanAt timestamp for codex-upstream-rebase in plans/overview.html's roadmap-data JSON. Surface to operator if openai/codex has a major-version upstream bump or if overlay crates need API-shape changes to match new upstream — those are escalations, not routine sync work."</pre>
+    </div>
+  </details>
+
   <details class="cmd" id="cmd-polish-Fs" data-task-id="polish-Fs">
     <summary><span class="cmd-name">polish-Fs</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">F-017 + F-001/F-002 + F-003..F-007 bundled polish PR</span></summary>
     <div class="cmd-body">
@@ -1546,8 +1572,8 @@
      everything else (status badge, area pill, blocked reason). -->
 <script type="application/json" id="roadmap-data">
 {
-  "generatedAt": "2026-05-14T01:00:00Z",
-  "generatedFromCommit": "3d4da028",
+  "generatedAt": "2026-05-14T01:30:00Z",
+  "generatedFromCommit": "16eb1f87",
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:00:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",
@@ -1565,7 +1591,21 @@
     "3fg-package": "2026-05-13T19:30:00Z",
     "3h-options": "2026-05-13T19:30:00Z",
     "userid-cleanup": "2026-05-13T21:45:00Z",
-    "polish-Fs": "2026-05-13T19:30:00Z"
+    "polish-Fs": "2026-05-13T19:30:00Z",
+    "happy-upstream-sync": "2026-05-14T01:30:00Z",
+    "codex-upstream-rebase": "2026-05-14T01:30:00Z"
+  },
+  "cadence": {
+    "happy-upstream-sync": "periodic",
+    "codex-upstream-rebase": "periodic"
+  },
+  "cadenceWeeks": {
+    "happy-upstream-sync": 4,
+    "codex-upstream-rebase": 4
+  },
+  "lastRanAt": {
+    "happy-upstream-sync": "2026-05-03T00:00:00Z",
+    "codex-upstream-rebase": null
   },
   "effort": {
     "perf-WS1": 0.75,
@@ -1584,7 +1624,9 @@
     "3fg-package": 8,
     "3h-options": 16,
     "userid-cleanup": 6,
-    "polish-Fs": 8
+    "polish-Fs": 8,
+    "happy-upstream-sync": 6,
+    "codex-upstream-rebase": 8
   },
   "risk": {
     "perf-WS1": "low",
@@ -1603,7 +1645,9 @@
     "3fg-package": "low",
     "3h-options": "medium",
     "userid-cleanup": "medium",
-    "polish-Fs": "medium"
+    "polish-Fs": "medium",
+    "happy-upstream-sync": "medium",
+    "codex-upstream-rebase": "medium"
   },
   "workstream": {
     "perf-WS1": "perf",
@@ -1622,7 +1666,9 @@
     "F-013-perms": "polish",
     "F-015-toast": "polish",
     "polish-Fs": "polish",
-    "userid-cleanup": "cleanup"
+    "userid-cleanup": "cleanup",
+    "happy-upstream-sync": "upstream",
+    "codex-upstream-rebase": "upstream"
   },
   "sizeBucket": {
     "perf-WS1": "quick",
@@ -1641,7 +1687,9 @@
     "3fg-package": "medium",
     "3h-options": "large",
     "userid-cleanup": "medium",
-    "polish-Fs": "medium"
+    "polish-Fs": "medium",
+    "happy-upstream-sync": "medium",
+    "codex-upstream-rebase": "medium"
   }
 }
 </script>
@@ -1882,7 +1930,8 @@
   var activeFilters = {
     status: new Set(),
     workstream: new Set(),
-    size: new Set()
+    size: new Set(),
+    cadence: new Set()
   };
   function applyFilter() {
     var q = (search.value || '').trim().toLowerCase();
@@ -1890,11 +1939,13 @@
       var status = classifyCmd(cmd);
       var ws = cmd.dataset.workstream || '';
       var sz = cmd.dataset.sizeBucket || '';
+      var cad = cmd.dataset.cadence || 'one-shot';
       var statusOk = activeFilters.status.size === 0 || activeFilters.status.has(status);
       var wsOk = activeFilters.workstream.size === 0 || activeFilters.workstream.has(ws);
       var sizeOk = activeFilters.size.size === 0 || activeFilters.size.has(sz);
+      var cadOk = activeFilters.cadence.size === 0 || activeFilters.cadence.has(cad);
       var textOk = !q || cmd.textContent.toLowerCase().indexOf(q) >= 0;
-      var show = statusOk && wsOk && sizeOk && textOk;
+      var show = statusOk && wsOk && sizeOk && cadOk && textOk;
       cmd.classList.toggle('cmd-hidden', !show);
       if (show && q) openAncestors(cmd);
     });
@@ -1950,18 +2001,37 @@
       'codex-spec': 'Codex spec',
       'codex-parity': 'Codex parity',
       'polish': 'Polish & fixes',
-      'cleanup': 'Cleanup'
+      'cleanup': 'Cleanup',
+      'upstream': 'Upstream sync'
     };
     // 1. Ralph command rows
     document.querySelectorAll('details.cmd').forEach(function (cmd) {
       var id = cmd.getAttribute('data-task-id');
       var ws = data.workstream[id];
       var sz = (data.sizeBucket || {})[id];
+      var cad = (data.cadence || {})[id] || 'one-shot';
       if (ws) cmd.dataset.workstream = ws;
       if (sz) cmd.dataset.sizeBucket = sz;
+      cmd.dataset.cadence = cad;
       if (!ws) return;
       var summary = cmd.querySelector('summary');
       if (!summary || summary.querySelector('.pill-workstream')) return;
+      // Periodic-cadence indicator (🔄) — added before the workstream pill
+      if (cad === 'periodic' && !summary.querySelector('.cadence-icon')) {
+        var icon = document.createElement('span');
+        icon.className = 'cadence-icon';
+        icon.textContent = '🔄';
+        var weeks = (data.cadenceWeeks || {})[id];
+        var lastRan = (data.lastRanAt || {})[id];
+        var titleParts = ['Periodic task'];
+        if (weeks) titleParts.push('cadence ~' + weeks + ' weeks');
+        if (lastRan) {
+          var daysAgo = Math.round((Date.now() - Date.parse(lastRan)) / 864e5);
+          titleParts.push('last run ' + daysAgo + ' d ago');
+        }
+        icon.title = titleParts.join(' · ');
+        summary.appendChild(icon);
+      }
       var pill = document.createElement('a');
       pill.className = 'pill-workstream';
       pill.href = '#';
@@ -1971,8 +2041,6 @@
       pill.addEventListener('click', function (e) {
         e.preventDefault();
         e.stopPropagation();
-        // Toggle the matching filter chip — also opens the filter popover so the
-        // operator sees the active filter visually
         var popover = document.querySelector('details.toolbar-filters');
         if (popover) popover.open = true;
         var chip = document.querySelector('.filter-chips[data-filter-axis="workstream"] .filter-chip[data-filter-value="' + ws + '"]');

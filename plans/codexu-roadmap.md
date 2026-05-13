@@ -411,6 +411,17 @@ conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
     cleanup then strips WS3's trivial userId partition. Estimated medium —
     140 refs but mostly mechanical. Plan: `userid-cleanup` ralph command in
     `plans/parallel-assignments.md`.
+  - **Periodic upstream sync (new workstream, 2026-05-13):** added two
+    periodic-cadence maintenance tasks that should cycle every ~4 weeks:
+    `happy-upstream-sync` (review new commits in `slopus/happy` since
+    last sync, decide cherry-pick / manual / defer / skip per commit;
+    skill at `.agents/skills/happy-upstream-sync/SKILL.md`) and
+    `codex-upstream-rebase` (rebase the codex submodule on
+    openai/codex via the codex-side `rebase-upstream` skill). Tracked
+    on the visualization (`plans/overview.html`) with a 🔄 cadence
+    indicator + new "Upstream sync" workstream + new "Cadence" filter
+    axis. Last full happy-upstream-sync: 2026-05-03 (absorbed 79
+    commits). Next due ~2026-06-03.
   - **Codex agent project-`.mcp.json` parity (open, surfaced 2026-05-13):**
     The Claude agent under happy reads `.mcp.json` from the session cwd (Claude
     Code's standard project-MCP convention) — so `codexu/.mcp.json` (with the

@@ -211,6 +211,26 @@ Less-critical or sequenced-after-batch-1 ralph commands. Each is parallel-safe w
 
 ---
 
+## P — `happy-upstream-sync` 🔄 — periodic upstream-commit triage
+
+> **Periodic** (~every 4 weeks). Last full sync: 2026-05-03 (absorbed 79 commits). Skill: `.agents/skills/happy-upstream-sync/SKILL.md`. Parallel-safe with everything else (touches mostly happy-app + docs).
+
+```
+/plan-with-ralph "Run the happy-upstream-sync periodic procedure. Per the skill at .agents/skills/happy-upstream-sync/SKILL.md (read end-to-end first). Anchor on the latest upstream release: gh api repos/slopus/happy/releases/latest --jq '{tag,sha:.target_commitish}'. Resume from the previous sync's upstream commit (look in docs/fork-notes.md and the 'Upstream merge YYYY-MM-DD' bullet in plans/codexu-roadmap.md — last full sync was 2026-05-03 at slopus/happy commit absorbed in our 25fe2cf3). For each commit in the range: classify cherry-pick / manual / defer / skip per the heuristics in the skill (file-location-based fast filter; happy-app/sources/sync is usually Manual; happy-server is usually Skip; happy-app/sources/components UI is usually Cherry-pick; bug-fix commits in code we still have are usually Cherry-pick; libsodium/account-auth/multi-tenant code is Skip). Apply decisions. Run cross-package typecheck + happy-app vitest (skill has the exact tee commands). Update the 4 sync-trail docs in one commit: docs/fork-notes.md, plans/codexu-roadmap.md 'Upstream merge' bullet, packages/happy-app/CHANGELOG.md if user-visible, regenerate sources/changelog/changelog.json. Final commit message: 'chore(upstream-sync): absorb slopus/happy through <tag> (<N> commits triaged)' with per-bucket counts in body. Surface to operator if cherry-pick volume is >30 (split into batches) or if any pick fails typecheck after manual conflict resolution. After commit, bump the lastRanAt timestamp for happy-upstream-sync in plans/overview.html's roadmap-data JSON to today's date."
+```
+
+---
+
+## Q — `codex-upstream-rebase` 🔄 — periodic codex-submodule rebase on openai/codex
+
+> **Periodic** (~every 4 weeks). Procedure lives in the codex submodule's existing skill: `codex/.claude/commands/rebase-upstream.md` + `sync-upstream.md`. This codexu-side entry is a tracking reminder.
+
+```
+/plan-with-ralph "Run the codex-submodule upstream rebase. The procedure lives in the codex submodule itself: codex/.claude/commands/rebase-upstream.md and codex/.claude/commands/sync-upstream.md (read both end-to-end before starting). Workflow: cd into a worktree of the codex submodule at .ralph/jobs/<job-name>/codex-worktree/ pointed at gim-home/codex's main (don't edit the parent codexu checkout's submodule directly — minimize-conflict-surface tenet from plans/codexu-roadmap.md). Run the subtree pull from openai/codex per the codex submodule's sync-upstream skill. Resolve conflicts between upstream and our overlay crates (codex-rs-overlay/codex-copilot, codex-copilot-launcher, codex-invariant-tests). Run cargo build --workspace from inside codex/external/repos/codex-patched/codex-rs to verify. Commit on a topic branch IN THE SUBMODULE; push to gim-home/codex; then in this codexu repo bump the submodule pointer as a SEPARATE commit on codexu main. After commit, bump the lastRanAt timestamp for codex-upstream-rebase in plans/overview.html's roadmap-data JSON. Surface to operator if openai/codex has a major-version upstream bump or if overlay crates need API-shape changes to match new upstream — those are escalations, not routine sync work."
+```
+
+---
+
 ## O — `polish-Fs` — Bundle remaining F-* findings
 
 > Parallel with everything outside the touched files. Bundle into one PR to amortize review.
@@ -257,6 +277,8 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `3h-options` | Phase 3h — options-mode migration | ⬜ not started | — |
 | `polish-Fs` | F-017 + F-001/F-002 + F-003-F-007 | ⬜ not started | — |
 | `userid-cleanup` | Drop multi-tenant userId scoping in happy-server | ⬜ blocked on perf-WS3 | — |
+| `happy-upstream-sync` 🔄 | Periodic — review new slopus/happy commits since last sync | ⬜ next due ~4w from 2026-05-03 | — |
+| `codex-upstream-rebase` 🔄 | Periodic — rebase codex submodule on openai/codex | ⬜ first run pending | — |
 
 🟡 = in progress (agent actively working, not yet committed). Refresh after each landing.
 
