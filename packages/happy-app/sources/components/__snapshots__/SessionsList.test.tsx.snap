@@ -1,0 +1,257 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SessionsList role pills > renders flavor, model, and permission pills for session metadata 1`] = `
+<View
+  style={
+    [
+      {
+        "marginBottom": 1,
+        "marginHorizontal": 16,
+        "overflow": "hidden",
+      },
+      {
+        "borderRadius": 12,
+        "marginBottom": 12,
+      },
+    ]
+  }
+>
+  <Pressable
+    onContextMenu={[Function]}
+    onPress={[Function]}
+    style={
+      [
+        {
+          "alignItems": "center",
+          "backgroundColor": "#ffffff",
+          "flexDirection": "row",
+          "height": 108,
+          "paddingHorizontal": 16,
+        },
+        false,
+        {
+          "borderRadius": 12,
+        },
+      ]
+    }
+  >
+    <View
+      style={
+        {
+          "height": 48,
+          "position": "relative",
+          "width": 48,
+        }
+      }
+    >
+      <Avatar
+        flavor="codex"
+        id="avatar-1"
+        monochrome={false}
+        size={48}
+      />
+    </View>
+    <View
+      style={
+        {
+          "flex": 1,
+          "justifyContent": "center",
+          "marginLeft": 16,
+        }
+      }
+    >
+      <View
+        style={
+          {
+            "alignItems": "center",
+            "flexDirection": "row",
+            "marginBottom": 2,
+          }
+        }
+      >
+        <Text
+          numberOfLines={1}
+          style={
+            [
+              {
+                "flex": 1,
+                "fontSize": 15,
+                "fontWeight": "500",
+              },
+              {
+                "color": "#111111",
+              },
+            ]
+          }
+        >
+          Session One
+        </Text>
+      </View>
+      <Text
+        numberOfLines={1}
+        style={
+          {
+            "color": "#777777",
+            "fontSize": 13,
+            "marginBottom": 4,
+          }
+        }
+      >
+        D:/repo · Dev Box
+      </Text>
+      <View
+        style={
+          {
+            "alignItems": "center",
+            "flexDirection": "row",
+            "gap": 6,
+            "marginTop": 4,
+            "overflow": "hidden",
+          }
+        }
+        testID="session-role-pill-row"
+      >
+        <View
+          style={
+            {
+              "alignItems": "center",
+              "backgroundColor": "#f8f8f8",
+              "borderRadius": 6,
+              "flexDirection": "row",
+              "flexShrink": 1,
+              "height": 20,
+              "justifyContent": "center",
+              "minWidth": 0,
+              "paddingHorizontal": 6,
+            }
+          }
+          testID="session-role-pill-flavor"
+        >
+          <Image
+            contentFit="contain"
+            source={1}
+            style={
+              {
+                "height": 12,
+                "width": 12,
+              }
+            }
+          />
+        </View>
+        <View
+          style={
+            {
+              "alignItems": "center",
+              "backgroundColor": "#f8f8f8",
+              "borderRadius": 6,
+              "flexDirection": "row",
+              "flexShrink": 1,
+              "height": 20,
+              "justifyContent": "center",
+              "minWidth": 0,
+              "paddingHorizontal": 6,
+            }
+          }
+          testID="session-role-pill-model"
+        >
+          <Text
+            ellipsizeMode="tail"
+            numberOfLines={1}
+            style={
+              {
+                "color": "#777777",
+                "fontSize": 11,
+                "lineHeight": 14,
+              }
+            }
+          >
+            codex
+          </Text>
+        </View>
+        <View
+          style={
+            {
+              "alignItems": "center",
+              "backgroundColor": "#f8f8f8",
+              "borderRadius": 6,
+              "flexDirection": "row",
+              "flexShrink": 1,
+              "height": 20,
+              "justifyContent": "center",
+              "minWidth": 0,
+              "paddingHorizontal": 6,
+            }
+          }
+          testID="session-role-pill-permission"
+        >
+          <Text
+            ellipsizeMode="tail"
+            numberOfLines={1}
+            style={
+              [
+                {
+                  "color": "#777777",
+                  "fontSize": 11,
+                  "lineHeight": 14,
+                },
+                {
+                  "color": "#7a5af8",
+                },
+              ]
+            }
+          >
+            plan
+          </Text>
+        </View>
+      </View>
+      <View
+        style={
+          {
+            "alignItems": "center",
+            "flexDirection": "row",
+          }
+        }
+      >
+        <View
+          style={
+            {
+              "alignItems": "center",
+              "height": 16,
+              "justifyContent": "center",
+              "marginRight": 4,
+              "marginTop": 2,
+            }
+          }
+        >
+          <StatusDot
+            color="#34C759"
+            isPulsing={false}
+          />
+        </View>
+        <Text
+          style={
+            [
+              {
+                "fontSize": 12,
+                "fontWeight": "500",
+                "lineHeight": 16,
+              },
+              {
+                "color": "#34C759",
+              },
+            ]
+          }
+        >
+          Online
+        </Text>
+      </View>
+    </View>
+  </Pressable>
+  <SessionActionsPopover
+    anchor={null}
+    onClose={[Function]}
+    sessionId="session-1"
+    visible={false}
+  />
+</View>
+`;
