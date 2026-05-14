@@ -963,6 +963,14 @@
           <button class="filter-chip" data-filter-value="large" type="button">Large (1d+)</button>
         </div>
       </div>
+      <div class="filter-group">
+        <h4>Scope</h4>
+        <div class="filter-chips" data-filter-axis="scope" aria-label="Filter by task scope">
+          <button class="filter-chip" data-filter-value="codexu" type="button">🟦 codexu</button>
+          <button class="filter-chip" data-filter-value="codex" type="button">🦀 codex</button>
+          <button class="filter-chip" data-filter-value="bookkeeping" type="button">📋 bookkeeping</button>
+        </div>
+      </div>
     </div>
   </details>
   <button id="bulk-copy" class="bulk-btn" type="button" disabled>Copy 0 selected</button>
@@ -3063,7 +3071,8 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     status: new Set(),
     workstream: new Set(),
     size: new Set(),
-    cadence: new Set()
+    cadence: new Set(),
+    scope: new Set()
   };
   function applyFilter() {
     var q = (search.value || '').trim().toLowerCase();
@@ -3073,13 +3082,18 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
       var sz = cmd.dataset.sizeBucket || '';
       var cad = cmd.dataset.cadence || 'one-shot';
       var tid = cmd.dataset.taskId || '';
+      var scopes = parseTaskScope(cmd);
       var statusOk = activeFilters.status.size === 0 || activeFilters.status.has(status);
       var wsOk = activeFilters.workstream.size === 0 || activeFilters.workstream.has(ws);
       var sizeOk = activeFilters.size.size === 0 || activeFilters.size.has(sz);
       var cadOk = activeFilters.cadence.size === 0 || activeFilters.cadence.has(cad);
+      // Scope filter: row passes if ANY of its declared scopes is in
+      // the active set (OR within the axis — matches the
+      // workstream / status axes' semantics).
+      var scopeOk = activeFilters.scope.size === 0 || scopes.some(function (s) { return activeFilters.scope.has(s); });
       var idOk = !taskIdFilter || taskIdFilter.has(tid);
       var textOk = !q || cmd.textContent.toLowerCase().indexOf(q) >= 0;
-      var show = statusOk && wsOk && sizeOk && cadOk && idOk && textOk;
+      var show = statusOk && wsOk && sizeOk && cadOk && scopeOk && idOk && textOk;
       cmd.classList.toggle('cmd-hidden', !show);
       if (show && (q || taskIdFilter)) openAncestors(cmd);
     });
