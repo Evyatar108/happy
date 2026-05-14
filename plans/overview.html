@@ -704,8 +704,26 @@
     .whatsnew-banner .wn-dismiss { padding: 10px 16px; }
   }
 
-  /* Collapsible top-level sections */
-  details.section { margin: 24px 0 0; }
+  /* Collapsible top-level sections — "Spine" concept.
+     Each section carries a unique --sec hue assigned by its sec-* class.
+     A 4px left stripe in that hue gives instant scannable identity; the
+     stripe dims when the section is closed and lights when open. An
+     inline SVG glyph in the same hue sits before the title (set via the
+     summary's data-sec-glyph attribute below, but rendered as plain
+     <svg> inside the <summary>). Headers stay typographically uniform
+     across the five sections so the page has a consistent scan rhythm. */
+  details.section {
+    margin: 24px 0 0;
+    border-left: 4px solid var(--sec, var(--border));
+    padding-left: 14px;
+    transition: border-left-color 0.15s;
+  }
+  details.section:not([open]) {
+    /* Closed: stripe dims to ~35% of its hue. color-mix mixes the hue
+       with the page background so the stripe reads as a muted version
+       of itself rather than going gray. */
+    border-left-color: color-mix(in srgb, var(--sec, var(--border)) 35%, var(--bg));
+  }
   details.section > summary {
     cursor: pointer;
     font-size: 16px;
@@ -719,16 +737,43 @@
     gap: 10px;
     user-select: none;
   }
+  details.section[open] > summary {
+    /* When open, the bottom border picks up a faint hue tint so the
+       header reads as connected to the colored stripe. */
+    border-bottom-color: color-mix(in srgb, var(--sec, var(--border)) 35%, transparent);
+  }
   details.section > summary::-webkit-details-marker { display: none; }
   details.section > summary::before {
     content: '▶';
     color: var(--muted);
     font-size: 12px;
-    transition: transform 0.2s;
+    transition: transform 0.2s, color 0.15s;
     min-width: 12px;
   }
-  details.section[open] > summary::before { transform: rotate(90deg); }
-  details.section > summary:hover { color: var(--accent); }
+  details.section[open] > summary::before {
+    transform: rotate(90deg);
+    color: var(--sec, var(--accent));
+  }
+  details.section > summary:hover { color: var(--sec, var(--accent)); }
+  /* Icon glyph slot — the inline <svg class="sec-glyph"> goes here. */
+  .sec-glyph {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+    color: var(--sec, var(--muted));
+    transition: color 0.15s;
+  }
+  .sec-glyph svg { width: 100%; height: 100%; display: block; }
+  details.section:not([open]) .sec-glyph {
+    color: color-mix(in srgb, var(--sec, var(--muted)) 60%, var(--muted));
+  }
+  /* Per-section hues — five values from the existing palette, picked so
+     adjacent sections in the page order don't share a hue family. */
+  details.section.sec-kanban   { --sec: var(--accent); }   /* blue */
+  details.section.sec-cmds     { --sec: #bb9af7; }         /* purple */
+  details.section.sec-roadmap  { --sec: #ff9e64; }         /* orange */
+  details.section.sec-parallel { --sec: var(--ok); }       /* green */
+  details.section.sec-deps     { --sec: var(--warn); }     /* yellow */
 
   /* Collapsible command list */
   .cmd-list { display: flex; flex-direction: column; gap: 6px; }
@@ -993,8 +1038,8 @@
 
 <p class="mental-model"><strong>Kanban</strong> to choose · <strong>Ralph commands</strong> to execute · <strong>Phase tree</strong> to orient</p>
 
-<details class="section">
-<summary class="section-head">Kanban — assignable now <span class="section-counts" id="counts-kanban"></span></summary>
+<details class="section sec-kanban">
+<summary class="section-head"><span class="sec-glyph" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="2"  y="3" width="3.5" height="12"/><rect x="7.25" y="3" width="3.5" height="8"/><rect x="12.5" y="3" width="3.5" height="10"/></svg></span>Kanban — assignable now <span class="section-counts" id="counts-kanban"></span></summary>
 <div class="legend">
   <span class="pill area-app">happy-app</span>
   <span class="pill area-server">happy-server</span>
@@ -1351,8 +1396,8 @@
 
 </details>
 
-<details class="section">
-<summary class="section-head">Ralph commands — click to expand, button to copy <span class="section-counts" id="counts-cmds"></span></summary>
+<details class="section sec-cmds">
+<summary class="section-head"><span class="sec-glyph" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,5 7,9 3,13"/><line x1="9" y1="13" x2="15" y2="13"/></svg></span>Ralph commands — click to expand, button to copy <span class="section-counts" id="counts-cmds"></span></summary>
 <div class="sub" style="margin-bottom:12px;">
   Self-contained <code>/plan-with-ralph</code> prompts mirrored from <code>plans/parallel-assignments.md</code>. Click a row to reveal the full command and copy with one click. Status badge reflects current state.
 </div>
@@ -1845,8 +1890,8 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
 
 </details>
 
-<details class="section">
-<summary class="section-head">Codex specialization roadmap — phase-by-phase status</summary>
+<details class="section sec-roadmap">
+<summary class="section-head"><span class="sec-glyph" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><line x1="2" y1="9" x2="16" y2="9"/><circle cx="4.5" cy="9" r="1.8" fill="currentColor"/><circle cx="9"   cy="9" r="1.8" fill="currentColor"/><circle cx="13.5" cy="9" r="1.8" fill="currentColor"/></svg></span>Codex specialization roadmap — phase-by-phase status</summary>
 <div class="sub" style="margin-bottom:12px;">
   Compact view of <code>plans/codexu-roadmap.md</code> Phases 1-7. Strike-through = done.
 </div>
@@ -1955,8 +2000,8 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
 
 </details>
 
-<details class="section">
-<summary class="section-head">Parallelism — what can run together</summary>
+<details class="section sec-parallel">
+<summary class="section-head"><span class="sec-glyph" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="6" x2="13" y2="6"/><polyline points="11,3 14,6 11,9"/><line x1="2" y1="12" x2="13" y2="12"/><polyline points="11,9 14,12 11,15"/></svg></span>Parallelism — what can run together</summary>
 
 <table class="tbl">
   <thead>
@@ -2028,8 +2073,8 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
 
 </details>
 
-<details class="section">
-<summary class="section-head">Dependencies — order gotchas</summary>
+<details class="section sec-deps">
+<summary class="section-head"><span class="sec-glyph" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="4" cy="9" r="2.2" fill="currentColor"/><circle cx="14" cy="9" r="2.2" fill="currentColor"/><line x1="6.5" y1="9" x2="11" y2="9"/><polyline points="9.5,7 11.5,9 9.5,11"/></svg></span>Dependencies — order gotchas</summary>
 
 <table class="tbl">
   <thead>
