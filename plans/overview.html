@@ -808,6 +808,39 @@
   .b-blocked { background: rgba(86,95,137,0.25); color: var(--done); }
   .b-paused { background: rgba(86,95,137,0.25); color: var(--done); }
   .b-closed { background: rgba(158,206,106,0.18); color: var(--ok); }
+  /* Task-scope chips — visible markers driven by data-task-scope on
+     <details class="cmd">. Attribute is a `|`-delimited list, e.g.
+     "codexu", "codex", "codex|codexu", "bookkeeping|codexu". Each
+     declared value renders its own chip in the summary. Chips also
+     gate the copy-time preamble injection (see JS). */
+  .task-scope-chip {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+    white-space: nowrap;
+    border: 1px solid transparent;
+  }
+  .task-scope-chip.bookkeeping {
+    background: rgba(224,175,104,0.18);
+    color: var(--warn);
+    border-color: rgba(224,175,104,0.4);
+  }
+  .task-scope-chip.codexu {
+    background: rgba(122,162,247,0.14);
+    color: var(--accent);
+    border-color: rgba(122,162,247,0.35);
+  }
+  .task-scope-chip.codex {
+    background: rgba(247,118,142,0.14);
+    color: #f7768e;
+    border-color: rgba(247,118,142,0.35);
+  }
+  .task-scope-chip.missing {
+    background: rgba(247,118,142,0.2);
+    color: #f7768e;
+    border-color: rgba(247,118,142,0.6);
+  }
   .cmd-desc { color: var(--muted); font-size: 12px; flex: 1; }
   .cmd-body { position: relative; margin-top: 10px; }
   .cmd-pre {
@@ -1333,7 +1366,7 @@
     <button type="button" class="ufb-clear" title="Show all tasks">Clear filter</button>
   </div>
 
-  <details class="cmd" id="cmd-perf-WS1" data-task-id="perf-WS1">
+  <details class="cmd" id="cmd-perf-WS1" data-task-id="perf-WS1" data-task-scope="codexu">
     <summary><span class="cmd-name">perf-WS1</span><span class="cmd-badge b-closed">🚫 closed</span><span class="cmd-desc">Realtime perf — refresh-skip · obsoleted by claim-removal merge <code>188cfd9c</code></span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -1341,7 +1374,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-perf-WS3" data-task-id="perf-WS3">
+  <details class="cmd" id="cmd-perf-WS3" data-task-id="perf-WS3" data-task-scope="codexu">
     <summary><span class="cmd-name">perf-WS3</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Realtime perf — server replay buffer + client lastSeenSeq · commit <code>197b0148</code></span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -1349,7 +1382,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-3a-skills" data-task-id="3a-skills">
+  <details class="cmd" id="cmd-3a-skills" data-task-id="3a-skills" data-task-scope="codexu">
     <summary><span class="cmd-name">3a-skills</span><span class="cmd-badge b-paused">⏸ paused</span><span class="cmd-desc">Phase 3a — Ralph skills port (prerequisites not met)</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⏸ Paused 2026-05-13. Operator closed the discovery session because prerequisites aren't yet met. Do not re-spawn until the operator re-establishes context (missing notepad / scaffolding inputs / template clarifications).</div>
@@ -1358,14 +1391,14 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-F-013-perms" data-task-id="F-013-perms">
+  <details class="cmd" id="cmd-F-013-perms" data-task-id="F-013-perms" data-task-scope="codexu">
     <summary><span class="cmd-name">F-013-perms</span><span class="cmd-badge b-closed">🚫 closed</span><span class="cmd-desc">Claude permission latent override — obsolete-by-design</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn closed">🚫 Closed 2026-05-13 (commit <code>bfe7ef67</code>). F-013 is structurally Claude-only; Phase 5 of the roadmap drops Claude Code entirely. Latent path at <code>packages/happy-cli/src/claude/utils/permissionHandler.ts:87-89</code> intentionally left until the Phase 5 deletion. No command — do not re-fire.</div>
     </div>
   </details>
 
-  <details class="cmd" id="cmd-F-015-toast" data-task-id="F-015-toast">
+  <details class="cmd" id="cmd-F-015-toast" data-task-id="F-015-toast" data-task-scope="codexu">
     <summary><span class="cmd-name">F-015-toast</span><span class="cmd-badge b-paused">⏸ paused</span><span class="cmd-desc">Stale-creds toast on cold launch (happy-app) — awaiting next reproduction</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⏸ Paused 2026-05-13 — cosmetic issue not currently observed in operator's launch path; re-fire when the toast surfaces again so we have a fresh repro to scope against.</div>
@@ -1374,7 +1407,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-mcp-discovery" data-task-id="mcp-discovery">
+  <details class="cmd" id="cmd-mcp-discovery" data-task-id="mcp-discovery" data-task-scope="codexu">
     <summary><span class="cmd-name">mcp-discovery</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Codex agent project-.mcp.json parity (happy-cli) · merge <code>1cf6b4e2</code></span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1382,7 +1415,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-parity-audit" data-task-id="codex-parity-audit">
+  <details class="cmd" id="cmd-codex-parity-audit" data-task-id="codex-parity-audit" data-task-scope="codexu">
     <summary><span class="cmd-name">codex-parity-audit</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Research: codex-vs-Claude feature parity survey · doc <a href="codex-agent-parity-audit.md">codex-agent-parity-audit.md</a></span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -1390,7 +1423,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-perf-WS2" data-task-id="perf-WS2">
+  <details class="cmd" id="cmd-perf-WS2" data-task-id="perf-WS2" data-task-scope="codexu">
     <summary><span class="cmd-name">perf-WS2</span><span class="cmd-badge b-blocked">🔒 blocked on WS3</span><span class="cmd-desc">Realtime perf — optimistic placeholder session</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Wait until <code>perf-WS3</code> lands. Both touch <code>storage.ts</code> and WS3's replay-overflow semantics define WS2's fallback scope.</div>
@@ -1399,7 +1432,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-1a-fork-doc" data-task-id="1a-fork-doc">
+  <details class="cmd" id="cmd-1a-fork-doc" data-task-id="1a-fork-doc" data-task-scope="codex">
     <summary><span class="cmd-name">1a-fork-doc</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Phase 1a — Codex fork strategy commit · codexu pointer-bump <code>7fa6ff3b</code></span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -1407,7 +1440,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-1b-multidev" data-task-id="1b-multidev">
+  <details class="cmd" id="cmd-1b-multidev" data-task-id="1b-multidev" data-task-scope="codexu">
     <summary><span class="cmd-name">1b-multidev</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Phase 1b sub-tasks 3+4 — multi-device discoverability + approval fan-out</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⚠️ Conflicts with <code>mcp-discovery</code> (both touch <code>runCodex.ts</code>). Land mcp-discovery first, then 1b-multidev rebases trivially.</div>
@@ -1416,7 +1449,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-3b-agents" data-task-id="3b-agents">
+  <details class="cmd" id="cmd-3b-agents" data-task-id="3b-agents" data-task-scope="codexu">
     <summary><span class="cmd-name">3b-agents</span><span class="cmd-badge b-blocked">🔒 blocked on 3a</span><span class="cmd-desc">Phase 3b-i + 3b-ii — subagents → codex agent roles</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Blocked on <code>3a-skills</code> discovery commit (currently paused). Re-read prerequisites before assigning.</div>
@@ -1425,7 +1458,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-3c-hooks" data-task-id="3c-hooks">
+  <details class="cmd" id="cmd-3c-hooks" data-task-id="3c-hooks" data-task-scope="codexu">
     <summary><span class="cmd-name">3c-hooks</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Phase 3c — Ralph hooks port / verify (likely zero work) — never actually fired; tab was conflated with 3h-options earlier</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -1433,7 +1466,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-3d-workers" data-task-id="3d-workers">
+  <details class="cmd" id="cmd-3d-workers" data-task-id="3d-workers" data-task-scope="codexu">
     <summary><span class="cmd-name">3d-workers</span><span class="cmd-badge b-blocked">🔒 blocked on 3a + 3b</span><span class="cmd-desc">Phase 3d — codex-based workers via native spawn</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Blocked on <code>3a-skills</code> discovery (paused) AND <code>3b-agents</code> landing the agent role TOMLs.</div>
@@ -1442,7 +1475,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-3fg-package" data-task-id="3fg-package">
+  <details class="cmd" id="cmd-3fg-package" data-task-id="3fg-package" data-task-scope="codexu">
     <summary><span class="cmd-name">3fg-package</span><span class="cmd-badge b-blocked">🔒 blocked on 3a</span><span class="cmd-desc">Phase 3f + 3g — asset migration + plugin packaging</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Blocked on <code>3a-skills</code> discovery commit (paused). The discovery may change the plugin.json schema expectations this command builds against.</div>
@@ -1451,7 +1484,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-3h-options" data-task-id="3h-options">
+  <details class="cmd" id="cmd-3h-options" data-task-id="3h-options" data-task-scope="codexu">
     <summary><span class="cmd-name">3h-options</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Phase 3h — options-mode plugin migration · <code>packages/codexu-options-mode-plugin/</code> (14 commits merged from <code>phase-3h-options-mode-plugin</code>)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -1459,7 +1492,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-userid-cleanup" data-task-id="userid-cleanup">
+  <details class="cmd" id="cmd-userid-cleanup" data-task-id="userid-cleanup" data-task-scope="codexu">
     <summary><span class="cmd-name">userid-cleanup</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Drop multi-tenant userId scoping in happy-server (~140 refs) · unblocked (perf-WS3 shipped <code>197b0148</code>)</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⚠️ Touches happy-server eventRouter + Prisma queries; conflicts with anything else mutating <code>packages/happy-server/sources/</code>. Run solo or pair only with research/codex-submodule tasks.</div>
@@ -1468,7 +1501,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-happy-upstream-sync" data-task-id="happy-upstream-sync">
+  <details class="cmd" id="cmd-happy-upstream-sync" data-task-id="happy-upstream-sync" data-task-scope="codexu">
     <summary><span class="cmd-name">happy-upstream-sync</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Periodic — review new commits in slopus/happy since last sync</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -1476,7 +1509,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-upstream-rebase" data-task-id="codex-upstream-rebase">
+  <details class="cmd" id="cmd-codex-upstream-rebase" data-task-id="codex-upstream-rebase" data-task-scope="codex">
     <summary><span class="cmd-name">codex-upstream-rebase</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Periodic — rebase codex submodule on openai/codex upstream</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -1484,7 +1517,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-polish-Fs" data-task-id="polish-Fs">
+  <details class="cmd" id="cmd-polish-Fs" data-task-id="polish-Fs" data-task-scope="codexu">
     <summary><span class="cmd-name">polish-Fs</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">F-017 + F-001/F-002 + F-003..F-007 bundled polish PR</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⚠️ Touches happy-server (security findings). Conflicts with <code>userid-cleanup</code> (same files); run one or the other, not both in parallel.</div>
@@ -1493,7 +1526,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-agent-view-research" data-task-id="agent-view-research">
+  <details class="cmd" id="cmd-agent-view-research" data-task-id="agent-view-research" data-task-scope="codexu">
     <summary><span class="cmd-name">agent-view-research</span><span class="cmd-badge b-closed">✅ landed 2026-05-14</span><span class="cmd-desc">Research Claude Code's `agent view` feature → `plans/agent-view-research.md` + 6 follow-up tasks (agent-tree-rpc, session-parent-link, mobile-tree-view, session-role-pill, spawn-from-app, agent-status-stream)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -1501,7 +1534,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-plugin-scope-agents" data-task-id="plugin-scope-agents">
+  <details class="cmd" id="cmd-plugin-scope-agents" data-task-id="plugin-scope-agents" data-task-scope="codex|codexu">
     <summary><span class="cmd-name">plugin-scope-agents</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Plugin scoping with top-level-only plugins + agent-spawner pattern · unblocked (agent-view-research landed 2026-05-14)</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⚠️ Read <code>plans/agent-view-research.md</code> first — its findings define the spawner-pattern model this task implements. Also coordinate with <code>codex-child-spawn-tools</code> (sibling spike): the agent-tree-rpc agent surfaced that pinned codex submodule child agents lack <code>spawn_agent</code>/<code>wait_agent</code> in their tool surface. If we keep that restriction (top-level-only spawning), the agent-spawner becomes the canonical path; if we want child-spawns-child, the codex-side tool surface needs an overlay or submodule bump. The spike's recommendation should land BEFORE this task scopes the spawner pattern.</div>
@@ -1510,7 +1543,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-agent-comms" data-task-id="agent-comms">
+  <details class="cmd" id="cmd-agent-comms" data-task-id="agent-comms" data-task-scope="codexu">
     <summary><span class="cmd-name">agent-comms</span><span class="cmd-badge b-blocked">🔒 blocked on plugin-scope-agents + channels-research</span><span class="cmd-desc">Top-level agent ↔ top-level agent comms across 3 scopes (cross-tunnel / same-daemon / parent-child)</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Blocked on <code>plugin-scope-agents</code> + <code>agent-view-research</code> + <code>channels-research</code> landing. The communication channel design depends on the spawner pattern's chosen model AND on whether MCP "channels" (2-way) are available as the transport.</div>
@@ -1533,7 +1566,7 @@ Acceptance: design doc + per-scope working fixture: (B) two sessions on the same
     </div>
   </details>
 
-  <details class="cmd" id="cmd-channels-research" data-task-id="channels-research">
+  <details class="cmd" id="cmd-channels-research" data-task-id="channels-research" data-task-scope="codexu">
     <summary><span class="cmd-name">channels-research</span><span class="cmd-badge b-closed">✅ landed 2026-05-13</span><span class="cmd-desc">Research Claude Code's `channels` (MCP 2-way) + codex implementation plan · doc <a href="channels-research.md">channels-research.md</a> · 2 follow-ups (mcp-server-notifications, codex-channels)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -1541,7 +1574,7 @@ Acceptance: design doc + per-scope working fixture: (B) two sessions on the same
     </div>
   </details>
 
-  <details class="cmd" id="cmd-async-events-design" data-task-id="async-events-design">
+  <details class="cmd" id="cmd-async-events-design" data-task-id="async-events-design" data-task-scope="codexu">
     <summary><span class="cmd-name">async-events-design</span><span class="cmd-badge b-blocked">🔒 blocked on mcp-server-notifications</span><span class="cmd-desc">Design async event listening for agents — re-blocked 2026-05-14 to wait for channels primitive before locking v1 transport</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Re-blocked 2026-05-14. Was briefly run — its draft (working tree only at <code>plans/async-events-design.md</code>) recommends long-poll MCP for v1 and channels-research's notification bridge as fast-follow. Operator decided the design should be informed by an actually-landed channels primitive (Stage A — <code>mcp-server-notifications</code>) before locking the v1 transport. Resume after that ships. Working-tree draft is preserved as a starting point.</div>
@@ -1550,7 +1583,7 @@ Acceptance: design doc + per-scope working fixture: (B) two sessions on the same
     </div>
   </details>
 
-  <details class="cmd" id="cmd-native-agent-parity" data-task-id="native-agent-parity">
+  <details class="cmd" id="cmd-native-agent-parity" data-task-id="native-agent-parity" data-task-scope="codexu">
     <summary><span class="cmd-name">native-agent-parity</span><span class="cmd-badge b-closed">✅ landed 2026-05-14</span><span class="cmd-desc">Research codex parity with Claude Code's native subagents · doc <a href="native-agent-parity.md">native-agent-parity.md</a> · 3 follow-ups recommended (explorer, plan, verification)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -1558,7 +1591,7 @@ Acceptance: design doc + per-scope working fixture: (B) two sessions on the same
     </div>
   </details>
 
-  <details class="cmd" id="cmd-roadmap-plugin" data-task-id="roadmap-plugin">
+  <details class="cmd" id="cmd-roadmap-plugin" data-task-id="roadmap-plugin" data-task-scope="bookkeeping|codexu">
     <summary><span class="cmd-name">roadmap-plugin</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">🛠 Plugin: agents manage roadmap/overview.html via skill or MCP (add/update/take tasks)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -1598,7 +1631,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-agent-tree-rpc" data-task-id="agent-tree-rpc">
+  <details class="cmd" id="cmd-agent-tree-rpc" data-task-id="agent-tree-rpc" data-task-scope="codexu">
     <summary><span class="cmd-name">agent-tree-rpc</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">App-server RPC exposing codex's live spawn tree (sessionGetAgentTree + agent-tree-update events). Spawned by <code>agent-view-research</code>. Branch <code>agent-tree-rpc</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -1606,7 +1639,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-session-parent-link" data-task-id="session-parent-link">
+  <details class="cmd" id="cmd-session-parent-link" data-task-id="session-parent-link" data-task-scope="codexu">
     <summary><span class="cmd-name">session-parent-link</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Added parentSessionId + spawnedChildren[] to Session metadata · commit <code>11c3eafb</code> · unblocks mobile-tree-view + spawn-from-app. Spawned by <code>agent-view-research</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -1614,7 +1647,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-mobile-tree-view" data-task-id="mobile-tree-view">
+  <details class="cmd" id="cmd-mobile-tree-view" data-task-id="mobile-tree-view" data-task-scope="codexu">
     <summary><span class="cmd-name">mobile-tree-view</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Tree-style happy-app session list with depth indentation + expand/collapse — unblocked 2026-05-14 (session-parent-link shipped <code>11c3eafb</code>). Spawned by <code>agent-view-research</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -1622,7 +1655,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-session-role-pill" data-task-id="session-role-pill">
+  <details class="cmd" id="cmd-session-role-pill" data-task-id="session-role-pill" data-task-scope="codexu">
     <summary><span class="cmd-name">session-role-pill</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Surface flavor + model + permission-mode pills inline in session-list row · merge <code>7e9f724c</code>. Spawned by <code>agent-view-research</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -1630,7 +1663,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-spawn-from-app" data-task-id="spawn-from-app">
+  <details class="cmd" id="cmd-spawn-from-app" data-task-id="spawn-from-app" data-task-scope="codexu">
     <summary><span class="cmd-name">spawn-from-app</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">"Spawn child session" affordance in app + spawnSessionFromSession RPC end-to-end — unblocked 2026-05-14 (session-parent-link shipped <code>11c3eafb</code>). Spawned by <code>agent-view-research</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -1638,7 +1671,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-agent-status-stream" data-task-id="agent-status-stream">
+  <details class="cmd" id="cmd-agent-status-stream" data-task-id="agent-status-stream" data-task-scope="codexu">
     <summary><span class="cmd-name">agent-status-stream</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Live "active teammates" overlay in app — bridges shipped agent-tree-update events through happy-cli/server to mobile. Spawned by <code>agent-view-research</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -1646,7 +1679,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-wire-spike" data-task-id="codex-wire-spike">
+  <details class="cmd" id="cmd-codex-wire-spike" data-task-id="codex-wire-spike" data-task-scope="codexu">
     <summary><span class="cmd-name">codex-wire-spike</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Wire-acceptance spike — resolved Gaps 2/3/5 against codex 0.125 · commit <code>06e0025b</code> · unblocks codex-attachments. Spawned by <code>codex-parity-audit</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -1654,7 +1687,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-claude-md-autoload" data-task-id="codex-claude-md-autoload">
+  <details class="cmd" id="cmd-codex-claude-md-autoload" data-task-id="codex-claude-md-autoload" data-task-scope="codexu">
     <summary><span class="cmd-name">codex-claude-md-autoload</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Gap 2 — project CLAUDE.md auto-load on codex path (NewConversationParams.config). Spawned by <code>codex-parity-audit</code>.</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⚠️ Conflicts with <code>codex-system-prompts</code> and <code>codex-hooks-parity</code> (all touch <code>runCodex.ts</code> + <code>codexAppServerClient.ts</code>). <code>mcp-discovery</code> has landed; rebase this task before firing.</div>
@@ -1663,7 +1696,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-attachments" data-task-id="codex-attachments">
+  <details class="cmd" id="cmd-codex-attachments" data-task-id="codex-attachments" data-task-scope="codexu">
     <summary><span class="cmd-name">codex-attachments</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Gap 3 — image attachments on codex turn input · unblocked 2026-05-14 (codex-wire-spike commit <code>06e0025b</code> resolved the wire-shape question). Spawned by <code>codex-parity-audit</code>.</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⚠️ Read the "Wire spike results" section in <code>plans/codex-agent-parity-audit.md</code> first — it documents the chosen InputItem shape for images per the codex 0.125 spike.</div>
@@ -1672,7 +1705,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-system-prompts" data-task-id="codex-system-prompts">
+  <details class="cmd" id="cmd-codex-system-prompts" data-task-id="codex-system-prompts" data-task-scope="codexu">
     <summary><span class="cmd-name">codex-system-prompts</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Gap 7 — customSystemPrompt + appendSystemPrompt parity (baseInstructions/developerInstructions on codex). Spawned by <code>codex-parity-audit</code>.</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⚠️ Conflicts with <code>codex-claude-md-autoload</code> and <code>codex-hooks-parity</code> (all touch <code>runCodex.ts</code> + <code>codexAppServerClient.ts</code>). <code>mcp-discovery</code> has landed; sequence after the earlier ones land.</div>
@@ -1681,7 +1714,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-hooks-parity" data-task-id="codex-hooks-parity">
+  <details class="cmd" id="cmd-codex-hooks-parity" data-task-id="codex-hooks-parity" data-task-scope="codexu">
     <summary><span class="cmd-name">codex-hooks-parity</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Gap 4 — fan codex JSON-RPC events to happy turn-lifecycle handlers (autocompact context-boundary, permission-prompt notification). Spawned by <code>codex-parity-audit</code>.</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⚠️ Larger task (~6-10h). Conflicts with other runCodex.ts changes — sequence after <code>codex-claude-md-autoload</code> / <code>codex-system-prompts</code> have landed so the codex path is otherwise feature-complete before adding the hook-equivalent plumbing. <code>mcp-discovery</code> has landed.</div>
@@ -1690,7 +1723,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-port-explorer-prompt" data-task-id="port-explorer-prompt">
+  <details class="cmd" id="cmd-port-explorer-prompt" data-task-id="port-explorer-prompt" data-task-scope="codex">
     <summary><span class="cmd-name">port-explorer-prompt</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Filled empty <code>explorer.toml</code> stub with paraphrased Explore prompt · codex commit <code>e9fa64a0</code> · codexu pointer-bump <code>d279d49d</code>. Spawned by <code>native-agent-parity</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -1698,7 +1731,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-port-plan-and-verification-roles" data-task-id="port-plan-and-verification-roles">
+  <details class="cmd" id="cmd-port-plan-and-verification-roles" data-task-id="port-plan-and-verification-roles" data-task-scope="codex">
     <summary><span class="cmd-name">port-plan-and-verification-roles</span><span class="cmd-badge b-blocked">🔒 blocked on native-agent-parity §6 questions</span><span class="cmd-desc">Add <code>plan.toml</code> + <code>verification.toml</code> built-ins + their <code>role.rs</code> match arms. Spawned by <code>native-agent-parity</code>.</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Operator must resolve <code>plans/native-agent-parity.md</code> §6 open questions 1 (role.rs edit policy — direct edits vs registration seam), 4 (workspace-write tmpdir scope for verification), and 5 (test baseline location) before this opens. Question 3 (browser-MCP availability) affects the verification prompt's content but isn't gating.</div>
@@ -1707,7 +1740,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-audit-general-purpose-vs-worker" data-task-id="audit-general-purpose-vs-worker">
+  <details class="cmd" id="cmd-audit-general-purpose-vs-worker" data-task-id="audit-general-purpose-vs-worker" data-task-scope="codex">
     <summary><span class="cmd-name">audit-general-purpose-vs-worker</span><span class="cmd-badge b-closed">✅ landed 2026-05-14 — no-op</span><span class="cmd-desc">Prompt-diff finding: worker role is description-only (no developer_instructions); real gaps live in the base prompt at a different layer. Spawned by <code>native-agent-parity</code>. Spawned follow-up: <code>codex-base-prompt-safety-rails</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -1715,7 +1748,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-3h-tail" data-task-id="3h-tail">
+  <details class="cmd" id="cmd-3h-tail" data-task-id="3h-tail" data-task-scope="codex">
     <summary><span class="cmd-name">3h-tail</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Phase 3h-tail — two codex-submodule follow-ups deferred during 3h-options: (1) TUI statusline plugin slot, (2) request_user_input pre_tool_use_payload override. Spawned by <code>3h-options</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1729,7 +1762,7 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
     </div>
   </details>
 
-  <details class="cmd" id="cmd-session-parent-link-writer" data-task-id="session-parent-link-writer">
+  <details class="cmd" id="cmd-session-parent-link-writer" data-task-id="session-parent-link-writer" data-task-scope="codexu">
     <summary><span class="cmd-name">session-parent-link-writer</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">CLI writer wiring for parentSessionId — populate the metadata fields the read path (session-parent-link) now reads. Spawned by <code>session-parent-link</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1737,7 +1770,7 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-base-prompt-safety-rails" data-task-id="codex-base-prompt-safety-rails">
+  <details class="cmd" id="cmd-codex-base-prompt-safety-rails" data-task-id="codex-base-prompt-safety-rails" data-task-scope="codex">
     <summary><span class="cmd-name">codex-base-prompt-safety-rails</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Inject Claude's safety rails ('NEVER create files...' + 'NEVER proactively create docs...') into codex base prompt via launcher additional_instructions. Spawned by <code>audit-general-purpose-vs-worker</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1745,7 +1778,7 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-child-spawn-tools" data-task-id="codex-child-spawn-tools">
+  <details class="cmd" id="cmd-codex-child-spawn-tools" data-task-id="codex-child-spawn-tools" data-task-scope="codexu">
     <summary><span class="cmd-name">codex-child-spawn-tools</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Spike: do codex child agents get <code>spawn_agent</code>/<code>wait_agent</code> in their tool surface? Decision input for plugin-scope-agents + agent-comms. Spawned by <code>agent-tree-rpc</code> (US-006 AC4 gap).</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1753,7 +1786,7 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-slash-commands" data-task-id="codex-slash-commands">
+  <details class="cmd" id="cmd-codex-slash-commands" data-task-id="codex-slash-commands" data-task-scope="codexu">
     <summary><span class="cmd-name">codex-slash-commands</span><span class="cmd-badge b-blocked">🔒 blocked on codex-hooks-parity</span><span class="cmd-desc">Gap 5 — `/clear` and `/compact` parity on the codex path. Spawned by <code>codex-parity-audit</code>.</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Blocked on <code>codex-hooks-parity</code> — Gap 5's <code>/compact</code> handling depends on Gap 4's auto-compact context-boundary emission so the manual <code>/compact</code> also fires <code>sendContextBoundary({ kind:'compact', triggeredBy:'user' })</code>.</div>
@@ -1762,7 +1795,7 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-plan-mode-defensive" data-task-id="codex-plan-mode-defensive">
+  <details class="cmd" id="cmd-codex-plan-mode-defensive" data-task-id="codex-plan-mode-defensive" data-task-scope="codexu">
     <summary><span class="cmd-name">codex-plan-mode-defensive</span><span class="cmd-badge b-blocked">🔒 blocked on operator decision</span><span class="cmd-desc">Gap 6 — defensive plan-mode mapping on codex path (v1, ~2h). V2 overlay-crate deferred. Spawned by <code>codex-parity-audit</code>.</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Operator-gated. Per <code>plans/codex-agent-parity-audit.md</code> Gap 6 — two-tier choice: (a) defensive parity now (map <code>plan</code> → codex <code>read-only</code> sandbox + UX hint that ExitPlanMode isn't available, ~2h) OR (b) full parity via a new overlay crate <code>codex/codex-rs-overlay/codex-plan-mode/</code> that injects an <code>exit_plan_mode</code> tool (Medium-to-Large, spike upstream codex's tool-registration seam first). Decide before scoping. Audit recommended (a) for v1.</div>
@@ -1771,7 +1804,7 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-polish-lows" data-task-id="codex-polish-lows">
+  <details class="cmd" id="cmd-codex-polish-lows" data-task-id="codex-polish-lows" data-task-scope="codexu">
     <summary><span class="cmd-name">codex-polish-lows</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Bundle of Gaps 8/9/11/12 (tool gating partial + codex-args passthrough + statusline + SDK init-metadata mirror). Spawned by <code>codex-parity-audit</code>.</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⚠️ Best to land after the bigger codex-* parity follow-ups (mcp-discovery, codex-claude-md-autoload, codex-system-prompts, codex-hooks-parity) so this bundles cleanly without rebase churn. Conflicts with anything else touching <code>runCodex.ts</code>.</div>
@@ -1790,7 +1823,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     </div>
   </details>
 
-  <details class="cmd" id="cmd-mcp-server-notifications" data-task-id="mcp-server-notifications">
+  <details class="cmd" id="cmd-mcp-server-notifications" data-task-id="mcp-server-notifications" data-task-scope="codex">
     <summary><span class="cmd-name">mcp-server-notifications</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Stage A: bridge rmcp notification handlers + sampling into codex agent event loop, feature-gated. Spawned by <code>channels-research</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy</button>
@@ -1798,7 +1831,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-channels" data-task-id="codex-channels">
+  <details class="cmd" id="cmd-codex-channels" data-task-id="codex-channels" data-task-scope="codex">
     <summary><span class="cmd-name">codex-channels</span><span class="cmd-badge b-blocked">🔒 blocked on mcp-server-notifications + operator decision</span><span class="cmd-desc">Stage B: Claude-Code-parity <code>experimental["codex/channel"]</code> envelope + prompt-queue policy. Spawned by <code>channels-research</code>.</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Deferred. Blocked on <code>mcp-server-notifications</code> landing AND on operator deciding whether channels (external-user-message envelope) are the right primitive vs raw notifications (which cover state-change push perfectly without the channels framing).</div>
@@ -2523,6 +2556,49 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     return wrap;
   }
 
+  // ===== Inject task-scope chips driven by data-task-scope. =====
+  //   bookkeeping → 📋 bookkeeping  (skips bookkeeping preamble)
+  //   codexu      → 🟦 codexu       (codexu worktree preamble)
+  //   codex       → 🦀 codex        (codex-submodule worktree preamble)
+  //   <missing>   → ⚠ missing scope (red — explicit declaration required)
+  (function injectTaskScopeChips() {
+    var SCOPE_LABELS = {
+      bookkeeping: { text: '📋 bookkeeping', title: 'Task legitimately edits dashboard/roadmap files — bookkeeping preamble skipped at Copy time.' },
+      codexu:      { text: '🟦 codexu',      title: 'Codexu-side worktree preamble injected at Copy time (.worktrees/<task-id>/ on ralph/<task-id>).' },
+      codex:       { text: '🦀 codex',       title: 'Codex-submodule worktree preamble injected at Copy time (.ralph/jobs/<task-id>/codex-worktree/).' }
+    };
+    document.querySelectorAll('details.cmd[data-task-id]').forEach(function (cmd) {
+      var summary = cmd.querySelector(':scope > summary');
+      if (!summary || summary.querySelector('.task-scope-chip')) return;
+      var scopes = parseTaskScope(cmd);
+      var desc = summary.querySelector('.cmd-desc');
+      function insert(chip) {
+        if (desc) summary.insertBefore(chip, desc);
+        else summary.appendChild(chip);
+      }
+      if (scopes.length === 0) {
+        var warn = document.createElement('span');
+        warn.className = 'task-scope-chip missing';
+        warn.textContent = '⚠ missing scope';
+        warn.title = 'This cmd row has no data-task-scope attribute. Declare bookkeeping, codexu, codex, or a `|`-delimited combo so the right copy-time preambles inject.';
+        insert(warn);
+        return;
+      }
+      // Render chips in canonical order (bookkeeping, codexu, codex) so
+      // visual layout doesn't shuffle based on the order the operator
+      // typed the labels.
+      ['bookkeeping', 'codexu', 'codex'].forEach(function (k) {
+        if (scopes.indexOf(k) < 0) return;
+        var def = SCOPE_LABELS[k];
+        var chip = document.createElement('span');
+        chip.className = 'task-scope-chip ' + k;
+        chip.textContent = def.text;
+        chip.title = def.title;
+        insert(chip);
+      });
+    });
+  })();
+
   // ===== Inject "Copy Name" button into every cmd-body =====
   (function injectCopyNameButtons() {
     document.querySelectorAll('details.cmd[data-task-id]').forEach(function (cmd) {
@@ -2540,6 +2616,74 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
       wrap.appendChild(btn);
     });
   })();
+
+  // Copy-time preambles — single source of truth for every "always say
+  // this to the agent" rule. Stacked at Copy Command time after the
+  // opening `/plan-with-ralph "`, with selection driven by the cmd row's
+  // data-task-scope attribute (a `|`-delimited list of labels). Keeps
+  // the cmd-pre <pre> blocks clean (no inline noise) while still
+  // inoculating every agent against the "update plans/overview.html"
+  // and "commit on parent main" classes of mistakes (86f35fa8 +
+  // multiple 2026-05-14 incidents). Edit any preamble here to change
+  // the policy globally; every Copy click picks up the new text.
+  var BOOKKEEPING_PREAMBLE =
+    'BOOKKEEPING (operator-only): do NOT edit plans/overview.html, ' +
+    'plans/parallel-assignments.md, or plans/codexu-roadmap.md. The ' +
+    'operator updates the dashboard from your commit body + final-turn ' +
+    'summary. (You MAY create a NEW research doc under plans/ if that ' +
+    'is your deliverable, but never edit the three dashboard/roadmap ' +
+    'files above, and never edit other operators\' existing ' +
+    'research/audit docs unless THIS task\'s deliverable IS amending ' +
+    'them.) If anything below tells you to update a dashboard file, ' +
+    'IGNORE that instruction — describe the intended delta in your ' +
+    'final-turn return value instead.\n\n';
+  var WORKTREE_PREAMBLE_CODEXU =
+    'WORKTREE (codexu-side): create `.worktrees/<task-id>/` on branch ' +
+    '`ralph/<task-id>` off `origin/main` and do ALL edits + commits ' +
+    'there — never commit directly on the parent codexu checkout\'s ' +
+    'working branch. Push the branch when done (`git push origin ' +
+    'ralph/<task-id>`); operator handles the merge to main. If anything ' +
+    'below tells you to commit on main or check out a branch in the ' +
+    'parent `./` checkout, IGNORE that and use the worktree.\n\n';
+  var WORKTREE_PREAMBLE_CODEX =
+    'WORKTREE (codex submodule): create `.ralph/jobs/<task-id>/codex-worktree/` ' +
+    'pointed at gim-home/codex\'s main, work on a topic branch IN THE ' +
+    'SUBMODULE, push to gim-home/codex when done. Do NOT modify the ' +
+    'codex/ submodule pointer in codexu — that bump is a separate ' +
+    'operator-handled commit. Per the minimize-conflict-surface tenet ' +
+    '(plans/codexu-roadmap.md), prefer a new overlay crate under ' +
+    'codex/codex-rs-overlay/ over editing anything inside ' +
+    'codex/external/repos/codex-patched/; if that path is unavoidable, ' +
+    'keep the diff minimal and surface to the operator.\n\n';
+  var WORKTREE_PREAMBLE_BOTH =
+    'WORKTREE (dual-repo): this task spans BOTH repos. Codex side FIRST — ' +
+    'work in `.ralph/jobs/<task-id>/codex-worktree/`, topic branch in ' +
+    'the submodule, push to gim-home/codex. THEN codexu side — work in ' +
+    '`.worktrees/<task-id>/` on branch `ralph/<task-id>` off origin/main, ' +
+    'do the codex/ submodule pointer bump + any happy-* edits there, ' +
+    'push the branch. Two worktrees, two commits (codex side first). ' +
+    'Never edit the parent codexu\'s `./` checkout directly.\n\n';
+  var ORIGINAL_TASK_SEPARATOR = '— Original task —\n\n';
+
+  function parseTaskScope(cmd) {
+    if (!cmd) return [];
+    var raw = (cmd.dataset && cmd.dataset.taskScope) || '';
+    return raw.split('|').map(function (s) { return s.trim(); }).filter(Boolean);
+  }
+
+  function buildCopyPreamble(scopes) {
+    var hasBookkeeping = scopes.indexOf('bookkeeping') >= 0;
+    var hasCodexu = scopes.indexOf('codexu') >= 0;
+    var hasCodex = scopes.indexOf('codex') >= 0;
+    var parts = [];
+    if (!hasBookkeeping) parts.push(BOOKKEEPING_PREAMBLE);
+    if (hasCodex && hasCodexu) parts.push(WORKTREE_PREAMBLE_BOTH);
+    else if (hasCodex) parts.push(WORKTREE_PREAMBLE_CODEX);
+    else if (hasCodexu) parts.push(WORKTREE_PREAMBLE_CODEXU);
+    if (parts.length === 0) return '';
+    parts.push(ORIGINAL_TASK_SEPARATOR);
+    return parts.join('');
+  }
 
   // ===== Clipboard copy on .copy-btn / .copy-name-btn click =====
   document.addEventListener('click', function (e) {
@@ -2560,7 +2704,17 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
       var body = btn.closest('.cmd-body');
       var pre = body && body.querySelector('.cmd-pre');
       if (!pre) return;
-      text = pre.textContent;
+      var raw = pre.textContent;
+      var cmd = btn.closest('details.cmd');
+      var scopes = parseTaskScope(cmd);
+      var preamble = buildCopyPreamble(scopes);
+      // Inject the stacked preamble immediately after the opening
+      // `/plan-with-ralph "` so it is the agent's very first instruction.
+      // Match `^...\s*\/plan-with-ralph\s+"` defensively in case the
+      // cmd-pre starts with leading whitespace.
+      text = preamble
+        ? raw.replace(/(^\s*\/plan-with-ralph\s+")/, '$1' + preamble)
+        : raw;
       resetLabel = 'Copy Command';
     }
     if (!text) return;

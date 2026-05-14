@@ -157,18 +157,21 @@ Two task-relationship axes:
 3. **Add a new `<details class="cmd">` row** inside the Ralph commands section. Pattern (copy from an existing row):
 
 ```html
-  <details class="cmd" id="cmd-<taskId>" data-task-id="<taskId>">
+  <details class="cmd" id="cmd-<taskId>" data-task-id="<taskId>" data-task-scope="<scope>">
     <summary><span class="cmd-name"><taskId></span><span class="cmd-badge b-<status>"><emoji> <status></span><span class="cmd-desc">One-line description (workstream-name)</span></summary>
     <div class="cmd-body">
-      <button class="copy-btn">Copy</button>
-<pre class="cmd-pre">/plan-with-ralph "Full prompt body. HTML-escape ampersands as &amp; and angle brackets as &lt; / &gt;."</pre>
+      <button class="copy-btn">Copy Command</button>
+<pre class="cmd-pre">/plan-with-ralph "Full prompt body. HTML-escape ampersands as &amp; and angle brackets as &lt; / &gt;. Do NOT include &quot;update plans/overview.html&quot; or &quot;use a worktree&quot; clauses — those inject automatically at Copy time per data-task-scope."</pre>
     </div>
   </details>
 ```
 
-The `id="cmd-<taskId>"` and `data-task-id="<taskId>"` attributes are
-**load-bearing** — they wire URL-hash deep-linking, ready-strip chips,
-filter logic, workstream-pill auto-injection, and run-history rendering.
+The `id="cmd-<taskId>"`, `data-task-id="<taskId>"`, and
+`data-task-scope="<scope>"` attributes are **load-bearing** — they
+wire URL-hash deep-linking, ready-strip chips, filter logic,
+workstream-pill auto-injection, run-history rendering, and the
+copy-time preamble injection (see "Copy-time preambles — driven by
+`data-task-scope`" section below for valid scope values).
 
 4. **Update `plans/parallel-assignments.md`**:
    - Add a new lettered section (next available letter after the last one)
@@ -346,6 +349,97 @@ from `roadmap-plugin`):
 
 The narrow-viewport (`@media`) overrides only need to touch
 `.cmd-actions` (top/right/gap), not each button individually.
+
+## Copy-time preambles — driven by `data-task-scope`
+
+Background: prior to 2026-05-14, ralph cmd-pres routinely included
+clauses like "Update plans/overview.html similarly" or "After commit,
+bump the lastRanAt in plans/overview.html's roadmap-data JSON".
+Agents followed those instructions and corrupted the dashboard —
+commit `86f35fa8` (mcp-discovery) regenerated `overview.html` from a
+stale snapshot and wiped the action-button UI; commit `7bf32ded` had
+to preserve both sides of a botched 1a-fork-doc /
+audit-general-purpose-vs-worker merge conflict because two agents
+were updating the same JSON simultaneously. Separately, multiple
+agents on 2026-05-14 (codex-wire-spike, port-explorer-prompt)
+committed directly on the parent codexu's working branch instead of
+in an isolated worktree, forcing manual cherry-picks to keep `main`
+clean. The right contract is: **the operator owns the dashboard; the
+agent ships code in an isolated worktree and describes the dashboard
+delta in its final-turn return**.
+
+Rather than scrubbing every cmd-pre individually and trusting future
+authors not to re-introduce the same mistakes, the policy is enforced
+at COPY time via a single mechanism. Each `<details class="cmd">`
+carries a `data-task-scope` attribute — a **required**, `|`-delimited
+list of labels declaring what the task touches and what preambles
+should inject when the operator clicks Copy Command.
+
+### Defined labels
+
+| Label | Effect on Copy output | Visible chip |
+|---|---|---|
+| `bookkeeping` | SKIPS the BOOKKEEPING preamble (task legitimately edits dashboard/roadmap) | 📋 bookkeeping (warm yellow) |
+| `codexu` | INJECTS the codexu-side worktree preamble (`.worktrees/<task-id>/` on `ralph/<task-id>`) | 🟦 codexu (blue) |
+| `codex` | INJECTS the codex-submodule worktree preamble (`.ralph/jobs/<task-id>/codex-worktree/`) | 🦀 codex (red) |
+| `codex\|codexu` | INJECTS the dual-repo preamble (codex side first, then codexu pointer-bump worktree) — replaces the old "both" sentinel | 🦀 codex + 🟦 codexu chips both render |
+
+The unconditional BOOKKEEPING preamble (don't edit dashboard files)
+injects on every Copy unless `bookkeeping` is in the scope list.
+
+### Examples
+
+| Task kind | `data-task-scope` value |
+|---|---|
+| Typical happy-cli / happy-app / happy-server task | `codexu` |
+| Codex-submodule overlay crate or pointer-only codex edit | `codex` |
+| Dual-repo (codex overlay + happy-cli wire-up) | `codex\|codexu` |
+| Roadmap plugin or any task whose deliverable mutates the dashboard | `bookkeeping\|codexu` |
+| Pure dashboard-mutation task with no other code (rare) | `bookkeeping` |
+
+### Mechanics
+
+1. Four JS constants live in the main `<script>` block of `plans/overview.html`:
+   `BOOKKEEPING_PREAMBLE`, `WORKTREE_PREAMBLE_CODEXU`,
+   `WORKTREE_PREAMBLE_CODEX`, `WORKTREE_PREAMBLE_BOTH`.
+2. `parseTaskScope(cmd)` splits `data-task-scope` on `|` and trims.
+3. `buildCopyPreamble(scopes)` composes the stacked preamble in
+   canonical order: bookkeeping (unless suppressed) → worktree
+   (codexu / codex / both) → `— Original task —` separator.
+4. The click handler on `.copy-btn` injects the composed string
+   immediately after the opening `/plan-with-ralph "` of the cmd-pre.
+5. `injectTaskScopeChips` IIFE renders the chips in the summary in
+   canonical order (bookkeeping → codexu → codex) regardless of how
+   the operator typed the labels.
+
+### Authoring rules
+
+- **Every new cmd row must carry `data-task-scope`.** Rows without it
+  render a red ⚠ missing scope chip in the dashboard summary — visible
+  warning that the operator forgot to declare.
+- **Default is `codexu`** for typical happy-* / packages/* tasks. Don't
+  add `bookkeeping` unless the task's deliverable IS mutating
+  `plans/overview.html` / `plans/parallel-assignments.md` /
+  `plans/codexu-roadmap.md` directly. Creating a new `plans/<name>.md`
+  research doc does NOT count as bookkeeping — the BOOKKEEPING
+  preamble explicitly permits new research docs.
+- **Multi-value with `|`** is composable; add labels only when they
+  apply. `codex|codexu` is the typical dual-repo shape.
+
+### Changing policy globally
+
+Edit any of the four preamble JS constants once; every Copy Command
+click picks up the new text. The on-disk cmd-pre `<pre>` blocks stay
+clean — never inline a policy clause into a cmd-pre.
+
+### Known gap: `parallel-assignments.md` paste path
+
+The markdown source for cmd-pres also stays clean (no preamble
+inline). The operator's canonical workflow is to copy via the
+dashboard's Copy Command button, which auto-injects. If they paste
+from `parallel-assignments.md` directly, the preamble is not applied
+— that's a documented trade-off; keeping the markdown source readable
+beats inline noise.
 
 ## Research-task → spawned follow-ups: pick a pattern
 
