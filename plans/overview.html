@@ -659,43 +659,6 @@
     border-radius: 4px;
   }
 
-  /* Operator notes — inline textarea per cmd row. Notes toggle lives in
-     the .cmd-actions flex wrapper (no own absolute positioning). */
-  .notes-toggle {
-    background: var(--card-hover);
-    color: var(--fg);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 4px 10px;
-    font-size: 11px;
-    font-family: inherit;
-    cursor: pointer;
-  }
-  .notes-toggle:hover { background: var(--accent); color: white; border-color: var(--accent); }
-  .notes-toggle.has-note { border-color: var(--ok); color: var(--ok); }
-  .notes-toggle.has-note::before { content: '● '; }
-  .notes-panel {
-    display: none;
-    margin-top: 8px;
-  }
-  .notes-panel.visible { display: block; }
-  .notes-panel textarea {
-    width: 100%;
-    min-height: 70px;
-    padding: 8px 10px;
-    background: var(--bg);
-    color: var(--fg);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    font-family: 'SF Mono', 'Cascadia Code', Menlo, monospace;
-    font-size: 12px;
-    line-height: 1.5;
-    resize: vertical;
-    box-sizing: border-box;
-  }
-  .notes-panel textarea:focus { outline: none; border-color: var(--accent); }
-  .notes-panel .notes-meta { font-size: 11px; color: var(--muted); margin-top: 4px; }
-
   /* Capacity-line sub-row in the ready strip */
   .ready-strip .capacity-line {
     flex-basis: 100%;
@@ -712,7 +675,7 @@
     .sub, .cmd-desc, .card-meta, .footnote, .section-counts, .strip-count, .kbd-hint {
       color: var(--fg);
     }
-    .copy-btn, .bulk-btn, .notes-toggle, .copy-name-btn, .wn-dismiss {
+    .copy-btn, .bulk-btn, .copy-name-btn, .wn-dismiss {
       padding: 10px 16px;
       font-size: 13px;
       min-height: 40px;
@@ -794,7 +757,10 @@
   .cmd-name {
     font-family: 'SF Mono', 'Cascadia Code', Menlo, monospace;
     font-weight: 600;
-    min-width: 150px;
+    flex: 0 0 250px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .cmd-badge {
     font-size: 11px;
@@ -802,7 +768,28 @@
     border-radius: 3px;
     font-weight: 600;
     white-space: nowrap;
+    flex: 0 0 110px;
+    text-align: center;
   }
+  /* Wrapper around the task-scope chips, fixed-width so cmd-desc
+     starts at the same x across every row regardless of how many
+     chips a task declares. Injected by injectTaskScopeChips. */
+  .cmd-scope-cluster {
+    flex: 0 0 220px;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+  /* Status sort order — closed first, paused, inflight, ready,
+     blocked last. data-cmd-status is set by the classifyAndOrderCmds
+     IIFE based on each row's badge class. The fallback 99 keeps any
+     unclassified row out of the way. */
+  details.cmd { order: 99; }
+  details.cmd[data-cmd-status="closed"]   { order: 1; }
+  details.cmd[data-cmd-status="paused"]   { order: 2; }
+  details.cmd[data-cmd-status="inflight"] { order: 3; }
+  details.cmd[data-cmd-status="ready"]    { order: 4; }
+  details.cmd[data-cmd-status="blocked"]  { order: 5; }
   .b-ready { background: rgba(122,162,247,0.18); color: var(--accent); }
   .b-inflight { background: rgba(224,175,104,0.25); color: var(--warn); }
   .b-blocked { background: rgba(86,95,137,0.25); color: var(--done); }
@@ -1425,7 +1412,7 @@
   </details>
 
   <details class="cmd" id="cmd-perf-WS2" data-task-id="perf-WS2" data-task-scope="codexu">
-    <summary><span class="cmd-name">perf-WS2</span><span class="cmd-badge b-blocked">🔒 blocked on WS3</span><span class="cmd-desc">Realtime perf — optimistic placeholder session</span></summary>
+    <summary><span class="cmd-name">perf-WS2</span><span class="cmd-badge b-blocked">🔒 blocked</span><span class="cmd-desc">Realtime perf — optimistic placeholder session</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Wait until <code>perf-WS3</code> lands. Both touch <code>storage.ts</code> and WS3's replay-overflow semantics define WS2's fallback scope.</div>
       <button class="copy-btn">Copy Command</button>
@@ -1451,7 +1438,7 @@
   </details>
 
   <details class="cmd" id="cmd-3b-agents" data-task-id="3b-agents" data-task-scope="codexu">
-    <summary><span class="cmd-name">3b-agents</span><span class="cmd-badge b-blocked">🔒 blocked on 3a</span><span class="cmd-desc">Phase 3b-i + 3b-ii — subagents → codex agent roles</span></summary>
+    <summary><span class="cmd-name">3b-agents</span><span class="cmd-badge b-blocked">🔒 blocked</span><span class="cmd-desc">Phase 3b-i + 3b-ii — subagents → codex agent roles</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Blocked on <code>3a-skills</code> discovery commit (currently paused). Re-read prerequisites before assigning.</div>
       <button class="copy-btn">Copy Command</button>
@@ -1468,7 +1455,7 @@
   </details>
 
   <details class="cmd" id="cmd-3d-workers" data-task-id="3d-workers" data-task-scope="codexu">
-    <summary><span class="cmd-name">3d-workers</span><span class="cmd-badge b-blocked">🔒 blocked on 3a + 3b</span><span class="cmd-desc">Phase 3d — codex-based workers via native spawn</span></summary>
+    <summary><span class="cmd-name">3d-workers</span><span class="cmd-badge b-blocked">🔒 blocked</span><span class="cmd-desc">Phase 3d — codex-based workers via native spawn</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Blocked on <code>3a-skills</code> discovery (paused) AND <code>3b-agents</code> landing the agent role TOMLs.</div>
       <button class="copy-btn">Copy Command</button>
@@ -1477,7 +1464,7 @@
   </details>
 
   <details class="cmd" id="cmd-3fg-package" data-task-id="3fg-package" data-task-scope="codexu">
-    <summary><span class="cmd-name">3fg-package</span><span class="cmd-badge b-blocked">🔒 blocked on 3a</span><span class="cmd-desc">Phase 3f + 3g — asset migration + plugin packaging</span></summary>
+    <summary><span class="cmd-name">3fg-package</span><span class="cmd-badge b-blocked">🔒 blocked</span><span class="cmd-desc">Phase 3f + 3g — asset migration + plugin packaging</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Blocked on <code>3a-skills</code> discovery commit (paused). The discovery may change the plugin.json schema expectations this command builds against.</div>
       <button class="copy-btn">Copy Command</button>
@@ -1528,7 +1515,7 @@
   </details>
 
   <details class="cmd" id="cmd-agent-view-research" data-task-id="agent-view-research" data-task-scope="codexu">
-    <summary><span class="cmd-name">agent-view-research</span><span class="cmd-badge b-closed">✅ landed 2026-05-14</span><span class="cmd-desc">Research Claude Code's `agent view` feature → `plans/agent-view-research.md` + 6 follow-up tasks (agent-tree-rpc, session-parent-link, mobile-tree-view, session-role-pill, spawn-from-app, agent-status-stream)</span></summary>
+    <summary><span class="cmd-name">agent-view-research</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Research Claude Code's `agent view` feature → `plans/agent-view-research.md` + 6 follow-up tasks (agent-tree-rpc, session-parent-link, mobile-tree-view, session-role-pill, spawn-from-app, agent-status-stream)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
 <pre class="cmd-pre">/plan-with-ralph "Research Claude Code's 'agent view' feature (released recently). Output: a research doc at plans/agent-view-research.md that covers: (1) what the feature IS — how it presents agents, what UI affordances it gives, what spawning model it uses, what state it persists, what permissions / scoping it enforces; (2) where it lives in Claude Code (file paths, schema, RPC surface) — read the relevant source if accessible from C:/harness-efforts/claude-code/worktrees/main; (3) how it differs from codex's existing multi_agents_v2/spawn.rs and codex's [agents.&lt;role&gt;] TOML world (read codex/external/repos/codex-patched/codex-rs/multi_agents_v2/spawn.rs as reference — READ-ONLY per the minimize-conflict-surface tenet in plans/codexu-roadmap.md); (4) what concepts we'd want to bring to codexu: spawning model, state, persistence, communication, plugin-scoping; (5) what concepts we'd want to bring to the HAPPY/CODEXU MOBILE APP UI — today the app shows a flat list of sessions, but agent view might surface a richer model (agent roles visible per session, spawn relationships drawn as a tree, parent-child status rolled up, ability to spawn-a-named-agent from the app). Read packages/happy-app/sources/app/(app)/index.tsx for the current session-list surface and packages/happy-app/CLAUDE.md for the sync invariants the app honors. Output for each finding: whether it applies to (a) codex agent runtime, (b) codexu mobile app UI, or (c) both — different fix-sites have different package targets. Output: the doc + a decomposition into follow-up ralph tasks with file:line refs and effort estimates per applicability bucket. NO CODE CHANGES — research-only. Add new task entries to plans/parallel-assignments.md and plans/overview.html roadmap-data JSON for each follow-up that emerges from the research, AND set spawnedFrom='agent-view-research' on each new task's entry in the roadmap-data JSON so the spawn relationship is captured. Cross-reference plans/codexu-roadmap.md §Phase 6 'Long-lived teammates' since this feature likely overlaps. Surface to operator before opening any follow-up code task — the research output is itself the deliverable."</pre>
@@ -1545,7 +1532,7 @@
   </details>
 
   <details class="cmd" id="cmd-agent-comms" data-task-id="agent-comms" data-task-scope="codexu">
-    <summary><span class="cmd-name">agent-comms</span><span class="cmd-badge b-blocked">🔒 blocked on plugin-scope-agents + channels-research</span><span class="cmd-desc">Top-level agent ↔ top-level agent comms across 3 scopes (cross-tunnel / same-daemon / parent-child)</span></summary>
+    <summary><span class="cmd-name">agent-comms</span><span class="cmd-badge b-blocked">🔒 blocked</span><span class="cmd-desc">Top-level agent ↔ top-level agent comms across 3 scopes (cross-tunnel / same-daemon / parent-child)</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Blocked on <code>plugin-scope-agents</code> + <code>agent-view-research</code> + <code>channels-research</code> landing. The communication channel design depends on the spawner pattern's chosen model AND on whether MCP "channels" (2-way) are available as the transport.</div>
       <button class="copy-btn">Copy Command</button>
@@ -1568,7 +1555,7 @@ Acceptance: design doc + per-scope working fixture: (B) two sessions on the same
   </details>
 
   <details class="cmd" id="cmd-channels-research" data-task-id="channels-research" data-task-scope="codexu">
-    <summary><span class="cmd-name">channels-research</span><span class="cmd-badge b-closed">✅ landed 2026-05-13</span><span class="cmd-desc">Research Claude Code's `channels` (MCP 2-way) + codex implementation plan · doc <a href="channels-research.md">channels-research.md</a> · 2 follow-ups (mcp-server-notifications, codex-channels)</span></summary>
+    <summary><span class="cmd-name">channels-research</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Research Claude Code's `channels` (MCP 2-way) + codex implementation plan · doc <a href="channels-research.md">channels-research.md</a> · 2 follow-ups (mcp-server-notifications, codex-channels)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
 <pre class="cmd-pre">/plan-with-ralph "Research Claude Code's 'channels' concept and design a codex equivalent if it doesn't exist there. Goal: 2-way communication between agents and MCP servers (today MCP is largely request-response from the agent; we want the MCP to be able to push messages back / stream state changes / interrupt the agent). Output: plans/channels-research.md covering: (1) What Claude Code calls 'channels' — read the relevant Claude Code source (C:/harness-efforts/claude-code/worktrees/main/ if accessible) + Anthropic's docs/changelog. Capture the wire shape, lifecycle (open/close), back-pressure model, how an MCP server discovers/registers a channel, how the agent subscribes. (2) Codex's current MCP support — `codex` ships an MCP client; what does it support today? Read codex/external/repos/codex-patched/codex-rs/ (READ-ONLY per minimize-conflict-surface tenet) for mcp_tool_call.rs / mcp_client / rmcp_client modules. Identify whether codex's MCP transport (stdio? sse? streamable-http? something else?) admits server-initiated messages. (3) Gap analysis: if codex doesn't support 2-way channels, what's the minimal patch? An overlay crate in codex/codex-rs-overlay/ that extends mcp_client with channel semantics? A new tool type? A protocol upgrade? (4) Implementation sketch: file:line refs for where the patches would land, effort estimate, risk areas. (5) Cross-reference Phase 2d (ask_user_question primitive) and the MCP spec evolution (https://spec.modelcontextprotocol.io/) — channels might already be standardized. NO CODE — research + design only. Add follow-up ralph task entries to plans/parallel-assignments.md if the gap analysis surfaces concrete next steps. Surface to operator before committing the doc."</pre>
@@ -1576,7 +1563,7 @@ Acceptance: design doc + per-scope working fixture: (B) two sessions on the same
   </details>
 
   <details class="cmd" id="cmd-async-events-design" data-task-id="async-events-design" data-task-scope="codexu">
-    <summary><span class="cmd-name">async-events-design</span><span class="cmd-badge b-blocked">🔒 blocked on mcp-server-notifications</span><span class="cmd-desc">Design async event listening for agents — re-blocked 2026-05-14 to wait for channels primitive before locking v1 transport</span></summary>
+    <summary><span class="cmd-name">async-events-design</span><span class="cmd-badge b-blocked">🔒 blocked</span><span class="cmd-desc">Design async event listening for agents — re-blocked 2026-05-14 to wait for channels primitive before locking v1 transport</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Re-blocked 2026-05-14. Was briefly run — its draft (working tree only at <code>plans/async-events-design.md</code>) recommends long-poll MCP for v1 and channels-research's notification bridge as fast-follow. Operator decided the design should be informed by an actually-landed channels primitive (Stage A — <code>mcp-server-notifications</code>) before locking the v1 transport. Resume after that ships. Working-tree draft is preserved as a starting point.</div>
       <button class="copy-btn">Copy Command</button>
@@ -1585,7 +1572,7 @@ Acceptance: design doc + per-scope working fixture: (B) two sessions on the same
   </details>
 
   <details class="cmd" id="cmd-native-agent-parity" data-task-id="native-agent-parity" data-task-scope="codexu">
-    <summary><span class="cmd-name">native-agent-parity</span><span class="cmd-badge b-closed">✅ landed 2026-05-14</span><span class="cmd-desc">Research codex parity with Claude Code's native subagents · doc <a href="native-agent-parity.md">native-agent-parity.md</a> · 3 follow-ups recommended (explorer, plan, verification)</span></summary>
+    <summary><span class="cmd-name">native-agent-parity</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Research codex parity with Claude Code's native subagents · doc <a href="native-agent-parity.md">native-agent-parity.md</a> · 3 follow-ups recommended (explorer, plan, verification)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
 <pre class="cmd-pre">/plan-with-ralph "Research whether (and how) we want codex parity with Claude Code's native subagent palette — e.g., Explore (fast codebase exploration), Plan (architect), claude-code-guide, statusline-setup, etc. Today codex's [agents.&lt;role&gt;] TOML system is operator-defined; Claude Code ships preset subagent types with curated system prompts. Output: plans/native-agent-parity.md covering: (1) Enumerate Claude Code's preset subagents — use the Agent tool yourself if accessible to list them, or grep C:/harness-efforts/claude-code/worktrees/main/ for the subagent registry. For each: name, purpose, tool allowlist, model preference, system prompt. (2) For each, assess whether it makes sense for codex too: high-value port (e.g., Explore — every developer benefits from a fast codebase-explorer subagent) vs Claude-specific (e.g., claude-code-guide — references Claude Code features that may not apply). (3) Implementation packaging — should codex parity ship as: (a) a plugin in packages/codexu-plugin/ that registers default [agents.&lt;role&gt;] entries; (b) an overlay crate in codex/codex-rs-overlay/ that bakes them into the binary; (c) a one-time `codex agent install --preset claude-code-equivalents` migration. Discuss tradeoffs. (4) Should we LEVERAGE Claude Code's system prompts as inspiration? Yes — they're battle-tested. Should we copy verbatim (license / attribution question — check Claude Code's license) or paraphrase? Recommend. (5) Cross-reference Phase 3b-i (subagents → [agents.&lt;role&gt;] for ralph's 12 internal subagents) — that's the analogous port but operator-private; this is the public-facing 'native palette' port. (6) Pick top 3 most-valuable to port first. NO CODE — research + decision doc. Surface recommendations to operator before opening follow-up implementation tasks."</pre>
@@ -1733,7 +1720,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
   </details>
 
   <details class="cmd" id="cmd-port-plan-and-verification-roles" data-task-id="port-plan-and-verification-roles" data-task-scope="codex">
-    <summary><span class="cmd-name">port-plan-and-verification-roles</span><span class="cmd-badge b-blocked">🔒 blocked on native-agent-parity §6 questions</span><span class="cmd-desc">Add <code>plan.toml</code> + <code>verification.toml</code> built-ins + their <code>role.rs</code> match arms. Spawned by <code>native-agent-parity</code>.</span></summary>
+    <summary><span class="cmd-name">port-plan-and-verification-roles</span><span class="cmd-badge b-blocked">🔒 blocked</span><span class="cmd-desc">Add <code>plan.toml</code> + <code>verification.toml</code> built-ins + their <code>role.rs</code> match arms. Spawned by <code>native-agent-parity</code>.</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Operator must resolve <code>plans/native-agent-parity.md</code> §6 open questions 1 (role.rs edit policy — direct edits vs registration seam), 4 (workspace-write tmpdir scope for verification), and 5 (test baseline location) before this opens. Question 3 (browser-MCP availability) affects the verification prompt's content but isn't gating.</div>
       <button class="copy-btn">Copy Command</button>
@@ -1742,7 +1729,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
   </details>
 
   <details class="cmd" id="cmd-audit-general-purpose-vs-worker" data-task-id="audit-general-purpose-vs-worker" data-task-scope="codex">
-    <summary><span class="cmd-name">audit-general-purpose-vs-worker</span><span class="cmd-badge b-closed">✅ landed 2026-05-14 — no-op</span><span class="cmd-desc">Prompt-diff finding: worker role is description-only (no developer_instructions); real gaps live in the base prompt at a different layer. Spawned by <code>native-agent-parity</code>. Spawned follow-up: <code>codex-base-prompt-safety-rails</code>.</span></summary>
+    <summary><span class="cmd-name">audit-general-purpose-vs-worker</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Prompt-diff finding: worker role is description-only (no developer_instructions); real gaps live in the base prompt at a different layer. Spawned by <code>native-agent-parity</code>. Spawned follow-up: <code>codex-base-prompt-safety-rails</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
 <pre class="cmd-pre">/plan-with-ralph "30-minute prompt-diff task per plans/native-agent-parity.md §2.4. Compare D:/harness-efforts/claude-code/worktrees/main/src/tools/AgentTool/built-in/generalPurposeAgent.ts (or whichever file exposes Claude's general-purpose system prompt) against codex/external/repos/codex-patched/codex-rs/core/src/agent/builtins/worker.toml's developer_instructions. Identify guidance present in general-purpose that's missing from worker.toml — likely candidates per the research: 'NEVER create files unless absolutely necessary', 'NEVER create documentation files unless explicitly requested', other safety-rail rules. If worker.toml is sparser, fold the missing rules into worker.toml as a small targeted change (NOT a wholesale rewrite); keep the change minimal so codex's worker behavior shifts only at the margins. If worker.toml already covers the same ground (likely — codex's worker is mature), document this in plans/native-agent-parity.md §2.4 as a no-op finding. License posture: paraphrase any rule text from Claude's general-purpose; do NOT copy verbatim. Workflow: codex-submodule worktree; commit on topic branch; bump codexu submodule pointer. Acceptance: either (a) worker.toml updated with N paraphrased rule additions referenced in commit body, OR (b) plans/native-agent-parity.md §2.4 amended with a 'no merge needed, worker.toml already covers X/Y/Z' note. Surface to operator before merging. No happy-cli/happy-app changes."</pre>
@@ -1788,7 +1775,7 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
   </details>
 
   <details class="cmd" id="cmd-codex-slash-commands" data-task-id="codex-slash-commands" data-task-scope="codexu">
-    <summary><span class="cmd-name">codex-slash-commands</span><span class="cmd-badge b-blocked">🔒 blocked on codex-hooks-parity</span><span class="cmd-desc">Gap 5 — `/clear` and `/compact` parity on the codex path. Spawned by <code>codex-parity-audit</code>.</span></summary>
+    <summary><span class="cmd-name">codex-slash-commands</span><span class="cmd-badge b-blocked">🔒 blocked</span><span class="cmd-desc">Gap 5 — `/clear` and `/compact` parity on the codex path. Spawned by <code>codex-parity-audit</code>.</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Blocked on <code>codex-hooks-parity</code> — Gap 5's <code>/compact</code> handling depends on Gap 4's auto-compact context-boundary emission so the manual <code>/compact</code> also fires <code>sendContextBoundary({ kind:'compact', triggeredBy:'user' })</code>.</div>
       <button class="copy-btn">Copy Command</button>
@@ -1797,7 +1784,7 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
   </details>
 
   <details class="cmd" id="cmd-codex-plan-mode-defensive" data-task-id="codex-plan-mode-defensive" data-task-scope="codexu">
-    <summary><span class="cmd-name">codex-plan-mode-defensive</span><span class="cmd-badge b-blocked">🔒 blocked on operator decision</span><span class="cmd-desc">Gap 6 — defensive plan-mode mapping on codex path (v1, ~2h). V2 overlay-crate deferred. Spawned by <code>codex-parity-audit</code>.</span></summary>
+    <summary><span class="cmd-name">codex-plan-mode-defensive</span><span class="cmd-badge b-blocked">🔒 blocked</span><span class="cmd-desc">Gap 6 — defensive plan-mode mapping on codex path (v1, ~2h). V2 overlay-crate deferred. Spawned by <code>codex-parity-audit</code>.</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Operator-gated. Per <code>plans/codex-agent-parity-audit.md</code> Gap 6 — two-tier choice: (a) defensive parity now (map <code>plan</code> → codex <code>read-only</code> sandbox + UX hint that ExitPlanMode isn't available, ~2h) OR (b) full parity via a new overlay crate <code>codex/codex-rs-overlay/codex-plan-mode/</code> that injects an <code>exit_plan_mode</code> tool (Medium-to-Large, spike upstream codex's tool-registration seam first). Decide before scoping. Audit recommended (a) for v1.</div>
       <button class="copy-btn">Copy Command</button>
@@ -1833,7 +1820,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
   </details>
 
   <details class="cmd" id="cmd-codex-channels" data-task-id="codex-channels" data-task-scope="codex">
-    <summary><span class="cmd-name">codex-channels</span><span class="cmd-badge b-blocked">🔒 blocked on mcp-server-notifications + operator decision</span><span class="cmd-desc">Stage B: Claude-Code-parity <code>experimental["codex/channel"]</code> envelope + prompt-queue policy. Spawned by <code>channels-research</code>.</span></summary>
+    <summary><span class="cmd-name">codex-channels</span><span class="cmd-badge b-blocked">🔒 blocked</span><span class="cmd-desc">Stage B: Claude-Code-parity <code>experimental["codex/channel"]</code> envelope + prompt-queue policy. Spawned by <code>channels-research</code>.</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Deferred. Blocked on <code>mcp-server-notifications</code> landing AND on operator deciding whether channels (external-user-message envelope) are the right primitive vs raw notifications (which cover state-change push perfectly without the channels framing).</div>
       <button class="copy-btn">Copy Command</button>
@@ -2573,6 +2560,9 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
   //   codexu      → 🟦 codexu       (codexu worktree preamble)
   //   codex       → 🦀 codex        (codex-submodule worktree preamble)
   //   <missing>   → ⚠ missing scope (red — explicit declaration required)
+  // All chips for a row sit inside a .cmd-scope-cluster wrapper with a
+  // fixed flex-basis, so cmd-desc starts at the same x across every row
+  // regardless of how many scopes a task declares.
   (function injectTaskScopeChips() {
     var SCOPE_LABELS = {
       bookkeeping: { text: '📋 bookkeeping', title: 'Task legitimately edits dashboard/roadmap files — bookkeeping preamble skipped at Copy time.' },
@@ -2581,19 +2571,19 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     };
     document.querySelectorAll('details.cmd[data-task-id]').forEach(function (cmd) {
       var summary = cmd.querySelector(':scope > summary');
-      if (!summary || summary.querySelector('.task-scope-chip')) return;
+      if (!summary || summary.querySelector('.cmd-scope-cluster')) return;
       var scopes = parseTaskScope(cmd);
       var desc = summary.querySelector('.cmd-desc');
-      function insert(chip) {
-        if (desc) summary.insertBefore(chip, desc);
-        else summary.appendChild(chip);
-      }
+      var cluster = document.createElement('span');
+      cluster.className = 'cmd-scope-cluster';
+      if (desc) summary.insertBefore(cluster, desc);
+      else summary.appendChild(cluster);
       if (scopes.length === 0) {
         var warn = document.createElement('span');
         warn.className = 'task-scope-chip missing';
         warn.textContent = '⚠ missing scope';
         warn.title = 'This cmd row has no data-task-scope attribute. Declare bookkeeping, codexu, codex, or a `|`-delimited combo so the right copy-time preambles inject.';
-        insert(warn);
+        cluster.appendChild(warn);
         return;
       }
       // Render chips in canonical order (bookkeeping, codexu, codex) so
@@ -2606,8 +2596,27 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
         chip.className = 'task-scope-chip ' + k;
         chip.textContent = def.text;
         chip.title = def.title;
-        insert(chip);
+        cluster.appendChild(chip);
       });
+    });
+  })();
+
+  // ===== Annotate each cmd row with data-cmd-status so CSS `order`
+  //       can sort them: closed first, then paused, inflight, ready,
+  //       blocked. classifyCmd is defined further below; we set the
+  //       attribute as soon as the badge class is readable. =====
+  (function classifyAndOrderCmds() {
+    document.querySelectorAll('details.cmd').forEach(function (cmd) {
+      var badge = cmd.querySelector(':scope > summary > .cmd-badge');
+      if (!badge) return;
+      var cls = badge.className || '';
+      var status;
+      if (cls.indexOf('b-closed') >= 0) status = 'closed';
+      else if (cls.indexOf('b-paused') >= 0) status = 'paused';
+      else if (cls.indexOf('b-inflight') >= 0) status = 'inflight';
+      else if (cls.indexOf('b-ready') >= 0) status = 'ready';
+      else if (cls.indexOf('b-blocked') >= 0) status = 'blocked';
+      if (status) cmd.dataset.cmdStatus = status;
     });
   })();
 
@@ -3423,93 +3432,6 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
       });
       body.appendChild(wrap);
     });
-  })();
-
-  // ===== Operator notes — inline textarea per cmd row, persisted in localStorage =====
-  (function operatorNotes() {
-    var NOTES_KEY = 'codexu-overview-notes-v1';
-    var notes;
-    try { notes = JSON.parse(localStorage.getItem(NOTES_KEY) || '{}'); } catch (_) { notes = {}; }
-
-    function persist() {
-      try { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); } catch (_) {}
-    }
-
-    document.querySelectorAll('details.cmd').forEach(function (cmd) {
-      var id = cmd.getAttribute('data-task-id');
-      var body = cmd.querySelector('.cmd-body');
-      if (!id || !body) return;
-
-      // Toggle button (sits next to the Copy button in the cmd-body)
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'notes-toggle';
-      btn.textContent = '📝 Notes';
-      btn.title = 'Toggle scratch notes (saved in your browser only)';
-      if (notes[id]) btn.classList.add('has-note');
-
-      // Panel with textarea
-      var panel = document.createElement('div');
-      panel.className = 'notes-panel';
-      var ta = document.createElement('textarea');
-      ta.placeholder = 'Scratch notes for ' + id + ' — what you tried, what broke, what to revisit. Stored only in this browser.';
-      ta.value = notes[id] || '';
-      ta.spellcheck = true;
-      panel.appendChild(ta);
-      var meta = document.createElement('div');
-      meta.className = 'notes-meta';
-      meta.textContent = 'Saves automatically as you type.';
-      panel.appendChild(meta);
-
-      var saveTimer;
-      ta.addEventListener('input', function () {
-        clearTimeout(saveTimer);
-        saveTimer = setTimeout(function () {
-          var v = ta.value.trim();
-          if (v) { notes[id] = ta.value; btn.classList.add('has-note'); }
-          else { delete notes[id]; btn.classList.remove('has-note'); }
-          persist();
-        }, 250);
-      });
-
-      btn.addEventListener('click', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        // The button lives in <summary> so its click would otherwise
-        // toggle the <details>. The panel itself lives in .cmd-body —
-        // so if the row is collapsed, the panel is hidden even after
-        // we add .visible. Force the details open before revealing.
-        if (!cmd.open) cmd.open = true;
-        panel.classList.toggle('visible');
-        if (panel.classList.contains('visible')) {
-          setTimeout(function () { ta.focus(); }, 50);
-        }
-      });
-
-      // Route the toggle into the .cmd-actions wrapper in <summary> so
-      // all 3 action buttons share the same flex container and have
-      // consistent gaps. Falls back to body.appendChild if the wrapper
-      // helper isn't available yet (script-order independence).
-      if (typeof getOrCreateCmdActions === 'function') {
-        var wrap = getOrCreateCmdActions(cmd);
-        if (wrap) wrap.appendChild(btn);
-        else body.appendChild(btn);
-      } else {
-        body.appendChild(btn);
-      }
-      body.appendChild(panel);
-    });
-
-    // Expose an export hook on window for power users (devtools / bookmarklet)
-    window.exportOverviewNotes = function () {
-      var blob = new Blob([JSON.stringify(notes, null, 2)], { type: 'application/json' });
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = url;
-      a.download = 'codexu-overview-notes-' + new Date().toISOString().slice(0, 10) + '.json';
-      a.click();
-      URL.revokeObjectURL(url);
-    };
   })();
 
   // ===== "What's new since last visit" =====
