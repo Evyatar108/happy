@@ -2666,11 +2666,13 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts â€
 
   // ===== Annotate each cmd row with data-cmd-status so CSS `order`
   //       can sort them: closed first, then paused, inflight, ready,
-  //       blocked. classifyCmd is defined further below; we set the
-  //       attribute as soon as the badge class is readable. =====
+  //       blocked. The badge may live directly under <summary> OR
+  //       inside the injected .cmd-scope-cluster wrapper (the chip
+  //       injector relocates it there), so use a descendant selector
+  //       not a direct-child chain. =====
   (function classifyAndOrderCmds() {
     document.querySelectorAll('details.cmd').forEach(function (cmd) {
-      var badge = cmd.querySelector(':scope > summary > .cmd-badge');
+      var badge = cmd.querySelector(':scope > summary .cmd-badge');
       if (!badge) return;
       var cls = badge.className || '';
       var status;
@@ -3512,9 +3514,29 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts â€
     var lastVisit = localStorage.getItem(VISIT_KEY);
     var now = new Date().toISOString();
 
+    // Helper: compute the max of (current wall-clock, max of all
+    // data.lastTouched parsed numerically). This is what every "I've
+    // seen everything currently in the dashboard" save should write â€”
+    // saving just wall-clock would let any data timestamp that's
+    // ahead of the user's clock re-flag on refresh (operator's
+    // bookkeeping timestamps are UTC; anyone west of UTC sees them
+    // in the future). Returns an ISO string ready for localStorage.
+    function computeSeenTimestamp() {
+      var wallMs = Date.now();
+      var maxDataMs = 0;
+      Object.keys(data.lastTouched).forEach(function (k) {
+        var ms = Date.parse(data.lastTouched[k]);
+        if (ms && ms > maxDataMs) maxDataMs = ms;
+      });
+      var saveMs = wallMs > maxDataMs ? wallMs : maxDataMs;
+      return new Date(saveMs).toISOString();
+    }
+
     if (!lastVisit) {
-      // First visit on this machine â€” record silently, no banner
-      try { localStorage.setItem(VISIT_KEY, now); } catch (_) {}
+      // First visit on this machine â€” record silently, no banner.
+      // Save max-of-data so future visits don't flag tasks that were
+      // already on this commit when the user first opened the page.
+      try { localStorage.setItem(VISIT_KEY, computeSeenTimestamp()); } catch (_) {}
       return;
     }
 
@@ -3531,8 +3553,10 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts â€
     });
 
     if (changed.length === 0) {
-      // Update visit timestamp regardless â€” gives the operator a clean "you're current" state
-      try { localStorage.setItem(VISIT_KEY, now); } catch (_) {}
+      // Update visit timestamp to max-of-data (not bare `now`) so the
+      // saved cursor advances past any future-dated timestamps that
+      // sit in the dashboard but didn't trigger a change banner.
+      try { localStorage.setItem(VISIT_KEY, computeSeenTimestamp()); } catch (_) {}
       return;
     }
 
@@ -3574,21 +3598,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts â€
     dismiss.type = 'button';
     dismiss.textContent = 'Mark all seen';
     dismiss.addEventListener('click', function () {
-      // Save max(click time, max of all data.lastTouched) so the banner
-      // can't reappear on refresh. Two bugs we're fixing:
-      //  (a) Previously we saved page-load `now`, not click time â€”
-      //      stale by however long the user lingered on the page.
-      //  (b) data.lastTouched can contain timestamps later than the
-      //      click time (committed-in-the-future bookkeeping bumps).
-      //      Saving just click time would let those re-flag on refresh.
-      var clickMs = Date.now();
-      var maxDataMs = 0;
-      Object.keys(data.lastTouched).forEach(function (k) {
-        var ms = Date.parse(data.lastTouched[k]);
-        if (ms && ms > maxDataMs) maxDataMs = ms;
-      });
-      var saveMs = clickMs > maxDataMs ? clickMs : maxDataMs;
-      try { localStorage.setItem(VISIT_KEY, new Date(saveMs).toISOString()); } catch (_) {}
+      try { localStorage.setItem(VISIT_KEY, computeSeenTimestamp()); } catch (_) {}
       banner.remove();
       document.querySelectorAll('details.cmd.cmd-changed').forEach(function (r) {
         r.classList.remove('cmd-changed');
