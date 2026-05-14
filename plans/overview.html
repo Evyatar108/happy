@@ -830,16 +830,18 @@
     align-items: center;
     justify-content: flex-end;
   }
-  /* Status sort order — closed first, paused, inflight, ready,
-     blocked last. data-cmd-status is set by the classifyAndOrderCmds
-     IIFE based on each row's badge class. The fallback 99 keeps any
-     unclassified row out of the way. */
+  /* Status sort order — shipped first, then closed (obsolete-by-design),
+     paused, inflight, ready, blocked last. Both shipped and closed
+     share the b-closed badge class; classifyAndOrderCmds tells them
+     apart by emoji prefix (✅ vs 🚫). Fallback 99 keeps unclassified
+     rows out of the way. */
   details.cmd { order: 99; }
-  details.cmd[data-cmd-status="closed"]   { order: 1; }
-  details.cmd[data-cmd-status="paused"]   { order: 2; }
-  details.cmd[data-cmd-status="inflight"] { order: 3; }
-  details.cmd[data-cmd-status="ready"]    { order: 4; }
-  details.cmd[data-cmd-status="blocked"]  { order: 5; }
+  details.cmd[data-cmd-status="shipped"]  { order: 1; }
+  details.cmd[data-cmd-status="closed"]   { order: 2; }
+  details.cmd[data-cmd-status="paused"]   { order: 3; }
+  details.cmd[data-cmd-status="inflight"] { order: 4; }
+  details.cmd[data-cmd-status="ready"]    { order: 5; }
+  details.cmd[data-cmd-status="blocked"]  { order: 6; }
   .b-ready { background: rgba(122,162,247,0.18); color: var(--accent); }
   .b-inflight { background: rgba(224,175,104,0.25); color: var(--warn); }
   .b-blocked { background: rgba(86,95,137,0.25); color: var(--done); }
@@ -2676,7 +2678,12 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
       if (!badge) return;
       var cls = badge.className || '';
       var status;
-      if (cls.indexOf('b-closed') >= 0) status = 'closed';
+      if (cls.indexOf('b-closed') >= 0) {
+        // Both ✅ shipped and 🚫 obsolete-by-design share b-closed.
+        // Tell them apart by the emoji prefix so shipped rows can
+        // float above closed-as-obsolete ones in the sort.
+        status = badge.textContent.indexOf('🚫') >= 0 ? 'closed' : 'shipped';
+      }
       else if (cls.indexOf('b-paused') >= 0) status = 'paused';
       else if (cls.indexOf('b-inflight') >= 0) status = 'inflight';
       else if (cls.indexOf('b-ready') >= 0) status = 'ready';
