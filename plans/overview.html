@@ -221,7 +221,7 @@
   }
   .chip:hover { background: var(--accent); color: white; border-color: var(--accent); }
   .chip-ready { border-color: rgba(122,162,247,0.45); }
-  .chip-inflight { border-color: rgba(224,175,104,0.55); background: rgba(224,175,104,0.12); }
+  .chip-inprogress { border-color: rgba(224,175,104,0.55); background: rgba(224,175,104,0.12); }
   .strip-count { margin-left: auto; font-size: 11px; color: var(--muted); }
 
   /* Area-color left-borders removed in Tier V — status owns the color channel.
@@ -237,7 +237,7 @@
   }
   .section-counts .sc { margin-left: 8px; }
   .section-counts .sc-ready { color: var(--accent); }
-  .section-counts .sc-inflight { color: var(--warn); font-weight: 600; }
+  .section-counts .sc-inprogress { color: var(--warn); font-weight: 600; }
   .section-counts .sc-blocked { color: var(--done); }
   .section-counts .sc-paused { color: var(--done); }
   .section-counts .sc-closed { color: var(--ok); }
@@ -831,7 +831,7 @@
     justify-content: flex-end;
   }
   /* Status sort order — shipped first, then closed (obsolete-by-design),
-     paused, inflight, ready, blocked last. Both shipped and closed
+     paused, inprogress, ready, blocked last. Both shipped and closed
      share the b-closed badge class; classifyAndOrderCmds tells them
      apart by emoji prefix (✅ vs 🚫). Fallback 99 keeps unclassified
      rows out of the way. */
@@ -839,11 +839,11 @@
   details.cmd[data-cmd-status="shipped"]  { order: 1; }
   details.cmd[data-cmd-status="closed"]   { order: 2; }
   details.cmd[data-cmd-status="paused"]   { order: 3; }
-  details.cmd[data-cmd-status="inflight"] { order: 4; }
+  details.cmd[data-cmd-status="inprogress"] { order: 4; }
   details.cmd[data-cmd-status="ready"]    { order: 5; }
   details.cmd[data-cmd-status="blocked"]  { order: 6; }
   .b-ready { background: rgba(122,162,247,0.18); color: var(--accent); }
-  .b-inflight { background: rgba(224,175,104,0.25); color: var(--warn); }
+  .b-inprogress { background: rgba(224,175,104,0.25); color: var(--warn); }
   .b-blocked { background: rgba(86,95,137,0.25); color: var(--done); }
   .b-paused { background: rgba(86,95,137,0.25); color: var(--done); }
   .b-closed { background: rgba(158,206,106,0.18); color: var(--ok); }
@@ -978,7 +978,7 @@
         <h4>Status</h4>
         <div class="filter-chips" data-filter-axis="status" aria-label="Filter by status">
           <button class="filter-chip" data-filter-value="ready" type="button">⬜ ready</button>
-          <button class="filter-chip" data-filter-value="inflight" type="button">🟡 in progress</button>
+          <button class="filter-chip" data-filter-value="inprogress" type="button">🟡 in progress</button>
           <button class="filter-chip" data-filter-value="blocked" type="button">🔒 blocked</button>
           <button class="filter-chip" data-filter-value="paused" type="button">⏸ paused</button>
           <button class="filter-chip" data-filter-value="closed" type="button">🚫 closed</button>
@@ -2667,7 +2667,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
   })();
 
   // ===== Annotate each cmd row with data-cmd-status so CSS `order`
-  //       can sort them: closed first, then paused, inflight, ready,
+  //       can sort them: closed first, then paused, inprogress, ready,
   //       blocked. The badge may live directly under <summary> OR
   //       inside the injected .cmd-scope-cluster wrapper (the chip
   //       injector relocates it there), so use a descendant selector
@@ -2685,7 +2685,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
         status = badge.textContent.indexOf('🚫') >= 0 ? 'closed' : 'shipped';
       }
       else if (cls.indexOf('b-paused') >= 0) status = 'paused';
-      else if (cls.indexOf('b-inflight') >= 0) status = 'inflight';
+      else if (cls.indexOf('b-inprogress') >= 0) status = 'inprogress';
       else if (cls.indexOf('b-ready') >= 0) status = 'ready';
       else if (cls.indexOf('b-blocked') >= 0) status = 'blocked';
       if (status) cmd.dataset.cmdStatus = status;
@@ -2842,7 +2842,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     if (!badge) return 'unknown';
     var cls = badge.className || '';
     if (cls.indexOf('b-ready') >= 0) return 'ready';
-    if (cls.indexOf('b-inflight') >= 0) return 'inflight';
+    if (cls.indexOf('b-inprogress') >= 0) return 'inprogress';
     if (cls.indexOf('b-paused') >= 0) return 'paused';
     if (cls.indexOf('b-blocked') >= 0) return 'blocked';
     if (cls.indexOf('b-closed') >= 0) return 'closed';
@@ -2852,8 +2852,8 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
   // ===== Build the Today decision panel from existing cmd rows =====
   (function buildTodayPanel() {
     var rows = document.querySelectorAll('details.cmd');
-    var counts = { ready: 0, inflight: 0, paused: 0, blocked: 0, closed: 0 };
-    var byStatus = { ready: [], inflight: [], blocked: [], paused: [], closed: [] };
+    var counts = { ready: 0, inprogress: 0, paused: 0, blocked: 0, closed: 0 };
+    var byStatus = { ready: [], inprogress: [], blocked: [], paused: [], closed: [] };
     rows.forEach(function (r) {
       var status = classifyCmd(r);
       counts[status] = (counts[status] || 0) + 1;
@@ -2873,11 +2873,11 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
         a.href = '#cmd-' + n;
         a.className = 'chip ' + (chipClass || '');
         a.textContent = (prefix || '') + n;
-        a.title = (chipClass === 'chip-inflight' ? 'In progress — ' : 'Jump to ') + n;
+        a.title = (chipClass === 'chip-inprogress' ? 'In progress — ' : 'Jump to ') + n;
         el.appendChild(a);
       });
     }
-    chipsInto('today-running', byStatus.inflight, 'chip-inflight', '');
+    chipsInto('today-running', byStatus.inprogress, 'chip-inprogress', '');
     chipsInto('today-ready', byStatus.ready, 'chip-ready', '');
     // On-hold row: paused first, then blocked
     chipsInto('today-hold', byStatus.paused.concat(byStatus.blocked), '', '');
@@ -2941,7 +2941,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
       cmds.innerHTML =
         '(' + total + ' total)' +
         '<span class="sc sc-ready">' + counts.ready + ' ready</span>' +
-        '<span class="sc sc-inflight">' + counts.inflight + ' in progress</span>' +
+        '<span class="sc sc-inprogress">' + counts.inprogress + ' in progress</span>' +
         '<span class="sc sc-blocked">' + counts.blocked + ' blocked</span>' +
         '<span class="sc sc-paused">' + counts.paused + ' paused</span>' +
         '<span class="sc sc-closed">' + counts.closed + ' closed</span>';
