@@ -2638,31 +2638,33 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
       cluster.className = 'cmd-scope-cluster';
       if (desc) summary.insertBefore(cluster, desc);
       else summary.appendChild(cluster);
-      // Move the static .cmd-badge into the cluster so the status badge
-      // and scope chips render as a single tight tag group, all
-      // right-aligned together.
+      // Capture the static badge now; append it LAST so it ends up
+      // rightmost in the cluster (scope chips first, status badge
+      // after them on the right).
       var badge = summary.querySelector(':scope > .cmd-badge');
-      if (badge) cluster.appendChild(badge);
       if (scopes.length === 0) {
         var warn = document.createElement('span');
         warn.className = 'task-scope-chip missing';
         warn.textContent = '⚠ missing scope';
         warn.title = 'This cmd row has no data-task-scope attribute. Declare bookkeeping, codexu, codex, or a `|`-delimited combo so the right copy-time preambles inject.';
         cluster.appendChild(warn);
-        return;
+      } else {
+        // Render chips in canonical order (bookkeeping, codexu, codex)
+        // so visual layout doesn't shuffle based on the order the
+        // operator typed the labels.
+        ['bookkeeping', 'codexu', 'codex'].forEach(function (k) {
+          if (scopes.indexOf(k) < 0) return;
+          var def = SCOPE_LABELS[k];
+          var chip = document.createElement('span');
+          chip.className = 'task-scope-chip ' + k;
+          chip.textContent = def.text;
+          chip.title = def.title;
+          cluster.appendChild(chip);
+        });
       }
-      // Render chips in canonical order (bookkeeping, codexu, codex) so
-      // visual layout doesn't shuffle based on the order the operator
-      // typed the labels.
-      ['bookkeeping', 'codexu', 'codex'].forEach(function (k) {
-        if (scopes.indexOf(k) < 0) return;
-        var def = SCOPE_LABELS[k];
-        var chip = document.createElement('span');
-        chip.className = 'task-scope-chip ' + k;
-        chip.textContent = def.text;
-        chip.title = def.title;
-        cluster.appendChild(chip);
-      });
+      // Badge appended last → rightmost in the cluster, immediately
+      // adjacent to cmd-desc.
+      if (badge) cluster.appendChild(badge);
     });
   })();
 
