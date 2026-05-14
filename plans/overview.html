@@ -768,17 +768,16 @@
     border-radius: 3px;
     font-weight: 600;
     white-space: nowrap;
-    flex: 0 0 110px;
-    text-align: center;
   }
-  /* Wrapper around the task-scope chips, fixed-width so cmd-desc
-     starts at the same x across every row regardless of how many
-     chips a task declares. justify-content: flex-end packs chips
-     against the right edge of the slot so they sit flush with where
-     cmd-desc begins — no dead space between the rightmost chip and
-     the description. Injected by injectTaskScopeChips. */
+  /* Wrapper that holds the status badge + every task-scope chip for a
+     row, fixed-width so cmd-desc starts at the same x across rows.
+     justify-content: flex-end packs the contents against the right edge
+     of the slot — any leftover space sits on the LEFT (between cmd-name
+     and the badge) rather than BETWEEN the badge and chips, so the
+     tags read as one tight group. Injected by injectTaskScopeChips,
+     which also moves the static .cmd-badge into this wrapper. */
   .cmd-scope-cluster {
-    flex: 0 0 200px;
+    flex: 0 0 240px;
     display: flex;
     gap: 4px;
     align-items: center;
@@ -2582,6 +2581,11 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
       cluster.className = 'cmd-scope-cluster';
       if (desc) summary.insertBefore(cluster, desc);
       else summary.appendChild(cluster);
+      // Move the static .cmd-badge into the cluster so the status badge
+      // and scope chips render as a single tight tag group, all
+      // right-aligned together.
+      var badge = summary.querySelector(':scope > .cmd-badge');
+      if (badge) cluster.appendChild(badge);
       if (scopes.length === 0) {
         var warn = document.createElement('span');
         warn.className = 'task-scope-chip missing';
