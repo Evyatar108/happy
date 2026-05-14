@@ -282,7 +282,7 @@
   }
   /* Compact filter chips behind a "Filter ⏷" toggle to keep the toolbar
      to one row by default. Click to expand. */
-  details.toolbar-filters { display: inline-block; }
+  details.toolbar-filters { display: inline-block; position: relative; }
   details.toolbar-filters > summary {
     cursor: pointer;
     list-style: none;
@@ -303,6 +303,8 @@
   /* Grouped filter popover (Status / Workstream / Size) */
   details.toolbar-filters .filter-popover {
     position: absolute;
+    top: 100%;
+    right: 0; /* anchor popover to the right edge of the Filter button so it extends LEFTWARD into the viewport instead of overflowing rightward */
     margin-top: 6px;
     background: var(--card);
     border: 1px solid var(--border);
