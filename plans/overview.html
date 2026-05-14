@@ -3518,11 +3518,16 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts â€
       return;
     }
 
-    // Find tasks touched since last visit
+    // Find tasks touched since last visit. Compare numerically via
+    // Date.parse() rather than ISO-string lexicographic order â€” the
+    // saved `now` ends with `.NNNZ` while data values end with `Z`,
+    // and `"Z" > "."` makes the lexicographic comparison wrong at
+    // exact equality.
+    var lastVisitMs = Date.parse(lastVisit);
     var changed = [];
     Object.keys(data.lastTouched).forEach(function (taskId) {
       var ts = data.lastTouched[taskId];
-      if (ts && ts > lastVisit) changed.push({ id: taskId, touchedAt: ts });
+      if (ts && Date.parse(ts) > lastVisitMs) changed.push({ id: taskId, touchedAt: ts });
     });
 
     if (changed.length === 0) {
@@ -3569,7 +3574,21 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts â€
     dismiss.type = 'button';
     dismiss.textContent = 'Mark all seen';
     dismiss.addEventListener('click', function () {
-      try { localStorage.setItem(VISIT_KEY, now); } catch (_) {}
+      // Save max(click time, max of all data.lastTouched) so the banner
+      // can't reappear on refresh. Two bugs we're fixing:
+      //  (a) Previously we saved page-load `now`, not click time â€”
+      //      stale by however long the user lingered on the page.
+      //  (b) data.lastTouched can contain timestamps later than the
+      //      click time (committed-in-the-future bookkeeping bumps).
+      //      Saving just click time would let those re-flag on refresh.
+      var clickMs = Date.now();
+      var maxDataMs = 0;
+      Object.keys(data.lastTouched).forEach(function (k) {
+        var ms = Date.parse(data.lastTouched[k]);
+        if (ms && ms > maxDataMs) maxDataMs = ms;
+      });
+      var saveMs = clickMs > maxDataMs ? clickMs : maxDataMs;
+      try { localStorage.setItem(VISIT_KEY, new Date(saveMs).toISOString()); } catch (_) {}
       banner.remove();
       document.querySelectorAll('details.cmd.cmd-changed').forEach(function (r) {
         r.classList.remove('cmd-changed');
