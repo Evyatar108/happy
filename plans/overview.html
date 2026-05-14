@@ -740,7 +740,7 @@
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
     list-style: none;
     font-size: 13px;
     flex-wrap: wrap;
@@ -773,12 +773,16 @@
   }
   /* Wrapper around the task-scope chips, fixed-width so cmd-desc
      starts at the same x across every row regardless of how many
-     chips a task declares. Injected by injectTaskScopeChips. */
+     chips a task declares. justify-content: flex-end packs chips
+     against the right edge of the slot so they sit flush with where
+     cmd-desc begins — no dead space between the rightmost chip and
+     the description. Injected by injectTaskScopeChips. */
   .cmd-scope-cluster {
-    flex: 0 0 220px;
+    flex: 0 0 200px;
     display: flex;
     gap: 4px;
     align-items: center;
+    justify-content: flex-end;
   }
   /* Status sort order — closed first, paused, inflight, ready,
      blocked last. data-cmd-status is set by the classifyAndOrderCmds
