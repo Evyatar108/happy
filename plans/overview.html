@@ -659,11 +659,9 @@
     border-radius: 4px;
   }
 
-  /* Operator notes — inline textarea per cmd row */
+  /* Operator notes — inline textarea per cmd row. Notes toggle lives in
+     the .cmd-actions flex wrapper (no own absolute positioning). */
   .notes-toggle {
-    position: absolute;
-    top: 6px;
-    right: 80px; /* sits next to the Copy button */
     background: var(--card-hover);
     color: var(--fg);
     border: 1px solid var(--border);
@@ -672,7 +670,6 @@
     font-size: 11px;
     font-family: inherit;
     cursor: pointer;
-    z-index: 1;
   }
   .notes-toggle:hover { background: var(--accent); color: white; border-color: var(--accent); }
   .notes-toggle.has-note { border-color: var(--ok); color: var(--ok); }
@@ -715,13 +712,12 @@
     .sub, .cmd-desc, .card-meta, .footnote, .section-counts, .strip-count, .kbd-hint {
       color: var(--fg);
     }
-    .copy-btn, .bulk-btn, .notes-toggle, .wn-dismiss {
+    .copy-btn, .bulk-btn, .notes-toggle, .copy-name-btn, .wn-dismiss {
       padding: 10px 16px;
       font-size: 13px;
       min-height: 40px;
     }
-    .copy-btn { top: 4px; right: 4px; }
-    .notes-toggle { right: 100px; }
+    .cmd-actions { top: 4px; right: 4px; gap: 4px; }
     .cmd-select { width: 22px; height: 22px; cursor: pointer; }
     .filter-chip { padding: 8px 14px; font-size: 13px; min-height: 36px; }
     .chip { padding: 6px 12px; font-size: 13px; }
@@ -830,10 +826,20 @@
     margin: 0;
     tab-size: 2;
   }
-  .copy-btn {
+  /* Action-button cluster anchored top-right of each cmd-body.
+     Uses flex-direction: row-reverse so the first child rendered (the
+     static Copy Command button) sits rightmost; later-appended buttons
+     stack to its left with consistent gap. */
+  .cmd-actions {
     position: absolute;
     top: 6px;
     right: 6px;
+    display: flex;
+    flex-direction: row-reverse;
+    gap: 6px;
+    z-index: 1;
+  }
+  .copy-btn {
     background: var(--card-hover);
     color: var(--fg);
     border: 1px solid var(--border);
@@ -842,11 +848,23 @@
     font-size: 11px;
     font-family: inherit;
     cursor: pointer;
-    z-index: 1;
     transition: background 0.1s, color 0.1s;
   }
   .copy-btn:hover { background: var(--accent); color: white; border-color: var(--accent); }
   .copy-btn.copied { background: var(--ok); color: white; border-color: var(--ok); }
+  .copy-name-btn {
+    background: var(--card-hover);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.1s, color 0.1s, border-color 0.1s;
+  }
+  .copy-name-btn:hover { color: var(--fg); border-color: var(--accent); }
+  .copy-name-btn.copied { background: var(--ok); color: white; border-color: var(--ok); }
   .cmd-warn {
     background: rgba(224,175,104,0.10);
     border-left: 3px solid var(--warn);
@@ -2488,18 +2506,69 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
 </script>
 
 <script>
-  // ===== Clipboard copy on .copy-btn click =====
+  // Helper: get or create the .cmd-actions flex wrapper for a cmd-body,
+  // moving any pre-existing top-level .copy-btn into it. The wrapper is
+  // position: absolute / row-reverse, so the first-appended child sits
+  // rightmost — keep Copy Command as that anchor.
+  function getOrCreateCmdActions(body) {
+    var existing = body.querySelector(':scope > .cmd-actions');
+    if (existing) return existing;
+    var wrap = document.createElement('div');
+    wrap.className = 'cmd-actions';
+    // Move the static Copy Command button into the wrapper first so it's
+    // the rightmost slot (row-reverse → child[0] is rightmost).
+    var copyBtn = body.querySelector(':scope > .copy-btn');
+    if (copyBtn) wrap.appendChild(copyBtn);
+    body.insertBefore(wrap, body.firstChild);
+    return wrap;
+  }
+
+  // ===== Inject "Copy Name" button into every cmd-body =====
+  (function injectCopyNameButtons() {
+    document.querySelectorAll('details.cmd[data-task-id]').forEach(function (cmd) {
+      var taskId = cmd.dataset.taskId;
+      if (!taskId) return;
+      var body = cmd.querySelector('.cmd-body');
+      if (!body || body.querySelector('.copy-name-btn')) return;
+      var wrap = getOrCreateCmdActions(body);
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'copy-name-btn';
+      btn.textContent = 'Copy Name';
+      btn.title = 'Copy task name "' + taskId + '" to clipboard';
+      btn.dataset.copyText = taskId;
+      wrap.appendChild(btn);
+    });
+  })();
+
+  // ===== Clipboard copy on .copy-btn / .copy-name-btn click =====
   document.addEventListener('click', function (e) {
     var btn = e.target;
-    if (!btn.classList || !btn.classList.contains('copy-btn')) return;
-    var pre = btn.parentElement.querySelector('.cmd-pre');
-    if (!pre) return;
-    var text = pre.textContent;
+    if (!btn.classList) return;
+    var isCopyName = btn.classList.contains('copy-name-btn');
+    var isCopy = btn.classList.contains('copy-btn');
+    if (!isCopy && !isCopyName) return;
+    var text;
+    var resetLabel;
+    if (isCopyName) {
+      text = btn.dataset.copyText || '';
+      resetLabel = 'Copy Name';
+    } else {
+      // Walk up to the cmd-body (the Copy button now lives inside the
+      // .cmd-actions flex wrapper, so .parentElement is no longer the
+      // body — find the <pre> by climbing to the enclosing cmd-body).
+      var body = btn.closest('.cmd-body');
+      var pre = body && body.querySelector('.cmd-pre');
+      if (!pre) return;
+      text = pre.textContent;
+      resetLabel = 'Copy Command';
+    }
+    if (!text) return;
     var done = function (ok) {
       btn.textContent = ok ? '✓ Copied' : '✗ Failed';
       btn.classList.toggle('copied', ok);
       setTimeout(function () {
-        btn.textContent = 'Copy';
+        btn.textContent = resetLabel;
         btn.classList.remove('copied');
       }, 1500);
     };
@@ -3239,7 +3308,15 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
         }
       });
 
-      body.appendChild(btn);
+      // Route the toggle into the .cmd-actions wrapper so all 3 action
+      // buttons share the same flex container and have consistent gaps.
+      // (Falls back to body.appendChild if the wrapper helper isn't
+      // available yet — order independence.)
+      if (typeof getOrCreateCmdActions === 'function') {
+        getOrCreateCmdActions(body).appendChild(btn);
+      } else {
+        body.appendChild(btn);
+      }
       body.appendChild(panel);
     });
 
