@@ -13,6 +13,54 @@ description: >
 
 # /roadmap-and-overview — maintain the codexu roadmap dashboard
 
+## Fresh-agent orientation
+
+If you're a new agent picking up codexu maintenance — read this first.
+
+**Your role** is the bookkeeping spine. The operator runs many ralph
+agents in parallel (3-8 in flight at once); each agent eventually
+lands code on `main`, often with partial dashboard updates. You
+finish the close-out per procedure B, sweep dependents, ship the next
+generation-stamp commit, and surface the next-wave URL on request.
+
+**First five things to do when the conversation opens:**
+
+1. `git status` + `git branch --show-current` — confirm you're on
+   `main` and the working tree state. If you're on a topic branch
+   left over from a prior agent, see the worktree-isolation pitfall
+   below; `git checkout main` (stash any uncommitted bookkeeping if
+   needed) before doing roadmap edits.
+2. `git log --oneline -15` — see what's landed recently. Compare
+   against the dashboard's `generatedFromCommit` to gauge drift.
+3. Scan `plans/overview.html` for tasks with `b-inflight` badges +
+   `cmd-warn blocked` banners. The `b-blocked` ones may have stale
+   prereqs (already shipped) — sweep is part of procedure B.
+4. Read the operator memory note `codexu orchestration pattern` for
+   how the operator interacts with you (delegation, URL handoffs,
+   parallel fleets).
+5. Skim the pitfalls section at the bottom of this file. Almost
+   every operator-correction in the 2026-05-13/14 session traced
+   back to one of those traps.
+
+**Your most-used procedure** is B (mark-task-shipped). The standard
+landing report from an agent contains: a topic-branch name, a tip
+SHA, optionally a merge SHA, a story-by-story status, and "deferred
+to..." follow-ups. Translate that into a procedure-B close-out commit
+(badge flip + runs[] entry + status table + dependent unblock + meta
+bump). Cross-repo landings produce TWO commits — see procedure B's
+multi-commit pattern.
+
+**Your second-most-used procedure** is A (add a new task) when the
+operator says "also add a task for X" or "yes spawn that too". Full
+ralph command in `cmd-pre`, 5 JSON metadata maps, `spawnedFrom` if
+applicable, status-table row.
+
+**Don't write code for the tasks themselves.** Those go to ralph
+agents in worktrees, not to you in the parent repo. You write the
+ralph commands they consume, not the implementations.
+
+## Source files
+
 The codexu roadmap dashboard at `plans/overview.html` is a single-file
 static HTML page (no build, no external deps, works under file://).
 It's a derivative view of:
@@ -260,6 +308,7 @@ If you're adding a new view (e.g., a new section, a new filter axis, a new badge
 - **Ralph agents must commit on isolated worktrees, never on the parent codexu's `main`.** Pattern: `git worktree add .worktrees/<task-id> -b ralph/<task-id> origin/main`, do all work there, push the topic branch, surface to operator for a `--no-ff` merge. On 2026-05-14 the codex-wire-spike agent committed directly on the parent codexu working branch (`0dcd8614`), which forced manual cherry-picking + branch-checkout dancing to keep `main` clean while the agent kept editing. Authors of new ralph commands MUST include the worktree-isolation paragraph (or rely on the global convention in `plans/parallel-assignments.md`'s preamble). Codex-submodule tasks have their own worktree convention (`.ralph/jobs/<name>/codex-worktree/` of the codex submodule); codexu-side tasks land in `.worktrees/<task-id>/`. Don't conflate the two — codex-submodule edits + codexu-side bookkeeping in the SAME task need a worktree for EACH side.
 - **End every ralph job with `git checkout main` on the parent codexu repo.** Even if the agent used a worktree correctly for its own work, leaving a topic branch checked out on the parent repo causes the NEXT bookkeeping commit (mine or another agent's) to silently land on that branch instead of main. Incidents (2026-05-14): codex-wire-spike left `codex-wire-spike` checked out → my `feat(overview): re-block async-events-design` commit (`4e8c925c`) landed there instead of main, requiring a cherry-pick. port-explorer-prompt left `port-explorer-prompt-pointer-bump` checked out → my `docs: add 4 more spawned follow-up tasks` commit (`47de9b32`) landed there, requiring `git push origin HEAD:main`. **Always verify HEAD before bookkeeping: `git branch --show-current` should print `main`. If it doesn't, switch (stashing uncommitted work first) before doing any roadmap edits.**
 - **Pre-merge rebase audit: `git diff main <branch> --stat` BEFORE every merge.** A topic branch that's N-behind main will silently revert main's recent commits if you merge it without rebasing. The expected diff for a single-task topic branch is small (~1-5 files). If the diff shows ~30 files and ~5000 lines of changes, the branch is stale — rebase it first (`git -C <worktree> rebase main`) or you'll lose recently-landed work. Incident (2026-05-14): port-explorer-prompt-pointer-bump's 1-line commit lived on a branch 5-behind main; `git diff main <branch> --stat` showed 35 files / +984 / -5396 (reversal of 5 prior landings). Rebased first → ff-merge cleanly delivered just the 1-line pointer bump. The check takes 2 seconds and prevents a class of silent disasters.
+- **Research-task output often sits uncommitted in the working tree.** Pattern observed 4× this session (codex-parity-audit, agent-view-research, native-agent-parity, channels-research): the agent writes `plans/<task-id>.md` to disk, flips its own badge in `plans/overview.html`, but never `git add` + commits — the operator's report is "X is done" but `git status` shows the doc as untracked. **Always check `git status` for new untracked `plans/*.md` files matching the task name; stage and commit them with the close-out commit.** If the doc is partial or you're not sure it's complete, surface to the operator before committing.
 - **Verify tab title matches the ralph prompt text before firing.** Operator tabs sometimes drift from the prompt they actually run. Incident (2026-05-14): a tab labeled `3c-hooks` was fired with the `3h-options` prompt verbatim — 3h-options shipped (correctly), 3c-hooks dashboard stayed inflight forever (incorrectly) until the mismatch surfaced. Cheap check before firing: read the first sentence of the `/plan-with-ralph "..."` block and confirm it references the same task the tab claims. If the dashboard later shows an in-progress task that's actually a different task's work, flip the misnamed one back to `b-ready` with a `cmd-desc` note acknowledging the conflation.
 - **Landing agents only flip their own badge — the full close-out is a bookkeeping pass.** Across the 2026-05-13 / 2026-05-14 session, four landing agents (`codex-parity-audit`, `agent-view-research`, `native-agent-parity`, `channels-research`) each updated their own row's badge to `b-closed` and updated `lastTouched`, but only one (`agent-view-research`) also added the `runs[]` entry and one (`channels-research`) updated `plans/parallel-assignments.md`'s status-table row. The remaining bookkeeping always falls to the operator-side commit. **The full "task landed" checklist is procedure B in this skill — and an incomplete close-out means the dashboard's "Recently shipped" footer + the parallel-assignments tracker drift out of sync within the same commit.** When auditing a recently-landed task, verify all 6 items in procedure B explicitly; don't trust that an agent did them.
 
