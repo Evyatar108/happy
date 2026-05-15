@@ -135,17 +135,17 @@ I grepped codexu for references to the old plugin and ralph orchestration patter
 
 **Edits to `roadmap-and-overview/SKILL.md`** (do these once crews 1.0 ships and the workflow has been validated for ~1 week):
 
-1. **"Fresh-agent orientation" → add crews framing**: the bookkeeping agent is either (a) a member of crew `codexu` with read access to lead's view via `--allow-peers` (preferred — bookkeeping is a peer concern, not a lead concern), OR (b) the lead themselves. Document which the operator uses.
+1. **"Fresh-agent orientation" → add crews framing**: the bookkeeping agent IS the lead session itself. Peer-member bookkeepers are not viable in 1.0 — `/list-members` returns only `{crew, name, role, lastHeartbeatAt, liveness}` to `--allow-peers` members, which is insufficient for driving overview.html / roadmap.md updates (needs `lastKind` + `lastSummary` + outbox seq, which only the lead view exposes). Splitting bookkeeping out to a dedicated peer member is parked until the plugin either exposes those fields to peers or ships `/grant-cap` for selective full-visibility (1.1+).
 2. **Step 3 of "First five things to do"**: replace "scan `plans/overview.html` for tasks with `b-inflight` badges + `cmd-warn blocked` banners" with "run `/list-members --crew codexu` to see live status of all in-flight ralph members, then reconcile against `plans/overview.html`."
 3. **Procedure B** (mark-task-shipped) intake: the canonical landing report becomes the member's outbox under `crews/codexu/members/<story-id>/outbox.jsonl`. Each turn the member did is one outbox line; the most recent `kind=done` entry is the close-out report. Skill should `Read` this directly rather than wait for operator paste.
-4. **Pitfalls section**: add "stale member state — if a member emitted `kind=done` but their wt-tab is still alive, the bookkeeper should check whether the lead has confirmed the merge before flipping the badge."
+4. **Pitfalls section**: add "stale member state — if a member emitted `kind=done` but their wt-tab is still alive, the lead should confirm the merge landed (via `git log` on the relevant branch) before flipping the badge."
 
 **Other plan files that reference ralph orchestration** (no update needed for 1.0 adoption, but worth a future revisit):
 
 - `plans/parallel-assignments.md` — catalog of ralph plan prompts. The prompts themselves don't change; only how they're kicked off (was: manual wt-new-tab; now: `/spawn-member ... -- /ralph-plan ...`). Add a brief note at the top pointing to this integration doc.
 - `plans/codexu-roadmap.md` — workflow doc. May want a sentence near "How we run stories" pointing at crews as the new spawn mechanism.
 
-**Memory note worth updating**: the user-memory file `codexu_orchestration_pattern.md` (in your global memory) currently says "operator runs many ralph agents in parallel and delegates dashboard bookkeeping to you." Update to note the crews layer: "operator runs many ralph agents in parallel as members of crew `codexu`; lead is the human's main tab; bookkeeping is delegated to a member with `--allow-peers` (or to the lead directly)."
+**Memory note worth updating**: the user-memory file `codexu_orchestration_pattern.md` (in your global memory) currently says "operator runs many ralph agents in parallel and delegates dashboard bookkeeping to you." Update to note the crews layer: "operator runs many ralph agents in parallel as members of crew `codexu`; lead is the human's main tab; lead handles dashboard bookkeeping directly (a separate peer-member bookkeeper is deferred to 1.1 because 1.0 doesn't expose `lastKind`/`lastSummary` to peer-allowed members)."
 
 ---
 
