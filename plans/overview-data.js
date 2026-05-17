@@ -26,6 +26,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "shipped",
               "status": "ok",
+              "lastTouchedAt": "2026-05-13T22:00:00Z",
               "mergeCommit": "197b0148",
               "kanbanCards": [
                     {
@@ -49,6 +50,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "ok",
+              "lastTouchedAt": "2026-05-13T19:30:00Z",
               "kanbanCards": [
                     {
                           "column": "soon",
@@ -92,6 +94,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "ok",
+              "lastTouchedAt": "2026-05-13T19:30:00Z",
               "kanbanCards": [
                     {
                           "column": "ready",
@@ -150,6 +153,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "closed",
               "status": "ok",
+              "lastTouchedAt": "2026-05-13T22:30:00Z",
               "kanbanCards": [
                     {
                           "column": "ready",
@@ -171,6 +175,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "paused",
+              "lastTouchedAt": "2026-05-13T21:30:00Z",
               "kanbanCards": [
                     {
                           "column": "ready",
@@ -197,6 +202,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "closed",
               "status": "ok",
+              "lastTouchedAt": "2026-05-13T21:00:00Z",
               "kanbanCards": [
                     {
                           "column": "ready",
@@ -223,6 +229,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "paused",
+              "lastTouchedAt": "2026-05-14T07:00:00Z",
               "kanbanCards": [
                     {
                           "column": "ready",
@@ -249,6 +256,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "shipped",
               "status": "ok",
+              "lastTouchedAt": "2026-05-13T12:39:11-07:00",
               "kanbanCards": [
                     {
                           "column": "ready",
@@ -271,6 +279,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "shipped",
               "status": "ok",
+              "lastTouchedAt": "2026-05-13T23:30:00Z",
               "kanbanCards": [
                     {
                           "column": "ready",
@@ -293,6 +302,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "blocked",
+              "lastTouchedAt": "2026-05-13T19:30:00Z",
               "kanbanCards": [
                     {
                           "column": "ready",
@@ -326,6 +336,7 @@ window.OVERVIEW_DATA = {
               "scope": "codex",
               "phase": "shipped",
               "status": "ok",
+              "lastTouchedAt": "2026-05-13T23:30:00Z",
               "kanbanCards": [
                     {
                           "column": "ready",
@@ -349,6 +360,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "blocked",
+              "lastTouchedAt": "2026-05-13T19:30:00Z",
               "kanbanCards": [
                     {
                           "column": "soon",
@@ -375,6 +387,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T17:30:00Z",
               "kanbanCards": [
                     {
                           "column": "soon",
@@ -397,6 +410,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "blocked",
+              "lastTouchedAt": "2026-05-13T19:30:00Z",
               "kanbanCards": [
                     {
                           "column": "soon",
@@ -423,6 +437,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "blocked",
+              "lastTouchedAt": "2026-05-13T19:30:00Z",
               "kanbanCards": [
                     {
                           "column": "soon",
@@ -449,6 +464,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "shipped",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T16:00:00Z",
               "kanbanCards": [
                     {
                           "column": "ready",
@@ -471,6 +487,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "ok",
+              "lastTouchedAt": "2026-05-13T21:45:00Z",
               "kanbanCards": [
                     {
                           "column": "blocked",
@@ -497,6 +514,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T01:30:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "happy-upstream-sync",
@@ -510,6 +528,7 @@ window.OVERVIEW_DATA = {
               "scope": "codex",
               "phase": "plan-ready",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T01:30:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "codex-upstream-rebase",
@@ -523,6 +542,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "shipped",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T06:00:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "agent-view-research",
@@ -537,6 +557,7 @@ window.OVERVIEW_DATA = {
               "scope": "codex|codexu",
               "phase": "plan-ready",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T03:00:00Z",
               "kanbanCards": [
                     {
                           "column": "blocked",
@@ -563,6 +584,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "blocked",
+              "lastTouchedAt": "2026-05-14T03:00:00Z",
               "kanbanCards": [
                     {
                           "column": "blocked",
@@ -596,6 +618,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "shipped",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T09:00:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "channels-research",
@@ -610,6 +633,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "blocked",
+              "lastTouchedAt": "2026-05-14T13:30:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "async-events-design",
@@ -628,6 +652,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "shipped",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T08:00:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "native-agent-parity",
@@ -642,6 +667,7 @@ window.OVERVIEW_DATA = {
               "scope": "bookkeeping|codexu",
               "phase": "plan-ready",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T05:00:00Z",
               "kanbanCards": [
                     {
                           "column": "soon",
@@ -663,6 +689,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "shipped",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T19:00:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "agent-tree-rpc",
@@ -676,6 +703,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "shipped",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T15:00:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "session-parent-link",
@@ -690,6 +718,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T06:00:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "mobile-tree-view",
@@ -703,6 +732,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "shipped",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T14:00:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "session-role-pill",
@@ -717,6 +747,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T06:00:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "spawn-from-app",
@@ -730,6 +761,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T19:00:00Z",
               "kanbanCards": [
                     {
                           "column": "blocked",
@@ -751,6 +783,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "shipped",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T18:00:00Z",
               "kanbanCards": [
                     {
                           "column": "soon",
@@ -773,6 +806,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T08:30:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "codex-claude-md-autoload",
@@ -791,6 +825,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T18:00:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "codex-attachments",
@@ -809,6 +844,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T08:30:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "codex-system-prompts",
@@ -827,6 +863,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T08:30:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "codex-hooks-parity",
@@ -845,6 +882,7 @@ window.OVERVIEW_DATA = {
               "scope": "codex",
               "phase": "shipped",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T20:00:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "port-explorer-prompt",
@@ -859,6 +897,7 @@ window.OVERVIEW_DATA = {
               "scope": "codex",
               "phase": "plan-ready",
               "status": "blocked",
+              "lastTouchedAt": "2026-05-14T08:30:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "port-plan-and-verification-roles",
@@ -877,6 +916,7 @@ window.OVERVIEW_DATA = {
               "scope": "codex",
               "phase": "shipped",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T08:30:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "audit-general-purpose-vs-worker",
@@ -891,6 +931,7 @@ window.OVERVIEW_DATA = {
               "scope": "codex",
               "phase": "plan-ready",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T16:30:00Z",
               "kanbanCards": [
                     {
                           "column": "blocked",
@@ -912,6 +953,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T17:00:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "session-parent-link-writer",
@@ -925,6 +967,7 @@ window.OVERVIEW_DATA = {
               "scope": "codex",
               "phase": "plan-ready",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T17:00:00Z",
               "kanbanCards": [
                     {
                           "column": "blocked",
@@ -946,6 +989,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T19:30:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "codex-child-spawn-tools",
@@ -959,6 +1003,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "blocked",
+              "lastTouchedAt": "2026-05-14T17:00:00Z",
               "kanbanCards": [
                     {
                           "column": "blocked",
@@ -985,6 +1030,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "blocked",
+              "lastTouchedAt": "2026-05-14T18:30:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "codex-plan-mode-defensive",
@@ -1003,6 +1049,7 @@ window.OVERVIEW_DATA = {
               "scope": "codexu",
               "phase": "plan-ready",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T17:00:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "codex-polish-lows",
@@ -1021,6 +1068,7 @@ window.OVERVIEW_DATA = {
               "scope": "codex",
               "phase": "plan-ready",
               "status": "ok",
+              "lastTouchedAt": "2026-05-14T09:00:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "mcp-server-notifications",
@@ -1034,6 +1082,7 @@ window.OVERVIEW_DATA = {
               "scope": "codex",
               "phase": "plan-ready",
               "status": "blocked",
+              "lastTouchedAt": "2026-05-14T09:00:00Z",
               "kanbanCards": [],
               "command": {
                     "name": "codex-channels",
