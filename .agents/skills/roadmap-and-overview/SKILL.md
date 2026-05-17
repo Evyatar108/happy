@@ -2,216 +2,211 @@
 name: roadmap-and-overview
 description: >
   Procedure for maintaining the codexu roadmap visualization
-  (`plans/overview.html`) and its three companion markdown files
-  (`plans/codexu-roadmap.md`, `plans/parallel-assignments.md`,
-  `plans/realtime-sync-perf.md`). Use when adding a new task, changing
-  a task's status, recording a run/completion, adding a workstream
+  (`plans/overview.html`) and its sidecar data file
+  (`plans/overview-data.js`). Use when adding a new task, changing a
+  task's status, recording a run/completion, adding a workstream
   category, or extending the visualization with a new feature. The
-  visualization is a single-file static HTML; the markdown sources
-  are authoritative; this skill keeps the two in lockstep.
+  dashboard renders from `window.OVERVIEW_DATA`; edit the data file
+  first and touch the HTML only when the renderer or UI shell changes.
 ---
 
-# /roadmap-and-overview — maintain the codexu roadmap dashboard
+# /roadmap-and-overview - maintain the codexu roadmap dashboard
 
 ## Fresh-agent orientation
 
-If you're a new agent picking up codexu maintenance — read this first.
+This skill is for operator-side bookkeeping. Ralph implementation agents
+ship code in isolated worktrees and report the dashboard delta; the
+bookkeeper records that delta in `plans/overview-data.js`, verifies the
+page still renders, and commits the bookkeeping change.
 
-**Your role** is the bookkeeping spine. The operator runs many ralph
-agents in parallel (3-8 in flight at once); each agent eventually
-lands code on `main`, often with partial dashboard updates. You
-finish the close-out per procedure B, sweep dependents, ship the next
-generation-stamp commit, and surface the next-wave URL on request.
+Start every session by reading:
 
-**Phase / status enums** — before reading the procedures, familiarise yourself with the canonical definitions:
+1. `plans/overview-data.js` - source of truth for task rows, kanban cards,
+   phase tree, run history, metadata maps, and freshness timestamps.
+2. `plans/overview.html` - renderer and UI shell. Do not edit it for normal
+   task status changes.
+3. `plans/parallel-assignments.md` and `plans/codexu-roadmap.md` - context
+   for phase/status definitions and long-form roadmap meaning.
 
-- `plans/parallel-assignments.md` (preamble, lines 5-8) — authoritative 10-value `data-task-phase` enum and 3-value `data-task-status` modifier table schema used on every command row.
-- `plans/codexu-roadmap.md` (Standing rules > Task phase model, around line 175) — rationale for splitting durable lifecycle (`data-task-phase`) from temporary availability (`data-task-status`), and the precedence rule (status overrides phase for filter/Today buckets; phase alone controls ordering).
+Before editing, run `git status` and confirm the current branch is the
+bookkeeping branch you intend to commit on. If you are doing parent-repo
+bookkeeping, `main` should usually be checked out.
 
-Both files must stay in sync with the HTML attributes. When Procedure A (add task) or Procedure B (close out) asks you to set a phase or status value, derive it from those definitions, not from inline examples in this file.
+## Source Files
 
-**First five things to do when the conversation opens:**
+- `plans/overview-data.js` - primary file for procedures A-F. It is a
+  single top-level assignment: `window.OVERVIEW_DATA = { ... };`.
+- `plans/overview.html` - static renderer. Edit only for procedure G or
+  renderer/storage-key changes.
+- `plans/parallel-assignments.md` - derived operator-facing command list and
+  status table. Update when the operator expects markdown tracking to stay in
+  sync, but never treat it as the canonical data source.
+- `plans/codexu-roadmap.md` - durable roadmap context. Update only for
+  material roadmap wording, not every status flip.
 
-1. `git status` + `git branch --show-current` — confirm you're on
-   `main` and the working tree state. If you're on a topic branch
-   left over from a prior agent, see the worktree-isolation pitfall
-   below; `git checkout main` (stash any uncommitted bookkeeping if
-   needed) before doing roadmap edits.
-2. `git log --oneline -15` — see what's landed recently. Compare
-   against the dashboard's `generatedFromCommit` to gauge drift.
-3. Scan `plans/overview.html` for tasks whose `data-task-phase` ends in
-   `-in-progress` or that have `cmd-warn blocked` banners. Rows with
-   `data-task-status="blocked"` may have stale prereqs (already shipped) —
-   sweep is part of procedure B.
-4. Read the operator memory note `codexu orchestration pattern` for
-   how the operator interacts with you (delegation, URL handoffs,
-   parallel fleets).
-5. Skim the pitfalls section at the bottom of this file. Almost
-   every operator-correction in the 2026-05-13/14 session traced
-   back to one of those traps.
+## Core Data Model
 
-**Your most-used procedure** is B (mark-task-shipped). The standard
-landing report from an agent contains: a topic-branch name, a tip
-SHA, optionally a merge SHA, a story-by-story status, and "deferred
-to..." follow-ups. Translate that into a procedure-B close-out commit
-(phase/status attribute update + runs[] entry + status table + dependent
-unblock + meta bump). Cross-repo landings produce TWO commits — see procedure B's
-multi-commit pattern.
+`plans/overview-data.js` owns this shape:
 
-**Your second-most-used procedure** is A (add a new task) when the
-operator says "also add a task for X" or "yes spawn that too". Full
-ralph command in `cmd-pre`, 5 JSON metadata maps, `spawnedFrom` if
-applicable, status-table row.
-
-**Don't write code for the tasks themselves.** Those go to ralph
-agents in worktrees, not to you in the parent repo. You write the
-ralph commands they consume, not the implementations.
-
-## Source files
-
-The codexu roadmap dashboard at `plans/overview.html` is a single-file
-static HTML page (no build, no external deps, works under file://).
-It's a derivative view of:
-
-- `plans/codexu-roadmap.md` — long-form living roadmap (Phases 1-7 of
-  the Codex specialization initiative, Sprint E open work, in-flight
-  ralph jobs, decisions made, cross-cutting concerns)
-- `plans/parallel-assignments.md` — ralph `/plan-with-ralph` commands
-  for every assignable task, plus the status table
-- `plans/realtime-sync-perf.md` — one specific plan; pattern for any
-  future similar per-workstream plan doc
-
-**Sync contract** (documented in the HTML footnote): markdown is
-authoritative; HTML is regenerated by hand from markdown when a task's
-state, scope, or visualization-relevant metadata changes. If you only
-update one of the two, the other will drift.
-
-## Core data model
-
-The HTML embeds a `<script type="application/json" id="roadmap-data">`
-block (**always before the main `<script>` — inline scripts execute
-synchronously, the data must exist in the DOM at script-run time**).
-Schema (as of 2026-05-14):
-
-```json
-{
-  "generatedAt": "ISO 8601 timestamp of last regen",
-  "generatedFromCommit": "short SHA the HTML was synced against",
-  "lastTouched": { "<taskId>": "ISO timestamp of last metadata change" },
-  "effort":      { "<taskId>": <hours> },
-  "risk":        { "<taskId>": "low" | "medium" | "high" },
-  "workstream":  { "<taskId>": "perf" | "codex-spec" | "codex-parity" | "polish" | "cleanup" | "upstream" | "agent-arch" | "tooling" },
-  "sizeBucket":  { "<taskId>": "quick" | "small" | "medium" | "large" },
-  "cadence":     { "<taskId>": "periodic" },
-  "periodic":    { "<taskId>": { "intervalDays": <n>, "lastRunId": "...", "nextDueAt": "ISO" } },
-  "spawnedFrom": { "<childTaskId>": "<parentTaskId>" },
-  "runs": [
-    { "id": "<taskId>/<YYYY-MM-DD>",
-      "taskId": "...",
-      "ranAt": "ISO timestamp",
-      "outcome": "completed" | "failed" | "partial" | "deferred" | "closed-obsolete",
-      "commits": ["<short sha>", ...],
-      "summary": "one-line description of what landed" }
-  ]
-}
+```js
+window.OVERVIEW_DATA = {
+  generatedAt: '2026-05-14T20:00:00Z',
+  generatedFromCommit: 'd279d49d',
+  tasks: [
+    {
+      id: 'task-id',
+      title: 'Human-readable title used by phase-tree task-ref nodes',
+      scope: 'codexu',
+      phase: 'plan-ready',
+      status: 'ok',
+      planOnly: false,
+      mergeCommit: null,
+      command: {
+        name: 'task-id',
+        summaryHtml: '<span class="cmd-name">task-id</span><span class="cmd-badge b-plan-ready">plan ready</span><span class="cmd-desc">...</span>',
+        descriptionHtml: 'Description fragment shown in the command row',
+        warnings: [],
+        planPrompt: '/plan-with-ralph "..."'
+      },
+      kanbanCards: [
+        { column: 'ready', cardClass: null, inlineStyle: null, html: '...', order: 10 }
+      ],
+      spawnedFrom: null,
+      lastTouchedAt: '2026-05-13T19:30:00Z'
+    }
+  ],
+  phaseTree: [
+    {
+      id: 'phase-1',
+      title: 'Phase 1 - Foundations',
+      headerHtml: 'Phase 1 - Foundations <span class="ptag">parallel</span>',
+      collapsible: false,
+      collapsibleSummary: null,
+      nodes: [
+        { kind: 'task-ref', taskId: 'task-id', visibleText: 'Task label', state: 'open', trailingHtml: ' - context' },
+        { kind: 'raw', html: '<span class="item-name deferred">Non-task bullet</span> - context' }
+      ]
+    }
+  ],
+  runs: [],
+  periodic: {},
+  cadence: {},
+  lastTouched: { 'task-id': '2026-05-13T19:30:00Z' },
+  effort: { 'task-id': 2 },
+  risk: { 'task-id': 'medium' },
+  workstream: { 'task-id': 'codex-spec' },
+  sizeBucket: { 'task-id': 'small' },
+  spawnedFrom: {}
+};
 ```
 
-Two cadence axes: `one-shot` (default — task lives until status=closed)
-or `periodic` (cycles ready → in-progress → completed → ready after
-`intervalDays`). Every periodic task must have an entry in `periodic{}`;
-runs persist in `runs[]`.
+Notes:
 
-Two task-relationship axes:
+- `scope` is a free string consumed by copy-time preambles. Known values are
+  `codexu`, `codex`, `codex|codexu`, `bookkeeping`, and
+  `bookkeeping|codexu`.
+- `phase` uses the 10-value phase enum from `plans/parallel-assignments.md`.
+  `status` is `ok`, `blocked`, or `paused`.
+- `command.planPrompt` is a decoded shell string. The renderer writes it with
+  `textContent`, so do not HTML-encode `2>&1`, `<`, or `>` inside the data
+  file.
+- Rich HTML fragments in `descriptionHtml`, `warnings[].html`,
+  `kanbanCards[].html`, `phaseTree[].headerHtml`, and `phaseTree raw.html`
+  are trusted operator-authored fragments.
+- Keep compatibility maps (`lastTouched`, `effort`, `risk`, `workstream`,
+  `sizeBucket`, `spawnedFrom`) in sync with task entries until the renderer no
+  longer reads them directly.
 
-- **Blocks-on / depends-on** — encoded inline on the cmd row via
-  `cmd-warn blocked` banners plus `data-task-status="blocked"`; surfaces as
-  the blocked modifier beside the phase badge. Captures hard prerequisites.
-- **Spawned-from** — encoded as `spawnedFrom{ childId: parentId }`
-  in the JSON; surfaces as an `↗ from <parent>` pill on the child's
-  summary, and a "Spawned follow-ups (N) <chips>" line at the bottom
-  of the parent's cmd-body. Captures research/audit lineage — i.e.,
-  this task only exists because that earlier research surfaced it.
-  Keys starting with `_` (e.g., `_comment`) are reserved and skipped
-  by the renderer.
-
-## When to update what
-
-| Trigger | What changes |
-|---|---|
-| New task added | (1) new `<details class="cmd">` row in the Ralph commands section with full `/plan-with-ralph` text inside a `<pre class="cmd-pre">`; (2) `data-task-phase`, `data-task-status`, `data-task-id`, and `data-task-scope` attributes on the row; (3) JSON entries in `lastTouched`, `effort`, `risk`, `workstream`, `sizeBucket`; (4) periodic block + `cadence` entry if periodic; (5) `plans/parallel-assignments.md` status-table row + lettered section; (6) optional kanban card under the right column |
-| Task phase flips (e.g., agent commits land) | (1) update `data-task-phase` / `data-task-status` on the row and keep the summary phase badge as `<span class="cmd-badge b-<phase>">...</span>` plus optional `<span class="cmd-status-mod ...">...</span>`; (2) update `lastTouched` to now; (3) if task completed: add a run record to `runs[]` with the landing commit sha; (4) update `plans/parallel-assignments.md` Phase / Status cells |
-| Task paused / blocked / closed | (1) set `data-task-status="paused"` or `data-task-status="blocked"`, or set `data-task-phase="closed"` for final closure; (2) keep the primary badge phase-based and add/remove `.cmd-status-mod`; (3) inline `<div class="cmd-warn blocked">` or `cmd-warn closed` banner explaining; (4) `lastTouched` updated; (5) status table |
-| Periodic task runs successfully | (1) new entry in `runs[]` with `ranAt: <commit time>`, `outcome: completed`, `commits: ["<sha>"]`, `summary: "..."`; (2) update `periodic[<taskId>].lastRunId` to the new run's id; (3) recompute `periodic[<taskId>].nextDueAt = lastRanAt + intervalDays`; (4) `lastTouched` updated |
-| New workstream added | (1) new filter chip in the workstream filter group inside the toolbar's `<details class="toolbar-filters">` popover; (2) new entry in the `labels` object inside the `injectWorkstreamPills` IIFE in the main `<script>`; (3) `workstream{}` entries for the tasks under the new bucket |
-| New section / kanban column / phase tree row | Find the right `<details class="section">` and add inside its body; section headers are `<summary class="section-head">` |
-
-## Step-by-step procedures
+## Step-by-step Procedures
 
 ### A. Adding a new ralph task
 
-1. **Pick the metadata** before touching HTML:
-   - `taskId`: short kebab-case, unique. Example: `agent-comms`.
-   - `phase`: usually `plan-ready` for a new task; use `brainstorm-ready`, `impl-ready`, etc. only when that phase is known.
-   - `status`: usually `ok`; use `blocked` or `paused` only for temporary availability modifiers.
-   - `workstream`: pick from the existing list; if none fit, propose a new one to the operator first.
-   - `sizeBucket`: `quick (<1h)`, `small (1-4h)`, `medium (4h-1d)`, `large (1d+)`.
-   - `risk`: low / medium / high based on blast radius.
-   - `effort` (hours): your best estimate; used for capacity widget.
-   - `cadence`: omit (defaults to one-shot) or set to `periodic` with a `periodic{}` entry.
+1. Pick metadata: `id`, `title`, `scope`, `phase`, `status`, `workstream`,
+   `sizeBucket`, `risk`, `effort`, optional `cadence`, optional `periodic`,
+   optional `spawnedFrom`, and a single ISO timestamp for the edit.
+2. Add one object to `OVERVIEW_DATA.tasks[]`. Keep the surrounding array
+   formatting style; do not reformat the top-level object.
+3. Add the same task id to `OVERVIEW_DATA.lastTouched`, `effort`, `risk`,
+   `workstream`, and `sizeBucket`. If it was spawned by research, also add
+   `OVERVIEW_DATA.spawnedFrom[childId] = parentId`.
+4. If the task is periodic, add `cadence[id] = 'periodic'` and a
+   `periodic[id]` schedule with `intervalDays`, `lastRunId`, and `nextDueAt`.
+5. Add zero or more `kanbanCards[]` entries. Multiple cards per task are valid
+   and common.
+6. If the task belongs in the roadmap tree, add a `phaseTree[].nodes[]` entry
+   via procedure E.
+7. Bump `generatedAt` and `generatedFromCommit` in the same edit.
 
-2. **Update the JSON block** in `plans/overview.html` (always BEFORE the main `<script>`). Add to:
-   - `lastTouched` — set to current ISO timestamp
-   - `effort`, `risk`, `workstream`, `sizeBucket` — the values you picked
+Working example based on the current `1b-multidev` entry in
+`plans/overview-data.js`. This keeps `command.name` for the live renderer and
+adds `command.summaryHtml` / `lastTouchedAt` as the authoring contract:
 
-3. **Add a new `<details class="cmd">` row** inside the Ralph commands section. Pattern (copy from an existing row):
+```js
+{
+  "id": "1b-multidev",
+  "title": "Phase 1b sub-tasks 3+4 - multi-device discoverability + approval fan-out",
+  "scope": "codexu",
+  "phase": "plan-ready",
+  "status": "ok",
+  "kanbanCards": [
+    {
+      "column": "soon",
+      "cardClass": null,
+      "inlineStyle": null,
+      "html": "\r\n      <div class=\"card-title\">Phase 1b sub-task 3 - multi-device discoverability hint</div>\r\n      <div class=\"sub\">Terminal-startup hint. Sprint E satisfied the \"tunnels protocol resolved\" gate. Re-read against finalized header + pair-complete shape, then assign.</div>\r\n      <div class=\"card-meta\">\r\n        <span class=\"pill area-cli\">happy-cli</span>\r\n        <span class=\"pill p-low\">low</span>\r\n        <span>~0.5 d</span>\r\n        <span class=\"sub\">roadmap §1b · plans/codex-seamless-multi-device.md</span>\r\n      </div>\r",
+      "insertBeforeTaskId": "perf-WS2",
+      "order": 10
+    },
+    {
+      "column": "soon",
+      "cardClass": null,
+      "inlineStyle": null,
+      "html": "\r\n      <div class=\"card-title\">Phase 1b sub-task 4 - multi-client approval fan-out</div>\r\n      <div class=\"sub\">Conflict-resolution UX when same approval fires on phone + laptop. Re-derive against tunnel-direct attach (no server relay).</div>\r\n      <div class=\"card-meta\">\r\n        <span class=\"pill area-cli\">happy-cli</span>\r\n        <span class=\"pill p-med\">medium</span>\r\n        <span>~0.5-1 d</span>\r\n      </div>\r",
+      "insertBeforeTaskId": "perf-WS2",
+      "order": 20
+    },
+    {
+      "column": "soon",
+      "cardClass": null,
+      "inlineStyle": null,
+      "html": "\r\n      <div class=\"card-title\">Phase 1b sub-task 5 - walkthrough verification</div>\r\n      <div class=\"sub\">Manual end-to-end verification of multi-device. Same tunnel re-derivation note.</div>\r\n      <div class=\"card-meta\">\r\n        <span class=\"pill area-multi\">manual</span>\r\n        <span>~1 d</span>\r\n      </div>\r",
+      "insertBeforeTaskId": "perf-WS2",
+      "order": 30
+    }
+  ],
+  "command": {
+    "name": "1b-multidev",
+    "summaryHtml": "<span class=\"cmd-name\">1b-multidev</span><span class=\"cmd-badge b-plan-ready\">plan ready</span><span class=\"cmd-desc\">Phase 1b sub-tasks 3+4 - multi-device discoverability + approval fan-out</span>",
+    "descriptionHtml": "Phase 1b sub-tasks 3+4 - multi-device discoverability + approval fan-out",
+    "warnings": [
+      {
+        "className": "cmd-warn",
+        "html": "⚠️ Conflicts with <code>mcp-discovery</code> (both touch <code>runCodex.ts</code>). Land mcp-discovery first, then 1b-multidev rebases trivially."
+      }
+    ],
+    "planPrompt": "/plan-with-ralph \"Phase 1b sub-task 3 + 4 - multi-device discoverability hint and multi-client approval fan-out. Per plans/codexu-roadmap.md §Phase 1b sub-tasks 3-4 + docs/plans/codex-seamless-multi-device.md sub-tasks 3-4. Sub-task 3: terminal-startup hint when codex starts in a cwd that already has a discoverable app-server, pointing user at phone attach option. Files: packages/happy-cli/src/codex/codexAppServerClient.ts (discovery + startup messaging) + packages/happy-cli/src/ui/start.ts or equivalent. Sub-task 4: when multiple clients are attached (laptop TUI + phone via tunnel), an approval prompt from codex must fan out to all attached clients; first-answer-wins; remaining clients see resolution. Files: packages/happy-cli/src/codex/runCodex.ts + packages/happy-cli/src/codex/codexAppServerClient.ts approval-handler plumbing. CRITICAL CONTEXT: re-read docs/plans/codex-seamless-multi-device.md against the finalized post-Sprint-E tunnel protocol - the spec was drafted assuming relay-forwarded phone path, but tunnels attach phone DIRECTLY to CLI's local Socket.IO server (no relay). Specifically read the 'Walkthrough Step 5 fan-out semantics shift layer' note in roadmap §Phase 1b. Decide whether codex app-server's native fan-out covers tunneled clients OR whether CLI's lifted rpcHandler must broadcast - verify by tracing one approval event from codex → CLI → tunneled phone. Read packages/happy-cli/CLAUDE.md and packages/happy-cli/src/daemon/CLAUDE.md first. Acceptance: integration test for sub-task 3 (mock discovery file existence, assert hint message); integration test for sub-task 4 (mock two attached clients, fire approval, assert both receive + first-answer wins). Test command: pnpm --filter '{packages/happy-cli}' exec vitest run 2>&1 | tee /tmp/codexu-1b34.log. Single commit per sub-task (two commits).\""
+  },
+  "lastTouchedAt": "2026-05-13T19:30:00Z"
+}
 
-```html
-  <details class="cmd" id="cmd-<taskId>" data-task-id="<taskId>" data-task-phase="plan-ready" data-task-status="ok" data-task-scope="<scope>">
-    <summary><span class="cmd-name"><taskId></span><span class="cmd-badge b-plan-ready">📋 plan ready</span><span class="cmd-desc">One-line description (workstream-name)</span></summary>
-    <div class="cmd-body">
-      <button class="copy-btn">Copy Command</button>
-<pre class="cmd-pre">/plan-with-ralph "Full prompt body. HTML-escape ampersands as &amp; and angle brackets as &lt; / &gt;. Do NOT include &quot;update plans/overview.html&quot; or &quot;use a worktree&quot; clauses — those inject automatically at Copy time per data-task-scope."</pre>
-    </div>
-  </details>
+// Same edit, same timestamp:
+OVERVIEW_DATA.lastTouched["1b-multidev"] = "2026-05-13T19:30:00Z";
 ```
 
-The `id="cmd-<taskId>"`, `data-task-id="<taskId>"`, `data-task-phase`,
-`data-task-status`, and `data-task-scope="<scope>"` attributes are
-**load-bearing** — they wire URL-hash deep-linking, ready-strip chips,
-filter logic, phase badges, status modifiers, workstream-pill
-auto-injection, run-history rendering, and the copy-time preamble injection
-(see "Copy-time preambles — driven by `data-task-scope`" section below for
-valid scope values).
+### B. Marking a task as shipped
 
-4. **Update `plans/parallel-assignments.md`**:
-   - Add a new lettered section (next available letter after the last one)
-   - Add a row to the unified status table near the bottom, filling Phase,
-     Status, Plan source, Plan job, and Commit
+1. Find the landing commit(s) with `git log --oneline -10` and capture the
+   short SHA plus commit ISO timestamp.
+2. In the task object, set `phase: 'shipped'`, usually set `status: 'ok'`,
+   and set `mergeCommit` when the shipped artifact has a merge SHA.
+3. Update `command.descriptionHtml` so the command row says what shipped and
+   includes the commit. Remove stale blocked/paused warnings.
+4. Update each relevant `kanbanCards[]` entry. Typical shipped card style is
+   `inlineStyle: 'border-color: var(--ok); opacity: 0.8;'`; update the card
+   body to mention the shipped commit.
+5. Append a `runs[]` record:
 
-5. **Optionally** add a kanban card under one of the 3 columns in the
-   Kanban section of the HTML (`Ready now` / `Unblocked, needs re-read` /
-   `Blocked or upstream`). Not all tasks need kanban cards — the ralph
-   commands list is enough for most.
-
-6. **Bump `generatedAt` + `generatedFromCommit`** in the JSON to the
-   commit you're about to make.
-
-7. **Commit + push.**
-
-### B. Marking a task as shipped (one-shot completion)
-
-When an agent commits the code for a task:
-
-1. **Find the commit(s)** with `git log --oneline -10` — note short SHA + ISO timestamp. For tasks spanning the codex submodule AND codexu, there will be TWO commits (codex-side content + codexu-side submodule pointer bump). Record both — see the multi-commit pattern below.
-2. **Update the `<summary>` badge**:
-   - Set `data-task-phase="shipped"` and usually `data-task-status="ok"` on the row
-   - Change the primary badge to `<span class="cmd-badge b-shipped">✅ shipped</span>` and remove any stale `.cmd-status-mod`
-   - Append `· commit <code>SHA</code>` to the `cmd-desc` (for single-commit tasks) OR `· codex <code>SHA1</code> + codexu pointer <code>SHA2</code>` (for cross-repo tasks)
-3. **Update the kanban card** for the task (if it has one):
-   - Change `border-color: var(--warn)` → `border-color: var(--ok); opacity: 0.8`
-   - Change "(in progress)" sub-text → "(shipped `<SHA>`)"
-4. **Add a run record** to `runs[]`:
-```json
+```js
 {
   "id": "<taskId>/<YYYY-MM-DD>",
   "taskId": "<taskId>",
@@ -222,327 +217,212 @@ When an agent commits the code for a task:
 }
 ```
 
-**Multi-commit pattern** (codex-submodule tasks): list the codex-side commit FIRST (it's the actual content) and the codexu-side pointer bump SECOND (it makes the change live):
-```json
-"commits": ["e9fa64a0", "d279d49d"]
-```
-Per `port-explorer-prompt/2026-05-14` precedent.
+6. Sweep dependents: search `tasks[]` warnings and descriptions for blockers
+   that mention the shipped task. If a dependent is now unblocked, set its
+   `status: 'ok'`, remove the warning, update its description, and bump its
+   timestamp too.
+7. When you set `tasks[x].lastTouchedAt = <new ISO>`, also set
+   `OVERVIEW_DATA.lastTouched[<id>] = <new ISO>` in the same edit. The data
+   file is invalid if these drift; the page freshness hint and ordering will
+   be wrong until corrected.
+8. Bump `generatedAt` and `generatedFromCommit`.
 
-**Merge pattern** (topic-branch landings): list the topic-branch tip first and the merge SHA second:
-```json
-"commits": ["756d4290", "merge e71497eb"]
-```
-Per `3h-options/2026-05-14` precedent.
+Multi-commit rules:
 
-5. **Sweep dependents for stale blockers.** After setting a task to `data-task-phase="shipped"`, search the HTML for `cmd-warn blocked` banners that reference the task ID. Each match becomes a candidate for un-blocking — set the dependent to `data-task-status="ok"`, remove its `.cmd-status-mod`, remove the banner, and update its `cmd-desc` to note the unblock date. (Pattern seen 2026-05-14: `userid-cleanup` and `plugin-scope-agents` stayed blocked for weeks after their prereqs shipped because no one swept.)
-6. Bump `lastTouched[<taskId>]` to the commit timestamp.
-7. Bump `generatedAt` + `generatedFromCommit`.
-8. Commit + push.
-9. **Confirm parent codexu repo is on main** before any subsequent work — see the worktree-isolation pitfall below for why this matters.
+- Codex-submodule tasks: list the codex-side content commit first and the
+  codexu pointer-bump commit second.
+- Topic-branch landings: list the topic branch tip first and the merge SHA
+  second, e.g. `['756d4290', 'merge e71497eb']`.
 
 ### C. Recording a periodic task run
 
-Same as B but additionally:
+Use procedure B for the `runs[]` entry, then update periodic scheduling:
 
-- Update `periodic[<taskId>].lastRunId` to the new run's id.
-- Update `periodic[<taskId>].nextDueAt` = `lastRanAt + intervalDays`.
-
-The task **does not flip to closed** — it stays `plan-ready` after a run,
-and the cadence chip recomputes the days-until-next from `nextDueAt`.
+1. Keep the durable task `phase` at the phase it should return to after the
+   run, usually `plan-ready`.
+2. Set `periodic[taskId].lastRunId` to the new run id.
+3. Recompute `periodic[taskId].nextDueAt = ranAt + intervalDays`.
+4. Set `cadence[taskId] = 'periodic'` if missing.
+5. Update `lastTouchedAt`, `lastTouched[taskId]`, `generatedAt`, and
+   `generatedFromCommit`.
 
 ### D. Marking a task paused / blocked
 
-1. Keep the primary badge phase-based, set `data-task-status="paused"` or `data-task-status="blocked"`, and add `<span class="cmd-status-mod paused">⏸ paused</span>` or `<span class="cmd-status-mod blocked">🔒 blocked</span>` after the phase badge.
-2. Add a `<div class="cmd-warn blocked">` or `cmd-warn` (just warning) inside the `<div class="cmd-body">` before the Copy button — operator-facing explanation of WHY blocked.
-3. `lastTouched` updated.
-4. Status-table cell + `plans/codexu-roadmap.md` mention if material.
+1. Keep `phase` as the durable lifecycle state and set `status: 'paused'` or
+   `status: 'blocked'`.
+2. Add or update `command.warnings[]` with a clear operator-facing reason.
+   Use `className: 'cmd-warn'` for paused and `className: 'cmd-warn blocked'`
+   for hard blockers.
+3. Adjust `command.descriptionHtml` to mention the paused/blocked state only
+   when that helps scanning.
+4. If the task has a kanban card, update `inlineStyle` or `html` to show the
+   state without moving unrelated cards.
+5. When you set `tasks[x].lastTouchedAt = <new ISO>`, also set
+   `OVERVIEW_DATA.lastTouched[<id>] = <new ISO>` in the same edit. The data
+   file is invalid if these drift; the page freshness hint and ordering will
+   be wrong until corrected.
+6. Bump `generatedAt` and `generatedFromCommit`.
 
-### E. When a research/audit task spawns follow-up tasks
+### E. Editing the phase tree
 
-A research task (e.g., `agent-view-research`, `native-agent-parity`,
-`channels-research`) is expected to land its findings as a markdown
-document AND surface 2-N follow-up implementation tasks. When that
-happens:
+`OVERVIEW_DATA.phaseTree[]` is not derived from `tasks[]`; it is a curated
+roadmap outline. The final node schema is `{kind: 'task-ref'|'raw', taskId?,
+state?, html?}` with `visibleText` and `trailingHtml` allowed on task-ref
+nodes when the rendered label/tail needs to preserve authored wording. Node
+examples:
 
-1. **Add each follow-up task** via procedure A (full row, JSON entries,
-   parallel-assignments.md entry).
-2. **For each new follow-up task**, add an entry to `spawnedFrom`:
-   ```json
-   "spawnedFrom": {
-     "new-follow-up-1": "agent-view-research",
-     "new-follow-up-2": "agent-view-research"
-   }
-   ```
-3. **No change needed to the parent task** — the reverse-index
-   ("Spawned follow-ups (N) ...") is rendered automatically by the
-   `injectSpawnRelationships` IIFE from the same `spawnedFrom` map.
-4. **If the parent ralph command explicitly instructs the agent to
-   set spawnedFrom** (e.g., the agent-view-research command does),
-   the agent committing the research will populate it; don't
-   double-populate.
-5. Mention the relationship in `plans/codexu-roadmap.md` only if the
-   parent-child relationship is conceptually important (e.g., "Phase
-   3a spawned the codex-plugin-format-spike task after the audit
-   landed").
+```js
+{ kind: 'task-ref', taskId: '1b-multidev', visibleText: '1b.3 Multi-device discoverability hint', state: 'open', trailingHtml: ' - unblocked, re-read' }
+{ kind: 'raw', html: '<span class="item-name deferred">4a-4m Coexistence verification</span> - gated' }
+```
 
-The pill on the child links to `#cmd-<parentId>` — make sure the
-parent task still exists with a matching `id="cmd-<parentId>"` row.
-If you delete a parent that has surfaced children, either reassign
-their `spawnedFrom` to a different ancestor or delete the entry
-(broken pills will 404 inside the page).
+- `kind: 'task-ref'` links to an existing task. `state` is the CSS state class
+  for the phase-tree label: `open`, `deferred`, `donefade`, or `closed`.
+  `visibleText` is the stable label to render if the task has no `title`.
+  `trailingHtml` is trusted rich text after the item label.
+- `kind: 'raw'` is for non-task bullets, composite bullets with multiple item
+  names, inline styles, or anything too irregular for `task-ref`.
+- A phase can carry `headerHtml` for headers with `<span class="ptag">...`.
+  `collapsible: true` wraps nodes in `<details class="phase-subdetails">`
+  and uses `collapsibleSummary` for the nested summary.
+
+Worked edit example:
+
+```js
+// Before
+{
+  "id": "phase-1",
+  "title": "Phase 1 - Foundations",
+  "headerHtml": "Phase 1 - Foundations <span class=\"ptag\">parallel</span>",
+  "nodes": [
+    { "kind": "raw", "html": "<span class=\"item-name donefade\">1b.2 Discovery + reattach</span>" },
+    { "kind": "task-ref", "taskId": "1b-multidev", "visibleText": "1b.3 Multi-device discoverability hint", "state": "open", "trailingHtml": " - unblocked, re-read" }
+  ]
+}
+
+// After shipping 1b-multidev and removing an obsolete raw bullet
+{
+  "id": "phase-1",
+  "title": "Phase 1 - Foundations",
+  "headerHtml": "Phase 1 - Foundations <span class=\"ptag\">parallel</span>",
+  "nodes": [
+    { "kind": "task-ref", "taskId": "1b-multidev", "visibleText": "1b.3 Multi-device discoverability hint", "state": "donefade", "trailingHtml": " - shipped 197b0148" }
+  ]
+}
+```
 
 ### F. Adding a new workstream
 
-1. In the toolbar's filter popover (HTML), find `<div class="filter-chips" data-filter-axis="workstream">` and add a `<button class="filter-chip" data-filter-value="<workstream-id>" type="button">Workstream Label</button>`.
-2. In the main `<script>`, find the `injectWorkstreamPills` IIFE's `labels` object and add `'<workstream-id>': 'Workstream Label'`.
-3. Assign tasks to it in the `workstream{}` JSON map.
+1. Add the new workstream key to each relevant task in
+   `OVERVIEW_DATA.workstream`.
+2. In `plans/overview.html`, add a filter chip under the workstream filter
+   group and add a display label to the `injectWorkstreamPills` labels map.
+3. Verify the filter chip, workstream pill, and URL filter still compose.
 
-### G. Adding a new visualization feature
+This is one of the few normal procedures that touches both the data file and
+the HTML shell, because filter labels are renderer UI.
 
-If you're adding a new view (e.g., a new section, a new filter axis, a new badge):
+### G. Adding a visualization feature
 
-1. Read the **existing CSS** in the `<style>` block — match the existing color tokens (`var(--accent)`, `var(--ok)`, `var(--warn)`, `var(--muted)`, etc.) and chip/pill patterns (border-radius 12px for chips, 4px for buttons, 8px for cards, 6px for cmd rows).
-2. Add CSS in the appropriate cluster (chip styling near chip styling, filter styling near filter styling).
-3. JS goes in the main `<script>` block, after `getRoadmapData()` is defined. New IIFE pattern matches the existing ones (`buildTodayPanel`, `injectWorkstreamPills`, `injectRunHistory`, etc.).
-4. If your feature reads from `roadmap-data`, you can add new keys at the top level of the JSON — they're optional and other code paths ignore unknown keys.
-5. **Test in dark + light mode** (`prefers-color-scheme`) before pushing — every color decision needs to read in both.
-6. **Test on narrow viewport** (≤900px / coarse pointer) — the existing BOOX-responsive media query covers most cases but new tap targets may need it.
+1. Decide whether the feature is data-only or renderer/UI. Data-only fields go
+   into `plans/overview-data.js`; renderer/UI changes go into
+   `plans/overview.html`.
+2. Preserve `file://` compatibility. Do not add fetch-only data loading.
+3. Keep `overview-data.js` as one top-level `window.OVERVIEW_DATA = { ... };`
+   assignment. No IIFE, no module syntax, no conditional setup.
+4. Match existing CSS tokens and compact dashboard styling. Test dark, light,
+   and narrow viewport when browser tooling is available.
+5. If you add localStorage, use a new versioned key. Current keys:
+   `codexu-overview-details-state-v2` (open/closed state),
+   `codexu-overview-last-visit-v1` (what's-new banner), and
+   `codexu-overview-notes-v1` (operator scratch notes). The details key is
+   `v2`; do not resurrect the old `codexu-overview-details-state-v1` name.
 
 ## Pitfalls
 
-- **Inline scripts execute during parse.** The `<script type="application/json" id="roadmap-data">` must be physically BEFORE the main `<script>` in the document — otherwise `document.getElementById('roadmap-data')` returns `null` at script-run time and every data-dependent feature silently fails. (Diagnosed + fixed in commit `16eb1f87`.)
-- **HTML-escape inside `<pre class="cmd-pre">`.** Ampersands become `&amp;`, `<` becomes `&lt;`, `>` becomes `&gt;`. The Copy button reads `pre.textContent` which returns the unescaped version, so clipboard always gets the correct shell-ready text.
-- **The `data-task-id` attribute is load-bearing.** Don't rename it. Don't add a task without it. The id and data-task-id should match (and equal the task name).
-- **Filter chips' parent must have `data-filter-axis`.** The multi-axis filter logic reads `chip.parentElement.dataset.filterAxis`; without it, the chip click toggles the wrong filter set.
-- **Don't add a workstream value without the JS label entry.** The chip will work but the inline workstream pill will say the raw key (e.g., `agent-arch`) instead of the label (`Agent architecture`).
-- **`lastTouched` is not the same as `lastRanAt`.** `lastTouched` means "this task's plan/metadata was edited"; `runs[]` records mean "this task actually ran and produced code". The what's-new banner uses `lastTouched`; the Recently-shipped footer uses `runs[]`.
-- **Phase/status attributes are the source of truth.** The primary badge is rendered from `data-task-phase`; `data-task-status` only adds a blocked/paused modifier and overrides filter/Today buckets. Do not infer durable state from old `b-*` aliases except for legacy fallback rows.
-- **`localStorage` keys** in use: `codexu-overview-details-state-v1` (open/closed state), `codexu-overview-last-visit-v1` (for what's-new banner), `codexu-overview-notes-v1` (operator scratch notes). Don't reuse these for new features; pick a new versioned key.
-- **`spawnedFrom` is one-directional and flat** — child → parent. The reverse index (parent → children) is computed at runtime by `injectSpawnRelationships`. Don't try to encode a tree shape; one child can only have one parent (use blocks-on for multi-prereq relationships instead). If a child was spawned by multiple ancestors, pick the most-proximate one and mention the others in prose.
-- **Ralph agents must commit on isolated worktrees, never on the parent codexu's `main`.** Pattern: `git worktree add .worktrees/<task-id> -b ralph/<task-id> origin/main`, do all work there, push the topic branch, surface to operator for a `--no-ff` merge. On 2026-05-14 the codex-wire-spike agent committed directly on the parent codexu working branch (`0dcd8614`), which forced manual cherry-picking + branch-checkout dancing to keep `main` clean while the agent kept editing. Authors of new ralph commands MUST include the worktree-isolation paragraph (or rely on the global convention in `plans/parallel-assignments.md`'s preamble). Codex-submodule tasks have their own worktree convention (`.ralph/jobs/<name>/codex-worktree/` of the codex submodule); codexu-side tasks land in `.worktrees/<task-id>/`. Don't conflate the two — codex-submodule edits + codexu-side bookkeeping in the SAME task need a worktree for EACH side.
-- **End every ralph job with `git checkout main` on the parent codexu repo.** Even if the agent used a worktree correctly for its own work, leaving a topic branch checked out on the parent repo causes the NEXT bookkeeping commit (mine or another agent's) to silently land on that branch instead of main. Incidents (2026-05-14): codex-wire-spike left `codex-wire-spike` checked out → my `feat(overview): re-block async-events-design` commit (`4e8c925c`) landed there instead of main, requiring a cherry-pick. port-explorer-prompt left `port-explorer-prompt-pointer-bump` checked out → my `docs: add 4 more spawned follow-up tasks` commit (`47de9b32`) landed there, requiring `git push origin HEAD:main`. **Always verify HEAD before bookkeeping: `git branch --show-current` should print `main`. If it doesn't, switch (stashing uncommitted work first) before doing any roadmap edits.**
-- **Pre-merge rebase audit: `git diff main <branch> --stat` BEFORE every merge.** A topic branch that's N-behind main will silently revert main's recent commits if you merge it without rebasing. The expected diff for a single-task topic branch is small (~1-5 files). If the diff shows ~30 files and ~5000 lines of changes, the branch is stale — rebase it first (`git -C <worktree> rebase main`) or you'll lose recently-landed work. Incident (2026-05-14): port-explorer-prompt-pointer-bump's 1-line commit lived on a branch 5-behind main; `git diff main <branch> --stat` showed 35 files / +984 / -5396 (reversal of 5 prior landings). Rebased first → ff-merge cleanly delivered just the 1-line pointer bump. The check takes 2 seconds and prevents a class of silent disasters.
-- **Research-task output often sits uncommitted in the working tree.** Pattern observed 4× this session (codex-parity-audit, agent-view-research, native-agent-parity, channels-research): the agent writes `plans/<task-id>.md` to disk, flips its own badge in `plans/overview.html`, but never `git add` + commits — the operator's report is "X is done" but `git status` shows the doc as untracked. **Always check `git status` for new untracked `plans/*.md` files matching the task name; stage and commit them with the close-out commit.** If the doc is partial or you're not sure it's complete, surface to the operator before committing.
-- **Verify tab title matches the ralph prompt text before firing.** Operator tabs sometimes drift from the prompt they actually run. Incident (2026-05-14): a tab labeled `3c-hooks` was fired with the `3h-options` prompt verbatim — 3h-options shipped (correctly), 3c-hooks dashboard stayed in progress forever (incorrectly) until the mismatch surfaced. Cheap check before firing: read the first sentence of the `/plan-with-ralph "..."` block and confirm it references the same task the tab claims. If the dashboard later shows an in-progress task that's actually a different task's work, set the misnamed row back to `data-task-phase="plan-ready"` / `data-task-status="ok"` with a `cmd-desc` note acknowledging the conflation.
-- **Landing agents only flip their own badge — the full close-out is a bookkeeping pass.** Across the 2026-05-13 / 2026-05-14 session, four landing agents (`codex-parity-audit`, `agent-view-research`, `native-agent-parity`, `channels-research`) each updated their own row's badge and `lastTouched`, but only one (`agent-view-research`) also added the `runs[]` entry and one (`channels-research`) updated `plans/parallel-assignments.md`'s status-table row. The remaining bookkeeping always falls to the operator-side commit. **The full "task landed" checklist is procedure B in this skill — and an incomplete close-out means the dashboard's "Recently shipped" footer + the parallel-assignments tracker drift out of sync within the same commit.** When auditing a recently-landed task, verify all 6 items in procedure B explicitly; don't trust that an agent did them.
+- **JS string escaping in `overview-data.js`.** Decode HTML entities exactly
+  once when porting prompt text (`&lt;`, `&gt;`, `&amp;` become `<`, `>`, `&`).
+  Store prompt text as JS string data and let the renderer write it with
+  `textContent`; never re-encode entities in render. Prefer single-quoted or
+  JSON-style double-quoted literals with explicit backslash escapes for the
+  surrounding quote. Avoid template literals for prompt bodies because prompts
+  contain markdown backticks and shell fragments.
+- **lastTouched dual-update invariant.** Every status/metadata edit must update
+  both `task.lastTouchedAt` and `OVERVIEW_DATA.lastTouched[task.id]` to the
+  same ISO timestamp. Common mistake: changing `task.lastTouchedAt` during a
+  shipped close-out but leaving `lastTouched[taskId]` at the old value; the UI
+  then sorts and highlights by stale data.
+- **Skeleton-ownership invariant.** Each story PRD mutates only its own array
+  body (`tasks[]` for task ports, `phaseTree[]` for phase-tree ports, specific
+  map entries for bookkeeping). Never reformat the top-level object literal,
+  reorder top-level keys, or rewrite braces/comma layout as drive-by cleanup.
+  That skeleton is owned by the foundation story and preserves parallel merge
+  safety.
+- **`overview-data.js` must load before the main script.** The HTML relies on
+  synchronous script loading so `getRoadmapData()` can return
+  `window.OVERVIEW_DATA` during initial render.
+- **`data-task-id` and `id="cmd-<taskId>"` are load-bearing.** Rendered command
+  rows must emit both. URL hash navigation, filters, copy-name buttons, run
+  history, and spawned-from pills depend on them.
+- **Phase/status separation is load-bearing.** `phase` is durable lifecycle;
+  `status` is a temporary availability modifier. Do not turn a blocked task
+  into a fake phase.
+- **Multiple kanban cards per task are normal.** Do not collapse
+  `kanbanCards[]` to a single column field.
+- **`spawnedFrom` is one-directional and flat.** Store child -> parent. The
+  renderer computes parent -> children at runtime.
+- **Ralph agents must work in isolated worktrees.** Bookkeeping tasks may edit
+  the dashboard files directly, but implementation agents should not commit on
+  the parent repo's `main` while they are doing feature work.
 
 ## Action-button cluster (`.cmd-actions`)
 
-Every `<div class="cmd-body">` has a `.cmd-actions` flex wrapper at
-its top-right corner. The wrapper uses `position: absolute; top: 6px;
-right: 6px; display: flex; flex-direction: row-reverse; gap: 6px` —
-so the first child rendered is the rightmost button, and additional
-buttons stack to its left with uniform spacing.
+Every rendered `<div class="cmd-body">` gets a `.cmd-actions` flex wrapper.
+The wrapper owns positioning and spacing for Copy Command, Copy Name, Notes,
+and future action buttons. When adding a new button, call the existing
+`getOrCreateCmdActions(body)` helper and append the button; do not add another
+absolute-positioned button rule.
 
-Currently 3 buttons live in the wrapper:
+## Copy-time preambles - driven by `data-task-scope`
 
-1. `.copy-btn` (Copy Command) — static in the HTML for every cmd row; reads from `<pre class="cmd-pre">`
-2. `.copy-name-btn` (Copy Name) — injected by `injectCopyNameButtons` IIFE; reads from `data-task-id`
-3. `.notes-toggle` (📝 Notes) — injected by the notes IIFE; toggles a per-cmd textarea panel
+Each command row carries a `scope` field that renders to `data-task-scope`.
+The Copy Command button injects preambles from that scope:
 
-The shared injection helper is `getOrCreateCmdActions(body)` near the
-top of the main `<script>`. It finds-or-creates the wrapper, moves
-the static `.copy-btn` into it on first call, and returns the wrapper
-so subsequent injections can `.appendChild()` to it.
-
-**Adding a new action button** (e.g., the future "Take task" affordance
-from `roadmap-plugin`):
-
-1. Add CSS for the button class, sibling to `.copy-btn` and
-   `.copy-name-btn` — do **not** add `position: absolute` or
-   `top/right` rules; the wrapper handles placement.
-2. In the JS IIFE that injects it, call `getOrCreateCmdActions(body)`
-   to get the wrapper, then `wrap.appendChild(yourButton)`. Order
-   matters: later-appended buttons sit further left.
-3. Don't reintroduce per-button absolute positioning — that's how
-   the original 3-button layout grew uneven spacing in commit
-   `cd314bd7` before being refactored to flex in `230e83b6`.
-
-The narrow-viewport (`@media`) overrides only need to touch
-`.cmd-actions` (top/right/gap), not each button individually.
-
-## Copy-time preambles — driven by `data-task-scope`
-
-Background: prior to 2026-05-14, ralph cmd-pres routinely included
-clauses like "Update plans/overview.html similarly" or "After commit,
-bump the lastRanAt in plans/overview.html's roadmap-data JSON".
-Agents followed those instructions and corrupted the dashboard —
-commit `86f35fa8` (mcp-discovery) regenerated `overview.html` from a
-stale snapshot and wiped the action-button UI; commit `7bf32ded` had
-to preserve both sides of a botched 1a-fork-doc /
-audit-general-purpose-vs-worker merge conflict because two agents
-were updating the same JSON simultaneously. Separately, multiple
-agents on 2026-05-14 (codex-wire-spike, port-explorer-prompt)
-committed directly on the parent codexu's working branch instead of
-in an isolated worktree, forcing manual cherry-picks to keep `main`
-clean. The right contract is: **the operator owns the dashboard; the
-agent ships code in an isolated worktree and describes the dashboard
-delta in its final-turn return**.
-
-Rather than scrubbing every cmd-pre individually and trusting future
-authors not to re-introduce the same mistakes, the policy is enforced
-at COPY time via a single mechanism. Each `<details class="cmd">`
-carries a `data-task-scope` attribute — a **required**, `|`-delimited
-list of labels declaring what the task touches and what preambles
-should inject when the operator clicks Copy Command.
-
-### Defined labels
-
-| Label | Effect on Copy output | Visible chip |
-|---|---|---|
-| `bookkeeping` | SKIPS the BOOKKEEPING preamble (task legitimately edits dashboard/roadmap) | 📋 bookkeeping (warm yellow) |
-| `codexu` | INJECTS the codexu-side worktree preamble (`.worktrees/<task-id>/` on `ralph/<task-id>`) | 🟦 codexu (blue) |
-| `codex` | INJECTS the codex-submodule worktree preamble (`.ralph/jobs/<task-id>/codex-worktree/`) | 🦀 codex (red) |
-| `codex\|codexu` | INJECTS the dual-repo preamble (codex side first, then codexu pointer-bump worktree) — replaces the old "both" sentinel | 🦀 codex + 🟦 codexu chips both render |
-
-The unconditional BOOKKEEPING preamble (don't edit dashboard files)
-injects on every Copy unless `bookkeeping` is in the scope list.
-
-### Examples
-
-| Task kind | `data-task-scope` value |
+| Scope label | Effect |
 |---|---|
-| Typical happy-cli / happy-app / happy-server task | `codexu` |
-| Codex-submodule overlay crate or pointer-only codex edit | `codex` |
-| Dual-repo (codex overlay + happy-cli wire-up) | `codex\|codexu` |
-| Roadmap plugin or any task whose deliverable mutates the dashboard | `bookkeeping\|codexu` |
-| Pure dashboard-mutation task with no other code (rare) | `bookkeeping` |
+| `bookkeeping` | Suppresses the default "do not edit dashboard files" preamble. |
+| `codexu` | Injects the codexu worktree preamble. |
+| `codex` | Injects the codex-submodule worktree preamble. |
+| `codex|codexu` | Injects the dual-repo preamble. |
 
-### Mechanics
+Default to `codexu` for typical happy-* work. Use `bookkeeping` only when the
+task deliverable really is a dashboard/roadmap data edit.
 
-1. Four JS constants live in the main `<script>` block of `plans/overview.html`:
-   `BOOKKEEPING_PREAMBLE`, `WORKTREE_PREAMBLE_CODEXU`,
-   `WORKTREE_PREAMBLE_CODEX`, `WORKTREE_PREAMBLE_BOTH`.
-2. `parseTaskScope(cmd)` splits `data-task-scope` on `|` and trims.
-3. `buildCopyPreamble(scopes)` composes the stacked preamble in
-   canonical order: bookkeeping (unless suppressed) → worktree
-   (codexu / codex / both) → `— Original task —` separator.
-4. The click handler on `.copy-btn` injects the composed string
-   immediately after the opening `/plan-with-ralph "` of the cmd-pre.
-5. `injectTaskScopeChips` IIFE renders the chips in the summary in
-   canonical order (bookkeeping → codexu → codex) regardless of how
-   the operator typed the labels.
+## URL filtering
 
-### Authoring rules
+The command list supports `?tasks=<comma-separated-task-ids>`. It composes
+with axis filters and search. If you add task ids, keep them stable; shared
+links depend on them.
 
-- **Every new cmd row must carry `data-task-scope`.** Rows without it
-  render a red ⚠ missing scope chip in the dashboard summary — visible
-  warning that the operator forgot to declare.
-- **Default is `codexu`** for typical happy-* / packages/* tasks. Don't
-  add `bookkeeping` unless the task's deliverable IS mutating
-  `plans/overview.html` / `plans/parallel-assignments.md` /
-  `plans/codexu-roadmap.md` directly. Creating a new `plans/<name>.md`
-  research doc does NOT count as bookkeeping — the BOOKKEEPING
-  preamble explicitly permits new research docs.
-- **Multi-value with `|`** is composable; add labels only when they
-  apply. `codex|codexu` is the typical dual-repo shape.
-
-### Changing policy globally
-
-Edit any of the four preamble JS constants once; every Copy Command
-click picks up the new text. The on-disk cmd-pre `<pre>` blocks stay
-clean — never inline a policy clause into a cmd-pre.
-
-### Known gap: `parallel-assignments.md` paste path
-
-The markdown source for cmd-pres also stays clean (no preamble
-inline). The operator's canonical workflow is to copy via the
-dashboard's Copy Command button, which auto-injects. If they paste
-from `parallel-assignments.md` directly, the preamble is not applied
-— that's a documented trade-off; keeping the markdown source readable
-beats inline noise.
-
-## Research-task → spawned follow-ups: pick a pattern
-
-Research tasks (e.g., `*-research`, `*-audit`) typically surface
-follow-up implementation tasks. There are three patterns observed in
-this session — choose one explicitly when authoring the parent's
-ralph command, and write it into the prompt:
-
-| Pattern | Example | What the agent does | When to use |
-|---|---|---|---|
-| **Pre-create in dashboard** | `agent-view-research` | Writes the research doc AND adds new `<details class="cmd">` rows + JSON metadata + `spawnedFrom` entries + `parallel-assignments.md` lettered sections + status-table rows | Follow-ups are obvious from the research and don't need operator architectural review before scoping |
-| **Recommend in doc only** | `codex-parity-audit`, `native-agent-parity` | Writes the research doc with a "Recommended next ralph commands" section listing each follow-up's ralph-command shape; does NOT touch the dashboard | Follow-ups depend on operator architectural choices (e.g., overlay-crate vs upstream patch) that need review before scoping |
-| **Mixed** | `channels-research` | Updates `parallel-assignments.md` lettered sections + status table; does NOT update `overview.html` (explicitly notes the HTML/JSON dual-update is best left to the operator) | When the agent has enough context to draft the ralph commands but the dashboard's JSON-schema bookkeeping is tedious enough to defer |
-
-**The pattern is determined by the parent's ralph command text** —
-e.g., agent-view-research's prompt said "Add new task entries to
-plans/parallel-assignments.md and plans/overview.html roadmap-data
-JSON for each follow-up that emerges from the research, AND set
-spawnedFrom='agent-view-research'..." while codex-parity-audit's said
-"Output: new file plans/codex-agent-parity-audit.md... Surface to
-operator for review before opening any subsequent ralph fix-commands."
-
-**When authoring a new research-task ralph command:**
-
-- If you (the operator) want one-step landing-to-actionable-task,
-  use **pre-create** wording. Be explicit: "add new cmd rows with
-  full ralph commands, populate the 5 JSON metadata maps, set
-  `spawnedFrom='<parent>'`, add lettered sections to
-  parallel-assignments.md".
-- If you want to gate scoping on your review, use **recommend-only**
-  wording: "Output: research doc with a 'Recommended next ralph
-  commands' section; do NOT pre-create task entries — surface to
-  operator first." Then run the promotion step yourself or via a
-  follow-up agent invocation.
-- The dashboard's `spawnedFrom` map is populated either way — the
-  difference is whether dashboard rows exist when the research
-  commits land.
-
-## URL filtering — pin a specific subset of tasks
-
-The cmd-list supports `?tasks=<comma-separated-task-ids>` in the URL.
-When set, only those `data-task-id` cmd rows render; everything else
-is hidden, a banner appears at the top of the cmd-list with the active
-list + a "Clear filter" + "Copy link" buttons, and matched rows are
-auto-expanded.
-
-Use this to hand someone (operator, another agent, a doc reference) a
-pre-filtered view of which tasks to look at. Example:
-
-```
-plans/overview.html?tasks=F-015-toast,mcp-discovery,1a-fork-doc
-```
-
-The URL filter is AND'd with the axis filters (status / workstream /
-size / cadence) — they compose. Search box still filters within the
-pinned set. Clearing the URL filter goes back to the full list. The
-banner's "Copy link" button writes the current URL to clipboard for
-easy sharing.
-
-Implementation lives in `parseTaskIdFilter` + `renderUrlFilterBanner`
-at the top of the multi-axis-filter IIFE; the `idOk` check inside
-`applyFilter` is what gates row visibility. Add new pinning UX (e.g.,
-saved views, deep-link from kanban) by extending those entry points
-rather than adding a parallel hide-loop.
-
-## File map at a glance
+## File map
 
 ```
 plans/
-├── codexu-roadmap.md         # source: long-form living roadmap
-├── parallel-assignments.md   # source: ralph commands + status table
-├── realtime-sync-perf.md     # source: one per-workstream plan
-├── overview.html             # generated view (this skill maintains it)
-└── agent-view-research.md    # (future) research output from agent-view-research task
+├── codexu-roadmap.md
+├── parallel-assignments.md
+├── realtime-sync-perf.md
+├── overview.html
+└── overview-data.js
 
 .agents/skills/
-├── happy-upstream-sync/      # periodic procedure for slopus/happy commit triage
-└── roadmap-and-overview/     # THIS skill — how to maintain the dashboard
+└── roadmap-and-overview/
+    └── SKILL.md
 ```
 
 ## When NOT to use this skill
 
-- If you're a fresh agent starting on a code task (not maintenance):
-  read the ralph plan command instead. This skill is for the operator
-  (or an agent acting on behalf of the operator) maintaining the
-  visualization itself.
-- If you're regenerating the entire HTML from scratch: that's a
-  bigger refactor than this skill covers. Read the existing
-  `plans/overview.html` end-to-end first, then decide whether to
-  refactor or to keep the patch-based maintenance model.
-- If you're tempted to add a `scripts/generate-overview.mjs`
-  generator: the brainstorms in commits `7aa1b7db` + `b5fc97c4`
-  considered this and rejected it as overengineering for current
-  scale. Re-litigate only if the manual maintenance burden actually
-  bites (e.g., >50 tasks).
+- If you are implementing a product feature, follow the ralph task prompt
+  instead. This skill is for maintaining the dashboard and roadmap data.
+- If you are trying to regenerate the whole dashboard from scratch, stop and
+  read `plans/overview.html` and `plans/overview-data.js` end-to-end first.
+  Keep normal bookkeeping patch-based.
