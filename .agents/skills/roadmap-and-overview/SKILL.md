@@ -55,24 +55,20 @@ window.OVERVIEW_DATA = {
   tasks: [
     {
       id: 'task-id',
-      title: 'Human-readable title used by phase-tree task-ref nodes',
       scope: 'codexu',
       phase: 'plan-ready',
       status: 'ok',
-      planOnly: false,
+      lastTouchedAt: '2026-05-13T19:30:00Z',
       mergeCommit: null,
-      command: {
-        name: 'task-id',
-        summaryHtml: '<span class="cmd-name">task-id</span><span class="cmd-badge b-plan-ready">plan ready</span><span class="cmd-desc">...</span>',
-        descriptionHtml: 'Description fragment shown in the command row',
-        warnings: [],
-        planPrompt: '/plan-with-ralph "..."'
-      },
       kanbanCards: [
         { column: 'ready', cardClass: null, inlineStyle: null, html: '...', order: 10 }
       ],
-      spawnedFrom: null,
-      lastTouchedAt: '2026-05-13T19:30:00Z'
+      command: {
+        name: 'task-id',
+        descriptionHtml: 'Description fragment shown in the command row',
+        warnings: [],
+        planPrompt: '/plan-with-ralph "..."'
+      }
     }
   ],
   phaseTree: [
@@ -138,16 +134,15 @@ Notes:
 7. Bump `generatedAt` and `generatedFromCommit` in the same edit.
 
 Working example based on the current `1b-multidev` entry in
-`plans/overview-data.js`. This keeps `command.name` for the live renderer and
-adds `command.summaryHtml` / `lastTouchedAt` as the authoring contract:
+`plans/overview-data.js`:
 
 ```js
 {
   "id": "1b-multidev",
-  "title": "Phase 1b sub-tasks 3+4 - multi-device discoverability + approval fan-out",
   "scope": "codexu",
   "phase": "plan-ready",
   "status": "ok",
+  "lastTouchedAt": "2026-05-13T19:30:00Z",
   "kanbanCards": [
     {
       "column": "soon",
@@ -176,7 +171,6 @@ adds `command.summaryHtml` / `lastTouchedAt` as the authoring contract:
   ],
   "command": {
     "name": "1b-multidev",
-    "summaryHtml": "<span class=\"cmd-name\">1b-multidev</span><span class=\"cmd-badge b-plan-ready\">plan ready</span><span class=\"cmd-desc\">Phase 1b sub-tasks 3+4 - multi-device discoverability + approval fan-out</span>",
     "descriptionHtml": "Phase 1b sub-tasks 3+4 - multi-device discoverability + approval fan-out",
     "warnings": [
       {
@@ -185,8 +179,7 @@ adds `command.summaryHtml` / `lastTouchedAt` as the authoring contract:
       }
     ],
     "planPrompt": "/plan-with-ralph \"Phase 1b sub-task 3 + 4 - multi-device discoverability hint and multi-client approval fan-out. Per plans/codexu-roadmap.md §Phase 1b sub-tasks 3-4 + docs/plans/codex-seamless-multi-device.md sub-tasks 3-4. Sub-task 3: terminal-startup hint when codex starts in a cwd that already has a discoverable app-server, pointing user at phone attach option. Files: packages/happy-cli/src/codex/codexAppServerClient.ts (discovery + startup messaging) + packages/happy-cli/src/ui/start.ts or equivalent. Sub-task 4: when multiple clients are attached (laptop TUI + phone via tunnel), an approval prompt from codex must fan out to all attached clients; first-answer-wins; remaining clients see resolution. Files: packages/happy-cli/src/codex/runCodex.ts + packages/happy-cli/src/codex/codexAppServerClient.ts approval-handler plumbing. CRITICAL CONTEXT: re-read docs/plans/codex-seamless-multi-device.md against the finalized post-Sprint-E tunnel protocol - the spec was drafted assuming relay-forwarded phone path, but tunnels attach phone DIRECTLY to CLI's local Socket.IO server (no relay). Specifically read the 'Walkthrough Step 5 fan-out semantics shift layer' note in roadmap §Phase 1b. Decide whether codex app-server's native fan-out covers tunneled clients OR whether CLI's lifted rpcHandler must broadcast - verify by tracing one approval event from codex → CLI → tunneled phone. Read packages/happy-cli/CLAUDE.md and packages/happy-cli/src/daemon/CLAUDE.md first. Acceptance: integration test for sub-task 3 (mock discovery file existence, assert hint message); integration test for sub-task 4 (mock two attached clients, fire approval, assert both receive + first-answer wins). Test command: pnpm --filter '{packages/happy-cli}' exec vitest run 2>&1 | tee /tmp/codexu-1b34.log. Single commit per sub-task (two commits).\""
-  },
-  "lastTouchedAt": "2026-05-13T19:30:00Z"
+  }
 }
 
 // Same edit, same timestamp:
