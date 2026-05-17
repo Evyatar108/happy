@@ -1430,7 +1430,7 @@
         if (!task) return;
         var span = document.createElement('span');
         span.className = 'item-name ' + phaseToItemClass(task.phase);
-        span.textContent = task.title || node.visibleText || task.id;
+        span.textContent = node.visibleText || task.id;
         li.appendChild(span);
         if (node.trailingHtml) li.insertAdjacentHTML('beforeend', node.trailingHtml);
       } else {
