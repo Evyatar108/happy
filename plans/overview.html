@@ -1408,6 +1408,13 @@
       if (task && task.id) taskById[task.id] = task;
     });
 
+    function phaseToItemClass(phase) {
+      if (phase === 'shipped') return 'donefade';
+      if (phase === 'closed') return 'closed';
+      if (phase === 'blocked') return 'deferred';
+      return 'open';
+    }
+
     function appendNode(parent, node) {
       if (!node) return;
       if (node.kind === 'sub-phase') {
@@ -1422,7 +1429,7 @@
         var task = taskById[node.taskId];
         if (!task) return;
         var span = document.createElement('span');
-        span.className = 'item-name' + (node.state ? ' ' + node.state : '');
+        span.className = 'item-name ' + phaseToItemClass(task.phase);
         span.textContent = task.title || node.visibleText || task.id;
         li.appendChild(span);
         if (node.trailingHtml) li.insertAdjacentHTML('beforeend', node.trailingHtml);
