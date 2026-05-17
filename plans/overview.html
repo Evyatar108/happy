@@ -2614,9 +2614,9 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts â€
   // For sort/order, phase is authoritative; data-task-status never changes
   // row order. This preserves shipped vs closed as distinct order buckets.
   var PHASE_TO_ORDER_BUCKET = {
-    'brainstorm-ready': 'ready',
-    'brainstorm-in-progress': 'inprogress',
-    'brainstorm-review': 'inprogress',
+    'brainstorm-ready': 'brainstorm',
+    'brainstorm-in-progress': 'brainstorm',
+    'brainstorm-review': 'brainstorm',
     'plan-ready': 'ready',
     'plan-in-progress': 'inprogress',
     'plan-review': 'inprogress',
@@ -2630,9 +2630,9 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts â€
   // first: blocked/paused override phase. Phase then maps to a UI bucket,
   // with shipped and closed intentionally collapsed into closed.
   var PHASE_TO_FILTER_BUCKET = {
-    'brainstorm-ready': 'ready',
-    'brainstorm-in-progress': 'inprogress',
-    'brainstorm-review': 'inprogress',
+    'brainstorm-ready': 'brainstorm',
+    'brainstorm-in-progress': 'brainstorm',
+    'brainstorm-review': 'brainstorm',
     'plan-ready': 'ready',
     'plan-in-progress': 'inprogress',
     'plan-review': 'inprogress',
@@ -2723,8 +2723,8 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts â€
         if (!cmd.dataset.taskPhase) cmd.dataset.taskPhase = phase;
 
         var status = statusForCmd(cmd, badge);
-        if (!cmd.dataset.taskStatus && (status === 'blocked' || status === 'paused')) {
-          cmd.dataset.taskStatus = status;
+        if (!cmd.dataset.taskStatus) {
+          cmd.dataset.taskStatus = (status === 'blocked' || status === 'paused') ? status : 'ok';
         }
         badge.className = 'cmd-badge b-' + phase;
 
