@@ -837,6 +837,7 @@
      apart by emoji prefix (✅ vs 🚫). Fallback 99 keeps unclassified
      rows out of the way. */
   details.cmd { order: 99; }
+  details.cmd[data-cmd-status="brainstorm"] { order: 0; }
   details.cmd[data-cmd-status="shipped"]  { order: 1; }
   details.cmd[data-cmd-status="closed"]   { order: 2; }
   details.cmd[data-cmd-status="paused"]   { order: 3; }
