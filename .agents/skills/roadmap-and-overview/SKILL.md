@@ -32,9 +32,10 @@ generation-stamp commit, and surface the next-wave URL on request.
    needed) before doing roadmap edits.
 2. `git log --oneline -15` — see what's landed recently. Compare
    against the dashboard's `generatedFromCommit` to gauge drift.
-3. Scan `plans/overview.html` for tasks with `b-inflight` badges +
-   `cmd-warn blocked` banners. The `b-blocked` ones may have stale
-   prereqs (already shipped) — sweep is part of procedure B.
+3. Scan `plans/overview.html` for tasks whose `data-task-phase` ends in
+   `-in-progress` or that have `cmd-warn blocked` banners. Rows with
+   `data-task-status="blocked"` may have stale prereqs (already shipped) —
+   sweep is part of procedure B.
 4. Read the operator memory note `codexu orchestration pattern` for
    how the operator interacts with you (delegation, URL handoffs,
    parallel fleets).
@@ -46,8 +47,8 @@ generation-stamp commit, and surface the next-wave URL on request.
 landing report from an agent contains: a topic-branch name, a tip
 SHA, optionally a merge SHA, a story-by-story status, and "deferred
 to..." follow-ups. Translate that into a procedure-B close-out commit
-(badge flip + runs[] entry + status table + dependent unblock + meta
-bump). Cross-repo landings produce TWO commits — see procedure B's
+(phase/status attribute update + runs[] entry + status table + dependent
+unblock + meta bump). Cross-repo landings produce TWO commits — see procedure B's
 multi-commit pattern.
 
 **Your second-most-used procedure** is A (add a new task) when the
@@ -116,8 +117,8 @@ runs persist in `runs[]`.
 Two task-relationship axes:
 
 - **Blocks-on / depends-on** — encoded inline on the cmd row via
-  `cmd-warn blocked` banners and badge classes; surfaces as the 🔒
-  blocked emoji. Captures hard prerequisites.
+  `cmd-warn blocked` banners plus `data-task-status="blocked"`; surfaces as
+  the blocked modifier beside the phase badge. Captures hard prerequisites.
 - **Spawned-from** — encoded as `spawnedFrom{ childId: parentId }`
   in the JSON; surfaces as an `↗ from <parent>` pill on the child's
   summary, and a "Spawned follow-ups (N) <chips>" line at the bottom
@@ -130,9 +131,9 @@ Two task-relationship axes:
 
 | Trigger | What changes |
 |---|---|
-| New task added | (1) new `<details class="cmd">` row in the Ralph commands section with full `/plan-with-ralph` text inside a `<pre class="cmd-pre">`; (2) JSON entries in `lastTouched`, `effort`, `risk`, `workstream`, `sizeBucket`; (3) periodic block + `cadence` entry if periodic; (4) `plans/parallel-assignments.md` status-table row + lettered section; (5) optional kanban card under the right column |
-| Task status flips (e.g., agent commits land) | (1) update the `cmd-badge` class + text inside the row's `<summary>`; (2) update `lastTouched` to now; (3) if task completed: add a run record to `runs[]` with the landing commit sha; (4) update `plans/parallel-assignments.md` status-table cell |
-| Task paused / blocked / closed | (1) badge class + text in `<summary>`; (2) inline `<div class="cmd-warn blocked">` or `cmd-warn closed` banner explaining; (3) `lastTouched` updated; (4) status table |
+| New task added | (1) new `<details class="cmd">` row in the Ralph commands section with full `/plan-with-ralph` text inside a `<pre class="cmd-pre">`; (2) `data-task-phase`, `data-task-status`, `data-task-id`, and `data-task-scope` attributes on the row; (3) JSON entries in `lastTouched`, `effort`, `risk`, `workstream`, `sizeBucket`; (4) periodic block + `cadence` entry if periodic; (5) `plans/parallel-assignments.md` status-table row + lettered section; (6) optional kanban card under the right column |
+| Task phase flips (e.g., agent commits land) | (1) update `data-task-phase` / `data-task-status` on the row and keep the summary phase badge as `<span class="cmd-badge b-<phase>">...</span>` plus optional `<span class="cmd-status-mod ...">...</span>`; (2) update `lastTouched` to now; (3) if task completed: add a run record to `runs[]` with the landing commit sha; (4) update `plans/parallel-assignments.md` Phase / Status cells |
+| Task paused / blocked / closed | (1) set `data-task-status="paused"` or `data-task-status="blocked"`, or set `data-task-phase="closed"` for final closure; (2) keep the primary badge phase-based and add/remove `.cmd-status-mod`; (3) inline `<div class="cmd-warn blocked">` or `cmd-warn closed` banner explaining; (4) `lastTouched` updated; (5) status table |
 | Periodic task runs successfully | (1) new entry in `runs[]` with `ranAt: <commit time>`, `outcome: completed`, `commits: ["<sha>"]`, `summary: "..."`; (2) update `periodic[<taskId>].lastRunId` to the new run's id; (3) recompute `periodic[<taskId>].nextDueAt = lastRanAt + intervalDays`; (4) `lastTouched` updated |
 | New workstream added | (1) new filter chip in the workstream filter group inside the toolbar's `<details class="toolbar-filters">` popover; (2) new entry in the `labels` object inside the `injectWorkstreamPills` IIFE in the main `<script>`; (3) `workstream{}` entries for the tasks under the new bucket |
 | New section / kanban column / phase tree row | Find the right `<details class="section">` and add inside its body; section headers are `<summary class="section-head">` |
@@ -143,7 +144,8 @@ Two task-relationship axes:
 
 1. **Pick the metadata** before touching HTML:
    - `taskId`: short kebab-case, unique. Example: `agent-comms`.
-   - `status`: usually `ready` for a new task; `blocked` if it depends on something not yet done.
+   - `phase`: usually `plan-ready` for a new task; use `brainstorm-ready`, `impl-ready`, etc. only when that phase is known.
+   - `status`: usually `ok`; use `blocked` or `paused` only for temporary availability modifiers.
    - `workstream`: pick from the existing list; if none fit, propose a new one to the operator first.
    - `sizeBucket`: `quick (<1h)`, `small (1-4h)`, `medium (4h-1d)`, `large (1d+)`.
    - `risk`: low / medium / high based on blast radius.
@@ -157,8 +159,8 @@ Two task-relationship axes:
 3. **Add a new `<details class="cmd">` row** inside the Ralph commands section. Pattern (copy from an existing row):
 
 ```html
-  <details class="cmd" id="cmd-<taskId>" data-task-id="<taskId>" data-task-scope="<scope>">
-    <summary><span class="cmd-name"><taskId></span><span class="cmd-badge b-<status>"><emoji> <status></span><span class="cmd-desc">One-line description (workstream-name)</span></summary>
+  <details class="cmd" id="cmd-<taskId>" data-task-id="<taskId>" data-task-phase="plan-ready" data-task-status="ok" data-task-scope="<scope>">
+    <summary><span class="cmd-name"><taskId></span><span class="cmd-badge b-plan-ready">📋 plan ready</span><span class="cmd-desc">One-line description (workstream-name)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
 <pre class="cmd-pre">/plan-with-ralph "Full prompt body. HTML-escape ampersands as &amp; and angle brackets as &lt; / &gt;. Do NOT include &quot;update plans/overview.html&quot; or &quot;use a worktree&quot; clauses — those inject automatically at Copy time per data-task-scope."</pre>
@@ -166,16 +168,18 @@ Two task-relationship axes:
   </details>
 ```
 
-The `id="cmd-<taskId>"`, `data-task-id="<taskId>"`, and
-`data-task-scope="<scope>"` attributes are **load-bearing** — they
-wire URL-hash deep-linking, ready-strip chips, filter logic,
-workstream-pill auto-injection, run-history rendering, and the
-copy-time preamble injection (see "Copy-time preambles — driven by
-`data-task-scope`" section below for valid scope values).
+The `id="cmd-<taskId>"`, `data-task-id="<taskId>"`, `data-task-phase`,
+`data-task-status`, and `data-task-scope="<scope>"` attributes are
+**load-bearing** — they wire URL-hash deep-linking, ready-strip chips,
+filter logic, phase badges, status modifiers, workstream-pill
+auto-injection, run-history rendering, and the copy-time preamble injection
+(see "Copy-time preambles — driven by `data-task-scope`" section below for
+valid scope values).
 
 4. **Update `plans/parallel-assignments.md`**:
    - Add a new lettered section (next available letter after the last one)
-   - Add a row to the unified status table near the bottom
+   - Add a row to the unified status table near the bottom, filling Phase,
+     Status, Plan source, Plan job, and Commit
 
 5. **Optionally** add a kanban card under one of the 3 columns in the
    Kanban section of the HTML (`Ready now` / `Unblocked, needs re-read` /
@@ -193,8 +197,8 @@ When an agent commits the code for a task:
 
 1. **Find the commit(s)** with `git log --oneline -10` — note short SHA + ISO timestamp. For tasks spanning the codex submodule AND codexu, there will be TWO commits (codex-side content + codexu-side submodule pointer bump). Record both — see the multi-commit pattern below.
 2. **Update the `<summary>` badge**:
-   - Change class from `b-ready` / `b-inflight` to `b-closed`
-   - Change emoji + text: `🟡 in progress` → `✅ shipped`
+   - Set `data-task-phase="shipped"` and usually `data-task-status="ok"` on the row
+   - Change the primary badge to `<span class="cmd-badge b-shipped">✅ shipped</span>` and remove any stale `.cmd-status-mod`
    - Append `· commit <code>SHA</code>` to the `cmd-desc` (for single-commit tasks) OR `· codex <code>SHA1</code> + codexu pointer <code>SHA2</code>` (for cross-repo tasks)
 3. **Update the kanban card** for the task (if it has one):
    - Change `border-color: var(--warn)` → `border-color: var(--ok); opacity: 0.8`
@@ -223,7 +227,7 @@ Per `port-explorer-prompt/2026-05-14` precedent.
 ```
 Per `3h-options/2026-05-14` precedent.
 
-5. **Sweep dependents for stale blockers.** After flipping a task to `b-closed`, search the HTML for `cmd-warn blocked` banners that reference the task ID. Each match becomes a candidate for un-blocking — flip the dependent's badge `b-blocked` → `b-ready`, remove the banner, and update its `cmd-desc` to note the unblock date. (Pattern seen 2026-05-14: `userid-cleanup` and `plugin-scope-agents` stayed `b-blocked` for weeks after their prereqs shipped because no one swept.)
+5. **Sweep dependents for stale blockers.** After setting a task to `data-task-phase="shipped"`, search the HTML for `cmd-warn blocked` banners that reference the task ID. Each match becomes a candidate for un-blocking — set the dependent to `data-task-status="ok"`, remove its `.cmd-status-mod`, remove the banner, and update its `cmd-desc` to note the unblock date. (Pattern seen 2026-05-14: `userid-cleanup` and `plugin-scope-agents` stayed blocked for weeks after their prereqs shipped because no one swept.)
 6. Bump `lastTouched[<taskId>]` to the commit timestamp.
 7. Bump `generatedAt` + `generatedFromCommit`.
 8. Commit + push.
@@ -236,12 +240,12 @@ Same as B but additionally:
 - Update `periodic[<taskId>].lastRunId` to the new run's id.
 - Update `periodic[<taskId>].nextDueAt` = `lastRanAt + intervalDays`.
 
-The task **does not flip to closed** — it stays `ready` after a run,
+The task **does not flip to closed** — it stays `plan-ready` after a run,
 and the cadence chip recomputes the days-until-next from `nextDueAt`.
 
 ### D. Marking a task paused / blocked
 
-1. Badge class + text: `b-paused` / `b-blocked` with `⏸ paused` / `🔒 blocked` text.
+1. Keep the primary badge phase-based, set `data-task-status="paused"` or `data-task-status="blocked"`, and add `<span class="cmd-status-mod paused">⏸ paused</span>` or `<span class="cmd-status-mod blocked">🔒 blocked</span>` after the phase badge.
 2. Add a `<div class="cmd-warn blocked">` or `cmd-warn` (just warning) inside the `<div class="cmd-body">` before the Copy button — operator-facing explanation of WHY blocked.
 3. `lastTouched` updated.
 4. Status-table cell + `plans/codexu-roadmap.md` mention if material.
@@ -305,15 +309,15 @@ If you're adding a new view (e.g., a new section, a new filter axis, a new badge
 - **Filter chips' parent must have `data-filter-axis`.** The multi-axis filter logic reads `chip.parentElement.dataset.filterAxis`; without it, the chip click toggles the wrong filter set.
 - **Don't add a workstream value without the JS label entry.** The chip will work but the inline workstream pill will say the raw key (e.g., `agent-arch`) instead of the label (`Agent architecture`).
 - **`lastTouched` is not the same as `lastRanAt`.** `lastTouched` means "this task's plan/metadata was edited"; `runs[]` records mean "this task actually ran and produced code". The what's-new banner uses `lastTouched`; the Recently-shipped footer uses `runs[]`.
-- **Status counts in `<summary>` headers** are auto-populated by the `buildTodayPanel` IIFE from the cmd rows' badge classes. Manually-edited badge text won't be reflected unless the class is also right (e.g., a row marked `<span class="cmd-badge b-ready">🟡 in progress</span>` will be counted as ready, not in-progress, because the class is what classifies).
+- **Phase/status attributes are the source of truth.** The primary badge is rendered from `data-task-phase`; `data-task-status` only adds a blocked/paused modifier and overrides filter/Today buckets. Do not infer durable state from old `b-*` aliases except for legacy fallback rows.
 - **`localStorage` keys** in use: `codexu-overview-details-state-v1` (open/closed state), `codexu-overview-last-visit-v1` (for what's-new banner), `codexu-overview-notes-v1` (operator scratch notes). Don't reuse these for new features; pick a new versioned key.
 - **`spawnedFrom` is one-directional and flat** — child → parent. The reverse index (parent → children) is computed at runtime by `injectSpawnRelationships`. Don't try to encode a tree shape; one child can only have one parent (use blocks-on for multi-prereq relationships instead). If a child was spawned by multiple ancestors, pick the most-proximate one and mention the others in prose.
 - **Ralph agents must commit on isolated worktrees, never on the parent codexu's `main`.** Pattern: `git worktree add .worktrees/<task-id> -b ralph/<task-id> origin/main`, do all work there, push the topic branch, surface to operator for a `--no-ff` merge. On 2026-05-14 the codex-wire-spike agent committed directly on the parent codexu working branch (`0dcd8614`), which forced manual cherry-picking + branch-checkout dancing to keep `main` clean while the agent kept editing. Authors of new ralph commands MUST include the worktree-isolation paragraph (or rely on the global convention in `plans/parallel-assignments.md`'s preamble). Codex-submodule tasks have their own worktree convention (`.ralph/jobs/<name>/codex-worktree/` of the codex submodule); codexu-side tasks land in `.worktrees/<task-id>/`. Don't conflate the two — codex-submodule edits + codexu-side bookkeeping in the SAME task need a worktree for EACH side.
 - **End every ralph job with `git checkout main` on the parent codexu repo.** Even if the agent used a worktree correctly for its own work, leaving a topic branch checked out on the parent repo causes the NEXT bookkeeping commit (mine or another agent's) to silently land on that branch instead of main. Incidents (2026-05-14): codex-wire-spike left `codex-wire-spike` checked out → my `feat(overview): re-block async-events-design` commit (`4e8c925c`) landed there instead of main, requiring a cherry-pick. port-explorer-prompt left `port-explorer-prompt-pointer-bump` checked out → my `docs: add 4 more spawned follow-up tasks` commit (`47de9b32`) landed there, requiring `git push origin HEAD:main`. **Always verify HEAD before bookkeeping: `git branch --show-current` should print `main`. If it doesn't, switch (stashing uncommitted work first) before doing any roadmap edits.**
 - **Pre-merge rebase audit: `git diff main <branch> --stat` BEFORE every merge.** A topic branch that's N-behind main will silently revert main's recent commits if you merge it without rebasing. The expected diff for a single-task topic branch is small (~1-5 files). If the diff shows ~30 files and ~5000 lines of changes, the branch is stale — rebase it first (`git -C <worktree> rebase main`) or you'll lose recently-landed work. Incident (2026-05-14): port-explorer-prompt-pointer-bump's 1-line commit lived on a branch 5-behind main; `git diff main <branch> --stat` showed 35 files / +984 / -5396 (reversal of 5 prior landings). Rebased first → ff-merge cleanly delivered just the 1-line pointer bump. The check takes 2 seconds and prevents a class of silent disasters.
 - **Research-task output often sits uncommitted in the working tree.** Pattern observed 4× this session (codex-parity-audit, agent-view-research, native-agent-parity, channels-research): the agent writes `plans/<task-id>.md` to disk, flips its own badge in `plans/overview.html`, but never `git add` + commits — the operator's report is "X is done" but `git status` shows the doc as untracked. **Always check `git status` for new untracked `plans/*.md` files matching the task name; stage and commit them with the close-out commit.** If the doc is partial or you're not sure it's complete, surface to the operator before committing.
-- **Verify tab title matches the ralph prompt text before firing.** Operator tabs sometimes drift from the prompt they actually run. Incident (2026-05-14): a tab labeled `3c-hooks` was fired with the `3h-options` prompt verbatim — 3h-options shipped (correctly), 3c-hooks dashboard stayed inflight forever (incorrectly) until the mismatch surfaced. Cheap check before firing: read the first sentence of the `/plan-with-ralph "..."` block and confirm it references the same task the tab claims. If the dashboard later shows an in-progress task that's actually a different task's work, flip the misnamed one back to `b-ready` with a `cmd-desc` note acknowledging the conflation.
-- **Landing agents only flip their own badge — the full close-out is a bookkeeping pass.** Across the 2026-05-13 / 2026-05-14 session, four landing agents (`codex-parity-audit`, `agent-view-research`, `native-agent-parity`, `channels-research`) each updated their own row's badge to `b-closed` and updated `lastTouched`, but only one (`agent-view-research`) also added the `runs[]` entry and one (`channels-research`) updated `plans/parallel-assignments.md`'s status-table row. The remaining bookkeeping always falls to the operator-side commit. **The full "task landed" checklist is procedure B in this skill — and an incomplete close-out means the dashboard's "Recently shipped" footer + the parallel-assignments tracker drift out of sync within the same commit.** When auditing a recently-landed task, verify all 6 items in procedure B explicitly; don't trust that an agent did them.
+- **Verify tab title matches the ralph prompt text before firing.** Operator tabs sometimes drift from the prompt they actually run. Incident (2026-05-14): a tab labeled `3c-hooks` was fired with the `3h-options` prompt verbatim — 3h-options shipped (correctly), 3c-hooks dashboard stayed in progress forever (incorrectly) until the mismatch surfaced. Cheap check before firing: read the first sentence of the `/plan-with-ralph "..."` block and confirm it references the same task the tab claims. If the dashboard later shows an in-progress task that's actually a different task's work, set the misnamed row back to `data-task-phase="plan-ready"` / `data-task-status="ok"` with a `cmd-desc` note acknowledging the conflation.
+- **Landing agents only flip their own badge — the full close-out is a bookkeeping pass.** Across the 2026-05-13 / 2026-05-14 session, four landing agents (`codex-parity-audit`, `agent-view-research`, `native-agent-parity`, `channels-research`) each updated their own row's badge and `lastTouched`, but only one (`agent-view-research`) also added the `runs[]` entry and one (`channels-research`) updated `plans/parallel-assignments.md`'s status-table row. The remaining bookkeeping always falls to the operator-side commit. **The full "task landed" checklist is procedure B in this skill — and an incomplete close-out means the dashboard's "Recently shipped" footer + the parallel-assignments tracker drift out of sync within the same commit.** When auditing a recently-landed task, verify all 6 items in procedure B explicitly; don't trust that an agent did them.
 
 ## Action-button cluster (`.cmd-actions`)
 

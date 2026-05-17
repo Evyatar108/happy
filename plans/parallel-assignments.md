@@ -2,6 +2,10 @@
 
 Self-contained `/plan-with-ralph` prompts for parallel-safe tasks. Drop into a fresh Claude session.
 
+Task phase conventions: command rows in `plans/overview.html` use `data-task-phase` for lifecycle position and `data-task-status` for temporary modifiers. Phase is one of `brainstorm-ready`, `brainstorm-in-progress`, `brainstorm-review`, `plan-ready`, `plan-in-progress`, `plan-review`, `impl-ready`, `impl-in-progress`, `shipped`, or `closed`. Status is one of `ok`, `blocked`, or `paused`; blocked/paused override phase for filter and Today-panel buckets, while phase alone controls command-row ordering.
+
+Optional artifact fields on command rows are `data-plan-only`, `data-plan-source`, `data-plan-source-ref`, `data-brainstorm-job-id`, `data-plan-job-id`, `data-implement-job-id`, `data-plan-review-iterations`, and `data-merge-commit`. The status table below mirrors the durable phase/status values and records plan-only/source/job context when known; `Commit` remains the landing or close-out reference.
+
 **Batch 1 (six tasks below) are pairwise safe to run together.** Don't add a "perf WS2" agent yet — it must wait until B (WS3) lands, because both touch `storage.ts` and WS3 changes WS2's scope.
 
 > **⏸ `3a-skills` is PAUSED (operator-closed 2026-05-13).** The session was closed because the discovery prerequisites the agent needs aren't yet met. Don't re-spawn until the operator re-establishes that context. Phase 3 sub-phases that build on 3a's output — **`3b-agents`, `3d-workers`, `3fg-package` in batch 2** — remain blocked on 3a's eventual discovery commit. `3c-hooks` and `3h-options` are unaffected.
@@ -343,8 +347,8 @@ TWO INTERFACE SURFACES — surface design choice to operator before scoping the 
 2. MCP server (richer, agent-callable without slash commands). Stdio MCP server registered via packages/codexu-plugin/.codex-plugin/plugin.json's mcp_servers field. Tools exposed: roadmap.list, roadmap.addTask, roadmap.updateStatus, roadmap.recordRun, roadmap.takeTask. Server lives in packages/codexu-plugin/mcp-roadmap/ (new Node/TS subdir; can reuse @slopus/happy-wire for any shared types).
 
 CORE OPERATIONS (regardless of surface):
-- add-task: takes task metadata (id, status, workstream, sizeBucket, risk, effort, cadence?, ralphCommand string, optional blockedOn list). Writes a new <details class='cmd'> row in plans/overview.html + new lettered section in plans/parallel-assignments.md + entries in every JSON map. Validates against the data model documented in .agents/skills/roadmap-and-overview/SKILL.md.
-- update-status: takes (taskId, newStatus, optional commit sha + summary if flipping to closed). Flips badge class + text in HTML; updates lastTouched in JSON; updates parallel-assignments.md status table cell; if status='closed' appends a run record to runs[].
+- add-task: takes task metadata (id, phase, status, workstream, sizeBucket, risk, effort, cadence?, ralphCommand string, optional blockedOn list). Writes a new <details class='cmd'> row in plans/overview.html with data-task-phase/data-task-status + new lettered section in plans/parallel-assignments.md + entries in every JSON map. Validates against the data model documented in .agents/skills/roadmap-and-overview/SKILL.md.
+- update-status: takes (taskId, newPhase, newStatus, optional commit sha + summary if phase becomes shipped/closed). Updates data-task-phase/data-task-status and the rendered phase badge/status modifier in HTML; updates lastTouched in JSON; updates parallel-assignments.md Phase/Status cells; if phase='shipped' appends a run record to runs[].
 - record-run: takes (taskId, ranAt ISO, outcome, commits[], summary). Appends to runs[]. If task is periodic, recomputes periodic[taskId].lastRunId + nextDueAt.
 - take-task: spawns a top-level agent session running the task's ralph command, then calls update-status to flip the task to in-progress. Spawn integration: call happy-cli's existing spawn-happy-session RPC. The MCP server (which runs as a stdio child of codex) needs to reach the daemon — via daemon's HTTP control surface at 127.0.0.1:<httpPort> (read from ~/.happy/daemon.state.json) OR via the daemon's existing socket. Surface this integration choice to operator.
 
@@ -357,7 +361,7 @@ DEPENDENCIES / CROSS-REFERENCES:
 
 ACCEPTANCE v1 (skill-only):
 - /roadmap-add-task with full metadata writes a new task and the operator sees it on reload.
-- /roadmap-update-status flips a task's badge + status table cell + JSON lastTouched.
+- /roadmap-update-status updates a task's phase/status attributes, rendered badges, status table row, and JSON lastTouched.
 - /roadmap-record-run appends a run + updates periodic metadata if applicable.
 - /roadmap-take-task spawns a happy session with the ralph command and flips the task to in-progress.
 - The 4 skills are documented in packages/codexu-plugin/skills/roadmap/*/SKILL.md.
@@ -554,57 +558,57 @@ These need manual operator action; ralph won't help.
 
 Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/overview.html` after.
 
-| Tab title | Task | Status | Commit |
-|---|---|---|---|
-| ~~`perf-WS1`~~ | Realtime perf — refresh-skip | 🚫 closed (obsolete) | 188cfd9c |
-| `perf-WS3` | Realtime perf — replay buffer | ✅ shipped | 197b0148 |
-| `perf-WS2` | Realtime perf — placeholder (after WS3) | ⬜ blocked on WS3 | — |
-| `3a-skills` | Phase 3a — Ralph skills port | ⏸ paused (prerequisites not yet met) | — |
-| ~~`F-013-perms`~~ | Claude permission latent override | 🚫 closed (obsolete-by-design) | b5d18eb5 → close-out |
-| `F-015-toast` | Stale-creds toast on cold launch | ⏸ paused (awaiting reproduction) | — |
-| `mcp-discovery` | Codex agent project-.mcp.json parity | ✅ landed 2026-05-13 | 462776df |
-| `codex-parity-audit` | Research: gaps in codex agent feature parity vs Claude | ✅ landed 2026-05-13 | — (research-only; output `plans/codex-agent-parity-audit.md`) |
-| `codex-wire-spike` 🤖 | Pre-flight wire-acceptance spike for Gaps 2/3/5 | ✅ shipped | 06e0025b |
-| `codex-claude-md-autoload` 🤖 | Gap 2: project CLAUDE.md auto-load on codex path | ⬜ not started | — |
-| `codex-attachments` 🤖 | Gap 3: image attachments on codex turn input | ⬜ ready (unblocked 2026-05-14) | — |
-| `codex-system-prompts` 🤖 | Gap 7: customSystemPrompt + appendSystemPrompt parity | ⬜ not started | — |
-| `codex-hooks-parity` 🤖 | Gap 4: fan codex events to happy turn-lifecycle handlers | ⬜ not started (sequence after earlier codex-* land) | — |
-| `1a-fork-doc` | Phase 1a — fork strategy commit | ✅ shipped | 7fa6ff3b |
-| `1b-multidev` | Phase 1b sub-tasks 3 + 4 | ⬜ not started | — |
-| `3b-agents` | Phase 3b-i + ii — subagents → roles | ⬜ blocked on 3a discovery | — |
-| `3c-hooks` | Phase 3c — hooks port / verify | ⬜ ready (never actually fired) | — |
-| `3d-workers` | Phase 3d — native worker spawn (after 3b) | ⬜ blocked on 3a + 3b | — |
-| `3fg-package` | Phase 3f + 3g — asset + packaging | ⬜ blocked on 3a discovery | — |
-| `3h-options` | Phase 3h — options-mode migration | ✅ shipped (merged from `phase-3h-options-mode-plugin`) | 756d4290 + merge |
-| `3h-tail` 🤖 | Codex TUI statusline plugin slot + `request_user_input` override | ⬜ not started | — |
-| `session-parent-link-writer` 🤖 | CLI writer for parentSessionId + spawnedChildren (companion to session-parent-link) | ⬜ not started | — |
-| `codex-base-prompt-safety-rails` 🤖 | Launcher-injected `additional_instructions` for the two safety rails missing from codex base prompt | ⬜ not started | — |
-| `codex-slash-commands` 🤖 | Gap 5 — `/clear` + `/compact` parity on codex path | ⬜ blocked on codex-hooks-parity | — |
-| `codex-polish-lows` 🤖 | Bundle of Gaps 8/9/11/12 (tool gating + codex-args passthrough + statusline + SDK init-metadata mirror) | ⬜ not started | — |
-| `codex-plan-mode-defensive` 🤖 | Gap 6 — defensive plan-mode mapping (v1; overlay v2 deferred) | ⬜ blocked on operator decision (a-defensive vs b-overlay) | — |
-| `codex-child-spawn-tools` 🤖 | Spike: codex child agents' `spawn_agent`/`wait_agent` tool surface — decision input for plugin-scope-agents + agent-comms | ⬜ ready | — (research-only; output `plans/codex-child-spawn-tools.md`) |
-| `polish-Fs` | F-017 + F-001/F-002 + F-003-F-007 | ⬜ not started | — |
-| `userid-cleanup` | Drop multi-tenant userId scoping in happy-server | ⬜ ready (unblocked — perf-WS3 shipped) | — |
-| `happy-upstream-sync` 🔄 | Periodic — review new slopus/happy commits since last sync | ⬜ next due ~4w from 2026-05-03 | — |
-| `codex-upstream-rebase` 🔄 | Periodic — rebase codex submodule on openai/codex | ⬜ first run pending | — |
-| `agent-view-research` | Research Claude Code's agent-view feature | ✅ landed 2026-05-14 | — (research-only; output `plans/agent-view-research.md`) |
-| `agent-tree-rpc` 🤖 | App-server RPC for codex live spawn tree | ✅ done | branch agent-tree-rpc |
-| `session-parent-link` 🤖 | Add parentSessionId + spawnedChildren to Session metadata | ✅ shipped (read path; writer deferred) | 11c3eafb |
-| `mobile-tree-view` 🤖 | Tree-style session list with depth indentation | ⬜ ready (unblocked 2026-05-14) | — |
-| `session-role-pill` 🤖 | Flavor + model + permission-mode pills in session row | ✅ shipped | 7e9f724c |
-| `spawn-from-app` 🤖 | "Spawn child session" affordance + RPC | ⬜ ready (unblocked 2026-05-14) | — |
-| `agent-status-stream` 🤖 | Live "active teammates" overlay (codex events → mobile) | ⬜ ready (unblocked by agent-tree-rpc delivery) | — |
-| `plugin-scope-agents` | Top-level-only plugin scoping + agent-spawner | ⬜ ready (unblocked — agent-view-research landed) | — |
-| `agent-comms` | Top-level agent ↔ agent communication (MCP-based) | ⬜ blocked on plugin-scope-agents + channels-research | — |
-| `channels-research` | Research Claude Code "channels" + codex 2-way MCP plan | ✅ done — `plans/channels-research.md` (2026-05-13) | — |
-| `mcp-server-notifications` | Stage A from channels-research: bridge rmcp notifications + sampling into codex agent event loop, feature-gated | ⬜ not started | — |
-| `codex-channels` | Stage B from channels-research: `experimental["codex/channel"]` envelope + prompt-queue policy | ⬜ deferred — operator decision before scoping | — |
-| `async-events-design` | Design async event listening for agents | 🔒 blocked on `mcp-server-notifications` (re-blocked 2026-05-14) | — (draft preserved at `plans/async-events-design.md`) |
-| `native-agent-parity` | Research codex parity with Claude Code's native subagents | ✅ landed 2026-05-14 | — (research-only; output `plans/native-agent-parity.md`) |
-| `port-explorer-prompt` 🤖 | Fill empty `explorer.toml` stub | ✅ shipped | e9fa64a0 (codex) + d279d49d (pointer) |
-| `port-plan-and-verification-roles` 🤖 | Add `plan.toml` + `verification.toml` built-ins | ⬜ blocked on §6 operator decisions | — |
-| `audit-general-purpose-vs-worker` 🤖 | 30-min prompt diff vs codex worker.toml | ✅ shipped | — (finding captured in `plans/native-agent-parity.md`) |
-| `roadmap-plugin` 🛠 | Plugin: agents manage roadmap/overview.html via skill + MCP | ⬜ not started | — |
+| Tab title | Task | Phase | Status | Plan source | Plan job | Commit |
+|---|---|---|---|---|---|---|
+| ~~`perf-WS1`~~ | Realtime perf — refresh-skip | `closed` | `ok` | — | — | 188cfd9c |
+| `perf-WS3` | Realtime perf — replay buffer | `shipped` | `ok` | — | — | 197b0148 |
+| `perf-WS2` | Realtime perf — placeholder (after WS3) | `plan-ready` | `blocked` | — | — | — |
+| `3a-skills` | Phase 3a — Ralph skills port | `plan-ready` | `paused` | — | — | — |
+| ~~`F-013-perms`~~ | Claude permission latent override | `closed` | `ok` | — | — | b5d18eb5 → close-out |
+| `F-015-toast` | Stale-creds toast on cold launch | `plan-ready` | `paused` | — | — | — |
+| `mcp-discovery` | Codex agent project-.mcp.json parity | `shipped` | `ok` | — | — | 462776df |
+| `codex-parity-audit` | Research: gaps in codex agent feature parity vs Claude | `shipped` | `ok` | `planOnly` | — | — (research-only; output `plans/codex-agent-parity-audit.md`) |
+| `codex-wire-spike` 🤖 | Pre-flight wire-acceptance spike for Gaps 2/3/5 | `shipped` | `ok` | — | — | 06e0025b |
+| `codex-claude-md-autoload` 🤖 | Gap 2: project CLAUDE.md auto-load on codex path | `plan-ready` | `ok` | — | — | — |
+| `codex-attachments` 🤖 | Gap 3: image attachments on codex turn input | `plan-ready` | `ok` | — | — | — |
+| `codex-system-prompts` 🤖 | Gap 7: customSystemPrompt + appendSystemPrompt parity | `plan-ready` | `ok` | — | — | — |
+| `codex-hooks-parity` 🤖 | Gap 4: fan codex events to happy turn-lifecycle handlers | `plan-ready` | `ok` | — | — | — |
+| `1a-fork-doc` | Phase 1a — fork strategy commit | `shipped` | `ok` | `planOnly` | — | 7fa6ff3b |
+| `1b-multidev` | Phase 1b sub-tasks 3 + 4 | `plan-ready` | `ok` | — | — | — |
+| `3b-agents` | Phase 3b-i + ii — subagents → roles | `plan-ready` | `blocked` | — | — | — |
+| `3c-hooks` | Phase 3c — hooks port / verify | `plan-ready` | `ok` | `planOnly` | — | — |
+| `3d-workers` | Phase 3d — native worker spawn (after 3b) | `plan-ready` | `blocked` | — | — | — |
+| `3fg-package` | Phase 3f + 3g — asset + packaging | `plan-ready` | `blocked` | — | — | — |
+| `3h-options` | Phase 3h — options-mode migration | `shipped` | `ok` | — | — | 756d4290 + merge |
+| `3h-tail` 🤖 | Codex TUI statusline plugin slot + `request_user_input` override | `plan-ready` | `ok` | — | — | — |
+| `session-parent-link-writer` 🤖 | CLI writer for parentSessionId + spawnedChildren (companion to session-parent-link) | `plan-ready` | `ok` | — | — | — |
+| `codex-base-prompt-safety-rails` 🤖 | Launcher-injected `additional_instructions` for the two safety rails missing from codex base prompt | `plan-ready` | `ok` | — | — | — |
+| `codex-slash-commands` 🤖 | Gap 5 — `/clear` + `/compact` parity on codex path | `plan-ready` | `blocked` | — | — | — |
+| `codex-polish-lows` 🤖 | Bundle of Gaps 8/9/11/12 (tool gating + codex-args passthrough + statusline + SDK init-metadata mirror) | `plan-ready` | `ok` | — | — | — |
+| `codex-plan-mode-defensive` 🤖 | Gap 6 — defensive plan-mode mapping (v1; overlay v2 deferred) | `plan-ready` | `blocked` | — | — | — |
+| `codex-child-spawn-tools` 🤖 | Spike: codex child agents' `spawn_agent`/`wait_agent` tool surface — decision input for plugin-scope-agents + agent-comms | `plan-ready` | `ok` | — | — | — (research-only; output `plans/codex-child-spawn-tools.md`) |
+| `polish-Fs` | F-017 + F-001/F-002 + F-003-F-007 | `plan-ready` | `ok` | — | — | — |
+| `userid-cleanup` | Drop multi-tenant userId scoping in happy-server | `plan-ready` | `ok` | — | — | — |
+| `happy-upstream-sync` 🔄 | Periodic — review new slopus/happy commits since last sync | `plan-ready` | `ok` | — | — | — |
+| `codex-upstream-rebase` 🔄 | Periodic — rebase codex submodule on openai/codex | `plan-ready` | `ok` | — | — | — |
+| `agent-view-research` | Research Claude Code's agent-view feature | `shipped` | `ok` | `planOnly` | — | — (research-only; output `plans/agent-view-research.md`) |
+| `agent-tree-rpc` 🤖 | App-server RPC for codex live spawn tree | `shipped` | `ok` | — | — | branch agent-tree-rpc |
+| `session-parent-link` 🤖 | Add parentSessionId + spawnedChildren to Session metadata | `shipped` | `ok` | — | — | 11c3eafb |
+| `mobile-tree-view` 🤖 | Tree-style session list with depth indentation | `plan-ready` | `ok` | — | — | — |
+| `session-role-pill` 🤖 | Flavor + model + permission-mode pills in session row | `shipped` | `ok` | — | — | 7e9f724c |
+| `spawn-from-app` 🤖 | "Spawn child session" affordance + RPC | `plan-ready` | `ok` | — | — | — |
+| `agent-status-stream` 🤖 | Live "active teammates" overlay (codex events → mobile) | `plan-ready` | `ok` | — | — | — |
+| `plugin-scope-agents` | Top-level-only plugin scoping + agent-spawner | `plan-ready` | `ok` | — | — | — |
+| `agent-comms` | Top-level agent ↔ agent communication (MCP-based) | `plan-ready` | `blocked` | — | — | — |
+| `channels-research` | Research Claude Code "channels" + codex 2-way MCP plan | `shipped` | `ok` | `planOnly` | — | — |
+| `mcp-server-notifications` | Stage A from channels-research: bridge rmcp notifications + sampling into codex agent event loop, feature-gated | `plan-ready` | `ok` | — | — | — |
+| `codex-channels` | Stage B from channels-research: `experimental["codex/channel"]` envelope + prompt-queue policy | `plan-ready` | `blocked` | — | — | — |
+| `async-events-design` | Design async event listening for agents | `plan-ready` | `blocked` | — | — | — (draft preserved at `plans/async-events-design.md`) |
+| `native-agent-parity` | Research codex parity with Claude Code's native subagents | `shipped` | `ok` | `planOnly` | — | — (research-only; output `plans/native-agent-parity.md`) |
+| `port-explorer-prompt` 🤖 | Fill empty `explorer.toml` stub | `shipped` | `ok` | — | — | e9fa64a0 (codex) + d279d49d (pointer) |
+| `port-plan-and-verification-roles` 🤖 | Add `plan.toml` + `verification.toml` built-ins | `plan-ready` | `blocked` | — | — | — |
+| `audit-general-purpose-vs-worker` 🤖 | 30-min prompt diff vs codex worker.toml | `shipped` | `ok` | `planOnly` | — | — (finding captured in `plans/native-agent-parity.md`) |
+| `roadmap-plugin` 🛠 | Plugin: agents manage roadmap/overview.html via skill + MCP | `plan-ready` | `ok` | — | — | — |
 
 🟡 = in progress (agent actively working, not yet committed). Refresh after each landing.
 

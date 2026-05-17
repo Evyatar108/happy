@@ -172,6 +172,11 @@ polish.
   helper, etc.).
 - Upstream-derived doc/skill references to "Happy Coder", `slopus/happy`,
   and `happy.engineering` are HISTORICAL and stay as-is.
+- **Task phase model:** roadmap command rows split durable lifecycle from
+  temporary availability: `data-task-phase` uses the 10-value enum documented
+  in `plans/parallel-assignments.md`, while `data-task-status` is only
+  `ok` / `blocked` / `paused`. Phase controls ordering; blocked/paused status
+  overrides filter and Today-panel buckets.
 
 ### In-flight ralph jobs (2026-05-13)
 
