@@ -857,7 +857,7 @@
   .cmd-badge.b-impl-ready { background: rgba(125,207,255,0.16); color: var(--info); }
   .cmd-badge.b-impl-in-progress { background: rgba(224,175,104,0.30); color: var(--warn); }
   .cmd-badge.b-shipped { background: rgba(158,206,106,0.18); color: var(--ok); }
-  .cmd-badge.b-closed { background: rgba(86,95,137,0.25); color: var(--done); }
+  [data-task-phase='closed'] .cmd-badge.b-closed { background: rgba(86,95,137,0.25); color: var(--done); }
   .cmd-status-mod {
     display: inline-block;
     font-size: 10px;
@@ -2710,6 +2710,19 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     e.preventDefault();
   }
 
+  var PHASE_TO_BADGE_TEXT = {
+    'brainstorm-ready':       '💡 brainstorm ready',
+    'brainstorm-in-progress': '💡 brainstorm in progress',
+    'brainstorm-review':      '💡 brainstorm review',
+    'plan-ready':             '📋 plan ready',
+    'plan-in-progress':       '📋 plan in progress',
+    'plan-review':            '📋 plan review',
+    'impl-ready':             '🟦 impl ready',
+    'impl-in-progress':       '🟡 impl in progress',
+    'shipped':                '✅ shipped',
+    'closed':                 '🚫 closed'
+  };
+
   // ===== Render phase badges from data-task-phase + data-task-status before
   //       the scope-chip injector moves badges into its cluster. =====
   (function renderPhaseBadges() {
@@ -2727,6 +2740,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
           cmd.dataset.taskStatus = (status === 'blocked' || status === 'paused') ? status : 'ok';
         }
         badge.className = 'cmd-badge b-' + phase;
+        if (PHASE_TO_BADGE_TEXT[phase]) badge.textContent = PHASE_TO_BADGE_TEXT[phase];
 
         var mod = summary.querySelector(':scope > .cmd-status-mod');
         if (status === 'blocked' || status === 'paused') {
