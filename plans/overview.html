@@ -1393,8 +1393,8 @@
       var el = document.getElementById(id);
       if (el) el.open = true;
     });
+    applyEnrichments();
   }
-  renderTasks();
 
   // ===== renderPhaseTree() =====
   function renderPhaseTree() {
@@ -1592,7 +1592,7 @@
 
   // ===== Render phase badges from data-task-phase + data-task-status before
   //       the scope-chip injector moves badges into its cluster. =====
-  (function renderPhaseBadges() {
+  function renderPhaseBadges() {
     document.querySelectorAll('details.cmd').forEach(function (cmd) {
       try {
         var summary = cmd.querySelector(':scope > summary');
@@ -1625,7 +1625,7 @@
         console.warn('renderPhaseBadges failed for task', cmd && cmd.dataset ? cmd.dataset.taskId : undefined, err);
       }
     });
-  })();
+  }
 
   // ===== Inject task-scope chips driven by data-task-scope. =====
   //   bookkeeping → 📋 bookkeeping  (skips bookkeeping preamble)
@@ -1635,7 +1635,7 @@
   // All chips for a row sit inside a .cmd-scope-cluster wrapper with a
   // fixed flex-basis, so cmd-desc starts at the same x across every row
   // regardless of how many scopes a task declares.
-  (function injectTaskScopeChips() {
+  function injectTaskScopeChips() {
     var SCOPE_LABELS = {
       bookkeeping: { text: '📋 bookkeeping', title: 'Task legitimately edits dashboard/roadmap files — bookkeeping preamble skipped at Copy time.' },
       codexu:      { text: '🟦 codexu',      title: 'Codexu-side worktree preamble injected at Copy time (.worktrees/<task-id>/ on ralph/<task-id>).' },
@@ -1678,14 +1678,14 @@
       if (badge) cluster.appendChild(badge);
       if (statusMod) cluster.appendChild(statusMod);
     });
-  })();
+  }
 
   // ===== Annotate each cmd row with data-cmd-status so CSS `order`
   //       can sort by phase only. Blocked/paused status modifiers do not
   //       affect order; they affect filter/Today buckets via classifyCmd().
   //       The badge may live directly under <summary> OR inside the injected
   //       .cmd-scope-cluster wrapper, so use a descendant selector. =====
-  (function classifyAndOrderCmds() {
+  function classifyAndOrderCmds() {
     document.querySelectorAll('details.cmd').forEach(function (cmd) {
       var badge = cmd.querySelector(':scope > summary .cmd-badge');
       if (!badge) return;
@@ -1693,10 +1693,10 @@
       var bucket = PHASE_TO_ORDER_BUCKET[phase];
       if (bucket) cmd.dataset.cmdStatus = bucket;
     });
-  })();
+  }
 
   // ===== Inject "Copy Name" button into every cmd's summary =====
-  (function injectCopyNameButtons() {
+  function injectCopyNameButtons() {
     document.querySelectorAll('details.cmd[data-task-id]').forEach(function (cmd) {
       var taskId = cmd.dataset.taskId;
       if (!taskId) return;
@@ -1710,7 +1710,7 @@
       btn.dataset.copyText = taskId;
       wrap.appendChild(btn);
     });
-  })();
+  }
 
   // Copy-time preambles — single source of truth for every "always say
   // this to the agent" rule. Stacked at Copy Command time after the
@@ -1847,7 +1847,7 @@
   }
 
   // ===== Build the Today decision panel from existing cmd rows =====
-  (function buildTodayPanel() {
+  function buildTodayPanel() {
     var rows = document.querySelectorAll('details.cmd');
     var counts = { brainstorm: 0, ready: 0, inprogress: 0, paused: 0, blocked: 0, closed: 0 };
     var byStatus = { brainstorm: [], ready: [], inprogress: [], blocked: [], paused: [], closed: [] };
@@ -1861,6 +1861,7 @@
     function chipsInto(elId, names, chipClass, prefix) {
       var el = document.getElementById(elId);
       if (!el) return;
+      el.innerHTML = '';
       if (!names.length) {
         el.innerHTML = '<span class="today-empty">—</span>';
         return;
@@ -1883,6 +1884,7 @@
     // Footer: capacity + dimmer counts (closed/blocked-paused totals) + recently shipped
     var footer = document.getElementById('today-footer');
     if (footer) {
+      footer.innerHTML = '';
       // Capacity calc (ready only)
       var data = (typeof getRoadmapData === 'function') ? getRoadmapData() : null;
       var totalEffort = 0;
@@ -1944,10 +1946,10 @@
         '<span class="sc sc-paused">' + counts.paused + ' paused</span>' +
         '<span class="sc sc-closed">' + counts.closed + ' closed</span>';
     }
-  })();
+  }
 
   // ===== Populate Kanban section count from card distribution =====
-  (function populateKanbanCount() {
+  function populateKanbanCount() {
     var el = document.getElementById('counts-kanban');
     if (!el) return;
     // Each kanban column header text encodes its status semantics; count via the per-column .card lists
@@ -1959,7 +1961,7 @@
       parts.push('<span class="sc">' + n + ' ' + (labels[i] || ('col ' + i)) + '</span>');
     });
     el.innerHTML = parts.join('');
-  })();
+  }
 
   // Area-color left-border tagging removed in Tier V — status owns the color channel.
 
@@ -2009,7 +2011,7 @@
   })();
 
   // ===== Multi-select checkbox in each cmd row =====
-  (function injectCheckboxes() {
+  function injectCheckboxes() {
     document.querySelectorAll('details.cmd').forEach(function (cmd) {
       var summary = cmd.querySelector('summary');
       if (!summary || summary.querySelector('.cmd-select')) return;
@@ -2026,7 +2028,7 @@
       }
       summary.insertBefore(cb, summary.firstChild);
     });
-  })();
+  }
 
   function getSelectedCmds() {
     return Array.prototype.slice.call(document.querySelectorAll('details.cmd .cmd-select:checked'))
@@ -2200,7 +2202,7 @@
   applyFilter();
 
   // ===== Workstream pill injection on cmd rows + kanban cards =====
-  (function injectWorkstreamPills() {
+  function injectWorkstreamPills() {
     var data = getRoadmapData();
     if (!data || !data.workstream) return;
     var labels = {
@@ -2295,9 +2297,9 @@
       var ws = data.workstream[taskId];
       if (ws) card.dataset.workstream = ws;
     });
-  })();
+  }
 
-  (function injectKanbanPhasePills() {
+  function injectKanbanPhasePills() {
     var cmdsById = {};
     document.querySelectorAll('details.cmd[data-task-id]').forEach(function (cmd) {
       cmdsById[cmd.dataset.taskId] = cmd;
@@ -2315,10 +2317,10 @@
       pill.title = 'Task phase: ' + pill.textContent;
       meta.insertBefore(pill, meta.firstChild);
     });
-  })();
+  }
 
   // ===== "Blocked on <task>" -> clickable jump-links inside .cmd-warn.blocked =====
-  (function linkBlockedOn() {
+  function linkBlockedOn() {
     var taskIds = Array.prototype.slice.call(document.querySelectorAll('details.cmd[data-task-id]'))
       .map(function (d) { return d.getAttribute('data-task-id'); });
     if (taskIds.length === 0) return;
@@ -2339,10 +2341,10 @@
         code.appendChild(a);
       });
     });
-  })();
+  }
 
   // ===== Cross-section: add "→ command" link to kanban cards that match a task id =====
-  (function linkKanbanToCmds() {
+  function linkKanbanToCmds() {
     var taskIds = new Set(Array.prototype.slice.call(document.querySelectorAll('details.cmd[data-task-id]'))
       .map(function (d) { return d.getAttribute('data-task-id'); }));
     document.querySelectorAll('.kanban .card').forEach(function (card) {
@@ -2357,7 +2359,7 @@
       a.title = 'Jump to ' + taskId + ' ralph command';
       title.appendChild(a);
     });
-  })();
+  }
 
   // ===== Keyboard shortcuts =====
   function setAllDetails(open) {
@@ -2416,7 +2418,7 @@
   // Capacity widget folded into the Today panel footer above (Tier V rebalance).
 
   // ===== Spawn relationship — "from <parent>" pill + "spawned: X, Y" children list =====
-  (function injectSpawnRelationships() {
+  function injectSpawnRelationships() {
     var data = getRoadmapData();
     if (!data) return;
     var spawnedFrom = data.spawnedFrom || {};
@@ -2469,10 +2471,10 @@
         }
       }
     });
-  })();
+  }
 
   // ===== Per-task run history inside each cmd-body =====
-  (function injectRunHistory() {
+  function injectRunHistory() {
     var data = getRoadmapData();
     if (!data || !Array.isArray(data.runs) || data.runs.length === 0) return;
     // Group runs by taskId, newest first
@@ -2515,7 +2517,27 @@
       });
       body.appendChild(wrap);
     });
-  })();
+  }
+
+  // ===== applyEnrichments(): re-run all DOM-decoration passes after any renderTasks() call =====
+  function applyEnrichments() {
+    renderPhaseBadges();
+    injectTaskScopeChips();
+    classifyAndOrderCmds();
+    injectCopyNameButtons();
+    injectCheckboxes();
+    injectWorkstreamPills();
+    injectKanbanPhasePills();
+    linkBlockedOn();
+    linkKanbanToCmds();
+    injectSpawnRelationships();
+    injectRunHistory();
+    buildTodayPanel();
+    populateKanbanCount();
+    applyFilter();
+  }
+
+  renderTasks();
 
   // ===== "What's new since last visit" =====
   (function whatsNewSinceLastVisit() {
