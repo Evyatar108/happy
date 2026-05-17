@@ -1048,7 +1048,109 @@ window.OVERVIEW_DATA = {
               }
         }
   ],
-  "phaseTree": [],
+  "phaseTree": [
+    {
+      "id": "phase-1",
+      "title": "Phase 1 — Foundations",
+      "headerHtml": "Phase 1 — Foundations <span class=\"ptag\">parallel</span>",
+      "nodes": [
+        { "kind": "raw", "html": "<span class=\"item-name open\">1a Codex fork strategy commit</span> — docs-only, open" },
+        { "kind": "raw", "html": "<span class=\"item-name donefade\">1b.1 Transport refactor stdio→ws</span>" },
+        { "kind": "raw", "html": "<span class=\"item-name donefade\">1b.2 Discovery + reattach</span>" },
+        { "kind": "task-ref", "taskId": "1b-multidev", "visibleText": "1b.3 Multi-device discoverability hint", "state": "open", "trailingHtml": " — unblocked, re-read" },
+        { "kind": "task-ref", "taskId": "1b-multidev", "visibleText": "1b.4 Multi-client approval fan-out", "state": "open", "trailingHtml": " — unblocked, re-read" },
+        { "kind": "task-ref", "taskId": "1b-multidev", "visibleText": "1b.5 Walkthrough verification", "state": "open", "trailingHtml": " — manual" },
+        { "kind": "raw", "html": "<span class=\"item-name donefade\">1c Personal codex plugin scaffolding</span> — 90%, TUI smoke residual" }
+      ]
+    },
+    {
+      "id": "phase-2",
+      "title": "Phase 2 — Codex divergences",
+      "nodes": [
+        { "kind": "raw", "html": "<span class=\"item-name donefade\">2a Verify upstream features</span> — 2/3 tests, T3 deferred" },
+        { "kind": "raw", "html": "<span class=\"item-name donefade\">2b .claude/skills discovery via junctions</span>" },
+        { "kind": "raw", "html": "<span class=\"item-name deferred\">2c Plugin scoping (host vs agent)</span> — upstream codex patch" },
+        { "kind": "raw", "html": "<span class=\"item-name deferred\">2d ask_user_question sibling tool</span> — upstream codex patch" }
+      ]
+    },
+    {
+      "id": "phase-3",
+      "title": "Phase 3 — Plugin migrations",
+      "headerHtml": "Phase 3 — Plugin migrations <span class=\"ptag\">Claude Code → codex</span>",
+      "nodes": [
+        { "kind": "raw", "html": "<span class=\"item-name\" style=\"color: var(--warn);\">🟡 3a Skills port</span> — 13 skills, agent in pre-code discovery" },
+        { "kind": "raw", "html": "<span class=\"item-name deferred\">3b-i Subagents → [agents.&lt;role&gt;]</span> — blocked on 3a discovery" },
+        { "kind": "raw", "html": "<span class=\"item-name deferred\">3b-ii Tool permission audit</span> — blocked on 3a discovery" },
+        { "kind": "raw", "html": "<span class=\"item-name open\">3c Hooks port</span> — likely zero, verify (parallel-safe)" },
+        { "kind": "raw", "html": "<span class=\"item-name deferred\">3d Codex-based workers (native spawn)</span> — blocked on 3a + 3b" },
+        { "kind": "raw", "html": "<span class=\"item-name donefade\">3e Cross-vendor workers</span> — stays as shell scripts" },
+        { "kind": "raw", "html": "<span class=\"item-name deferred\">3f Asset migration</span> — blocked on 3a discovery" },
+        { "kind": "raw", "html": "<span class=\"item-name deferred\">3g Plugin packaging</span> — blocked on 3a discovery" },
+        { "kind": "raw", "html": "<span class=\"item-name open\">3h options-mode plugin migration</span> — 575 LOC hooks (separate plugin, parallel-safe)" }
+      ]
+    },
+    {
+      "id": "phase-4",
+      "title": "Phase 4 — Coexistence verification",
+      "headerHtml": "Phase 4 — Coexistence verification <span class=\"ptag\">gated on Phase 3</span>",
+      "collapsible": true,
+      "collapsibleSummary": "13 sub-items (all blocked) — click to expand",
+      "nodes": [
+        { "kind": "raw", "html": "4a codex from codexu works (smoke)" },
+        { "kind": "raw", "html": "4b ralph from codex works" },
+        { "kind": "raw", "html": "4c ralph + codexu combined (laptop + phone)" },
+        { "kind": "raw", "html": "4d Plugin scoping works (host vs agent)" },
+        { "kind": "raw", "html": "4e Cross-vendor fan-out" },
+        { "kind": "raw", "html": "4f AskUserQuestion fan-out" },
+        { "kind": "raw", "html": "4g App-server lifecycle (reattach)" },
+        { "kind": "raw", "html": "4h End-to-end trace IDs" },
+        { "kind": "raw", "html": "4i Pre-Phase-3 ralph state migrates" },
+        { "kind": "raw", "html": "4j Reviewer fan-out determinism" },
+        { "kind": "raw", "html": "4k Output-file contract migration" },
+        { "kind": "raw", "html": "4l Sandbox-bypass parity" },
+        { "kind": "raw", "html": "4m Stop-hook tag enforcement post-port" }
+      ]
+    },
+    {
+      "id": "phase-5",
+      "title": "Phase 5 — Drop Claude Code",
+      "headerHtml": "Phase 5 — Drop Claude Code <span class=\"ptag\">gated on Phase 4</span>",
+      "collapsible": true,
+      "collapsibleSummary": "6 sub-items (all gated) — click to expand",
+      "nodes": [
+        { "kind": "raw", "html": "5a Dual-stack dogfood (2-week buffer)" },
+        { "kind": "raw", "html": "5b Audit remaining Claude Code workflows" },
+        { "kind": "raw", "html": "5c Archive Claude Code configs" },
+        { "kind": "raw", "html": "5d Uninstall Claude Code binary" },
+        { "kind": "raw", "html": "5e Update personal docs" },
+        { "kind": "raw", "html": "5f Mark migration complete" }
+      ]
+    },
+    {
+      "id": "phase-6-7",
+      "title": "Phase 6 + 7 — Deferred polish",
+      "nodes": [
+        { "kind": "raw", "html": "<span class=\"item-name deferred\">6 Long-lived teammates</span> — un-defer when respawn friction ≥3×/week" },
+        { "kind": "raw", "html": "<span class=\"item-name deferred\">7 Claude model via Copilot adapter</span> — spike first, wide effort range" }
+      ]
+    },
+    {
+      "id": "devtunnels-follow-on",
+      "title": "Devtunnels follow-on / open gaps",
+      "headerHtml": "Devtunnels follow-on / open gaps <span class=\"ptag\">post-Sprint-E</span>",
+      "nodes": [
+        { "kind": "task-ref", "taskId": "perf-WS3", "visibleText": "Realtime sync perf WS1 / WS2 / WS3", "state": "open", "trailingHtml": " — see <a href=\"realtime-sync-perf.md\">plan</a>" },
+        { "kind": "raw", "html": "<span class=\"item-name deferred\">Realtime sync perf WS4</span> — conditional on WS3 outcome" },
+        { "kind": "raw", "html": "<span class=\"item-name donefade\">Codex agent project-.mcp.json parity</span> — shipped 462776df" },
+        { "kind": "raw", "html": "<span class=\"item-name deferred\">Drop userId scoping (happy-server cleanup)</span> — ~140 refs, blocked on perf-WS3" },
+        { "kind": "raw", "html": "<span class=\"item-name closed\">Polish PR — F-013 closed</span> · <span class=\"item-name open\">F-015 / F-017</span> — low-risk isolated" },
+        { "kind": "raw", "html": "<span class=\"item-name deferred\">F-014</span> — needs server redeploy" },
+        { "kind": "raw", "html": "<span class=\"item-name deferred\">F-016</span> — BOOX hardware quirk" },
+        { "kind": "task-ref", "taskId": "polish-Fs", "visibleText": "F-001/F-002 (Med) + F-003-F-007 (Low)", "state": "open", "trailingHtml": " — security polish PR" },
+        { "kind": "raw", "html": "<span class=\"item-name deferred\">BOOX Phases 2–6</span> — operator manual validation" }
+      ]
+    }
+  ],
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
     "perf-WS3": "2026-05-13T22:00:00Z",

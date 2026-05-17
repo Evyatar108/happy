@@ -1127,107 +1127,7 @@
   Compact view of <code>plans/codexu-roadmap.md</code> Phases 1-7. Strike-through = done.
 </div>
 
-<div class="phase-grid" id="phase-tree">
-
-  <div class="phase">
-    <div class="phase-head">Phase 1 — Foundations <span class="ptag">parallel</span></div>
-    <ul>
-      <li><span class="item-name open">1a Codex fork strategy commit</span> — docs-only, open</li>
-      <li><span class="item-name donefade">1b.1 Transport refactor stdio→ws</span></li>
-      <li><span class="item-name donefade">1b.2 Discovery + reattach</span></li>
-      <li><span class="item-name open">1b.3 Multi-device discoverability hint</span> — unblocked, re-read</li>
-      <li><span class="item-name open">1b.4 Multi-client approval fan-out</span> — unblocked, re-read</li>
-      <li><span class="item-name open">1b.5 Walkthrough verification</span> — manual</li>
-      <li><span class="item-name donefade">1c Personal codex plugin scaffolding</span> — 90%, TUI smoke residual</li>
-    </ul>
-  </div>
-
-  <div class="phase">
-    <div class="phase-head">Phase 2 — Codex divergences</div>
-    <ul>
-      <li><span class="item-name donefade">2a Verify upstream features</span> — 2/3 tests, T3 deferred</li>
-      <li><span class="item-name donefade">2b .claude/skills discovery via junctions</span></li>
-      <li><span class="item-name deferred">2c Plugin scoping (host vs agent)</span> — upstream codex patch</li>
-      <li><span class="item-name deferred">2d ask_user_question sibling tool</span> — upstream codex patch</li>
-    </ul>
-  </div>
-
-  <div class="phase">
-    <div class="phase-head">Phase 3 — Plugin migrations <span class="ptag">Claude Code → codex</span></div>
-    <ul>
-      <li><span class="item-name" style="color: var(--warn);">🟡 3a Skills port</span> — 13 skills, agent in pre-code discovery</li>
-      <li><span class="item-name deferred">3b-i Subagents → [agents.&lt;role&gt;]</span> — blocked on 3a discovery</li>
-      <li><span class="item-name deferred">3b-ii Tool permission audit</span> — blocked on 3a discovery</li>
-      <li><span class="item-name open">3c Hooks port</span> — likely zero, verify (parallel-safe)</li>
-      <li><span class="item-name deferred">3d Codex-based workers (native spawn)</span> — blocked on 3a + 3b</li>
-      <li><span class="item-name donefade">3e Cross-vendor workers</span> — stays as shell scripts</li>
-      <li><span class="item-name deferred">3f Asset migration</span> — blocked on 3a discovery</li>
-      <li><span class="item-name deferred">3g Plugin packaging</span> — blocked on 3a discovery</li>
-      <li><span class="item-name open">3h options-mode plugin migration</span> — 575 LOC hooks (separate plugin, parallel-safe)</li>
-    </ul>
-  </div>
-
-  <div class="phase">
-    <div class="phase-head">Phase 4 — Coexistence verification <span class="ptag">gated on Phase 3</span></div>
-    <details class="phase-subdetails">
-      <summary>13 sub-items (all blocked) — click to expand</summary>
-      <ul>
-        <li>4a codex from codexu works (smoke)</li>
-        <li>4b ralph from codex works</li>
-        <li>4c ralph + codexu combined (laptop + phone)</li>
-        <li>4d Plugin scoping works (host vs agent)</li>
-        <li>4e Cross-vendor fan-out</li>
-        <li>4f AskUserQuestion fan-out</li>
-        <li>4g App-server lifecycle (reattach)</li>
-        <li>4h End-to-end trace IDs</li>
-        <li>4i Pre-Phase-3 ralph state migrates</li>
-        <li>4j Reviewer fan-out determinism</li>
-        <li>4k Output-file contract migration</li>
-        <li>4l Sandbox-bypass parity</li>
-        <li>4m Stop-hook tag enforcement post-port</li>
-      </ul>
-    </details>
-  </div>
-
-  <div class="phase">
-    <div class="phase-head">Phase 5 — Drop Claude Code <span class="ptag">gated on Phase 4</span></div>
-    <details class="phase-subdetails">
-      <summary>6 sub-items (all gated) — click to expand</summary>
-      <ul>
-        <li>5a Dual-stack dogfood (2-week buffer)</li>
-        <li>5b Audit remaining Claude Code workflows</li>
-        <li>5c Archive Claude Code configs</li>
-        <li>5d Uninstall Claude Code binary</li>
-        <li>5e Update personal docs</li>
-        <li>5f Mark migration complete</li>
-      </ul>
-    </details>
-  </div>
-
-  <div class="phase">
-    <div class="phase-head">Phase 6 + 7 — Deferred polish</div>
-    <ul>
-      <li><span class="item-name deferred">6 Long-lived teammates</span> — un-defer when respawn friction ≥3×/week</li>
-      <li><span class="item-name deferred">7 Claude model via Copilot adapter</span> — spike first, wide effort range</li>
-    </ul>
-  </div>
-
-  <div class="phase">
-    <div class="phase-head">Devtunnels follow-on / open gaps <span class="ptag">post-Sprint-E</span></div>
-    <ul>
-      <li><span class="item-name open">Realtime sync perf WS1 / WS2 / WS3</span> — see <a href="realtime-sync-perf.md">plan</a></li>
-      <li><span class="item-name deferred">Realtime sync perf WS4</span> — conditional on WS3 outcome</li>
-      <li><span class="item-name donefade">Codex agent project-.mcp.json parity</span> — shipped 462776df</li>
-      <li><span class="item-name deferred">Drop userId scoping (happy-server cleanup)</span> — ~140 refs, blocked on perf-WS3</li>
-      <li><span class="item-name closed">Polish PR — F-013 closed</span> · <span class="item-name open">F-015 / F-017</span> — low-risk isolated</li>
-      <li><span class="item-name deferred">F-014</span> — needs server redeploy</li>
-      <li><span class="item-name deferred">F-016</span> — BOOX hardware quirk</li>
-      <li><span class="item-name open">F-001/F-002 (Med) + F-003-F-007 (Low)</span> — security polish PR</li>
-      <li><span class="item-name deferred">BOOX Phases 2–6</span> — operator manual validation</li>
-    </ul>
-  </div>
-
-</div>
+<div id="phase-tree"></div>
 
 </details>
 
@@ -1497,7 +1397,79 @@
   renderTasks();
 
   // ===== renderPhaseTree() =====
-  function renderPhaseTree() {}
+  function renderPhaseTree() {
+    var data = getRoadmapData();
+    var phases = data && Array.isArray(data.phaseTree) ? data.phaseTree : [];
+    var mount = document.getElementById('phase-tree');
+    if (!mount) return;
+
+    var taskById = {};
+    (data && Array.isArray(data.tasks) ? data.tasks : []).forEach(function (task) {
+      if (task && task.id) taskById[task.id] = task;
+    });
+
+    function appendNode(parent, node) {
+      if (!node) return;
+      if (node.kind === 'sub-phase') {
+        parent.appendChild(renderPhase(node));
+        return;
+      }
+
+      var li = document.createElement('li');
+      if (node.kind === 'raw') {
+        li.innerHTML = node.html || '';
+      } else if (node.kind === 'task-ref') {
+        var task = taskById[node.taskId];
+        if (!task) return;
+        var span = document.createElement('span');
+        span.className = 'item-name' + (node.state ? ' ' + node.state : '');
+        span.textContent = task.title || node.visibleText || task.id;
+        li.appendChild(span);
+        if (node.trailingHtml) li.insertAdjacentHTML('beforeend', node.trailingHtml);
+      } else {
+        return;
+      }
+      parent.appendChild(li);
+    }
+
+    function appendNodes(parent, phase) {
+      (phase.nodes || []).forEach(function (node) { appendNode(parent, node); });
+    }
+
+    function renderPhase(phase) {
+      var div = document.createElement('div');
+      div.className = 'phase';
+      if (phase.id) div.dataset.phaseId = phase.id;
+
+      var head = document.createElement('div');
+      head.className = 'phase-head';
+      if (phase.headerHtml) head.innerHTML = phase.headerHtml;
+      else head.textContent = phase.title || '';
+      div.appendChild(head);
+
+      var ul = document.createElement('ul');
+      appendNodes(ul, phase);
+
+      if (phase.collapsible) {
+        var details = document.createElement('details');
+        details.className = 'phase-subdetails';
+        var summary = document.createElement('summary');
+        summary.textContent = phase.collapsibleSummary || '';
+        details.appendChild(summary);
+        details.appendChild(ul);
+        div.appendChild(details);
+      } else {
+        div.appendChild(ul);
+      }
+      return div;
+    }
+
+    var grid = document.createElement('div');
+    grid.className = 'phase-grid';
+    phases.forEach(function (phase) { grid.appendChild(renderPhase(phase)); });
+    mount.replaceChildren(grid);
+  }
+  renderPhaseTree();
 
   // For sort/order, phase is authoritative; data-task-status never changes
   // row order. This preserves shipped vs closed as distinct order buckets.
