@@ -557,7 +557,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | Tab title | Task | Status | Commit |
 |---|---|---|---|
 | ~~`perf-WS1`~~ | Realtime perf — refresh-skip | 🚫 closed (obsolete) | 188cfd9c |
-| `perf-WS3` | Realtime perf — replay buffer | 🟡 in progress | — |
+| `perf-WS3` | Realtime perf — replay buffer | ✅ shipped | 197b0148 |
 | `perf-WS2` | Realtime perf — placeholder (after WS3) | ⬜ blocked on WS3 | — |
 | `3a-skills` | Phase 3a — Ralph skills port | ⏸ paused (prerequisites not yet met) | — |
 | ~~`F-013-perms`~~ | Claude permission latent override | 🚫 closed (obsolete-by-design) | b5d18eb5 → close-out |
@@ -569,7 +569,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `codex-attachments` 🤖 | Gap 3: image attachments on codex turn input | ⬜ ready (unblocked 2026-05-14) | — |
 | `codex-system-prompts` 🤖 | Gap 7: customSystemPrompt + appendSystemPrompt parity | ⬜ not started | — |
 | `codex-hooks-parity` 🤖 | Gap 4: fan codex events to happy turn-lifecycle handlers | ⬜ not started (sequence after earlier codex-* land) | — |
-| `1a-fork-doc` | Phase 1a — fork strategy commit | 🟡 in progress | — |
+| `1a-fork-doc` | Phase 1a — fork strategy commit | ✅ shipped | 7fa6ff3b |
 | `1b-multidev` | Phase 1b sub-tasks 3 + 4 | ⬜ not started | — |
 | `3b-agents` | Phase 3b-i + ii — subagents → roles | ⬜ blocked on 3a discovery | — |
 | `3c-hooks` | Phase 3c — hooks port / verify | ⬜ ready (never actually fired) | — |
@@ -603,7 +603,7 @@ Mark each row when the agent's commit lands on `origin/main`. Refresh `plans/ove
 | `native-agent-parity` | Research codex parity with Claude Code's native subagents | ✅ landed 2026-05-14 | — (research-only; output `plans/native-agent-parity.md`) |
 | `port-explorer-prompt` 🤖 | Fill empty `explorer.toml` stub | ✅ shipped | e9fa64a0 (codex) + d279d49d (pointer) |
 | `port-plan-and-verification-roles` 🤖 | Add `plan.toml` + `verification.toml` built-ins | ⬜ blocked on §6 operator decisions | — |
-| `audit-general-purpose-vs-worker` 🤖 | 30-min prompt diff vs codex worker.toml | ⬜ not started | — |
+| `audit-general-purpose-vs-worker` 🤖 | 30-min prompt diff vs codex worker.toml | ✅ shipped | — (finding captured in `plans/native-agent-parity.md`) |
 | `roadmap-plugin` 🛠 | Plugin: agents manage roadmap/overview.html via skill + MCP | ⬜ not started | — |
 
 🟡 = in progress (agent actively working, not yet committed). Refresh after each landing.
