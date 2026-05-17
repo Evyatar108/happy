@@ -847,6 +847,29 @@
   .b-blocked { background: rgba(86,95,137,0.25); color: var(--done); }
   .b-paused { background: rgba(86,95,137,0.25); color: var(--done); }
   .b-closed { background: rgba(158,206,106,0.18); color: var(--ok); }
+  .cmd-badge.b-brainstorm-ready { background: rgba(125,207,255,0.18); color: var(--info); }
+  .cmd-badge.b-brainstorm-in-progress { background: rgba(122,162,247,0.20); color: var(--accent); }
+  .cmd-badge.b-brainstorm-review { background: rgba(187,154,247,0.20); color: var(--purple); }
+  .cmd-badge.b-plan-ready { background: rgba(122,162,247,0.18); color: var(--accent); }
+  .cmd-badge.b-plan-in-progress { background: rgba(224,175,104,0.22); color: var(--warn); }
+  .cmd-badge.b-plan-review { background: rgba(255,158,100,0.20); color: #ff9e64; }
+  .cmd-badge.b-impl-ready { background: rgba(125,207,255,0.16); color: var(--info); }
+  .cmd-badge.b-impl-in-progress { background: rgba(224,175,104,0.30); color: var(--warn); }
+  .cmd-badge.b-shipped { background: rgba(158,206,106,0.18); color: var(--ok); }
+  .cmd-badge.b-closed { background: rgba(86,95,137,0.25); color: var(--done); }
+  .cmd-status-mod {
+    display: inline-block;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+    white-space: nowrap;
+    background: rgba(86,95,137,0.22);
+    color: var(--done);
+    border: 1px solid rgba(86,95,137,0.4);
+  }
+  .cmd-status-mod.blocked { background: rgba(86,95,137,0.25); color: var(--done); }
+  .cmd-status-mod.paused { background: rgba(86,95,137,0.18); color: var(--done); }
   /* Task-scope chips â€” visible markers driven by data-task-scope on
      <details class="cmd">. Attribute is a `|`-delimited list, e.g.
      "codexu", "codex", "codex|codexu", "bookkeeping|codexu". Each
@@ -2587,6 +2610,77 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts â€
 </script>
 
 <script>
+  // For sort/order, phase is authoritative; data-task-status never changes
+  // row order. This preserves shipped vs closed as distinct order buckets.
+  var PHASE_TO_ORDER_BUCKET = {
+    'brainstorm-ready': 'ready',
+    'brainstorm-in-progress': 'inprogress',
+    'brainstorm-review': 'inprogress',
+    'plan-ready': 'ready',
+    'plan-in-progress': 'inprogress',
+    'plan-review': 'inprogress',
+    'impl-ready': 'ready',
+    'impl-in-progress': 'inprogress',
+    'shipped': 'shipped',
+    'closed': 'closed'
+  };
+
+  // For filters, Today, and kanban-derived buckets, data-task-status wins
+  // first: blocked/paused override phase. Phase then maps to a UI bucket,
+  // with shipped and closed intentionally collapsed into closed.
+  var PHASE_TO_FILTER_BUCKET = {
+    'brainstorm-ready': 'ready',
+    'brainstorm-in-progress': 'inprogress',
+    'brainstorm-review': 'inprogress',
+    'plan-ready': 'ready',
+    'plan-in-progress': 'inprogress',
+    'plan-review': 'inprogress',
+    'impl-ready': 'ready',
+    'impl-in-progress': 'inprogress',
+    'shipped': 'closed',
+    'closed': 'closed'
+  };
+
+  var LEGACY_STATUS_TO_PHASE = {
+    ready: 'plan-ready',
+    inprogress: 'impl-in-progress',
+    blocked: 'plan-ready',
+    paused: 'plan-ready',
+    shipped: 'shipped',
+    closed: 'closed'
+  };
+
+  function legacyStatusFromBadge(badge) {
+    if (!badge) return '';
+    var cls = badge.className || '';
+    if (cls.indexOf('b-closed') >= 0) return badge.textContent.indexOf('ðŸš«') >= 0 ? 'closed' : 'shipped';
+    if (cls.indexOf('b-paused') >= 0) return 'paused';
+    if (cls.indexOf('b-inprogress') >= 0) return 'inprogress';
+    if (cls.indexOf('b-ready') >= 0) return 'ready';
+    if (cls.indexOf('b-blocked') >= 0) return 'blocked';
+    return '';
+  }
+
+  function legacyPhaseFromBadge(badge) {
+    return LEGACY_STATUS_TO_PHASE[legacyStatusFromBadge(badge)] || '';
+  }
+
+  function phaseForCmd(cmdEl, badge) {
+    return (cmdEl && cmdEl.dataset && cmdEl.dataset.taskPhase) || legacyPhaseFromBadge(badge) || '';
+  }
+
+  function statusForCmd(cmdEl, badge) {
+    return (cmdEl && cmdEl.dataset && cmdEl.dataset.taskStatus) || legacyStatusFromBadge(badge) || '';
+  }
+
+  function filterBucketForCmd(cmdEl) {
+    var badge = cmdEl.querySelector('.cmd-badge');
+    var status = statusForCmd(cmdEl, badge);
+    if (status === 'blocked' || status === 'paused') return status;
+    var phase = phaseForCmd(cmdEl, badge);
+    return PHASE_TO_FILTER_BUCKET[phase] || legacyStatusFromBadge(badge) || 'unknown';
+  }
+
   // Helper: get or create the .cmd-actions flex wrapper inside a cmd's
   // <summary>. Living in summary keeps the buttons visible even when
   // the <details> is collapsed. On first call, moves the static
@@ -2615,6 +2709,42 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts â€
     e.preventDefault();
   }
 
+  // ===== Render phase badges from data-task-phase + data-task-status before
+  //       the scope-chip injector moves badges into its cluster. =====
+  (function renderPhaseBadges() {
+    document.querySelectorAll('details.cmd').forEach(function (cmd) {
+      try {
+        var summary = cmd.querySelector(':scope > summary');
+        var badge = summary && summary.querySelector(':scope > .cmd-badge');
+        if (!summary || !badge) return;
+        var phase = phaseForCmd(cmd, badge);
+        if (!phase) return;
+        if (!cmd.dataset.taskPhase) cmd.dataset.taskPhase = phase;
+
+        var status = statusForCmd(cmd, badge);
+        if (!cmd.dataset.taskStatus && (status === 'blocked' || status === 'paused')) {
+          cmd.dataset.taskStatus = status;
+        }
+        badge.className = 'cmd-badge b-' + phase;
+
+        var mod = summary.querySelector(':scope > .cmd-status-mod');
+        if (status === 'blocked' || status === 'paused') {
+          if (!mod) {
+            mod = document.createElement('span');
+            mod.className = 'cmd-status-mod';
+            summary.insertBefore(mod, badge.nextSibling);
+          }
+          mod.className = 'cmd-status-mod ' + status;
+          mod.textContent = status === 'blocked' ? 'blocked' : 'paused';
+        } else if (mod) {
+          mod.remove();
+        }
+      } catch (err) {
+        console.warn('renderPhaseBadges failed for task', cmd && cmd.dataset ? cmd.dataset.taskId : undefined, err);
+      }
+    });
+  })();
+
   // ===== Inject task-scope chips driven by data-task-scope. =====
   //   bookkeeping â†’ ðŸ“‹ bookkeeping  (skips bookkeeping preamble)
   //   codexu      â†’ ðŸŸ¦ codexu       (codexu worktree preamble)
@@ -2638,10 +2768,10 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts â€
       cluster.className = 'cmd-scope-cluster';
       if (desc) summary.insertBefore(cluster, desc);
       else summary.appendChild(cluster);
-      // Capture the static badge now; append it LAST so it ends up
-      // rightmost in the cluster (scope chips first, status badge
-      // after them on the right).
+      // Capture the phase badge and optional status modifier now; append
+      // both after scope chips so they stay together inside the cluster.
       var badge = summary.querySelector(':scope > .cmd-badge');
+      var statusMod = summary.querySelector(':scope > .cmd-status-mod');
       if (scopes.length === 0) {
         var warn = document.createElement('span');
         warn.className = 'task-scope-chip missing';
@@ -2662,35 +2792,24 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts â€
           cluster.appendChild(chip);
         });
       }
-      // Badge appended last â†’ rightmost in the cluster, immediately
-      // adjacent to cmd-desc.
+      // Phase badge first, then status modifier on its right.
       if (badge) cluster.appendChild(badge);
+      if (statusMod) cluster.appendChild(statusMod);
     });
   })();
 
   // ===== Annotate each cmd row with data-cmd-status so CSS `order`
-  //       can sort them: closed first, then paused, inprogress, ready,
-  //       blocked. The badge may live directly under <summary> OR
-  //       inside the injected .cmd-scope-cluster wrapper (the chip
-  //       injector relocates it there), so use a descendant selector
-  //       not a direct-child chain. =====
+  //       can sort by phase only. Blocked/paused status modifiers do not
+  //       affect order; they affect filter/Today buckets via classifyCmd().
+  //       The badge may live directly under <summary> OR inside the injected
+  //       .cmd-scope-cluster wrapper, so use a descendant selector. =====
   (function classifyAndOrderCmds() {
     document.querySelectorAll('details.cmd').forEach(function (cmd) {
       var badge = cmd.querySelector(':scope > summary .cmd-badge');
       if (!badge) return;
-      var cls = badge.className || '';
-      var status;
-      if (cls.indexOf('b-closed') >= 0) {
-        // Both âœ… shipped and ðŸš« obsolete-by-design share b-closed.
-        // Tell them apart by the emoji prefix so shipped rows can
-        // float above closed-as-obsolete ones in the sort.
-        status = badge.textContent.indexOf('ðŸš«') >= 0 ? 'closed' : 'shipped';
-      }
-      else if (cls.indexOf('b-paused') >= 0) status = 'paused';
-      else if (cls.indexOf('b-inprogress') >= 0) status = 'inprogress';
-      else if (cls.indexOf('b-ready') >= 0) status = 'ready';
-      else if (cls.indexOf('b-blocked') >= 0) status = 'blocked';
-      if (status) cmd.dataset.cmdStatus = status;
+      var phase = phaseForCmd(cmd, badge);
+      var bucket = PHASE_TO_ORDER_BUCKET[phase];
+      if (bucket) cmd.dataset.cmdStatus = bucket;
     });
   })();
 
@@ -2840,15 +2959,9 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts â€
 
   // ===== Status helpers =====
   function classifyCmd(cmdEl) {
-    var badge = cmdEl.querySelector('.cmd-badge');
-    if (!badge) return 'unknown';
-    var cls = badge.className || '';
-    if (cls.indexOf('b-ready') >= 0) return 'ready';
-    if (cls.indexOf('b-inprogress') >= 0) return 'inprogress';
-    if (cls.indexOf('b-paused') >= 0) return 'paused';
-    if (cls.indexOf('b-blocked') >= 0) return 'blocked';
-    if (cls.indexOf('b-closed') >= 0) return 'closed';
-    return 'unknown';
+    // Filter/Today bucket precedence: status first for blocked/paused,
+    // then phase. Legacy b-* badge classes remain the final fallback.
+    return filterBucketForCmd(cmdEl);
   }
 
   // ===== Build the Today decision panel from existing cmd rows =====
@@ -3135,6 +3248,8 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts â€
   function applyFilter() {
     var q = (search.value || '').trim().toLowerCase();
     document.querySelectorAll('details.cmd').forEach(function (cmd) {
+      // Status axis uses the same precedence as the Today panel:
+      // data-task-status blocked/paused first, then data-task-phase.
       var status = classifyCmd(cmd);
       var ws = cmd.dataset.workstream || '';
       var sz = cmd.dataset.sizeBucket || '';
@@ -3290,20 +3405,12 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts â€
       });
       summary.appendChild(pill);
     });
-    // 2. Kanban cards (tag data-workstream for filtering by name matching)
-    var taskIds = Object.keys(data.workstream);
+    // 2. Kanban cards (tag data-workstream from explicit data-task-id)
     document.querySelectorAll('.kanban .card').forEach(function (card) {
-      var title = card.querySelector('.card-title');
-      if (!title) return;
-      // Find longest task-id that appears in the card title (avoid F-013 inside F-013-perms)
-      var sorted = taskIds.slice().sort(function (a, b) { return b.length - a.length; });
-      for (var i = 0; i < sorted.length; i++) {
-        if (title.textContent.indexOf(sorted[i]) >= 0) {
-          var ws = data.workstream[sorted[i]];
-          if (ws) card.dataset.workstream = ws;
-          break;
-        }
-      }
+      var taskId = card.dataset.taskId;
+      if (!taskId) return;
+      var ws = data.workstream[taskId];
+      if (ws) card.dataset.workstream = ws;
     });
   })();
 
@@ -3333,24 +3440,19 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts â€
 
   // ===== Cross-section: add "â†’ command" link to kanban cards that match a task id =====
   (function linkKanbanToCmds() {
-    var taskIds = Array.prototype.slice.call(document.querySelectorAll('details.cmd[data-task-id]'))
-      .map(function (d) { return d.getAttribute('data-task-id'); });
+    var taskIds = new Set(Array.prototype.slice.call(document.querySelectorAll('details.cmd[data-task-id]'))
+      .map(function (d) { return d.getAttribute('data-task-id'); }));
     document.querySelectorAll('.kanban .card').forEach(function (card) {
+      var taskId = card.dataset.taskId;
+      if (!taskId || !taskIds.has(taskId)) return;
       var title = card.querySelector('.card-title');
       if (!title) return;
-      // Match longest task id first to avoid 'F-013' matching 'F-013-perms' incorrectly (won't happen here but safe)
-      var sorted = taskIds.slice().sort(function (a, b) { return b.length - a.length; });
-      for (var i = 0; i < sorted.length; i++) {
-        if (title.textContent.indexOf(sorted[i]) >= 0) {
-          var a = document.createElement('a');
-          a.href = '#cmd-' + sorted[i];
-          a.className = 'xref-link';
-          a.textContent = 'â†’ command';
-          a.title = 'Jump to ' + sorted[i] + ' ralph command';
-          title.appendChild(a);
-          break;
-        }
-      }
+      var a = document.createElement('a');
+      a.href = '#cmd-' + taskId;
+      a.className = 'xref-link';
+      a.textContent = 'â†’ command';
+      a.title = 'Jump to ' + taskId + ' ralph command';
+      title.appendChild(a);
     });
   })();
 
