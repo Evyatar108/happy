@@ -129,14 +129,14 @@ I grepped codexu for references to the old plugin and ralph orchestration patter
 **Skill that does need updating**: `D:/harness-efforts/codexu/.agents/skills/roadmap-and-overview/SKILL.md`. This is the bookkeeping-spine skill that runs `procedure B` (mark-task-shipped). It has 28 mentions of "ralph" baked into its current workflow:
 
 - "Fresh-agent orientation" section frames the operator as running many ralph agents in parallel and the skill as cleaning up their landing reports.
-- "Scan `plans/overview.html` for tasks with `b-inflight` badges" — this discovery step changes: under crews, the lead queries `/list-members` for live state instead.
+- "Scan `plans/overview.html` for tasks whose `data-task-phase` ends in `-in-progress`" — this discovery step changes: under crews, the lead queries `/list-members` for live state instead.
 - Procedure B references landing reports arriving as ad-hoc operator pastes. Under crews, members emit `kind=done` envelopes with the same content; the skill should consume `/read-member <story-id>` as the canonical source.
 - The "operator runs many ralph agents" memory reference is correct in spirit but the orchestration mechanic is now `/spawn-member` instead of manual wt-new-tabs.
 
 **Edits to `roadmap-and-overview/SKILL.md`** (do these once crews 1.0 ships and the workflow has been validated for ~1 week):
 
 1. **"Fresh-agent orientation" → add crews framing**: the bookkeeping agent IS the lead session itself. Peer-member bookkeepers are not viable in 1.0 — `/list-members` returns only `{crew, name, role, lastHeartbeatAt, liveness}` to `--allow-peers` members, which is insufficient for driving overview.html / roadmap.md updates (needs `lastKind` + `lastSummary` + outbox seq, which only the lead view exposes). Splitting bookkeeping out to a dedicated peer member is parked until the plugin either exposes those fields to peers or ships `/grant-cap` for selective full-visibility (1.1+).
-2. **Step 3 of "First five things to do"**: replace "scan `plans/overview.html` for tasks with `b-inflight` badges + `cmd-warn blocked` banners" with "run `/list-members --crew codexu` to see live status of all in-flight ralph members, then reconcile against `plans/overview.html`."
+2. **Step 3 of "First five things to do"**: replace "scan `plans/overview.html` for tasks whose `data-task-phase` ends in `-in-progress` or that have `cmd-warn blocked` banners" with "run `/list-members --crew codexu` to see live status of all in-flight ralph members, then reconcile against `plans/overview.html`."
 3. **Procedure B** (mark-task-shipped) intake: the canonical landing report becomes the member's outbox under `crews/codexu/members/<story-id>/outbox.jsonl`. Each turn the member did is one outbox line; the most recent `kind=done` entry is the close-out report. Skill should `Read` this directly rather than wait for operator paste.
 4. **Pitfalls section**: add "stale member state — if a member emitted `kind=done` but their wt-tab is still alive, the lead should confirm the merge landed (via `git log` on the relevant branch) before flipping the badge."
 
