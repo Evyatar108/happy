@@ -94,6 +94,7 @@
     display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: 11px;
     color: var(--muted); margin-top: 6px;
   }
+  .kanban-phase-pill { font-size: 10px; padding: 1px 6px; }
   .pill {
     display: inline-block; padding: 1px 6px; border-radius: 3px;
     border: 1px solid var(--border); font-size: 11px;
@@ -1081,7 +1082,7 @@
   <div class="col">
     <div class="col-head"><h3>Ready now</h3><span class="badge b-now">assignable</span></div>
 
-    <div class="card">
+    <div class="card" data-task-id="perf-WS1">
       <div class="card-title">Realtime sync perf — WS1 obsoleted by claim removal</div>
       <div class="sub">The Happy claim roundtrip was removed end-to-end. Start remaining perf work at WS2 or later.</div>
       <div class="card-meta">
@@ -1092,7 +1093,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="perf-WS2">
       <div class="card-title">Realtime sync perf — WS2: optimistic placeholder session</div>
       <div class="sub">Don't block <code>new-message</code> on a full <code>/v1/sessions</code> re-fetch when sid unknown. UI updates immediately; metadata back-fills.</div>
       <div class="card-meta">
@@ -1103,7 +1104,7 @@
       </div>
     </div>
 
-    <div class="card" style="border-color: var(--ok); opacity: 0.8;">
+    <div class="card" style="border-color: var(--ok); opacity: 0.8;" data-task-id="perf-WS3">
       <div class="card-title">Realtime sync perf — WS3: server replay buffer + client lastSeenSeq <span class="sub">(shipped <code>197b0148</code>)</span></div>
       <div class="sub">Server keeps ring of last N events per user; client ships <code>lastSeenSeq</code> on reconnect handshake. Eliminates HTTP fallback on reconnect.</div>
       <div class="card-meta">
@@ -1114,7 +1115,7 @@
       </div>
     </div>
 
-    <div class="card" style="border-color: var(--muted); opacity: 0.7;">
+    <div class="card" style="border-color: var(--muted); opacity: 0.7;" data-task-id="3a-skills">
       <div class="card-title">⏸ Phase 3a — Ralph skills port to codex plugin <span class="sub">(paused)</span></div>
       <div class="sub">Paused 2026-05-13 — operator closed the session because the prerequisites the agent needs aren't yet met. Don't re-spawn until that context is re-established. Phase 3 sub-phases that build on 3a (<code>3b-agents</code>, <code>3d-workers</code>, <code>3fg-package</code>) remain blocked on its eventual discovery commit.</div>
       <div class="card-meta">
@@ -1125,7 +1126,7 @@
       </div>
     </div>
 
-    <div class="card" style="border-color: var(--ok); opacity: 0.8;">
+    <div class="card" style="border-color: var(--ok); opacity: 0.8;" data-task-id="mcp-discovery">
       <div class="card-title">mcp-discovery — codex agent project-<code>.mcp.json</code> parity <span class="sub">(shipped 462776df)</span></div>
       <div class="sub">happy-cli now reads <code>&lt;cwd&gt;/.mcp.json</code>, validates entries via Zod, and merges project MCP servers into codex's start + resume paths while keeping the <code>happy</code> bridge authoritative.</div>
       <div class="card-meta">
@@ -1136,7 +1137,7 @@
       </div>
     </div>
 
-    <div class="card" style="border-color: var(--ok); opacity: 0.8;">
+    <div class="card" style="border-color: var(--ok); opacity: 0.8;" data-task-id="codex-parity-audit">
       <div class="card-title">codex-parity-audit — research: feature parity vs Claude agent <span class="sub">(shipped 2026-05-13)</span></div>
       <div class="sub">Research-only ralph job. Survey every Claude-Code feature the codex agent under happy doesn't yet match. <strong>Output: <a href="codex-agent-parity-audit.md"><code>plans/codex-agent-parity-audit.md</code></a></strong> — 12 gaps catalogued (3 High / 4 Medium / 5 Low), each with file:line evidence, proposed fix-site (almost all happy-cli-side, no upstream-canonical edits proposed), effort, severity, and a ralph-command shape. Closes the "found the .mcp.json gap by accident" failure mode.</div>
       <div class="card-meta">
@@ -1147,7 +1148,7 @@
       </div>
     </div>
 
-    <div class="card" style="border-color: var(--ok); opacity: 0.8;">
+    <div class="card" style="border-color: var(--ok); opacity: 0.8;" data-task-id="3h-options">
       <div class="card-title">Phase 3h — options-mode plugin migration <span class="sub">(shipped 2026-05-13)</span></div>
       <div class="sub">Shipped <code>packages/codexu-options-mode-plugin/</code> with SessionStart, UserPromptSubmit, Stop hook wiring, docs, statusline script copies, and a reproducible smoke script. Phase 3h-tail keeps statusline plugin slot + AskUserQuestion auto-intercept as engine follow-ups.</div>
       <div class="card-meta">
@@ -1158,7 +1159,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="1a-fork-doc">
       <div class="card-title">Phase 1a — Codex fork strategy commit</div>
       <div class="sub">Documentation only. Decide between options under "Decisions still open #1" and write to <code>codex/docs/implementation/architecture.md</code> "Fork strategy" section + 3 sibling files.</div>
       <div class="card-meta">
@@ -1169,7 +1170,7 @@
       </div>
     </div>
 
-    <div class="card closed">
+    <div class="card closed" data-task-id="F-013-perms">
       <div class="card-title">[CLOSED 2026-05-13] F-013 — latent permission-mode override (Claude)</div>
       <div class="sub">Closed 2026-05-13 obsolete-by-design (superseded by Phase 5 drop-Claude). F-013 is structurally Claude-only — Codex/Gemini share `BasePermissionHandler` with no `mode` field. TypeScript blocks the misuse at compile time today. Original notepad missing; diagnosis reverse-engineered from code.</div>
       <div class="card-meta">
@@ -1180,7 +1181,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="F-015-toast">
       <div class="card-title">F-015 — stale-creds toast on pre-pair launch</div>
       <div class="sub">Cosmetic. Profile-parse error surfaces on cold launch before pair completes. App-only.</div>
       <div class="card-meta">
@@ -1190,7 +1191,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="polish-Fs">
       <div class="card-title">F-017 — device pair-code shortcut</div>
       <div class="sub">Enhancement. Paste-from-clipboard for device code on second-machine pair. App-only.</div>
       <div class="card-meta">
@@ -1204,7 +1205,7 @@
   <div class="col">
     <div class="col-head"><h3>Unblocked, needs re-read</h3><span class="badge b-soon">soon</span></div>
 
-    <div class="card">
+    <div class="card" data-task-id="1b-multidev">
       <div class="card-title">Phase 1b sub-task 3 — multi-device discoverability hint</div>
       <div class="sub">Terminal-startup hint. Sprint E satisfied the "tunnels protocol resolved" gate. Re-read against finalized header + pair-complete shape, then assign.</div>
       <div class="card-meta">
@@ -1215,7 +1216,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="1b-multidev">
       <div class="card-title">Phase 1b sub-task 4 — multi-client approval fan-out</div>
       <div class="sub">Conflict-resolution UX when same approval fires on phone + laptop. Re-derive against tunnel-direct attach (no server relay).</div>
       <div class="card-meta">
@@ -1225,7 +1226,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="1b-multidev">
       <div class="card-title">Phase 1b sub-task 5 — walkthrough verification</div>
       <div class="sub">Manual end-to-end verification of multi-device. Same tunnel re-derivation note.</div>
       <div class="card-meta">
@@ -1234,7 +1235,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="perf-WS2">
       <div class="card-title">Realtime sync perf — WS4 (optional)</div>
       <div class="sub">Full sockets-only refactor of <code>fetchSessions</code> / <code>fetchMessages</code>. Conditional on WS3 outcome — defer scope until WS3 re-measure.</div>
       <div class="card-meta">
@@ -1244,7 +1245,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="3b-agents">
       <div class="card-title">Phase 3b-i + 3b-ii — Subagents → codex agent roles</div>
       <div class="sub">12 ralph subagents convert to <code>[agents.&lt;role&gt;]</code> TOML. No <code>tools:</code> allowlists declared → 3b-ii collapses to "pick read-only vs workspace-write per role" (mapping table in roadmap).</div>
       <div class="card-meta">
@@ -1254,7 +1255,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="3c-hooks">
       <div class="card-title">Phase 3c — Hooks port</div>
       <div class="sub">Toolkit ralph plugin says "skills-only" — verify by inspection. If hooks present, port to codex hook system.</div>
       <div class="card-meta">
@@ -1264,7 +1265,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="3d-workers">
       <div class="card-title">Phase 3d — Codex-based workers via native spawn</div>
       <div class="sub">Replace ralph's <code>codex-exec.sh</code> bash invocation with native <code>spawn-agent-role</code>. Compatibility audit (3d-i) verified in roadmap.</div>
       <div class="card-meta">
@@ -1274,7 +1275,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="3fg-package">
       <div class="card-title">Phase 3f + 3g — Asset migration + Plugin packaging</div>
       <div class="sub">Port shell libs, statusline scripts; convert to <code>.codex-plugin/plugin.json</code>; publish marketplace catalog.</div>
       <div class="card-meta">
@@ -1284,7 +1285,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="polish-Fs">
       <div class="card-title">F-001/F-002 — security findings (Medium)</div>
       <div class="sub">From devtunnels-E Phase 5c security review. Re-read remediation in notepad before assigning.</div>
       <div class="card-meta">
@@ -1293,7 +1294,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="polish-Fs">
       <div class="card-title">F-003..F-007 — security findings (Low)</div>
       <div class="sub">Five Low-severity items; bundle into a single polish PR.</div>
       <div class="card-meta">
@@ -1302,7 +1303,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="codex-wire-spike">
       <div class="card-title">Phase 2a Test 3 — execpolicy sandbox denial</div>
       <div class="sub">Deferred 2026-05-03. Local config is <code>danger-full-access</code>; needs a non-trusted dir or config flip. Verify codex sandbox enforces denial.</div>
       <div class="card-meta">
@@ -1312,7 +1313,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="roadmap-plugin">
       <div class="card-title">Phase 1c residual — TUI plugin install verification</div>
       <div class="sub">Operator-side smoke test: codex TUI → plugins picker → enable codexu-plugin → verify <code>hello-world</code> in /skills.</div>
       <div class="card-meta">
@@ -1325,7 +1326,7 @@
   <div class="col">
     <div class="col-head"><h3>Blocked / operator-only / upstream</h3><span class="badge b-block">blocked</span></div>
 
-    <div class="card">
+    <div class="card" data-task-id="agent-comms">
       <div class="card-title">BOOX validation Phases 2–6</div>
       <div class="sub">Chat round-trip, refresh-per-request, token revocation, multi-device fan-out, signed-APK release. Manual hardware. Will feel slow before realtime-sync-perf lands.</div>
       <div class="card-meta">
@@ -1334,7 +1335,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="userid-cleanup">
       <div class="card-title">userid-cleanup — drop multi-tenant userId scoping in happy-server</div>
       <div class="sub">happy-server is embedded in the single-user daemon since Sprint A; ~140 <code>userId</code> refs across <code>packages/happy-server/sources/</code> are dead weight. Strip from request decorators, Prisma queries, eventRouter fan-out, and <code>allocateUserSeq</code>. <strong>Blocked on perf-WS3</strong> — WS3's per-user ring buffer's userId partition gets stripped as part of this commit.</div>
       <div class="card-meta">
@@ -1345,7 +1346,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="polish-Fs">
       <div class="card-title">F-014 — tunnel-label rename (server)</div>
       <div class="sub">Code change trivial. Blocked on happy-server redeploy window. Bundle with another server change.</div>
       <div class="card-meta">
@@ -1354,7 +1355,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="polish-Fs">
       <div class="card-title">F-016 — BOOX adb tap on RN buttons</div>
       <div class="sub">E-ink hardware quirk. Adb tap doesn't reliably trigger RN button presses. Not actionable without hardware-side investigation.</div>
       <div class="card-meta">
@@ -1363,7 +1364,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="plugin-scope-agents">
       <div class="card-title">Phase 2c — Plugin scoping (host vs agent)</div>
       <div class="sub"><strong>Upstream codex patch.</strong> Add <code>scope: "host" | "agent" | "both"</code> to plugin manifest; loader checks <code>next_thread_spawn_depth</code>. Lives in <code>codex/</code> submodule, not codexu.</div>
       <div class="card-meta">
@@ -1372,7 +1373,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="3h-tail">
       <div class="card-title">Phase 2d — ask_user_question sibling tool</div>
       <div class="sub"><strong>Upstream codex patch.</strong> Clone/adapt <code>request_user_input</code> for structured choices. Lives in codex submodule.</div>
       <div class="card-meta">
@@ -1381,7 +1382,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="agent-comms">
       <div class="card-title">Phase 4 — Coexistence verification (4a–4m)</div>
       <div class="sub">13 end-to-end integration tests across codexu × codex × ralph × phone. Gated on Phase 3 landing; failures file back into the appropriate phase.</div>
       <div class="card-meta">
@@ -1390,7 +1391,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="codex-slash-commands">
       <div class="card-title">Phase 5 — Drop Claude Code (5a–5f)</div>
       <div class="sub">Dual-stack dogfood buffer, audit remaining flows, archive configs, uninstall, update personal docs. Gated on Phase 4 passing.</div>
       <div class="card-meta">
@@ -1399,7 +1400,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="agent-status-stream">
       <div class="card-title">Phase 6 — Long-lived teammates</div>
       <div class="sub">Deferred polish. Per-role <code>keepalive</code>, workflow conventions, codexu phone UI for active teammates. Un-defer when re-spawning friction hits 3+ times/week.</div>
       <div class="card-meta">
@@ -1408,7 +1409,7 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" data-task-id="codex-base-prompt-safety-rails">
       <div class="card-title">Phase 7 — Claude model via Copilot adapter</div>
       <div class="sub">Deferred, spike-first. <code>codex login</code> + <code>curl</code> Copilot <code>/models</code> + branch table. Wide effort range pending spike.</div>
       <div class="card-meta">
@@ -1437,7 +1438,7 @@
     <button type="button" class="ufb-clear" title="Show all tasks">Clear filter</button>
   </div>
 
-  <details class="cmd" id="cmd-perf-WS1" data-task-id="perf-WS1" data-task-scope="codexu">
+  <details class="cmd" id="cmd-perf-WS1" data-task-id="perf-WS1" data-task-scope="codexu" data-task-phase="closed" data-task-status="ok">
     <summary><span class="cmd-name">perf-WS1</span><span class="cmd-badge b-closed">🚫 closed</span><span class="cmd-desc">Realtime perf — refresh-skip · obsoleted by claim-removal merge <code>188cfd9c</code></span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1445,7 +1446,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-perf-WS3" data-task-id="perf-WS3" data-task-scope="codexu">
+  <details class="cmd" id="cmd-perf-WS3" data-task-id="perf-WS3" data-task-scope="codexu" data-task-phase="shipped" data-task-status="ok">
     <summary><span class="cmd-name">perf-WS3</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Realtime perf — server replay buffer + client lastSeenSeq · commit <code>197b0148</code></span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1453,7 +1454,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-3a-skills" data-task-id="3a-skills" data-task-scope="codexu">
+  <details class="cmd" id="cmd-3a-skills" data-task-id="3a-skills" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="paused">
     <summary><span class="cmd-name">3a-skills</span><span class="cmd-badge b-paused">⏸ paused</span><span class="cmd-desc">Phase 3a — Ralph skills port (prerequisites not met)</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⏸ Paused 2026-05-13. Operator closed the discovery session because prerequisites aren't yet met. Do not re-spawn until the operator re-establishes context (missing notepad / scaffolding inputs / template clarifications).</div>
@@ -1462,14 +1463,14 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-F-013-perms" data-task-id="F-013-perms" data-task-scope="codexu">
+  <details class="cmd" id="cmd-F-013-perms" data-task-id="F-013-perms" data-task-scope="codexu" data-task-phase="closed" data-task-status="ok">
     <summary><span class="cmd-name">F-013-perms</span><span class="cmd-badge b-closed">🚫 closed</span><span class="cmd-desc">Claude permission latent override — obsolete-by-design</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn closed">🚫 Closed 2026-05-13 (commit <code>bfe7ef67</code>). F-013 is structurally Claude-only; Phase 5 of the roadmap drops Claude Code entirely. Latent path at <code>packages/happy-cli/src/claude/utils/permissionHandler.ts:87-89</code> intentionally left until the Phase 5 deletion. No command — do not re-fire.</div>
     </div>
   </details>
 
-  <details class="cmd" id="cmd-F-015-toast" data-task-id="F-015-toast" data-task-scope="codexu">
+  <details class="cmd" id="cmd-F-015-toast" data-task-id="F-015-toast" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="paused">
     <summary><span class="cmd-name">F-015-toast</span><span class="cmd-badge b-paused">⏸ paused</span><span class="cmd-desc">Stale-creds toast on cold launch (happy-app) — awaiting next reproduction</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⏸ Paused 2026-05-13 — cosmetic issue not currently observed in operator's launch path; re-fire when the toast surfaces again so we have a fresh repro to scope against.</div>
@@ -1478,7 +1479,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-mcp-discovery" data-task-id="mcp-discovery" data-task-scope="codexu">
+  <details class="cmd" id="cmd-mcp-discovery" data-task-id="mcp-discovery" data-task-scope="codexu" data-task-phase="shipped" data-task-status="ok" data-merge-commit="1cf6b4e2">
     <summary><span class="cmd-name">mcp-discovery</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Codex agent project-.mcp.json parity (happy-cli) · merge <code>1cf6b4e2</code></span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1486,7 +1487,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-parity-audit" data-task-id="codex-parity-audit" data-task-scope="codexu">
+  <details class="cmd" id="cmd-codex-parity-audit" data-task-id="codex-parity-audit" data-task-scope="codexu" data-task-phase="shipped" data-task-status="ok" data-plan-only="true">
     <summary><span class="cmd-name">codex-parity-audit</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Research: codex-vs-Claude feature parity survey · doc <a href="codex-agent-parity-audit.md">codex-agent-parity-audit.md</a></span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1494,7 +1495,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-perf-WS2" data-task-id="perf-WS2" data-task-scope="codexu">
+  <details class="cmd" id="cmd-perf-WS2" data-task-id="perf-WS2" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="blocked">
     <summary><span class="cmd-name">perf-WS2</span><span class="cmd-badge b-blocked">🔒 blocked</span><span class="cmd-desc">Realtime perf — optimistic placeholder session</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Wait until <code>perf-WS3</code> lands. Both touch <code>storage.ts</code> and WS3's replay-overflow semantics define WS2's fallback scope.</div>
@@ -1503,7 +1504,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-1a-fork-doc" data-task-id="1a-fork-doc" data-task-scope="codex">
+  <details class="cmd" id="cmd-1a-fork-doc" data-task-id="1a-fork-doc" data-task-scope="codex" data-task-phase="shipped" data-task-status="ok" data-plan-only="true" data-merge-commit="7fa6ff3b">
     <summary><span class="cmd-name">1a-fork-doc</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Phase 1a — Codex fork strategy commit · codexu pointer-bump <code>7fa6ff3b</code></span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1511,7 +1512,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-1b-multidev" data-task-id="1b-multidev" data-task-scope="codexu">
+  <details class="cmd" id="cmd-1b-multidev" data-task-id="1b-multidev" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="ok">
     <summary><span class="cmd-name">1b-multidev</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Phase 1b sub-tasks 3+4 — multi-device discoverability + approval fan-out</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⚠️ Conflicts with <code>mcp-discovery</code> (both touch <code>runCodex.ts</code>). Land mcp-discovery first, then 1b-multidev rebases trivially.</div>
@@ -1520,7 +1521,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-3b-agents" data-task-id="3b-agents" data-task-scope="codexu">
+  <details class="cmd" id="cmd-3b-agents" data-task-id="3b-agents" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="blocked">
     <summary><span class="cmd-name">3b-agents</span><span class="cmd-badge b-blocked">🔒 blocked</span><span class="cmd-desc">Phase 3b-i + 3b-ii — subagents → codex agent roles</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Blocked on <code>3a-skills</code> discovery commit (currently paused). Re-read prerequisites before assigning.</div>
@@ -1529,7 +1530,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-3c-hooks" data-task-id="3c-hooks" data-task-scope="codexu">
+  <details class="cmd" id="cmd-3c-hooks" data-task-id="3c-hooks" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="ok" data-plan-only="true">
     <summary><span class="cmd-name">3c-hooks</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Phase 3c — Ralph hooks port / verify (likely zero work) — never actually fired; tab was conflated with 3h-options earlier</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1537,7 +1538,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-3d-workers" data-task-id="3d-workers" data-task-scope="codexu">
+  <details class="cmd" id="cmd-3d-workers" data-task-id="3d-workers" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="blocked">
     <summary><span class="cmd-name">3d-workers</span><span class="cmd-badge b-blocked">🔒 blocked</span><span class="cmd-desc">Phase 3d — codex-based workers via native spawn</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Blocked on <code>3a-skills</code> discovery (paused) AND <code>3b-agents</code> landing the agent role TOMLs.</div>
@@ -1546,7 +1547,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-3fg-package" data-task-id="3fg-package" data-task-scope="codexu">
+  <details class="cmd" id="cmd-3fg-package" data-task-id="3fg-package" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="blocked">
     <summary><span class="cmd-name">3fg-package</span><span class="cmd-badge b-blocked">🔒 blocked</span><span class="cmd-desc">Phase 3f + 3g — asset migration + plugin packaging</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Blocked on <code>3a-skills</code> discovery commit (paused). The discovery may change the plugin.json schema expectations this command builds against.</div>
@@ -1555,7 +1556,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-3h-options" data-task-id="3h-options" data-task-scope="codexu">
+  <details class="cmd" id="cmd-3h-options" data-task-id="3h-options" data-task-scope="codexu" data-task-phase="shipped" data-task-status="ok" data-merge-commit="e71497eb">
     <summary><span class="cmd-name">3h-options</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Phase 3h — options-mode plugin migration · <code>packages/codexu-options-mode-plugin/</code> (14 commits merged from <code>phase-3h-options-mode-plugin</code>)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1563,7 +1564,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-userid-cleanup" data-task-id="userid-cleanup" data-task-scope="codexu">
+  <details class="cmd" id="cmd-userid-cleanup" data-task-id="userid-cleanup" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="ok">
     <summary><span class="cmd-name">userid-cleanup</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Drop multi-tenant userId scoping in happy-server (~140 refs) · unblocked (perf-WS3 shipped <code>197b0148</code>)</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⚠️ Touches happy-server eventRouter + Prisma queries; conflicts with anything else mutating <code>packages/happy-server/sources/</code>. Run solo or pair only with research/codex-submodule tasks.</div>
@@ -1572,7 +1573,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-happy-upstream-sync" data-task-id="happy-upstream-sync" data-task-scope="codexu">
+  <details class="cmd" id="cmd-happy-upstream-sync" data-task-id="happy-upstream-sync" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="ok">
     <summary><span class="cmd-name">happy-upstream-sync</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Periodic — review new commits in slopus/happy since last sync</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1580,7 +1581,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-upstream-rebase" data-task-id="codex-upstream-rebase" data-task-scope="codex">
+  <details class="cmd" id="cmd-codex-upstream-rebase" data-task-id="codex-upstream-rebase" data-task-scope="codex" data-task-phase="plan-ready" data-task-status="ok">
     <summary><span class="cmd-name">codex-upstream-rebase</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Periodic — rebase codex submodule on openai/codex upstream</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1588,7 +1589,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-polish-Fs" data-task-id="polish-Fs" data-task-scope="codexu">
+  <details class="cmd" id="cmd-polish-Fs" data-task-id="polish-Fs" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="ok">
     <summary><span class="cmd-name">polish-Fs</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">F-017 + F-001/F-002 + F-003..F-007 bundled polish PR</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⚠️ Touches happy-server (security findings). Conflicts with <code>userid-cleanup</code> (same files); run one or the other, not both in parallel.</div>
@@ -1597,7 +1598,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-agent-view-research" data-task-id="agent-view-research" data-task-scope="codexu">
+  <details class="cmd" id="cmd-agent-view-research" data-task-id="agent-view-research" data-task-scope="codexu" data-task-phase="shipped" data-task-status="ok" data-plan-only="true">
     <summary><span class="cmd-name">agent-view-research</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Research Claude Code's `agent view` feature → `plans/agent-view-research.md` + 6 follow-up tasks (agent-tree-rpc, session-parent-link, mobile-tree-view, session-role-pill, spawn-from-app, agent-status-stream)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1605,7 +1606,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-plugin-scope-agents" data-task-id="plugin-scope-agents" data-task-scope="codex|codexu">
+  <details class="cmd" id="cmd-plugin-scope-agents" data-task-id="plugin-scope-agents" data-task-scope="codex|codexu" data-task-phase="plan-ready" data-task-status="ok">
     <summary><span class="cmd-name">plugin-scope-agents</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Plugin scoping with top-level-only plugins + agent-spawner pattern · unblocked (agent-view-research landed 2026-05-14)</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⚠️ Read <code>plans/agent-view-research.md</code> first — its findings define the spawner-pattern model this task implements. Also coordinate with <code>codex-child-spawn-tools</code> (sibling spike): the agent-tree-rpc agent surfaced that pinned codex submodule child agents lack <code>spawn_agent</code>/<code>wait_agent</code> in their tool surface. If we keep that restriction (top-level-only spawning), the agent-spawner becomes the canonical path; if we want child-spawns-child, the codex-side tool surface needs an overlay or submodule bump. The spike's recommendation should land BEFORE this task scopes the spawner pattern.</div>
@@ -1614,7 +1615,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-agent-comms" data-task-id="agent-comms" data-task-scope="codexu">
+  <details class="cmd" id="cmd-agent-comms" data-task-id="agent-comms" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="blocked">
     <summary><span class="cmd-name">agent-comms</span><span class="cmd-badge b-blocked">🔒 blocked</span><span class="cmd-desc">Top-level agent ↔ top-level agent comms across 3 scopes (cross-tunnel / same-daemon / parent-child)</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Blocked on <code>plugin-scope-agents</code> + <code>agent-view-research</code> + <code>channels-research</code> landing. The communication channel design depends on the spawner pattern's chosen model AND on whether MCP "channels" (2-way) are available as the transport.</div>
@@ -1637,7 +1638,7 @@ Acceptance: design doc + per-scope working fixture: (B) two sessions on the same
     </div>
   </details>
 
-  <details class="cmd" id="cmd-channels-research" data-task-id="channels-research" data-task-scope="codexu">
+  <details class="cmd" id="cmd-channels-research" data-task-id="channels-research" data-task-scope="codexu" data-task-phase="shipped" data-task-status="ok" data-plan-only="true">
     <summary><span class="cmd-name">channels-research</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Research Claude Code's `channels` (MCP 2-way) + codex implementation plan · doc <a href="channels-research.md">channels-research.md</a> · 2 follow-ups (mcp-server-notifications, codex-channels)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1645,7 +1646,7 @@ Acceptance: design doc + per-scope working fixture: (B) two sessions on the same
     </div>
   </details>
 
-  <details class="cmd" id="cmd-async-events-design" data-task-id="async-events-design" data-task-scope="codexu">
+  <details class="cmd" id="cmd-async-events-design" data-task-id="async-events-design" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="blocked">
     <summary><span class="cmd-name">async-events-design</span><span class="cmd-badge b-blocked">🔒 blocked</span><span class="cmd-desc">Design async event listening for agents — re-blocked 2026-05-14 to wait for channels primitive before locking v1 transport</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Re-blocked 2026-05-14. Was briefly run — its draft (working tree only at <code>plans/async-events-design.md</code>) recommends long-poll MCP for v1 and channels-research's notification bridge as fast-follow. Operator decided the design should be informed by an actually-landed channels primitive (Stage A — <code>mcp-server-notifications</code>) before locking the v1 transport. Resume after that ships. Working-tree draft is preserved as a starting point.</div>
@@ -1654,7 +1655,7 @@ Acceptance: design doc + per-scope working fixture: (B) two sessions on the same
     </div>
   </details>
 
-  <details class="cmd" id="cmd-native-agent-parity" data-task-id="native-agent-parity" data-task-scope="codexu">
+  <details class="cmd" id="cmd-native-agent-parity" data-task-id="native-agent-parity" data-task-scope="codexu" data-task-phase="shipped" data-task-status="ok" data-plan-only="true">
     <summary><span class="cmd-name">native-agent-parity</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Research codex parity with Claude Code's native subagents · doc <a href="native-agent-parity.md">native-agent-parity.md</a> · 3 follow-ups recommended (explorer, plan, verification)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1662,7 +1663,7 @@ Acceptance: design doc + per-scope working fixture: (B) two sessions on the same
     </div>
   </details>
 
-  <details class="cmd" id="cmd-roadmap-plugin" data-task-id="roadmap-plugin" data-task-scope="bookkeeping|codexu">
+  <details class="cmd" id="cmd-roadmap-plugin" data-task-id="roadmap-plugin" data-task-scope="bookkeeping|codexu" data-task-phase="plan-ready" data-task-status="ok">
     <summary><span class="cmd-name">roadmap-plugin</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">🛠 Plugin: agents manage roadmap/overview.html via skill or MCP (add/update/take tasks)</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1702,7 +1703,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-agent-tree-rpc" data-task-id="agent-tree-rpc" data-task-scope="codexu">
+  <details class="cmd" id="cmd-agent-tree-rpc" data-task-id="agent-tree-rpc" data-task-scope="codexu" data-task-phase="shipped" data-task-status="ok">
     <summary><span class="cmd-name">agent-tree-rpc</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">App-server RPC exposing codex's live spawn tree (sessionGetAgentTree + agent-tree-update events). Spawned by <code>agent-view-research</code>. Branch <code>agent-tree-rpc</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1710,7 +1711,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-session-parent-link" data-task-id="session-parent-link" data-task-scope="codexu">
+  <details class="cmd" id="cmd-session-parent-link" data-task-id="session-parent-link" data-task-scope="codexu" data-task-phase="shipped" data-task-status="ok" data-merge-commit="11c3eafb">
     <summary><span class="cmd-name">session-parent-link</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Added parentSessionId + spawnedChildren[] to Session metadata · commit <code>11c3eafb</code> · unblocks mobile-tree-view + spawn-from-app. Spawned by <code>agent-view-research</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1718,7 +1719,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-mobile-tree-view" data-task-id="mobile-tree-view" data-task-scope="codexu">
+  <details class="cmd" id="cmd-mobile-tree-view" data-task-id="mobile-tree-view" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="ok">
     <summary><span class="cmd-name">mobile-tree-view</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Tree-style happy-app session list with depth indentation + expand/collapse — unblocked 2026-05-14 (session-parent-link shipped <code>11c3eafb</code>). Spawned by <code>agent-view-research</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1726,7 +1727,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-session-role-pill" data-task-id="session-role-pill" data-task-scope="codexu">
+  <details class="cmd" id="cmd-session-role-pill" data-task-id="session-role-pill" data-task-scope="codexu" data-task-phase="shipped" data-task-status="ok" data-merge-commit="7e9f724c">
     <summary><span class="cmd-name">session-role-pill</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Surface flavor + model + permission-mode pills inline in session-list row · merge <code>7e9f724c</code>. Spawned by <code>agent-view-research</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1734,7 +1735,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-spawn-from-app" data-task-id="spawn-from-app" data-task-scope="codexu">
+  <details class="cmd" id="cmd-spawn-from-app" data-task-id="spawn-from-app" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="ok">
     <summary><span class="cmd-name">spawn-from-app</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">"Spawn child session" affordance in app + spawnSessionFromSession RPC end-to-end — unblocked 2026-05-14 (session-parent-link shipped <code>11c3eafb</code>). Spawned by <code>agent-view-research</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1742,7 +1743,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-agent-status-stream" data-task-id="agent-status-stream" data-task-scope="codexu">
+  <details class="cmd" id="cmd-agent-status-stream" data-task-id="agent-status-stream" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="ok">
     <summary><span class="cmd-name">agent-status-stream</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Live "active teammates" overlay in app — bridges shipped agent-tree-update events through happy-cli/server to mobile. Spawned by <code>agent-view-research</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1750,7 +1751,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-wire-spike" data-task-id="codex-wire-spike" data-task-scope="codexu">
+  <details class="cmd" id="cmd-codex-wire-spike" data-task-id="codex-wire-spike" data-task-scope="codexu" data-task-phase="shipped" data-task-status="ok" data-merge-commit="06e0025b">
     <summary><span class="cmd-name">codex-wire-spike</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Wire-acceptance spike — resolved Gaps 2/3/5 against codex 0.125 · commit <code>06e0025b</code> · unblocks codex-attachments. Spawned by <code>codex-parity-audit</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1758,7 +1759,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-claude-md-autoload" data-task-id="codex-claude-md-autoload" data-task-scope="codexu">
+  <details class="cmd" id="cmd-codex-claude-md-autoload" data-task-id="codex-claude-md-autoload" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="ok">
     <summary><span class="cmd-name">codex-claude-md-autoload</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Gap 2 — project CLAUDE.md auto-load on codex path (NewConversationParams.config). Spawned by <code>codex-parity-audit</code>.</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⚠️ Conflicts with <code>codex-system-prompts</code> and <code>codex-hooks-parity</code> (all touch <code>runCodex.ts</code> + <code>codexAppServerClient.ts</code>). <code>mcp-discovery</code> has landed; rebase this task before firing.</div>
@@ -1767,7 +1768,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-attachments" data-task-id="codex-attachments" data-task-scope="codexu">
+  <details class="cmd" id="cmd-codex-attachments" data-task-id="codex-attachments" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="ok">
     <summary><span class="cmd-name">codex-attachments</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Gap 3 — image attachments on codex turn input · unblocked 2026-05-14 (codex-wire-spike commit <code>06e0025b</code> resolved the wire-shape question). Spawned by <code>codex-parity-audit</code>.</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⚠️ Read the "Wire spike results" section in <code>plans/codex-agent-parity-audit.md</code> first — it documents the chosen InputItem shape for images per the codex 0.125 spike.</div>
@@ -1776,7 +1777,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-system-prompts" data-task-id="codex-system-prompts" data-task-scope="codexu">
+  <details class="cmd" id="cmd-codex-system-prompts" data-task-id="codex-system-prompts" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="ok">
     <summary><span class="cmd-name">codex-system-prompts</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Gap 7 — customSystemPrompt + appendSystemPrompt parity (baseInstructions/developerInstructions on codex). Spawned by <code>codex-parity-audit</code>.</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⚠️ Conflicts with <code>codex-claude-md-autoload</code> and <code>codex-hooks-parity</code> (all touch <code>runCodex.ts</code> + <code>codexAppServerClient.ts</code>). <code>mcp-discovery</code> has landed; sequence after the earlier ones land.</div>
@@ -1785,7 +1786,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-hooks-parity" data-task-id="codex-hooks-parity" data-task-scope="codexu">
+  <details class="cmd" id="cmd-codex-hooks-parity" data-task-id="codex-hooks-parity" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="ok">
     <summary><span class="cmd-name">codex-hooks-parity</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Gap 4 — fan codex JSON-RPC events to happy turn-lifecycle handlers (autocompact context-boundary, permission-prompt notification). Spawned by <code>codex-parity-audit</code>.</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⚠️ Larger task (~6-10h). Conflicts with other runCodex.ts changes — sequence after <code>codex-claude-md-autoload</code> / <code>codex-system-prompts</code> have landed so the codex path is otherwise feature-complete before adding the hook-equivalent plumbing. <code>mcp-discovery</code> has landed.</div>
@@ -1794,7 +1795,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-port-explorer-prompt" data-task-id="port-explorer-prompt" data-task-scope="codex">
+  <details class="cmd" id="cmd-port-explorer-prompt" data-task-id="port-explorer-prompt" data-task-scope="codex" data-task-phase="shipped" data-task-status="ok" data-merge-commit="e9fa64a0,d279d49d">
     <summary><span class="cmd-name">port-explorer-prompt</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Filled empty <code>explorer.toml</code> stub with paraphrased Explore prompt · codex commit <code>e9fa64a0</code> · codexu pointer-bump <code>d279d49d</code>. Spawned by <code>native-agent-parity</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1802,7 +1803,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-port-plan-and-verification-roles" data-task-id="port-plan-and-verification-roles" data-task-scope="codex">
+  <details class="cmd" id="cmd-port-plan-and-verification-roles" data-task-id="port-plan-and-verification-roles" data-task-scope="codex" data-task-phase="plan-ready" data-task-status="blocked">
     <summary><span class="cmd-name">port-plan-and-verification-roles</span><span class="cmd-badge b-blocked">🔒 blocked</span><span class="cmd-desc">Add <code>plan.toml</code> + <code>verification.toml</code> built-ins + their <code>role.rs</code> match arms. Spawned by <code>native-agent-parity</code>.</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Operator must resolve <code>plans/native-agent-parity.md</code> §6 open questions 1 (role.rs edit policy — direct edits vs registration seam), 4 (workspace-write tmpdir scope for verification), and 5 (test baseline location) before this opens. Question 3 (browser-MCP availability) affects the verification prompt's content but isn't gating.</div>
@@ -1811,7 +1812,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-audit-general-purpose-vs-worker" data-task-id="audit-general-purpose-vs-worker" data-task-scope="codex">
+  <details class="cmd" id="cmd-audit-general-purpose-vs-worker" data-task-id="audit-general-purpose-vs-worker" data-task-scope="codex" data-task-phase="shipped" data-task-status="ok" data-plan-only="true">
     <summary><span class="cmd-name">audit-general-purpose-vs-worker</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Prompt-diff finding: worker role is description-only (no developer_instructions); real gaps live in the base prompt at a different layer. Spawned by <code>native-agent-parity</code>. Spawned follow-up: <code>codex-base-prompt-safety-rails</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1819,7 +1820,7 @@ Surface scope choice (skill-only vs MCP-only vs both for v1) to operator BEFORE 
     </div>
   </details>
 
-  <details class="cmd" id="cmd-3h-tail" data-task-id="3h-tail" data-task-scope="codex">
+  <details class="cmd" id="cmd-3h-tail" data-task-id="3h-tail" data-task-scope="codex" data-task-phase="plan-ready" data-task-status="ok">
     <summary><span class="cmd-name">3h-tail</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Phase 3h-tail — two codex-submodule follow-ups deferred during 3h-options: (1) TUI statusline plugin slot, (2) request_user_input pre_tool_use_payload override. Spawned by <code>3h-options</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1833,7 +1834,7 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
     </div>
   </details>
 
-  <details class="cmd" id="cmd-session-parent-link-writer" data-task-id="session-parent-link-writer" data-task-scope="codexu">
+  <details class="cmd" id="cmd-session-parent-link-writer" data-task-id="session-parent-link-writer" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="ok">
     <summary><span class="cmd-name">session-parent-link-writer</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">CLI writer wiring for parentSessionId — populate the metadata fields the read path (session-parent-link) now reads. Spawned by <code>session-parent-link</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1841,7 +1842,7 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-base-prompt-safety-rails" data-task-id="codex-base-prompt-safety-rails" data-task-scope="codex">
+  <details class="cmd" id="cmd-codex-base-prompt-safety-rails" data-task-id="codex-base-prompt-safety-rails" data-task-scope="codex" data-task-phase="plan-ready" data-task-status="ok">
     <summary><span class="cmd-name">codex-base-prompt-safety-rails</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Inject Claude's safety rails ('NEVER create files...' + 'NEVER proactively create docs...') into codex base prompt via launcher additional_instructions. Spawned by <code>audit-general-purpose-vs-worker</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1849,7 +1850,7 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-child-spawn-tools" data-task-id="codex-child-spawn-tools" data-task-scope="codexu">
+  <details class="cmd" id="cmd-codex-child-spawn-tools" data-task-id="codex-child-spawn-tools" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="ok">
     <summary><span class="cmd-name">codex-child-spawn-tools</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Spike: do codex child agents get <code>spawn_agent</code>/<code>wait_agent</code> in their tool surface? Decision input for plugin-scope-agents + agent-comms. Spawned by <code>agent-tree-rpc</code> (US-006 AC4 gap).</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1857,7 +1858,7 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-slash-commands" data-task-id="codex-slash-commands" data-task-scope="codexu">
+  <details class="cmd" id="cmd-codex-slash-commands" data-task-id="codex-slash-commands" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="blocked">
     <summary><span class="cmd-name">codex-slash-commands</span><span class="cmd-badge b-blocked">🔒 blocked</span><span class="cmd-desc">Gap 5 — `/clear` and `/compact` parity on the codex path. Spawned by <code>codex-parity-audit</code>.</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Blocked on <code>codex-hooks-parity</code> — Gap 5's <code>/compact</code> handling depends on Gap 4's auto-compact context-boundary emission so the manual <code>/compact</code> also fires <code>sendContextBoundary({ kind:'compact', triggeredBy:'user' })</code>.</div>
@@ -1866,7 +1867,7 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-plan-mode-defensive" data-task-id="codex-plan-mode-defensive" data-task-scope="codexu">
+  <details class="cmd" id="cmd-codex-plan-mode-defensive" data-task-id="codex-plan-mode-defensive" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="blocked">
     <summary><span class="cmd-name">codex-plan-mode-defensive</span><span class="cmd-badge b-blocked">🔒 blocked</span><span class="cmd-desc">Gap 6 — defensive plan-mode mapping on codex path (v1, ~2h). V2 overlay-crate deferred. Spawned by <code>codex-parity-audit</code>.</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Operator-gated. Per <code>plans/codex-agent-parity-audit.md</code> Gap 6 — two-tier choice: (a) defensive parity now (map <code>plan</code> → codex <code>read-only</code> sandbox + UX hint that ExitPlanMode isn't available, ~2h) OR (b) full parity via a new overlay crate <code>codex/codex-rs-overlay/codex-plan-mode/</code> that injects an <code>exit_plan_mode</code> tool (Medium-to-Large, spike upstream codex's tool-registration seam first). Decide before scoping. Audit recommended (a) for v1.</div>
@@ -1875,7 +1876,7 @@ Workflow (codex submodule): work in a codex-submodule worktree at .ralph/jobs/<j
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-polish-lows" data-task-id="codex-polish-lows" data-task-scope="codexu">
+  <details class="cmd" id="cmd-codex-polish-lows" data-task-id="codex-polish-lows" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="ok">
     <summary><span class="cmd-name">codex-polish-lows</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Bundle of Gaps 8/9/11/12 (tool gating partial + codex-args passthrough + statusline + SDK init-metadata mirror). Spawned by <code>codex-parity-audit</code>.</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn">⚠️ Best to land after the bigger codex-* parity follow-ups (mcp-discovery, codex-claude-md-autoload, codex-system-prompts, codex-hooks-parity) so this bundles cleanly without rebase churn. Conflicts with anything else touching <code>runCodex.ts</code>.</div>
@@ -1894,7 +1895,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     </div>
   </details>
 
-  <details class="cmd" id="cmd-mcp-server-notifications" data-task-id="mcp-server-notifications" data-task-scope="codex">
+  <details class="cmd" id="cmd-mcp-server-notifications" data-task-id="mcp-server-notifications" data-task-scope="codex" data-task-phase="plan-ready" data-task-status="ok">
     <summary><span class="cmd-name">mcp-server-notifications</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Stage A: bridge rmcp notification handlers + sampling into codex agent event loop, feature-gated. Spawned by <code>channels-research</code>.</span></summary>
     <div class="cmd-body">
       <button class="copy-btn">Copy Command</button>
@@ -1902,7 +1903,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
     </div>
   </details>
 
-  <details class="cmd" id="cmd-codex-channels" data-task-id="codex-channels" data-task-scope="codex">
+  <details class="cmd" id="cmd-codex-channels" data-task-id="codex-channels" data-task-scope="codex" data-task-phase="plan-ready" data-task-status="blocked">
     <summary><span class="cmd-name">codex-channels</span><span class="cmd-badge b-blocked">🔒 blocked</span><span class="cmd-desc">Stage B: Claude-Code-parity <code>experimental["codex/channel"]</code> envelope + prompt-queue policy. Spawned by <code>channels-research</code>.</span></summary>
     <div class="cmd-body">
       <div class="cmd-warn blocked">🔒 Deferred. Blocked on <code>mcp-server-notifications</code> landing AND on operator deciding whether channels (external-user-message envelope) are the right primitive vs raw notifications (which cover state-change push perfectly without the channels framing).</div>
@@ -3411,6 +3412,26 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
       if (!taskId) return;
       var ws = data.workstream[taskId];
       if (ws) card.dataset.workstream = ws;
+    });
+  })();
+
+  (function injectKanbanPhasePills() {
+    var cmdsById = {};
+    document.querySelectorAll('details.cmd[data-task-id]').forEach(function (cmd) {
+      cmdsById[cmd.dataset.taskId] = cmd;
+    });
+    document.querySelectorAll('.kanban .card[data-task-id]').forEach(function (card) {
+      if (card.querySelector('.kanban-phase-pill')) return;
+      var cmd = cmdsById[card.dataset.taskId];
+      var phase = cmd && cmd.dataset.taskPhase;
+      if (!phase) return;
+      var meta = card.querySelector('.card-meta');
+      if (!meta) return;
+      var pill = document.createElement('span');
+      pill.className = 'cmd-badge b-' + phase + ' kanban-phase-pill';
+      pill.textContent = phase.replace(/-/g, ' ');
+      pill.title = 'Task phase: ' + pill.textContent;
+      meta.insertBefore(pill, meta.firstChild);
     });
   })();
 
