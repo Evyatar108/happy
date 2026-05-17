@@ -1,0 +1,24 @@
+{
+    "name": "@codexu/overview-viewer",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite --host 127.0.0.1 --port 5173",
+        "build": "vite build",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run --passWithNoTests"
+    },
+    "dependencies": {
+        "@vitejs/plugin-react": "^6.0.1",
+        "react": "19.2.0",
+        "react-dom": "19.2.0",
+        "vite": "^8.0.9",
+        "vite-plugin-singlefile": "^2.3.0"
+    },
+    "devDependencies": {
+        "@types/react": "^19.2.7",
+        "@types/react-dom": "^19.2.3",
+        "typescript": "^5.9.3",
+        "vitest": "^4.1.5"
+    }
+}
