@@ -2982,8 +2982,8 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts â€
   // ===== Build the Today decision panel from existing cmd rows =====
   (function buildTodayPanel() {
     var rows = document.querySelectorAll('details.cmd');
-    var counts = { ready: 0, inprogress: 0, paused: 0, blocked: 0, closed: 0 };
-    var byStatus = { ready: [], inprogress: [], blocked: [], paused: [], closed: [] };
+    var counts = { brainstorm: 0, ready: 0, inprogress: 0, paused: 0, blocked: 0, closed: 0 };
+    var byStatus = { brainstorm: [], ready: [], inprogress: [], blocked: [], paused: [], closed: [] };
     rows.forEach(function (r) {
       var status = classifyCmd(r);
       counts[status] = (counts[status] || 0) + 1;
@@ -3008,7 +3008,8 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts â€
       });
     }
     chipsInto('today-running', byStatus.inprogress, 'chip-inprogress', '');
-    chipsInto('today-ready', byStatus.ready, 'chip-ready', '');
+    // brainstorm rows surface above ready â€” they are the earliest-phase actionable items
+    chipsInto('today-ready', byStatus.brainstorm.concat(byStatus.ready), 'chip-ready', '');
     // On-hold row: paused first, then blocked
     chipsInto('today-hold', byStatus.paused.concat(byStatus.blocked), '', '');
 
