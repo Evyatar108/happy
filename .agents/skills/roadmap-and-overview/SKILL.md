@@ -23,6 +23,13 @@ lands code on `main`, often with partial dashboard updates. You
 finish the close-out per procedure B, sweep dependents, ship the next
 generation-stamp commit, and surface the next-wave URL on request.
 
+**Phase / status enums** — before reading the procedures, familiarise yourself with the canonical definitions:
+
+- `plans/parallel-assignments.md` (preamble, lines 5-8) — authoritative 10-value `data-task-phase` enum and 3-value `data-task-status` modifier table schema used on every command row.
+- `plans/codexu-roadmap.md` (Standing rules > Task phase model, around line 175) — rationale for splitting durable lifecycle (`data-task-phase`) from temporary availability (`data-task-status`), and the precedence rule (status overrides phase for filter/Today buckets; phase alone controls ordering).
+
+Both files must stay in sync with the HTML attributes. When Procedure A (add task) or Procedure B (close out) asks you to set a phase or status value, derive it from those definitions, not from inline examples in this file.
+
 **First five things to do when the conversation opens:**
 
 1. `git status` + `git branch --show-current` — confirm you're on
