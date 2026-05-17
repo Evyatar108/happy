@@ -1332,6 +1332,7 @@
       card.dataset.taskId = task.id;
       card.dataset.renderedTask = 'true';
       card.innerHTML = cardData.html;
+      // order (numeric) takes precedence; insertBeforeTaskId is the fallback anchor for cards without order
       if (typeof cardData.order === 'number') container.appendChild(card);
       else insertKanbanCard(container, card, cardData);
     }

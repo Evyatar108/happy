@@ -62,6 +62,7 @@ window.OVERVIEW_DATA = {
       mergeCommit: null,
       kanbanCards: [
         { column: 'ready', cardClass: null, inlineStyle: null, html: '...', order: 10 }
+        // order-authoring note: `order` (numeric) takes precedence; `insertBeforeTaskId` is the fallback anchor only for cards that omit `order`. Do not set both on the same card.
       ],
       command: {
         name: 'task-id',
