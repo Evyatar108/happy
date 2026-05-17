@@ -778,6 +778,7 @@
 
   /* Collapsible command list */
   .cmd-list { display: flex; flex-direction: column; gap: 6px; }
+  #cmd-list { display: contents; }
   .cmd {
     background: var(--card);
     border: 1px solid var(--border);
@@ -1080,7 +1081,7 @@
 
 <div class="kanban">
 
-  <div class="col">
+  <div class="col" id="kanban-ready">
     <div class="col-head"><h3>Ready now</h3><span class="badge b-now">assignable</span></div>
 
     <div class="card" data-task-id="perf-WS1">
@@ -1105,16 +1106,7 @@
       </div>
     </div>
 
-    <div class="card" style="border-color: var(--ok); opacity: 0.8;" data-task-id="perf-WS3">
-      <div class="card-title">Realtime sync perf — WS3: server replay buffer + client lastSeenSeq <span class="sub">(shipped <code>197b0148</code>)</span></div>
-      <div class="sub">Server keeps ring of last N events per user; client ships <code>lastSeenSeq</code> on reconnect handshake. Eliminates HTTP fallback on reconnect.</div>
-      <div class="card-meta">
-        <span class="pill area-multi">multi-package</span>
-        <span class="pill p-med">medium</span>
-        <span>~3 h</span>
-        <span><a href="realtime-sync-perf.md">plan §WS3</a></span>
-      </div>
-    </div>
+
 
     <div class="card" style="border-color: var(--muted); opacity: 0.7;" data-task-id="3a-skills">
       <div class="card-title">⏸ Phase 3a — Ralph skills port to codex plugin <span class="sub">(paused)</span></div>
@@ -1192,49 +1184,17 @@
       </div>
     </div>
 
-    <div class="card" data-task-id="polish-Fs">
-      <div class="card-title">F-017 — device pair-code shortcut</div>
-      <div class="sub">Enhancement. Paste-from-clipboard for device code on second-machine pair. App-only.</div>
-      <div class="card-meta">
-        <span class="pill area-app">happy-app</span>
-        <span class="pill p-low">low</span>
-        <span>~1 h</span>
-      </div>
-    </div>
+
   </div>
 
-  <div class="col">
+  <div class="col" id="kanban-soon">
     <div class="col-head"><h3>Unblocked, needs re-read</h3><span class="badge b-soon">soon</span></div>
 
-    <div class="card" data-task-id="1b-multidev">
-      <div class="card-title">Phase 1b sub-task 3 — multi-device discoverability hint</div>
-      <div class="sub">Terminal-startup hint. Sprint E satisfied the "tunnels protocol resolved" gate. Re-read against finalized header + pair-complete shape, then assign.</div>
-      <div class="card-meta">
-        <span class="pill area-cli">happy-cli</span>
-        <span class="pill p-low">low</span>
-        <span>~0.5 d</span>
-        <span class="sub">roadmap §1b · plans/codex-seamless-multi-device.md</span>
-      </div>
-    </div>
 
-    <div class="card" data-task-id="1b-multidev">
-      <div class="card-title">Phase 1b sub-task 4 — multi-client approval fan-out</div>
-      <div class="sub">Conflict-resolution UX when same approval fires on phone + laptop. Re-derive against tunnel-direct attach (no server relay).</div>
-      <div class="card-meta">
-        <span class="pill area-cli">happy-cli</span>
-        <span class="pill p-med">medium</span>
-        <span>~0.5-1 d</span>
-      </div>
-    </div>
 
-    <div class="card" data-task-id="1b-multidev">
-      <div class="card-title">Phase 1b sub-task 5 — walkthrough verification</div>
-      <div class="sub">Manual end-to-end verification of multi-device. Same tunnel re-derivation note.</div>
-      <div class="card-meta">
-        <span class="pill area-multi">manual</span>
-        <span>~1 d</span>
-      </div>
-    </div>
+
+
+
 
     <div class="card" data-task-id="perf-WS2">
       <div class="card-title">Realtime sync perf — WS4 (optional)</div>
@@ -1286,23 +1246,9 @@
       </div>
     </div>
 
-    <div class="card" data-task-id="polish-Fs">
-      <div class="card-title">F-001/F-002 — security findings (Medium)</div>
-      <div class="sub">From devtunnels-E Phase 5c security review. Re-read remediation in notepad before assigning.</div>
-      <div class="card-meta">
-        <span class="pill area-server">happy-server</span>
-        <span class="pill p-med">medium</span>
-      </div>
-    </div>
 
-    <div class="card" data-task-id="polish-Fs">
-      <div class="card-title">F-003..F-007 — security findings (Low)</div>
-      <div class="sub">Five Low-severity items; bundle into a single polish PR.</div>
-      <div class="card-meta">
-        <span class="pill area-multi">multi-package</span>
-        <span class="pill p-low">low</span>
-      </div>
-    </div>
+
+
 
     <div class="card" data-task-id="codex-wire-spike">
       <div class="card-title">Phase 2a Test 3 — execpolicy sandbox denial</div>
@@ -1324,7 +1270,7 @@
     </div>
   </div>
 
-  <div class="col">
+  <div class="col" id="kanban-blocked">
     <div class="col-head"><h3>Blocked / operator-only / upstream</h3><span class="badge b-block">blocked</span></div>
 
     <div class="card" data-task-id="agent-comms">
@@ -1347,23 +1293,9 @@
       </div>
     </div>
 
-    <div class="card" data-task-id="polish-Fs">
-      <div class="card-title">F-014 — tunnel-label rename (server)</div>
-      <div class="sub">Code change trivial. Blocked on happy-server redeploy window. Bundle with another server change.</div>
-      <div class="card-meta">
-        <span class="pill area-server">happy-server</span>
-        <span>deploy gated</span>
-      </div>
-    </div>
 
-    <div class="card" data-task-id="polish-Fs">
-      <div class="card-title">F-016 — BOOX adb tap on RN buttons</div>
-      <div class="sub">E-ink hardware quirk. Adb tap doesn't reliably trigger RN button presses. Not actionable without hardware-side investigation.</div>
-      <div class="card-meta">
-        <span class="pill area-multi">hardware</span>
-        <span>deferred</span>
-      </div>
-    </div>
+
+
 
     <div class="card" data-task-id="plugin-scope-agents">
       <div class="card-title">Phase 2c — Plugin scoping (host vs agent)</div>
@@ -1439,6 +1371,8 @@
     <button type="button" class="ufb-clear" title="Show all tasks">Clear filter</button>
   </div>
 
+  <div id="cmd-list"></div>
+
   <details class="cmd" id="cmd-perf-WS1" data-task-id="perf-WS1" data-task-scope="codexu" data-task-phase="closed" data-task-status="ok">
     <summary><span class="cmd-name">perf-WS1</span><span class="cmd-badge b-closed">🚫 closed</span><span class="cmd-desc">Realtime perf — refresh-skip · obsoleted by claim-removal merge <code>188cfd9c</code></span></summary>
     <div class="cmd-body">
@@ -1447,13 +1381,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-perf-WS3" data-task-id="perf-WS3" data-task-scope="codexu" data-task-phase="shipped" data-task-status="ok">
-    <summary><span class="cmd-name">perf-WS3</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Realtime perf — server replay buffer + client lastSeenSeq · commit <code>197b0148</code></span></summary>
-    <div class="cmd-body">
-      <button class="copy-btn">Copy Command</button>
-<pre class="cmd-pre">/plan-with-ralph "Realtime sync perf — Workstream 3: server-side per-user event replay buffer + client lastSeenSeq handshake. Per plans/realtime-sync-perf.md §Workstream 3. Server: in packages/happy-server/sources/app/events/eventRouter.ts add a per-user ring buffer of last N events (cap MAX_REPLAY_BUFFER=1024 or MAX_REPLAY_AGE_MS=60_000, whichever is larger); every emitUpdate appends keyed by userId. In packages/happy-server/sources/app/api/socket.ts on connection check socket.handshake.auth.lastSeenSeq; if present and within buffer, replay events with seq &gt; lastSeenSeq in order; if older than oldest buffered seq respond { replayOverflow: true, currentSeq }. Client: in packages/happy-app/sources/sync/storage.ts add lastSeenUpdateSeq to MMKV-persisted state; persist on every applied update.seq. In packages/happy-app/sources/sync/socketOptions.ts:30 inside buildTunnelSocketOptions add lastSeenSeq to the auth object. On server replayOverflow, fall back to existing fetchSessions path. Read packages/happy-server/CLAUDE.md and packages/happy-app/CLAUDE.md sync invariants first. Document the in-memory-only nature: ring buffer is single-process state; cross-cluster Redis is deferred. Acceptance: unit test eventRouter — emit 10 events, disconnect, reconnect with lastSeenSeq=5, verify 6-10 in order; overflow test with cap and 2000 events. Client test — lastSeenUpdateSeq persists across applyUpdate calls. Test command: pnpm --filter '{packages/happy-server}' --filter '{packages/happy-app}' exec vitest run 2&gt;&amp;1 | tee /tmp/codexu-ws3.log. Single commit on main. Pitfall: do not reorder allocateUserSeq vs emitUpdate."</pre>
-    </div>
-  </details>
+
 
   <details class="cmd" id="cmd-3a-skills" data-task-id="3a-skills" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="paused">
     <summary><span class="cmd-name">3a-skills</span><span class="cmd-badge b-paused">⏸ paused</span><span class="cmd-desc">Phase 3a — Ralph skills port (prerequisites not met)</span></summary>
@@ -1513,14 +1441,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-1b-multidev" data-task-id="1b-multidev" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="ok">
-    <summary><span class="cmd-name">1b-multidev</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">Phase 1b sub-tasks 3+4 — multi-device discoverability + approval fan-out</span></summary>
-    <div class="cmd-body">
-      <div class="cmd-warn">⚠️ Conflicts with <code>mcp-discovery</code> (both touch <code>runCodex.ts</code>). Land mcp-discovery first, then 1b-multidev rebases trivially.</div>
-      <button class="copy-btn">Copy Command</button>
-<pre class="cmd-pre">/plan-with-ralph "Phase 1b sub-task 3 + 4 — multi-device discoverability hint and multi-client approval fan-out. Per plans/codexu-roadmap.md §Phase 1b sub-tasks 3-4 + docs/plans/codex-seamless-multi-device.md sub-tasks 3-4. Sub-task 3: terminal-startup hint when codex starts in a cwd that already has a discoverable app-server, pointing user at phone attach option. Files: packages/happy-cli/src/codex/codexAppServerClient.ts (discovery + startup messaging) + packages/happy-cli/src/ui/start.ts or equivalent. Sub-task 4: when multiple clients are attached (laptop TUI + phone via tunnel), an approval prompt from codex must fan out to all attached clients; first-answer-wins; remaining clients see resolution. Files: packages/happy-cli/src/codex/runCodex.ts + packages/happy-cli/src/codex/codexAppServerClient.ts approval-handler plumbing. CRITICAL CONTEXT: re-read docs/plans/codex-seamless-multi-device.md against the finalized post-Sprint-E tunnel protocol — the spec was drafted assuming relay-forwarded phone path, but tunnels attach phone DIRECTLY to CLI's local Socket.IO server (no relay). Specifically read the 'Walkthrough Step 5 fan-out semantics shift layer' note in roadmap §Phase 1b. Decide whether codex app-server's native fan-out covers tunneled clients OR whether CLI's lifted rpcHandler must broadcast — verify by tracing one approval event from codex → CLI → tunneled phone. Read packages/happy-cli/CLAUDE.md and packages/happy-cli/src/daemon/CLAUDE.md first. Acceptance: integration test for sub-task 3 (mock discovery file existence, assert hint message); integration test for sub-task 4 (mock two attached clients, fire approval, assert both receive + first-answer wins). Test command: pnpm --filter '{packages/happy-cli}' exec vitest run 2&gt;&amp;1 | tee /tmp/codexu-1b34.log. Single commit per sub-task (two commits)."</pre>
-    </div>
-  </details>
+
 
   <details class="cmd" id="cmd-3b-agents" data-task-id="3b-agents" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="blocked">
     <summary><span class="cmd-name">3b-agents</span><span class="cmd-badge b-blocked">🔒 blocked</span><span class="cmd-desc">Phase 3b-i + 3b-ii — subagents → codex agent roles</span></summary>
@@ -1590,14 +1511,7 @@
     </div>
   </details>
 
-  <details class="cmd" id="cmd-polish-Fs" data-task-id="polish-Fs" data-task-scope="codexu" data-task-phase="plan-ready" data-task-status="ok">
-    <summary><span class="cmd-name">polish-Fs</span><span class="cmd-badge b-ready">⬜ ready</span><span class="cmd-desc">F-017 + F-001/F-002 + F-003..F-007 bundled polish PR</span></summary>
-    <div class="cmd-body">
-      <div class="cmd-warn">⚠️ Touches happy-server (security findings). Conflicts with <code>userid-cleanup</code> (same files); run one or the other, not both in parallel.</div>
-      <button class="copy-btn">Copy Command</button>
-<pre class="cmd-pre">/plan-with-ralph "Polish PR — bundle remaining devtunnels-E findings: F-017 (device pair-code shortcut), F-001/F-002 (security Medium), F-003-F-007 (security Low). Per .ralph/jobs/devtunnels-E-cleanup/notepad.md — re-read each finding's exact text + severity + remediation before scoping. F-014 (tunnel label rename) is EXCLUDED from this bundle — needs server redeploy, separate effort. F-013 closed (Sprint E review, obsolete-by-design 2026-05-13); F-015, F-016 deferred (don't include). For each F-* in scope, propose the fix in plan form FIRST, then implement after operator sign-off — security findings warrant explicit acknowledgement of the remediation choice before code lands. Read packages/happy-server/CLAUDE.md and packages/happy-app/CLAUDE.md sync invariants. Acceptance: each F-* has a green test (new or extended); all 5 happy-* package typechecks green; security findings explicitly mark severity + CVE-style remediation note in commit body. Test command: pnpm --filter '{packages/happy-server}' --filter '{packages/happy-app}' --filter '{packages/happy-cli}' exec vitest run 2&gt;&amp;1 | tee /tmp/codexu-polish-fs.log. ONE commit per F-finding (six commits) so each can be reverted independently if needed."</pre>
-    </div>
-  </details>
+
 
   <details class="cmd" id="cmd-agent-view-research" data-task-id="agent-view-research" data-task-scope="codexu" data-task-phase="shipped" data-task-status="ok" data-plan-only="true">
     <summary><span class="cmd-name">agent-view-research</span><span class="cmd-badge b-closed">✅ shipped</span><span class="cmd-desc">Research Claude Code's `agent view` feature → `plans/agent-view-research.md` + 6 follow-up tasks (agent-tree-rpc, session-parent-link, mobile-tree-view, session-role-pill, spawn-from-app, agent-status-stream)</span></summary>
@@ -1923,7 +1837,7 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
   Compact view of <code>plans/codexu-roadmap.md</code> Phases 1-7. Strike-through = done.
 </div>
 
-<div class="phase-grid">
+<div class="phase-grid" id="phase-tree">
 
   <div class="phase">
     <div class="phase-head">Phase 1 — Foundations <span class="ptag">parallel</span></div>
@@ -2180,6 +2094,111 @@ CONFLICT WARNING: all 4 gaps touch runCodex.ts and/or resumeExistingThread.ts �
 <script src="overview-data.js"></script>
 
 <script>
+  // ===== renderTasks() =====
+  function renderTasks() {
+    var data = getRoadmapData();
+    var tasks = data && Array.isArray(data.tasks) ? data.tasks : [];
+    var cmdList = document.getElementById('cmd-list');
+    var openIds = Array.from(document.querySelectorAll('details.cmd[open]')).map(function (el) { return el.id; });
+
+    ['kanban-ready', 'kanban-soon', 'kanban-blocked'].forEach(function (id) {
+      var col = document.getElementById(id);
+      if (!col) return;
+      col.querySelectorAll('.card[data-rendered-task="true"]').forEach(function (card) { card.remove(); });
+    });
+    if (cmdList) cmdList.innerHTML = '';
+
+    var columnIds = { ready: 'kanban-ready', soon: 'kanban-soon', blocked: 'kanban-blocked' };
+    var badgeText = {
+      'brainstorm-ready': '💡 brainstorm ready',
+      'brainstorm-in-progress': '💡 brainstorm in progress',
+      'brainstorm-review': '💡 brainstorm review',
+      'plan-ready': '📋 plan ready',
+      'plan-in-progress': '📋 plan in progress',
+      'plan-review': '📋 plan review',
+      'impl-ready': '🟦 impl ready',
+      'impl-in-progress': '🟡 impl in progress',
+      'shipped': '✅ shipped',
+      'closed': '🚫 closed'
+    };
+
+    function insertKanbanCard(container, cardEl, cardData) {
+      if (cardData.insertBeforeTaskId) {
+        var anchor = container.querySelector(':scope > .card[data-task-id="' + cardData.insertBeforeTaskId + '"]');
+        if (anchor) {
+          container.insertBefore(cardEl, anchor);
+          return;
+        }
+      }
+      container.appendChild(cardEl);
+    }
+
+    function renderKanbanCard(task, cardData) {
+      var container = document.getElementById(columnIds[cardData.column]);
+      if (!container) return;
+      var card = document.createElement('div');
+      card.className = 'card' + (cardData.cardClass ? ' ' + cardData.cardClass : '');
+      if (cardData.inlineStyle) card.setAttribute('style', cardData.inlineStyle);
+      card.dataset.taskId = task.id;
+      card.dataset.renderedTask = 'true';
+      card.innerHTML = cardData.html;
+      insertKanbanCard(container, card, cardData);
+    }
+
+    function renderCommand(task) {
+      if (!cmdList || !task.command) return;
+      var details = document.createElement('details');
+      details.className = 'cmd';
+      details.id = 'cmd-' + task.id;
+      details.dataset.taskId = task.id;
+      details.dataset.taskScope = task.scope;
+      details.dataset.taskPhase = task.phase;
+      details.dataset.taskStatus = task.status;
+      if (task.planOnly) details.dataset.planOnly = 'true';
+      if (task.mergeCommit) details.dataset.mergeCommit = task.mergeCommit;
+
+      var summary = document.createElement('summary');
+      summary.innerHTML = '<span class="cmd-name"></span><span class="cmd-badge b-' + task.phase + '"></span><span class="cmd-desc">' + task.command.descriptionHtml + '</span>';
+      summary.querySelector('.cmd-name').textContent = task.command.name || task.id;
+      summary.querySelector('.cmd-badge').textContent = badgeText[task.phase] || task.phase;
+
+      var body = document.createElement('div');
+      body.className = 'cmd-body';
+      (task.command.warnings || []).forEach(function (warning) {
+        var div = document.createElement('div');
+        div.className = warning.className || 'cmd-warn';
+        div.innerHTML = warning.html;
+        body.appendChild(div);
+      });
+      var button = document.createElement('button');
+      button.className = 'copy-btn';
+      button.textContent = 'Copy Command';
+      body.appendChild(button);
+      var pre = document.createElement('pre');
+      pre.className = 'cmd-pre';
+      pre.textContent = task.command.planPrompt || '';
+      body.appendChild(pre);
+
+      details.appendChild(summary);
+      details.appendChild(body);
+      cmdList.appendChild(details);
+    }
+
+    tasks.forEach(function (task) {
+      (task.kanbanCards || []).forEach(function (card) { renderKanbanCard(task, card); });
+      renderCommand(task);
+    });
+
+    openIds.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.open = true;
+    });
+  }
+  renderTasks();
+
+  // ===== renderPhaseTree() =====
+  function renderPhaseTree() {}
+
   // For sort/order, phase is authoritative; data-task-status never changes
   // row order. This preserves shipped vs closed as distinct order buckets.
   var PHASE_TO_ORDER_BUCKET = {

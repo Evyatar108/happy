@@ -20,7 +20,123 @@
 window.OVERVIEW_DATA = {
   "generatedAt": "2026-05-14T20:00:00Z",
   "generatedFromCommit": "d279d49d",
-  "tasks": [],
+  "tasks": [
+      {
+          "id": "perf-WS3",
+          "scope": "codexu",
+          "phase": "shipped",
+          "status": "ok",
+          "mergeCommit": "197b0148",
+          "kanbanCards": [
+              {
+                  "column": "ready",
+                  "cardClass": null,
+                  "inlineStyle": "border-color: var(--ok); opacity: 0.8;",
+                  "html": "\r\n      <div class=\"card-title\">Realtime sync perf — WS3: server replay buffer + client lastSeenSeq <span class=\"sub\">(shipped <code>197b0148</code>)</span></div>\r\n      <div class=\"sub\">Server keeps ring of last N events per user; client ships <code>lastSeenSeq</code> on reconnect handshake. Eliminates HTTP fallback on reconnect.</div>\r\n      <div class=\"card-meta\">\r\n        <span class=\"pill area-multi\">multi-package</span>\r\n        <span class=\"pill p-med\">medium</span>\r\n        <span>~3 h</span>\r\n        <span><a href=\"realtime-sync-perf.md\">plan §WS3</a></span>\r\n      </div>\r",
+                  "insertBeforeTaskId": "3a-skills"
+              }
+          ],
+          "command": {
+              "name": "perf-WS3",
+              "descriptionHtml": "Realtime perf — server replay buffer + client lastSeenSeq · commit <code>197b0148</code>",
+              "warnings": [],
+              "planPrompt": "/plan-with-ralph \"Realtime sync perf — Workstream 3: server-side per-user event replay buffer + client lastSeenSeq handshake. Per plans/realtime-sync-perf.md §Workstream 3. Server: in packages/happy-server/sources/app/events/eventRouter.ts add a per-user ring buffer of last N events (cap MAX_REPLAY_BUFFER=1024 or MAX_REPLAY_AGE_MS=60_000, whichever is larger); every emitUpdate appends keyed by userId. In packages/happy-server/sources/app/api/socket.ts on connection check socket.handshake.auth.lastSeenSeq; if present and within buffer, replay events with seq > lastSeenSeq in order; if older than oldest buffered seq respond { replayOverflow: true, currentSeq }. Client: in packages/happy-app/sources/sync/storage.ts add lastSeenUpdateSeq to MMKV-persisted state; persist on every applied update.seq. In packages/happy-app/sources/sync/socketOptions.ts:30 inside buildTunnelSocketOptions add lastSeenSeq to the auth object. On server replayOverflow, fall back to existing fetchSessions path. Read packages/happy-server/CLAUDE.md and packages/happy-app/CLAUDE.md sync invariants first. Document the in-memory-only nature: ring buffer is single-process state; cross-cluster Redis is deferred. Acceptance: unit test eventRouter — emit 10 events, disconnect, reconnect with lastSeenSeq=5, verify 6-10 in order; overflow test with cap and 2000 events. Client test — lastSeenUpdateSeq persists across applyUpdate calls. Test command: pnpm --filter '{packages/happy-server}' --filter '{packages/happy-app}' exec vitest run 2>&1 | tee /tmp/codexu-ws3.log. Single commit on main. Pitfall: do not reorder allocateUserSeq vs emitUpdate.\""
+          }
+      },
+      {
+          "id": "1b-multidev",
+          "scope": "codexu",
+          "phase": "plan-ready",
+          "status": "ok",
+          "kanbanCards": [
+              {
+                  "column": "soon",
+                  "cardClass": null,
+                  "inlineStyle": null,
+                  "html": "\r\n      <div class=\"card-title\">Phase 1b sub-task 3 — multi-device discoverability hint</div>\r\n      <div class=\"sub\">Terminal-startup hint. Sprint E satisfied the \"tunnels protocol resolved\" gate. Re-read against finalized header + pair-complete shape, then assign.</div>\r\n      <div class=\"card-meta\">\r\n        <span class=\"pill area-cli\">happy-cli</span>\r\n        <span class=\"pill p-low\">low</span>\r\n        <span>~0.5 d</span>\r\n        <span class=\"sub\">roadmap §1b · plans/codex-seamless-multi-device.md</span>\r\n      </div>\r",
+                  "insertBeforeTaskId": "perf-WS2"
+              },
+              {
+                  "column": "soon",
+                  "cardClass": null,
+                  "inlineStyle": null,
+                  "html": "\r\n      <div class=\"card-title\">Phase 1b sub-task 4 — multi-client approval fan-out</div>\r\n      <div class=\"sub\">Conflict-resolution UX when same approval fires on phone + laptop. Re-derive against tunnel-direct attach (no server relay).</div>\r\n      <div class=\"card-meta\">\r\n        <span class=\"pill area-cli\">happy-cli</span>\r\n        <span class=\"pill p-med\">medium</span>\r\n        <span>~0.5-1 d</span>\r\n      </div>\r",
+                  "insertBeforeTaskId": "perf-WS2"
+              },
+              {
+                  "column": "soon",
+                  "cardClass": null,
+                  "inlineStyle": null,
+                  "html": "\r\n      <div class=\"card-title\">Phase 1b sub-task 5 — walkthrough verification</div>\r\n      <div class=\"sub\">Manual end-to-end verification of multi-device. Same tunnel re-derivation note.</div>\r\n      <div class=\"card-meta\">\r\n        <span class=\"pill area-multi\">manual</span>\r\n        <span>~1 d</span>\r\n      </div>\r",
+                  "insertBeforeTaskId": "perf-WS2"
+              }
+          ],
+          "command": {
+              "name": "1b-multidev",
+              "descriptionHtml": "Phase 1b sub-tasks 3+4 — multi-device discoverability + approval fan-out",
+              "warnings": [
+                  {
+                      "className": "cmd-warn",
+                      "html": "⚠️ Conflicts with <code>mcp-discovery</code> (both touch <code>runCodex.ts</code>). Land mcp-discovery first, then 1b-multidev rebases trivially."
+                  }
+              ],
+              "planPrompt": "/plan-with-ralph \"Phase 1b sub-task 3 + 4 — multi-device discoverability hint and multi-client approval fan-out. Per plans/codexu-roadmap.md §Phase 1b sub-tasks 3-4 + docs/plans/codex-seamless-multi-device.md sub-tasks 3-4. Sub-task 3: terminal-startup hint when codex starts in a cwd that already has a discoverable app-server, pointing user at phone attach option. Files: packages/happy-cli/src/codex/codexAppServerClient.ts (discovery + startup messaging) + packages/happy-cli/src/ui/start.ts or equivalent. Sub-task 4: when multiple clients are attached (laptop TUI + phone via tunnel), an approval prompt from codex must fan out to all attached clients; first-answer-wins; remaining clients see resolution. Files: packages/happy-cli/src/codex/runCodex.ts + packages/happy-cli/src/codex/codexAppServerClient.ts approval-handler plumbing. CRITICAL CONTEXT: re-read docs/plans/codex-seamless-multi-device.md against the finalized post-Sprint-E tunnel protocol — the spec was drafted assuming relay-forwarded phone path, but tunnels attach phone DIRECTLY to CLI's local Socket.IO server (no relay). Specifically read the 'Walkthrough Step 5 fan-out semantics shift layer' note in roadmap §Phase 1b. Decide whether codex app-server's native fan-out covers tunneled clients OR whether CLI's lifted rpcHandler must broadcast — verify by tracing one approval event from codex → CLI → tunneled phone. Read packages/happy-cli/CLAUDE.md and packages/happy-cli/src/daemon/CLAUDE.md first. Acceptance: integration test for sub-task 3 (mock discovery file existence, assert hint message); integration test for sub-task 4 (mock two attached clients, fire approval, assert both receive + first-answer wins). Test command: pnpm --filter '{packages/happy-cli}' exec vitest run 2>&1 | tee /tmp/codexu-1b34.log. Single commit per sub-task (two commits).\""
+          }
+      },
+      {
+          "id": "polish-Fs",
+          "scope": "codexu",
+          "phase": "plan-ready",
+          "status": "ok",
+          "kanbanCards": [
+              {
+                  "column": "ready",
+                  "cardClass": null,
+                  "inlineStyle": null,
+                  "html": "\r\n      <div class=\"card-title\">F-017 — device pair-code shortcut</div>\r\n      <div class=\"sub\">Enhancement. Paste-from-clipboard for device code on second-machine pair. App-only.</div>\r\n      <div class=\"card-meta\">\r\n        <span class=\"pill area-app\">happy-app</span>\r\n        <span class=\"pill p-low\">low</span>\r\n        <span>~1 h</span>\r\n      </div>\r"
+              },
+              {
+                  "column": "soon",
+                  "cardClass": null,
+                  "inlineStyle": null,
+                  "html": "\r\n      <div class=\"card-title\">F-001/F-002 — security findings (Medium)</div>\r\n      <div class=\"sub\">From devtunnels-E Phase 5c security review. Re-read remediation in notepad before assigning.</div>\r\n      <div class=\"card-meta\">\r\n        <span class=\"pill area-server\">happy-server</span>\r\n        <span class=\"pill p-med\">medium</span>\r\n      </div>\r",
+                  "insertBeforeTaskId": "codex-wire-spike"
+              },
+              {
+                  "column": "soon",
+                  "cardClass": null,
+                  "inlineStyle": null,
+                  "html": "\r\n      <div class=\"card-title\">F-003..F-007 — security findings (Low)</div>\r\n      <div class=\"sub\">Five Low-severity items; bundle into a single polish PR.</div>\r\n      <div class=\"card-meta\">\r\n        <span class=\"pill area-multi\">multi-package</span>\r\n        <span class=\"pill p-low\">low</span>\r\n      </div>\r",
+                  "insertBeforeTaskId": "codex-wire-spike"
+              },
+              {
+                  "column": "blocked",
+                  "cardClass": null,
+                  "inlineStyle": null,
+                  "html": "\r\n      <div class=\"card-title\">F-014 — tunnel-label rename (server)</div>\r\n      <div class=\"sub\">Code change trivial. Blocked on happy-server redeploy window. Bundle with another server change.</div>\r\n      <div class=\"card-meta\">\r\n        <span class=\"pill area-server\">happy-server</span>\r\n        <span>deploy gated</span>\r\n      </div>\r",
+                  "insertBeforeTaskId": "plugin-scope-agents"
+              },
+              {
+                  "column": "blocked",
+                  "cardClass": null,
+                  "inlineStyle": null,
+                  "html": "\r\n      <div class=\"card-title\">F-016 — BOOX adb tap on RN buttons</div>\r\n      <div class=\"sub\">E-ink hardware quirk. Adb tap doesn't reliably trigger RN button presses. Not actionable without hardware-side investigation.</div>\r\n      <div class=\"card-meta\">\r\n        <span class=\"pill area-multi\">hardware</span>\r\n        <span>deferred</span>\r\n      </div>\r",
+                  "insertBeforeTaskId": "plugin-scope-agents"
+              }
+          ],
+          "command": {
+              "name": "polish-Fs",
+              "descriptionHtml": "F-017 + F-001/F-002 + F-003..F-007 bundled polish PR",
+              "warnings": [
+                  {
+                      "className": "cmd-warn",
+                      "html": "⚠️ Touches happy-server (security findings). Conflicts with <code>userid-cleanup</code> (same files); run one or the other, not both in parallel."
+                  }
+              ],
+              "planPrompt": "/plan-with-ralph \"Polish PR — bundle remaining devtunnels-E findings: F-017 (device pair-code shortcut), F-001/F-002 (security Medium), F-003-F-007 (security Low). Per .ralph/jobs/devtunnels-E-cleanup/notepad.md — re-read each finding's exact text + severity + remediation before scoping. F-014 (tunnel label rename) is EXCLUDED from this bundle — needs server redeploy, separate effort. F-013 closed (Sprint E review, obsolete-by-design 2026-05-13); F-015, F-016 deferred (don't include). For each F-* in scope, propose the fix in plan form FIRST, then implement after operator sign-off — security findings warrant explicit acknowledgement of the remediation choice before code lands. Read packages/happy-server/CLAUDE.md and packages/happy-app/CLAUDE.md sync invariants. Acceptance: each F-* has a green test (new or extended); all 5 happy-* package typechecks green; security findings explicitly mark severity + CVE-style remediation note in commit body. Test command: pnpm --filter '{packages/happy-server}' --filter '{packages/happy-app}' --filter '{packages/happy-cli}' exec vitest run 2>&1 | tee /tmp/codexu-polish-fs.log. ONE commit per F-finding (six commits) so each can be reverted independently if needed.\""
+          }
+      }
+  ],
   "phaseTree": [],
   "lastTouched": {
     "perf-WS1": "2026-05-13T22:30:00Z",
