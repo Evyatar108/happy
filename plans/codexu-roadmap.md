@@ -3,10 +3,10 @@
 *Living doc. First captured 2026-05-02. Holistic 3-way review (Claude × Claude × Codex) applied 2026-05-02. Project rename to "codexu" attempted 2026-05-02; **package-level rebrand REVERTED 2026-05-03** to enable clean upstream merge with `slopus/happy`. Update as decisions land or evidence shifts.*
 
 > **🔄 Companion snapshot:** `plans/overview.html` is a visual kanban + phase-tree
-> snapshot of this roadmap. **When you edit this file in a way that changes
-> assignment readiness, blocks, or phase status, refresh `plans/overview.html`
-> in the same commit.** The HTML is a derivative view — the markdown is
-> authoritative.
+> snapshot of this roadmap, backed by `plans/overview-data.js`. **When you edit
+> this file in a way that changes assignment readiness, blocks, or phase status,
+> refresh `plans/overview-data.js` in the same commit.** The HTML is a derivative
+> view — the markdown and data file are authoritative.
 
 ## 🚀 Status — fresh agents start here
 
@@ -172,10 +172,11 @@ polish.
   helper, etc.).
 - Upstream-derived doc/skill references to "Happy Coder", `slopus/happy`,
   and `happy.engineering` are HISTORICAL and stay as-is.
-- **Task phase model:** roadmap command rows split durable lifecycle from
-  temporary availability: `data-task-phase` uses the 10-value enum documented
-  in `plans/parallel-assignments.md`, while `data-task-status` is only
-  `ok` / `blocked` / `paused`. Phase controls ordering; blocked/paused status
+- **Task phase model:** roadmap command rows are rendered from
+  `plans/overview-data.js` and split durable lifecycle from temporary
+  availability: `data-task-phase` uses the 10-value enum documented in
+  `plans/parallel-assignments.md`, while `data-task-status` is only `ok` /
+  `blocked` / `paused`. Phase controls ordering; blocked/paused status
   overrides filter and Today-panel buckets.
 
 ### In-flight ralph jobs (2026-05-13)

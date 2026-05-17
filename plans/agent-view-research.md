@@ -188,7 +188,7 @@ Any UI work for agent-view-style features must respect:
 
 ## 6. Decomposition into follow-up ralph tasks
 
-Six follow-ups emerge from this research. All are tagged `spawnedFrom=agent-view-research` in `plans/overview.html`'s roadmap-data JSON and added as task sections in `plans/parallel-assignments.md`.
+Six follow-ups emerge from this research. All are tagged `spawnedFrom=agent-view-research` in `plans/overview-data.js` and added as task sections in `plans/parallel-assignments.md`.
 
 | Task ID | Bucket | Effort | Risk | Size | Blocks on | Summary |
 |---|---|---|---|---|---|---|

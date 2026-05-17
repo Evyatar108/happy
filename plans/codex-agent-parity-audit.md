@@ -79,7 +79,7 @@ Every proposed fix-site below explicitly states the tier and why.
 > `mcp-discovery — codex project-.mcp.json parity`
 > Read `<cwd>/.mcp.json`, Zod-validate, merge `mcpServers` into `client.startThread` (`runCodex.ts:794`) and `resumeExistingThread` (`runCodex.ts:725`). Use `@/utils/configFile` patterns from happy-cli. Acceptance: with `codexu/.mcp.json` containing `paper`, a fresh `happy codex` session shows `paper` MCP tools available to the model; malformed entries are skipped + logged at debug level, not fatal.
 
-> **Note.** This gap is already tracked as the `mcp-discovery` ralph command in `plans/overview.html` (line 1358) and `plans/codexu-roadmap.md` line 472–489. Listed here for completeness and so the audit doc captures the full inventory in one place.
+> **Note.** This gap is already tracked as the `mcp-discovery` ralph command in `plans/overview-data.js` and rendered by `plans/overview.html`; see `plans/codexu-roadmap.md` line 472–489. Listed here for completeness and so the audit doc captures the full inventory in one place.
 
 ---
 
