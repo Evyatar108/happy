@@ -1,11 +1,12 @@
 import { useCallback, useMemo, useState } from 'react'
 
+import { buildCopyCommandText } from '../utils/copyCommand'
 import type { OverviewTask } from '../types'
 
 export function buildBulkCopyText(tasks: OverviewTask[], selectedTaskIds: Set<string>): string {
     return tasks
         .filter((task) => selectedTaskIds.has(task.id) && task.command?.planPrompt !== null && task.command?.planPrompt !== undefined)
-        .map((task) => `# === ${task.id} ===\n${task.command?.planPrompt ?? ''}`)
+        .map((task) => `# === ${task.id} ===\n${buildCopyCommandText(task.command?.planPrompt ?? '', task.scope)}`)
         .join('\n\n')
 }
 
