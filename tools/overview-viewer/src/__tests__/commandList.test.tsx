@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { CommandList, countVisibleTasksByOrderBucket } from '../components/CommandList'
 import { orderBucketForTask } from '../utils/taskClassification'
 import { linkBlockedOnHtml } from '../utils/warnings'
-import { loadOverviewData } from './testData'
+import { loadOverviewData, readRepoFile } from './testData'
 
 const expandedControls = {
     expanded: {},
@@ -61,6 +61,36 @@ describe('CommandList', () => {
         const warning = warningTask?.command?.warnings?.[0]
         expect(warning).toBeDefined()
         expect(linkBlockedOnHtml(warning?.html ?? '', data.tasks?.map((task) => task.id) ?? [])).toContain('href="#cmd-mcp-discovery"')
+    })
+
+    it('renders per-row quick actions with accessible labels and conditional navigation buttons', () => {
+        const data = loadOverviewData()
+        const html = renderToStaticMarkup(<CommandList data={data} expandedControls={expandedControls} />)
+        const taskIds = new Set((data.tasks ?? []).map((task) => task.id))
+        const parentId = Object.entries(data.spawnedFrom ?? {}).find(([child, parent]) => taskIds.has(child) && taskIds.has(parent))?.[1] ?? ''
+        const parentWithChildren = data.tasks?.find((task) => Object.values(data.spawnedFrom ?? {}).includes(task.id))?.id ?? ''
+        const firstChild = Object.entries(data.spawnedFrom ?? {}).find(([child, parent]) => parent === parentWithChildren && taskIds.has(child))?.[0] ?? ''
+        const kanbanTaskId = data.tasks?.find((task) => (task.kanbanCards?.length ?? 0) > 0)?.id ?? ''
+
+        expect(html).toContain(`aria-label="Copy markdown link for ${kanbanTaskId}"`)
+        expect(html).toContain(`title="Copy markdown link"`)
+        expect(html).toContain(`aria-label="Copy ID and status for ${kanbanTaskId}"`)
+        expect(html).toContain(`title="Copy ID and status"`)
+        expect(html).toContain(`aria-label="Jump to parent ${parentId}"`)
+        expect(html).toContain(`aria-label="Jump to first child ${firstChild} of ${parentWithChildren}"`)
+        expect(html).toContain(`aria-label="Jump to kanban card for ${kanbanTaskId}"`)
+    })
+
+    it('keeps the quick-action strip hidden until hover or keyboard focus', () => {
+        const styles = readRepoFile('tools/overview-viewer/src/styles.css')
+
+        expect(styles).toContain('.quick-actions {')
+        expect(styles).toContain('opacity: 0;')
+        expect(styles).toContain('visibility: hidden;')
+        expect(styles).toContain('.cmd:hover > summary .quick-actions')
+        expect(styles).toContain('.cmd:focus-within > summary .quick-actions')
+        expect(styles).toContain('opacity: 1;')
+        expect(styles).toContain('visibility: visible;')
     })
 
     it('highlights active search matches in command names and descriptions', () => {

@@ -713,6 +713,7 @@
       font-size: 13px;
       min-height: 40px;
     }
+    .quick-action-btn { width: 36px; height: 36px; font-size: 13px; }
     .cmd-actions { gap: 4px; }
     .cmd-select { width: 22px; height: 22px; cursor: pointer; }
     .filter-chip { padding: 8px 14px; font-size: 13px; min-height: 36px; }
@@ -997,6 +998,39 @@
     margin-left: auto;
     order: 1;
   }
+  .quick-actions {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.12s ease-out, visibility 0.12s ease-out;
+  }
+  .cmd:hover > summary .quick-actions,
+  .cmd:focus-within > summary .quick-actions {
+    opacity: 1;
+    visibility: visible;
+  }
+  .quick-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--card-hover);
+    color: var(--muted);
+    font: 700 12px/1 'SF Mono', 'Cascadia Code', Menlo, monospace;
+    cursor: pointer;
+  }
+  .quick-action-btn:hover,
+  .quick-action-btn:focus-visible {
+    color: var(--fg);
+    border-color: var(--accent);
+    outline: none;
+  }
+  .quick-action-btn.copied { background: var(--ok); color: white; border-color: var(--ok); }
   .copy-btn {
     background: var(--card-hover);
     color: var(--fg);

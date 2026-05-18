@@ -7,6 +7,7 @@ import type { ShowToast } from '../hooks/useToast'
 import type { OverviewData, OverviewTask, OverviewWarning, RunRecord } from '../types'
 import { copyTextWithToast } from '../utils/copyFeedback'
 import { buildCopyCommandText } from '../utils/copyCommand'
+import { navigateToCommand } from '../utils/commandNavigation'
 import { highlightMatches } from '../utils/searchHighlighting'
 import { PHASE_TO_BADGE_TEXT } from '../utils/taskClassification'
 import { linkBlockedOnHtml } from '../utils/warnings'
@@ -132,6 +133,94 @@ export function CopyCommandButton({ showToast, task }: { showToast?: ShowToast; 
         >
             Copy Command
         </button>
+    )
+}
+
+function taskStatusLabel(task: OverviewTask): string {
+    return `${task.phase || 'unknown'}/${task.status || 'unknown'}`
+}
+
+function overviewMarkdownLink(taskId: string): string {
+    if (typeof window === 'undefined') return `[${taskId}](file://overview.html#cmd-${taskId})`
+
+    const url = new URL(window.location.href)
+    url.hash = `cmd-${taskId}`
+    return `[${taskId}](${url.href})`
+}
+
+function focusKanbanCard(taskId: string): void {
+    if (typeof window === 'undefined') return
+
+    window.location.hash = `kanban-card-${taskId}-0`
+    const target = window.document.getElementById(`kanban-card-${taskId}-0`)
+    target?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+}
+
+function QuickCopyButton({ ariaLabel, children, label, text, title, showToast }: { ariaLabel: string; children: ReactNode; label: string; text: string; title: string; showToast?: ShowToast }) {
+    const [copied, markCopied] = useCopiedFeedback()
+
+    return (
+        <button
+            type="button"
+            className={`quick-action-btn ${copied ? 'copied' : ''}`.trim()}
+            aria-label={ariaLabel}
+            title={title}
+            onClick={async (event) => {
+                stopToggle(event)
+                if (await copyTextWithToast({ label, text, showToast })) markCopied()
+            }}
+        >
+            {children}
+        </button>
+    )
+}
+
+function QuickNavButton({ ariaLabel, children, onNavigate, title }: { ariaLabel: string; children: ReactNode; onNavigate: () => void; title: string }) {
+    return (
+        <button
+            type="button"
+            className="quick-action-btn"
+            aria-label={ariaLabel}
+            title={title}
+            onClick={(event) => {
+                stopToggle(event)
+                onNavigate()
+            }}
+        >
+            {children}
+        </button>
+    )
+}
+
+function QuickActions({ childrenByParent, onOpenChange, parentId, showToast, task }: { childrenByParent: Record<string, string[]>; onOpenChange: (id: string, open: boolean) => void; parentId?: string; showToast?: ShowToast; task: OverviewTask }) {
+    const childIds = childrenByParent[task.id] ?? []
+    const firstChildId = childIds[0]
+    const hasKanbanCard = (task.kanbanCards?.length ?? 0) > 0
+
+    return (
+        <span className="quick-actions" aria-label={`Quick actions for ${task.id}`}>
+            <QuickCopyButton ariaLabel={`Copy markdown link for ${task.id}`} title="Copy markdown link" label={task.id} text={overviewMarkdownLink(task.id)} showToast={showToast}>
+                🔗
+            </QuickCopyButton>
+            <QuickCopyButton ariaLabel={`Copy ID and status for ${task.id}`} title="Copy ID and status" label={task.id} text={`${task.id} [${taskStatusLabel(task)}]`} showToast={showToast}>
+                #
+            </QuickCopyButton>
+            {parentId && !parentId.startsWith('_') ? (
+                <QuickNavButton ariaLabel={`Jump to parent ${parentId}`} title={`Jump to parent ${parentId}`} onNavigate={() => navigateToCommand(parentId, onOpenChange)}>
+                    ↑
+                </QuickNavButton>
+            ) : null}
+            {firstChildId ? (
+                <QuickNavButton ariaLabel={`Jump to first child ${firstChildId} of ${task.id}`} title={`Jump to first child ${firstChildId}`} onNavigate={() => navigateToCommand(firstChildId, onOpenChange)}>
+                    ↓{childIds.length}
+                </QuickNavButton>
+            ) : null}
+            {hasKanbanCard ? (
+                <QuickNavButton ariaLabel={`Jump to kanban card for ${task.id}`} title="Jump to kanban card" onNavigate={() => focusKanbanCard(task.id)}>
+                    ◫
+                </QuickNavButton>
+            ) : null}
+        </span>
     )
 }
 
@@ -308,6 +397,7 @@ export function TaskCommand({ task, data, taskIds, childrenByParent, changed = f
                 <WorkstreamPill task={task} data={data} onActivateWorkstream={onActivateWorkstream} />
                 {changed ? <span className="new-badge" title={`Changed since your last visit (${data.lastTouched?.[task.id] ?? task.lastTouchedAt ?? ''})`}>NEW</span> : null}
                 <SpawnedFromPill parentId={parentId} />
+                <QuickActions task={task} childrenByParent={childrenByParent} parentId={parentId} onOpenChange={onOpenChange} showToast={showToast} />
                 <div className="cmd-actions">
                     <CopyCommandButton task={task} showToast={showToast} />
                     <CopyNameButton taskId={task.id} showToast={showToast} />

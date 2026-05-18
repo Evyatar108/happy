@@ -9,12 +9,14 @@ describe('Kanban', () => {
     it('renders the shipped kanban cards with metadata enrichments', () => {
         const data = loadOverviewData()
         const html = renderToStaticMarkup(<Kanban data={data} onJumpToCommand={() => undefined} />)
+        const firstTaskWithCard = data.tasks?.find((task) => (task.kanbanCards?.length ?? 0) > 0)
 
         expect(countKanbanCards(data.tasks ?? [])).toBe(33)
         expect(html.match(/data-rendered-task="true"/g)).toHaveLength(data.tasks?.flatMap((task) => task.kanbanCards ?? []).length ?? 0)
         expect(html).toContain('id="kanban-ready"')
         expect(html).toContain('id="kanban-soon"')
         expect(html).toContain('id="kanban-blocked"')
+        expect(html).toContain(`id="kanban-card-${firstTaskWithCard?.id}-0"`)
         expect(html).toContain('class="cmd-badge b-')
         expect(html).toContain('kanban-phase-pill')
         expect(html).toContain('class="xref-link"')

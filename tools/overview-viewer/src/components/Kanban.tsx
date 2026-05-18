@@ -59,9 +59,11 @@ function shouldNavigateFromClick(event: MouseEvent<HTMLDivElement>, taskId: stri
 export function KanbanCard({ data, hidden = false, item, onJumpToCommand }: { data: OverviewData; hidden?: boolean; item: OrderedKanbanCard; onJumpToCommand: (taskId: string) => void }) {
     const { task, card } = item
     const workstream = data.workstream?.[task.id]
+    const cardIndex = task.kanbanCards?.indexOf(card) ?? 0
 
     return (
         <div
+            id={`kanban-card-${task.id}-${cardIndex}`}
             className={`card${card.cardClass ? ` ${card.cardClass}` : ''}${hidden ? ' card-hidden' : ''}`}
             style={parseInlineStyle(card.inlineStyle) as CSSProperties | undefined}
             data-task-id={task.id}

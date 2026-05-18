@@ -55,6 +55,8 @@ Command rows expose `id="cmd-<taskId>"` and deep links are handled by `useHashNa
 
 Copy buttons should call `copyTextWithToast(...)` and receive `showToast` from App's single `useToast()` instance. Do not call `writeClipboard` directly from copy-button components; the boolean result controls both the toast and the temporary `.copied` class.
 
+Row summary quick actions live in `TaskCommand`'s `QuickActions`. Copy actions must stay on the same `copyTextWithToast(...)` path, parent/child jumps should call `navigateToCommand(...)`, and kanban jumps target `kanban-card-<taskId>-0` IDs emitted by `KanbanCard`.
+
 ## Trusted-HTML boundaries
 
 `dangerouslySetInnerHTML` sites consume operator-authored HTML strings from the data file (kanban card html, command description html, phase-tree node html, static parallelism/dependencies tables). These are NOT user input — the data file is hand-curated. Command names are plain text and must be escaped before using HTML rendering for search highlighting.
