@@ -2,7 +2,7 @@ import type { CSSProperties, MouseEvent } from 'react'
 
 import type { KanbanColumnName, OverviewData, OverviewTask } from '../types'
 import { parseInlineStyle } from '../utils/inlineStyleParser'
-import { countKanbanCards, orderedKanbanCardsByColumn, type OrderedKanbanCard } from '../utils/kanbanOrdering'
+import { orderedKanbanCardsByColumn, type OrderedKanbanCard } from '../utils/kanbanOrdering'
 import { Legend } from './TopLevelSurfaces'
 
 const COLUMN_META: Record<KanbanColumnName, { id: string; title: string; badge: string; badgeClass: string }> = {
@@ -32,6 +32,19 @@ function linkKanbanToCmds(html: string, taskId: string): string {
 
 function kanbanCardHtml(item: OrderedKanbanCard): string {
     return linkKanbanToCmds(injectKanbanPhasePill(item.card.html, item.task), item.task.id)
+}
+
+function visibleCardsForColumn(cards: OrderedKanbanCard[], visibleTaskIds?: Set<string>): OrderedKanbanCard[] {
+    if (!visibleTaskIds) return cards
+    return cards.filter((item) => visibleTaskIds.has(item.task.id))
+}
+
+export function countVisibleKanbanCardsByColumn(columns: Record<KanbanColumnName, OrderedKanbanCard[]>, visibleTaskIds?: Set<string>): Record<KanbanColumnName, number> {
+    return {
+        ready: visibleCardsForColumn(columns.ready, visibleTaskIds).length,
+        soon: visibleCardsForColumn(columns.soon, visibleTaskIds).length,
+        blocked: visibleCardsForColumn(columns.blocked, visibleTaskIds).length,
+    }
 }
 
 function shouldNavigateFromClick(event: MouseEvent<HTMLDivElement>, taskId: string): boolean {
@@ -82,7 +95,8 @@ export function KanbanColumn({ data, column, cards, onJumpToCommand, visibleTask
 export function Kanban({ data, onJumpToCommand, visibleTaskIds }: { data: OverviewData; onJumpToCommand: (taskId: string) => void; visibleTaskIds?: Set<string> }) {
     const tasks = data.tasks ?? []
     const columns = orderedKanbanCardsByColumn(tasks)
-    const count = countKanbanCards(tasks)
+    const counts = countVisibleKanbanCardsByColumn(columns, visibleTaskIds)
+    const count = counts.ready + counts.soon + counts.blocked
 
     return (
         <details className="section sec-kanban">
@@ -94,7 +108,7 @@ export function Kanban({ data, onJumpToCommand, visibleTaskIds }: { data: Overvi
                         <rect x="12.5" y="3" width="3.5" height="10" />
                     </svg>
                 </span>
-                Kanban — assignable now <span className="section-counts" id="counts-kanban">({count} cards)</span>
+                Kanban — assignable now <span className="section-counts" id="counts-kanban">({count} cards)<span className="sc sc-ready">ready {counts.ready}</span><span className="sc sc-inprogress">soon {counts.soon}</span><span className="sc sc-blocked">blocked {counts.blocked}</span></span>
             </summary>
             <Legend />
             <div className="kanban">

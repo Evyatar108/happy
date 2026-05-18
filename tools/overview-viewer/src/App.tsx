@@ -4,7 +4,7 @@ import { CommandList } from './components/CommandList'
 import { Kanban } from './components/Kanban'
 import { PhaseTree } from './components/PhaseTree'
 import { DependenciesSection, Footnote, ParallelismSection } from './components/StaticSections'
-import { FreshnessHint, KeyboardHelp, Layout, UrlFilterBanner, WhatsNewBanner } from './components/TopLevelSurfaces'
+import { FreshnessHint, KeyboardHelp, Layout, WhatsNewBanner } from './components/TopLevelSurfaces'
 import { TodayPanel } from './components/TodayPanel'
 import { Toolbar } from './components/Toolbar'
 import { useBulkSelection } from './hooks/useBulkSelection'
@@ -102,23 +102,17 @@ export function App() {
                 <strong>Kanban</strong> to choose · <strong>Ralph commands</strong> to execute · <strong>Phase tree</strong> to orient
             </p>
             <Kanban data={data} visibleTaskIds={filter.visibleKanbanTaskIds} onJumpToCommand={(taskId) => navigateToCommand(taskId, expandedControls.setTaskExpanded)} />
-            <details className="section sec-cmds">
-                <summary className="section-head">Ralph commands — click to expand, button to copy <span className="section-counts" id="counts-cmds">({data.tasks?.length ?? 0} commands)</span></summary>
-                <div className="sub" style={{ marginBottom: 12 }}>
-                    Self-contained <code>/plan-with-ralph</code> prompts mirrored from <code>plans/parallel-assignments.md</code>. Click a row to reveal the full command and copy with one click. Status badge reflects current state.
-                </div>
-                <UrlFilterBanner taskIdFilter={taskIdFilter} />
-                <CommandList
-                    changedTaskIds={whatsNew.changedTaskIds}
-                    data={data}
-                    expandedControls={expandedControls}
-                    onActivateWorkstream={activateWorkstream}
-                    onSelectTask={bulkSelection.toggleTask}
-                    query={filter.query}
-                    selectedTaskIds={bulkSelection.selectedTaskIds}
-                    visibleTaskIds={filter.visibleTaskIds}
-                />
-            </details>
+            <CommandList
+                changedTaskIds={whatsNew.changedTaskIds}
+                data={data}
+                expandedControls={expandedControls}
+                onActivateWorkstream={activateWorkstream}
+                onSelectTask={bulkSelection.toggleTask}
+                query={filter.query}
+                selectedTaskIds={bulkSelection.selectedTaskIds}
+                taskIdFilter={taskIdFilter}
+                visibleTaskIds={filter.visibleTaskIds}
+            />
             <PhaseTree data={data} />
             <ParallelismSection />
             <DependenciesSection />

@@ -1,8 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
-import { Kanban } from '../components/Kanban'
-import { countKanbanCards } from '../utils/kanbanOrdering'
+import { countVisibleKanbanCardsByColumn, Kanban } from '../components/Kanban'
+import { countKanbanCards, orderedKanbanCardsByColumn } from '../utils/kanbanOrdering'
 import { loadOverviewData } from './testData'
 
 describe('Kanban', () => {
@@ -21,6 +21,24 @@ describe('Kanban', () => {
         expect(html).toContain('href="#cmd-')
         expect(html).toContain('data-workstream="perf"')
         expect(html).toContain('style="border-color:var(--ok);opacity:0.8"')
+    })
+
+    it('renders per-column count chips from the visible kanban cards', () => {
+        const data = loadOverviewData()
+        const columns = orderedKanbanCardsByColumn(data.tasks ?? [])
+        const nonReadyTaskIds = new Set([...columns.soon, ...columns.blocked].map((item) => item.task.id))
+        const readyOnlyTaskIds = columns.ready.map((item) => item.task.id).filter((taskId) => !nonReadyTaskIds.has(taskId))
+        const visibleTaskIds = new Set(readyOnlyTaskIds.slice(0, 2))
+        const counts = countVisibleKanbanCardsByColumn(columns, visibleTaskIds)
+        const html = renderToStaticMarkup(<Kanban data={data} visibleTaskIds={visibleTaskIds} onJumpToCommand={() => undefined} />)
+
+        expect(counts.ready).toBe(2)
+        expect(counts.soon).toBe(0)
+        expect(counts.blocked).toBe(0)
+        expect(html).toContain(`(${counts.ready + counts.soon + counts.blocked} cards)`)
+        expect(html).toContain('<span class="sc sc-ready">ready 2</span>')
+        expect(html).toContain('<span class="sc sc-inprogress">soon 0</span>')
+        expect(html).toContain('<span class="sc sc-blocked">blocked 0</span>')
     })
 
     it('preserves trusted card HTML fragments', () => {
