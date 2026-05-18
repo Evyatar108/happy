@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 
-import { usePersistentExpanded } from '../hooks/usePersistentExpanded'
+import type { usePersistentExpanded } from '../hooks/usePersistentExpanded'
 import type { OverviewData } from '../types'
 import { TaskCommand } from './TaskCommand'
 
@@ -14,11 +14,13 @@ function buildChildrenByParent(spawnedFrom: Record<string, string> | undefined):
     return childrenByParent
 }
 
-export function CommandList({ data }: { data: OverviewData }) {
+type ExpandedControls = ReturnType<typeof usePersistentExpanded>
+
+export function CommandList({ data, expandedControls }: { data: OverviewData; expandedControls: ExpandedControls }) {
     const tasks = data.tasks ?? []
     const taskIds = useMemo(() => tasks.map((task) => task.id), [tasks])
     const childrenByParent = useMemo(() => buildChildrenByParent(data.spawnedFrom), [data.spawnedFrom])
-    const { isExpanded, setTaskExpanded } = usePersistentExpanded()
+    const { isExpanded, setTaskExpanded } = expandedControls
 
     return (
         <section className="cmd-list" aria-label="Ralph commands">

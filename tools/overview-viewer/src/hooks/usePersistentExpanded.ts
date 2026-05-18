@@ -27,12 +27,16 @@ function getLocalStorage(): Storage | undefined {
     return typeof window === 'undefined' ? undefined : window.localStorage
 }
 
+function detailsKey(id: string): string {
+    return id.startsWith('cmd-') ? id : `cmd-${id}`
+}
+
 export function usePersistentExpanded() {
     const [expanded, setExpanded] = useState<ExpandedState>(() => readExpandedState(getLocalStorage()))
 
     const setTaskExpanded = useCallback((id: string, open: boolean) => {
         setExpanded((current) => {
-            const next = { ...current, [id]: open }
+            const next = { ...current, [detailsKey(id)]: open }
             writeExpandedState(getLocalStorage(), next)
             return next
         })
@@ -41,7 +45,7 @@ export function usePersistentExpanded() {
     return useMemo(
         () => ({
             expanded,
-            isExpanded: (id: string) => expanded[`cmd-${id}`] === true,
+            isExpanded: (id: string) => expanded[detailsKey(id)] === true,
             setTaskExpanded,
         }),
         [expanded, setTaskExpanded],

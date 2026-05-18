@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 
 import { CommandList } from './components/CommandList'
+import { Kanban } from './components/Kanban'
+import { usePersistentExpanded } from './hooks/usePersistentExpanded'
 import type { OverviewData } from './types'
+import { navigateToCommand } from './utils/commandNavigation'
 
 function getOverviewData(): OverviewData {
     return window.OVERVIEW_DATA ?? {}
@@ -15,6 +18,7 @@ async function reloadOverviewData(): Promise<void> {
 
 export function App() {
     const [data, setData] = useState(getOverviewData)
+    const expandedControls = usePersistentExpanded()
 
     useEffect(() => {
         if (!import.meta.hot) {
@@ -37,7 +41,11 @@ export function App() {
     return (
         <main>
             <h1>{count} tasks</h1>
-            <CommandList data={data} />
+            <p className="mental-model">
+                <strong>Kanban</strong> to choose · <strong>Ralph commands</strong> to execute · <strong>Phase tree</strong> to orient
+            </p>
+            <Kanban data={data} onJumpToCommand={(taskId) => navigateToCommand(taskId, expandedControls.setTaskExpanded)} />
+            <CommandList data={data} expandedControls={expandedControls} />
         </main>
     )
 }

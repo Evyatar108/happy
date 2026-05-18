@@ -5,10 +5,16 @@ import { CommandList } from '../components/CommandList'
 import { linkBlockedOnHtml } from '../utils/warnings'
 import { loadOverviewData } from './testData'
 
+const expandedControls = {
+    expanded: {},
+    isExpanded: () => false,
+    setTaskExpanded: () => undefined,
+}
+
 describe('CommandList', () => {
     it('renders one command row per task', () => {
         const data = loadOverviewData()
-        const html = renderToStaticMarkup(<CommandList data={data} />)
+        const html = renderToStaticMarkup(<CommandList data={data} expandedControls={expandedControls} />)
         const rows = html.match(/<details class="cmd"/g) ?? []
 
         expect(rows).toHaveLength(data.tasks?.length ?? 0)
@@ -16,7 +22,7 @@ describe('CommandList', () => {
 
     it('renders workstream, cadence, size, warning links, and spawn relationships', () => {
         const data = loadOverviewData()
-        const html = renderToStaticMarkup(<CommandList data={data} />)
+        const html = renderToStaticMarkup(<CommandList data={data} expandedControls={expandedControls} />)
 
         expect(html).toContain('data-workstream="perf"')
         expect(html).toContain('data-size-bucket="small"')

@@ -10,8 +10,10 @@ export interface OverviewCommand {
     planPrompt?: string | null
 }
 
+export type KanbanColumnName = 'ready' | 'soon' | 'blocked'
+
 export interface KanbanCardData {
-    column: string
+    column: KanbanColumnName | string
     cardClass?: string | null
     inlineStyle?: string | null
     html: string
