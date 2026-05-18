@@ -63,6 +63,12 @@ export function App() {
         [expandedControls, taskIds],
     )
 
+    const activateWorkstream = useCallback((workstream: string) => {
+        filter.toggleFilter('workstream', workstream)
+        const filterDetails = document.querySelector<HTMLDetailsElement>('.toolbar-filters')
+        if (filterDetails) filterDetails.open = true
+    }, [filter])
+
     useKeyboardShortcuts({
         clearSearch: () => filter.setQuery(''),
         closeHelp: () => setHelpOpen(false),
@@ -106,6 +112,7 @@ export function App() {
                     changedTaskIds={whatsNew.changedTaskIds}
                     data={data}
                     expandedControls={expandedControls}
+                    onActivateWorkstream={activateWorkstream}
                     onSelectTask={bulkSelection.toggleTask}
                     selectedTaskIds={bulkSelection.selectedTaskIds}
                     visibleTaskIds={filter.visibleTaskIds}

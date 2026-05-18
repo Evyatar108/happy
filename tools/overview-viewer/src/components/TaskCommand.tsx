@@ -43,6 +43,7 @@ interface TaskCommandProps {
     changed?: boolean
     hidden?: boolean
     open: boolean
+    onActivateWorkstream?: (workstream: string) => void
     onOpenChange: (id: string, open: boolean) => void
     onSelectTask?: (id: string, selected: boolean) => void
     selected?: boolean
@@ -166,7 +167,7 @@ function cadenceChip(data: OverviewData, taskId: string): ReactNode {
     )
 }
 
-export function WorkstreamPill({ task, data }: { task: OverviewTask; data: OverviewData }) {
+export function WorkstreamPill({ task, data, onActivateWorkstream }: { task: OverviewTask; data: OverviewData; onActivateWorkstream?: (workstream: string) => void }) {
     const taskId = task.id
     const workstream = data.workstream?.[taskId]
     if (!workstream) return null
@@ -193,6 +194,7 @@ export function WorkstreamPill({ task, data }: { task: OverviewTask; data: Overv
                 onClick={(event) => {
                     event.preventDefault()
                     event.stopPropagation()
+                    onActivateWorkstream?.(workstream)
                 }}
             >
                 {label}
@@ -234,7 +236,7 @@ export function SpawnedChildren({ taskId, childrenByParent }: { taskId: string; 
     )
 }
 
-export function TaskCommand({ task, data, taskIds, childrenByParent, changed = false, hidden = false, open, onOpenChange, onSelectTask, selected = false }: TaskCommandProps) {
+export function TaskCommand({ task, data, taskIds, childrenByParent, changed = false, hidden = false, open, onActivateWorkstream, onOpenChange, onSelectTask, selected = false }: TaskCommandProps) {
     const { orderBucket } = useTaskClassification(task)
     const command = task.command
     const scopes = parseTaskScope(task.scope)
@@ -285,7 +287,7 @@ export function TaskCommand({ task, data, taskIds, childrenByParent, changed = f
                     ) : null}
                 </span>
                 <span className="cmd-desc" dangerouslySetInnerHTML={{ __html: command?.descriptionHtml ?? '' }} />
-                <WorkstreamPill task={task} data={data} />
+                <WorkstreamPill task={task} data={data} onActivateWorkstream={onActivateWorkstream} />
                 {changed ? <span className="new-badge" title={`Changed since your last visit (${data.lastTouched?.[task.id] ?? task.lastTouchedAt ?? ''})`}>NEW</span> : null}
                 <SpawnedFromPill parentId={parentId} />
                 <div className="cmd-actions">

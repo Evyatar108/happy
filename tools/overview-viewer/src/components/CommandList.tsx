@@ -20,6 +20,7 @@ export function CommandList({
     changedTaskIds = new Set(),
     data,
     expandedControls,
+    onActivateWorkstream,
     onSelectTask,
     selectedTaskIds = new Set(),
     visibleTaskIds,
@@ -27,6 +28,7 @@ export function CommandList({
     changedTaskIds?: Set<string>
     data: OverviewData
     expandedControls: ExpandedControls
+    onActivateWorkstream?: (workstream: string) => void
     onSelectTask?: (taskId: string, selected: boolean) => void
     selectedTaskIds?: Set<string>
     visibleTaskIds?: Set<string>
@@ -50,6 +52,7 @@ export function CommandList({
                         hidden={visibleTaskIds ? !visibleTaskIds.has(task.id) : false}
                         selected={selectedTaskIds.has(task.id)}
                         open={isExpanded(task.id)}
+                        onActivateWorkstream={onActivateWorkstream}
                         onOpenChange={setTaskExpanded}
                         onSelectTask={onSelectTask}
                     />
