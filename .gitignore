@@ -82,16 +82,37 @@ progress*.txt
 # OpenCode trace output (script is committed, output is not)
 docs/competition/opencode/traces/
 
-# Ralph orchestration scratch — brainstorm staging, job worktrees, debug screenshots.
-# Existing tracked artifacts under `.ralph/brainstorms/codex-fork-extension-strategy/`
-# stay tracked (gitignore doesn't affect already-tracked files); only future entries
-# are ignored.
-.ralph/
+# Ralph orchestration plugin state.
+#
+# Track plan / PRD / notepad / review-output / job-state artifacts under
+#   .ralph/jobs/<name>/
+#   .ralph/job-groups/<name>/
+#   .ralph/brainstorms/<name>/
+# so a Ralph cycle's intent + outputs are reviewable alongside the code it produced.
+#
+# Ignore bulky / transient subdirectories: per-job worktrees (full repo clones with
+# node_modules etc.), verbose iteration logs, per-iteration failure dumps, lock
+# files, and transient cleanup-mid-cycle breadcrumbs.
+.ralph/**/worktree/
+.ralph/**/staging/
+.ralph/**/logs/
+.ralph/**/failures/
+.ralph/**/*.log
+.ralph/**/*.tmp
+.ralph/**/*.lock
+
+# Plan-with-ralph and brainstorm-with-ralph handoff breadcrumbs (transient; cleaned
+# by the skill at Phase 5, may exist briefly mid-run).
+.ralph/jobs/.plan-handoff.json
+.ralph/brainstorms/.brainstorm-handoff-*.json
+
+# Ralph-internal: lifecycle telemetry (large) and legacy review state.
+.ralph/telemetry/
+.ralph/reviews/
 
 # happy-server runtime log directory (rich pino logs from the running service).
 # Contents are time-stamped per-process; not source-controlled.
 packages/happy-server/logs/
-.ralph/reviews/
 
 # Workspace junctions (per-machine; created by `mklink /J`) — never tracked.
 # Each developer creates these locally to navigate the multi-repo workspace.
