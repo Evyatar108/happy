@@ -77,6 +77,11 @@ A second deliberate deviation: in the Ralph command list, rows with
 instead of interleaving with non-blocked rows in the same bucket. The baseline
 ordered by phase only.
 
+A third deliberate deviation: within each phase bucket in the Ralph command
+list, tasks are sorted ascending by `lastTouchedAt` so neglected (oldest)
+work surfaces at the top of its bucket. Tasks missing `lastTouchedAt` fall
+to the tail. The baseline used DOM source order with no secondary key.
+
 ## Core Data Model
 
 `plans/overview-data.js` owns this shape:
