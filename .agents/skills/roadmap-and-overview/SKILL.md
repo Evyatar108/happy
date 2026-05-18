@@ -388,9 +388,12 @@ change would be lost on the next `pnpm overview:build`.
   reorder top-level keys, or rewrite braces/comma layout as drive-by cleanup.
   That skeleton is owned by the foundation story and preserves parallel merge
   safety.
-- **`overview-data.js` must load before the main script.** The HTML relies on
-  synchronous script loading so `getRoadmapData()` can return
-  `window.OVERVIEW_DATA` during initial render.
+- **`overview-data.js` must load before the React bundle.** The built
+  `plans/overview.html` inlines the sidecar via the build pipeline; in dev
+  (`pnpm overview`), the custom Vite plugin serves `plans/overview-data.js` at
+  `/overview-data.js` so `window.OVERVIEW_DATA` is populated before
+  `useOverviewData` reads it. Do not switch the sidecar to async/module
+  loading or fetch-only data delivery.
 - **`data-task-id` and `id="cmd-<taskId>"` are load-bearing.** Rendered command
   rows must emit both. URL hash navigation, filters, copy-name buttons, run
   history, and spawned-from pills depend on them.
