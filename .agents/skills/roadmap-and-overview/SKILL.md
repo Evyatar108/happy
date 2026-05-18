@@ -23,10 +23,15 @@ Start every session by reading:
 
 1. `plans/overview-data.js` - source of truth for task rows, kanban cards,
    phase tree, run history, metadata maps, and freshness timestamps.
-2. `plans/overview.html` - renderer and UI shell. Do not edit it for normal
-   task status changes.
+2. `plans/overview.html` - generated build artifact produced by
+   `pnpm overview:build` from `tools/overview-viewer/`. Do not hand-edit;
+   renderer/UI changes go to `tools/overview-viewer/src/` (see procedures
+   F and G).
 3. `plans/parallel-assignments.md` and `plans/codexu-roadmap.md` - context
    for phase/status definitions and long-form roadmap meaning.
+4. `tools/overview-viewer/` - React/Vite renderer source and tests. Read
+   this only when you need renderer context for procedure F or G; normal
+   bookkeeping never touches it.
 
 Before editing, run `git status` and confirm the current branch is the
 bookkeeping branch you intend to commit on. If you are doing parent-repo
