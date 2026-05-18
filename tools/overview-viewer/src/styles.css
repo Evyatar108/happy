@@ -278,6 +278,7 @@
     top: 0;
     z-index: 10;
     background: var(--bg);
+    backdrop-filter: blur(8px);
     padding: 10px 0;
     margin: 16px 0 8px;
     display: flex;
@@ -286,6 +287,29 @@
     gap: 10px;
     border-bottom: 1px solid var(--border);
     box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  }
+  @supports (animation-timeline: scroll()) {
+    .toolbar {
+      animation: toolbar-elevation linear both;
+      animation-timeline: scroll();
+      animation-range: 0px 24px;
+    }
+    @keyframes toolbar-elevation {
+      0% {
+        box-shadow: 0 4px 12px rgba(0,0,0,0);
+        backdrop-filter: blur(0);
+      }
+      100% {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        backdrop-filter: blur(8px);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .toolbar {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        backdrop-filter: blur(8px);
+      }
+    }
   }
   /* Compact filter chips behind a "Filter ⏷" toggle to keep the toolbar
      to one row by default. Click to expand. */
