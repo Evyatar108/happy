@@ -58,6 +58,23 @@ The big picture lives in
 - long-lived teammates (Phase 6)
 - Claude-via-Copilot adapter (Phase 7, deferred)
 
+### Roadmap viewer
+
+The interactive roadmap viewer is generated from
+[`plans/overview-data.js`](plans/overview-data.js). For local development with
+Vite/HMR, run:
+
+```bash
+pnpm overview
+```
+
+The dev server listens on `http://localhost:5173`. To rebuild the static
+single-file artifact at [`plans/overview.html`](plans/overview.html), run:
+
+```bash
+pnpm overview:build
+```
+
 ## Heritage
 
 Codexu is a fork of [slopus/happy](https://github.com/slopus/happy)

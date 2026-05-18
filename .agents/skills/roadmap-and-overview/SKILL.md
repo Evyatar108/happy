@@ -1,13 +1,17 @@
 ---
 name: roadmap-and-overview
 description: >
-  Procedure for maintaining the codexu roadmap visualization
-  (`plans/overview.html`) and its sidecar data file
-  (`plans/overview-data.js`). Use when adding a new task, changing a
-  task's status, recording a run/completion, adding a workstream
-  category, or extending the visualization with a new feature. The
-  dashboard renders from `window.OVERVIEW_DATA`; edit the data file
-  first and touch the HTML only when the renderer or UI shell changes.
+  Procedure for maintaining the codexu roadmap visualization. The
+  dashboard is rendered by the React/Vite app under
+  `tools/overview-viewer/` and ships as a generated `plans/overview.html`
+  artifact backed by the sidecar data file `plans/overview-data.js`. Use
+  when adding a new task, changing a task's status, recording a
+  run/completion, adding a workstream category, or extending the
+  visualization with a new feature. The dashboard renders from
+  `window.OVERVIEW_DATA`; edit `plans/overview-data.js` for normal
+  bookkeeping, and for renderer/UI changes edit
+  `tools/overview-viewer/src/` and rebuild via `pnpm overview:build`
+  (never hand-edit `plans/overview.html`).
 ---
 
 # /roadmap-and-overview - maintain the codexu roadmap dashboard
@@ -23,10 +27,15 @@ Start every session by reading:
 
 1. `plans/overview-data.js` - source of truth for task rows, kanban cards,
    phase tree, run history, metadata maps, and freshness timestamps.
-2. `plans/overview.html` - renderer and UI shell. Do not edit it for normal
-   task status changes.
+2. `plans/overview.html` - generated build artifact produced by
+   `pnpm overview:build` from `tools/overview-viewer/`. Do not hand-edit;
+   renderer/UI changes go to `tools/overview-viewer/src/` (see procedures
+   F and G).
 3. `plans/parallel-assignments.md` and `plans/codexu-roadmap.md` - context
    for phase/status definitions and long-form roadmap meaning.
+4. `tools/overview-viewer/` - React/Vite renderer source and tests. Read
+   this only when you need renderer context for procedure F or G; normal
+   bookkeeping never touches it.
 
 Before editing, run `git status` and confirm the current branch is the
 bookkeeping branch you intend to commit on. If you are doing parent-repo
@@ -36,13 +45,42 @@ bookkeeping, `main` should usually be checked out.
 
 - `plans/overview-data.js` - primary file for procedures A-F. It is a
   single top-level assignment: `window.OVERVIEW_DATA = { ... };`.
-- `plans/overview.html` - static renderer. Edit only for procedure G or
-  renderer/storage-key changes.
+- `plans/overview.html` - generated build artifact emitted by
+  `pnpm overview:build`. Do not hand-edit; regenerate it after renderer
+  changes in `tools/overview-viewer/`.
+- `tools/overview-viewer/src/` - React/Vite renderer source. All UI,
+  component, hook, util, and `styles.css` changes live here (see procedures
+  F and G). Tests live under `tools/overview-viewer/src/__tests__/`.
 - `plans/parallel-assignments.md` - derived operator-facing command list and
   status table. Update when the operator expects markdown tracking to stay in
   sync, but never treat it as the canonical data source.
 - `plans/codexu-roadmap.md` - durable roadmap context. Update only for
   material roadmap wording, not every status flip.
+
+## Viewing
+
+For interactive development of the roadmap viewer, run `pnpm overview` from
+the repo root and open `http://localhost:5173`. The Vite app watches
+`plans/overview-data.js` and reloads the shipped data contract without
+restarting the server.
+
+To rebuild the static file that can be opened via `file://`, run
+`pnpm overview:build`; it emits the inlined artifact directly to
+`plans/overview.html`.
+
+The React renderer intentionally derives phase-tree task-ref classes from the
+referenced task. `blocked` or `paused` tasks render with the `deferred` class,
+which is a deliberate readability deviation from the `9f81c1f8` baseline.
+
+A second deliberate deviation: in the Ralph command list, rows with
+`status: "blocked"` or `"paused"` sort to the tail of their phase bucket
+instead of interleaving with non-blocked rows in the same bucket. The baseline
+ordered by phase only.
+
+A third deliberate deviation: within each phase bucket in the Ralph command
+list, tasks are sorted ascending by `lastTouchedAt` so neglected (oldest)
+work surfaces at the top of its bucket. Tasks missing `lastTouchedAt` fall
+to the tail. The baseline used DOM source order with no secondary key.
 
 ## Core Data Model
 
@@ -309,19 +347,31 @@ Worked edit example:
 
 1. Add the new workstream key to each relevant task in
    `OVERVIEW_DATA.workstream`.
-2. In `plans/overview.html`, add a filter chip under the workstream filter
-   group and add a display label to the `injectWorkstreamPills` labels map.
-3. Verify the filter chip, workstream pill, and URL filter still compose.
+2. In `tools/overview-viewer/src/components/Toolbar.tsx`, add a chip entry
+   to the `workstream` group inside `FILTER_GROUPS`, and add a matching
+   display label to the `WORKSTREAM_LABELS` map in
+   `tools/overview-viewer/src/components/TaskCommand.tsx`.
+3. Run `pnpm overview:build` so the inlined `plans/overview.html` artifact
+   picks up the renderer change, and verify the filter chip, workstream pill,
+   and URL filter still compose.
 
 This is one of the few normal procedures that touches both the data file and
-the HTML shell, because filter labels are renderer UI.
+the React renderer source, because filter labels are renderer UI. Do not
+hand-edit `plans/overview.html`; it is a generated build artifact and your
+change would be lost on the next `pnpm overview:build`.
 
 ### G. Adding a visualization feature
 
 1. Decide whether the feature is data-only or renderer/UI. Data-only fields go
    into `plans/overview-data.js`; renderer/UI changes go into
-   `plans/overview.html`.
-2. Preserve `file://` compatibility. Do not add fetch-only data loading.
+   `tools/overview-viewer/src/` (TSX components, hooks, utils, and
+   `styles.css`), then rebuild via `pnpm overview:build` to regenerate
+   `plans/overview.html`. Do not hand-edit `plans/overview.html`; it is a
+   generated build artifact and your change would be lost on the next
+   `pnpm overview:build` (and would also bypass the test suite under
+   `tools/overview-viewer/src/__tests__/`).
+2. Preserve `file://` compatibility for the built artifact. Do not add
+   fetch-only data loading; the build inlines `overview-data.js`.
 3. Keep `overview-data.js` as one top-level `window.OVERVIEW_DATA = { ... };`
    assignment. No IIFE, no module syntax, no conditional setup.
 4. Match existing CSS tokens and compact dashboard styling. Test dark, light,
@@ -352,9 +402,12 @@ the HTML shell, because filter labels are renderer UI.
   reorder top-level keys, or rewrite braces/comma layout as drive-by cleanup.
   That skeleton is owned by the foundation story and preserves parallel merge
   safety.
-- **`overview-data.js` must load before the main script.** The HTML relies on
-  synchronous script loading so `getRoadmapData()` can return
-  `window.OVERVIEW_DATA` during initial render.
+- **`overview-data.js` must load before the React bundle.** The built
+  `plans/overview.html` inlines the sidecar via the build pipeline; in dev
+  (`pnpm overview`), the custom Vite plugin serves `plans/overview-data.js` at
+  `/overview-data.js` so `window.OVERVIEW_DATA` is populated before
+  `useOverviewData` reads it. Do not switch the sidecar to async/module
+  loading or fetch-only data delivery.
 - **`data-task-id` and `id="cmd-<taskId>"` are load-bearing.** Rendered command
   rows must emit both. URL hash navigation, filters, copy-name buttons, run
   history, and spawned-from pills depend on them.
@@ -405,18 +458,35 @@ plans/
 ├── codexu-roadmap.md
 ├── parallel-assignments.md
 ├── realtime-sync-perf.md
-├── overview.html
+├── overview.html        # generated artifact - see tools/overview-viewer/
 └── overview-data.js
+
+tools/overview-viewer/
+├── README.md
+├── overview.html        # Vite entry (NOT the artifact in plans/)
+├── package.json
+├── vite.config.ts
+└── src/
+    ├── App.tsx
+    ├── components/
+    ├── hooks/
+    ├── utils/
+    └── styles.css
 
 .agents/skills/
 └── roadmap-and-overview/
     └── SKILL.md
 ```
 
+`plans/overview.html` is generated from `tools/overview-viewer/` via
+`pnpm overview:build`.
+
 ## When NOT to use this skill
 
 - If you are implementing a product feature, follow the ralph task prompt
   instead. This skill is for maintaining the dashboard and roadmap data.
 - If you are trying to regenerate the whole dashboard from scratch, stop and
-  read `plans/overview.html` and `plans/overview-data.js` end-to-end first.
-  Keep normal bookkeeping patch-based.
+  read `tools/overview-viewer/src/` (App.tsx + components + hooks) and
+  `plans/overview-data.js` end-to-end first; `plans/overview.html` is a
+  generated artifact and is not a useful study target. Keep normal bookkeeping
+  patch-based.
