@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 
-function getTaskCount(): number {
-    return window.OVERVIEW_DATA?.tasks?.length ?? 0
+import { CommandList } from './components/CommandList'
+import type { OverviewData } from './types'
+
+function getOverviewData(): OverviewData {
+    return window.OVERVIEW_DATA ?? {}
 }
 
 async function reloadOverviewData(): Promise<void> {
@@ -11,7 +14,7 @@ async function reloadOverviewData(): Promise<void> {
 }
 
 export function App() {
-    const [count, setCount] = useState(getTaskCount)
+    const [data, setData] = useState(getOverviewData)
 
     useEffect(() => {
         if (!import.meta.hot) {
@@ -20,7 +23,7 @@ export function App() {
 
         const updateCount = async () => {
             await reloadOverviewData()
-            setCount(getTaskCount())
+            setData(getOverviewData())
         }
 
         import.meta.hot.on('overview-data:update', updateCount)
@@ -29,5 +32,12 @@ export function App() {
         }
     }, [])
 
-    return <h1>{count} tasks</h1>
+    const count = data.tasks?.length ?? 0
+
+    return (
+        <main>
+            <h1>{count} tasks</h1>
+            <CommandList data={data} />
+        </main>
+    )
 }

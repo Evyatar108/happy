@@ -1,6 +1,4 @@
-export interface OverviewData {
-    tasks?: unknown[]
-}
+import type { OverviewData } from './types'
 
 declare global {
     interface Window {
