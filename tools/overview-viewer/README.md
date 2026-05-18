@@ -38,6 +38,47 @@ pnpm overview:build
 
 Without the safe-name flag, Vite emits the inlined artifact directly to `plans/overview.html`.
 
+## Development Workflow
+
+### Adding a component
+
+1. Create `src/components/<Name>.tsx`. Use existing components as style references — they read data from props (typed via `OverviewData` / `OverviewTask` from `src/types.ts`) and lean on the verbatim ported CSS in `src/styles.css` for visual styling. Avoid Tailwind, CSS-in-JS, or inline `style` props for new visual rules — extend `styles.css` instead.
+2. Wire the component into `src/App.tsx` (or its parent, e.g., `CommandList.tsx`).
+3. Add a unit test under `src/__tests__/<name>.test.tsx`. Tests run in `node` environment via `react-dom/server` for SSR — avoid jsdom unless you genuinely need DOM event simulation (most existing tests assert on the rendered HTML string).
+
+### Adding a hook
+
+1. Create `src/hooks/use<Name>.ts`. Keep hooks pure — derive state from props/data, no side effects beyond `useEffect`/`useState`/`useMemo`.
+2. If the hook touches `localStorage`, follow `usePersistentExpanded` as a template (key prefixes, JSON-encoded values, fail-open on parse errors).
+3. Test against a `localStorage` stub or the rendered output of a host component.
+
+### Adding a utility
+
+1. Create `src/utils/<name>.ts`. Utilities should be pure functions with no React imports.
+2. Test directly — utilities are the easiest layer to cover.
+
+### Test, typecheck, build
+
+```bash
+# From the repo root or this directory:
+pnpm --filter @codexu/overview-viewer typecheck
+pnpm --filter @codexu/overview-viewer test
+pnpm overview         # dev server with HMR on plans/overview-data.js
+pnpm overview:build   # destructive: overwrites plans/overview.html
+```
+
+### How HMR works under the hood
+
+The custom `overviewDataPlugin` in `vite.config.ts` wires three things:
+
+1. **Serve middleware** at `/overview-data.js` — reads `plans/overview-data.js` from disk on every request, so the browser always gets the latest bytes (no Vite module-graph caching).
+2. **Watcher** on `plans/overview-data.js` — emits a custom WebSocket event `overview-data:update` whenever the file mtime changes.
+3. **`transformIndexHtml`** — for `pnpm overview:build`, inlines the sidecar contents into the artifact at build time, escaping `</script` so a malicious task entry cannot terminate the bundle.
+
+Client side, `useOverviewData` (in `src/hooks/`) subscribes to the WS event via `import.meta.hot.on('overview-data:update')`, fetches `/overview-data.js?t=<cache-bust>`, and re-evaluates the response body with `new Function(text)()` so `window.OVERVIEW_DATA` repopulates. React then re-renders against the new data, preserving DOM state (open `<details>`, scroll, search filter, bulk-select) via the standard reconciliation path.
+
+This is **option (c) — fetch + re-execute**. Do not switch to option (a) ws-payload (pushing the data through the WS message) or option (b) virtual-module (importing the sidecar as a module) without operator approval — option (c) is the only design that keeps the dev server, the static build, and the trusted-HTML semantics consistent.
+
 ## Intentional Deviations
 
 Three deliberate UX improvements over the `9f81c1f8` baseline:
