@@ -47,6 +47,10 @@ The custom Vite plugin in `vite.config.ts`:
 
 **Do not switch the sidecar to async / module loading or fetch-only delivery.** The static build inlines the sidecar; the dev server serves it synchronously before the React bundle runs. Both depend on the `window.OVERVIEW_DATA` global being populated before React mounts.
 
+## Hash navigation
+
+Command rows expose `id="cmd-<taskId>"` and deep links are handled by `useHashNav`. Hash arrivals must expand the target row, call `scrollIntoView({ behavior: 'smooth', block: 'center' })`, and apply the shared `cmd-flash` pulse via `flashCommandElement`. In-page jumps such as Kanban cards should go through `navigateToCommand` so they share the same flash behavior.
+
 ## Trusted-HTML boundaries
 
 `dangerouslySetInnerHTML` sites consume operator-authored HTML strings from the data file (kanban card html, command description html, phase-tree node html, static parallelism/dependencies tables). These are NOT user input — the data file is hand-curated. Command names are plain text and must be escaped before using HTML rendering for search highlighting.

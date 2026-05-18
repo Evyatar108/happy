@@ -264,7 +264,13 @@
   .phase-subdetails ul { margin-top: 4px; }
 
   /* Highlight target of URL hash (e.g. on deep-link) */
-  :target.cmd, :target.card { box-shadow: 0 0 0 2px var(--accent); }
+  :target.cmd, :target.card,
+  .cmd.cmd-flash { box-shadow: 0 0 0 2px var(--accent); }
+  .cmd.cmd-flash { animation: cmd-flash-pulse 1.5s ease-out; }
+  @keyframes cmd-flash-pulse {
+    0%, 100% { box-shadow: 0 0 0 2px var(--accent); }
+    50% { box-shadow: 0 0 0 6px var(--accent); }
+  }
 
   /* Sticky toolbar — search + filter + bulk-copy */
   .toolbar {
