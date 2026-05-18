@@ -918,7 +918,25 @@
     border-color: rgba(247,118,142,0.6);
   }
   .cmd-desc { color: var(--muted); font-size: 12px; flex: 1; }
-  .cmd-body { position: relative; margin-top: 10px; }
+  .cmd-body {
+    position: relative;
+  }
+  .cmd-body-inner {
+    padding-top: 10px;
+  }
+  @supports (interpolate-size: allow-keywords) {
+    .cmd-body {
+      display: grid;
+      grid-template-rows: 0fr;
+      interpolate-size: allow-keywords;
+      transition: grid-template-rows 0.3s ease-out;
+    }
+    .cmd[open] > .cmd-body { grid-template-rows: 1fr; }
+    .cmd-body-inner {
+      min-height: 0;
+      overflow: hidden;
+    }
+  }
   .cmd-pre {
     background: var(--bg);
     border: 1px solid var(--border);

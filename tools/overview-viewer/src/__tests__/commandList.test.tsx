@@ -17,8 +17,10 @@ describe('CommandList', () => {
         const data = loadOverviewData()
         const html = renderToStaticMarkup(<CommandList data={data} expandedControls={expandedControls} />)
         const rows = html.match(/<details class="cmd"/g) ?? []
+        const bodies = html.match(/<div class="cmd-body"><div class="cmd-body-inner">/g) ?? []
 
         expect(rows).toHaveLength(data.tasks?.length ?? 0)
+        expect(bodies).toHaveLength(data.tasks?.length ?? 0)
     })
 
     it('renders workstream, cadence, size, warning links, and spawn relationships', () => {

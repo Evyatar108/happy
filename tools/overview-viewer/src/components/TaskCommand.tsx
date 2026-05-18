@@ -296,12 +296,14 @@ export function TaskCommand({ task, data, taskIds, childrenByParent, changed = f
                 </div>
             </summary>
             <div className="cmd-body">
-                {(command?.warnings ?? []).map((warning, index) => (
-                    <Warning key={index} warning={warning} taskIds={taskIds} />
-                ))}
-                {command?.planPrompt !== null && command?.planPrompt !== undefined ? <pre className="cmd-pre">{command.planPrompt || ''}</pre> : null}
-                <RunsLog runs={(data.runs ?? []).filter((run) => run.taskId === task.id)} />
-                <SpawnedChildren taskId={task.id} childrenByParent={childrenByParent} />
+                <div className="cmd-body-inner">
+                    {(command?.warnings ?? []).map((warning, index) => (
+                        <Warning key={index} warning={warning} taskIds={taskIds} />
+                    ))}
+                    {command?.planPrompt !== null && command?.planPrompt !== undefined ? <pre className="cmd-pre">{command.planPrompt || ''}</pre> : null}
+                    <RunsLog runs={(data.runs ?? []).filter((run) => run.taskId === task.id)} />
+                    <SpawnedChildren taskId={task.id} childrenByParent={childrenByParent} />
+                </div>
             </div>
         </details>
     )
