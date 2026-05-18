@@ -464,10 +464,15 @@ conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
     Cross-references Phase 2c "Plugin scoping (host vs agent context)",
     Phase 2d "ask_user_question primitive", Phase 3b-i "subagents →
     agent roles", and Phase 6 "Long-lived teammates". New workstream
-    value `agent-arch` in `plans/overview.html` filter axis.
+    value `agent-arch` in the overview viewer filter axis
+    (`tools/overview-viewer/src/components/Toolbar.tsx` plus the
+    workstream label map in
+    `tools/overview-viewer/src/components/TaskCommand.tsx`); rebuild
+    with `pnpm overview:build` to regenerate `plans/overview.html`.
   - **Tooling workstream (new, 2026-05-14):** roadmap-meta automation —
     a plugin in `packages/codexu-plugin/` that lets agents manage the
-    roadmap (`plans/overview.html` + `plans/parallel-assignments.md`)
+    roadmap (`plans/overview-data.js` + `plans/parallel-assignments.md`,
+    surfaced via the overview viewer at `plans/overview.html`)
     programmatically via skill commands and/or an MCP server. Tools:
     `add-task`, `update-status`, `record-run`, `take-task` (the last
     spawns a top-level agent with the task's ralph command + flips the
@@ -476,8 +481,12 @@ conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
     `agent-comms` Scope B (same-daemon spawn) — the plugin can ship
     v1 using existing happy-cli `spawn-happy-session` RPC without
     waiting for the broader agent-comms design. New workstream value
-    `tooling` in `plans/overview.html` filter axis. Initial task:
-    `roadmap-plugin`.
+    `tooling` in the overview viewer filter axis
+    (`tools/overview-viewer/src/components/Toolbar.tsx` plus the
+    workstream label map in
+    `tools/overview-viewer/src/components/TaskCommand.tsx`); rebuild
+    with `pnpm overview:build` to regenerate `plans/overview.html`.
+    Initial task: `roadmap-plugin`.
   - **Periodic upstream sync (new workstream, 2026-05-13):** added two
     periodic-cadence maintenance tasks that should cycle every ~4 weeks:
     `happy-upstream-sync` (review new commits in `slopus/happy` since
@@ -485,10 +494,13 @@ conflict-surface analysis) at `.ralph/jobs/devtunnels-commands.md`.
     skill at `.agents/skills/happy-upstream-sync/SKILL.md`) and
     `codex-upstream-rebase` (rebase the codex submodule on
     openai/codex via the codex-side `rebase-upstream` skill). Tracked
-    on the visualization (`plans/overview.html`) with a 🔄 cadence
-    indicator + new "Upstream sync" workstream + new "Cadence" filter
-    axis. Last full happy-upstream-sync: 2026-05-03 (absorbed 79
-    commits). Next due ~2026-06-03.
+    on the overview viewer (built to `plans/overview.html`) with a 🔄
+    cadence indicator + new "Upstream sync" workstream + new "Cadence"
+    filter axis (filter chips in
+    `tools/overview-viewer/src/components/Toolbar.tsx`, workstream
+    label map in `tools/overview-viewer/src/components/TaskCommand.tsx`;
+    rebuild with `pnpm overview:build`). Last full happy-upstream-sync:
+    2026-05-03 (absorbed 79 commits). Next due ~2026-06-03.
   - ✅ **Codex agent project-`.mcp.json` parity (delivered 2026-05-13):**
     The Claude agent under happy reads `.mcp.json` from the session cwd (Claude
     Code's standard project-MCP convention) — so `codexu/.mcp.json` (with the
