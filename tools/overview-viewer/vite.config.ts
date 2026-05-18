@@ -1,6 +1,7 @@
 import react from '@vitejs/plugin-react'
 import { readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { transform } from 'esbuild'
 import type { Plugin } from 'vite'
 import { defineConfig } from 'vite'
 import { viteSingleFile as singleFile } from 'vite-plugin-singlefile'
@@ -62,7 +63,12 @@ function overviewDataPlugin(): Plugin {
                 }
 
                 const data = await readFile(overviewDataPath, 'utf8')
-                return html.replace(sidecarScriptTag, `<script>${data.replace(/<\/script/gi, '<\\/script')}</script>`)
+                const minifiedData = await transform(data, {
+                    loader: 'js',
+                    minify: true,
+                    legalComments: 'none',
+                })
+                return html.replace(sidecarScriptTag, `<script>${minifiedData.code.replace(/<\/script/gi, '<\\/script')}</script>`)
             },
         },
         async closeBundle() {

@@ -400,6 +400,23 @@
   .pill-workstream:hover { color: var(--accent); border-color: var(--accent); }
   .pill-workstream.active-filter { background: var(--accent); color: white; border-color: var(--accent); }
 
+  .tooltip-content {
+    z-index: 120;
+    max-width: min(280px, calc(100vw - 24px));
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--card);
+    color: var(--fg);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.18);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.35;
+  }
+  .tooltip-content[data-state="open"],
+  .tooltip-content[data-state="delayed-open"],
+  .tooltip-content[data-state="instant-open"] { animation: copy-toast-slide-in 0.12s ease-out; }
+
   /* Periodic-cadence indicator (rotating-arrows icon next to workstream pill) */
   .cadence-icon { font-size: 12px; line-height: 1; opacity: 0.8; cursor: help; }
 

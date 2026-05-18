@@ -1,4 +1,5 @@
 import type { MouseEvent, ReactNode } from 'react'
+import * as Tooltip from '@radix-ui/react-tooltip'
 
 import { parseTaskScope } from '../data/copyPreambles'
 import { useCopiedFeedback } from '../hooks/useCopiedFeedback'
@@ -280,6 +281,7 @@ export function WorkstreamPill({ task, data, onActivateWorkstream }: { task: Ove
     const cadence = data.cadence?.[taskId] ?? 'one-shot'
     const size = data.sizeBucket?.[taskId]
     const label = WORKSTREAM_LABELS[workstream] || workstream
+    const tooltip = `Filter to ${label} workstream${size ? ` (size: ${size})` : ''}`
 
     return (
         <>
@@ -291,19 +293,30 @@ export function WorkstreamPill({ task, data, onActivateWorkstream }: { task: Ove
                     {cadenceChip(data, taskId)}
                 </>
             ) : null}
-            <a
-                className="pill-workstream"
-                href="#"
-                data-workstream={workstream}
-                title={`Filter to ${label} workstream${size ? ` (size: ${size})` : ''}`}
-                onClick={(event) => {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    onActivateWorkstream?.(workstream)
-                }}
-            >
-                {label}
-            </a>
+            <Tooltip.Provider delayDuration={200} skipDelayDuration={0}>
+                <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                        <a
+                            className="pill-workstream"
+                            href="#"
+                            data-workstream={workstream}
+                            aria-label={tooltip}
+                            onClick={(event) => {
+                                event.preventDefault()
+                                event.stopPropagation()
+                                onActivateWorkstream?.(workstream)
+                            }}
+                        >
+                            {label}
+                        </a>
+                    </Tooltip.Trigger>
+                    <Tooltip.Portal>
+                        <Tooltip.Content className="tooltip-content" sideOffset={6}>
+                            {tooltip}
+                        </Tooltip.Content>
+                    </Tooltip.Portal>
+                </Tooltip.Root>
+            </Tooltip.Provider>
         </>
     )
 }

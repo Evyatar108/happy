@@ -21,10 +21,10 @@ src/
 ├── components/           # TaskCommand, Kanban, PhaseTree, CommandList, Toolbar, TodayPanel, ...
 ├── hooks/                # useTaskClassification, useBulkSelection, useMultiAxisFilter, usePersistentExpanded, ...
 ├── utils/                # taskClassification, kanbanOrdering, copyCommand, urlFilter, whatsNew, freshness, ...
-└── __tests__/            # vitest unit tests (10 files / 24 tests; env: node)
+└── __tests__/            # vitest unit tests; SSR tests run in node, interactions/**/*.test.tsx runs in jsdom
 overview.html             # Vite entry (NOT the build artifact in plans/)
 vite.config.ts            # includes the custom overviewDataPlugin (HMR sidecar watcher + serve + singleFile inline)
-vitest.config.ts          # env: node, include: src/__tests__/**/*.test.{ts,tsx}
+vitest.config.ts          # split projects: node SSR tests + jsdom interaction tests
 README.md                 # contributor-facing notes + intentional deviations
 ```
 
@@ -46,6 +46,8 @@ The custom Vite plugin in `vite.config.ts`:
 4. React re-renders; reconciliation preserves DOM state (open `<details>`, scroll, search filter, bulk-select).
 
 **Do not switch the sidecar to async / module loading or fetch-only delivery.** The static build inlines the sidecar; the dev server serves it synchronously before the React bundle runs. Both depend on the `window.OVERVIEW_DATA` global being populated before React mounts.
+
+Static builds minify the inlined `overview-data.js` sidecar with `esbuild` inside `vite.config.ts` to preserve the 500 KB single-file bundle budget. The source data file stays readable and unminified; do not hand-minify `plans/overview-data.js` or `plans/overview.html`.
 
 ## Hash navigation
 
