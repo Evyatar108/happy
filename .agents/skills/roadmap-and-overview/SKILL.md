@@ -1,13 +1,17 @@
 ---
 name: roadmap-and-overview
 description: >
-  Procedure for maintaining the codexu roadmap visualization
-  (`plans/overview.html`) and its sidecar data file
-  (`plans/overview-data.js`). Use when adding a new task, changing a
-  task's status, recording a run/completion, adding a workstream
-  category, or extending the visualization with a new feature. The
-  dashboard renders from `window.OVERVIEW_DATA`; edit the data file
-  first and touch the HTML only when the renderer or UI shell changes.
+  Procedure for maintaining the codexu roadmap visualization. The
+  dashboard is rendered by the React/Vite app under
+  `tools/overview-viewer/` and ships as a generated `plans/overview.html`
+  artifact backed by the sidecar data file `plans/overview-data.js`. Use
+  when adding a new task, changing a task's status, recording a
+  run/completion, adding a workstream category, or extending the
+  visualization with a new feature. The dashboard renders from
+  `window.OVERVIEW_DATA`; edit `plans/overview-data.js` for normal
+  bookkeeping, and for renderer/UI changes edit
+  `tools/overview-viewer/src/` and rebuild via `pnpm overview:build`
+  (never hand-edit `plans/overview.html`).
 ---
 
 # /roadmap-and-overview - maintain the codexu roadmap dashboard
