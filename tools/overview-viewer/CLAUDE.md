@@ -49,7 +49,7 @@ The custom Vite plugin in `vite.config.ts`:
 
 ## Trusted-HTML boundaries
 
-Six `dangerouslySetInnerHTML` sites consume operator-authored HTML strings from the data file (kanban card html, command description html, phase-tree node html, static parallelism/dependencies tables). These are NOT user input — the data file is hand-curated.
+`dangerouslySetInnerHTML` sites consume operator-authored HTML strings from the data file (kanban card html, command description html, phase-tree node html, static parallelism/dependencies tables). These are NOT user input — the data file is hand-curated. Command names are plain text and must be escaped before using HTML rendering for search highlighting.
 
 - `linkBlockedOnHtml` (in `utils/warnings.ts`) escapes regex metacharacters in task IDs before building matchers.
 - The Vite plugin escapes `</script` inside the inlined data sidecar so a malicious task entry cannot terminate the bundle.

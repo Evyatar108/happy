@@ -40,4 +40,19 @@ describe('CommandList', () => {
         expect(warning).toBeDefined()
         expect(linkBlockedOnHtml(warning?.html ?? '', data.tasks?.map((task) => task.id) ?? [])).toContain('href="#cmd-mcp-discovery"')
     })
+
+    it('highlights active search matches in command names and descriptions', () => {
+        const data = loadOverviewData()
+        const html = renderToStaticMarkup(<CommandList data={data} expandedControls={expandedControls} query="perf" />)
+
+        expect(html).toContain('<span class="cmd-name"><mark class="search-match">perf</mark>')
+        expect(html).toContain('<span class="cmd-desc">Realtime <mark class="search-match">perf</mark>')
+    })
+
+    it('removes search match markup when the query is cleared', () => {
+        const data = loadOverviewData()
+        const html = renderToStaticMarkup(<CommandList data={data} expandedControls={expandedControls} query="" />)
+
+        expect(html).not.toContain('class="search-match"')
+    })
 })

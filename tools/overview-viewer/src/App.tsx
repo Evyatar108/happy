@@ -114,6 +114,7 @@ export function App() {
                     expandedControls={expandedControls}
                     onActivateWorkstream={activateWorkstream}
                     onSelectTask={bulkSelection.toggleTask}
+                    query={filter.query}
                     selectedTaskIds={bulkSelection.selectedTaskIds}
                     visibleTaskIds={filter.visibleTaskIds}
                 />

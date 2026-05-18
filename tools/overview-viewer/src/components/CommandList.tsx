@@ -40,6 +40,7 @@ export function CommandList({
     expandedControls,
     onActivateWorkstream,
     onSelectTask,
+    query = '',
     selectedTaskIds = new Set(),
     visibleTaskIds,
 }: {
@@ -48,6 +49,7 @@ export function CommandList({
     expandedControls: ExpandedControls
     onActivateWorkstream?: (workstream: string) => void
     onSelectTask?: (taskId: string, selected: boolean) => void
+    query?: string
     selectedTaskIds?: Set<string>
     visibleTaskIds?: Set<string>
 }) {
@@ -73,6 +75,7 @@ export function CommandList({
                         onActivateWorkstream={onActivateWorkstream}
                         onOpenChange={setTaskExpanded}
                         onSelectTask={onSelectTask}
+                        query={query}
                     />
                 ))}
             </div>

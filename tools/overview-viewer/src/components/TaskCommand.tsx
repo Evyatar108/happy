@@ -5,6 +5,7 @@ import { useTaskClassification } from '../hooks/useTaskClassification'
 import type { OverviewData, OverviewTask, OverviewWarning, RunRecord } from '../types'
 import { writeClipboard } from '../utils/clipboard'
 import { buildCopyCommandText } from '../utils/copyCommand'
+import { highlightMatches } from '../utils/searchHighlighting'
 import { PHASE_TO_BADGE_TEXT } from '../utils/taskClassification'
 import { linkBlockedOnHtml } from '../utils/warnings'
 import { RunsLog } from './RunsLog'
@@ -46,12 +47,22 @@ interface TaskCommandProps {
     onActivateWorkstream?: (workstream: string) => void
     onOpenChange: (id: string, open: boolean) => void
     onSelectTask?: (id: string, selected: boolean) => void
+    query?: string
     selected?: boolean
 }
 
 function stopToggle(event: MouseEvent<HTMLElement>) {
     event.stopPropagation()
     event.preventDefault()
+}
+
+function escapeHtml(text: string): string {
+    return text.replace(/[&<>"]/g, (char) => {
+        if (char === '&') return '&amp;'
+        if (char === '<') return '&lt;'
+        if (char === '>') return '&gt;'
+        return '&quot;'
+    })
 }
 
 export function StatusBadge({ phase }: { phase?: string }) {
@@ -236,7 +247,7 @@ export function SpawnedChildren({ taskId, childrenByParent }: { taskId: string; 
     )
 }
 
-export function TaskCommand({ task, data, taskIds, childrenByParent, changed = false, hidden = false, open, onActivateWorkstream, onOpenChange, onSelectTask, selected = false }: TaskCommandProps) {
+export function TaskCommand({ task, data, taskIds, childrenByParent, changed = false, hidden = false, open, onActivateWorkstream, onOpenChange, onSelectTask, query = '', selected = false }: TaskCommandProps) {
     const { orderBucket } = useTaskClassification(task)
     const command = task.command
     const scopes = parseTaskScope(task.scope)
@@ -244,6 +255,8 @@ export function TaskCommand({ task, data, taskIds, childrenByParent, changed = f
     const size = data.sizeBucket?.[task.id]
     const cadence = data.cadence?.[task.id] ?? 'one-shot'
     const parentId = data.spawnedFrom?.[task.id]
+    const commandNameHtml = highlightMatches(escapeHtml(command?.name || task.id), query)
+    const descriptionHtml = highlightMatches(command?.descriptionHtml ?? '', query)
 
     return (
         <details
@@ -269,7 +282,7 @@ export function TaskCommand({ task, data, taskIds, childrenByParent, changed = f
                     disabled={command?.planPrompt === null || command?.planPrompt === undefined}
                     onSelectTask={onSelectTask}
                 />
-                <span className="cmd-name">{command?.name || task.id}</span>
+                <span className="cmd-name" dangerouslySetInnerHTML={{ __html: commandNameHtml }} />
                 <span className="cmd-scope-cluster">
                     {scopes.length === 0 ? (
                         <span
@@ -286,7 +299,7 @@ export function TaskCommand({ task, data, taskIds, childrenByParent, changed = f
                         <span className={`cmd-status-mod ${task.status}`}>{task.status}</span>
                     ) : null}
                 </span>
-                <span className="cmd-desc" dangerouslySetInnerHTML={{ __html: command?.descriptionHtml ?? '' }} />
+                <span className="cmd-desc" dangerouslySetInnerHTML={{ __html: descriptionHtml }} />
                 <WorkstreamPill task={task} data={data} onActivateWorkstream={onActivateWorkstream} />
                 {changed ? <span className="new-badge" title={`Changed since your last visit (${data.lastTouched?.[task.id] ?? task.lastTouchedAt ?? ''})`}>NEW</span> : null}
                 <SpawnedFromPill parentId={parentId} />
