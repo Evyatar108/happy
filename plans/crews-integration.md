@@ -82,7 +82,7 @@ Task state is stored in `OVERVIEW_DATA.tasks[]` in `plans/overview-data.js` (the
    - Done (`done`) → flip the task's `phase` to `shipped` or `closed` based on whether the PR landed.
    - Blocked (`blocked`) → set `status` to `blocked`, surface the blocker from the summary.
    - Question (`question`) → flag so you can `/send-to-member <story-id> "<answer>"` to unblock.
-3. Save `plans/overview-data.js`; `plans/overview.html` will reflect the changes on reload.
+3. Save `plans/overview-data.js`; the dev viewer (`pnpm overview`) will reflect the changes on reload via the custom Vite HMR plugin. To update the static `plans/overview.html` artifact, run `pnpm overview:build`.
 
 The data plane is `plans/overview-data.js`; do not hand-edit the HTML directly.
 
