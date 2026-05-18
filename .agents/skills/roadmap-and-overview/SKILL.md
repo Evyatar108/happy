@@ -36,8 +36,12 @@ bookkeeping, `main` should usually be checked out.
 
 - `plans/overview-data.js` - primary file for procedures A-F. It is a
   single top-level assignment: `window.OVERVIEW_DATA = { ... };`.
-- `plans/overview.html` - static renderer. Edit only for procedure G or
-  renderer/storage-key changes.
+- `plans/overview.html` - generated build artifact emitted by
+  `pnpm overview:build`. Do not hand-edit; regenerate it after renderer
+  changes in `tools/overview-viewer/`.
+- `tools/overview-viewer/src/` - React/Vite renderer source. All UI,
+  component, hook, util, and `styles.css` changes live here (see procedures
+  F and G). Tests live under `tools/overview-viewer/src/__tests__/`.
 - `plans/parallel-assignments.md` - derived operator-facing command list and
   status table. Update when the operator expects markdown tracking to stay in
   sync, but never treat it as the canonical data source.
@@ -341,8 +345,14 @@ change would be lost on the next `pnpm overview:build`.
 
 1. Decide whether the feature is data-only or renderer/UI. Data-only fields go
    into `plans/overview-data.js`; renderer/UI changes go into
-   `plans/overview.html`.
-2. Preserve `file://` compatibility. Do not add fetch-only data loading.
+   `tools/overview-viewer/src/` (TSX components, hooks, utils, and
+   `styles.css`), then rebuild via `pnpm overview:build` to regenerate
+   `plans/overview.html`. Do not hand-edit `plans/overview.html`; it is a
+   generated build artifact and your change would be lost on the next
+   `pnpm overview:build` (and would also bypass the test suite under
+   `tools/overview-viewer/src/__tests__/`).
+2. Preserve `file://` compatibility for the built artifact. Do not add
+   fetch-only data loading; the build inlines `overview-data.js`.
 3. Keep `overview-data.js` as one top-level `window.OVERVIEW_DATA = { ... };`
    assignment. No IIFE, no module syntax, no conditional setup.
 4. Match existing CSS tokens and compact dashboard styling. Test dark, light,
