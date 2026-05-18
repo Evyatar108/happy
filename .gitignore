@@ -85,30 +85,14 @@ docs/competition/opencode/traces/
 # Ralph orchestration plugin state.
 #
 # Track plan / PRD / notepad / review-output / job-state artifacts under
-#   .ralph/jobs/<name>/
-#   .ralph/job-groups/<name>/
-#   .ralph/brainstorms/<name>/
-# so a Ralph cycle's intent + outputs are reviewable alongside the code it produced.
+# .ralph/jobs/, .ralph/job-groups/, .ralph/brainstorms/ — they're reviewable
+# alongside the code each cycle produced.
 #
-# Ignore bulky / transient subdirectories: per-job worktrees (full repo clones with
-# node_modules etc.), verbose iteration logs, per-iteration failure dumps, lock
-# files, and transient cleanup-mid-cycle breadcrumbs.
+# Only ignore:
+# - per-job worktrees (multi-GB full repo clones with node_modules etc.)
+# - ralph.sh batch logs (multi-MB verbose stdout dumps per iteration)
 .ralph/**/worktree/
-.ralph/**/staging/
-.ralph/**/logs/
-.ralph/**/failures/
-.ralph/**/*.log
-.ralph/**/*.tmp
-.ralph/**/*.lock
-
-# Plan-with-ralph and brainstorm-with-ralph handoff breadcrumbs (transient; cleaned
-# by the skill at Phase 5, may exist briefly mid-run).
-.ralph/jobs/.plan-handoff.json
-.ralph/brainstorms/.brainstorm-handoff-*.json
-
-# Ralph-internal: lifecycle telemetry (large) and legacy review state.
-.ralph/telemetry/
-.ralph/reviews/
+.ralph/**/.ralph-batch*.log
 
 # happy-server runtime log directory (rich pino logs from the running service).
 # Contents are time-stamped per-process; not source-controlled.
