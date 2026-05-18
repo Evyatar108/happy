@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { CommandList } from './components/CommandList'
+import { CopyToast } from './components/CopyToast'
 import { Kanban } from './components/Kanban'
 import { PhaseTree } from './components/PhaseTree'
 import { DependenciesSection, Footnote, ParallelismSection } from './components/StaticSections'
@@ -12,6 +13,7 @@ import { useHashNav } from './hooks/useHashNav'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useMultiAxisFilter } from './hooks/useMultiAxisFilter'
 import { usePersistentExpanded } from './hooks/usePersistentExpanded'
+import { useToast } from './hooks/useToast'
 import { useUrlFilter } from './hooks/useUrlFilter'
 import { useWhatsNewSinceLastVisit } from './hooks/useWhatsNewSinceLastVisit'
 import type { OverviewData } from './types'
@@ -36,6 +38,7 @@ export function App() {
     const filter = useMultiAxisFilter(data, taskIdFilter)
     const bulkSelection = useBulkSelection(data.tasks ?? [])
     const whatsNew = useWhatsNewSinceLastVisit(data)
+    const toast = useToast()
     useHashNav(expandedControls.setTaskExpanded)
 
     useEffect(() => {
@@ -95,8 +98,10 @@ export function App() {
                 searchRef={searchRef}
                 selectedCount={bulkSelection.selectedTaskIds.size}
                 setQuery={filter.setQuery}
+                showToast={toast.showToast}
                 toggleFilter={filter.toggleFilter}
             />
+            <CopyToast text={toast.currentToast} />
             <KeyboardHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
             <p className="mental-model">
                 <strong>Kanban</strong> to choose · <strong>Ralph commands</strong> to execute · <strong>Phase tree</strong> to orient
@@ -110,6 +115,7 @@ export function App() {
                 onSelectTask={bulkSelection.toggleTask}
                 query={filter.query}
                 selectedTaskIds={bulkSelection.selectedTaskIds}
+                showToast={toast.showToast}
                 taskIdFilter={taskIdFilter}
                 visibleTaskIds={filter.visibleTaskIds}
             />

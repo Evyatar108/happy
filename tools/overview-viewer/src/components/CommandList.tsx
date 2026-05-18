@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 
 import type { usePersistentExpanded } from '../hooks/usePersistentExpanded'
 import type { useUrlFilter } from '../hooks/useUrlFilter'
+import type { ShowToast } from '../hooks/useToast'
 import type { OverviewData, OverviewTask } from '../types'
 import { orderBucketForTask } from '../utils/taskClassification'
 import { TaskCommand } from './TaskCommand'
@@ -68,6 +69,7 @@ export function CommandList({
     onSelectTask,
     query = '',
     selectedTaskIds = new Set(),
+    showToast,
     taskIdFilter,
     visibleTaskIds,
 }: {
@@ -78,6 +80,7 @@ export function CommandList({
     onSelectTask?: (taskId: string, selected: boolean) => void
     query?: string
     selectedTaskIds?: Set<string>
+    showToast?: ShowToast
     taskIdFilter?: TaskIdFilter
     visibleTaskIds?: Set<string>
 }) {
@@ -111,6 +114,7 @@ export function CommandList({
                             onActivateWorkstream={onActivateWorkstream}
                             onOpenChange={setTaskExpanded}
                             onSelectTask={onSelectTask}
+                            showToast={showToast}
                             query={query}
                         />
                     ))}

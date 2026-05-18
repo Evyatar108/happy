@@ -1,9 +1,11 @@
 import type { MouseEvent, ReactNode } from 'react'
 
 import { parseTaskScope } from '../data/copyPreambles'
+import { useCopiedFeedback } from '../hooks/useCopiedFeedback'
 import { useTaskClassification } from '../hooks/useTaskClassification'
+import type { ShowToast } from '../hooks/useToast'
 import type { OverviewData, OverviewTask, OverviewWarning, RunRecord } from '../types'
-import { writeClipboard } from '../utils/clipboard'
+import { copyTextWithToast } from '../utils/copyFeedback'
 import { buildCopyCommandText } from '../utils/copyCommand'
 import { highlightMatches } from '../utils/searchHighlighting'
 import { PHASE_TO_BADGE_TEXT } from '../utils/taskClassification'
@@ -47,6 +49,7 @@ interface TaskCommandProps {
     onActivateWorkstream?: (workstream: string) => void
     onOpenChange: (id: string, open: boolean) => void
     onSelectTask?: (id: string, selected: boolean) => void
+    showToast?: ShowToast
     query?: string
     selected?: boolean
 }
@@ -96,16 +99,17 @@ export function BulkSelectCheckbox({ disabled, onSelectTask, selected, taskId }:
     )
 }
 
-export function CopyNameButton({ taskId }: { taskId: string }) {
+export function CopyNameButton({ showToast, taskId }: { showToast?: ShowToast; taskId: string }) {
+    const [copied, markCopied] = useCopiedFeedback()
     return (
         <button
             type="button"
-            className="copy-name-btn"
+            className={`copy-name-btn ${copied ? 'copied' : ''}`.trim()}
             title={`Copy task name "${taskId}" to clipboard`}
             data-copy-text={taskId}
-            onClick={(event) => {
+            onClick={async (event) => {
                 stopToggle(event)
-                void writeClipboard(taskId)
+                if (await copyTextWithToast({ label: taskId, text: taskId, showToast })) markCopied()
             }}
         >
             Copy Name
@@ -113,16 +117,17 @@ export function CopyNameButton({ taskId }: { taskId: string }) {
     )
 }
 
-export function CopyCommandButton({ task }: { task: OverviewTask }) {
+export function CopyCommandButton({ showToast, task }: { showToast?: ShowToast; task: OverviewTask }) {
+    const [copied, markCopied] = useCopiedFeedback()
     const raw = task.command?.planPrompt ?? ''
     if (task.command?.planPrompt === null || task.command?.planPrompt === undefined) return null
     return (
         <button
             type="button"
-            className="copy-btn"
-            onClick={(event) => {
+            className={`copy-btn ${copied ? 'copied' : ''}`.trim()}
+            onClick={async (event) => {
                 stopToggle(event)
-                void writeClipboard(buildCopyCommandText(raw, task.scope))
+                if (await copyTextWithToast({ label: task.id, text: buildCopyCommandText(raw, task.scope), showToast })) markCopied()
             }}
         >
             Copy Command
@@ -247,7 +252,7 @@ export function SpawnedChildren({ taskId, childrenByParent }: { taskId: string; 
     )
 }
 
-export function TaskCommand({ task, data, taskIds, childrenByParent, changed = false, hidden = false, open, onActivateWorkstream, onOpenChange, onSelectTask, query = '', selected = false }: TaskCommandProps) {
+export function TaskCommand({ task, data, taskIds, childrenByParent, changed = false, hidden = false, open, onActivateWorkstream, onOpenChange, onSelectTask, showToast, query = '', selected = false }: TaskCommandProps) {
     const { orderBucket } = useTaskClassification(task)
     const command = task.command
     const scopes = parseTaskScope(task.scope)
@@ -304,8 +309,8 @@ export function TaskCommand({ task, data, taskIds, childrenByParent, changed = f
                 {changed ? <span className="new-badge" title={`Changed since your last visit (${data.lastTouched?.[task.id] ?? task.lastTouchedAt ?? ''})`}>NEW</span> : null}
                 <SpawnedFromPill parentId={parentId} />
                 <div className="cmd-actions">
-                    <CopyCommandButton task={task} />
-                    <CopyNameButton taskId={task.id} />
+                    <CopyCommandButton task={task} showToast={showToast} />
+                    <CopyNameButton taskId={task.id} showToast={showToast} />
                 </div>
             </summary>
             <div className="cmd-body">

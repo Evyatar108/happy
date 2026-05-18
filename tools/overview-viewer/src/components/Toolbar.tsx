@@ -1,7 +1,9 @@
 import type { RefObject } from 'react'
 
+import { useCopiedFeedback } from '../hooks/useCopiedFeedback'
+import type { ShowToast } from '../hooks/useToast'
+import { copyTextWithToast } from '../utils/copyFeedback'
 import type { ActiveFilters, FilterAxis } from '../utils/filters'
-import { writeClipboard } from '../utils/clipboard'
 
 const FILTER_GROUPS: Array<{ axis: FilterAxis; title: string; chips: Array<{ value: string; label: string }> }> = [
     { axis: 'status', title: 'Status', chips: [
@@ -77,20 +79,29 @@ export function FilterChips({ activeFilters, onToggle }: { activeFilters: Active
     )
 }
 
-export function BulkCopyButton({ copyText, selectedCount }: { copyText: string; selectedCount: number }) {
+export function BulkCopyButton({ copyText, selectedCount, showToast }: { copyText: string; selectedCount: number; showToast?: ShowToast }) {
+    const [copied, markCopied] = useCopiedFeedback()
     return (
-        <button id="bulk-copy" className="bulk-btn" type="button" disabled={selectedCount === 0} onClick={() => void writeClipboard(copyText)}>
+        <button
+            id="bulk-copy"
+            className={`bulk-btn ${copied ? 'copied' : ''}`.trim()}
+            type="button"
+            disabled={selectedCount === 0}
+            onClick={async () => {
+                if (await copyTextWithToast({ label: `${selectedCount} selected`, text: copyText, showToast })) markCopied()
+            }}
+        >
             Copy {selectedCount} selected
         </button>
     )
 }
 
-export function Toolbar(props: { activeFilters: ActiveFilters; copyText: string; query: string; searchRef: RefObject<HTMLInputElement | null>; selectedCount: number; setQuery: (query: string) => void; toggleFilter: (axis: FilterAxis, value: string) => void }) {
+export function Toolbar(props: { activeFilters: ActiveFilters; copyText: string; query: string; searchRef: RefObject<HTMLInputElement | null>; selectedCount: number; setQuery: (query: string) => void; showToast?: ShowToast; toggleFilter: (axis: FilterAxis, value: string) => void }) {
     return (
         <div className="toolbar" id="toolbar" role="search">
             <SearchInput query={props.query} searchRef={props.searchRef} setQuery={props.setQuery} />
             <FilterChips activeFilters={props.activeFilters} onToggle={props.toggleFilter} />
-            <BulkCopyButton copyText={props.copyText} selectedCount={props.selectedCount} />
+            <BulkCopyButton copyText={props.copyText} selectedCount={props.selectedCount} showToast={props.showToast} />
             <span className="kbd-hint" title="Press ? for keyboard shortcuts">?</span>
         </div>
     )
