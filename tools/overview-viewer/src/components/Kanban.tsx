@@ -3,6 +3,7 @@ import type { CSSProperties, MouseEvent } from 'react'
 import type { KanbanColumnName, OverviewData, OverviewTask } from '../types'
 import { parseInlineStyle } from '../utils/inlineStyleParser'
 import { countKanbanCards, orderedKanbanCardsByColumn, type OrderedKanbanCard } from '../utils/kanbanOrdering'
+import { Legend } from './TopLevelSurfaces'
 
 const COLUMN_META: Record<KanbanColumnName, { id: string; title: string; badge: string; badgeClass: string }> = {
     ready: { id: 'kanban-ready', title: 'Ready now', badge: 'assignable', badgeClass: 'b-now' },
@@ -42,13 +43,13 @@ function shouldNavigateFromClick(event: MouseEvent<HTMLDivElement>, taskId: stri
     return href === `#cmd-${taskId}`
 }
 
-export function KanbanCard({ data, item, onJumpToCommand }: { data: OverviewData; item: OrderedKanbanCard; onJumpToCommand: (taskId: string) => void }) {
+export function KanbanCard({ data, hidden = false, item, onJumpToCommand }: { data: OverviewData; hidden?: boolean; item: OrderedKanbanCard; onJumpToCommand: (taskId: string) => void }) {
     const { task, card } = item
     const workstream = data.workstream?.[task.id]
 
     return (
         <div
-            className={`card${card.cardClass ? ` ${card.cardClass}` : ''}`}
+            className={`card${card.cardClass ? ` ${card.cardClass}` : ''}${hidden ? ' card-hidden' : ''}`}
             style={parseInlineStyle(card.inlineStyle) as CSSProperties | undefined}
             data-task-id={task.id}
             data-rendered-task="true"
@@ -63,7 +64,7 @@ export function KanbanCard({ data, item, onJumpToCommand }: { data: OverviewData
     )
 }
 
-export function KanbanColumn({ data, column, cards, onJumpToCommand }: { data: OverviewData; column: KanbanColumnName; cards: OrderedKanbanCard[]; onJumpToCommand: (taskId: string) => void }) {
+export function KanbanColumn({ data, column, cards, onJumpToCommand, visibleTaskIds }: { data: OverviewData; column: KanbanColumnName; cards: OrderedKanbanCard[]; onJumpToCommand: (taskId: string) => void; visibleTaskIds?: Set<string> }) {
     const meta = COLUMN_META[column]
     return (
         <div className="col" id={meta.id}>
@@ -72,13 +73,13 @@ export function KanbanColumn({ data, column, cards, onJumpToCommand }: { data: O
                 <span className={`badge ${meta.badgeClass}`}>{meta.badge}</span>
             </div>
             {cards.map((item, index) => (
-                <KanbanCard key={`${item.task.id}-${index}`} data={data} item={item} onJumpToCommand={onJumpToCommand} />
+                <KanbanCard key={`${item.task.id}-${index}`} data={data} item={item} hidden={visibleTaskIds ? !visibleTaskIds.has(item.task.id) : false} onJumpToCommand={onJumpToCommand} />
             ))}
         </div>
     )
 }
 
-export function Kanban({ data, onJumpToCommand }: { data: OverviewData; onJumpToCommand: (taskId: string) => void }) {
+export function Kanban({ data, onJumpToCommand, visibleTaskIds }: { data: OverviewData; onJumpToCommand: (taskId: string) => void; visibleTaskIds?: Set<string> }) {
     const tasks = data.tasks ?? []
     const columns = orderedKanbanCardsByColumn(tasks)
     const count = countKanbanCards(tasks)
@@ -95,20 +96,11 @@ export function Kanban({ data, onJumpToCommand }: { data: OverviewData; onJumpTo
                 </span>
                 Kanban — assignable now <span className="section-counts" id="counts-kanban">({count} cards)</span>
             </summary>
-            <div className="legend">
-                <span className="pill area-app">happy-app</span>
-                <span className="pill area-server">happy-server</span>
-                <span className="pill area-cli">happy-cli</span>
-                <span className="pill area-codex">codex / plugin</span>
-                <span className="pill area-multi">multi-package</span>
-                <span className="pill p-low">low risk</span>
-                <span className="pill p-med">medium risk</span>
-                <span className="pill p-high">high risk</span>
-            </div>
+            <Legend />
             <div className="kanban">
-                <KanbanColumn data={data} column="ready" cards={columns.ready} onJumpToCommand={onJumpToCommand} />
-                <KanbanColumn data={data} column="soon" cards={columns.soon} onJumpToCommand={onJumpToCommand} />
-                <KanbanColumn data={data} column="blocked" cards={columns.blocked} onJumpToCommand={onJumpToCommand} />
+                <KanbanColumn data={data} column="ready" cards={columns.ready} onJumpToCommand={onJumpToCommand} visibleTaskIds={visibleTaskIds} />
+                <KanbanColumn data={data} column="soon" cards={columns.soon} onJumpToCommand={onJumpToCommand} visibleTaskIds={visibleTaskIds} />
+                <KanbanColumn data={data} column="blocked" cards={columns.blocked} onJumpToCommand={onJumpToCommand} visibleTaskIds={visibleTaskIds} />
             </div>
         </details>
     )

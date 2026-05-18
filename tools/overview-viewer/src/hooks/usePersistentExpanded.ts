@@ -42,12 +42,24 @@ export function usePersistentExpanded() {
         })
     }, [])
 
+    const setAllExpanded = useCallback((ids: string[], open: boolean) => {
+        setExpanded((current) => {
+            const next = { ...current }
+            ids.forEach((id) => {
+                next[detailsKey(id)] = open
+            })
+            writeExpandedState(getLocalStorage(), next)
+            return next
+        })
+    }, [])
+
     return useMemo(
         () => ({
             expanded,
             isExpanded: (id: string) => expanded[detailsKey(id)] === true,
+            setAllExpanded,
             setTaskExpanded,
         }),
-        [expanded, setTaskExpanded],
+        [expanded, setAllExpanded, setTaskExpanded],
     )
 }

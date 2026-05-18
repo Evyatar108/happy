@@ -26,6 +26,7 @@ export interface OverviewTask {
     scope?: string
     phase?: string
     status?: string
+    lastTouchedAt?: string
     planOnly?: boolean
     mergeCommit?: string
     kanbanCards?: KanbanCardData[]
@@ -39,8 +40,10 @@ export interface PeriodicMeta {
 }
 
 export interface RunRecord {
+    id?: string
     taskId?: string
     ranAt?: string
+    outcome?: string
     summary?: string
     commits?: string[]
 }
@@ -85,7 +88,10 @@ export interface OverviewData {
     tasks?: OverviewTask[]
     phaseTree?: PhaseTreeEntry[]
     cadence?: Record<string, string>
+    effort?: Record<string, number>
+    lastTouched?: Record<string, string>
     periodic?: Record<string, PeriodicMeta>
+    risk?: Record<string, string>
     runs?: RunRecord[]
     sizeBucket?: Record<string, string>
     spawnedFrom?: Record<string, string>

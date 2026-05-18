@@ -8,6 +8,7 @@ import { loadOverviewData } from './testData'
 const expandedControls = {
     expanded: {},
     isExpanded: () => false,
+    setAllExpanded: () => undefined,
     setTaskExpanded: () => undefined,
 }
 
@@ -30,6 +31,7 @@ describe('CommandList', () => {
         expect(html).toContain('class="cadence-chip')
         expect(html).toContain('class="pill-spawned-from"')
         expect(html).toContain('class="spawned-children"')
+        expect(html).toContain('class="run-history"')
 
         const warningTask = data.tasks?.find((task) => task.command?.warnings?.length)
         const warning = warningTask?.command?.warnings?.[0]

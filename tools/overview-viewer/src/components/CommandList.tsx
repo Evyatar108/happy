@@ -16,7 +16,21 @@ function buildChildrenByParent(spawnedFrom: Record<string, string> | undefined):
 
 type ExpandedControls = ReturnType<typeof usePersistentExpanded>
 
-export function CommandList({ data, expandedControls }: { data: OverviewData; expandedControls: ExpandedControls }) {
+export function CommandList({
+    changedTaskIds = new Set(),
+    data,
+    expandedControls,
+    onSelectTask,
+    selectedTaskIds = new Set(),
+    visibleTaskIds,
+}: {
+    changedTaskIds?: Set<string>
+    data: OverviewData
+    expandedControls: ExpandedControls
+    onSelectTask?: (taskId: string, selected: boolean) => void
+    selectedTaskIds?: Set<string>
+    visibleTaskIds?: Set<string>
+}) {
     const tasks = data.tasks ?? []
     const taskIds = useMemo(() => tasks.map((task) => task.id), [tasks])
     const childrenByParent = useMemo(() => buildChildrenByParent(data.spawnedFrom), [data.spawnedFrom])
@@ -32,8 +46,12 @@ export function CommandList({ data, expandedControls }: { data: OverviewData; ex
                         data={data}
                         taskIds={taskIds}
                         childrenByParent={childrenByParent}
+                        changed={changedTaskIds.has(task.id)}
+                        hidden={visibleTaskIds ? !visibleTaskIds.has(task.id) : false}
+                        selected={selectedTaskIds.has(task.id)}
                         open={isExpanded(task.id)}
                         onOpenChange={setTaskExpanded}
+                        onSelectTask={onSelectTask}
                     />
                 ))}
             </div>

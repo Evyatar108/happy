@@ -3,9 +3,11 @@ import type { MouseEvent, ReactNode } from 'react'
 import { parseTaskScope } from '../data/copyPreambles'
 import { useTaskClassification } from '../hooks/useTaskClassification'
 import type { OverviewData, OverviewTask, OverviewWarning, RunRecord } from '../types'
+import { writeClipboard } from '../utils/clipboard'
 import { buildCopyCommandText } from '../utils/copyCommand'
 import { PHASE_TO_BADGE_TEXT } from '../utils/taskClassification'
 import { linkBlockedOnHtml } from '../utils/warnings'
+import { RunsLog } from './RunsLog'
 
 const SCOPE_LABELS: Record<string, { text: string; title: string }> = {
     bookkeeping: {
@@ -38,32 +40,17 @@ interface TaskCommandProps {
     data: OverviewData
     taskIds: string[]
     childrenByParent: Record<string, string[]>
+    changed?: boolean
+    hidden?: boolean
     open: boolean
     onOpenChange: (id: string, open: boolean) => void
+    onSelectTask?: (id: string, selected: boolean) => void
+    selected?: boolean
 }
 
 function stopToggle(event: MouseEvent<HTMLElement>) {
     event.stopPropagation()
     event.preventDefault()
-}
-
-async function writeClipboard(text: string): Promise<boolean> {
-    if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text)
-        return true
-    }
-
-    const textarea = document.createElement('textarea')
-    textarea.value = text
-    textarea.style.position = 'fixed'
-    textarea.style.opacity = '0'
-    document.body.appendChild(textarea)
-    textarea.select()
-    try {
-        return document.execCommand('copy')
-    } finally {
-        document.body.removeChild(textarea)
-    }
 }
 
 export function StatusBadge({ phase }: { phase?: string }) {
@@ -81,13 +68,18 @@ export function ScopeChip({ scope }: { scope: string }) {
     )
 }
 
-export function BulkSelectCheckbox({ taskId }: { taskId: string }) {
+export function BulkSelectCheckbox({ disabled, onSelectTask, selected, taskId }: { disabled?: boolean; onSelectTask?: (id: string, selected: boolean) => void; selected?: boolean; taskId: string }) {
     return (
         <input
             type="checkbox"
             className="cmd-select"
             aria-label={`Select ${taskId} for bulk copy`}
+            checked={selected ?? false}
+            disabled={disabled}
+            readOnly={!onSelectTask}
+            title={disabled ? 'No command to copy (closed / placeholder)' : undefined}
             onClick={(event) => event.stopPropagation()}
+            onChange={(event) => onSelectTask?.(taskId, event.currentTarget.checked)}
         />
     )
 }
@@ -242,7 +234,7 @@ export function SpawnedChildren({ taskId, childrenByParent }: { taskId: string; 
     )
 }
 
-export function TaskCommand({ task, data, taskIds, childrenByParent, open, onOpenChange }: TaskCommandProps) {
+export function TaskCommand({ task, data, taskIds, childrenByParent, changed = false, hidden = false, open, onOpenChange, onSelectTask, selected = false }: TaskCommandProps) {
     const { orderBucket } = useTaskClassification(task)
     const command = task.command
     const scopes = parseTaskScope(task.scope)
@@ -253,7 +245,7 @@ export function TaskCommand({ task, data, taskIds, childrenByParent, open, onOpe
 
     return (
         <details
-            className="cmd"
+            className={`cmd ${hidden ? 'cmd-hidden' : ''} ${changed ? 'cmd-changed' : ''}`.trim()}
             id={`cmd-${task.id}`}
             data-task-id={task.id}
             data-task-scope={task.scope}
@@ -269,7 +261,12 @@ export function TaskCommand({ task, data, taskIds, childrenByParent, open, onOpe
             onToggle={(event) => onOpenChange(task.id, event.currentTarget.open)}
         >
             <summary>
-                <BulkSelectCheckbox taskId={task.id} />
+                <BulkSelectCheckbox
+                    taskId={task.id}
+                    selected={selected}
+                    disabled={command?.planPrompt === null || command?.planPrompt === undefined}
+                    onSelectTask={onSelectTask}
+                />
                 <span className="cmd-name">{command?.name || task.id}</span>
                 <span className="cmd-scope-cluster">
                     {scopes.length === 0 ? (
@@ -289,6 +286,7 @@ export function TaskCommand({ task, data, taskIds, childrenByParent, open, onOpe
                 </span>
                 <span className="cmd-desc" dangerouslySetInnerHTML={{ __html: command?.descriptionHtml ?? '' }} />
                 <WorkstreamPill task={task} data={data} />
+                {changed ? <span className="new-badge" title={`Changed since your last visit (${data.lastTouched?.[task.id] ?? task.lastTouchedAt ?? ''})`}>NEW</span> : null}
                 <SpawnedFromPill parentId={parentId} />
                 <div className="cmd-actions">
                     <CopyCommandButton task={task} />
@@ -300,6 +298,7 @@ export function TaskCommand({ task, data, taskIds, childrenByParent, open, onOpe
                     <Warning key={index} warning={warning} taskIds={taskIds} />
                 ))}
                 {command?.planPrompt !== null && command?.planPrompt !== undefined ? <pre className="cmd-pre">{command.planPrompt || ''}</pre> : null}
+                <RunsLog runs={(data.runs ?? []).filter((run) => run.taskId === task.id)} />
                 <SpawnedChildren taskId={task.id} childrenByParent={childrenByParent} />
             </div>
         </details>
