@@ -44,6 +44,21 @@ bookkeeping, `main` should usually be checked out.
 - `plans/codexu-roadmap.md` - durable roadmap context. Update only for
   material roadmap wording, not every status flip.
 
+## Viewing
+
+For interactive development of the roadmap viewer, run `pnpm overview` from
+the repo root and open `http://localhost:5173`. The Vite app watches
+`plans/overview-data.js` and reloads the shipped data contract without
+restarting the server.
+
+To rebuild the static file that can be opened via `file://`, run
+`pnpm overview:build`; it emits the inlined artifact directly to
+`plans/overview.html`.
+
+The React renderer intentionally derives phase-tree task-ref classes from the
+referenced task. `blocked` or `paused` tasks render with the `deferred` class,
+which is a deliberate readability deviation from the `9f81c1f8` baseline.
+
 ## Core Data Model
 
 `plans/overview-data.js` owns this shape:
