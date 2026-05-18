@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 
 import { CommandList } from './components/CommandList'
 import { Kanban } from './components/Kanban'
+import { PhaseTree } from './components/PhaseTree'
 import { usePersistentExpanded } from './hooks/usePersistentExpanded'
 import type { OverviewData } from './types'
 import { navigateToCommand } from './utils/commandNavigation'
@@ -45,6 +46,7 @@ export function App() {
                 <strong>Kanban</strong> to choose · <strong>Ralph commands</strong> to execute · <strong>Phase tree</strong> to orient
             </p>
             <Kanban data={data} onJumpToCommand={(taskId) => navigateToCommand(taskId, expandedControls.setTaskExpanded)} />
+            <PhaseTree data={data} />
             <CommandList data={data} expandedControls={expandedControls} />
         </main>
     )
