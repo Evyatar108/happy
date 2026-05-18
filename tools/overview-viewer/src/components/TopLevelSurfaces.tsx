@@ -1,3 +1,4 @@
+import * as Dialog from '@radix-ui/react-dialog'
 import type { ReactNode } from 'react'
 
 import type { OverviewData } from '../types'
@@ -42,23 +43,32 @@ export function UrlFilterBanner({ taskIdFilter }: { taskIdFilter: Set<string> | 
     )
 }
 
-export function KeyboardHelp({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function KeyboardHelp({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
     return (
-        <>
-            <div className={`kbd-backdrop ${open ? 'visible' : ''}`} id="kbd-backdrop" onClick={onClose} />
-            <div className={`kbd-help ${open ? 'visible' : ''}`} id="kbd-help" role="dialog" aria-label="Keyboard shortcuts">
-                <h3>Keyboard shortcuts</h3>
-                <table>
-                    <tbody>
-                        <tr><td><kbd>/</kbd></td><td>Focus search</td></tr>
-                        <tr><td><kbd>Esc</kbd></td><td>Clear search / close help</td></tr>
-                        <tr><td><kbd>e</kbd></td><td>Expand all sections</td></tr>
-                        <tr><td><kbd>c</kbd></td><td>Collapse all sections</td></tr>
-                        <tr><td><kbd>?</kbd></td><td>Toggle this help</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </>
+        <Dialog.Root open={open} onOpenChange={onOpenChange}>
+            <Dialog.Trigger asChild>
+                <button className="kbd-hint" type="button" title="Press ? for keyboard shortcuts" aria-label="Keyboard shortcuts">?</button>
+            </Dialog.Trigger>
+            <Dialog.Portal>
+                <Dialog.Overlay className="kbd-backdrop" id="kbd-backdrop" />
+                <Dialog.Content className="kbd-help" id="kbd-help" aria-label="Keyboard shortcuts">
+                    <Dialog.Title asChild>
+                        <h3>Keyboard shortcuts</h3>
+                    </Dialog.Title>
+                    <Dialog.Description className="sr-only">Keyboard shortcuts for overview navigation</Dialog.Description>
+                    <Dialog.Close className="kbd-close" type="button" aria-label="Close keyboard shortcuts" title="Close keyboard shortcuts">x</Dialog.Close>
+                    <table>
+                        <tbody>
+                            <tr><td><kbd>/</kbd></td><td>Focus search</td></tr>
+                            <tr><td><kbd>Esc</kbd></td><td>Clear search / close help</td></tr>
+                            <tr><td><kbd>e</kbd></td><td>Expand all sections</td></tr>
+                            <tr><td><kbd>c</kbd></td><td>Collapse all sections</td></tr>
+                            <tr><td><kbd>?</kbd></td><td>Toggle this help</td></tr>
+                        </tbody>
+                    </table>
+                </Dialog.Content>
+            </Dialog.Portal>
+        </Dialog.Root>
     )
 }
 

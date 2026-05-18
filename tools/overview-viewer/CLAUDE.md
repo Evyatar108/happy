@@ -63,6 +63,10 @@ Row summary quick actions live in `TaskCommand`'s `QuickActions`. Copy actions m
 
 App owns row-density state through `useDensity()`. Reuse the versioned `codexu-overview-density-v1` key and the `body.compact` class for compact-mode styling instead of adding a second density store or component-local body mutation.
 
+## Radix surfaces
+
+Phase C interaction tests live under `src/__tests__/interactions/` and run in the jsdom Vitest project. `KeyboardHelp` owns its Radix Dialog trigger/content, while `App` owns the `helpOpen` state so the `?` keyboard shortcut and the toolbar trigger stay in sync.
+
 ## Trusted-HTML boundaries
 
 `dangerouslySetInnerHTML` sites consume operator-authored HTML strings from the data file (kanban card html, command description html, phase-tree node html, static parallelism/dependencies tables). These are NOT user input — the data file is hand-curated. Command names are plain text and must be escaped before using HTML rendering for search highlighting.

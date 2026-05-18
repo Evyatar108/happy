@@ -28,11 +28,12 @@ describe('density preference', () => {
     }
 
     it('renders the toolbar density toggle with comfortable and compact states', () => {
+        const toolbarProps = { activeFilters, copyText: '', helpOpen: false, onHelpOpenChange: () => undefined, query: '', searchRef: { current: null }, selectedCount: 0, setQuery: () => undefined, toggleDensity: () => undefined, toggleFilter: () => undefined }
         const comfortable = renderToStaticMarkup(
-            createElement(Toolbar, { activeFilters, copyText: '', density: 'comfortable', query: '', searchRef: { current: null }, selectedCount: 0, setQuery: () => undefined, toggleDensity: () => undefined, toggleFilter: () => undefined }),
+            createElement(Toolbar, { ...toolbarProps, density: 'comfortable' }),
         )
         const compact = renderToStaticMarkup(
-            createElement(Toolbar, { activeFilters, copyText: '', density: 'compact', query: '', searchRef: { current: null }, selectedCount: 0, setQuery: () => undefined, toggleDensity: () => undefined, toggleFilter: () => undefined }),
+            createElement(Toolbar, { ...toolbarProps, density: 'compact' }),
         )
 
         expect(comfortable).toContain('class="density-toggle"')

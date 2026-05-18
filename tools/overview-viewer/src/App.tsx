@@ -5,7 +5,7 @@ import { CopyToast } from './components/CopyToast'
 import { Kanban } from './components/Kanban'
 import { PhaseTree } from './components/PhaseTree'
 import { DependenciesSection, Footnote, ParallelismSection } from './components/StaticSections'
-import { FreshnessHint, KeyboardHelp, Layout, WhatsNewBanner } from './components/TopLevelSurfaces'
+import { FreshnessHint, Layout, WhatsNewBanner } from './components/TopLevelSurfaces'
 import { TodayPanel } from './components/TodayPanel'
 import { Toolbar } from './components/Toolbar'
 import { useBulkSelection } from './hooks/useBulkSelection'
@@ -97,6 +97,8 @@ export function App() {
                 activeFilters={filter.activeFilters}
                 copyText={bulkSelection.copyText}
                 density={density.density}
+                helpOpen={helpOpen}
+                onHelpOpenChange={setHelpOpen}
                 query={filter.query}
                 searchRef={searchRef}
                 selectedCount={bulkSelection.selectedTaskIds.size}
@@ -106,7 +108,6 @@ export function App() {
                 toggleFilter={filter.toggleFilter}
             />
             <CopyToast text={toast.currentToast} />
-            <KeyboardHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
             <p className="mental-model">
                 <strong>Kanban</strong> to choose · <strong>Ralph commands</strong> to execute · <strong>Phase tree</strong> to orient
             </p>

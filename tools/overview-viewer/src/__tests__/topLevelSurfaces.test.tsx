@@ -17,7 +17,7 @@ describe('top-level overview surfaces', () => {
                 <FreshnessHint data={data} />
                 <TodayPanel data={data} nowMs={Date.parse('2026-05-14T22:00:00Z')} />
                 <UrlFilterBanner taskIdFilter={new Set(['perf-WS3', 'polish-Fs'])} />
-                <KeyboardHelp open={true} onClose={() => undefined} />
+                <KeyboardHelp open={true} onOpenChange={() => undefined} />
                 <ParallelismSection />
                 <DependenciesSection />
                 <Footnote />

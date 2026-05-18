@@ -5,6 +5,7 @@ import type { Density } from '../hooks/useDensity'
 import type { ShowToast } from '../hooks/useToast'
 import { copyTextWithToast } from '../utils/copyFeedback'
 import type { ActiveFilters, FilterAxis } from '../utils/filters'
+import { KeyboardHelp } from './TopLevelSurfaces'
 
 const FILTER_GROUPS: Array<{ axis: FilterAxis; title: string; chips: Array<{ value: string; label: string }> }> = [
     { axis: 'status', title: 'Status', chips: [
@@ -112,14 +113,14 @@ export function DensityToggleButton({ density, onToggle }: { density: Density; o
     )
 }
 
-export function Toolbar(props: { activeFilters: ActiveFilters; copyText: string; density: Density; query: string; searchRef: RefObject<HTMLInputElement | null>; selectedCount: number; setQuery: (query: string) => void; showToast?: ShowToast; toggleDensity: () => void; toggleFilter: (axis: FilterAxis, value: string) => void }) {
+export function Toolbar(props: { activeFilters: ActiveFilters; copyText: string; density: Density; helpOpen: boolean; onHelpOpenChange: (open: boolean) => void; query: string; searchRef: RefObject<HTMLInputElement | null>; selectedCount: number; setQuery: (query: string) => void; showToast?: ShowToast; toggleDensity: () => void; toggleFilter: (axis: FilterAxis, value: string) => void }) {
     return (
         <div className="toolbar" id="toolbar" role="search">
             <SearchInput query={props.query} searchRef={props.searchRef} setQuery={props.setQuery} />
             <FilterChips activeFilters={props.activeFilters} onToggle={props.toggleFilter} />
             <DensityToggleButton density={props.density} onToggle={props.toggleDensity} />
             <BulkCopyButton copyText={props.copyText} selectedCount={props.selectedCount} showToast={props.showToast} />
-            <span className="kbd-hint" title="Press ? for keyboard shortcuts">?</span>
+            <KeyboardHelp open={props.helpOpen} onOpenChange={props.onHelpOpenChange} />
         </div>
     )
 }
