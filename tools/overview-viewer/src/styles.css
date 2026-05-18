@@ -331,6 +331,19 @@
   details.toolbar-filters[open] > summary::after { content: ' ⏶'; }
   details.toolbar-filters > summary:hover { color: var(--fg); border-color: var(--accent); }
   details.toolbar-filters[open] > summary { background: var(--accent); color: white; border-color: var(--accent); }
+  .density-toggle {
+    background: var(--card);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .density-toggle:hover,
+  .density-toggle[aria-pressed="true"] { color: var(--fg); border-color: var(--accent); }
   /* Grouped filter popover (Status / Workstream / Size) */
   details.toolbar-filters .filter-popover {
     position: absolute;
@@ -816,6 +829,9 @@
     border-radius: 6px;
     padding: 8px 12px;
   }
+  body.compact .cmd { padding: 4px 8px; }
+  body.compact .cmd-desc,
+  body.compact .sub { display: none; }
   .cmd > summary {
     cursor: pointer;
     display: flex;

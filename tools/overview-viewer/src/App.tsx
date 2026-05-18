@@ -9,6 +9,7 @@ import { FreshnessHint, KeyboardHelp, Layout, WhatsNewBanner } from './component
 import { TodayPanel } from './components/TodayPanel'
 import { Toolbar } from './components/Toolbar'
 import { useBulkSelection } from './hooks/useBulkSelection'
+import { useDensity } from './hooks/useDensity'
 import { useHashNav } from './hooks/useHashNav'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useMultiAxisFilter } from './hooks/useMultiAxisFilter'
@@ -37,6 +38,7 @@ export function App() {
     const taskIdFilter = useUrlFilter()
     const filter = useMultiAxisFilter(data, taskIdFilter)
     const bulkSelection = useBulkSelection(data.tasks ?? [])
+    const density = useDensity()
     const whatsNew = useWhatsNewSinceLastVisit(data)
     const toast = useToast()
     useHashNav(expandedControls.setTaskExpanded)
@@ -94,11 +96,13 @@ export function App() {
             <Toolbar
                 activeFilters={filter.activeFilters}
                 copyText={bulkSelection.copyText}
+                density={density.density}
                 query={filter.query}
                 searchRef={searchRef}
                 selectedCount={bulkSelection.selectedTaskIds.size}
                 setQuery={filter.setQuery}
                 showToast={toast.showToast}
+                toggleDensity={density.toggleDensity}
                 toggleFilter={filter.toggleFilter}
             />
             <CopyToast text={toast.currentToast} />

@@ -1,6 +1,7 @@
 import type { RefObject } from 'react'
 
 import { useCopiedFeedback } from '../hooks/useCopiedFeedback'
+import type { Density } from '../hooks/useDensity'
 import type { ShowToast } from '../hooks/useToast'
 import { copyTextWithToast } from '../utils/copyFeedback'
 import type { ActiveFilters, FilterAxis } from '../utils/filters'
@@ -96,11 +97,27 @@ export function BulkCopyButton({ copyText, selectedCount, showToast }: { copyTex
     )
 }
 
-export function Toolbar(props: { activeFilters: ActiveFilters; copyText: string; query: string; searchRef: RefObject<HTMLInputElement | null>; selectedCount: number; setQuery: (query: string) => void; showToast?: ShowToast; toggleFilter: (axis: FilterAxis, value: string) => void }) {
+export function DensityToggleButton({ density, onToggle }: { density: Density; onToggle: () => void }) {
+    const compact = density === 'compact'
+    return (
+        <button
+            className="density-toggle"
+            type="button"
+            aria-pressed={compact}
+            title={compact ? 'Switch to comfortable density' : 'Switch to compact density'}
+            onClick={onToggle}
+        >
+            {compact ? 'Compact' : 'Comfortable'}
+        </button>
+    )
+}
+
+export function Toolbar(props: { activeFilters: ActiveFilters; copyText: string; density: Density; query: string; searchRef: RefObject<HTMLInputElement | null>; selectedCount: number; setQuery: (query: string) => void; showToast?: ShowToast; toggleDensity: () => void; toggleFilter: (axis: FilterAxis, value: string) => void }) {
     return (
         <div className="toolbar" id="toolbar" role="search">
             <SearchInput query={props.query} searchRef={props.searchRef} setQuery={props.setQuery} />
             <FilterChips activeFilters={props.activeFilters} onToggle={props.toggleFilter} />
+            <DensityToggleButton density={props.density} onToggle={props.toggleDensity} />
             <BulkCopyButton copyText={props.copyText} selectedCount={props.selectedCount} showToast={props.showToast} />
             <span className="kbd-hint" title="Press ? for keyboard shortcuts">?</span>
         </div>
