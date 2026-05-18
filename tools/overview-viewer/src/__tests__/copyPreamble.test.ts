@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 
 import { parseTaskScope } from '../data/copyPreambles'
 import { buildCopyCommandText } from '../utils/copyCommand'
-import { loadOverviewData, readRepoFile } from './testData'
+import { loadOverviewData, readBaselineRepoFile } from './testData'
 
 function readLegacyString(name: string): string {
-    const html = readRepoFile('plans/overview.html')
+    const html = readBaselineRepoFile('plans/overview.html')
     const match = html.match(new RegExp(String.raw`var ${name} =\s*([\s\S]*?);\r?\n\s*(?:var|function)`))
     if (!match) throw new Error(`Missing legacy string ${name}`)
     return new Function(`return ${match[1]}`)() as string
