@@ -30,6 +30,12 @@
       --purple: #7c3aed;
     }
   }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
   * { box-sizing: border-box; }
   body {
     margin: 0;
