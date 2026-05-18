@@ -457,5 +457,7 @@ plans/
 - If you are implementing a product feature, follow the ralph task prompt
   instead. This skill is for maintaining the dashboard and roadmap data.
 - If you are trying to regenerate the whole dashboard from scratch, stop and
-  read `plans/overview.html` and `plans/overview-data.js` end-to-end first.
-  Keep normal bookkeeping patch-based.
+  read `tools/overview-viewer/src/` (App.tsx + components + hooks) and
+  `plans/overview-data.js` end-to-end first; `plans/overview.html` is a
+  generated artifact and is not a useful study target. Keep normal bookkeeping
+  patch-based.
