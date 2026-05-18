@@ -378,9 +378,13 @@ change would be lost on the next `pnpm overview:build`.
    and narrow viewport when browser tooling is available.
 5. If you add localStorage, use a new versioned key. Current keys:
    `codexu-overview-details-state-v2` (open/closed state),
-   `codexu-overview-last-visit-v1` (what's-new banner), and
-   `codexu-overview-notes-v1` (operator scratch notes). The details key is
-   `v2`; do not resurrect the old `codexu-overview-details-state-v1` name.
+   `codexu-overview-last-visit-v1` (what's-new banner),
+   `codexu-overview-notes-v1` (operator scratch notes), and
+   `codexu-overview-density-v1` (comfortable / compact row density, toggles
+   `body.compact`). The details key is `v2`; do not resurrect the old
+   `codexu-overview-details-state-v1` name. The density key is `v1`; do not
+   introduce a parallel density store or component-local `body.compact`
+   mutation — reuse `useDensity()` from the renderer.
 
 ## Pitfalls
 

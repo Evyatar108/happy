@@ -18,10 +18,14 @@ src/
 ├── App.tsx               # top-level composition; reads window.OVERVIEW_DATA + owns the inline reloadOverviewData() HMR handler
 ├── main.tsx              # React entry; imports styles.css
 ├── styles.css            # verbatim port of plans/overview.html:6-1060 CSS (no Tailwind, no CSS-in-JS)
-├── components/           # TaskCommand, Kanban, PhaseTree, CommandList, Toolbar, TodayPanel, ...
-├── hooks/                # useTaskClassification, useBulkSelection, useMultiAxisFilter, usePersistentExpanded, ...
-├── utils/                # taskClassification, kanbanOrdering, copyCommand, urlFilter, whatsNew, freshness, ...
-└── __tests__/            # vitest unit tests; SSR tests run in node, interactions/**/*.test.tsx runs in jsdom
+├── components/           # TaskCommand, Kanban, PhaseTree, CommandList, Toolbar, TodayPanel, CopyToast, ...
+├── hooks/                # useTaskClassification, useBulkSelection, useMultiAxisFilter, usePersistentExpanded,
+│                         #   useDensity, useToast, useCopiedFeedback, ...
+├── utils/                # taskClassification, kanbanOrdering, copyCommand, urlFilter, whatsNew, freshness,
+│                         #   searchHighlighting, commandNavigation, copyFeedback, ...
+└── __tests__/
+    ├── *.test.tsx        # node SSR tests (default project) via react-dom/server
+    └── interactions/     # jsdom project: Radix surface tests (Tooltip, Dialog) via @testing-library/react
 overview.html             # Vite entry (NOT the build artifact in plans/)
 vite.config.ts            # includes the custom overviewDataPlugin (HMR sidecar watcher + serve + singleFile inline)
 vitest.config.ts          # split projects: node SSR tests + jsdom interaction tests
@@ -65,7 +69,12 @@ App owns row-density state through `useDensity()`. Reuse the versioned `codexu-o
 
 ## Radix surfaces
 
-Phase C interaction tests live under `src/__tests__/interactions/` and run in the jsdom Vitest project. `KeyboardHelp` owns its Radix Dialog trigger/content, while `App` owns the `helpOpen` state so the `?` keyboard shortcut and the toolbar trigger stay in sync.
+Phase C interaction tests live under `src/__tests__/interactions/` and run in the jsdom Vitest project. Current Radix-backed surfaces:
+
+- **`KeyboardHelp` + Radix Dialog (US-011)** — `KeyboardHelp` owns its Radix Dialog trigger/content. `App` owns the `helpOpen` state so the `?` keyboard shortcut and the toolbar trigger stay in sync. Dialog portal z-index must remain ≥ 100 so it renders above legacy `.kbd-help`-style surfaces.
+- **`WorkstreamPill` + Radix Tooltip (US-010)** — `WorkstreamPill` owns its Radix Tooltip trigger/content with the rendered label as the accessible name. Reuse the `WorkstreamPill` pattern for any future pill that needs a hover/focus tooltip — do not reintroduce `title=` attributes for keyboard-invisible hints.
+
+When adding a new Radix surface, mirror these conventions and add an interactions test alongside `interactions/keyboardHelpDialog.test.tsx` / `interactions/workstreamTooltip.test.tsx`.
 
 ## Trusted-HTML boundaries
 
