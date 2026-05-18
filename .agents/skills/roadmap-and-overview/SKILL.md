@@ -324,12 +324,18 @@ Worked edit example:
 
 1. Add the new workstream key to each relevant task in
    `OVERVIEW_DATA.workstream`.
-2. In `plans/overview.html`, add a filter chip under the workstream filter
-   group and add a display label to the `injectWorkstreamPills` labels map.
-3. Verify the filter chip, workstream pill, and URL filter still compose.
+2. In `tools/overview-viewer/src/components/Toolbar.tsx`, add a chip entry
+   to the `workstream` group inside `FILTER_GROUPS`, and add a matching
+   display label to the `WORKSTREAM_LABELS` map in
+   `tools/overview-viewer/src/components/TaskCommand.tsx`.
+3. Run `pnpm overview:build` so the inlined `plans/overview.html` artifact
+   picks up the renderer change, and verify the filter chip, workstream pill,
+   and URL filter still compose.
 
 This is one of the few normal procedures that touches both the data file and
-the HTML shell, because filter labels are renderer UI.
+the React renderer source, because filter labels are renderer UI. Do not
+hand-edit `plans/overview.html`; it is a generated build artifact and your
+change would be lost on the next `pnpm overview:build`.
 
 ### G. Adding a visualization feature
 
