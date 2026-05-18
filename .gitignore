@@ -84,15 +84,14 @@ docs/competition/opencode/traces/
 
 # Ralph orchestration plugin state.
 #
-# Track plan / PRD / notepad / review-output / job-state artifacts under
-# .ralph/jobs/, .ralph/job-groups/, .ralph/brainstorms/ — they're reviewable
-# alongside the code each cycle produced.
+# Track everything under .ralph/jobs/, .ralph/job-groups/, .ralph/brainstorms/
+# (plan, PRD, notepad, review outputs, job state, ralph.sh batch logs — all
+# reviewable alongside the code each cycle produced; batch logs in particular
+# are valuable forensic trails when debugging an agent's behavior).
 #
-# Only ignore:
-# - per-job worktrees (multi-GB full repo clones with node_modules etc.)
-# - ralph.sh batch logs (multi-MB verbose stdout dumps per iteration)
+# Only ignore per-job worktrees — those are multi-GB full repo clones
+# with node_modules and would balloon the git history immediately.
 .ralph/**/worktree/
-.ralph/**/.ralph-batch*.log
 
 # happy-server runtime log directory (rich pino logs from the running service).
 # Contents are time-stamped per-process; not source-controlled.
