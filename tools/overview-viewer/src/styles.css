@@ -826,19 +826,30 @@
     align-items: center;
     justify-content: flex-end;
   }
-  /* Status sort order — shipped first, then closed (obsolete-by-design),
-     paused, inprogress, ready, blocked last. Both shipped and closed
-     share the b-closed badge class; classifyAndOrderCmds tells them
-     apart by emoji prefix (✅ vs 🚫). Fallback 99 keeps unclassified
-     rows out of the way. */
+  /* Status sort order — brainstorm first, then shipped, closed, inprogress,
+     ready (in that bucket order). WITHIN each bucket, rows with
+     data-task-status="blocked" or "paused" fall to the tail (+1 order).
+     This is a deliberate UX deviation from the 9f81c1f8 baseline, which
+     ordered by phase only and interleaved blocked/paused rows with their
+     non-blocked peers — see tools/overview-viewer/README.md. Both shipped
+     and closed share the b-closed badge class; the order bucket tells them
+     apart by phase. Fallback 99 keeps unclassified rows out of the way. */
   details.cmd { order: 99; }
   details.cmd[data-cmd-status="brainstorm"] { order: 0; }
-  details.cmd[data-cmd-status="shipped"]  { order: 1; }
-  details.cmd[data-cmd-status="closed"]   { order: 2; }
-  details.cmd[data-cmd-status="paused"]   { order: 3; }
-  details.cmd[data-cmd-status="inprogress"] { order: 4; }
-  details.cmd[data-cmd-status="ready"]    { order: 5; }
-  details.cmd[data-cmd-status="blocked"]  { order: 6; }
+  details.cmd[data-cmd-status="brainstorm"][data-task-status="blocked"],
+  details.cmd[data-cmd-status="brainstorm"][data-task-status="paused"] { order: 1; }
+  details.cmd[data-cmd-status="shipped"]  { order: 2; }
+  details.cmd[data-cmd-status="shipped"][data-task-status="blocked"],
+  details.cmd[data-cmd-status="shipped"][data-task-status="paused"] { order: 3; }
+  details.cmd[data-cmd-status="closed"]   { order: 4; }
+  details.cmd[data-cmd-status="closed"][data-task-status="blocked"],
+  details.cmd[data-cmd-status="closed"][data-task-status="paused"] { order: 5; }
+  details.cmd[data-cmd-status="inprogress"] { order: 6; }
+  details.cmd[data-cmd-status="inprogress"][data-task-status="blocked"],
+  details.cmd[data-cmd-status="inprogress"][data-task-status="paused"] { order: 7; }
+  details.cmd[data-cmd-status="ready"]    { order: 8; }
+  details.cmd[data-cmd-status="ready"][data-task-status="blocked"],
+  details.cmd[data-cmd-status="ready"][data-task-status="paused"] { order: 9; }
   .b-ready { background: rgba(122,162,247,0.18); color: var(--accent); }
   .b-inprogress { background: rgba(224,175,104,0.25); color: var(--warn); }
   .b-blocked { background: rgba(86,95,137,0.25); color: var(--done); }

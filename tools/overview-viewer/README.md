@@ -38,6 +38,10 @@ pnpm overview:build
 
 Without the safe-name flag, Vite emits the inlined artifact directly to `plans/overview.html`.
 
-## Intentional Deviation
+## Intentional Deviations
 
-The phase tree derives task-ref classes from the referenced task instead of trusting legacy `phaseTree[].nodes[].state`: `shipped` maps to `donefade`, `closed` maps to `closed`, `blocked` or `paused` status maps to `deferred`, and everything else maps to `open`. The `deferred` class for blocked/paused task refs is a deliberate e-ink readability improvement over the `9f81c1f8` baseline.
+Two deliberate UX improvements over the `9f81c1f8` baseline:
+
+1. **Phase-tree `deferred` class** — the phase tree derives task-ref classes from the referenced task instead of trusting legacy `phaseTree[].nodes[].state`: `shipped` maps to `donefade`, `closed` maps to `closed`, `blocked` or `paused` status maps to `deferred`, and everything else maps to `open`. The `deferred` class for blocked/paused task refs is an e-ink readability improvement.
+
+2. **Command-row sub-order** — within each phase bucket in the Ralph command list, rows with `data-task-status="blocked"` or `"paused"` fall to the tail (+1 CSS `order` offset). The baseline ordered command rows by phase only and interleaved blocked/paused rows with their non-blocked peers in the same bucket; this is a UX improvement so the actionable rows stay at the top of each bucket. Implemented in `src/styles.css` via combined attribute selectors on the existing `data-cmd-status` + `data-task-status` attributes (no JS change). See the comment block above the `details.cmd[data-cmd-status="brainstorm"]` rule in `styles.css`.

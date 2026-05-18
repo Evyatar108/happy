@@ -72,6 +72,11 @@ The React renderer intentionally derives phase-tree task-ref classes from the
 referenced task. `blocked` or `paused` tasks render with the `deferred` class,
 which is a deliberate readability deviation from the `9f81c1f8` baseline.
 
+A second deliberate deviation: in the Ralph command list, rows with
+`status: "blocked"` or `"paused"` sort to the tail of their phase bucket
+instead of interleaving with non-blocked rows in the same bucket. The baseline
+ordered by phase only.
+
 ## Core Data Model
 
 `plans/overview-data.js` owns this shape:
