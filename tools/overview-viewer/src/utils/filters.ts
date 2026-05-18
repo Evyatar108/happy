@@ -33,6 +33,37 @@ export function toggleFilter(filters: ActiveFilters, axis: FilterAxis, value: st
     return next
 }
 
+// Build the command-row search haystack. Mirrors the legacy renderer's
+// `cmd.textContent.toLowerCase()` from plans/overview.html:2156 — the search
+// must hit anything rendered in the row, not just name/description/prompt.
+// That includes scope/phase/status/mergeCommit labels, workstream/size/cadence
+// labels from data lookups, the warning HTML, the spawned-from parent ID, and
+// the IDs of any spawned children that render as chips on this row.
+export function getTaskSearchHaystack(task: OverviewTask, data: OverviewData): string {
+    const taskId = task.id
+    const parts: (string | undefined | null)[] = [
+        taskId,
+        task.scope,
+        task.phase,
+        task.status,
+        task.mergeCommit,
+        task.command?.name,
+        task.command?.descriptionHtml,
+        task.command?.planPrompt,
+        data.workstream?.[taskId],
+        data.sizeBucket?.[taskId],
+        data.cadence?.[taskId],
+        data.spawnedFrom?.[taskId],
+    ]
+    task.command?.warnings?.forEach((warning) => parts.push(warning.html))
+    if (data.spawnedFrom) {
+        for (const [childId, parentId] of Object.entries(data.spawnedFrom)) {
+            if (parentId === taskId) parts.push(childId)
+        }
+    }
+    return parts.filter(Boolean).join(' ').toLowerCase()
+}
+
 export function matchesTaskFilter(task: OverviewTask, data: OverviewData, filters: ActiveFilters, query: string, taskIdFilter: Set<string> | null): boolean {
     const taskId = task.id
     const q = query.trim().toLowerCase()
@@ -47,11 +78,7 @@ export function matchesTaskFilter(task: OverviewTask, data: OverviewData, filter
     const cadenceOk = filters.cadence.size === 0 || filters.cadence.has(cadence)
     const scopeOk = filters.scope.size === 0 || scopes.some((scope) => filters.scope.has(scope))
     const idOk = !taskIdFilter || taskIdFilter.has(taskId)
-    const haystack = [task.id, task.command?.name, task.command?.descriptionHtml, task.command?.planPrompt]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-    const textOk = !q || haystack.includes(q)
+    const textOk = !q || getTaskSearchHaystack(task, data).includes(q)
     return statusOk && workstreamOk && sizeOk && cadenceOk && scopeOk && idOk && textOk
 }
 

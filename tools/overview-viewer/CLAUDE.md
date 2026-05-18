@@ -15,11 +15,11 @@ Vite + React 18 + TypeScript renderer for the codexu roadmap dashboard. Consumes
 
 ```
 src/
-├── App.tsx               # top-level composition; reads window.OVERVIEW_DATA via useOverviewData hook
+├── App.tsx               # top-level composition; reads window.OVERVIEW_DATA + owns the inline reloadOverviewData() HMR handler
 ├── main.tsx              # React entry; imports styles.css
 ├── styles.css            # verbatim port of plans/overview.html:6-1060 CSS (no Tailwind, no CSS-in-JS)
 ├── components/           # TaskCommand, Kanban, PhaseTree, CommandList, Toolbar, TodayPanel, ...
-├── hooks/                # useOverviewData, useTaskClassification, useBulkSelection, useMultiAxisFilter, ...
+├── hooks/                # useTaskClassification, useBulkSelection, useMultiAxisFilter, usePersistentExpanded, ...
 ├── utils/                # taskClassification, kanbanOrdering, copyCommand, urlFilter, whatsNew, freshness, ...
 └── __tests__/            # vitest unit tests (10 files / 24 tests; env: node)
 overview.html             # Vite entry (NOT the build artifact in plans/)
@@ -42,10 +42,10 @@ The custom Vite plugin in `vite.config.ts`:
 
 1. Serves `plans/overview-data.js` at `/overview-data.js` via dev middleware.
 2. Watches the file path. On change, emits a custom WebSocket event `overview-data:update`.
-3. `useOverviewData` subscribes via `import.meta.hot.on('overview-data:update')`, re-fetches with a cache-busting query string, and re-executes via `new Function(text)()` so `window.OVERVIEW_DATA` repopulates.
+3. An effect in `App.tsx` subscribes via `import.meta.hot.on('overview-data:update')` and invokes the inline `reloadOverviewData()` helper (also in `App.tsx`), which re-fetches with a cache-busting query string and re-executes via `new Function(text)()` so `window.OVERVIEW_DATA` repopulates.
 4. React re-renders; reconciliation preserves DOM state (open `<details>`, scroll, search filter, bulk-select).
 
-**Do not switch the sidecar to async / module loading or fetch-only delivery.** The static build inlines the sidecar; the dev server serves it synchronously before the React bundle runs. Both depend on the `window.OVERVIEW_DATA` global being populated before the first `useOverviewData` read.
+**Do not switch the sidecar to async / module loading or fetch-only delivery.** The static build inlines the sidecar; the dev server serves it synchronously before the React bundle runs. Both depend on the `window.OVERVIEW_DATA` global being populated before React mounts.
 
 ## Trusted-HTML boundaries
 

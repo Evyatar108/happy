@@ -405,8 +405,9 @@ change would be lost on the next `pnpm overview:build`.
 - **`overview-data.js` must load before the React bundle.** The built
   `plans/overview.html` inlines the sidecar via the build pipeline; in dev
   (`pnpm overview`), the custom Vite plugin serves `plans/overview-data.js` at
-  `/overview-data.js` so `window.OVERVIEW_DATA` is populated before
-  `useOverviewData` reads it. Do not switch the sidecar to async/module
+  `/overview-data.js` so `window.OVERVIEW_DATA` is populated before React mounts;
+  HMR re-fetch is wired by the inline `reloadOverviewData()` helper in
+  `tools/overview-viewer/src/App.tsx`. Do not switch the sidecar to async/module
   loading or fetch-only data delivery.
 - **`data-task-id` and `id="cmd-<taskId>"` are load-bearing.** Rendered command
   rows must emit both. URL hash navigation, filters, copy-name buttons, run
