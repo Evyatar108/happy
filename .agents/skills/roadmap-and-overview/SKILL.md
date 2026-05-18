@@ -444,13 +444,28 @@ plans/
 ├── codexu-roadmap.md
 ├── parallel-assignments.md
 ├── realtime-sync-perf.md
-├── overview.html
+├── overview.html        # generated artifact - see tools/overview-viewer/
 └── overview-data.js
+
+tools/overview-viewer/
+├── README.md
+├── overview.html        # Vite entry (NOT the artifact in plans/)
+├── package.json
+├── vite.config.ts
+└── src/
+    ├── App.tsx
+    ├── components/
+    ├── hooks/
+    ├── utils/
+    └── styles.css
 
 .agents/skills/
 └── roadmap-and-overview/
     └── SKILL.md
 ```
+
+`plans/overview.html` is generated from `tools/overview-viewer/` via
+`pnpm overview:build`.
 
 ## When NOT to use this skill
 
