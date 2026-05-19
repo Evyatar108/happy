@@ -12,6 +12,13 @@ declare module '../../../../scripts/lib/default-config.mjs' {
         outputs: {
             sidecarJs: string
             sidecarJson: string
+            snapshot: string
+            activity: string
+            activityBackup: string
+            dataJson: string
+            snapshotSchema: string
+            tasksIndex: string
+            activityMaxLines: number
         }
         lockFile: string
         watcher: {
@@ -20,6 +27,47 @@ declare module '../../../../scripts/lib/default-config.mjs' {
     }
 
     export const codexuDefaultConfig: Readonly<RalphOverviewConfig>
+}
+
+declare module '../../../../scripts/lib/emit-snapshot.mjs' {
+    import type { DependencyGraph, OverviewData, OverviewRalphState, Recommendation, Snapshot } from '../types'
+
+    export interface BuildSnapshotOptions {
+        ralphState: OverviewRalphState
+        overviewData: OverviewData
+        recommendations?: Recommendation[]
+        dependencyGraph?: DependencyGraph
+        runDurations?: Record<string, number>
+        generatedFromCommit?: string
+    }
+
+    export function buildSnapshot(options: BuildSnapshotOptions): Snapshot
+}
+
+declare module '../../../../scripts/lib/emit-activity.mjs' {
+    import type { ActivityEvent } from '../types'
+
+    export interface AppendActivityOptions {
+        activityPath: string
+        activityBackupPath: string
+        maxLines?: number
+    }
+
+    export function appendActivity(repoRoot: string, event: ActivityEvent, options: AppendActivityOptions): void
+    export function rotateActivity(activityPath: string, activityBackupPath: string): void
+}
+
+declare module '../../../../scripts/lib/emit-tasks-index.mjs' {
+    import type { Snapshot } from '../types'
+
+    export function buildTasksIndex(snapshot: Snapshot): string
+}
+
+declare module '../../../../scripts/lib/emit-snapshot-schema.mjs' {
+    export type JsonSchema = Record<string, unknown>
+
+    export const SNAPSHOT_SCHEMA: JsonSchema
+    export function writeSnapshotSchema(schemaPath: string): void
 }
 
 declare module '../../../../scripts/lib/resolve-config.mjs' {
