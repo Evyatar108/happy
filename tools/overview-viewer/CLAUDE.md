@@ -103,6 +103,8 @@ See `.agents/skills/roadmap-and-overview/SKILL.md` Procedure G for the bookkeepe
 
 Overview-viewer tests may import root ESM helper scripts such as `scripts/lib/*.mjs`. Under this package's `moduleResolution: "bundler"`, keep adjacent `*.d.mts` declarations next to the root `.mjs` files when TypeScript needs typed imports; a test-local ambient declaration alone is not enough for `tsc --noEmit`.
 
+When using fake timers in filesystem mtime assertions, set fake time relative to the real clock before touching files; hard-coded past timestamps can fail once wall time moves beyond the fixture date.
+
 Ralph overview sidecars are emitted by `scripts/lib/sync-core.mjs`. The `.js` and `.json` outputs must use the same `JSON.stringify(state)` payload after escaping `</script` as `<\/script`; the JS wrapper is only `window.OVERVIEW_RALPH_STATE = <json>;`.
 
 ## Cross-package

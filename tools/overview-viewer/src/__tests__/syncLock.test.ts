@@ -91,12 +91,13 @@ describe('sync-lock', () => {
     })
 
     it('touch refreshes mtime and tolerates a missing lock file', async () => {
+        const startTime = Date.now() + 60_000
         vi.useFakeTimers()
-        vi.setSystemTime(new Date('2026-05-19T10:00:00Z'))
+        vi.setSystemTime(new Date(startTime))
         const lockPath = makeLockPath()
         const handle = await acquireLock({ lockPath, processLabel: 'unit-test', staleAfterMs: 60_000 })
         const originalMtime = statSync(lockPath).mtimeMs
-        vi.setSystemTime(new Date('2026-05-19T10:00:10Z'))
+        vi.setSystemTime(new Date(startTime + 10_000))
 
         await touchLock(handle)
 

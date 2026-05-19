@@ -153,3 +153,41 @@ export interface OverviewData {
     spawnedFrom?: Record<string, string>
     workstream?: Record<string, string>
 }
+
+export interface Recommendation {
+    taskId?: string
+    score?: number
+    rationale?: string
+}
+
+export interface DependencyGraph {
+    nodes: Array<{ id: string }>
+    edges: Array<{ from: string; to: string }>
+}
+
+export interface SnapshotTask extends OverviewTask {
+    ralph?: RalphPipelineState
+}
+
+export interface Snapshot {
+    generatedAt: string
+    generatedFromCommit: string
+    schemaVersion: 1
+    tasks: SnapshotTask[]
+    runs: RunRecord[]
+    recommendations: Recommendation[]
+    dependencyGraph: DependencyGraph
+    runDurations: Record<string, number>
+    unmatched: Array<{ kind: string; slug: string; reason: string }>
+    unmatchedSummary: Record<string, number>
+}
+
+export interface ActivityEvent {
+    ts: string
+    slug: string
+    taskId?: string
+    prevStage?: RalphStage | null
+    newStage?: RalphStage | null
+    changedFields: string[]
+    reason: 'sync' | 'watch-event' | 'manual'
+}
