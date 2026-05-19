@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codexu.local/schemas/overview-config.schema.json",
+  "title": "Codexu Overview Ralph Config",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "dataFile": { "type": "string" },
+    "ralphRoot": { "type": "string" },
+    "ralphSubdirs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "jobs": { "type": "string" },
+        "jobGroups": { "type": "string" },
+        "brainstorms": { "type": "string" }
+      }
+    },
+    "outputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sidecarJs": { "type": "string" },
+        "sidecarJson": { "type": "string" }
+      }
+    },
+    "lockFile": { "type": "string" },
+    "watcher": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ignored": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}
+

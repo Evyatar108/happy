@@ -92,6 +92,7 @@ docs/competition/opencode/traces/
 # Only ignore per-job worktrees — those are multi-GB full repo clones
 # with node_modules and would balloon the git history immediately.
 .ralph/**/worktree/
+.ralph/overview-config.local.json
 
 # happy-server runtime log directory (rich pino logs from the running service).
 # Contents are time-stamped per-process; not source-controlled.
