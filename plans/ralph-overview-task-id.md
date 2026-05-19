@@ -201,7 +201,7 @@ Prerequisite: settle the Section 6.1 metadata-format decision before any of the 
 
 Recommended sequence:
 
-0. Conditional `implement-with-ralph`: land this first, before steps 1-4, only if Section 6.1 resolution A is selected. (If Section 6.1 resolution B or C is chosen, skip this step entirely.)
+0. Conditional `implement-with-ralph`: land this first, before steps 1-4, only if Section 6.1 resolution A is selected. (If Section 6.1 resolution B is chosen, skip this step entirely.)
 1. `convert-to-ralph-prd`: add canonical `--overview-task-id`, write PRD field, update `prd-schema.json`, and whitelist the schema guard.
 2. `brainstorm-with-ralph`: write brainstorm field and selected-direction metadata using the chosen metadata format.
 3. `plan-with-ralph`: read brainstorm metadata and write plan metadata using the same chosen format.
