@@ -68,7 +68,7 @@ Plans 02 (watcher), 03 (UI chip), 04 (PipelineOverview), 06 (skills), 07 (contex
       },
       "consumerSetup": {
           "configFile": ".ralph/overview-config.json",
-          "configSchema": "${pluginPath}/scripts/lib/overview-config.schema.json",
+          "configSchema": "${pluginPath}/templates/overview-config.schema.json",
           "configTemplate": "${pluginPath}/templates/overview-config.template.json"
       }
   }
@@ -83,7 +83,8 @@ Plans 02 (watcher), 03 (UI chip), 04 (PipelineOverview), 06 (skills), 07 (contex
   5. First sync: `<plugin-cli> sync` (or invoke via `pnpm sync-ralph-state` if the consumer has wired the script).
 - **`docs/configuration.md`** — every config field documented with examples. References the JSON Schema.
 - **`docs/extending.md`** — how to add a new MCP tool, a new skill, a new stage; how to bump the stage predicate when Ralph plugin changes its schema.
-- **`templates/overview-config.template.json`** — config skeleton for new adopters. Uses placeholder paths (`plans/overview-data.js`, etc.) matching the most common convention but explicitly commented as "adjust to your layout."
+- **`templates/overview-config.template.json`** — config skeleton for new adopters. It should contain the Plan-01 keys only (`dataFile`, `ralphRoot`, `ralphSubdirs`, `outputs`, `lockFile`, `watcher.ignored`) plus any downstream keys that have actually shipped by extraction time. Use placeholder paths (`plans/overview-data.js`, etc.) matching the most common convention and explicitly document "adjust to your layout."
+- **`templates/overview-config.schema.json`** — copied from the consumer-side `.ralph/overview-config.schema.json` and extended only for downstream emitted artifacts that exist by extraction time. The schema is a plugin template, while the consumer's `.ralph/overview-config.json` remains in the consumer workspace.
 - **`templates/overview-data.template.js`** — minimal `OverviewData` example so a new adopter can see what the data file should look like.
 - **`scripts/`** — copy from codexu's `scripts/lib/*` and `scripts/sync-ralph-state.mjs`. All file paths inside use the resolved config (no hardcoded paths remain).
 - **`tools/overview-mcp/`** — copy from codexu. Rename `@codexu/overview-mcp` → `@ralph/overview-mcp` in `package.json`.

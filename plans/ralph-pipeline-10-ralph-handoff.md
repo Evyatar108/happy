@@ -95,10 +95,13 @@ None for the doc itself. (The doc DESCRIBES patches that, once landed in ralph-o
 
   ## Back-compat
 
-  Existing PRDs in `.ralph/jobs/*/prd.json` predate this field. The codexu overview sync
-  script reads `prd.overviewTaskId` if present, otherwise falls back to `ralphOverrides`
-  (hand-edited in `overview-data.js`) or slug-equality. No automatic backfill —
-  bookkeepers backfill manually as needed.
+  Existing PRDs in `.ralph/jobs/*/prd.json` predate this field. The Plan 01 sync
+  currently falls back to `ralphOverrides` (hand-edited in `overview-data.js`) or
+  slug-equality; `overviewTaskId` is a documented future match tier, not an active
+  Plan 01 consumer yet. After the Ralph plugin writes the field, a small codexu sync
+  follow-up should make `prd.overviewTaskId` / `group.json.overviewTaskId` /
+  `brainstorm.json.overviewTaskId` the highest-confidence match before overrides.
+  No automatic backfill — bookkeepers backfill manually as needed.
 
   Schema additions are non-breaking (new optional field).
 
@@ -191,4 +194,4 @@ D. **Handoff command:** the doc includes the verbatim command for the future Ral
 
 ## Hand-off
 
-After this plan ships (the doc exists in `plans/`), the user (or an agent) runs the documented command in the ralph-orchestration source tree. That cycle produces and ships the patches. Once the patches land in a new ralph-orchestration release, the codexu sync script will start picking up `overviewTaskId` automatically — no codexu-side code change required (the script already prefers it per Plan 01's matching contract).
+After this plan ships (the doc exists in `plans/`), the user (or an agent) runs the documented command in the ralph-orchestration source tree. That cycle produces and ships the patches. Once the patches land in a new ralph-orchestration release, codexu should add the matching-tier follow-up described in the doc so `overviewTaskId` supersedes overrides and slug equality; until then the Plan 01 sync remains on the two implemented tiers.

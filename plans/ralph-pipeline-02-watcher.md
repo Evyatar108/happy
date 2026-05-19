@@ -15,14 +15,14 @@ Translates to: chokidar watch, debounce window (default 2s), per-slug incrementa
 
 ## Dependencies
 
-- **Plan 01 (Foundation)** — required. Imports `scripts/lib/derive-ralph-stage.mjs` and `scripts/lib/sync-core.mjs` directly.
+- **Plan 01 (Foundation)** — required. Imports `scripts/lib/derive-ralph-stage.mjs` and `scripts/lib/sync-core.mjs` directly. The watcher must keep the Plan 01 contracts intact: `deriveRalphStage` receives a single bundle with `jobDirMarker`, sync-core owns direct-child walking/cross-kind collapse/nested-member suppression, and all paths come from `loadConfig`.
 
 ## Scope
 
 **In scope:**
 - New `scripts/lib/watch-ralph-state.mjs` — chokidar-based watcher exposing `{ start, stop, status }`.
 - Extension of `scripts/sync-ralph-state.mjs` to accept `--watch [--debounce-ms <N>]` flag.
-- Lock file `plans/.overview-ralph-state.lock` shared by one-shot and watch modes.
+- Lock file from `config.lockFile` (Plan 01 default: `.ralph/overview-sync.lock`) shared by one-shot and watch modes.
 - npm script `sync-ralph-state:watch` in root `package.json`.
 - Vite plugin auto-start: extension of `tools/overview-viewer/vite.config.ts` `overviewDataPlugin` to spawn the watcher at `configureServer` time and call its `stop()` on teardown.
 - Cold-start full walk before event-driven watching begins.
@@ -49,8 +49,8 @@ Translates to: chokidar watch, debounce window (default 2s), per-slug incrementa
 
 - **`scripts/sync-ralph-state.mjs`** — accept `--watch` flag. When present, after the cold-start one-shot sync, invoke `start({ ...args })` from `scripts/lib/watch-ralph-state.mjs` and block indefinitely (`process.stdin.resume()` or signal handlers). Accept `--debounce-ms <N>` (default 2000, clamp `[500, 30000]`).
 - **`scripts/lib/sync-core.mjs`** — expose two additional exports needed by the watcher:
-  - `deriveOneSlug({ repoRoot, slug, kind }) -> Promise<RalphPipelineState | null>` — pure re-derivation for ONE slug; returns `null` if the slug no longer exists on disk (deletion).
-  - `mergeAndWrite({ repoRoot, currentState, slugUpdates }) -> Promise<OverviewRalphState>` — merges per-slug updates into the in-memory `byTaskId`, atomic-writes the sidecar. Returns the new state.
+  - `deriveOneSlug({ repoRoot, config, generatedFromCommit, slug, kind }) -> Promise<RalphPipelineState | null>` — re-derivation for ONE slug using the same direct-child readers, parse-error policy, match resolution, and `jobDirMarker` behavior as the full walk. Returns `null` if the slug no longer exists on disk (deletion).
+  - `mergeAndWrite({ repoRoot, config, currentState, slugUpdates }) -> Promise<OverviewRalphState>` — merges per-slug updates into the in-memory `byTaskId`, then calls the existing atomic `writeSidecar`. Returns the new state.
 - **`tools/overview-viewer/vite.config.ts`** — extend `overviewDataPlugin` (or sibling plugin) at `configureServer`:
   - Dynamic-import `../../scripts/lib/watch-ralph-state.mjs`.
   - Call `start({ debounceMs: 2000, onWrite: () => server.ws.send({ type: 'custom', event: 'overview-ralph-state:update' }) })`.
@@ -97,7 +97,7 @@ Ordered steps:
 1. **Add `deriveOneSlug` + `mergeAndWrite` to `scripts/lib/sync-core.mjs`.** Both pure functions. `deriveOneSlug` reads only the files belonging to one slug; if the slug's directory is gone, returns `null`. `mergeAndWrite` takes a current state + a `Map<slug, RalphPipelineState | null>` of updates, applies them (null = delete entry), and writes both `.js` and `.json` atomically.
 2. **Create `scripts/lib/watch-ralph-state.mjs`** with chokidar:
    - On `start`:
-     - Acquire `plans/.overview-ralph-state.lock` via `fs.openSync(path, 'wx')`. On `EEXIST`, check mtime: if < 60s old, throw "another watcher holds lock"; else log "stale lock removed" and overwrite.
+    - Acquire `config.lockFile` via `fs.openSync(path, 'wx')`. On `EEXIST`, check mtime: if < 60s old, throw "another watcher holds lock"; else log "stale lock removed" and overwrite.
      - Perform a cold-start full walk via `walkRalphState` from Plan 01. Write sidecar. Set `currentState`.
      - Subscribe to chokidar events. On `add | change | unlink`, parse the path → slug + kind, push to `pendingSlugs: Set<string>`, reset debounce timer.
      - When debounce timer fires: for each slug in `pendingSlugs`, call `deriveOneSlug`. Collect results into a Map. Call `mergeAndWrite`. Clear `pendingSlugs`. Call `onWrite()` callback.
@@ -132,7 +132,7 @@ Ordered steps:
 - [ ] `scripts/lib/sync-core.mjs` exports `deriveOneSlug` and `mergeAndWrite` in addition to the Plan 01 exports.
 - [ ] `pnpm sync-ralph-state:watch` runs continuously and writes the sidecar atomically on file changes.
 - [ ] Default debounce is 2000 ms; `--debounce-ms <N>` clamps to `[500, 30000]`.
-- [ ] Lock file at `plans/.overview-ralph-state.lock`. Second instance startup fails fast if a fresh lock exists; stale lock (>60s) is overwritten with a warning.
+- [ ] Lock file at `config.lockFile` (default `.ralph/overview-sync.lock`). Second instance startup fails fast if a fresh lock exists; stale lock (>60s) is overwritten with a warning.
 - [ ] `pnpm overview` auto-starts the watcher (verifiable: kill `pnpm overview`, run again, the lock file appears within ~5s).
 - [ ] All Plan 01 acceptance criteria continue to pass (one-shot mode unchanged).
 - [ ] Tests for debounce / incremental / cold-start / lock / error-resilience pass.

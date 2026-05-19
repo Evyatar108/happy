@@ -52,54 +52,37 @@ The sync, watcher, and downstream code paths read from a single config resolver 
 ```jsonc
 {
     "$schema": "./overview-config.schema.json",
-    "dataFile": "plans/overview-data.js",                       // hand-curated source
+    "dataFile": "plans/overview-data.js",
+    "ralphRoot": ".ralph",
+    "ralphSubdirs": {
+        "jobs": "jobs",
+        "jobGroups": "job-groups",
+        "brainstorms": "brainstorms"
+    },
     "outputs": {
         "sidecarJs":        "plans/overview-ralph-state.js",
-        "sidecarJson":      "plans/overview-ralph-state.json",
-        "dataJson":         "plans/overview-data.json",         // Plan 05
-        "snapshot":         "plans/overview-snapshot.json",     // Plan 05
-        "activity":         "plans/overview-activity.jsonl",    // Plan 05
-        "schema":           "plans/overview-snapshot.schema.json", // Plan 05
-        "recommendations":  "plans/overview-recommendations.json", // Plan 04
-        "dependencyGraph":  "plans/overview-dependency-graph.json", // Plan 04
-        "tasksIndex":       "tasks/INDEX.md",                   // Plan 05
-        "journalDir":       "tasks"                             // Plan 07 (per-task journal lives under <journalDir>/<id>/journal.md)
+        "sidecarJson":      "plans/overview-ralph-state.json"
     },
-    "lockFile": "plans/.overview-ralph-state.lock",
-    "ralphRoot": ".ralph",                                     // walked for Ralph state
-    "crewsRoot": ".crews",                                     // walked for crew sessions (Plan 08)
+    "lockFile": ".ralph/overview-sync.lock",
     "watcher": {
-        "debounceMs": 2000,
         "ignored": [".worktrees/**", "**/.git/**", ".ralph/jobs/*/worktree/**", ".ralph/jobs/.staging/**", ".ralph/telemetry/**", ".crews/logs/**", ".crews/spawn-launchers/**"]
-    },
-    "devServer": {                                             // Plan 11
-        "command": "pnpm",
-        "args": ["overview"],
-        "readyRegex": "^\\s*Local:\\s+(\\S+)",
-        "readyTimeoutMs": 60000
-    },
-    "build": {                                                 // Plan 11
-        "command": "pnpm",
-        "args": ["overview:build"],
-        "outputPath": "plans/overview.html",
-        "maxBytes": 512000
-    },
-    "filters": {                                               // Plan 03 — controls toolbar chip groups
-        "workstream": "auto-derive",                           // "auto-derive" reads unique values from data.workstream;
-        "scope": "auto-derive"                                 //   or pass an explicit array of { value, label }
     }
 }
 ```
+
+Plan 01's config schema is intentionally trimmed to the keys above. Downstream plans add fields such as `outputs.snapshot`, `outputs.activity`, watcher debounce, dev-server commands, build output, filters, crew roots, and journal paths only when those features ship.
 
 **Resolver module: `scripts/lib/resolve-config.mjs`**
 
 ```js
 // signature:
-// loadConfig({ repoRoot }) -> ResolvedConfig
-//   - Reads .ralph/overview-config.json (if present), merges with built-in defaults.
-//   - Reads .ralph/overview-config.local.json (if present), merges on top.
+// loadConfig({ repoRoot, configPath? }) -> ResolvedConfig
+//   - Selects committed config path by default < OVERVIEW_CONFIG_PATH env var < configPath argument.
+//   - Reads .ralph/overview-config.json (or selected file) if present, merging with built-in defaults.
+//   - Reads the adjacent .local.json overlay if present, merging on top.
 //   - Resolves all paths to absolute paths against repoRoot.
-//   - Returns the fully-resolved object frozen via Object.freeze.
+//   - Returns the fully-resolved object deep-frozen via Object.freeze.
+//   - Warns, but does not throw, when configured ralphSubdirs are missing.
 ```
 
 ALL paths downstream (in `sync-core.mjs`, `watch-ralph-state.mjs`, `derive-ralph-stage.mjs`, MCP server, etc.) are read from the resolved config. The only callsite that hardcodes a path is `loadConfig` itself, which looks for `<repoRoot>/.ralph/overview-config.json` — and even that is overridable via the `OVERVIEW_CONFIG_PATH` environment variable for testing.
@@ -117,12 +100,12 @@ This makes the system **codexu-default but project-agnostic.** A future plugin e
 - **`scripts/lib/default-config.mjs`** — the codexu-default config object exported as a constant. Imported by `resolve-config.mjs`; useful for tests and for the schema documentation.
 - **`.ralph/overview-config.schema.json`** — JSON Schema describing the config shape. Hand-written; matches `default-config.mjs` field-for-field.
 - **`.ralph/overview-config.json`** — committed config file with codexu defaults (initially identical to `default-config.mjs` — present so the schema validates the actual deployment). Bookkeepers edit this to change paths.
-- **`scripts/lib/derive-ralph-stage.mjs`** — pure ESM module exporting `deriveRalphStage(jobState, prd, groupState, brainstormJson) -> RalphStage`. Implements the predicate table from "Stage derivation" below. Single source of truth; never duplicated elsewhere.
-- **`scripts/lib/sync-core.mjs`** — exports `walkRalphState({ repoRoot }) -> Promise<OverviewRalphState>` (one full walk) and `writeSidecar({ repoRoot, state }) -> Promise<void>` (atomic tmp + rename of both `.js` and `.json`). Internally calls `deriveRalphStage` for each slug.
-- **`scripts/sync-ralph-state.mjs`** — CLI wrapper. Parses `--repo <path>` (default: cwd from `git rev-parse --show-toplevel`). One-shot mode only in this plan: invoke `walkRalphState` → `writeSidecar`, log unmatched to stderr, exit 0 on success / 1 on hard errors.
-- **`plans/overview-ralph-state.js`** — first commit can contain `window.OVERVIEW_RALPH_STATE = { generatedAt: "...", generatedFromCommit: "...", byTaskId: {}, unmatched: [], unmatchedSummary: {} };` as bootstrap. Subsequent runs overwrite.
+- **`scripts/lib/derive-ralph-stage.mjs`** — pure ESM module exporting `deriveRalphStage({ jobState?, prd?, brainstormJson?, reviewOpenCount?, jobDirMarker? }) -> RalphStage`. Implements the predicate table from "Stage derivation" below. Single source of truth; never duplicated elsewhere.
+- **`scripts/lib/sync-core.mjs`** — exports `walkRalphState({ repoRoot, config, generatedFromCommit }) -> Promise<OverviewRalphState>` (one full walk) and `writeSidecar({ repoRoot, config, state }) -> Promise<void>` (atomic tmp + rename of both `.js` and `.json`). Internally calls `deriveRalphStage` for each matched slug after duplicate and cross-kind collapse.
+- **`scripts/sync-ralph-state.mjs`** — CLI wrapper. Parses `--repo <path>` (default: cwd from `git rev-parse --show-toplevel`) and `--config <path>`. One-shot mode only in this plan: invoke `loadConfig` → `walkRalphState` → `writeSidecar`, log unmatched to stderr, exit 0 on success / 1 on hard errors.
+- **`plans/overview-ralph-state.js`** — generated by the first `pnpm sync-ralph-state` run as `window.OVERVIEW_RALPH_STATE = <JSON>;`. Do not hand-bootstrap an empty state; the initial committed sidecar should reflect the live `.ralph/` walk.
 - **`plans/overview-ralph-state.json`** — JSON twin, identical inner shape minus the `window.OVERVIEW_RALPH_STATE = ` wrapper.
-- **`tools/overview-viewer/src/__tests__/ralphStage.test.ts`** — unit test importing `scripts/lib/derive-ralph-stage.mjs` and round-tripping one synthetic input per `RalphStage` value (9 cases). Resolve the import via relative path (`../../../../scripts/lib/derive-ralph-stage.mjs`) or via a workspace alias if one exists; do NOT publish the script as an npm package.
+- **`tools/overview-viewer/src/__tests__/ralphStage.test.ts`** — unit test importing `scripts/lib/derive-ralph-stage.mjs` and round-tripping one synthetic input per `RalphStage` value (10 stage cases plus edge cases). Resolve the import via relative path (`../../../../scripts/lib/derive-ralph-stage.mjs`) and the explicit `scripts.d.ts` ambient declaration; do NOT use wildcard module declarations or publish the script as an npm package.
 
 ### To modify
 
@@ -223,7 +206,7 @@ Fields like `CrewSessionRef`, `deferredQuestionsCount`, `branchName`, `prUrl`, `
 
 ```js
 // signature:
-// deriveRalphStage({ jobState?, prd?, groupState?, brainstormJson? }) -> RalphStage
+// deriveRalphStage({ jobState?, prd?, brainstormJson?, reviewOpenCount?, jobDirMarker? }) -> RalphStage
 ```
 
 Evaluate predicates in this order; first match wins:
@@ -232,13 +215,14 @@ Evaluate predicates in this order; first match wins:
 |---|---|---|
 | 1 | `jobState?.orchestrator?.terminal === true && jobState.orchestrator.terminalReason === 'complete'` | `shipped` |
 | 2 | `jobState?.status === 'BLOCKED'` OR `(jobState?.orchestrator?.terminal === true && jobState.orchestrator.terminalReason === 'blocked')` | `blocked` |
-| 3 | `jobState?.orchestrator?.phase` in `['5a','5b','5.5','6']` AND `jobState.orchestrator.terminal !== true` AND at least one of `reviewOpenCount.code > 0` or `reviewOpenCount.docs > 0` | `review-fix` |
-| 4 | `jobState?.orchestrator?.phase` in `['5a','5b','5.5','6']` AND `jobState.orchestrator.terminal !== true` AND (no findings file written yet OR all `reviewOpenCount.* === 0`) | `reviewing` |
-| 5 | `jobState` exists AND (orchestrator absent OR orchestrator.phase ∉ review phases) AND `terminal !== true` | `implementing` |
-| 6 | `prd` exists AND `jobState` absent | `plan-ready` |
-| 7 | `jobDir` exists AND `prd` absent | `planning` |
-| 8 | `brainstormJson?.recommendedDirection` is set AND no matching jobDir exists for the same overviewTaskId | `brainstorm-ready` |
-| 9 | `brainstormJson` exists AND `brainstormJson.recommendedDirection` is absent | `brainstorming` |
+| 3 | `jobState?.orchestrator?.terminal === true && jobState.orchestrator.terminalReason === 'replan'` | `replan-pending` |
+| 4 | `jobState?.orchestrator?.phase` in `['5a','5b','5.5','6']` AND `jobState.orchestrator.terminal !== true` AND at least one of `reviewOpenCount.code > 0` or `reviewOpenCount.docs > 0` | `review-fix` |
+| 5 | `jobState?.orchestrator?.phase` in `['5a','5b','5.5','6']` AND `jobState.orchestrator.terminal !== true` AND (missing findings file OR all present `reviewOpenCount.* === 0`) | `reviewing` |
+| 6 | `jobState` exists AND (orchestrator absent OR orchestrator.phase is implementing/unknown) AND `terminal !== true` | `implementing` |
+| 7 | `prd` exists AND `jobState` absent | `plan-ready` |
+| 8 | `jobDirMarker === true` AND `prd` absent AND `jobState` absent | `planning` |
+| 9 | `brainstormJson?.recommendedDirection` is set AND no matching job/group bundle wins cross-kind precedence | `brainstorm-ready` |
+| 10 | `brainstormJson` exists AND `brainstormJson.recommendedDirection` is absent | `brainstorming` |
 
 `reviewOpenCount` is computed from `<jobDir>/code-review-findings.json` and `<jobDir>/docs-review-findings.json`: count findings where `status === 'open' && severity ∈ {Critical, High, Medium}`. A missing findings file means `reviewOpenCount.<phase> === undefined` (NOT 0) — critical for distinguishing "reviewer hasn't run yet" from "reviewer ran and found nothing."
 
@@ -261,15 +245,14 @@ Ordered steps:
 1. **Add types** to `tools/overview-viewer/src/types.ts`. Run `pnpm --filter @codexu/overview-viewer typecheck` — should still pass (additions only).
 2. **Create config layer** — `scripts/lib/default-config.mjs`, `scripts/lib/resolve-config.mjs`, `.ralph/overview-config.schema.json`, `.ralph/overview-config.json` (with codexu defaults). Unit-test `resolve-config.mjs`: defaults applied when no file present, file content overrides defaults, `.local.json` overrides file, env var overrides path.
 3. **Create `scripts/lib/derive-ralph-stage.mjs`** with the predicate table. Inline JSDoc; no external deps. Does NOT consume config (it's a pure predicate over already-loaded data structures).
-4. **Create `scripts/lib/sync-core.mjs`** with `walkRalphState({ config, repoRoot })` and `writeSidecar({ config, repoRoot, state })`. Atomic write: write to `<file>.tmp` then `fs.renameSync(tmp, final)`. Walk:
+4. **Create `scripts/lib/sync-core.mjs`** with `walkRalphState({ config, repoRoot, generatedFromCommit })` and `writeSidecar({ config, repoRoot, state })`. Atomic write: write to `<file>.tmp` next to the destination, `fs.fsyncSync` the tmp file, then `fs.renameSync(tmp, final)` with 3 retries on `EBUSY`/`EACCES`/`EPERM`. Walk:
    - `fs.readdirSync(<config.ralphRoot>/jobs)` with `withFileTypes: true`; skip symlinks; for each entry, attempt to read `job-state.json`, `prd.json`, `code-review-findings.json`, `docs-review-findings.json`.
    - Same for `<config.ralphRoot>/job-groups/` and `<config.ralphRoot>/brainstorms/`.
    - Skip paths matching any pattern in `config.watcher.ignored`. Walk root is exactly `<repoRoot>/<config.ralphRoot>/`.
-5. **Create `scripts/sync-ralph-state.mjs`** CLI wrapper. Resolve repo root via `child_process.execFileSync('git', ['rev-parse', '--show-toplevel'])`. Call `loadConfig({ repoRoot })` first, then `walkRalphState({ config, repoRoot })`, then `writeSidecar({ config, repoRoot, state })`. Print unmatched to stderr.
-5. **Add npm script** in root `package.json`.
-6. **Bootstrap commit** of `plans/overview-ralph-state.{js,json}` with empty `byTaskId: {}` so the dev server doesn't 404 the file before the first sync runs (defensive; not strictly required since Plan 03 hasn't shipped the UI yet, but matches expected file presence).
-7. **Create the unit test** at `tools/overview-viewer/src/__tests__/ralphStage.test.ts` — 9 cases, one per stage value.
-8. **Run end-to-end**: `pnpm sync-ralph-state` against the current `.ralph/`. Inspect the generated sidecar by hand. Confirm `byTaskId` has entries for any jobs whose slug matches an `OverviewTask.id` (default slug-match). All other jobs land in `unmatched[]`.
+5. **Create `scripts/sync-ralph-state.mjs`** CLI wrapper. Resolve repo root via `child_process.execFileSync('git', ['rev-parse', '--show-toplevel'])`; resolve `generatedFromCommit` via `git rev-parse --short HEAD` with a warning-and-`unknown` fallback. Call `loadConfig({ repoRoot, configPath })`, then `walkRalphState({ config, repoRoot, generatedFromCommit })`, then `writeSidecar({ config, repoRoot, state })`. Print unmatched to stderr.
+6. **Add npm script** in root `package.json`.
+7. **Create the unit test** at `tools/overview-viewer/src/__tests__/ralphStage.test.ts` — 10 stage cases, missing review findings, every implementing phase, unknown future phase strings, and `jobDirMarker: true` planning.
+8. **Run end-to-end**: `pnpm sync-ralph-state` against the current `.ralph/` and commit the generated `plans/overview-ralph-state.{js,json}` files from that run. Inspect the generated sidecar by hand. Confirm `byTaskId` has entries for any jobs whose slug matches an `OverviewTask.id` or a hand-authored `ralphOverrides` entry. All other jobs land in `unmatched[]`.
 
 ## Acceptance criteria
 
@@ -281,7 +264,7 @@ Ordered steps:
 - [ ] `scripts/sync-ralph-state.mjs` runs end-to-end: `node scripts/sync-ralph-state.mjs` exits 0 from a clean checkout.
 - [ ] `plans/overview-ralph-state.js` and `plans/overview-ralph-state.json` exist after the sync runs. The JS file is `window.OVERVIEW_RALPH_STATE = <JSON>;` where `<JSON>` parses to the exact content of the JSON file.
 - [ ] `package.json` has `"sync-ralph-state": "node scripts/sync-ralph-state.mjs"`.
-- [ ] `pnpm --filter @codexu/overview-viewer test` includes `ralphStage.test.ts` and it passes all 9 stage-derivation cases.
+- [ ] `pnpm --filter @codexu/overview-viewer test` includes `ralphStage.test.ts` and it passes all 10 stage-derivation cases plus edge cases.
 - [ ] Existing tests under `tools/overview-viewer/src/__tests__/` are NOT modified — this plan's additions are signature-preserving and snapshot-stable for all existing test surfaces.
 
 - [ ] **Refresh downstream plans + INDEX.** After all other criteria pass, audit (a) the plans listed in this plan's "Hand-off to next plans" section and (b) `plans/ralph-pipeline-INDEX.md`'s "Source-of-truth modules" table and DAG diagram. Update any stale references — file paths, type signatures, function/export names, behavior contracts, module dependencies — that diverged from this plan's actual implementation. Apply updates atomically in the final implementation commit; in the commit message, list each diff (which file, which lines, what changed) so reviewers can verify the cascade.
@@ -292,19 +275,27 @@ Run from `D:\harness-efforts\codexu`:
 
 A. **Type check:** `pnpm --filter @codexu/overview-viewer typecheck` exits 0.
 
-B. **Stage derivation tests:** `pnpm --filter @codexu/overview-viewer test src/__tests__/ralphStage.test.ts` — all 9 cases pass.
+B. **Stage derivation tests:** `pnpm --filter @codexu/overview-viewer test src/__tests__/ralphStage.test.ts` — all 10 stage cases and edge cases pass.
 
 C. **One-shot sync:** `pnpm sync-ralph-state`. Confirm exit 0. `cat plans/overview-ralph-state.json | jq '.byTaskId | keys'` returns the expected matching task IDs. `cat plans/overview-ralph-state.json | jq '.unmatched | length'` shows how many Ralph artifacts have no matching `OverviewTask.id`.
 
-D. **Idempotency:** run `pnpm sync-ralph-state` twice in a row. `diff <(jq -S 'del(.generatedAt)' plans/overview-ralph-state.json) <(...second run...)` is empty (atomic write + deterministic output ignoring timestamps).
+D. **Idempotency:** run `pnpm sync-ralph-state` twice in a row, capturing both JS and JSON sidecars. After deleting only top-level `generatedAt`, the captured JSON states are equal and the parsed JS states are equal.
 
-E. **Slug-heuristic verification:** add `ralphOverrides: { "test-slug": "actual-task-id" }` to `overview-data.js` for one job whose slug differs from any task id. Re-run sync. Confirm `byTaskId["actual-task-id"]` now exists with `matchSource: 'override'`. Remove the override; re-run; the entry moves to `unmatched[]` with `reason: 'no-matching-task-id'`.
+E. **Slug-heuristic verification:** use a temp fixture copy of `overview-data.js`, add `ralphOverrides: { "test-slug": "actual-task-id" }`, and point a temp config's `dataFile` at that fixture. Re-run sync with `--config`. Confirm `byTaskId["actual-task-id"]` now exists with `matchSource: 'override'`. Remove the override in the fixture; re-run; the entry moves to `unmatched[]` with `reason: 'no-matching-task-id'`. Never edit the real `plans/overview-data.js` for this smoke.
 
-F. **JS+JSON consistency:** `node -e "require('./plans/overview-ralph-state.js'); console.log(JSON.stringify(globalThis.window?.OVERVIEW_RALPH_STATE ?? eval(require('fs').readFileSync('./plans/overview-ralph-state.js','utf8')).OVERVIEW_RALPH_STATE))"` (or simpler: parse both files and assert deep-equal). Both files agree on every byte of `byTaskId`, `unmatched`, `unmatchedSummary`, `generatedAt`, `generatedFromCommit`.
+F. **JS+JSON consistency:** parse both files and assert deep-equal. Both files agree on every byte of `byTaskId`, `unmatched`, `unmatchedSummary`, `generatedAt`, `generatedFromCommit`. Also grep the `.js` file for literal `</script`; it must not appear.
 
 G. **No-`.ralph` graceful handling:** in a throwaway checkout with `.ralph/` removed, `pnpm sync-ralph-state` exits 0, writes a valid sidecar with `byTaskId: {}` and `unmatched: []`.
 
 H. **Worktree exclusion:** if `.worktrees/<name>/.ralph/jobs/<test>/` exists, confirm the walk does NOT include it. Verify by `find` against the resolved walk paths.
+
+I. **Replan-pending derivation:** synthesize a `job-state.json` with `orchestrator.terminal=true` and `terminalReason='replan'`. The sidecar entry for that taskId reports `stage: 'replan-pending'`.
+
+J. **Cross-kind precedence:** simultaneously have `.ralph/jobs/<task>/` and `.ralph/brainstorms/<task>/` resolve to the same `OverviewTask.id`. Verify `byTaskId[<task>]` has the job's stage and `unmatched[]` includes the brainstorm with `reason: 'shadowed-by-job'`.
+
+K. **Windows rename retry:** the deterministic unit test mocks `fs.renameSync` to throw `EBUSY` twice, then succeed, and asserts `writeSidecar` resolves after three rename invocations.
+
+L. **`.gitignore` entry present:** `grep -F '.ralph/overview-config.local.json' .gitignore` exits 0.
 
 ## Common mistakes / confusion points
 
@@ -319,10 +310,11 @@ H. **Worktree exclusion:** if `.worktrees/<name>/.ralph/jobs/<test>/` exists, co
 
 After this plan ships:
 
-- **Plan 02 — Watcher** can begin. It imports `scripts/lib/derive-ralph-stage.mjs` and `scripts/lib/sync-core.mjs` directly.
-- **Plan 03 — UI chip** can begin. It imports `getOverviewRalphState()` from `types.ts` and the type model. No code-coupling to the sync script.
-- **Plan 05 — Agent exports** can begin. It extends `scripts/lib/sync-core.mjs` to emit additional generated artifacts (snapshot, activity, etc.).
-- **Plan 10 — Ralph plugin handoff doc** is fully independent of this plan; it documents future Ralph patches.
+- **Plan 02 — Watcher** can begin. It imports `scripts/lib/derive-ralph-stage.mjs` and `scripts/lib/sync-core.mjs` directly. It must respect the one-bundle predicate signature, config-driven paths, nested-member suppression, cross-kind precedence, and the shared `</script` sidecar escape rule.
+- **Plan 03 — UI chip** can begin. It imports `getOverviewRalphState()` from `types.ts` and the type model. The `RalphStage` union has 10 values, including `replan-pending`.
+- **Plan 05 — Agent exports** can begin. It extends `scripts/lib/sync-core.mjs` to emit additional generated artifacts (snapshot, activity, etc.) and should reuse the existing config resolver and atomic sidecar write helpers instead of creating local path logic.
+- **Plan 10 — Ralph plugin handoff doc** is fully independent of this plan; it documents future Ralph patches including the `overviewTaskId` field. Plan 01 does not consume `overviewTaskId` yet; slug overrides/default equality remain the implemented match tiers until that future patch lands.
+- **Plan 12 — Package as plugin** consumes `ralphSubdirs`, `ralphRoot`, and `OVERVIEW_CONFIG_PATH` to make this code portable to other repos.
 
 Plans 04, 06, 07, 08, 09 are blocked transitively on 03, 05, or 06; not directly on this plan.
 

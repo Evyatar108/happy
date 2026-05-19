@@ -18,7 +18,7 @@ This plan also addresses the issue that `plans/overview-ralph-state.js` is JS-on
 ## Scope
 
 **In scope:**
-- Generate `plans/overview-ralph-state.json` (sibling to `.js`, byte-identical inner content). NOTE: Plan 01 already generates both — this plan formalizes the dual-emit contract and adds the additional exports below.
+- Reuse `plans/overview-ralph-state.json` (sibling to `.js`, byte-identical inner content after stripping the JS wrapper). Plan 01 already generates both from the same escaped JSON payload; this plan consumes that contract and adds the additional exports below.
 - Generate `plans/overview-data.json` — read-only derived JSON twin of hand-curated `plans/overview-data.js`. Parses the JS via `new Function`, serializes the object. Useful for tools that can't eval JS.
 - Generate `plans/overview-snapshot.json` — aggregated merged view: `{ generatedAt, generatedFromCommit, tasks: [...], runs: [...], recommendations: [...], dependencyGraph: {...}, runDurations: {...}, schemaVersion: 1 }`.
 - Generate `plans/overview-activity.jsonl` — append-only log of watcher events.
@@ -52,7 +52,7 @@ This plan also addresses the issue that `plans/overview-ralph-state.js` is JS-on
 
 ### To modify
 
-- **`scripts/lib/sync-core.mjs`** — after sidecar `.js`/`.json` write and after the recommendations/dep-graph emissions from Plan 04:
+- **`scripts/lib/sync-core.mjs`** — extend the existing `writeSidecar({ repoRoot, config, state })` flow, preserving Plan 01's same-directory tmp/fsync/rename retry and `</script` escape behavior. After sidecar `.js`/`.json` write and after the recommendations/dep-graph emissions from Plan 04:
   - Read `overview-data.js` via the existing parse helper, serialize to `overview-data.json` (atomic).
   - Call `buildSnapshot(...)` and write to `overview-snapshot.json` (atomic).
   - Call `buildTasksIndex(snapshot)` and write to `tasks/INDEX.md` (atomic).
@@ -68,8 +68,9 @@ This plan also addresses the issue that `plans/overview-ralph-state.js` is JS-on
 
 ### Read for reference
 
-- `scripts/lib/sync-core.mjs` from Plan 01 — extension point.
-- `scripts/lib/derive-ralph-stage.mjs` — already imported.
+- `scripts/lib/sync-core.mjs` from Plan 01 — extension point. Keep Plan 01's config-driven paths, cross-kind precedence, nested-member suppression, and atomic sidecar writer intact.
+- `scripts/lib/derive-ralph-stage.mjs` — already imported. Do not duplicate the `deriveRalphStage({ jobState?, prd?, brainstormJson?, reviewOpenCount?, jobDirMarker? })` predicate table.
+- `scripts/lib/resolve-config.mjs` — use `loadConfig({ repoRoot, configPath? })` for all emitted artifact paths; snapshot/activity/tasks-index paths are downstream additive config keys, not Plan-01 defaults.
 - `scripts/lib/score-recommendations.mjs` from Plan 04 (if shipped) — consumed.
 
 ## Snapshot schema

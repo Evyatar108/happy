@@ -6,7 +6,7 @@
 
 ## Context
 
-Plans 01 and 02 produce sidecar data on disk but nothing renders. This plan adds the first user-visible value: a Ralph stage chip on every command row, a Radix Tooltip showing detail, a 9-chip filter axis in the toolbar, and the Vite plugin extension that serves / watches / inlines the sidecar for both dev and static builds.
+Plans 01 and 02 produce sidecar data on disk but nothing renders. This plan adds the first user-visible value: a Ralph stage chip on every command row, a Radix Tooltip showing detail, a 10-chip filter axis in the toolbar, and the Vite plugin extension that serves / watches / inlines the sidecar for both dev and static builds.
 
 ## Dependencies
 
@@ -21,7 +21,7 @@ Plans 01 and 02 produce sidecar data on disk but nothing renders. This plan adds
 - Modification of `tools/overview-viewer/src/utils/filters.ts`: add `'ralphStage'` to `FilterAxis`; thread `ralphState: OverviewRalphState` parameter through `matchesTaskFilter`, `matchesKanbanFilter`, `getTaskSearchHaystack`.
 - Modification of `tools/overview-viewer/src/hooks/useMultiAxisFilter.ts`: accept `ralphState` as a parameter, forward to filter functions, include in memo deps.
 - Modification of `tools/overview-viewer/src/App.tsx`: read `getOverviewRalphState()`, thread `ralphState` through all consumers, add `reloadRalphState()` HMR helper + `useEffect` for `overview-ralph-state:update`.
-- Modification of `tools/overview-viewer/src/components/Toolbar.tsx`: add `'ralphStage'` group to `FILTER_GROUPS` (9 chips, one per stage).
+- Modification of `tools/overview-viewer/src/components/Toolbar.tsx`: add `'ralphStage'` group to `FILTER_GROUPS` (10 chips, one per `RalphStage`, including `replan-pending`).
 - Modification of `tools/overview-viewer/src/styles.css`: add `.ralph-stage-chip` base + 9 per-stage color variants + `matchSource: 'slug-default'` dotted-underline variant.
 - Modification of `tools/overview-viewer/vite.config.ts`: serve `/overview-ralph-state.js` via dev middleware; inline into static build with `</script` escape (mirrors existing `overview-data.js` plumbing).
 - Updates to `tools/overview-viewer/src/__tests__/testData.ts`: add `loadRalphState()` helper + `NO_RALPH_STATE` constant.
@@ -62,7 +62,7 @@ Plans 01 and 02 produce sidecar data on disk but nothing renders. This plan adds
 - **`tools/overview-viewer/src/components/TaskCommand.tsx`:**
   - Add `RalphStageChip` rendered next to `WorkstreamPill` (around line 410 per the comprehensive plan's reference). Wire `ralphState` prop.
 - **`tools/overview-viewer/src/components/Toolbar.tsx`:**
-  - Add a new entry to `FILTER_GROUPS` (lines 10-40): `{ axis: 'ralphStage', title: 'Ralph stage', chips: [...9 entries with emoji-prefix labels...] }`. Suggested labels:
+  - Add a new entry to `FILTER_GROUPS` (lines 10-40): `{ axis: 'ralphStage', title: 'Ralph stage', chips: [...10 entries with labels...] }`. Suggested labels:
     - `{ value: 'brainstorming', label: '💡 brainstorming' }`
     - `{ value: 'brainstorm-ready', label: '✨ brainstorm-ready' }`
     - `{ value: 'planning', label: '📝 planning' }`
@@ -70,6 +70,7 @@ Plans 01 and 02 produce sidecar data on disk but nothing renders. This plan adds
     - `{ value: 'implementing', label: '🟦 implementing' }`
     - `{ value: 'reviewing', label: '🔍 reviewing' }`
     - `{ value: 'review-fix', label: '🛠 review-fix' }`
+    - `{ value: 'replan-pending', label: 'replan-pending' }`
     - `{ value: 'shipped', label: '✅ shipped' }`
     - `{ value: 'blocked', label: '🔒 blocked' }`
 - **`tools/overview-viewer/src/styles.css`:** add at the bottom:
@@ -79,7 +80,7 @@ Plans 01 and 02 produce sidecar data on disk but nothing renders. This plan adds
 - **`tools/overview-viewer/vite.config.ts`:** extend `overviewDataPlugin` (or sibling plugin) to:
   - Serve `/overview-ralph-state.js` at the same dev URL pattern as `/overview-data.js`. Mirror lines 31-53 (`configureServer` hook).
   - Watch `plans/overview-ralph-state.js` for change events. (When Plan 02 ships, this watch becomes redundant because the Plan 02 watcher emits the `overview-ralph-state:update` event directly; keep both paths for safety. Dedup on the React side is fine — `reloadRalphState` is idempotent.)
-  - `transformIndexHtml` / static-build path: inline `overview-ralph-state.js` content alongside `overview-data.js` (lines 54-72). Escape `</script` per the existing rule.
+  - `transformIndexHtml` / static-build path: inline `overview-ralph-state.js` content alongside `overview-data.js` (lines 54-72). Preserve Plan 01's `</script` escape contract; re-escape defensively if the build path rewrites the payload.
 - **`tools/overview-viewer/src/__tests__/testData.ts`** (lines 7-12): add `loadRalphState()` helper that loads `plans/overview-ralph-state.js` via the same `new Function` pattern. Export `NO_RALPH_STATE: OverviewRalphState = { generatedAt: '', generatedFromCommit: '', byTaskId: {} }` for tests that want the no-op path.
 - **`tools/overview-viewer/src/__tests__/searchHaystack.test.ts`**, **`kanban.test.tsx`**, **`commandList.test.tsx`**: every call to `matchesTaskFilter` / `matchesKanbanFilter` / `getTaskSearchHaystack` gains a final `NO_RALPH_STATE` argument. Existing test assertions should pass unchanged (proof that the no-ralph path is byte-identical to pre-feature behavior).
 
@@ -99,7 +100,7 @@ Ordered steps:
 3. **Fix existing tests** — update `searchHaystack.test.ts`, `kanban.test.tsx`, `commandList.test.tsx` to pass `NO_RALPH_STATE`. Assertions should remain unchanged.
 4. **Build `RalphStageChip.tsx`** — copy `WorkstreamPill` Radix Tooltip pattern. Test rendering in isolation: `pnpm test src/__tests__/ralphStageChip.test.tsx`.
 5. **Render `RalphStageChip` in `TaskCommand.tsx`** — next to `WorkstreamPill`. Verify the chip appears for tasks with ralph state and is absent for tasks without.
-6. **Add filter group to `Toolbar.tsx`** — 9 chips. Verify the toolbar renders the new group.
+6. **Add filter group to `Toolbar.tsx`** — 10 chips. Verify the toolbar renders the new group.
 7. **CSS variants** — add color classes. Verify in dev server.
 8. **Vite plugin extension** — serve `/overview-ralph-state.js`, inline for static build.
 9. **App.tsx HMR helper** — `reloadRalphState` + `useEffect`. With Plan 02's watcher running, edit a `.ralph/jobs/<test>/job-state.json` and confirm the chip color in the browser updates without reload (within ~2s of edit + ~0.2s for HMR).
@@ -112,7 +113,7 @@ Ordered steps:
 - [ ] `RalphStageChip` has a Radix Tooltip showing `stage`, `jobSlug`, `lastUpdatedAt` on hover.
 - [ ] `RalphStageChip` with `matchSource: 'slug-default'` renders with a dotted underline.
 - [ ] `FilterAxis` union includes `'ralphStage'`.
-- [ ] Toolbar shows the 9 stage chips.
+- [ ] Toolbar shows the 10 stage chips.
 - [ ] Clicking a stage chip filters both the command list AND kanban view.
 - [ ] `matchesTaskFilter` accepts `ralphState` as a non-optional parameter.
 - [ ] `getTaskSearchHaystack` includes `ralphState.byTaskId[task.id]?.stage / jobSlug / groupSlug` in the haystack.

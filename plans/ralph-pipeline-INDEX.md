@@ -19,9 +19,9 @@ The comprehensive plan covered: schema additions, a continuous file watcher, a s
 ```
                            ┌───────────────────────────┐
                            │ 01-foundation             │
-                           │ (types, sync core,        │
-                           │  derive-ralph-stage,      │
-                           │  sidecar JS+JSON emit)    │
+                           │ (types, config resolver,  │
+                           │  sync core, stage         │
+                           │  predicate, sidecars)     │
                            └──┬───────────────────┬────┘
                               │                   │
                 ┌─────────────┘                   └──────────────┐
@@ -182,15 +182,17 @@ Every individual plan follows the same structure to keep them swappable:
 
 These ESM modules are introduced in early plans and re-imported by later ones. Drift between consumers is the #1 risk:
 
-| Module | Introduced in | Consumed by |
-|---|---|---|
-| `scripts/lib/resolve-config.mjs` | 01 | 02, 05, 07, 08, 09, 11 (all consumers go through this for paths/commands) |
-| `scripts/lib/default-config.mjs` | 01 | `resolve-config.mjs` only |
-| `scripts/lib/derive-ralph-stage.mjs` | 01 | 02, 05, 06, 09 |
-| `scripts/lib/sync-core.mjs` | 01 | 02, 05, 07, 08 |
-| `scripts/lib/derive-next-command.mjs` | 06 | 06 (skills), 09 (MCP) |
-| `scripts/lib/score-recommendations.mjs` | 04 | 06 (`/triage`), 09 (`overview.list_recommendations`) |
-| `scripts/lib/watch-ralph-state.mjs` | 02 | Vite plugin, standalone CLI |
+| Module / artifact | Introduced in | Contract | Consumed by |
+|---|---|---|---|
+| `scripts/lib/resolve-config.mjs` | 01 | `loadConfig({ repoRoot, configPath? })`; committed-path precedence is default `.ralph/overview-config.json` < `OVERVIEW_CONFIG_PATH` < explicit `configPath`; merge precedence is defaults < committed JSON < adjacent `.local.json`; returned paths are absolute and deep-frozen. | 02, 05, 07, 08, 09, 11 (all consumers go through this for paths/commands) |
+| `scripts/lib/default-config.mjs` | 01 | Frozen codexu-default Plan-01 config only: `dataFile`, `ralphRoot`, `ralphSubdirs`, `outputs`, `lockFile`, `watcher.ignored`. Downstream config fields are additive extensions, not Plan-01 schema keys. | `resolve-config.mjs` only |
+| `.ralph/overview-config.schema.json` | 01 | Trimmed Plan-01 JSON Schema matching the default config. Deferred output fields such as snapshot/activity/tasks index are downstream additive extensions. | 02, 05, 12 |
+| `scripts/lib/derive-ralph-stage.mjs` | 01 | Stateless `deriveRalphStage({ jobState?, prd?, brainstormJson?, reviewOpenCount?, jobDirMarker? })`; no filesystem access, no list inputs; unknown future phases map to `implementing`. | 02, 05, 06, 09 |
+| `scripts/lib/sync-core.mjs` | 01 | `walkRalphState({ repoRoot, config, generatedFromCommit })`, `writeSidecar({ repoRoot, config, state })`, plus helper exports. Owns direct-child Ralph walking, within-kind duplicate collapse, cross-kind precedence `job > group > brainstorm`, nested group-member suppression, and same-payload JS/JSON sidecar writes with `</script` escaping. | 02, 05, 07, 08 |
+| `tools/overview-viewer/src/__tests__/scripts.d.ts` | 01 | Test-only explicit relative ambient declarations for root `.mjs` modules; no wildcard module patterns under bundler resolution. | overview-viewer tests |
+| `scripts/lib/derive-next-command.mjs` | 06 | Derives the next operator command from snapshot/task state. | 06 (skills), 09 (MCP) |
+| `scripts/lib/score-recommendations.mjs` | 04 | Scores dashboard recommendations from pipeline state and dependency graph. | 06 (`/triage`), 09 (`overview.list_recommendations`) |
+| `scripts/lib/watch-ralph-state.mjs` | 02 | Continuous watcher wrapper around the Plan-01 sync core. | Vite plugin, standalone CLI |
 
 If a downstream plan's consumer drifts from the introducing plan's contract, the predicate table goes out of sync silently. Every plan that imports these explicitly lists them under "Read for reference."
 
