@@ -198,3 +198,18 @@ declare module '../../../../scripts/lib/watch-ralph-state.mjs' {
         onError?: (error: unknown) => void
     }): Promise<WatchHandle>
 }
+
+declare module '../../../../scripts/sync-ralph-state.mjs' {
+    import type { RalphOverviewConfig } from '../../../../scripts/lib/default-config.mjs'
+
+    export function main(): Promise<void>
+    export function parseArgs(argv: string[]): {
+        repo?: string
+        config?: string
+        watch: boolean
+        debounceMs?: number
+    }
+    export function parseDebounceMs(value: string): number
+    export function runOneShot(options: { repoRoot: string; config: RalphOverviewConfig }): Promise<void>
+    export function runWatchMode(options: { repoRoot: string; configPath?: string; debounceMs?: number }): Promise<void>
+}

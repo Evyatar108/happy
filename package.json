@@ -10,6 +10,7 @@
         "overview:build": "pnpm --filter @codexu/overview-viewer build",
         "overview:build:preview": "cross-env OVERVIEW_BUILD_SAFE_NAME=1 pnpm --filter @codexu/overview-viewer build",
         "sync-ralph-state": "node scripts/sync-ralph-state.mjs",
+        "sync-ralph-state:watch": "node scripts/sync-ralph-state.mjs --watch",
         "app-logs": "pnpm --filter happy-app-logs start",
         "postinstall": "node ./scripts/postinstall.cjs",
         "env:new": "tsx environments/environments.ts new",
@@ -43,6 +44,7 @@
         ]
     },
     "devDependencies": {
+        "chokidar": "5.0.0",
         "cross-env": "^10.1.0"
     },
     "pnpm": {

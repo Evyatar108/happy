@@ -1,18 +1,39 @@
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 
 import { loadConfig } from './lib/resolve-config.mjs'
 import { walkRalphState, writeSidecar } from './lib/sync-core.mjs'
+import { acquireLock, releaseLock } from './lib/sync-lock.mjs'
+import { start } from './lib/watch-ralph-state.mjs'
 
 const HEAD_WARNING = 'sync-ralph-state: could not resolve HEAD short SHA, using unknown'
+const MIN_DEBOUNCE_MS = 500
+const MAX_DEBOUNCE_MS = 30_000
 
 async function main() {
     try {
         const args = parseArgs(process.argv.slice(2))
         const repoRoot = args.repo ? path.resolve(args.repo) : resolveRepoRoot()
-        const generatedFromCommit = resolveHeadShortSha(repoRoot)
         const config = loadConfig({ repoRoot, configPath: args.config })
+
+        if (args.watch) {
+            await runWatchMode({ repoRoot, configPath: args.config, debounceMs: args.debounceMs })
+            return
+        }
+
+        await runOneShot({ repoRoot, config })
+    } catch (error) {
+        console.error(`sync-ralph-state: ${error?.message ?? error}`)
+        process.exitCode = 1
+    }
+}
+
+async function runOneShot({ repoRoot, config }) {
+    const generatedFromCommit = resolveHeadShortSha(repoRoot)
+    const lockHandle = await acquireLock({ lockPath: config.lockFile, processLabel: 'one-shot' })
+    try {
         const state = await walkRalphState({ repoRoot, config, generatedFromCommit })
 
         for (const entry of state.unmatched ?? []) {
@@ -20,14 +41,30 @@ async function main() {
         }
 
         await writeSidecar({ repoRoot, config, state })
-    } catch (error) {
-        console.error(`sync-ralph-state: ${error?.message ?? error}`)
-        process.exitCode = 1
+    } finally {
+        await releaseLock(lockHandle)
     }
 }
 
+async function runWatchMode({ repoRoot, configPath, debounceMs }) {
+    const handle = await start({ repoRoot, configPath, debounceMs, processLabel: 'standalone' })
+    let stopping = false
+    const stopAndExit = () => {
+        if (stopping) {
+            return
+        }
+        stopping = true
+        void handle.stop().finally(() => {
+            process.exit(0)
+        })
+    }
+    process.once('SIGINT', stopAndExit)
+    process.once('SIGTERM', stopAndExit)
+    process.stdin.resume()
+}
+
 function parseArgs(argv) {
-    const parsed = {}
+    const parsed = { watch: false }
     for (let index = 0; index < argv.length; index += 1) {
         const arg = argv[index]
         if (arg === '--repo' || arg === '--config') {
@@ -39,9 +76,30 @@ function parseArgs(argv) {
             index += 1
             continue
         }
+        if (arg === '--watch') {
+            parsed.watch = true
+            continue
+        }
+        if (arg === '--debounce-ms') {
+            const value = argv[index + 1]
+            if (!value || value.startsWith('--')) {
+                throw new Error('--debounce-ms requires a value')
+            }
+            parsed.debounceMs = parseDebounceMs(value)
+            index += 1
+            continue
+        }
         throw new Error(`unknown argument: ${arg}`)
     }
     return parsed
+}
+
+function parseDebounceMs(value) {
+    const parsed = Number(value)
+    if (!Number.isFinite(parsed)) {
+        throw new Error(`--debounce-ms must be a number: ${value}`)
+    }
+    return Math.min(MAX_DEBOUNCE_MS, Math.max(MIN_DEBOUNCE_MS, Math.trunc(parsed)))
 }
 
 function resolveRepoRoot() {
@@ -61,4 +119,8 @@ function resolveHeadShortSha(repoRoot) {
     }
 }
 
-await main()
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+    await main()
+}
+
+export { main, parseArgs, parseDebounceMs, runOneShot, runWatchMode }
