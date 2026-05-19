@@ -67,7 +67,7 @@ All under the `codexu-overview` MCP server namespace (same server as Plan 09).
 - **`tools/overview-mcp/src/tools/dev-server-logs.ts`** — registers `overview.dev_server.logs`. Reads from the ring buffer.
 - **`tools/overview-mcp/src/tools/build.ts`** — registers `overview.build`. Spawns `pnpm overview:build` (one-shot — not a long-lived child). Waits for exit. On exit code 0, stats `plans/overview.html` for `outputPath` and `sizeBytes`, returns success. On non-zero, returns failure with last 30 log lines from stderr.
 - **`tools/overview-mcp/src/tools/sync-now.ts`** — registers `overview.sync.now`. Spawns `node scripts/sync-ralph-state.mjs` (one-shot, no `--watch`). On success, parses stdout for the unmatched summary line (the sync script should emit one).
-- **`tools/overview-mcp/src/tools/sync-watch-status.ts`** — registers `overview.sync.watch_status`. Reads `plans/.overview-ralph-state.lock`: if present and fresh, returns the lock holder info. If a `dev-server` process is registered with the `ProcessManager`, the lock holder is likely the Vite-plugin-embedded watcher (Plan 02). Heuristic identification documented under "Lock holder detection" below.
+- **`tools/overview-mcp/src/tools/sync-watch-status.ts`** — registers `overview.sync.watch_status`. Resolves `config.lockFile` (Plan 01 default: `.ralph/overview-sync.lock`) via the shared config loader and reads that path: if present and fresh, returns the lock holder info. If a `dev-server` process is registered with the `ProcessManager`, the lock holder is likely the Vite-plugin-embedded watcher (Plan 02). Heuristic identification documented under "Lock holder detection" below.
 - **`tools/overview-mcp/tests/process-manager.test.ts`** — covers spawn/stop/status/logs/stopAll cycle.
 - **`tools/overview-mcp/tests/dev-server.test.ts`** — covers start (spawn-and-wait-for-Vite-line), status, stop. Mock the spawned process via a stub that emits the expected output pattern.
 - **`tools/overview-mcp/tests/build.test.ts`** — covers success + failure paths.
@@ -127,7 +127,7 @@ interface ManagedProcess {
 
 ## Lock holder detection (for `sync.watch_status`)
 
-The `plans/.overview-ralph-state.lock` file from Plan 02 indicates a running watcher. The lock holder can be:
+The lock file at `config.lockFile` (default `.ralph/overview-sync.lock`) from Plan 02 indicates a running watcher. `sync-watch-status.ts` resolves the path through the shared config loader rather than hard-coding it, so any adopter override flows through. The lock holder can be:
 
 - **Vite-plugin-embedded watcher** (auto-started by `pnpm overview` per Plan 02 step 8). When `dev_server.status` shows the dev-server child is `running`, the lock holder is almost certainly this.
 - **Standalone watcher** (`pnpm sync-ralph-state:watch` in a separate terminal).
