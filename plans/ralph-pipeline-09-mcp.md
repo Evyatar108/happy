@@ -42,7 +42,7 @@ Plans 02, 04, 07 are recommended but not strictly required (they enrich the snap
 | `overview.get_task` | `{ taskId }` | full merged `SnapshotTask` (OverviewTask + RalphPipelineState) + last 3 journal entries | no |
 | `overview.next_command` | `{ taskId }` | `NextCommand \| null` from `deriveNextCommand` | no |
 | `overview.invoke_next` | `{ taskId, viaCrewMember?: { crewName, memberName? } }` | `{ ok: true, sessionRef?: CrewSessionRef } \| { ok: false, error: string }` | yes (invokes a Ralph skill or spawns a crew member) |
-| `overview.list_recommendations` | `{ limit?: number, stageFilter?: RalphStage }` | reads `plans/overview-recommendations.json` and applies the filter | no |
+| `overview.list_recommendations` | `{ limit?: number, stageFilter?: RalphStage }` | reads `snapshot.recommendations` and applies the filter; may fall back to `plans/overview-recommendations.json` | no |
 | `overview.list_blockers` | `{}` | tasks with `stage === 'blocked'` OR `reviewOpenCount > 0` OR `deferredQuestionsCount > 0` | no |
 | `overview.set_override` | `{ slug, taskId }` | writes `OverviewData.ralphOverrides[slug] = taskId` in `overview-data.js` via structured edit | **yes — single field** |
 | `overview.add_journal_entry` | `{ taskId, note }` | appends to `tasks/<id>/journal.md` via `scripts/lib/append-journal.mjs` | yes (append-only) |
@@ -56,7 +56,7 @@ Plans 02, 04, 07 are recommended but not strictly required (they enrich the snap
 - **`tools/overview-mcp/package.json`** — declares `@codexu/overview-mcp`, depends on `@modelcontextprotocol/sdk`, `chokidar` (for snapshot watching), and dev-deps `typescript`, `tsx`. `bin` entry `overview-mcp` → `dist/index.js`.
 - **`tools/overview-mcp/tsconfig.json`** — extends the workspace's TS config; output dir `dist`.
 - **`tools/overview-mcp/src/index.ts`** — MCP server entry. Sets up stdio transport, registers all 10 tools.
-- **`tools/overview-mcp/src/snapshot-reader.ts`** — `SnapshotReader` class. Watches `plans/overview-snapshot.json` via chokidar; reads on demand; caches the parsed object in memory. All tool handlers query through this.
+- **`tools/overview-mcp/src/snapshot-reader.ts`** — `SnapshotReader` class. Watches `plans/overview-snapshot.json` via chokidar; reads on demand; validates against `plans/overview-snapshot.schema.json` when present; caches the parsed `Snapshot` object in memory. All tool handlers query through this.
 - **`tools/overview-mcp/src/tools/list-tasks.ts`**, **`get-task.ts`**, **`next-command.ts`**, **`invoke-next.ts`**, **`list-recommendations.ts`**, **`list-blockers.ts`**, **`set-override.ts`**, **`add-journal-entry.ts`**, **`list-crew-sessions.ts`**, **`get-transcript.ts`** — one file per tool, each exporting a registration function.
 - **`tools/overview-mcp/src/utils/set-override-edit.ts`** — structured edit for `overview-data.js`. Parses the JS object literal via a permissive parser (e.g. `@babel/parser` or hand-written for the simple object-literal grammar), mutates only the `ralphOverrides` key, serializes back with the surrounding code byte-identical.
 - **`tools/overview-mcp/src/install-server.ts`** — adds the server entry to `.claude/settings.local.json` (or prints the JSON for manual addition).
@@ -73,8 +73,9 @@ Plans 02, 04, 07 are recommended but not strictly required (they enrich the snap
 ### Read for reference
 
 - `scripts/lib/derive-ralph-stage.mjs`, `scripts/lib/derive-next-command.mjs`, `scripts/lib/score-recommendations.mjs`, `scripts/lib/append-journal.mjs`, `scripts/lib/derive-pr-links.mjs` — imported by the server as the single source of truth.
-- `plans/overview-snapshot.json` — primary data input.
-- `plans/overview-recommendations.json` — for `list_recommendations`.
+- `plans/overview-snapshot.json` — primary data input, parsed as the TypeScript `Snapshot` shape from the shared overview types.
+- `plans/overview-snapshot.schema.json` — runtime validation contract for snapshot JSON. Do not import the schema as TypeScript types.
+- `plans/overview-recommendations.json` — compatibility fallback for `list_recommendations`; the snapshot field is primary when present.
 - `.crews/crews/*/members/*/manifest.json` and `*/leads/*/manifest.json` — re-read live by `list_crew_sessions` for fresh status.
 - `D:\ai-developer-toolkit\plugins\seval\` (or any existing MCP server in the toolkit) — TypeScript pattern reference for stdio transport + tool registration.
 
@@ -185,7 +186,7 @@ K. **`overview.add_journal_entry`:** appends a line. `tail tasks/<id>/journal.md
 4. **Settings.local.json, not settings.json.** Machine-specific paths shouldn't pollute committed config.
 5. **Don't import from `tools/overview-viewer/`.** The MCP server and the React viewer share `scripts/lib/` modules ONLY. Importing React/Vite code from the MCP server creates a circular workspace dep.
 6. **`SnapshotReader` cache invalidation.** chokidar fires on writes; the reader re-reads. Don't add additional polling — single source of cache invalidation.
-7. **Tool schemas use the JSON Schema from Plan 05.** When `tools/overview-mcp/src/tools/<name>.ts` declares its input/output schema, reuse `plans/overview-snapshot.schema.json` types via TypeScript imports.
+7. **Keep TypeScript types and JSON Schema roles separate.** Import TypeScript shapes from the shared overview types; use `plans/overview-snapshot.schema.json` only for runtime JSON validation and MCP schema composition.
 8. **Backwards compatibility.** v1 tool contracts are committed once shipped. Adding a tool is non-breaking; changing an existing tool's input or output is breaking and requires a new tool or a versioned variant (`overview.list_tasks_v2`).
 9. **`invoke_next` with `viaCrewMember`** assumes Plan 08 is shipped. Without Plan 08, the tool returns an error; document this dependency in the README.
 

@@ -2,7 +2,7 @@
 
 **Worktree:** `/implement-with-ralph --from-plan` creates the worktree at `D:\harness-efforts\codexu\.ralph\jobs\ralph-pipeline-06-skills\worktree\` on branch `ralph-pipeline-06-skills`. All file edits referenced in this plan happen in that worktree; commits land on the branch and are merged to `main` after Phase 6 review converges. Do NOT edit `main` directly. Note: the new skills under `.claude/skills/{work-on,triage,blocker-report}/` are committed to this branch like any other file — they only become invokable in `main` after merge.
 
-**Position in DAG:** depends on Plan 05 (snapshot + recommendations files). Plan 04 highly recommended (recommendations file).
+**Position in DAG:** depends on Plan 05 (snapshot). Plan 04 highly recommended for populated recommendations.
 
 ## Context
 
@@ -12,8 +12,8 @@ Per the user's preference, the skills live in `D:\harness-efforts\codexu\.claude
 
 ## Dependencies
 
-- **Plan 05 (Agent exports)** — required. Skills read `plans/overview-snapshot.json` and `plans/overview-recommendations.json`.
-- **Plan 04 (Pipeline overview)** — recommended. `/triage` requires `plans/overview-recommendations.json`. Without Plan 04 the file is empty and `/triage` degrades to "no recommendations available."
+- **Plan 05 (Agent exports)** — required. `/work-on` and `/blocker-report` read `plans/overview-snapshot.json` as their primary state input.
+- **Plan 04 (Pipeline overview)** — recommended. `/triage` reads the Plan 04 recommendation data surfaced by Plan 05; without Plan 04 recommendations, `/triage` degrades to "no recommendations available."
 
 ## Scope
 
@@ -114,7 +114,7 @@ Body (the skill's own prose, written for Claude to execute):
 
 Path: `D:\harness-efforts\codexu\.claude\skills\triage\SKILL.md`
 
-1. Read `plans/overview-recommendations.json` (from Plan 04). If missing, suggest running `pnpm sync-ralph-state` (or that Plan 04 hasn't shipped).
+1. Read recommendation data from `plans/overview-snapshot.json` (`snapshot.recommendations`) and fall back to `plans/overview-recommendations.json` for compatibility with Plan 04-only checkouts. If both are missing or empty, suggest running `pnpm sync-ralph-state` (or that Plan 04 hasn't shipped).
 2. Take top N (default 5; `--limit N` flag).
 3. Optional `--filter stage=<stage>` narrows by stage.
 4. Render a numbered list:
@@ -159,7 +159,7 @@ Path: `D:\harness-efforts\codexu\.claude\skills\blocker-report\SKILL.md`
 - [ ] `.claude/skills/triage/SKILL.md` exists.
 - [ ] `.claude/skills/blocker-report/SKILL.md` exists.
 - [ ] `/work-on <task-id> --dry-run` prints the right command for each stage value (verifiable manually by setting a test task to each stage).
-- [ ] `/triage` produces a numbered list from `overview-recommendations.json` and chains into `/work-on` when the user picks a number.
+- [ ] `/triage` produces a numbered list from snapshot recommendations, with `overview-recommendations.json` as a fallback, and chains into `/work-on` when the user picks a number.
 - [ ] `/blocker-report` surfaces tasks with `stage === 'blocked'` and proposes remediation commands.
 - [ ] If `--via-crew` flag is passed to `/work-on` in Plan 06, the skill errors gracefully with "wait for Plan 08." (Plan 08 will implement.)
 
@@ -175,9 +175,9 @@ C. **`/work-on` ambiguity:** for a task-id prefix that matches multiple tasks, t
 
 D. **`/work-on` no-state fallback:** for a task with no `ralph` entry but a `command.planPrompt`, the skill prints the seed prompt with a note that it's the seed, not a resume.
 
-E. **`/triage` populated:** with `overview-recommendations.json` containing 5+ entries, `/triage` lists top 5 with reasons.
+E. **`/triage` populated:** with `overview-snapshot.json` carrying 5+ recommendations (or the Plan 04 fallback file populated), `/triage` lists top 5 with reasons.
 
-F. **`/triage` empty:** with empty recommendations, `/triage` prints "no recommendations available — run `pnpm sync-ralph-state`."
+F. **`/triage` empty:** with empty snapshot/fallback recommendations, `/triage` prints "no recommendations available — run `pnpm sync-ralph-state`."
 
 G. **`/triage` picker → `/work-on`:** entering "1" after the list invokes `/work-on <first-taskId>`.
 

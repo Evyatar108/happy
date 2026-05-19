@@ -34,12 +34,12 @@ Each member's `manifest.json` exposes the canonical `sessionId` and `transcriptP
 - Watcher cross-walk of `.crews/crews/*/members/*/manifest.json`, `.crews/crews/*/leads/*/manifest.json`, `.crews/sessions-configs/*` (shared 2s debounce window with `.ralph/` events).
 - Heuristic match: member's `cwd === repo_root` (or worktree under it) AND `lastSummary` contains a task ID. When matched, the member is added to `crewSessions[<stage>]` for that task. Dedupe by `sessionId`.
 - Subcommand modes for `scripts/sync-ralph-state.mjs`:
-  - `--update-crew-session <taskId> <stage> --json <CrewSessionRef-as-JSON>` — atomically merges a new session ref into the snapshot.
+  - `--update-crew-session <taskId> <stage> --json <CrewSessionRef-as-JSON>` — atomically extends `RalphPipelineState.crewSessions` for that task and stage.
   - `--finalize-crew-session <taskId> <stage> --member <name> --outcome <s> --summary <text>` — sets `endedAt`, `outcome`, `summary` on an existing entry.
 - `/work-on --via-crew <crewName>` mode: spawn a crew member with the derived next-command prompt; record the resulting `CrewSessionRef` via the subcommand mode.
 - Stale-member detection: when `manifest.lastHeartbeatAt` is >60min old, set `outcome: 'stopped'` + `endedAt: lastHeartbeatAt`.
 - Tooltip extras: render crew sessions for the current stage with clickable transcript paths.
-- Tests for: heuristic match (positive + negative), subcommand-mode lock-protected update, stale detection, `/work-on --via-crew` spawn → snapshot update.
+- Tests for: heuristic match (positive + negative), subcommand-mode lock-protected update, stale detection, `/work-on --via-crew` spawn → `RalphPipelineState.crewSessions` update.
 
 **Out of scope (other plans):**
 - MCP tools `overview.list_crew_sessions` and `overview.get_transcript` → Plan 09 (this plan provides the data; Plan 09 wraps it in MCP tools)
@@ -115,7 +115,7 @@ When multiple tasks match (rare — e.g. prompt mentions two task IDs): pick the
 
 Both `--update-crew-session` and `--finalize-crew-session` share the same `config.lockFile` (Plan 01 default: `.ralph/overview-sync.lock`) as the watcher (introduced in Plan 02) by calling `scripts/lib/sync-lock.mjs`. Plan 02's watcher holds that lock for its full lifetime and refreshes it with a 30s heartbeat; do not assume it releases between debounce ticks. If a watcher or one-shot sync already owns the lock, subcommands fail fast with the canonical diagnostic `another sync in progress (pid <N>, process <label>, started <ts>)` and make no partial snapshot write. If the lock is stale, reuse the shared helper's PID-liveness gate: ESRCH or unparseable metadata may be removed; EPERM/alive PIDs remain active.
 
-After the subcommand updates the snapshot while it owns the lock, it sets the file mtime. If a Vite-plugin watcher is running, the subcommand should not have acquired the lock; callers should surface the diagnostic and retry after the watcher stops, or this plan must add an explicit watcher-mediated queue before claiming concurrent subcommand writes are supported.
+After the subcommand updates `RalphPipelineState.crewSessions` and rewrites the snapshot while it owns the lock, it sets the file mtime. If a Vite-plugin watcher is running, the subcommand should not have acquired the lock; callers should surface the diagnostic and retry after the watcher stops, or this plan must add an explicit watcher-mediated queue before claiming concurrent subcommand writes are supported.
 
 ## Conflict resolution between heuristic and explicit writes
 

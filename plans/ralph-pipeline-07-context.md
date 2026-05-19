@@ -15,7 +15,7 @@ Plans 01–06 give the user (and agents) a way to see and pick the right action 
 
 ## Dependencies
 
-- **Plan 05 (Agent exports)** — required. RecentActivity reads `plans/overview-activity.jsonl` and the journal entries are appended in the same code path as activity events.
+- **Plan 05 (Agent exports)** — required. RecentActivity reads `plans/overview-activity.jsonl`; activity events are appended only after a successful `mergeAndWrite`/artifact write and before the watcher releases the lock.
 
 ## Scope
 
@@ -56,7 +56,7 @@ Plans 01–06 give the user (and agents) a way to see and pick the right action 
 - **`scripts/lib/sync-core.mjs`** — for each Ralph job, after deriving the base `RalphPipelineState`:
   - Read `<jobDir>/notepad.md`. Call `parseNotepad(text)` to populate the new fields. Skip silently if the file is missing.
   - Call `derivePRLinks({ groupState, repoRoot, branchName: prd.branch.name })` to populate `branchName`, `prUrl`, `mergeCommit`.
-  - When the watcher detects a stage transition, call `appendJournalEntry(...)` AFTER appending the activity event but BEFORE the sidecar write.
+  - When `mergeAndWrite` returns activity events after a successful state/artifact write, call `appendJournalEntry(...)` in the same lock window after appending the matching activity event and before touching/releasing the lock.
 - **`tools/overview-viewer/src/components/TaskCommand.tsx`** — build the `tooltipExtras` JSX for the current task and pass it to `<RalphStageChip taskId={task.id} ralphState={ralphState} tooltipExtras={...} />`. Keep `RalphStageChip.tsx`'s slot contract unchanged while using it to render:
   - `deferredQuestionsCount` if > 0 (e.g. "📝 3 open questions")
   - `branchName` with a copy-to-clipboard quick-action (`git checkout <branchName>`)
@@ -124,7 +124,7 @@ H. **HMR refresh:** with Plan 02's watcher running, flip a stage. RecentActivity
 2. **Notepad parsing is best-effort.** If the table is malformed (missing header, wrong column count), return zero counts and a stderr warning. Never crash the sync over a notepad parse error.
 3. **`prUrl` from `group.json` wins over commit-message scrape.** Order matters: `group.json.prUrl` is authoritative (orchestrator-written); commit-message scrape is a fallback.
 4. **Journal is append-only and per-task, not per-job.** A task with multiple cycles has multiple journal entries spanning cycles; per-job notepads continue to live in `<jobDir>/notepad.md`.
-5. **RecentActivity reads JSONL, not JSON.** Each line is one event. Parse with `text.split('\n').filter(Boolean).map(JSON.parse)`. Handle the trailing newline edge case.
+5. **RecentActivity reads JSONL, not JSON.** Each line is one event. Parse defensively: tolerate a final torn line by skipping only the last line if `JSON.parse` fails there.
 6. **Tooltip extras slot is additive.** Compose extras in `TaskCommand.tsx` and pass them through `RalphStageChip`'s existing prop. When Plan 08 adds crew sessions, it appends to the same slot content rather than replacing Plan 07 rows.
 7. **Notepad `## Deferred Questions` section is the structured one.** Don't try to surface `## Story Doctor Log` or `## Working Notes` in this plan; they're free-form and would need separate parsing logic.
 

@@ -21,7 +21,7 @@ This plan covers the extraction: package boundaries, install/registration flow, 
 ## Dependencies
 
 - **Plan 01 (Foundation)** — required. The config-resolver layer is what makes extraction possible without code edits.
-- **Plan 05 (Agent exports)** — required for the snapshot/sidecar files the plugin emits.
+- **Plan 05 (Agent exports)** — required for the snapshot, activity JSONL, snapshot schema, JSON data twin, tasks index, and legacy sidecar files the plugin emits.
 - **Plan 09 (MCP server)** — required. The MCP package is the main deliverable.
 - **Plan 11 (MCP operational tools)** — required. Without these, the plugin's MCP server doesn't fully cover the lifecycle.
 
@@ -107,8 +107,7 @@ Plans 02 (watcher), 03 (UI chip), 04 (PipelineOverview), 06 (skills), 07 (contex
 - **Keep** in codexu:
   - `plans/overview-data.js` — the actual task data (codexu-specific content, not plugin code).
   - `.ralph/overview-config.json` — codexu's config (codexu-specific paths, not plugin code). Initial content is identical to `plugins/ralph-overview/templates/overview-config.template.json` (the codexu defaults).
-  - Generated artifacts: `plans/overview-ralph-state.{js,json}`, `plans/overview-snapshot.json`, etc. — these are still emitted to codexu's `plans/` directory.
-  - `tasks/INDEX.md` — generated artifact.
+  - Generated artifacts: `plans/overview-ralph-state.{js,json}`, `plans/overview-snapshot.json`, `plans/overview-activity.jsonl`, `plans/overview-snapshot.schema.json`, `plans/overview-data.json`, and `tasks/INDEX.md` — these are still emitted to codexu's configured output paths.
   - `tasks/<id>/journal.md` per-task journals.
 - **Update root `package.json` scripts:**
   - Remove `"sync-ralph-state"`, `"sync-ralph-state:watch"`, `"overview-mcp:build"`, `"overview-mcp:install"`, `"overview"`, `"overview:build"` if the plugin provides equivalent CLI commands.
@@ -188,7 +187,7 @@ G. **No dual ownership:** `git log --follow scripts/lib/derive-ralph-stage.mjs` 
 
 1. **`.ralph/overview-config.json` stays in the consumer workspace.** It's the user's config, not the plugin's. The plugin ships `templates/overview-config.template.json`; the consumer copies and edits.
 2. **`plans/overview-data.js` stays in the consumer workspace.** Bookkeeper-curated content is project-specific.
-3. **Generated artifacts** (sidecar, snapshot, activity, journal) live in the consumer's filesystem at consumer-config-specified paths. The plugin emits them but doesn't own them.
+3. **Generated artifacts** (legacy sidecar, snapshot, activity JSONL, snapshot schema, data JSON twin, tasks index, journal) live in the consumer's filesystem at consumer-config-specified paths. The plugin emits them but doesn't own them.
 4. **MCP server runs from the plugin's installed path.** The plugin manifest's `mcpServers.command` resolves the path. Don't hardcode codexu paths anywhere.
 5. **Don't duplicate code across plugin and consumer.** Once extracted, codexu does NOT keep copies of `scripts/lib/*`. Imports flow from consumer → plugin via the plugin's exported entry points. If codexu still references `scripts/lib/x.mjs` after migration, the migration is incomplete.
 6. **Test fixtures placement:** tests covering plugin code move to the plugin. Tests covering codexu-specific behavior (e.g. specific task IDs, codexu kanban layout) stay in codexu. Use the existing test fixture loader pattern but reading from `plans/overview-data.js` (consumer-curated).

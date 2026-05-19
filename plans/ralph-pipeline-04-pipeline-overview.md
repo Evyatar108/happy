@@ -31,7 +31,7 @@ Plan 02 is recommended (live updates make the histogram more useful) but not str
 - New `scripts/lib/score-recommendations.mjs` — pure function `scoreRecommendations(byTaskId, overviewData) -> Recommendation[]`. Imported by `sync-core.mjs`.
 - Extension of `scripts/lib/sync-core.mjs` to emit `plans/overview-recommendations.json` and `plans/overview-dependency-graph.json` as sibling generated artifacts (atomic tmp + rename, same lock).
 - Scoring weights override lives in the main `.ralph/overview-config.json` under a `recommendations.weights` key (default 40/30/20/10 from the comprehensive plan). One config file, not a sibling — keeps configuration surface unified.
-- Duration annotation: when the sync sees a Ralph cycle with both `createdAt` and `completedAt` on `job-state.json`, add `durationHours` to the corresponding `OverviewData.runs[]` entry. **NOTE:** the sync does NOT write to `overview-data.js`. Instead, the durations live in the aggregated snapshot (Plan 05 introduces the snapshot; if Plan 05 hasn't shipped yet, durations live in `overview-ralph-state.json` under a new top-level `runDurations: Record<runId, hours>` map until Plan 05 absorbs them).
+- Duration annotation: when the sync sees a Ralph cycle with both `createdAt` and `completedAt` on `job-state.json`, derive hours for the corresponding run. **NOTE:** the sync does NOT write to `overview-data.js`, and Plan 04 does not add this field to `OverviewRalphState`. The durable type home is Plan 05's `Snapshot.runDurations: Record<runId, hours>`; Plan 04 only supplies the derived values to that snapshot path.
 - New `tools/overview-viewer/src/__tests__/pipelineOverview.test.tsx` covering: histogram counts, click-to-filter behavior, empty-state (zero tasks with ralph data).
 
 **Out of scope (other plans):**
@@ -54,9 +54,9 @@ Plan 02 is recommended (live updates make the histogram more useful) but not str
 - **`scripts/lib/sync-core.mjs`** — after `mergeAndWrite` produces the new sidecar state, also:
   - Call `scoreRecommendations(state.byTaskId, overviewData)` → write `plans/overview-recommendations.json` atomically.
   - Call `deriveDependencyGraph(overviewData)` → write `plans/overview-dependency-graph.json` atomically.
-  - Compute `runDurations` (duration in hours per completed cycle) → for Plan 04's lifetime, embed in the sidecar state as `runDurations: Record<runId, number>`. Plan 05 absorbs this into the snapshot.
+  - Compute `runDurations` (duration in hours per completed cycle) → provide it to the Plan 05 snapshot emitter as `Snapshot.runDurations`. Do not add it to the Ralph sidecar.
 - **`tools/overview-viewer/src/App.tsx`** — render `<PipelineOverview ralphState={ralphState} filters={filters} setFilters={setFilters} />` between `<Toolbar>` and `<Kanban>`. Thread `filters`/`setFilters` from `useMultiAxisFilter`; Plan 03's hook returns `{ activeFilters, filters, setFilters, query, setQuery, toggleFilter, visibleTaskIds, visibleKanbanTaskIds }`.
-- **`tools/overview-viewer/src/types.ts`** — add `Recommendation`, `DependencyGraph` types. Add `blocks?: string[]` to `OverviewTask`. Add `runDurations?: Record<string, number>` to `OverviewRalphState` (Plan 05 will retire this when the snapshot absorbs it).
+- **`tools/overview-viewer/src/types.ts`** — add `Recommendation`, `DependencyGraph` types. Add `blocks?: string[]` to `OverviewTask`. `runDurations` belongs on the Plan 05 `Snapshot` type, not `OverviewRalphState`.
 - **`tools/overview-viewer/src/styles.css`** — `.pipeline-overview` layout (horizontal flex). `.pipeline-overview-empty` style. Hover state for clickable chips. Active state when `filters.ralphStage.has(stage)`.
 
 ### Read for reference
@@ -64,7 +64,7 @@ Plan 02 is recommended (live updates make the histogram more useful) but not str
 - `tools/overview-viewer/src/components/Toolbar.tsx` — chip rendering pattern.
 - `tools/overview-viewer/src/utils/filters.ts` — `toggleFilter` (existing helper for single-axis toggling); reuse it or pass through.
 - `C:\Users\evmitran\.claude\plugins\cache\ai-developer-toolkit\ralph-orchestration\5.30.0\schemas\prd-schema.json` — `userStories[].dependencies[]` source.
-- `tools/overview-viewer/src/types.ts` `OverviewData.runs` (lines 42-49) and `RunRecord` interface — already populated by bookkeepers; this plan adds `runDurations` as a sibling derived field.
+- `tools/overview-viewer/src/types.ts` `OverviewData.runs` (lines 42-49) and `RunRecord` interface — already populated by bookkeepers; this plan derives `runDurations` for the Plan 05 snapshot without mutating `OverviewData.runs`.
 
 ## Scoring rubric
 
@@ -83,11 +83,11 @@ Each `Recommendation` carries `{ taskId, score, stage, reasons: string[] }` wher
 
 ## Implementation strategy
 
-1. **Add types** (`Recommendation`, `DependencyGraph`, `OverviewTask.blocks`, `OverviewRalphState.runDurations`). Run typecheck.
+1. **Add types** (`Recommendation`, `DependencyGraph`, `OverviewTask.blocks`; `Snapshot.runDurations` is owned by Plan 05). Run typecheck.
 2. **Build `scripts/lib/score-recommendations.mjs`** as a pure function. Unit-test it with synthetic input.
 3. **Build `scripts/lib/derive-dependency-graph.mjs`**. Unit-test.
 4. **Wire into `scripts/lib/sync-core.mjs`** — emit `overview-recommendations.json` and `overview-dependency-graph.json` after the sidecar write. Same atomic tmp+rename pattern.
-5. **Compute `runDurations`** — walk `OverviewData.runs[]`; for each entry that has a corresponding completed Ralph cycle, compute hours from `job-state.json.createdAt` to `completedAt`. Store in `state.runDurations`.
+5. **Compute `runDurations`** — walk `OverviewData.runs[]`; for each entry that has a corresponding completed Ralph cycle, compute hours from `job-state.json.createdAt` to `completedAt`. Store the values in `Snapshot.runDurations` through the Plan 05 emitter path.
 6. **Build `PipelineOverview.tsx`** — render 10 stage chips with counts. Add click-to-filter.
 7. **Integrate in `App.tsx`** — place between `Toolbar` and `Kanban`.
 8. **CSS** — layout + active/hover/empty states.
@@ -102,7 +102,7 @@ Each `Recommendation` carries `{ taskId, score, stage, reasons: string[] }` wher
 - [ ] `scripts/lib/score-recommendations.mjs` produces a sorted list with `reasons[]` per entry.
 - [ ] `scripts/lib/derive-dependency-graph.mjs` produces `{ nodes, edges }` covering `OverviewTask.spawnedFrom`, `userStories[].dependencies[]`, and `OverviewTask.blocks`.
 - [ ] `pnpm sync-ralph-state` writes `plans/overview-recommendations.json` and `plans/overview-dependency-graph.json` alongside the sidecar.
-- [ ] `OverviewRalphState.runDurations` is populated for completed cycles.
+- [ ] `Snapshot.runDurations` is populated for completed cycles.
 - [ ] `pipelineOverview.test.tsx` covers histogram count, click-to-filter, empty state. All pass.
 - [ ] No existing tests are broken.
 - [ ] `pnpm overview:build` still produces a static `overview.html` under 500KB (the histogram component is small, no asset additions).
@@ -119,7 +119,7 @@ C. **Recommendations file:** `cat plans/overview-recommendations.json | jq '.rec
 
 D. **Dep graph file:** `cat plans/overview-dependency-graph.json | jq '.edges | length'` returns ≥1 if any task has dependencies in its PRD or has `spawnedFrom` set in `OverviewData`.
 
-E. **Run durations:** for a task with at least one completed Ralph cycle, `cat plans/overview-ralph-state.json | jq '.runDurations'` shows a hours value for that run.
+E. **Run durations:** for a task with at least one completed Ralph cycle, `cat plans/overview-snapshot.json | jq '.runDurations'` shows an hours value for that run.
 
 F. **Co-evolution with `filters.ralphStage`:** select a stage via the histogram, then open the toolbar filter group — the same chip is highlighted there. They share state.
 
@@ -128,13 +128,13 @@ G. **Config override:** add a `recommendations.weights` block to `.ralph/overvie
 ## Common mistakes / confusion points
 
 1. **The histogram uses single-select; the toolbar group uses multi-select.** Both write to `filters.ralphStage`. The histogram clears and sets `new Set([stage])`; the toolbar toggles within the set. This is intentional — the histogram is for triage (pick one), the toolbar is for power filtering (pick several).
-2. **`runDurations` is a transient home.** Plan 05 absorbs it into `overview-snapshot.json`. Don't build consumer code against `OverviewRalphState.runDurations` long-term — when Plan 05 ships, the field migrates.
+2. **`runDurations` lives in the snapshot.** Do not build consumer code against a `runDurations` field on `OverviewRalphState`; Plan 05's `overview-snapshot.json` is the durable home.
 3. **`derive-dependency-graph.mjs` reads `OverviewTask.blocks` but the field is bookkeeper-edited.** Don't auto-populate `blocks` from any source — it's an explicit signal from the bookkeeper.
 4. **Don't bypass `score-recommendations.mjs` in the UI.** The histogram and `/triage` skill (Plan 06) and MCP server (Plan 09) all consume the precomputed file. The UI does NOT call `scoreRecommendations` at render time — the watcher / sync writes the file, the UI reads it.
 5. **Empty state matters.** A user opening the dashboard for the first time (no `.ralph/` yet) should not see broken histogram chips — show the empty-state message instead.
 
 ## Hand-off to next plans
 
-- **Plan 05 — Agent exports** absorbs `runDurations` into `overview-snapshot.json`; deprecate the sidecar field at that point.
-- **Plan 06 — Skills** consumes `overview-recommendations.json` for `/triage`.
+- **Plan 05 — Agent exports** owns `runDurations` in `overview-snapshot.json`; keep the Ralph sidecar free of this field.
+- **Plan 06 — Skills** consumes snapshot recommendations for `/triage`, with `overview-recommendations.json` as a compatibility fallback.
 - **Plan 09 — MCP** exposes recommendations + DAG via tool calls.
