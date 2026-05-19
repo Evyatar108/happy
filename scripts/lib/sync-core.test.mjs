@@ -4,8 +4,9 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { _resetUnknownPhaseWarnings, walkRalphState } from './sync-core.mjs'
+import { IMPLEMENTING_PHASES, REVIEW_PHASES } from './derive-ralph-stage.mjs'
 
-const KNOWN_PHASES = ['5a', '5b', '5c', '5.5', '6']
+const KNOWN_PHASES = [...REVIEW_PHASES, ...IMPLEMENTING_PHASES]
 
 function makeTempDir() {
     return fs.mkdtempSync(path.join(os.tmpdir(), 'sync-core-test-'))

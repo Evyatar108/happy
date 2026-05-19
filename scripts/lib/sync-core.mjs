@@ -1,9 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { deriveRalphStage } from './derive-ralph-stage.mjs'
+import { deriveRalphStage, IMPLEMENTING_PHASES, REVIEW_PHASES } from './derive-ralph-stage.mjs'
 
-const KNOWN_ORCHESTRATOR_PHASES = new Set(['5a', '5b', '5c', '5.5', '6'])
+const KNOWN_ORCHESTRATOR_PHASES = new Set([...REVIEW_PHASES, ...IMPLEMENTING_PHASES])
 const _warnedUnknownPhases = new Set()
 
 export function _resetUnknownPhaseWarnings() {
