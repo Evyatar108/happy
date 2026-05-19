@@ -9,6 +9,9 @@ const FINDINGS_FILES = Object.freeze([
 ])
 const KIND_PRECEDENCE = Object.freeze(['job', 'group', 'brainstorm'])
 const MEDIUM_PLUS = new Set(['Medium', 'High', 'Critical'])
+const TRANSIENT_RENAME_ERRORS = new Set(['EBUSY', 'EACCES', 'EPERM'])
+const RENAME_RETRY_LIMIT = 3
+const RENAME_RETRY_DELAY_MS = 100
 
 export async function walkRalphState({ repoRoot, config, generatedFromCommit }) {
     if (!repoRoot || !config) {
@@ -103,6 +106,63 @@ export function pickMostRecentByMtime(candidates) {
         }
         return String(a.slug).localeCompare(String(b.slug))
     })[0]
+}
+
+export async function writeSidecar({ repoRoot, config, state }) {
+    if (!repoRoot || !config || !state) {
+        throw new Error('writeSidecar requires repoRoot, config, and state')
+    }
+
+    const absoluteRepoRoot = path.resolve(repoRoot)
+    const json = JSON.stringify(state).replace(/<\/(script)/gi, '<\\/$1')
+    const outputs = config.outputs ?? {}
+    await atomicWriteFile(resolveMaybeAbsolute(absoluteRepoRoot, outputs.sidecarJson), json)
+    await atomicWriteFile(resolveMaybeAbsolute(absoluteRepoRoot, outputs.sidecarJs), `window.OVERVIEW_RALPH_STATE = ${json};`)
+}
+
+async function atomicWriteFile(finalPath, contents) {
+    if (!finalPath) {
+        throw new Error('writeSidecar requires configured output paths')
+    }
+    fs.mkdirSync(path.dirname(finalPath), { recursive: true })
+    const tmpPath = `${finalPath}.tmp`
+    let fd
+    try {
+        fd = fs.openSync(tmpPath, 'w')
+        fs.writeFileSync(fd, contents)
+        fs.fsyncSync(fd)
+    } finally {
+        if (fd !== undefined) {
+            fs.closeSync(fd)
+        }
+    }
+
+    try {
+        await renameWithRetry(tmpPath, finalPath)
+    } catch (error) {
+        fs.rmSync(tmpPath, { force: true })
+        throw error
+    }
+}
+
+async function renameWithRetry(tmpPath, finalPath) {
+    for (let attempt = 1; attempt <= RENAME_RETRY_LIMIT; attempt += 1) {
+        try {
+            fs.renameSync(tmpPath, finalPath)
+            return
+        } catch (error) {
+            if (!TRANSIENT_RENAME_ERRORS.has(error?.code) || attempt === RENAME_RETRY_LIMIT) {
+                throw error
+            }
+            await delay(RENAME_RETRY_DELAY_MS)
+        }
+    }
+}
+
+function delay(ms) {
+    return new Promise((resolve) => {
+        setTimeout(resolve, ms)
+    })
 }
 
 function readJobLikeBundles({ repoRoot, rootDir, ralphRoot, ignored, kind }) {

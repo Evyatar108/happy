@@ -1,10 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import fs, { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { pickMostRecentByMtime, walkRalphState } from '../../../../scripts/lib/sync-core.mjs'
+import { pickMostRecentByMtime, walkRalphState, writeSidecar } from '../../../../scripts/lib/sync-core.mjs'
 import type { RalphOverviewConfig } from '../../../../scripts/lib/default-config.mjs'
 
 const fixtureRoots: string[] = []
@@ -173,6 +173,75 @@ describe('walkRalphState', () => {
     })
 })
 
+describe('writeSidecar', () => {
+    it('writes byte-identical escaped JS and JSON sidecars idempotently', async () => {
+        const fixture = makeRepoFixture({ tasks: [] })
+        const state = makeSidecarState({ slug: 'bad</script>slug' })
+
+        await writeSidecar({ repoRoot: fixture.repoRoot, config: fixture.config, state })
+
+        const jsPath = path.join(fixture.repoRoot, fixture.config.outputs.sidecarJs)
+        const jsonPath = path.join(fixture.repoRoot, fixture.config.outputs.sidecarJson)
+        const js = readFileSync(jsPath, 'utf8')
+        const json = readFileSync(jsonPath, 'utf8')
+        const prefix = 'window.OVERVIEW_RALPH_STATE = '
+        const strippedJs = js.slice(prefix.length, -1)
+
+        expect(js).toBe(`${prefix}${json};`)
+        expect(strippedJs).toBe(json)
+        expect(js).not.toContain('</script')
+        expect(JSON.parse(json).unmatched[0].slug).toBe('bad</script>slug')
+        expect(existsSync(`${jsPath}.tmp`)).toBe(false)
+
+        await writeSidecar({ repoRoot: fixture.repoRoot, config: fixture.config, state })
+        expect(readFileSync(jsPath, 'utf8')).toBe(js)
+        expect(readFileSync(jsonPath, 'utf8')).toBe(json)
+    })
+
+    it('retries Windows-transient rename failures', async () => {
+        const fixture = makeRepoFixture({ tasks: [] })
+        const state = makeSidecarState({ slug: 'retry' })
+        const jsPath = path.join(fixture.repoRoot, fixture.config.outputs.sidecarJs)
+        const originalRenameSync = fs.renameSync.bind(fs)
+        let jsRenameAttempts = 0
+        const renameSync = vi.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
+            if (to === jsPath) {
+                jsRenameAttempts += 1
+                if (jsRenameAttempts < 3) {
+                    throw Object.assign(new Error('busy'), { code: 'EBUSY' })
+                }
+            }
+            return originalRenameSync(from, to)
+        })
+
+        await expect(writeSidecar({ repoRoot: fixture.repoRoot, config: fixture.config, state })).resolves.toBeUndefined()
+
+        expect(jsRenameAttempts).toBe(3)
+        expect(renameSync).toHaveBeenCalledTimes(4)
+        expect(readFileSync(jsPath, 'utf8')).toContain('window.OVERVIEW_RALPH_STATE = ')
+    })
+
+    it('rejects after the third Windows-transient rename failure', async () => {
+        const fixture = makeRepoFixture({ tasks: [] })
+        const state = makeSidecarState({ slug: 'retry-fails' })
+        const jsPath = path.join(fixture.repoRoot, fixture.config.outputs.sidecarJs)
+        const originalRenameSync = fs.renameSync.bind(fs)
+        let jsRenameAttempts = 0
+        vi.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
+            if (to === jsPath) {
+                jsRenameAttempts += 1
+                throw Object.assign(new Error('busy'), { code: 'EBUSY' })
+            }
+            return originalRenameSync(from, to)
+        })
+
+        await expect(writeSidecar({ repoRoot: fixture.repoRoot, config: fixture.config, state })).rejects.toThrow('busy')
+
+        expect(jsRenameAttempts).toBe(3)
+        expect(existsSync(`${jsPath}.tmp`)).toBe(false)
+    })
+})
+
 function makeRepoFixture({
     tasks,
     ralphOverrides = {},
@@ -222,4 +291,21 @@ function makeRepoFixture({
 function writeJson(filePath: string, value: unknown): void {
     mkdirSync(path.dirname(filePath), { recursive: true })
     writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`)
+}
+
+function makeSidecarState({ slug }: { slug: string }) {
+    return {
+        generatedAt: '2026-05-18T00:00:00.000Z',
+        generatedFromCommit: 'abc1234',
+        byTaskId: {
+            task: {
+                stage: 'implementing' as const,
+                artifacts: { jobDir: '.ralph/jobs/task' },
+                jobSlug: 'task',
+                matchSource: 'slug-default' as const,
+            },
+        },
+        unmatched: [{ kind: 'job' as const, slug, reason: 'no-matching-task-id' }],
+        unmatchedSummary: { 'no-matching-task-id': 1 },
+    }
 }

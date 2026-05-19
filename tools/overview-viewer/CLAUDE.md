@@ -98,6 +98,8 @@ See `.agents/skills/roadmap-and-overview/SKILL.md` Procedure G for the bookkeepe
 
 Overview-viewer tests may import root ESM helper scripts such as `scripts/lib/*.mjs`. Under this package's `moduleResolution: "bundler"`, keep adjacent `*.d.mts` declarations next to the root `.mjs` files when TypeScript needs typed imports; a test-local ambient declaration alone is not enough for `tsc --noEmit`.
 
+Ralph overview sidecars are emitted by `scripts/lib/sync-core.mjs`. The `.js` and `.json` outputs must use the same `JSON.stringify(state)` payload after escaping `</script` as `<\/script`; the JS wrapper is only `window.OVERVIEW_RALPH_STATE = <json>;`.
+
 ## Cross-package
 
 This package is registered in BOTH `pnpm-workspace.yaml` AND root `package.json` → `workspaces.packages`. Dropping either yields silent breakage of pnpm filtering and lockfile resolution.
