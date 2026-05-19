@@ -268,6 +268,191 @@ describe('ralph watcher', () => {
         expect(lastWatcher?.closed).toBe(true)
     })
 
+    it('refreshes sidecar unmatched on malformed JSON retain (F-001/F-013 regression)', async () => {
+        vi.useFakeTimers()
+        const fixture = makeRepoFixture({ tasks: ['flaky'] })
+        writeJobState(fixture.repoRoot, '.ralph/jobs/flaky', { orchestrator: { phase: '3', terminal: false } })
+        const onWrite = vi.fn()
+        await startWatcher({ repoRoot: fixture.repoRoot, debounceMs: 10, onWrite })
+
+        // Cold-start: byTaskId.flaky is implementing, unmatched has no entries for flaky.
+        const beforeSidecar = readSidecar(fixture.repoRoot)
+        expect(beforeSidecar.byTaskId.flaky.stage).toBe('implementing')
+        expect((beforeSidecar.unmatched ?? []).filter((entry) => entry.slug === 'flaky')).toHaveLength(0)
+        const priorEntry = beforeSidecar.byTaskId.flaky
+
+        // Corrupt the job-state.json so deriveAffectedTaskUpdate returns a retain action.
+        writeFileSync(path.join(fixture.repoRoot, '.ralph/jobs/flaky/job-state.json'), '{ malformed json')
+        const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+
+        lastWatcher?.emit('all', 'change', path.join(fixture.repoRoot, '.ralph/jobs/flaky/job-state.json'))
+        await vi.advanceTimersByTimeAsync(10)
+        await flushPromises()
+        await flushPromises()
+
+        const afterSidecar = readSidecar(fixture.repoRoot)
+        // F-001/F-013: unmatched slice MUST now contain the parse-error entry for the touched (kind, slug).
+        const parseErrorEntries = (afterSidecar.unmatched ?? []).filter(
+            (entry) => entry.kind === 'job' && entry.slug === 'flaky' && entry.reason === 'parse-error',
+        )
+        expect(parseErrorEntries).toHaveLength(1)
+        // unmatchedSummary mirrors unmatched count.
+        expect((afterSidecar.unmatchedSummary ?? {})['parse-error']).toBeGreaterThanOrEqual(1)
+        // byTaskId entry is preserved (retain semantics: no mutation on parse-error).
+        expect(afterSidecar.byTaskId.flaky).toEqual(priorEntry)
+        // onWrite is NOT called for a retain-only flush (no taskIds changed).
+        expect(onWrite).not.toHaveBeenCalled()
+        // Retain warning is emitted on stderr.
+        expect(stderr).toHaveBeenCalledWith(expect.stringContaining('watcher: retained job/flaky'))
+    })
+
+    it('removes a brainstorm-derived task when the slug directory is unlinked (F-003/F-014 regression)', async () => {
+        vi.useFakeTimers()
+        const fixture = makeRepoFixture({ tasks: ['idea'] })
+        writeJson(path.join(fixture.repoRoot, '.ralph/brainstorms/idea/brainstorm.json'), { recommendedDirection: 'plan' })
+        const onWrite = vi.fn()
+        await startWatcher({ repoRoot: fixture.repoRoot, debounceMs: 10, onWrite })
+
+        // Cold-start: brainstorm-derived entry should exist.
+        const beforeSidecar = readSidecar(fixture.repoRoot)
+        expect(beforeSidecar.byTaskId.idea).toBeDefined()
+        expect(beforeSidecar.byTaskId.idea.entryPath).toBe('brainstorm-first')
+
+        // Delete the brainstorm slug directory and emit a directory-level unlinkDir event.
+        rmSync(path.join(fixture.repoRoot, '.ralph/brainstorms/idea'), { recursive: true, force: true })
+        lastWatcher?.emit('all', 'unlinkDir', path.join(fixture.repoRoot, '.ralph/brainstorms/idea'))
+        await vi.advanceTimersByTimeAsync(10)
+
+        await vi.waitFor(() => expect(onWrite).toHaveBeenCalledWith(expect.objectContaining({ changedTaskIds: ['idea'] })))
+        // F-003/F-014: the affected task entry MUST be removed from byTaskId after the debounce.
+        expect(readSidecar(fixture.repoRoot).byTaskId.idea).toBeUndefined()
+    })
+
+    it('buffers chokidar events that race the cold-start walk (F-004 regression)', async () => {
+        vi.useFakeTimers()
+        const fixture = makeRepoFixture({ tasks: ['racy'] })
+        writeJobState(fixture.repoRoot, '.ralph/jobs/racy', { orchestrator: { phase: '1', terminal: false } })
+        const onWrite = vi.fn()
+        const onError = vi.fn()
+
+        // Override watchMock so the 'ready' event resolves immediately but we also synthesize
+        // an 'all' event in the SAME microtask flush — this models the cold-start race where
+        // a chokidar event fires before currentState is assigned. With F-004, the event MUST
+        // be buffered (not lost, not throw on undefined currentState).
+        watchMock = vi.fn((paths, options) => {
+            void paths
+            void options
+            lastWatcher = new MockWatcher()
+            queueMicrotask(() => {
+                lastWatcher?.emit('ready')
+                // Fire an 'all' event in the same microtask as 'ready' — this races the
+                // cold-start walkRalphState/writeSidecar in the watcher's start() body.
+                lastWatcher?.emit('all', 'change', path.join(fixture.repoRoot, '.ralph/jobs/racy/job-state.json'))
+            })
+            return lastWatcher
+        })
+        vi.doMock('chokidar', () => ({ watch: watchMock }))
+        const { start } = await import('../../../../scripts/lib/watch-ralph-state.mjs')
+        // Update the job-state BEFORE start completes its cold-start so the buffered event
+        // triggers a re-derivation with the new phase.
+        writeJobState(fixture.repoRoot, '.ralph/jobs/racy', { orchestrator: { phase: '5a', terminal: false } })
+        const handle = await start({ repoRoot: fixture.repoRoot, debounceMs: 10, processLabel: 'unit-test', onWrite, onError })
+        openHandles.push(handle)
+
+        // Drain the debounce; the buffered event should produce a sidecar write WITHOUT
+        // a 'mergeAndWrite requires currentState' error being routed to onError.
+        await vi.advanceTimersByTimeAsync(10)
+        await flushPromises()
+        await flushPromises()
+
+        expect(onError).not.toHaveBeenCalled()
+        // Phase 5a corresponds to the 'reviewing' stage.
+        expect(readSidecar(fixture.repoRoot).byTaskId.racy.stage).toBe('reviewing')
+    })
+
+    it('drops a change after MAX_FLUSH_RETRIES persistent flush failures (F-010 regression)', async () => {
+        vi.useFakeTimers()
+        const fixture = makeRepoFixture({ tasks: ['noisy'] })
+        writeJobState(fixture.repoRoot, '.ralph/jobs/noisy', { orchestrator: { phase: '1', terminal: false } })
+        const onWrite = vi.fn()
+        const onError = vi.fn()
+
+        // Stub mergeAndWrite to throw a persistent EBUSY-like error on every call.
+        const mergeError = new Error('EBUSY: resource busy or locked')
+        vi.doMock('../../../../scripts/lib/sync-core.mjs', async (importOriginal) => {
+            const actual = await importOriginal<typeof import('../../../../scripts/lib/sync-core.mjs')>()
+            return {
+                ...actual,
+                mergeAndWrite: vi.fn(async () => {
+                    throw mergeError
+                }),
+            }
+        })
+        const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+        const handle = await startWatcher({ repoRoot: fixture.repoRoot, debounceMs: 10, onWrite, onError })
+
+        // Emit a single change; the watcher's catch should re-enqueue + schedule a new flush.
+        lastWatcher?.emit('all', 'change', path.join(fixture.repoRoot, '.ralph/jobs/noisy/job-state.json'))
+
+        // Drive the retry loop. After 3 failures the change should be dropped with a stderr warning.
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+            await vi.advanceTimersByTimeAsync(10)
+            await flushPromises()
+            await flushPromises()
+        }
+
+        // F-010: 4 onError calls — attempts 1, 2, 3 re-enqueue under the cap, attempt 4
+        // exceeds MAX_FLUSH_RETRIES=3 and drops. mergeAndWrite throws on all four attempts.
+        expect(onError).toHaveBeenCalledTimes(4)
+        // Stderr drop warning is emitted on the 4th attempt (retries > MAX_FLUSH_RETRIES).
+        expect(stderr).toHaveBeenCalledWith(expect.stringContaining('dropping job/noisy after 3 failed flush attempts'))
+        // After drop, the pending queue is empty (no more retries scheduled for this slug).
+        expect(handle.status.pendingChanges).toEqual([])
+        expect(onWrite).not.toHaveBeenCalled()
+    })
+
+    it('does not drop changes when a transient flush failure clears (F-010 bonus)', async () => {
+        vi.useFakeTimers()
+        const fixture = makeRepoFixture({ tasks: ['blinky'] })
+        writeJobState(fixture.repoRoot, '.ralph/jobs/blinky', { orchestrator: { phase: '1', terminal: false } })
+        const onWrite = vi.fn()
+        const onError = vi.fn()
+
+        // Stub mergeAndWrite: fail on call 1, succeed on call 2 (delegates to the real impl).
+        let calls = 0
+        vi.doMock('../../../../scripts/lib/sync-core.mjs', async (importOriginal) => {
+            const actual = await importOriginal<typeof import('../../../../scripts/lib/sync-core.mjs')>()
+            return {
+                ...actual,
+                mergeAndWrite: vi.fn(async (args) => {
+                    calls += 1
+                    if (calls === 1) {
+                        throw new Error('EBUSY: transient')
+                    }
+                    return actual.mergeAndWrite(args)
+                }),
+            }
+        })
+        const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+        await startWatcher({ repoRoot: fixture.repoRoot, debounceMs: 10, onWrite, onError })
+
+        lastWatcher?.emit('all', 'change', path.join(fixture.repoRoot, '.ralph/jobs/blinky/job-state.json'))
+        // First debounce — fails and re-enqueues.
+        await vi.advanceTimersByTimeAsync(10)
+        await flushPromises()
+        await flushPromises()
+        // Second debounce — succeeds.
+        await vi.advanceTimersByTimeAsync(10)
+        await flushPromises()
+        await flushPromises()
+
+        expect(onError).toHaveBeenCalledTimes(1)
+        await vi.waitFor(() => expect(onWrite).toHaveBeenCalledTimes(1))
+        // No drop warning emitted (we recovered before MAX_FLUSH_RETRIES).
+        const dropCalls = stderr.mock.calls.filter(([msg]) => String(msg).includes('after 3 failed flush attempts'))
+        expect(dropCalls).toHaveLength(0)
+    })
+
     it('vite-plugin tolerates lock contention', async () => {
         vi.useFakeTimers()
         vi.setSystemTime(new Date('2026-05-19T10:00:00Z'))
