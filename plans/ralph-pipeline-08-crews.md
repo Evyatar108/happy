@@ -113,7 +113,7 @@ When multiple tasks match (rare — e.g. prompt mentions two task IDs): pick the
 
 ## Subcommand-mode contract
 
-Both `--update-crew-session` and `--finalize-crew-session` share the same `plans/.overview-ralph-state.lock` file as the watcher (introduced in Plan 02). If the watcher is running, the subcommand call blocks briefly until the watcher releases the lock between debounce ticks. If the lock is stale (>60s), the subcommand follows the same overwrite path as the watcher.
+Both `--update-crew-session` and `--finalize-crew-session` share the same `config.lockFile` (Plan 01 default: `.ralph/overview-sync.lock`) as the watcher (introduced in Plan 02). If the watcher is running, the subcommand call blocks briefly until the watcher releases the lock between debounce ticks. If the lock is stale (>60s), the subcommand follows the same overwrite path as the watcher.
 
 After the subcommand updates the snapshot, it sets the file mtime; if the Vite-plugin-embedded watcher is running, it picks up the file change on its next tick and re-emits the `overview-ralph-state:update` HMR event so the React UI refreshes.
 
