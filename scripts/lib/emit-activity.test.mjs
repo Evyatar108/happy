@@ -96,18 +96,28 @@ describe('appendActivity', () => {
         expect(fs.existsSync(activityPath)).toBe(false)
     })
 
-    test('appends storyCompletion, removal, and first-observation event shapes', () => {
-        const events = [
-            buildEvent({ changedFields: ['storyCompletion'] }),
-            buildEvent({ changedFields: ['stage'], newStage: null }),
-            buildEvent({ changedFields: ['stage'], prevStage: null }),
-        ]
+    test('appends storyCompletion change events', () => {
+        const event = buildEvent({ changedFields: ['storyCompletion'] })
 
-        for (const event of events) {
-            appendActivity(tempRoot, event, { activityPath, activityBackupPath })
-        }
+        appendActivity(tempRoot, event, { activityPath, activityBackupPath })
 
-        expect(readEventsToleratingTornFinalLine(activityPath)).toEqual(events)
+        expect(readEventsToleratingTornFinalLine(activityPath)).toEqual([event])
+    })
+
+    test('appends task removal events with newStage null', () => {
+        const event = buildEvent({ changedFields: ['stage'], newStage: null })
+
+        appendActivity(tempRoot, event, { activityPath, activityBackupPath })
+
+        expect(readEventsToleratingTornFinalLine(activityPath)).toEqual([event])
+    })
+
+    test('appends first-observation events with prevStage null', () => {
+        const event = buildEvent({ changedFields: ['stage'], prevStage: null })
+
+        appendActivity(tempRoot, event, { activityPath, activityBackupPath })
+
+        expect(readEventsToleratingTornFinalLine(activityPath)).toEqual([event])
     })
 
     test('activity readers can skip a torn final line', () => {
