@@ -45,6 +45,16 @@ export function App() {
     const toast = useToast()
     useHashNav(expandedControls.setTaskExpanded)
 
+    const reloadRalphState = useCallback(async () => {
+        try {
+            const text = await fetch(`./overview-ralph-state.js?t=${Date.now()}`).then((response) => response.text())
+            new Function(text)()
+            setRalphState(getOverviewRalphState())
+        } catch (err) {
+            console.warn('[ralph-state] reload failed', err)
+        }
+    }, [])
+
     useEffect(() => {
         if (!import.meta.hot) {
             return
@@ -60,6 +70,17 @@ export function App() {
             import.meta.hot?.off('overview-data:update', updateCount)
         }
     }, [])
+
+    useEffect(() => {
+        if (!import.meta.hot) {
+            return
+        }
+
+        import.meta.hot.on('overview-ralph-state:update', reloadRalphState)
+        return () => {
+            import.meta.hot?.off('overview-ralph-state:update', reloadRalphState)
+        }
+    }, [reloadRalphState])
 
     const taskIds = useMemo(() => (data.tasks ?? []).map((task) => task.id), [data.tasks])
     const setAllDetails = useCallback(

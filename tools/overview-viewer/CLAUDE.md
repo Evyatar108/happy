@@ -50,6 +50,8 @@ The custom Vite plugin in `vite.config.ts`:
 3. An effect in `App.tsx` subscribes via `import.meta.hot.on('overview-data:update')` and invokes the inline `reloadOverviewData()` helper (also in `App.tsx`), which re-fetches with a cache-busting query string and re-executes via `new Function(text)()` so `window.OVERVIEW_DATA` repopulates.
 4. React re-renders; reconciliation preserves DOM state (open `<details>`, scroll, search filter, bulk-select).
 
+Ralph state uses the same fetch + re-execute pattern in `App.tsx`, but with a separate additive subscription to `overview-ralph-state:update`. Keep both HMR handlers registered independently; the Ralph sidecar watcher/emitter is owned outside `overviewRalphStatePlugin()`.
+
 **Do not switch the sidecar to async / module loading or fetch-only delivery.** The static build inlines the sidecar; the dev server serves it synchronously before the React bundle runs. Both depend on the `window.OVERVIEW_DATA` global being populated before React mounts.
 
 Static builds minify the inlined `overview-data.js` sidecar with `esbuild` inside `vite.config.ts` to preserve the 500 KB single-file bundle budget. The source data file stays readable and unminified; do not hand-minify `plans/overview-data.js` or `plans/overview.html`.
