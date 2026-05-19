@@ -1,8 +1,10 @@
 import { parseTaskScope } from '../data/copyPreambles'
-import type { OverviewData, OverviewTask } from '../types'
+import type { OverviewData, OverviewRalphState, OverviewTask } from '../types'
 import { filterBucketForTask } from './taskClassification'
 
-export type FilterAxis = 'status' | 'workstream' | 'cadence' | 'size' | 'scope'
+const NO_RALPH_STAGE = '__no_ralph__'
+
+export type FilterAxis = 'status' | 'workstream' | 'cadence' | 'size' | 'scope' | 'ralphStage'
 export type ActiveFilters = Record<FilterAxis, Set<string>>
 
 export function createEmptyFilters(): ActiveFilters {
@@ -12,6 +14,7 @@ export function createEmptyFilters(): ActiveFilters {
         cadence: new Set(),
         size: new Set(),
         scope: new Set(),
+        ralphStage: new Set(),
     }
 }
 
@@ -22,6 +25,7 @@ export function cloneFilters(filters: ActiveFilters): ActiveFilters {
         cadence: new Set(filters.cadence),
         size: new Set(filters.size),
         scope: new Set(filters.scope),
+        ralphStage: new Set(filters.ralphStage),
     }
 }
 
@@ -39,8 +43,9 @@ export function toggleFilter(filters: ActiveFilters, axis: FilterAxis, value: st
 // That includes scope/phase/status/mergeCommit labels, workstream/size/cadence
 // labels from data lookups, the warning HTML, the spawned-from parent ID, and
 // the IDs of any spawned children that render as chips on this row.
-export function getTaskSearchHaystack(task: OverviewTask, data: OverviewData): string {
+export function getTaskSearchHaystack(task: OverviewTask, data: OverviewData, ralphState: OverviewRalphState): string {
     const taskId = task.id
+    const ralph = ralphState.byTaskId[taskId]
     const parts: (string | undefined | null)[] = [
         taskId,
         task.scope,
@@ -54,6 +59,9 @@ export function getTaskSearchHaystack(task: OverviewTask, data: OverviewData): s
         data.sizeBucket?.[taskId],
         data.cadence?.[taskId],
         data.spawnedFrom?.[taskId],
+        ralph?.stage,
+        ralph?.jobSlug,
+        ralph?.groupSlug,
     ]
     task.command?.warnings?.forEach((warning) => parts.push(warning.html))
     if (data.spawnedFrom) {
@@ -64,7 +72,7 @@ export function getTaskSearchHaystack(task: OverviewTask, data: OverviewData): s
     return parts.filter(Boolean).join(' ').toLowerCase()
 }
 
-export function matchesTaskFilter(task: OverviewTask, data: OverviewData, filters: ActiveFilters, query: string, taskIdFilter: Set<string> | null): boolean {
+export function matchesTaskFilter(task: OverviewTask, data: OverviewData, filters: ActiveFilters, query: string, taskIdFilter: Set<string> | null, ralphState: OverviewRalphState): boolean {
     const taskId = task.id
     const q = query.trim().toLowerCase()
     const status = filterBucketForTask(task)
@@ -77,16 +85,18 @@ export function matchesTaskFilter(task: OverviewTask, data: OverviewData, filter
     const sizeOk = filters.size.size === 0 || filters.size.has(size)
     const cadenceOk = filters.cadence.size === 0 || filters.cadence.has(cadence)
     const scopeOk = filters.scope.size === 0 || scopes.some((scope) => filters.scope.has(scope))
+    const ralphStageOk = filters.ralphStage.size === 0 || filters.ralphStage.has(ralphState.byTaskId[taskId]?.stage ?? NO_RALPH_STAGE)
     const idOk = !taskIdFilter || taskIdFilter.has(taskId)
-    const textOk = !q || getTaskSearchHaystack(task, data).includes(q)
-    return statusOk && workstreamOk && sizeOk && cadenceOk && scopeOk && idOk && textOk
+    const textOk = !q || getTaskSearchHaystack(task, data, ralphState).includes(q)
+    return statusOk && workstreamOk && sizeOk && cadenceOk && scopeOk && ralphStageOk && idOk && textOk
 }
 
-export function matchesKanbanFilter(task: OverviewTask, data: OverviewData, filters: ActiveFilters, query: string): boolean {
+export function matchesKanbanFilter(task: OverviewTask, data: OverviewData, filters: ActiveFilters, query: string, ralphState: OverviewRalphState): boolean {
     const q = query.trim().toLowerCase()
     const workstream = data.workstream?.[task.id] ?? ''
     const workstreamOk = filters.workstream.size === 0 || filters.workstream.has(workstream)
+    const ralphStageOk = filters.ralphStage.size === 0 || filters.ralphStage.has(ralphState.byTaskId[task.id]?.stage ?? NO_RALPH_STAGE)
     const text = [task.id, ...(task.kanbanCards ?? []).map((card) => card.html)].join(' ').toLowerCase()
     const textOk = !q || text.includes(q)
-    return workstreamOk && textOk
+    return workstreamOk && ralphStageOk && textOk
 }

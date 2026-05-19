@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { createEmptyFilters, matchesTaskFilter, toggleFilter } from '../utils/filters'
 import { filterBucketForTask } from '../utils/taskClassification'
 import { clearTasksParam, parseTaskIdFilter } from '../utils/urlFilter'
-import { loadOverviewData } from './testData'
+import { loadOverviewData, NO_RALPH_STATE } from './testData'
 
 describe('URL and multi-axis filters', () => {
     it('parses comma-separated ?tasks ids and clears the query key', () => {
@@ -25,7 +25,7 @@ describe('URL and multi-axis filters', () => {
         filters = toggleFilter(filters, 'size', data.sizeBucket?.[task.id] ?? '')
         filters = toggleFilter(filters, 'status', filterBucketForTask(task))
 
-        expect(matchesTaskFilter(task, data, filters, task.id.slice(0, 4), new Set([task.id]))).toBe(true)
-        expect(matchesTaskFilter(task, data, filters, task.id, new Set(['other-task']))).toBe(false)
+        expect(matchesTaskFilter(task, data, filters, task.id.slice(0, 4), new Set([task.id]), NO_RALPH_STATE)).toBe(true)
+        expect(matchesTaskFilter(task, data, filters, task.id, new Set(['other-task']), NO_RALPH_STATE)).toBe(false)
     })
 })

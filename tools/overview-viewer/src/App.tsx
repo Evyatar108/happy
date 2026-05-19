@@ -17,7 +17,8 @@ import { usePersistentExpanded } from './hooks/usePersistentExpanded'
 import { useToast } from './hooks/useToast'
 import { useUrlFilter } from './hooks/useUrlFilter'
 import { useWhatsNewSinceLastVisit } from './hooks/useWhatsNewSinceLastVisit'
-import type { OverviewData } from './types'
+import type { OverviewData, OverviewRalphState } from './types'
+import { getOverviewRalphState } from './types'
 import { navigateToCommand } from './utils/commandNavigation'
 
 function getOverviewData(): OverviewData {
@@ -32,11 +33,12 @@ async function reloadOverviewData(): Promise<void> {
 
 export function App() {
     const [data, setData] = useState(getOverviewData)
+    const [ralphState, setRalphState] = useState<OverviewRalphState>(getOverviewRalphState)
     const [helpOpen, setHelpOpen] = useState(false)
     const searchRef = useRef<HTMLInputElement>(null)
     const expandedControls = usePersistentExpanded()
     const taskIdFilter = useUrlFilter()
-    const filter = useMultiAxisFilter(data, taskIdFilter)
+    const filter = useMultiAxisFilter(data, taskIdFilter, ralphState)
     const bulkSelection = useBulkSelection(data.tasks ?? [])
     const density = useDensity()
     const whatsNew = useWhatsNewSinceLastVisit(data)
