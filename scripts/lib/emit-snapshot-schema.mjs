@@ -1,6 +1,3 @@
-import fs from 'node:fs'
-import path from 'node:path'
-
 export const SNAPSHOT_SCHEMA = {
     $schema: 'http://json-schema.org/draft-07/schema#',
     $id: 'https://codexu.local/schemas/overview-snapshot.v1.json',
@@ -208,13 +205,4 @@ export const SNAPSHOT_SCHEMA = {
             },
         },
     },
-}
-
-export function writeSnapshotSchema(schemaPath) {
-    if (!schemaPath) {
-        throw new Error('writeSnapshotSchema requires schemaPath')
-    }
-
-    fs.mkdirSync(path.dirname(schemaPath), { recursive: true })
-    fs.writeFileSync(schemaPath, `${JSON.stringify(SNAPSHOT_SCHEMA, null, 2)}\n`)
 }

@@ -67,7 +67,6 @@ declare module '../../../../scripts/lib/emit-snapshot-schema.mjs' {
     export type JsonSchema = Record<string, unknown>
 
     export const SNAPSHOT_SCHEMA: JsonSchema
-    export function writeSnapshotSchema(schemaPath: string): void
 }
 
 declare module '../../../../scripts/lib/resolve-config.mjs' {

@@ -1,11 +1,7 @@
-import fs from 'node:fs'
-import os from 'node:os'
-import path from 'node:path'
-
 import Ajv from 'ajv'
 import { describe, expect, test } from 'vitest'
 
-import { SNAPSHOT_SCHEMA, writeSnapshotSchema } from './emit-snapshot-schema.mjs'
+import { SNAPSHOT_SCHEMA } from './emit-snapshot-schema.mjs'
 
 describe('emit-snapshot-schema', () => {
     test('compiles and validates a sample Snapshot instance', () => {
@@ -40,18 +36,5 @@ describe('emit-snapshot-schema', () => {
         expect(SNAPSHOT_SCHEMA.properties.schemaVersion.const).toBe(1)
         expect(SNAPSHOT_SCHEMA.$defs.RalphPipelineState.additionalProperties).toBe(true)
         expect(validate(snapshot), JSON.stringify(validate.errors, null, 2)).toBe(true)
-    })
-
-    test('writes the schema JSON to disk', () => {
-        const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'emit-snapshot-schema-test-'))
-        const schemaPath = path.join(tempRoot, 'plans', 'overview-snapshot.schema.json')
-
-        try {
-            writeSnapshotSchema(schemaPath)
-
-            expect(JSON.parse(fs.readFileSync(schemaPath, 'utf8'))).toEqual(SNAPSHOT_SCHEMA)
-        } finally {
-            fs.rmSync(tempRoot, { recursive: true, force: true })
-        }
     })
 })
