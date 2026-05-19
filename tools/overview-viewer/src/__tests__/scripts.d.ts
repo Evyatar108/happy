@@ -168,3 +168,33 @@ declare module '../../../../scripts/lib/sync-lock.mjs' {
     export function releaseLock(handle: LockHandle): Promise<void>
     export function touchLock(handle: LockHandle): Promise<void>
 }
+
+declare module '../../../../scripts/lib/watch-ralph-state.mjs' {
+    import type { OverviewRalphState } from '../types'
+
+    export interface WatchWriteEvent {
+        writtenAt: string
+        changedTaskIds: string[]
+    }
+
+    export interface WatchStatus {
+        readonly currentState: OverviewRalphState | undefined
+        readonly pendingChanges: Array<{ kind: 'job' | 'group' | 'brainstorm'; slug: string }>
+        readonly consecutiveFailures: Record<string, number>
+        readonly stopped: boolean
+    }
+
+    export interface WatchHandle {
+        stop(): Promise<void>
+        readonly status: WatchStatus
+    }
+
+    export function start(options: {
+        repoRoot: string
+        configPath?: string
+        debounceMs?: number
+        processLabel?: string
+        onWrite?: (event: WatchWriteEvent) => void
+        onError?: (error: unknown) => void
+    }): Promise<WatchHandle>
+}
