@@ -40,17 +40,21 @@ Translates to: chokidar watch, debounce window (default 2s), per-slug incrementa
 ### To create
 
 - **`scripts/lib/watch-ralph-state.mjs`** — exports:
-  - `start({ repoRoot, debounceMs, onWrite?, onError? }) -> { stop, status }` — non-blocking; spawns chokidar internally; returns immediately.
+  - `start({ repoRoot, configPath?, debounceMs?, processLabel = 'watcher', onWrite?, onError? }) -> { stop, status }` — non-blocking; spawns chokidar internally; returns immediately. `configPath` is forwarded to `loadConfig` for override-config flows. `processLabel` becomes the `process` field of the JSON lock file (default `'watcher'`; the CLI watch entrypoint passes `'standalone'` and the Vite plugin auto-start passes `'vite-plugin'`).
   - `stop()` — closes the chokidar instance, releases the lock.
   - `status()` — returns `{ running, pendingSlugs: string[], queueDepth: number, lastTickAt?: string }` for debug.
-- Tests added to `tools/overview-viewer/src/__tests__/ralphStage.test.ts` — new cases for watcher behavior (debounce, incremental, cold-start, lock collision, error resilience). NOTE: keep these as Node tests, not jsdom — the watcher is server-side.
+- **`scripts/lib/sync-lock.mjs`** (+ `.d.mts`) — shared lock primitive consumed by both watch mode and the one-shot CLI. Exports `acquireLock({ lockPath, processLabel, staleAfterMs })` which writes a JSON payload `{ pid, process, startedAt }` with the `wx` flag and surfaces the canonical `another sync in progress (pid <N>, process <label>, started <ts>)` diagnostic on contention. EEXIST triggers a PID-liveness probe via `process.kill(pid, 0)`: ESRCH or unparseable JSON past the 60 s staleness window → remove and re-create; EPERM → treat as alive and refuse acquisition. Also exports `releaseLock(handle)` (used in a finally) and `touch(handle)` (used by the watcher heartbeat). Plans 06 / 08 / 11 import this module by name.
+- **`scripts/lib/path-utils.mjs`** (+ `.d.mts`) — small helpers extracted during code-review-fix: `compileIgnoredPatterns`, `matchesIgnored`, `resolveHeadShortSha`, `splitPath`. Consumed by `watch-ralph-state.mjs` and shared with `sync-core.mjs` for the chokidar `ignored` callback and HEAD-SHA resolution.
+- Tests added under `tools/overview-viewer/src/__tests__/`: `ralphWatcher.test.ts` (debounce, incremental, cold-start, lock collision, heartbeat, error resilience, deletion), `syncLock.test.ts` (acquire / contention / stale-PID / heartbeat), `syncRalphStateCli.test.ts` (CLI `--watch` + one-shot lock-share), plus new cases extending `syncCore.test.ts` for `deriveAffectedTaskUpdate` / `mergeAndWrite`. NOTE: keep these as Node tests, not jsdom — the watcher is server-side.
 
 ### To modify
 
 - **`scripts/sync-ralph-state.mjs`** — accept `--watch` flag. When present, after the cold-start one-shot sync, invoke `start({ ...args })` from `scripts/lib/watch-ralph-state.mjs` and block indefinitely (`process.stdin.resume()` or signal handlers). Accept `--debounce-ms <N>` (default 2000, clamp `[500, 30000]`).
-- **`scripts/lib/sync-core.mjs`** — expose two additional exports needed by the watcher:
-  - `deriveOneSlug({ repoRoot, config, generatedFromCommit, slug, kind }) -> Promise<RalphPipelineState | null>` — re-derivation for ONE slug using the same direct-child readers, parse-error policy, match resolution, and `jobDirMarker` behavior as the full walk. Returns `null` if the slug no longer exists on disk (deletion).
-  - `mergeAndWrite({ repoRoot, config, currentState, slugUpdates }) -> Promise<OverviewRalphState>` — merges per-slug updates into the in-memory `byTaskId`, then calls the existing atomic `writeSidecar`. Returns the new state.
+- **`scripts/lib/sync-core.mjs`** — expose additional exports needed by the watcher (shipped names; replaces the earlier `deriveOneSlug` draft):
+  - `readBundleForSlug({ repoRoot, config, kind, slug })` — direct-child reader for ONE slug + kind, mirroring the parse-error policy and `jobDirMarker` behavior of the full walk.
+  - `assembleStateFromBundles({ bundles, repoRoot, config, generatedFromCommit })` — assembles `OverviewRalphState` from a set of bundles using the same match resolution + cross-kind precedence as `walkRalphState`.
+  - `deriveAffectedTaskUpdate({ repoRoot, config, kind, slug, currentState, generatedFromCommit })` — per-slug re-derivation entry point used on each debounce flush. Returns the partial `byTaskId` patch to apply, or a deletion marker if the slug is gone.
+  - `mergeAndWrite({ repoRoot, config, currentState, updates, generatedFromCommit }) -> Promise<OverviewRalphState>` — merges per-slug updates into the in-memory `byTaskId`, then calls the existing atomic `writeSidecar`. Returns the new state.
 - **`tools/overview-viewer/vite.config.ts`** — extend `overviewDataPlugin` (or sibling plugin) at `configureServer`:
   - Dynamic-import `../../scripts/lib/watch-ralph-state.mjs`.
   - Call `start({ debounceMs: 2000, onWrite: () => server.ws.send({ type: 'custom', event: 'overview-ralph-state:update' }) })`.
@@ -94,15 +98,16 @@ Use `chokidar`'s `ignored` option (array of glob patterns).
 
 Ordered steps:
 
-1. **Add `deriveOneSlug` + `mergeAndWrite` to `scripts/lib/sync-core.mjs`.** Both pure functions. `deriveOneSlug` reads only the files belonging to one slug; if the slug's directory is gone, returns `null`. `mergeAndWrite` takes a current state + a `Map<slug, RalphPipelineState | null>` of updates, applies them (null = delete entry), and writes both `.js` and `.json` atomically.
+1. **Add `readBundleForSlug` + `assembleStateFromBundles` + `deriveAffectedTaskUpdate` + `mergeAndWrite` to `scripts/lib/sync-core.mjs`.** All pure functions. `readBundleForSlug` reads only the files belonging to one (kind, slug) pair; if the directory is gone, the bundle is reported as deleted. `deriveAffectedTaskUpdate` is the per-slug re-derivation entry point used by the watcher on each debounce flush — it returns the partial `byTaskId` patch (or a deletion marker) for the affected task. `mergeAndWrite` takes a current state + the collected updates, applies them (deletion marker removes the entry), and writes both `.js` and `.json` atomically.
 2. **Create `scripts/lib/watch-ralph-state.mjs`** with chokidar:
    - On `start`:
-    - Acquire `config.lockFile` via `fs.openSync(path, 'wx')`. On `EEXIST`, check mtime: if < 60s old, throw "another watcher holds lock"; else log "stale lock removed" and overwrite.
+     - Acquire the lock via `await acquireLock({ lockPath: config.lockFile, processLabel })` from `scripts/lib/sync-lock.mjs` (see Files » To create). The helper writes JSON metadata `{ pid, process, startedAt }` with the `wx` flag. On `EEXIST` it runs a layered stale-recovery check: parse the existing payload, then `process.kill(pid, 0)` — ESRCH or unparseable JSON past the 60 s `staleAfterMs` window → log "stale lock removed" and overwrite; EPERM (or a live PID within the window) → throw the canonical `another sync in progress (pid <N>, process <label>, started <ts>)` diagnostic. The watcher passes `processLabel = 'watcher'` by default (CLI watch mode overrides to `'standalone'`; Vite plugin uses `'vite-plugin'`).
+     - Start a 30 s heartbeat (`HEARTBEAT_MS = 30_000`) that calls `touch(handle)` to refresh the lock-file mtime, so the 60 s staleness window in `sync-lock.mjs` never fires for a live watcher. Plans 06 / 08 / 11 rely on this heartbeat as part of the cross-plan contract.
      - Perform a cold-start full walk via `walkRalphState` from Plan 01. Write sidecar. Set `currentState`.
      - Subscribe to chokidar events. On `add | change | unlink`, parse the path → slug + kind, push to `pendingSlugs: Set<string>`, reset debounce timer.
-     - When debounce timer fires: for each slug in `pendingSlugs`, call `deriveOneSlug`. Collect results into a Map. Call `mergeAndWrite`. Clear `pendingSlugs`. Call `onWrite()` callback.
-   - On `stop`: close chokidar, release lock (`fs.unlinkSync(lockPath)` in a `finally`).
-   - On unhandled errors during `deriveOneSlug` or read: log to stderr with slug + reason, retain previous `byTaskId[<taskId>]` entry, continue. Track consecutive failures per slug; after 10, emit `watcher: <slug> failing repeatedly` warning.
+     - When debounce timer fires: for each slug in `pendingSlugs`, call `deriveAffectedTaskUpdate`. Collect results into a Map. Call `mergeAndWrite`. Clear `pendingSlugs`. Call `onWrite()` callback.
+   - On `stop`: clear the heartbeat interval, close chokidar, and `releaseLock(handle)` in a `finally`.
+   - On unhandled errors during `deriveAffectedTaskUpdate` or bundle read: log to stderr with slug + reason, retain previous `byTaskId[<taskId>]` entry, continue. Track consecutive failures per slug; after 10, emit `watcher: <slug> failing repeatedly` warning.
 3. **Wire CLI `--watch` flag** in `scripts/sync-ralph-state.mjs`. Validate `--debounce-ms` clamp. Handle SIGINT/SIGTERM cleanly (call `stop()` then exit 0).
 4. **Add npm script** `sync-ralph-state:watch`.
 5. **Vite plugin auto-start** in `tools/overview-viewer/vite.config.ts`:
@@ -119,20 +124,20 @@ Ordered steps:
      server.httpServer?.on('close', () => handle.stop())
      ```
    - The watcher writes the sidecar AND fires the WebSocket event directly. The React side (Plan 03) subscribes to this event.
-6. **Tests:** add the 5 watcher cases to `ralphStage.test.ts` (or split into `ralphWatcher.test.ts` if it grows). Cases:
-   - Debounce coalesces multiple events into one write.
-   - Incremental processing — only changed slugs re-derive.
-   - Cold-start walk runs once before watching begins.
-   - Lock-file collision causes second-instance startup to throw.
-   - Malformed JSON in a watched file → stderr log, watcher stays alive, previous entry retained.
+6. **Tests:** add the watcher cases under `tools/overview-viewer/src/__tests__/` across the four shipped files (NOT appended to `ralphStage.test.ts`):
+   - `ralphWatcher.test.ts` — debounce coalesces multiple events into one write; incremental processing only re-derives changed slugs; cold-start walk runs once before watching begins; heartbeat refreshes the lock mtime; malformed JSON in a watched file → stderr log, watcher stays alive, previous entry retained; `unlink` removes `byTaskId` entry.
+   - `syncLock.test.ts` — `acquireLock` happy path; contention surfaces the canonical diagnostic with the live lock's `pid` / `process` / `startedAt`; stale-PID recovery (ESRCH / EPERM / unparseable JSON); `touch(handle)` updates mtime.
+   - `syncRalphStateCli.test.ts` — CLI `--watch` flag honoured; one-shot vs. watch lock-share semantics; `--debounce-ms` clamp.
+   - extend `syncCore.test.ts` with new cases for `deriveAffectedTaskUpdate` and `mergeAndWrite`.
 
 ## Acceptance criteria
 
-- [ ] `scripts/lib/watch-ralph-state.mjs` exports `start({ repoRoot, debounceMs, onWrite?, onError? })` returning `{ stop, status }`.
-- [ ] `scripts/lib/sync-core.mjs` exports `deriveOneSlug` and `mergeAndWrite` in addition to the Plan 01 exports.
+- [ ] `scripts/lib/watch-ralph-state.mjs` exports `start({ repoRoot, configPath?, debounceMs?, processLabel = 'watcher', onWrite?, onError? })` returning `{ stop, status }`. `processLabel` is propagated into the JSON lock-file `process` field (`'standalone'` for the CLI watch mode, `'vite-plugin'` for the Vite plugin auto-start, default `'watcher'`).
+- [ ] `scripts/lib/sync-core.mjs` exports `readBundleForSlug`, `assembleStateFromBundles`, `deriveAffectedTaskUpdate`, and `mergeAndWrite` in addition to the Plan 01 exports.
 - [ ] `pnpm sync-ralph-state:watch` runs continuously and writes the sidecar atomically on file changes.
 - [ ] Default debounce is 2000 ms; `--debounce-ms <N>` clamps to `[500, 30000]`.
-- [ ] Lock file at `config.lockFile` (default `.ralph/overview-sync.lock`). Second instance startup fails fast if a fresh lock exists; stale lock (>60s) is overwritten with a warning.
+- [ ] Lock file at `config.lockFile` (default `.ralph/overview-sync.lock`) is managed by `scripts/lib/sync-lock.mjs` with a JSON `{ pid, process, startedAt }` payload. Second instance startup fails fast with the canonical `another sync in progress (pid ..., process ..., started ...)` diagnostic if a live lock exists; stale lock (>60s and ESRCH/unparseable on `process.kill(pid, 0)`) is overwritten with a warning.
+- [ ] Lock-file mtime is refreshed every ~30 s (`HEARTBEAT_MS = 30_000`) via `touch(handle)` from `sync-lock.mjs`, so the 60 s staleness window never triggers for a live watcher. This heartbeat is the cross-plan contract relied on by Plans 06 / 08 / 11 and recorded in `plans/ralph-pipeline-INDEX.md`.
 - [ ] `pnpm overview` auto-starts the watcher (verifiable: kill `pnpm overview`, run again, the lock file appears within ~5s).
 - [ ] All Plan 01 acceptance criteria continue to pass (one-shot mode unchanged).
 - [ ] Tests for debounce / incremental / cold-start / lock / error-resilience pass.
@@ -163,7 +168,7 @@ H. **Deletion handling:** `rm -rf .ralph/jobs/<test>/`. After debounce window, `
 1. **Don't re-implement the stage predicate.** Import `deriveRalphStage` from `scripts/lib/derive-ralph-stage.mjs` — never inline a duplicate. The single-source-of-truth rule from Plan 01 carries forward.
 2. **Watcher write is atomic-or-nothing.** Always tmp + rename for BOTH `.js` and `.json`. A torn write to either crashes consumers.
 3. **The watcher emits the HMR event directly when it writes.** Don't also configure the Vite plugin to watch `plans/overview-ralph-state.js` itself for changes — that would double-tick (watcher writes → Vite picks up → fires event again). The watcher → `onWrite` callback → `server.ws.send` is the only event path.
-4. **Lock is released in a `finally`.** Process crash without `finally` leaves a stale lock; the 60s mtime check is the recovery, but design the happy path to release reliably.
+4. **Lock release flows through `releaseLock(handle)` in a `finally`.** Do NOT inline `fs.openSync(path, 'wx')` + `fs.unlinkSync(path)` — the canonical primitive lives in `scripts/lib/sync-lock.mjs` and writes JSON metadata `{ pid, process, startedAt }`, not a 0-byte sentinel. Recovery from a crash relies on the layered stale check (60 s mtime threshold combined with a `process.kill(pid, 0)` liveness probe): ESRCH or unparseable JSON past the window removes the lock; EPERM treats it as still alive. Design the happy path to release reliably via `releaseLock`, and run the 30 s `touch(handle)` heartbeat so a live watcher's lock never falls into the stale window.
 5. **`chokidar.watch()` with `awaitWriteFinish: true`** is essential — Ralph's tmp+rename pattern means a file may briefly look incomplete. Chokidar's `awaitWriteFinish` debounces individual file events until the file stabilizes, eliminating spurious "torn read" errors.
 6. **Don't watch `.crews/`** in this plan. Plan 08 adds the `.crews/` cross-walk. Adding it here without the rest of Plan 08's protocol creates entries that have nowhere to go.
 7. **`unlink` event must remove the entry from `byTaskId`**, not retain a stale copy. Confirm via Verification step H.
