@@ -48,7 +48,7 @@ All under the `codexu-overview` MCP server namespace (same server as Plan 09).
 | `overview.dev_server.logs` | `{ tail?: number, stream?: 'stdout' \| 'stderr' \| 'both' }` | `{ stdout?: string[], stderr?: string[] }` (last `tail` lines per stream; default 100) | no |
 | `overview.build` | `{}` | `{ ok: true, outputPath, sizeBytes, durationMs } \| { ok: false, error, lastLogLines: string[] }` | yes (one-shot build child) |
 | `overview.sync.now` | `{}` | `{ ok: true, summary: { tasksMatched, unmatchedCount, durationMs } } \| { ok: false, error }` | yes (one-shot sync) |
-| `overview.sync.watch_status` | `{}` | `{ running, lockHolderPid?, lockHolderProcess?: 'one-shot' \| 'standalone' \| 'vite-plugin' \| 'watcher' \| 'unknown', startedAt?, lastHeartbeatAt?, staleLock?: boolean }` | no |
+| `overview.sync.watch_status` | `{}` | `{ running, lockHolderPid?, lockHolderProcess?: 'standalone-oneshot' \| 'standalone' \| 'vite-plugin' \| 'watcher' \| 'unknown', startedAt?, lastHeartbeatAt?, staleLock?: boolean }` | no |
 
 ## Files
 
@@ -129,7 +129,7 @@ interface ManagedProcess {
 
 The lock file at `config.lockFile` (default `.ralph/overview-sync.lock`) from Plan 02 indicates a running one-shot sync or watcher. `sync-watch-status.ts` resolves the path through the shared config loader rather than hard-coding it, so any adopter override flows through. The lock holder can be:
 
-- **One-shot sync** (`pnpm sync-ralph-state`) while it is actively walking/writing.
+- **One-shot sync** (`pnpm sync-ralph-state`) while it is actively walking/writing — writes `process: 'standalone-oneshot'`.
 - **Vite-plugin-embedded watcher** (auto-started by `pnpm overview` per Plan 02).
 - **Standalone watcher** (`pnpm sync-ralph-state:watch` in a separate terminal).
 - **Generic watcher** (`process: 'watcher'`) only if a direct API consumer started `watch-ralph-state.mjs` without a more specific `processLabel`.
@@ -138,7 +138,7 @@ The lock file at `config.lockFile` (default `.ralph/overview-sync.lock`) from Pl
 Heuristic in `sync-watch-status.ts`:
 
 1. Stat the lock file. If absent: `{ running: false }`.
-2. Read and parse JSON `{ pid, process, startedAt }` from the lock file. Plan 02 already writes this metadata for one-shot, standalone watcher, and Vite-plugin watcher modes.
+2. Read and parse JSON `{ pid, process, startedAt }` from the lock file. Plan 02 writes this metadata for one-shot (`'standalone-oneshot'`), standalone watcher (`'standalone'`), and Vite-plugin watcher (`'vite-plugin'`) modes; direct API callers of `watch-ralph-state.mjs` without a `processLabel` override appear as `'watcher'`.
 3. If `mtime` is younger than the stale threshold, return `{ running: true, lockHolderPid: pid, lockHolderProcess: process, startedAt, lastHeartbeatAt: mtime }`.
 4. If `mtime` is stale, probe `process.kill(pid, 0)`: ESRCH means stale/not running, EPERM or success means the holder is still alive. This mirrors `sync-lock.mjs`; do not replace it with an mtime-only heuristic.
 5. If the JSON is unparseable, treat the lock as stale/unknown and prefer reusing `sync-lock.mjs` cleanup behavior over guessing from dev-server status.
