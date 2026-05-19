@@ -1,0 +1,220 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
+export const SNAPSHOT_SCHEMA = {
+    $schema: 'http://json-schema.org/draft-07/schema#',
+    $id: 'https://codexu.local/schemas/overview-snapshot.v1.json',
+    title: 'Ralph overview snapshot',
+    type: 'object',
+    additionalProperties: false,
+    required: [
+        'generatedAt',
+        'generatedFromCommit',
+        'schemaVersion',
+        'tasks',
+        'runs',
+        'recommendations',
+        'dependencyGraph',
+        'runDurations',
+        'unmatched',
+        'unmatchedSummary',
+    ],
+    properties: {
+        generatedAt: { type: 'string' },
+        generatedFromCommit: { type: 'string' },
+        schemaVersion: { type: 'integer', const: 1 },
+        tasks: { type: 'array', items: { $ref: '#/$defs/SnapshotTask' } },
+        runs: { type: 'array', items: { $ref: '#/$defs/RunRecord' } },
+        recommendations: { type: 'array', items: { $ref: '#/$defs/Recommendation' } },
+        dependencyGraph: { $ref: '#/$defs/DependencyGraph' },
+        runDurations: { type: 'object', additionalProperties: { type: 'number' } },
+        unmatched: { type: 'array', items: { $ref: '#/$defs/UnmatchedEntry' } },
+        unmatchedSummary: { type: 'object', additionalProperties: { type: 'number' } },
+    },
+    $defs: {
+        OverviewWarning: {
+            type: 'object',
+            additionalProperties: true,
+            required: ['html'],
+            properties: {
+                className: { type: 'string' },
+                html: { type: 'string' },
+            },
+        },
+        OverviewCommand: {
+            type: 'object',
+            additionalProperties: true,
+            required: ['descriptionHtml'],
+            properties: {
+                name: { type: 'string' },
+                descriptionHtml: { type: 'string' },
+                warnings: { type: 'array', items: { $ref: '#/$defs/OverviewWarning' } },
+                planPrompt: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+            },
+        },
+        KanbanCardData: {
+            type: 'object',
+            additionalProperties: true,
+            required: ['column', 'html'],
+            properties: {
+                column: { type: 'string' },
+                cardClass: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                inlineStyle: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                html: { type: 'string' },
+                insertBeforeTaskId: { type: 'string' },
+                order: { type: 'number' },
+            },
+        },
+        OverviewTask: {
+            type: 'object',
+            additionalProperties: true,
+            required: ['id'],
+            properties: {
+                id: { type: 'string' },
+                scope: { type: 'string' },
+                phase: { type: 'string' },
+                status: { type: 'string' },
+                lastTouchedAt: { type: 'string' },
+                planOnly: { type: 'boolean' },
+                mergeCommit: { type: 'string' },
+                kanbanCards: { type: 'array', items: { $ref: '#/$defs/KanbanCardData' } },
+                command: { $ref: '#/$defs/OverviewCommand' },
+            },
+        },
+        RalphArtifacts: {
+            type: 'object',
+            additionalProperties: true,
+            properties: {
+                brainstormDir: { type: 'string' },
+                planDraftFile: { type: 'string' },
+                jobDir: { type: 'string' },
+                groupDir: { type: 'string' },
+                planFile: { type: 'string' },
+                prdFile: { type: 'string' },
+            },
+        },
+        StoryCompletion: {
+            type: 'object',
+            additionalProperties: true,
+            required: ['total', 'passed', 'blocked', 'remaining'],
+            properties: {
+                total: { type: 'number' },
+                passed: { type: 'number' },
+                blocked: { type: 'number' },
+                remaining: { type: 'number' },
+            },
+        },
+        RalphPipelineState: {
+            type: 'object',
+            additionalProperties: true,
+            required: ['stage'],
+            properties: {
+                stage: {
+                    enum: [
+                        'brainstorming',
+                        'brainstorm-ready',
+                        'planning',
+                        'plan-ready',
+                        'implementing',
+                        'reviewing',
+                        'review-fix',
+                        'replan-pending',
+                        'shipped',
+                        'blocked',
+                    ],
+                },
+                entryPath: { enum: ['brainstorm-first', 'plan-direct', 'manual-plan'] },
+                artifacts: { $ref: '#/$defs/RalphArtifacts' },
+                jobSlug: { type: 'string' },
+                groupSlug: { type: 'string' },
+                isParallel: { type: 'boolean' },
+                matchSource: { enum: ['overviewTaskId', 'override', 'slug-default'] },
+                storyCompletion: { $ref: '#/$defs/StoryCompletion' },
+                reviewOpenCount: { type: 'object', additionalProperties: { type: 'number' } },
+                hasPrdWorthy: { type: 'boolean' },
+                terminalReason: { enum: ['complete', 'replan', 'blocked'] },
+                lastUpdatedAt: { type: 'string' },
+            },
+        },
+        SnapshotTask: {
+            allOf: [
+                { $ref: '#/$defs/OverviewTask' },
+                {
+                    type: 'object',
+                    additionalProperties: true,
+                    properties: {
+                        ralph: { $ref: '#/$defs/RalphPipelineState' },
+                    },
+                },
+            ],
+        },
+        RunRecord: {
+            type: 'object',
+            additionalProperties: true,
+            properties: {
+                id: { type: 'string' },
+                taskId: { type: 'string' },
+                ranAt: { type: 'string' },
+                outcome: { type: 'string' },
+                summary: { type: 'string' },
+                commits: { type: 'array', items: { type: 'string' } },
+            },
+        },
+        Recommendation: {
+            type: 'object',
+            additionalProperties: true,
+            properties: {
+                taskId: { type: 'string' },
+                score: { type: 'number' },
+                rationale: { type: 'string' },
+            },
+        },
+        DependencyGraph: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['nodes', 'edges'],
+            properties: {
+                nodes: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        additionalProperties: true,
+                        required: ['id'],
+                        properties: { id: { type: 'string' } },
+                    },
+                },
+                edges: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        additionalProperties: true,
+                        required: ['from', 'to'],
+                        properties: {
+                            from: { type: 'string' },
+                            to: { type: 'string' },
+                        },
+                    },
+                },
+            },
+        },
+        UnmatchedEntry: {
+            type: 'object',
+            additionalProperties: true,
+            required: ['kind', 'slug', 'reason'],
+            properties: {
+                kind: { type: 'string' },
+                slug: { type: 'string' },
+                reason: { type: 'string' },
+            },
+        },
+    },
+}
+
+export function writeSnapshotSchema(schemaPath) {
+    if (!schemaPath) {
+        throw new Error('writeSnapshotSchema requires schemaPath')
+    }
+
+    fs.mkdirSync(path.dirname(schemaPath), { recursive: true })
+    fs.writeFileSync(schemaPath, `${JSON.stringify(SNAPSHOT_SCHEMA, null, 2)}\n`)
+}
