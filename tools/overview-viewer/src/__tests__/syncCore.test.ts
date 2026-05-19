@@ -8,6 +8,7 @@ import { codexuDefaultConfig } from '../../../../scripts/lib/default-config.mjs'
 import {
     assembleStateFromBundles,
     deriveAffectedTaskUpdate,
+    loadOverviewData,
     mergeAndWrite,
     pickMostRecentByMtime,
     readBundleForSlug,
@@ -26,6 +27,15 @@ afterEach(() => {
 })
 
 describe('walkRalphState', () => {
+    it('exports the overview-data parser used by state assembly', () => {
+        const fixture = makeRepoFixture({ tasks: ['direct'], ralphOverrides: { aliased: 'direct' } })
+
+        const overviewData = loadOverviewData(path.join(fixture.repoRoot, fixture.config.dataFile))
+
+        expect(overviewData.tasks).toEqual([{ id: 'direct' }])
+        expect(overviewData.ralphOverrides).toEqual({ aliased: 'direct' })
+    })
+
     it('applies job-over-brainstorm cross-kind precedence before stage derivation', async () => {
         const fixture = makeRepoFixture({ tasks: ['same'] })
         writeJson(path.join(fixture.repoRoot, '.ralph/jobs/same/job-state.json'), {

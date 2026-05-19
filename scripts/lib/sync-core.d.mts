@@ -1,4 +1,4 @@
-import type { OverviewRalphState, RalphPipelineState } from '../../tools/overview-viewer/src/types'
+import type { OverviewData, OverviewRalphState, RalphPipelineState } from '../../tools/overview-viewer/src/types'
 import type { RalphOverviewConfig } from './default-config.mjs'
 
 export interface RalphArtifactBundle {
@@ -69,6 +69,8 @@ export function assembleStateFromBundles(options: {
     config: RalphOverviewConfig
     generatedFromCommit?: string
 }): OverviewRalphState
+
+export function loadOverviewData(dataFile: string): OverviewData
 
 export function deriveAffectedTaskUpdate(options: {
     repoRoot: string

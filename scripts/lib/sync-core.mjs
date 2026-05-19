@@ -568,7 +568,7 @@ function toPipelineState(bundle) {
     })
 }
 
-function loadOverviewData(dataFile) {
+export function loadOverviewData(dataFile) {
     if (!fs.existsSync(dataFile)) {
         return {}
     }
