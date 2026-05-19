@@ -1,11 +1,13 @@
 import { execFileSync } from 'node:child_process'
+import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
+import { appendActivity } from './lib/emit-activity.mjs'
 import { resolveHeadShortSha as sharedResolveHeadShortSha } from './lib/path-utils.mjs'
 import { loadConfig } from './lib/resolve-config.mjs'
-import { walkRalphState, writeSidecar } from './lib/sync-core.mjs'
+import { deriveActivityEvents, walkRalphState, writeSidecar } from './lib/sync-core.mjs'
 import { acquireLock, releaseLock } from './lib/sync-lock.mjs'
 import { start } from './lib/watch-ralph-state.mjs'
 
@@ -35,6 +37,7 @@ async function runOneShot({ repoRoot, config }) {
     const generatedFromCommit = resolveHeadShortSha(repoRoot)
     const lockHandle = await acquireLock({ lockPath: config.lockFile, processLabel: 'standalone-oneshot' })
     try {
+        const priorByTaskId = readPriorByTaskId(config)
         const state = await walkRalphState({ repoRoot, config, generatedFromCommit })
 
         for (const entry of state.unmatched ?? []) {
@@ -42,8 +45,34 @@ async function runOneShot({ repoRoot, config }) {
         }
 
         await writeSidecar({ repoRoot, config, state })
+
+        const activityEvents = deriveActivityEvents({
+            previousByTaskId: priorByTaskId,
+            nextByTaskId: state.byTaskId,
+            ts: state.generatedAt,
+        })
+        for (const event of activityEvents) {
+            appendActivity(repoRoot, event, {
+                activityPath: config.outputs.activity,
+                activityBackupPath: config.outputs.activityBackup,
+                maxLines: config.outputs.activityMaxLines,
+            })
+        }
     } finally {
         await releaseLock(lockHandle)
+    }
+}
+
+function readPriorByTaskId(config) {
+    const sidecarPath = config.outputs.sidecarJson
+    if (!fs.existsSync(sidecarPath)) {
+        return {}
+    }
+    try {
+        const parsed = JSON.parse(fs.readFileSync(sidecarPath, 'utf8'))
+        return parsed?.byTaskId ?? {}
+    } catch {
+        return {}
     }
 }
 

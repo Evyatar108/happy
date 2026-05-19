@@ -34,7 +34,9 @@ describe('Plan 05 end-to-end acceptance', () => {
         expect(fs.existsSync(path.join(fixture, 'plans/overview-activity.jsonl'))).toBe(true)
         expect(fs.existsSync(path.join(fixture, 'plans/overview-snapshot.schema.json'))).toBe(true)
         expect(fs.existsSync(path.join(fixture, 'tasks/INDEX.md'))).toBe(true)
-        expect(fs.statSync(path.join(fixture, 'plans/overview-activity.jsonl')).size).toBe(0)
+        const firstRunEvents = readJsonLines(path.join(fixture, 'plans/overview-activity.jsonl'))
+        expect(firstRunEvents.length).toBeGreaterThanOrEqual(1)
+        expect(firstRunEvents[0]).toMatchObject({ taskId: 'e2e-task', changedFields: ['stage'], prevStage: null })
 
         const schema = readJson(path.join(fixture, 'plans/overview-snapshot.schema.json'))
         const snapshot = readJson(path.join(fixture, 'plans/overview-snapshot.json'))

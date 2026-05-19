@@ -278,7 +278,7 @@ export async function mergeAndWrite({ repoRoot, config, currentState, updates, g
     return { state, writtenAt: state.generatedAt, changedTaskIds: [...changedTaskIds].sort(), activityEvents }
 }
 
-function deriveActivityEvents({ previousByTaskId, nextByTaskId, ts }) {
+export function deriveActivityEvents({ previousByTaskId, nextByTaskId, ts }) {
     const taskIds = new Set([...Object.keys(previousByTaskId), ...Object.keys(nextByTaskId)])
     return [...taskIds].sort().flatMap((taskId) => {
         const previous = previousByTaskId[taskId]
