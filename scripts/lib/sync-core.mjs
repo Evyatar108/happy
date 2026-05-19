@@ -143,21 +143,8 @@ export function deriveAffectedTaskUpdate({ repoRoot, config, kind, slug, current
 
     const absoluteRepoRoot = path.resolve(repoRoot)
     const normalizedConfig = normalizeConfigPaths(config, absoluteRepoRoot)
-    const directBundle = readBundleForSlug({ repoRoot: absoluteRepoRoot, config: normalizedConfig, kind, slug })
     const touched = getFullTouchedEntries(currentState)
     addTouched(touched, { kind, slug })
-
-    if (directBundle?.parseError) {
-        return {
-            action: 'retain',
-            taskId: findCurrentTaskIdForSlug(currentState, kind, slug) ?? resolveTaskIdForSlug(normalizedConfig, slug),
-            kind,
-            slug,
-            touched: sortTouched(touched),
-            unmatchedFragment: [unmatchedEntry(directBundle, 'parse-error')],
-            error: directBundle.parseErrorMessage ?? `failed to parse ${kind} ${slug}`,
-        }
-    }
 
     // TODO(F-006/F-012): plan Architecture calls for reading ONLY the touched bundle +
     // cross-kind candidates competing for the same taskId. A per-slug refactor was
@@ -170,8 +157,28 @@ export function deriveAffectedTaskUpdate({ repoRoot, config, kind, slug, current
     // for the rare "new orphan slug" case. For now, behavior is correct (full walk
     // preserves the equivalence invariant) at the cost of one fs.readdirSync per
     // debounce tick.
+    const allBundles = readAllBundles({ repoRoot: absoluteRepoRoot, config: normalizedConfig })
+
+    // F-016: detect parse-error directly from the readAllBundles result instead of
+    // making a separate readBundleForSlug fs read. The bundle list already includes
+    // any parse-error entry for the touched (kind, slug); short-circuit when found
+    // so we retain the prior byTaskId entry but refresh unmatched + unmatchedSummary
+    // with a fresh parse-error fragment (matches F-001/F-013 retain semantics).
+    const directBundle = allBundles.find((bundle) => bundle.kind === kind && bundle.slug === slug)
+    if (directBundle?.parseError) {
+        return {
+            action: 'retain',
+            taskId: findCurrentTaskIdForSlug(currentState, kind, slug) ?? resolveTaskIdForSlug(normalizedConfig, slug),
+            kind,
+            slug,
+            touched: sortTouched(touched),
+            unmatchedFragment: [unmatchedEntry(directBundle, 'parse-error')],
+            error: directBundle.parseErrorMessage ?? `failed to parse ${kind} ${slug}`,
+        }
+    }
+
     const fragment = assembleStateFromBundles({
-        bundles: readAllBundles({ repoRoot: absoluteRepoRoot, config: normalizedConfig }),
+        bundles: allBundles,
         repoRoot: absoluteRepoRoot,
         config: normalizedConfig,
         generatedFromCommit: generatedFromCommit ?? currentState?.generatedFromCommit,
@@ -334,109 +341,6 @@ function delay(ms) {
     return new Promise((resolve) => {
         setTimeout(resolve, ms)
     })
-}
-
-function collectAffectedBundles({ repoRoot, config, kind, slug, directBundle, currentState }) {
-    // Determine the taskId for the affected slug — either via overrides, slug-default,
-    // or a prior entry in currentState. If we can't pin a single taskId, fall back to a
-    // full walk (covers the "no-matching-task-id" + ambiguous bundles edge case).
-    const overviewData = loadOverviewData(config.dataFile)
-    const ralphOverrides = overviewData.ralphOverrides ?? {}
-    const taskIds = new Set((overviewData.tasks ?? []).map((task) => task.id).filter(Boolean))
-
-    const candidateTaskIds = new Set()
-    const overrideTaskId = ralphOverrides[slug]
-    if (overrideTaskId) {
-        candidateTaskIds.add(overrideTaskId)
-    } else if (taskIds.has(slug)) {
-        candidateTaskIds.add(slug)
-    }
-    const currentTaskId = findCurrentTaskIdForSlug(currentState, kind, slug)
-    if (currentTaskId) {
-        candidateTaskIds.add(currentTaskId)
-    }
-
-    if (candidateTaskIds.size === 0) {
-        // No way to know which other slugs compete for this taskId — be safe and walk.
-        // This path is rare (unmatched slug being touched); not a hot path.
-        return readAllBundles({ repoRoot, config })
-    }
-
-    // For each candidate taskId, find the slugs that resolve to it (override entries +
-    // slug-default match) and read those bundles per-kind. We always include the direct
-    // bundle so deletions are properly handled.
-    const slugsByKind = { job: new Set(), group: new Set(), brainstorm: new Set() }
-    if (directBundle) {
-        slugsByKind[kind].add(slug)
-    } else {
-        // The direct bundle may have been deleted; still consider the slug for the
-        // current pass so prior entries can be removed and shadowed bundles promoted.
-        slugsByKind[kind].add(slug)
-    }
-
-    for (const taskId of candidateTaskIds) {
-        // Find slugs that resolve to this taskId via override or slug-default.
-        for (const [overrideSlug, overrideTarget] of Object.entries(ralphOverrides)) {
-            if (overrideTarget === taskId) {
-                // Add to all kinds because we don't know which kind hosts the slug.
-                slugsByKind.job.add(overrideSlug)
-                slugsByKind.group.add(overrideSlug)
-                slugsByKind.brainstorm.add(overrideSlug)
-            }
-        }
-        if (taskIds.has(taskId)) {
-            slugsByKind.job.add(taskId)
-            slugsByKind.group.add(taskId)
-            slugsByKind.brainstorm.add(taskId)
-        }
-        // Also include existing currentState entry slugs for this taskId so shadowed
-        // bundles get re-evaluated for cross-kind promotion.
-        const existing = currentState?.byTaskId?.[taskId]
-        if (existing) {
-            if (existing.jobSlug) {
-                slugsByKind.job.add(existing.jobSlug)
-            }
-            if (existing.groupSlug) {
-                slugsByKind.group.add(existing.groupSlug)
-            }
-            const brainstormSlug = slugFromArtifact(existing.artifacts?.brainstormDir)
-            if (brainstormSlug) {
-                slugsByKind.brainstorm.add(brainstormSlug)
-            }
-        }
-    }
-
-    const bundles = []
-    bundles.push(
-        ...readJobLikeBundles({
-            repoRoot,
-            rootDir: config.ralphSubdirs.jobs,
-            ralphRoot: config.ralphRoot,
-            ignored: config.watcher.ignored,
-            kind: 'job',
-            slugs: slugsByKind.job,
-        }),
-    )
-    bundles.push(
-        ...readJobLikeBundles({
-            repoRoot,
-            rootDir: config.ralphSubdirs.jobGroups,
-            ralphRoot: config.ralphRoot,
-            ignored: config.watcher.ignored,
-            kind: 'group',
-            slugs: slugsByKind.group,
-        }),
-    )
-    bundles.push(
-        ...readBrainstormBundles({
-            repoRoot,
-            rootDir: config.ralphSubdirs.brainstorms,
-            ralphRoot: config.ralphRoot,
-            ignored: config.watcher.ignored,
-            slugs: slugsByKind.brainstorm,
-        }),
-    )
-    return bundles
 }
 
 function readAllBundles({ repoRoot, config }) {
