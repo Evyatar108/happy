@@ -109,7 +109,7 @@ CLI and prompt behavior:
 Write locations:
 
 - Write `overviewTaskId` as a top-level field in `brainstorm.json` with a string value or null.
-- Add metadata to `selected-direction.md` so `plan-with-ralph --from-brainstorm` can propagate the value. If YAML front-matter is selected in Section 6.1, write:
+- Add YAML front-matter to `selected-direction.md` so `plan-with-ralph --from-brainstorm` can propagate the value. Always write:
 
 ```yaml
 ---
@@ -117,7 +117,7 @@ overviewTaskId: <id>
 ---
 ```
 
-- Place the metadata before the existing selected-direction content. If the Section 6.1 decision chooses a non-front-matter format, use that same format here instead.
+- Place the front-matter before the existing selected-direction content. This format is unconditional and is not affected by the Section 6.1 plan-format decision, which is scoped to `plan.md` only.
 
 Artifact example directive:
 
@@ -201,11 +201,11 @@ Prerequisite: settle the Section 6.1 metadata-format decision before any of the 
 
 Recommended sequence:
 
+0. Conditional `implement-with-ralph`: land this first, before steps 1-4, only if Section 6.1 resolution A is selected. (If Section 6.1 resolution B or C is chosen, skip this step entirely.)
 1. `convert-to-ralph-prd`: add canonical `--overview-task-id`, write PRD field, update `prd-schema.json`, and whitelist the schema guard.
 2. `brainstorm-with-ralph`: write brainstorm field and selected-direction metadata using the chosen metadata format.
 3. `plan-with-ralph`: read brainstorm metadata and write plan metadata using the same chosen format.
 4. `decompose-plan`: read plan/PRD metadata by precedence, write group field, and thread `--overview-task-id` into member PRD generation.
-5. Conditional `implement-with-ralph`: land this before steps 2-4 only if Section 6.1 resolution A is selected.
 
 ## 8. Acceptance criteria
 
