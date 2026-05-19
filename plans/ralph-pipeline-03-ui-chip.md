@@ -11,7 +11,7 @@ Plans 01 and 02 produce sidecar data on disk but nothing renders. This plan adds
 ## Dependencies
 
 - **Plan 01 (Foundation)** — required. Types, `getOverviewRalphState()`, sidecar files.
-- **Plan 02 (Watcher)** — optional but recommended. Without it the user has to manually rerun `pnpm sync-ralph-state` to see UI updates. Plan 02 emits the `overview-ralph-state:update` HMR event this plan subscribes to.
+- **Plan 02 (Watcher)** — optional but recommended. Without it the user has to manually rerun `pnpm sync-ralph-state` to see UI updates. When `pnpm overview` runs, Plan 02's Vite plugin auto-starts the watcher and emits the `overview-ralph-state:update` HMR event this plan subscribes to.
 
 ## Scope
 
@@ -79,7 +79,7 @@ Plans 01 and 02 produce sidecar data on disk but nothing renders. This plan adds
   - `.ralph-stage-chip.match-slug-default { border-style: dotted }` — visual distinction for low-confidence matches per R5 / R1.
 - **`tools/overview-viewer/vite.config.ts`:** extend `overviewDataPlugin` (or sibling plugin) to:
   - Serve `/overview-ralph-state.js` at the same dev URL pattern as `/overview-data.js`. Mirror lines 31-53 (`configureServer` hook).
-  - Watch `plans/overview-ralph-state.js` for change events. (When Plan 02 ships, this watch becomes redundant because the Plan 02 watcher emits the `overview-ralph-state:update` event directly; keep both paths for safety. Dedup on the React side is fine — `reloadRalphState` is idempotent.)
+  - Watch `plans/overview-ralph-state.js` for change events. (When Plan 02 ships, this watch becomes redundant in dev because the Plan 02 Vite plugin emits the `overview-ralph-state:update` event from the watcher's `onWrite` callback; keep both paths for safety. Dedup on the React side is fine — `reloadRalphState` is idempotent.)
   - `transformIndexHtml` / static-build path: inline `overview-ralph-state.js` content alongside `overview-data.js` (lines 54-72). Preserve Plan 01's `</script` escape contract; re-escape defensively if the build path rewrites the payload.
 - **`tools/overview-viewer/src/__tests__/testData.ts`** (lines 7-12): add `loadRalphState()` helper that loads `plans/overview-ralph-state.js` via the same `new Function` pattern. Export `NO_RALPH_STATE: OverviewRalphState = { generatedAt: '', generatedFromCommit: '', byTaskId: {} }` for tests that want the no-op path.
 - **`tools/overview-viewer/src/__tests__/searchHaystack.test.ts`**, **`kanban.test.tsx`**, **`commandList.test.tsx`**: every call to `matchesTaskFilter` / `matchesKanbanFilter` / `getTaskSearchHaystack` gains a final `NO_RALPH_STATE` argument. Existing test assertions should pass unchanged (proof that the no-ralph path is byte-identical to pre-feature behavior).
@@ -103,7 +103,7 @@ Ordered steps:
 6. **Add filter group to `Toolbar.tsx`** — 10 chips. Verify the toolbar renders the new group.
 7. **CSS variants** — add color classes. Verify in dev server.
 8. **Vite plugin extension** — serve `/overview-ralph-state.js`, inline for static build.
-9. **App.tsx HMR helper** — `reloadRalphState` + `useEffect`. With Plan 02's watcher running, edit a `.ralph/jobs/<test>/job-state.json` and confirm the chip color in the browser updates without reload (within ~2s of edit + ~0.2s for HMR).
+9. **App.tsx HMR helper** — `reloadRalphState` + `useEffect`. With `pnpm overview` running so Plan 02's Vite-plugin watcher is active, edit a `.ralph/jobs/<test>/job-state.json` and confirm the chip color in the browser updates without reload (within ~2s of edit + ~0.2s for HMR).
 10. **Static build verification** — `pnpm overview:build` produces a self-contained `plans/overview.html` under the 500KB budget that, opened via `file://`, renders the chips correctly.
 
 ## Acceptance criteria
@@ -120,7 +120,7 @@ Ordered steps:
 - [ ] All existing tests pass with the `NO_RALPH_STATE` argument added.
 - [ ] New `ralphStageChip.test.tsx` covers: null-when-absent, stage-color rendering, tooltip content, dotted-underline for slug-default.
 - [ ] `pnpm --filter @codexu/overview-viewer typecheck` and `pnpm --filter @codexu/overview-viewer test` both pass.
-- [ ] `pnpm overview` dev server renders chips with HMR updates (when Plan 02's watcher is running). Without Plan 02, manual `pnpm sync-ralph-state` followed by browser reload shows updated chips.
+- [ ] `pnpm overview` dev server renders chips with HMR updates (when Plan 02's Vite-plugin watcher starts successfully). Without Plan 02, manual `pnpm sync-ralph-state` followed by browser reload shows updated chips.
 - [ ] `pnpm overview:build` produces a static `plans/overview.html` under 500KB that renders chips when opened via `file://`.
 - [ ] Kanban snapshot tests (`kanban.test.tsx`) remain unchanged (this plan does NOT inject pills into kanban HTML).
 
@@ -138,7 +138,7 @@ C. **Tooltip:** hover a stage chip — Radix Tooltip appears showing stage, jobS
 
 D. **Filter:** click `🟦 implementing` in the toolbar. Command list and kanban both filter to only tasks in `implementing` stage.
 
-E. **HMR (requires Plan 02):** with Plan 02's watcher running, edit a `.ralph/jobs/<test>/job-state.json` to flip its stage. Browser chip updates within ~2-3 seconds without page reload.
+E. **HMR (requires Plan 02):** with `pnpm overview` running so the Vite-plugin watcher owns the sync lock, edit a `.ralph/jobs/<test>/job-state.json` to flip its stage. Browser chip updates within ~2-3 seconds without page reload.
 
 F. **Static build:** `pnpm overview:build`. Open `plans/overview.html` via `file://`. Chips render. Bundle is under 500KB (`ls -la plans/overview.html`).
 
@@ -153,7 +153,7 @@ H. **Slug-default visual:** with at least one task matching via `slug-default`, 
 3. **Don't inject the chip into kanban HTML.** Kanban pill injection is explicitly OUT of scope for this plan to keep snapshot tests stable. A later plan can add `injectRalphStagePill` (the comprehensive plan describes the pattern); leave kanban alone here.
 4. **`RalphStageChip` returns `null` when absent.** Do NOT render a "no ralph state" placeholder chip — pre-feature rows should be visually byte-identical for tasks without ralph data.
 5. **HMR event subscription is in addition to the existing `overview-data:update` subscription, not a replacement.** Both fire independently; both helpers should be present.
-6. **Vite plugin extension reuses the chokidar instance pattern, not the data.** Watching `plans/overview-ralph-state.js` for change in the plugin is defensive (works without Plan 02). With Plan 02, the watcher emits the event directly — both paths produce the same effect on the React side, harmlessly.
+6. **Vite plugin extension reuses the chokidar instance pattern, not the data.** Watching `plans/overview-ralph-state.js` for change in the plugin is defensive (works without Plan 02). With Plan 02, the Vite plugin emits the event from the watcher's `onWrite` callback — both paths produce the same effect on the React side, harmlessly.
 7. **Tooltip extras slot is reserved for future plans.** Plans 07 (notepad surfacing, PR/branch) and 08 (crew sessions) will add tooltip content via the `tooltipExtras` slot. Don't inline that content in this plan.
 
 ## Hand-off to next plans

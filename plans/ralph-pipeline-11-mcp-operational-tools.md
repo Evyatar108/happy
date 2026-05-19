@@ -48,7 +48,7 @@ All under the `codexu-overview` MCP server namespace (same server as Plan 09).
 | `overview.dev_server.logs` | `{ tail?: number, stream?: 'stdout' \| 'stderr' \| 'both' }` | `{ stdout?: string[], stderr?: string[] }` (last `tail` lines per stream; default 100) | no |
 | `overview.build` | `{}` | `{ ok: true, outputPath, sizeBytes, durationMs } \| { ok: false, error, lastLogLines: string[] }` | yes (one-shot build child) |
 | `overview.sync.now` | `{}` | `{ ok: true, summary: { tasksMatched, unmatchedCount, durationMs } } \| { ok: false, error }` | yes (one-shot sync) |
-| `overview.sync.watch_status` | `{}` | `{ running, lockHolderPid?, lockHolderProcess?: 'mcp' \| 'standalone' \| 'vite-plugin' \| 'unknown', lastWriteAt? }` | no |
+| `overview.sync.watch_status` | `{}` | `{ running, lockHolderPid?, lockHolderProcess?: 'one-shot' \| 'standalone' \| 'vite-plugin' \| 'watcher' \| 'unknown', startedAt?, lastHeartbeatAt?, staleLock?: boolean }` | no |
 
 ## Files
 
@@ -67,7 +67,7 @@ All under the `codexu-overview` MCP server namespace (same server as Plan 09).
 - **`tools/overview-mcp/src/tools/dev-server-logs.ts`** — registers `overview.dev_server.logs`. Reads from the ring buffer.
 - **`tools/overview-mcp/src/tools/build.ts`** — registers `overview.build`. Spawns `pnpm overview:build` (one-shot — not a long-lived child). Waits for exit. On exit code 0, stats `plans/overview.html` for `outputPath` and `sizeBytes`, returns success. On non-zero, returns failure with last 30 log lines from stderr.
 - **`tools/overview-mcp/src/tools/sync-now.ts`** — registers `overview.sync.now`. Spawns `node scripts/sync-ralph-state.mjs` (one-shot, no `--watch`). On success, parses stdout for the unmatched summary line (the sync script should emit one).
-- **`tools/overview-mcp/src/tools/sync-watch-status.ts`** — registers `overview.sync.watch_status`. Resolves `config.lockFile` (Plan 01 default: `.ralph/overview-sync.lock`) via the shared config loader and reads that path: if present and fresh, returns the lock holder info. If a `dev-server` process is registered with the `ProcessManager`, the lock holder is likely the Vite-plugin-embedded watcher (Plan 02). Heuristic identification documented under "Lock holder detection" below.
+- **`tools/overview-mcp/src/tools/sync-watch-status.ts`** — registers `overview.sync.watch_status`. Resolves `config.lockFile` (Plan 01 default: `.ralph/overview-sync.lock`) via the shared config loader and reads Plan 02's JSON lock metadata `{ pid, process, startedAt }`. If the lock is present and fresh, return that holder info directly. Stale handling and PID-liveness rules are documented under "Lock holder detection" below.
 - **`tools/overview-mcp/tests/process-manager.test.ts`** — covers spawn/stop/status/logs/stopAll cycle.
 - **`tools/overview-mcp/tests/dev-server.test.ts`** — covers start (spawn-and-wait-for-Vite-line), status, stop. Mock the spawned process via a stub that emits the expected output pattern.
 - **`tools/overview-mcp/tests/build.test.ts`** — covers success + failure paths.
@@ -127,22 +127,21 @@ interface ManagedProcess {
 
 ## Lock holder detection (for `sync.watch_status`)
 
-The lock file at `config.lockFile` (default `.ralph/overview-sync.lock`) from Plan 02 indicates a running watcher. `sync-watch-status.ts` resolves the path through the shared config loader rather than hard-coding it, so any adopter override flows through. The lock holder can be:
+The lock file at `config.lockFile` (default `.ralph/overview-sync.lock`) from Plan 02 indicates a running one-shot sync or watcher. `sync-watch-status.ts` resolves the path through the shared config loader rather than hard-coding it, so any adopter override flows through. The lock holder can be:
 
-- **Vite-plugin-embedded watcher** (auto-started by `pnpm overview` per Plan 02 step 8). When `dev_server.status` shows the dev-server child is `running`, the lock holder is almost certainly this.
+- **One-shot sync** (`pnpm sync-ralph-state`) while it is actively walking/writing.
+- **Vite-plugin-embedded watcher** (auto-started by `pnpm overview` per Plan 02).
 - **Standalone watcher** (`pnpm sync-ralph-state:watch` in a separate terminal).
-- **MCP-embedded watcher** — not introduced in this plan. Could be a future addition; for now the lock holder is never the MCP server.
-- **Stale lock** (>60s mtime, no live process). Surface as `lockHolderProcess: 'unknown'`.
+- **Generic watcher** (`process: 'watcher'`) only if a direct API consumer started `watch-ralph-state.mjs` without a more specific `processLabel`.
+- **Stale lock** (mtime older than Plan 02's stale threshold and no live PID). Surface as `{ running: false, staleLock: true }` or remove it by reusing `sync-lock.mjs`; do not report it as an active watcher.
 
 Heuristic in `sync-watch-status.ts`:
 
 1. Stat the lock file. If absent: `{ running: false }`.
-2. Read the lock file content — if Plan 02 writes the holder PID into the lock content (recommended enhancement; see Common Mistakes), use it directly.
-3. If lock content doesn't carry PID metadata, fall back to:
-   - Is `dev-server` process registered with `ProcessManager` and `status === 'ready'/'running'`? → `lockHolderProcess: 'vite-plugin'`.
-   - Otherwise → `lockHolderProcess: 'standalone'` (or `'unknown'` if mtime is stale).
-
-(Plan 02's lock file should be enhanced to write `{ pid, process: 'standalone' | 'vite-plugin', startedAt }` as JSON content rather than being a 0-byte sentinel. This enhancement is in scope HERE — modify `scripts/lib/watch-ralph-state.mjs` accordingly. Plan 02's lock-collision predicate (mtime check) still works because JSON content is small and writing it doesn't change the mtime semantics.)
+2. Read and parse JSON `{ pid, process, startedAt }` from the lock file. Plan 02 already writes this metadata for one-shot, standalone watcher, and Vite-plugin watcher modes.
+3. If `mtime` is younger than the stale threshold, return `{ running: true, lockHolderPid: pid, lockHolderProcess: process, startedAt, lastHeartbeatAt: mtime }`.
+4. If `mtime` is stale, probe `process.kill(pid, 0)`: ESRCH means stale/not running, EPERM or success means the holder is still alive. This mirrors `sync-lock.mjs`; do not replace it with an mtime-only heuristic.
+5. If the JSON is unparseable, treat the lock as stale/unknown and prefer reusing `sync-lock.mjs` cleanup behavior over guessing from dev-server status.
 
 ## Cross-platform notes (Windows specifics)
 
@@ -160,9 +159,8 @@ The user runs Windows 11.
 3. **Build `dev-server-start.ts`** with the Vite ready-signal predicate. Test against a real `pnpm overview` invocation.
 4. **Build `dev-server-stop.ts`**, `dev-server-status.ts`, `dev-server-logs.ts` — thin wrappers.
 5. **Build `build.ts`** — one-shot child. Capture exit. Parse output.
-6. **Modify Plan 02's `watch-ralph-state.mjs`** to write JSON metadata into the lock file.
-7. **Build `sync-now.ts`** — one-shot `node scripts/sync-ralph-state.mjs`. Parse summary line.
-8. **Build `sync-watch-status.ts`** — read lock file, apply heuristic.
+6. **Build `sync-now.ts`** — one-shot `node scripts/sync-ralph-state.mjs`. Parse summary line.
+7. **Build `sync-watch-status.ts`** — read Plan 02's JSON lock file, apply heartbeat + PID-liveness logic.
 9. **Register all 7 tools in `index.ts`.**
 10. **Tests** for each. Especially: `start` while already running (returns `alreadyRunning: true`); `stop` when not running (no-op success); `start` → SIGINT MCP server → confirm no orphaned dev-server.
 11. **Documentation** in README.
@@ -178,7 +176,7 @@ The user runs Windows 11.
 - [ ] `overview.build` returns `{ ok: true, outputPath: 'plans/overview.html', sizeBytes: N, durationMs: M }` on success.
 - [ ] `overview.build` returns `{ ok: false, error, lastLogLines }` on non-zero exit.
 - [ ] `overview.sync.now` runs the one-shot sync and returns the parsed summary.
-- [ ] `overview.sync.watch_status` distinguishes Vite-plugin / standalone / unknown lock holders.
+- [ ] `overview.sync.watch_status` distinguishes one-shot / Vite-plugin / standalone / stale-or-unknown lock holders.
 - [ ] When the MCP server receives SIGTERM/SIGINT, all spawned children are killed (no orphaned processes).
 - [ ] Tests cover spawn / ready / stop / restart / kill-on-shutdown.
 - [ ] README documents the lifecycle constraint and each tool's contract.
@@ -212,7 +210,7 @@ I. **Watch status (no watcher):** without `pnpm overview` running and no standal
 
 J. **Watch status (Vite-plugin):** start dev server via `dev_server.start`. `overview.sync.watch_status` returns `{ running: true, lockHolderProcess: 'vite-plugin', ... }`.
 
-K. **Watch status (standalone):** stop the dev server. Start `pnpm sync-ralph-state:watch` in a separate terminal. `overview.sync.watch_status` returns `{ running: true, lockHolderProcess: 'standalone', lockHolderPid: <pid> }` (assuming Plan 02's lock-content enhancement landed in this plan).
+K. **Watch status (standalone):** stop the dev server. Start `pnpm sync-ralph-state:watch` in a separate terminal. `overview.sync.watch_status` returns `{ running: true, lockHolderProcess: 'standalone', lockHolderPid: <pid>, startedAt: <iso>, lastHeartbeatAt: <iso> }`.
 
 L. **No-orphan on MCP shutdown:** start dev server via MCP. Get its PID from `status`. Send SIGTERM to the MCP server. After ~10s, verify the dev-server PID is no longer running (Windows: `tasklist | findstr <pid>`; Bash: `ps -p <pid>`).
 
@@ -223,7 +221,7 @@ M. **MCP server restart:** start dev server. SIGTERM MCP server (child dies per 
 1. **`shell: true` is required on Windows for `pnpm`.** Without it, `spawn` throws `ENOENT` for `.cmd` shims. Pair with `tree-kill` (or document the constraint) if nested children become orphans.
 2. **Don't detach the dev server.** v1 ties child lifecycle to MCP. If the user wants a long-running dev server independent of MCP, they start it manually outside MCP. Reason: detached children that survive MCP restart create state-tracking nightmares (the MCP server doesn't have a reliable way to re-attach to stdout of a detached PID).
 3. **`stopAll` runs on every exit signal.** Don't add per-tool teardown — `stopAll` is the single point.
-4. **Lock file content is JSON now (per Plan 11 enhancement).** Old Plan 02 versions wrote 0-byte sentinels. The watcher should now write `{ pid, process, startedAt }` so `sync.watch_status` can identify the holder cleanly. Document this in Plan 02's update.
+4. **Lock file content is JSON from Plan 02.** The shipped watcher and one-shot paths write `{ pid, process, startedAt }`, and watcher modes refresh mtime every 30s. `sync.watch_status` should consume this contract directly; don't add a second sentinel or dev-server-only heuristic.
 5. **Ring buffer cap is 1000 lines per stream.** Dev servers produce verbose output; without the cap, memory grows unbounded. 1000 lines covers ~5–10 minutes of typical Vite output. If a tool consumer wants more, document `overview.dev_server.logs` as best-effort.
 6. **`overview.build` is one-shot, not persistent.** Don't add it to `ProcessManager` — there's nothing to track after exit. Capture the last N stderr lines in case of failure.
 7. **`pnpm overview` already auto-starts the watcher** (per Plan 02). So `dev_server.start` triggers BOTH the Vite dev server AND the watcher. `sync.watch_status` will reflect this (lockHolderProcess: 'vite-plugin'). Don't try to separately start the watcher — that would create a lock collision.

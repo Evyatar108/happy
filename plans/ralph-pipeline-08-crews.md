@@ -78,7 +78,7 @@ Each member's `manifest.json` exposes the canonical `sessionId` and `transcriptP
   - `.crews/crews/*/members/*/manifest.json`
   - `.crews/crews/*/leads/*/manifest.json`
   - `.crews/sessions-configs/*`
-  Exclude `.crews/logs/`, `.crews/spawn-launchers/` (changes there are noise; manifest is the canonical source), mailbox files (`mailbox.json`, `outbox.jsonl` — high churn, not state).
+  Exclude `.crews/logs/`, `.crews/spawn-launchers/` (changes there are noise; manifest is the canonical source), mailbox files (`mailbox.json`, `outbox.jsonl` — high churn, not state). Preserve Plan 02's resolved-root behavior: Ralph paths come from `config.ralphSubdirs`, and any new `.crews/` root must be resolved from config or `repoRoot`, never from a worktree-local directory.
 - **`scripts/sync-ralph-state.mjs`** — add CLI subcommand handlers:
   - `--update-crew-session <taskId> <stage> --json <ref>` — acquires the same lock, applies the merge, exits.
   - `--finalize-crew-session <taskId> <stage> --member <name> --outcome <s> [--summary <text>]` — same pattern.
@@ -113,9 +113,9 @@ When multiple tasks match (rare — e.g. prompt mentions two task IDs): pick the
 
 ## Subcommand-mode contract
 
-Both `--update-crew-session` and `--finalize-crew-session` share the same `config.lockFile` (Plan 01 default: `.ralph/overview-sync.lock`) as the watcher (introduced in Plan 02). If the watcher is running, the subcommand call blocks briefly until the watcher releases the lock between debounce ticks. If the lock is stale (>60s), the subcommand follows the same overwrite path as the watcher.
+Both `--update-crew-session` and `--finalize-crew-session` share the same `config.lockFile` (Plan 01 default: `.ralph/overview-sync.lock`) as the watcher (introduced in Plan 02) by calling `scripts/lib/sync-lock.mjs`. Plan 02's watcher holds that lock for its full lifetime and refreshes it with a 30s heartbeat; do not assume it releases between debounce ticks. If a watcher or one-shot sync already owns the lock, subcommands fail fast with the canonical diagnostic `another sync in progress (pid <N>, process <label>, started <ts>)` and make no partial snapshot write. If the lock is stale, reuse the shared helper's PID-liveness gate: ESRCH or unparseable metadata may be removed; EPERM/alive PIDs remain active.
 
-After the subcommand updates the snapshot, it sets the file mtime; if the Vite-plugin-embedded watcher is running, it picks up the file change on its next tick and re-emits the `overview-ralph-state:update` HMR event so the React UI refreshes.
+After the subcommand updates the snapshot while it owns the lock, it sets the file mtime. If a Vite-plugin watcher is running, the subcommand should not have acquired the lock; callers should surface the diagnostic and retry after the watcher stops, or this plan must add an explicit watcher-mediated queue before claiming concurrent subcommand writes are supported.
 
 ## Conflict resolution between heuristic and explicit writes
 
@@ -138,7 +138,7 @@ Rule: explicit-write entries WIN over heuristic-discovered entries. Implementati
 3. **Build `discoverCrewSessions.mjs`** — full walk + match. Test against `.crews/crews/smoke/` real data (5+ members across alice/bob).
 4. **Wire into `sync-core.mjs`** — merge crew sessions into `byTaskId` AFTER per-slug derivation.
 5. **Extend `watch-ralph-state.mjs` watched paths** — add `.crews/` paths with appropriate excludes.
-6. **Add CLI subcommand modes** — `--update-crew-session`, `--finalize-crew-session`. Share the lock. Test concurrency: two subcommand invocations in parallel both eventually succeed without lost updates.
+6. **Add CLI subcommand modes** — `--update-crew-session`, `--finalize-crew-session`. Share the lock through `sync-lock.mjs`. Test that two subcommand invocations without a running watcher serialize without lost updates, and that either subcommand against a fresh watcher lock fails before writing with the canonical diagnostic.
 7. **Update `/work-on` skill** — add `--via-crew` branch.
 8. **Extend `RalphStageChip` tooltip** — render crew sessions in the extras slot.
 9. **Stale-member detection** — in `discoverCrewSessions`, mark `lastHeartbeatAt > 60min` ago as `outcome: 'stopped'` with `endedAt: lastHeartbeatAt`.
@@ -167,7 +167,7 @@ B. **Cwd filter:** spawn a member with `--cwd C:\some-other-repo`. After tick, t
 
 C. **Subcommand mode atomic update:** invoke `pnpm sync-ralph-state --update-crew-session <id> implementing --json '{...}'`. Confirm the session is added; rerun with a different `sessionId`; confirm both are present.
 
-D. **Subcommand mode concurrency:** invoke two `--update-crew-session` calls in parallel for different task IDs. Both succeed (lock blocks one briefly). No lost writes.
+D. **Subcommand mode concurrency:** invoke two `--update-crew-session` calls in parallel for different task IDs without a running watcher. Both succeed via lock serialization. Then run the same command while `pnpm overview` owns the watcher lock; it fails before writing and prints the canonical `another sync in progress ...` diagnostic.
 
 E. **Finalize:** invoke `--finalize-crew-session <id> implementing --member alice --outcome completed --summary "implemented US-001"`. The matching entry's `endedAt`, `outcome`, `summary` update.
 
@@ -188,6 +188,7 @@ I. **Conflict resolution:** add a session via subcommand mode (explicit). Then o
 5. **`CrewSessionRef` is append-only, not authoritative.** The real-time member state (alive, idle, stopped) lives in `manifest.json`. The snapshot's `CrewSessionRef` reflects state as of the last tick. For live status, consult `manifest.json` directly (Plan 09's MCP tool re-reads manifests on demand).
 6. **Don't surface members from worktree-local `.crews/`.** Worktrees may have their own `.crews/` directory. The watch root is the main repo's `.crews/`, not `.worktrees/<name>/.crews/`.
 7. **Heuristic match by task ID, not stage.** A member spawned for "work on overview-vite-react: implement Story 3" is recorded under the task `overview-vite-react`, with `stage` derived from the task's current stage at spawn time (read from `byTaskId[<task>].stage`). Don't try to infer stage from the prompt text.
+8. **Plan 02 lock is long-lived.** The watcher does not release the sync lock between debounce ticks. Any Plan 08 write path that needs to coexist with a running watcher must add a queue/IPC handoff or stop the watcher; otherwise it should fail fast through `sync-lock.mjs`.
 
 ## Hand-off to next plans
 
