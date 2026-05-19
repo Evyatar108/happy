@@ -208,3 +208,33 @@ describe('sync-core unknown phase warning', () => {
         expect(state.byTaskId[slug]?.stage).toBe('implementing')
     })
 })
+
+describe('sync-core hasPrdWorthy derivation', () => {
+    test('hasPrdWorthy is true when orchestrator.hasPrdWorthy is true', async () => {
+        const slug = 'prd-worthy-job'
+
+        writeOverviewData(tempRoot, [slug])
+        writeJobState(tempRoot, slug, {
+            orchestrator: { phase: '5a', hasPrdWorthy: true },
+        })
+
+        const config = buildConfig(tempRoot)
+        const state = await walkRalphState({ repoRoot: tempRoot, config, generatedFromCommit: 'abc1234' })
+
+        expect(state.byTaskId[slug]?.hasPrdWorthy).toBe(true)
+    })
+
+    test('hasPrdWorthy is absent when orchestrator.hasPrdWorthy is absent', async () => {
+        const slug = 'no-prd-worthy-job'
+
+        writeOverviewData(tempRoot, [slug])
+        writeJobState(tempRoot, slug, {
+            orchestrator: { phase: '5a' },
+        })
+
+        const config = buildConfig(tempRoot)
+        const state = await walkRalphState({ repoRoot: tempRoot, config, generatedFromCommit: 'abc1234' })
+
+        expect(Object.prototype.hasOwnProperty.call(state.byTaskId[slug] ?? {}, 'hasPrdWorthy')).toBe(false)
+    })
+})

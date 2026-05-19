@@ -357,6 +357,7 @@ function toPipelineState(bundle) {
         matchSource: bundle.matchSource,
         storyCompletion: asRecord(bundle.jobState)?.storyCompletion,
         reviewOpenCount: bundle.reviewOpenCount,
+        hasPrdWorthy: orchestrator?.hasPrdWorthy === true ? true : undefined,
         terminalReason: orchestrator?.terminalReason,
         lastUpdatedAt: asRecord(bundle.jobState)?.updatedAt,
     })
