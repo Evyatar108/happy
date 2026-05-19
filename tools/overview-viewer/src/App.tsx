@@ -113,7 +113,7 @@ export function App() {
             <p className="mental-model">
                 <strong>Kanban</strong> to choose · <strong>Ralph commands</strong> to execute · <strong>Phase tree</strong> to orient
             </p>
-            <Kanban data={data} visibleTaskIds={filter.visibleKanbanTaskIds} onJumpToCommand={(taskId) => navigateToCommand(taskId, expandedControls.setTaskExpanded)} />
+            <Kanban data={data} ralphState={ralphState} visibleTaskIds={filter.visibleKanbanTaskIds} onJumpToCommand={(taskId) => navigateToCommand(taskId, expandedControls.setTaskExpanded)} />
             <CommandList
                 changedTaskIds={whatsNew.changedTaskIds}
                 data={data}
@@ -121,6 +121,7 @@ export function App() {
                 onActivateWorkstream={activateWorkstream}
                 onSelectTask={bulkSelection.toggleTask}
                 query={filter.query}
+                ralphState={ralphState}
                 selectedTaskIds={bulkSelection.selectedTaskIds}
                 showToast={toast.showToast}
                 taskIdFilter={taskIdFilter}

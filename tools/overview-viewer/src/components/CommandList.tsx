@@ -3,7 +3,7 @@ import { useMemo } from 'react'
 import type { usePersistentExpanded } from '../hooks/usePersistentExpanded'
 import type { useUrlFilter } from '../hooks/useUrlFilter'
 import type { ShowToast } from '../hooks/useToast'
-import type { OverviewData, OverviewTask } from '../types'
+import type { OverviewData, OverviewRalphState, OverviewTask } from '../types'
 import { orderBucketForTask } from '../utils/taskClassification'
 import { TaskCommand } from './TaskCommand'
 import { UrlFilterBanner } from './TopLevelSurfaces'
@@ -68,6 +68,7 @@ export function CommandList({
     onActivateWorkstream,
     onSelectTask,
     query = '',
+    ralphState,
     selectedTaskIds = new Set(),
     showToast,
     taskIdFilter,
@@ -79,6 +80,7 @@ export function CommandList({
     onActivateWorkstream?: (workstream: string) => void
     onSelectTask?: (taskId: string, selected: boolean) => void
     query?: string
+    ralphState: OverviewRalphState
     selectedTaskIds?: Set<string>
     showToast?: ShowToast
     taskIdFilter?: TaskIdFilter
@@ -114,6 +116,7 @@ export function CommandList({
                             onActivateWorkstream={onActivateWorkstream}
                             onOpenChange={setTaskExpanded}
                             onSelectTask={onSelectTask}
+                            ralphState={ralphState}
                             showToast={showToast}
                             query={query}
                         />
