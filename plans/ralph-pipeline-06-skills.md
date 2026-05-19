@@ -33,7 +33,7 @@ Per the user's preference, the skills live in `D:\harness-efforts\codexu\.claude
 ### To create
 
 - **`scripts/lib/derive-next-command.mjs`** — pure function `deriveNextCommand(ralphPipelineState, task) -> NextCommand | null`. Returns `null` for stage `shipped` (unless `terminalReason === 'replan'`). Outputs `{ label, command, icon? }`.
-- **`scripts/lib/__tests__/deriveNextCommand.test.mjs`** OR add cases to `tools/overview-viewer/src/__tests__/ralphStage.test.ts` — 10 cases (9 stages + replan branch). One additional case asserts that a `shipped` task with `terminalReason: 'replan'` returns the `/plan-with-ralph --improve <jobDir>/plan.md` command.
+- **`scripts/lib/__tests__/deriveNextCommand.test.mjs`** OR add cases to `tools/overview-viewer/src/__tests__/ralphStage.test.ts` — 10 stages. One case asserts that a task in the `replan-pending` stage (emitted by `derive-ralph-stage.mjs` when `orchestrator.terminal === true && terminalReason === 'replan'`) returns the `/plan-with-ralph --improve <jobDir>/plan.md` command.
 - **`.claude/skills/work-on/SKILL.md`** — implementation details below.
 - **`.claude/skills/triage/SKILL.md`** — implementation details below.
 - **`.claude/skills/blocker-report/SKILL.md`** — implementation details below.
@@ -61,8 +61,8 @@ Per the user's preference, the skills live in `D:\harness-efforts\codexu\.claude
 | `plan-ready` | `{ label: 'Start implementation', command: '/implement-with-ralph --from-plan <jobDir>/plan.md', icon: '🚀' }`. If `isParallel === true`, append `--parallel --suggested-decomposition <jobDir>/suggested-decomposition.json`. |
 | `implementing` | `{ label: 'Resume implementation', command: '/implement-with-ralph resume <jobSlug>', icon: '⚙️' }`. For parallel groups: `/implement-with-ralph --run-only --job <absolute_groupDir>`. |
 | `reviewing` / `review-fix` | `{ label: 'Continue review', command: '/implement-with-ralph resume <jobSlug>', icon: '🔍' }` (Phase 2R routes to saved orchestrator phase). |
-| `shipped` (no replan) | `null` |
-| `shipped` with `terminalReason: 'replan'` | `{ label: 'Replan next cycle', command: '/plan-with-ralph --improve <jobDir>/plan.md', icon: '🔄' }` |
+| `shipped` | `null` |
+| `replan-pending` | `{ label: 'Replan next cycle', command: '/plan-with-ralph --improve <jobDir>/plan.md', icon: '🔄' }` (emitted by `derive-ralph-stage.mjs` when `orchestrator.terminal === true && terminalReason === 'replan'`) |
 | `blocked` | `{ label: 'Retry after fix', command: '/implement-with-ralph resume <jobSlug>', icon: '🛠' }` |
 
 **Version-pin note:** the predicate table is keyed to ralph-orchestration v5.30.0. If Ralph's resume syntax changes in a future version, this module must be updated in lockstep. Add a comment at the top of `derive-next-command.mjs`: `// Tested against ralph-orchestration v5.30.0. If the orchestrator's resume syntax changes (e.g. --run-only canonicalization), update this table and re-test.`
@@ -154,7 +154,7 @@ Path: `D:\harness-efforts\codexu\.claude\skills\blocker-report\SKILL.md`
 ## Acceptance criteria
 
 - [ ] `scripts/lib/derive-next-command.mjs` exports `deriveNextCommand` and has the version-pin comment.
-- [ ] Unit tests cover one case per stage value + the replan branch (10 cases). All pass.
+- [ ] Unit tests cover one case per stage value (10 stages, including `replan-pending`). All pass.
 - [ ] `.claude/skills/work-on/SKILL.md` exists with the documented behavior.
 - [ ] `.claude/skills/triage/SKILL.md` exists.
 - [ ] `.claude/skills/blocker-report/SKILL.md` exists.
