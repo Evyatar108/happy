@@ -105,6 +105,8 @@ Overview-viewer tests may import root ESM helper scripts such as `scripts/lib/*.
 
 When using fake timers in filesystem mtime assertions, set fake time relative to the real clock before touching files; hard-coded past timestamps can fail once wall time moves beyond the fixture date.
 
+Typed config fixtures that construct `RalphOverviewConfig` directly should spread `codexuDefaultConfig.outputs` and override only the fields under test; the output key set grows as new sidecars are added.
+
 Ralph overview sidecars are emitted by `scripts/lib/sync-core.mjs`. The `.js` and `.json` outputs must use the same `JSON.stringify(state)` payload after escaping `</script` as `<\/script`; the JS wrapper is only `window.OVERVIEW_RALPH_STATE = <json>;`.
 
 ## Cross-package

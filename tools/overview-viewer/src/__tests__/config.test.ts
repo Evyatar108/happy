@@ -23,7 +23,7 @@ afterEach(() => {
 })
 
 describe('Ralph overview config', () => {
-    it('keeps the default config frozen and scoped to Plan 01 fields', () => {
+    it('keeps the default config frozen with Plan 05 output keys', () => {
         expect(Object.isFrozen(codexuDefaultConfig)).toBe(true)
         expect(Object.isFrozen(codexuDefaultConfig.outputs)).toBe(true)
         expect(Object.isFrozen(codexuDefaultConfig.ralphSubdirs)).toBe(true)
@@ -36,6 +36,7 @@ describe('Ralph overview config', () => {
             'ralphSubdirs',
             'watcher',
         ])
+        expect(codexuDefaultConfig.outputs.activityMaxLines).toBe(1000)
     })
 
     it('loads committed config with local overlay and resolves paths absolutely', () => {
@@ -43,11 +44,18 @@ describe('Ralph overview config', () => {
         const committedPath = path.join(repoRoot, 'configs', 'redirected.json')
         writeJson(committedPath, {
             dataFile: 'custom/overview-data.js',
-            outputs: { sidecarJs: 'custom/state.js' },
+            outputs: {
+                sidecarJs: 'custom/state.js',
+                snapshot: 'custom/overview-snapshot.json',
+                activityMaxLines: 25,
+            },
             watcher: { ignored: ['committed/**'] },
         })
         writeJson(path.join(repoRoot, 'configs', 'redirected.local.json'), {
-            outputs: { sidecarJson: 'local/state.json' },
+            outputs: {
+                sidecarJson: 'local/state.json',
+                activity: 'local/overview-activity.jsonl',
+            },
             watcher: { ignored: ['local/**'] },
         })
 
@@ -59,6 +67,14 @@ describe('Ralph overview config', () => {
         expect(config.dataFile).toBe(path.join(repoRoot, 'custom', 'overview-data.js'))
         expect(config.outputs.sidecarJs).toBe(path.join(repoRoot, 'custom', 'state.js'))
         expect(config.outputs.sidecarJson).toBe(path.join(repoRoot, 'local', 'state.json'))
+        expect(config.outputs.snapshot).toBe(path.join(repoRoot, 'custom', 'overview-snapshot.json'))
+        expect(config.outputs.activity).toBe(path.join(repoRoot, 'local', 'overview-activity.jsonl'))
+        expect(config.outputs.activityBackup).toBe(path.join(repoRoot, 'plans', 'overview-activity.1.jsonl'))
+        expect(config.outputs.dataJson).toBe(path.join(repoRoot, 'plans', 'overview-data.json'))
+        expect(config.outputs.snapshotSchema).toBe(path.join(repoRoot, 'plans', 'overview-snapshot.schema.json'))
+        expect(config.outputs.tasksIndex).toBe(path.join(repoRoot, 'tasks', 'INDEX.md'))
+        expect(config.outputs.activityMaxLines).toBe(25)
+        expect(Number.isInteger(config.outputs.activityMaxLines)).toBe(true)
         expect(config.ralphRoot).toBe(path.join(repoRoot, '.ralph'))
         expect(config.ralphSubdirs.jobs).toBe(path.join(repoRoot, '.ralph', 'jobs'))
         expect(config.watcher.ignored).toEqual(['local/**'])
@@ -98,7 +114,7 @@ describe('Ralph overview config', () => {
         const committedPath = path.join(repoRoot, 'configs', 'future.json')
         writeJson(committedPath, {
             futureRootKey: 'root-value',
-            outputs: { snapshot: 'custom/snapshot.json' },
+            outputs: { futureOutputKey: 'custom/snapshot.json' },
         })
         process.env.OVERVIEW_CONFIG_PATH = committedPath
         vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -108,9 +124,29 @@ describe('Ralph overview config', () => {
         }
 
         expect(config.futureRootKey).toBe('root-value')
-        expect(config.outputs.snapshot).toBe('custom/snapshot.json')
+        expect(config.outputs.futureOutputKey).toBe('custom/snapshot.json')
         expect(Object.isFrozen(config)).toBe(true)
         expect(Object.isFrozen(config.outputs)).toBe(true)
+    })
+
+    it('keeps the committed config populated with the Plan 05 output keys', () => {
+        const config = JSON.parse(readFileSync(path.resolve(process.cwd(), '../..', '.ralph/overview-config.json'), 'utf8'))
+        const schema = JSON.parse(readFileSync(path.resolve(process.cwd(), '../..', '.ralph/overview-config.schema.json'), 'utf8'))
+
+        expect(config.outputs).toMatchObject({
+            snapshot: 'plans/overview-snapshot.json',
+            activity: 'plans/overview-activity.jsonl',
+            activityBackup: 'plans/overview-activity.1.jsonl',
+            dataJson: 'plans/overview-data.json',
+            snapshotSchema: 'plans/overview-snapshot.schema.json',
+            tasksIndex: 'tasks/INDEX.md',
+            activityMaxLines: 1000,
+        })
+        expect(schema.properties.outputs.properties.activityMaxLines).toMatchObject({
+            type: 'integer',
+            minimum: 1,
+            default: 1000,
+        })
     })
 
     it('keeps the committed config as parseable JSON with a schema reference', () => {

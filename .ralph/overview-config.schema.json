@@ -22,7 +22,14 @@
       "additionalProperties": false,
       "properties": {
         "sidecarJs": { "type": "string" },
-        "sidecarJson": { "type": "string" }
+        "sidecarJson": { "type": "string" },
+        "snapshot": { "type": "string" },
+        "activity": { "type": "string" },
+        "activityBackup": { "type": "string" },
+        "dataJson": { "type": "string" },
+        "snapshotSchema": { "type": "string" },
+        "tasksIndex": { "type": "string" },
+        "activityMaxLines": { "type": "integer", "minimum": 1, "default": 1000 }
       }
     },
     "lockFile": { "type": "string" },

@@ -9,6 +9,13 @@ export interface RalphOverviewConfig {
     outputs: {
         sidecarJs: string
         sidecarJson: string
+        snapshot: string
+        activity: string
+        activityBackup: string
+        dataJson: string
+        snapshotSchema: string
+        tasksIndex: string
+        activityMaxLines: number
     }
     lockFile: string
     watcher: {

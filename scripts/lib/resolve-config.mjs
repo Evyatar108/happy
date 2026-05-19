@@ -77,7 +77,18 @@ function resolveConfigPaths(config, repoRoot) {
     const ralphRoot = resolvePath(repoRoot, config.ralphRoot)
     const { dataFile: _df, ralphRoot: _rr, ralphSubdirs, outputs, lockFile: _lf, watcher, ...unknownRoot } = config
     const { jobs: _jobs, jobGroups: _jg, brainstorms: _bs, ...unknownRalphSubdirs } = ralphSubdirs
-    const { sidecarJs: _sjs, sidecarJson: _sjson, ...unknownOutputs } = outputs
+    const {
+        sidecarJs: _sjs,
+        sidecarJson: _sjson,
+        snapshot: _snapshot,
+        activity: _activity,
+        activityBackup: _activityBackup,
+        dataJson: _dataJson,
+        snapshotSchema: _snapshotSchema,
+        tasksIndex: _tasksIndex,
+        activityMaxLines: _activityMaxLines,
+        ...unknownOutputs
+    } = outputs
     const { ignored: _ignored, ...unknownWatcher } = watcher
     return {
         ...unknownRoot,
@@ -93,6 +104,13 @@ function resolveConfigPaths(config, repoRoot) {
             ...unknownOutputs,
             sidecarJs: resolvePath(repoRoot, config.outputs.sidecarJs),
             sidecarJson: resolvePath(repoRoot, config.outputs.sidecarJson),
+            snapshot: resolvePath(repoRoot, config.outputs.snapshot),
+            activity: resolvePath(repoRoot, config.outputs.activity),
+            activityBackup: resolvePath(repoRoot, config.outputs.activityBackup),
+            dataJson: resolvePath(repoRoot, config.outputs.dataJson),
+            snapshotSchema: resolvePath(repoRoot, config.outputs.snapshotSchema),
+            tasksIndex: resolvePath(repoRoot, config.outputs.tasksIndex),
+            activityMaxLines: config.outputs.activityMaxLines,
         },
         lockFile: resolvePath(repoRoot, config.lockFile),
         watcher: {

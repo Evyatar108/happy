@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { codexuDefaultConfig } from '../../../../scripts/lib/default-config.mjs'
 import {
     assembleStateFromBundles,
     deriveAffectedTaskUpdate,
@@ -377,7 +378,7 @@ function makeRepoFixture({
             dataFile: 'plans/overview-data.js',
             ralphRoot: '.ralph',
             ralphSubdirs: { jobs: 'jobs', jobGroups: 'job-groups', brainstorms: 'brainstorms' },
-            outputs: { sidecarJs: 'plans/overview-ralph-state.js', sidecarJson: 'plans/overview-ralph-state.json' },
+            outputs: { ...codexuDefaultConfig.outputs },
             lockFile: '.ralph/overview-sync.lock',
             watcher: {
                 ignored: [

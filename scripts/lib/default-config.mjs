@@ -9,6 +9,13 @@ export const codexuDefaultConfig = deepFreeze({
     outputs: {
         sidecarJs: 'plans/overview-ralph-state.js',
         sidecarJson: 'plans/overview-ralph-state.json',
+        snapshot: 'plans/overview-snapshot.json',
+        activity: 'plans/overview-activity.jsonl',
+        activityBackup: 'plans/overview-activity.1.jsonl',
+        dataJson: 'plans/overview-data.json',
+        snapshotSchema: 'plans/overview-snapshot.schema.json',
+        tasksIndex: 'tasks/INDEX.md',
+        activityMaxLines: 1000,
     },
     lockFile: '.ralph/overview-sync.lock',
     watcher: {
