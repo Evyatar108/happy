@@ -185,6 +185,7 @@ export interface Snapshot {
 export interface ActivityEvent {
     ts: string
     slug: string
+    kind: 'job' | 'group' | 'brainstorm'
     taskId?: string
     prevStage?: RalphStage | null
     newStage?: RalphStage | null

@@ -271,6 +271,7 @@ describe('mergeAndWrite activityEvents', () => {
             {
                 ts: result.writtenAt,
                 slug: 'TASK',
+                kind: 'job',
                 taskId: 'TASK',
                 prevStage: 'planning',
                 newStage: 'implementing',
@@ -376,6 +377,45 @@ describe('mergeAndWrite activityEvents', () => {
         })
 
         expect(result.activityEvents).toEqual([])
+    })
+
+    test('activity event kind is "job" when entry has jobSlug', async () => {
+        const config = buildConfig(tempRoot)
+
+        const result = await mergeAndWrite({
+            repoRoot: tempRoot,
+            config,
+            currentState: buildState({}),
+            updates: [buildUpsert('my-job', { stage: 'planning', jobSlug: 'my-job', artifacts: { jobDir: '.ralph/jobs/my-job' } })],
+        })
+
+        expect(result.activityEvents[0]).toMatchObject({ kind: 'job', slug: 'my-job' })
+    })
+
+    test('activity event kind is "group" when entry has groupSlug', async () => {
+        const config = buildConfig(tempRoot)
+
+        const result = await mergeAndWrite({
+            repoRoot: tempRoot,
+            config,
+            currentState: buildState({}),
+            updates: [buildUpsert('my-group', { stage: 'planning', groupSlug: 'my-group', artifacts: { groupDir: '.ralph/job-groups/my-group' } })],
+        })
+
+        expect(result.activityEvents[0]).toMatchObject({ kind: 'group', slug: 'my-group' })
+    })
+
+    test('activity event kind is "brainstorm" when entry has brainstormDir and no jobSlug or groupSlug', async () => {
+        const config = buildConfig(tempRoot)
+
+        const result = await mergeAndWrite({
+            repoRoot: tempRoot,
+            config,
+            currentState: buildState({}),
+            updates: [buildUpsert('my-brainstorm', { stage: 'brainstorming', artifacts: { brainstormDir: '.ralph/brainstorms/my-brainstorm' } })],
+        })
+
+        expect(result.activityEvents[0]).toMatchObject({ kind: 'brainstorm' })
     })
 })
 

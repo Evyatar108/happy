@@ -299,6 +299,7 @@ function deriveActivityEvents({ previousByTaskId, nextByTaskId, ts }) {
             {
                 ts,
                 slug: activitySlug(next ?? previous, taskId),
+                kind: activityKind(next ?? previous),
                 taskId,
                 prevStage: previous?.stage ?? null,
                 newStage: next?.stage ?? null,
@@ -317,6 +318,13 @@ function sameStoryCompletion(previous, next) {
 
 function activitySlug(entry, taskId) {
     return entry?.jobSlug ?? entry?.groupSlug ?? slugFromArtifacts(entry?.artifacts) ?? taskId
+}
+
+function activityKind(entry) {
+    if (entry?.jobSlug != null) return 'job'
+    if (entry?.groupSlug != null) return 'group'
+    if (entry?.artifacts?.brainstormDir != null) return 'brainstorm'
+    return 'job'
 }
 
 function slugFromArtifacts(artifacts) {
