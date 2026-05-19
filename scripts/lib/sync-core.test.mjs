@@ -1,0 +1,130 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+
+import { _resetUnknownPhaseWarnings, walkRalphState } from './sync-core.mjs'
+
+const KNOWN_PHASES = ['5a', '5b', '5c', '5.5', '6']
+
+function makeTempDir() {
+    return fs.mkdtempSync(path.join(os.tmpdir(), 'sync-core-test-'))
+}
+
+function writeJson(filePath, value) {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true })
+    fs.writeFileSync(filePath, JSON.stringify(value))
+}
+
+function buildConfig(repoRoot) {
+    return {
+        dataFile: path.join(repoRoot, 'overview-data.js'),
+        ralphRoot: path.join(repoRoot, '.ralph'),
+        ralphSubdirs: {
+            jobs: path.join(repoRoot, '.ralph', 'jobs'),
+            jobGroups: path.join(repoRoot, '.ralph', 'job-groups'),
+            brainstorms: path.join(repoRoot, '.ralph', 'brainstorms'),
+        },
+        watcher: { ignored: [] },
+    }
+}
+
+function writeOverviewData(repoRoot, slugs) {
+    const tasks = slugs.map((id) => ({ id }))
+    const dataFile = path.join(repoRoot, 'overview-data.js')
+    fs.mkdirSync(path.dirname(dataFile), { recursive: true })
+    fs.writeFileSync(dataFile, `window.OVERVIEW_DATA = ${JSON.stringify({ tasks })};`)
+}
+
+function writeJobState(repoRoot, slug, jobState) {
+    const jobDir = path.join(repoRoot, '.ralph', 'jobs', slug)
+    fs.mkdirSync(jobDir, { recursive: true })
+    writeJson(path.join(jobDir, 'job-state.json'), jobState)
+}
+
+let tempRoot
+let stderrLines
+
+beforeEach(() => {
+    tempRoot = makeTempDir()
+    stderrLines = []
+    _resetUnknownPhaseWarnings()
+    vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+        stderrLines.push(String(chunk))
+        return true
+    })
+})
+
+afterEach(() => {
+    vi.restoreAllMocks()
+    fs.rmSync(tempRoot, { recursive: true, force: true })
+})
+
+describe('sync-core unknown phase warning', () => {
+    test('emits a stderr warning for an unknown orchestrator.phase', async () => {
+        const slug = 'my-test-job'
+        const unknownPhase = '7'
+
+        writeOverviewData(tempRoot, [slug])
+        writeJobState(tempRoot, slug, {
+            orchestrator: { phase: unknownPhase, terminal: false },
+        })
+
+        const config = buildConfig(tempRoot)
+        await walkRalphState({ repoRoot: tempRoot, config, generatedFromCommit: 'abc1234' })
+
+        const warnings = stderrLines.filter((line) => line.includes('[sync-ralph-state] unknown orchestrator.phase'))
+        expect(warnings).toHaveLength(1)
+        expect(warnings[0]).toContain(`unknown orchestrator.phase="${unknownPhase}"`)
+        expect(warnings[0]).toContain(`for job ${slug}`)
+        expect(warnings[0]).toContain('schema drift?')
+    })
+
+    test('emits the warning only once per (slug, phase) pair even when walkRalphState is called twice', async () => {
+        const slug = 'my-test-job'
+        const unknownPhase = '4.5'
+
+        writeOverviewData(tempRoot, [slug])
+        writeJobState(tempRoot, slug, {
+            orchestrator: { phase: unknownPhase, terminal: false },
+        })
+
+        const config = buildConfig(tempRoot)
+        await walkRalphState({ repoRoot: tempRoot, config, generatedFromCommit: 'abc1234' })
+        await walkRalphState({ repoRoot: tempRoot, config, generatedFromCommit: 'abc1234' })
+
+        const warnings = stderrLines.filter((line) => line.includes('[sync-ralph-state] unknown orchestrator.phase'))
+        expect(warnings).toHaveLength(1)
+    })
+
+    test('does not emit a warning for known phases', async () => {
+        for (const phase of KNOWN_PHASES) {
+            const slug = `job-phase-${phase.replace('.', '-')}`
+            writeOverviewData(tempRoot, [slug])
+            writeJobState(tempRoot, slug, {
+                orchestrator: { phase, terminal: false },
+            })
+        }
+
+        const config = buildConfig(tempRoot)
+        await walkRalphState({ repoRoot: tempRoot, config, generatedFromCommit: 'abc1234' })
+
+        const warnings = stderrLines.filter((line) => line.includes('[sync-ralph-state] unknown orchestrator.phase'))
+        expect(warnings).toHaveLength(0)
+    })
+
+    test('derived stage is still implementing for unknown phase', async () => {
+        const slug = 'future-phase-job'
+        const unknownPhase = '99'
+
+        writeOverviewData(tempRoot, [slug])
+        writeJobState(tempRoot, slug, {
+            orchestrator: { phase: unknownPhase, terminal: false },
+        })
+
+        const config = buildConfig(tempRoot)
+        const state = await walkRalphState({ repoRoot: tempRoot, config, generatedFromCommit: 'abc1234' })
+
+        expect(state.byTaskId[slug]?.stage).toBe('implementing')
+    })
+})

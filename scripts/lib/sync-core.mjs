@@ -3,6 +3,24 @@ import path from 'node:path'
 
 import { deriveRalphStage } from './derive-ralph-stage.mjs'
 
+const KNOWN_ORCHESTRATOR_PHASES = new Set(['5a', '5b', '5c', '5.5', '6'])
+const _warnedUnknownPhases = new Set()
+
+export function _resetUnknownPhaseWarnings() {
+    _warnedUnknownPhases.clear()
+}
+
+function warnUnknownPhase(slug, phase) {
+    const key = `${slug}::${phase}`
+    if (_warnedUnknownPhases.has(key)) {
+        return
+    }
+    _warnedUnknownPhases.add(key)
+    process.stderr.write(
+        `[sync-ralph-state] unknown orchestrator.phase="${phase}" for job ${slug} — derived stage=implementing (schema drift?)\n`,
+    )
+}
+
 const FINDINGS_FILES = Object.freeze([
     ['code', 'code-review-findings.json'],
     ['docs', 'docs-review-findings.json'],
@@ -308,6 +326,10 @@ function toPipelineState(bundle) {
         jobDirMarker: bundle.jobDirMarker,
     })
     const orchestrator = asRecord(asRecord(bundle.jobState)?.orchestrator)
+    const phase = typeof orchestrator?.phase === 'string' ? orchestrator.phase : undefined
+    if (phase !== undefined && !KNOWN_ORCHESTRATOR_PHASES.has(phase)) {
+        warnUnknownPhase(bundle.slug, phase)
+    }
 
     return pruneUndefined({
         stage,
