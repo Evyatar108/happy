@@ -107,6 +107,21 @@ describe('ralph watcher', () => {
         )
     })
 
+    it('rejects standalone startup when the vite-plugin watcher lock is fresh', async () => {
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date('2026-05-19T10:00:00Z'))
+        const fixture = makeRepoFixture({ tasks: ['task'] })
+        writeLock(path.join(fixture.repoRoot, '.ralph/overview-sync.lock'), {
+            pid: process.pid,
+            process: 'vite-plugin',
+            startedAt: '2026-05-19T09:59:59.000Z',
+        })
+
+        await expect(importWatcher().then(({ start }) => start({ repoRoot: fixture.repoRoot, processLabel: 'standalone' }))).rejects.toThrow(
+            `another sync in progress (pid ${process.pid}, process vite-plugin, started 2026-05-19T09:59:59.000Z)`,
+        )
+    })
+
     it('touches the lock on a 30 second heartbeat and releases it on stop', async () => {
         vi.useFakeTimers()
         vi.setSystemTime(new Date('2026-05-19T10:00:00Z'))
@@ -144,6 +159,14 @@ describe('ralph watcher', () => {
         expect(handle.status.consecutiveFailures['job:broken']).toBe(10)
         expect(stderr).toHaveBeenCalledWith(expect.stringContaining('watcher: broken failing repeatedly'))
         expect(stderr.mock.calls.filter(([message]) => String(message).includes('failing repeatedly'))).toHaveLength(1)
+
+        writeJobState(fixture.repoRoot, '.ralph/jobs/broken', { orchestrator: { phase: '3', terminal: false } })
+        lastWatcher?.emit('all', 'change', path.join(fixture.repoRoot, '.ralph/jobs/broken/job-state.json'))
+        await vi.advanceTimersByTimeAsync(10)
+
+        await vi.waitFor(() => expect(onWrite).toHaveBeenCalledTimes(1))
+        expect(readSidecar(fixture.repoRoot).byTaskId.broken.stage).toBe('implementing')
+        expect(handle.status.consecutiveFailures['job:broken']).toBeUndefined()
     })
 
     it('re-derives a job as plan-ready when only job-state.json is deleted', async () => {
@@ -179,6 +202,21 @@ describe('ralph watcher', () => {
         expect(readSidecar(fixture.repoRoot).byTaskId.same.entryPath).toBe('brainstorm-first')
     })
 
+    it('removes a task when all bundle files for the deleted job disappear', async () => {
+        vi.useFakeTimers()
+        const fixture = makeRepoFixture({ tasks: ['obsolete'] })
+        writeJobState(fixture.repoRoot, '.ralph/jobs/obsolete', { orchestrator: { phase: '3', terminal: false } })
+        const onWrite = vi.fn()
+        await startWatcher({ repoRoot: fixture.repoRoot, debounceMs: 10, onWrite })
+        rmSync(path.join(fixture.repoRoot, '.ralph/jobs/obsolete'), { recursive: true, force: true })
+
+        lastWatcher?.emit('all', 'unlinkDir', path.join(fixture.repoRoot, '.ralph/jobs/obsolete'))
+        await vi.advanceTimersByTimeAsync(10)
+
+        await vi.waitFor(() => expect(onWrite).toHaveBeenCalledWith(expect.objectContaining({ changedTaskIds: ['obsolete'] })))
+        expect(readSidecar(fixture.repoRoot).byTaskId.obsolete).toBeUndefined()
+    })
+
     it('keeps worktree paths ignored through the chokidar ignored matcher', async () => {
         const fixture = makeRepoFixture({ tasks: ['task'] })
 
@@ -194,6 +232,12 @@ describe('ralph watcher', () => {
         const fixture = makeRepoFixture({ tasks: ['idea'] })
         writeJson(path.join(fixture.repoRoot, '.ralph/brainstorms/idea/brainstorm.json'), { recommendedDirection: 'plan' })
         const onWrite = vi.fn()
+        const deriveAffectedTaskUpdate = vi.fn()
+        vi.doMock('../../../../scripts/lib/sync-core.mjs', async (importOriginal) => {
+            const actual = await importOriginal<typeof import('../../../../scripts/lib/sync-core.mjs')>()
+            deriveAffectedTaskUpdate.mockImplementation(actual.deriveAffectedTaskUpdate)
+            return { ...actual, deriveAffectedTaskUpdate }
+        })
         const handle = await startWatcher({ repoRoot: fixture.repoRoot, debounceMs: 10, onWrite })
 
         lastWatcher?.emit('all', 'change', path.join(fixture.repoRoot, '.ralph/brainstorms/idea/selected-direction.md'))
@@ -201,6 +245,7 @@ describe('ralph watcher', () => {
         await flushPromises()
 
         expect(handle.status.pendingChanges).toEqual([])
+        expect(deriveAffectedTaskUpdate).not.toHaveBeenCalled()
         expect(onWrite).not.toHaveBeenCalled()
     })
 
