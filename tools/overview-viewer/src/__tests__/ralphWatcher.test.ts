@@ -1,10 +1,13 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
+import { EventEmitter } from 'node:events'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { WatchHandle } from '../../../../scripts/lib/watch-ralph-state.mjs'
+import type { Plugin, ViteDevServer } from 'vite'
+import { ralphStateWatcherPlugin } from '../../vite.config'
 import type { OverviewRalphState } from '../types'
 
 const fixtureRoots: string[] = []
@@ -200,7 +203,76 @@ describe('ralph watcher', () => {
         expect(handle.status.pendingChanges).toEqual([])
         expect(onWrite).not.toHaveBeenCalled()
     })
+
+    it('vite-plugin auto-start fires overview-ralph-state:update on debounced write', async () => {
+        vi.useFakeTimers()
+        const fixture = makeRepoFixture({ tasks: ['task'] })
+        writeJobState(fixture.repoRoot, '.ralph/jobs/task', { orchestrator: { phase: '1', terminal: false } })
+        const server = makeViteServer()
+        const plugin = ralphStateWatcherPlugin({ repoRoot: fixture.repoRoot, importWatcher })
+
+        await configureServer(plugin, server)
+        writeJobState(fixture.repoRoot, '.ralph/jobs/task', { orchestrator: { phase: '5a', terminal: false } })
+        lastWatcher?.emit('all', 'change', path.join(fixture.repoRoot, '.ralph/jobs/task/job-state.json'))
+        await vi.advanceTimersByTimeAsync(2_000)
+
+        await vi.waitFor(() => expect(server.ws.send).toHaveBeenCalledTimes(1))
+        expect(server.ws.send).toHaveBeenCalledWith({ type: 'custom', event: 'overview-ralph-state:update' })
+        server.close()
+        await flushPromises()
+        expect(lastWatcher?.closed).toBe(true)
+    })
+
+    it('vite-plugin tolerates lock contention', async () => {
+        vi.useFakeTimers()
+        vi.setSystemTime(new Date('2026-05-19T10:00:00Z'))
+        const fixture = makeRepoFixture({ tasks: ['task'] })
+        writeLock(path.join(fixture.repoRoot, '.ralph/overview-sync.lock'), {
+            pid: process.pid,
+            process: 'standalone',
+            startedAt: '2026-05-19T09:59:59.000Z',
+        })
+        const server = makeViteServer()
+        const plugin = ralphStateWatcherPlugin({ repoRoot: fixture.repoRoot, importWatcher })
+
+        await expect(configureServer(plugin, server)).resolves.toBeUndefined()
+
+        expect(server.config.logger.warn).toHaveBeenCalledTimes(1)
+        expect(server.config.logger.warn).toHaveBeenCalledWith(
+            expect.stringContaining(
+                `another watcher holds lock: another sync in progress (pid ${process.pid}, process standalone, started 2026-05-19T09:59:59.000Z)`,
+            ),
+        )
+        expect(server.ws.send).not.toHaveBeenCalled()
+    })
 })
+
+interface MockViteServer {
+    ws: { send: ReturnType<typeof vi.fn> }
+    config: { logger: { warn: ReturnType<typeof vi.fn> } }
+    httpServer: EventEmitter
+    close: () => void
+}
+
+function makeViteServer(): MockViteServer {
+    const httpServer = new EventEmitter()
+    return {
+        ws: { send: vi.fn() },
+        config: { logger: { warn: vi.fn() } },
+        httpServer,
+        close() {
+            httpServer.emit('close')
+        },
+    }
+}
+
+async function configureServer(plugin: Plugin, server: MockViteServer): Promise<void> {
+    const hook = plugin.configureServer
+    if (typeof hook !== 'function') {
+        throw new Error('expected plugin.configureServer function')
+    }
+    await hook.call({} as ThisParameterType<typeof hook>, server as unknown as ViteDevServer)
+}
 
 async function importWatcher(): Promise<typeof import('../../../../scripts/lib/watch-ralph-state.mjs')> {
     watchMock = vi.fn((paths, options) => {

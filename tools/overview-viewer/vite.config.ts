@@ -1,6 +1,7 @@
 import react from '@vitejs/plugin-react'
 import { readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { transform } from 'esbuild'
 import type { Plugin } from 'vite'
 import { defineConfig } from 'vite'
@@ -10,6 +11,16 @@ const overviewDataPath = resolve(__dirname, '../../plans/overview-data.js')
 const overviewHtmlPath = resolve(__dirname, '../../plans/overview.html')
 const overviewHtmlNextPath = resolve(__dirname, '../../plans/overview.html.next')
 const sidecarScriptTag = '<script src="./overview-data.js"></script>'
+const repoRoot = resolve(__dirname, '../..')
+const ralphStateUpdateEvent = 'overview-ralph-state:update'
+
+type RalphStateWatcherModule = typeof import('../../scripts/lib/watch-ralph-state.mjs')
+
+interface RalphStateWatcherPluginOptions {
+    repoRoot?: string
+    configPath?: string
+    importWatcher?: () => Promise<RalphStateWatcherModule>
+}
 
 function isSafeNameBuild(): boolean {
     return process.env.OVERVIEW_BUILD_SAFE_NAME === '1'
@@ -86,10 +97,43 @@ function overviewDataPlugin(): Plugin {
     }
 }
 
+export function ralphStateWatcherPlugin({
+    repoRoot: watcherRepoRoot = repoRoot,
+    configPath,
+    importWatcher = () => import(pathToFileURL(resolve(__dirname, '../../scripts/lib/watch-ralph-state.mjs')).href),
+}: RalphStateWatcherPluginOptions = {}): Plugin {
+    return {
+        name: 'overview-ralph-state-watcher',
+        async configureServer(server) {
+            try {
+                const watcher = await importWatcher()
+                const handle = await watcher.start({
+                    repoRoot: watcherRepoRoot,
+                    configPath,
+                    processLabel: 'vite-plugin',
+                    onWrite() {
+                        server.ws.send({ type: 'custom', event: ralphStateUpdateEvent })
+                    },
+                })
+                server.httpServer?.on('close', () => {
+                    handle.stop().catch(() => {})
+                })
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error)
+                if (message.includes('another sync in progress')) {
+                    server.config.logger.warn(`overview Ralph watcher not started: another watcher holds lock: ${message}`)
+                    return
+                }
+                throw error
+            }
+        },
+    }
+}
+
 export default defineConfig({
     root: __dirname,
     base: './',
-    plugins: [react(), singleFile(), overviewDataPlugin()],
+    plugins: [react(), singleFile(), overviewDataPlugin(), ralphStateWatcherPlugin()],
     build: {
         outDir: '../../plans',
         emptyOutDir: false,
