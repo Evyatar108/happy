@@ -6,6 +6,12 @@ export interface WatchWriteEvent {
 }
 
 export interface WatchStatus {
+    /** Plan-AC shape: { running, pendingSlugs, queueDepth, lastTickAt? } */
+    readonly running: boolean
+    readonly pendingSlugs: string[]
+    readonly queueDepth: number
+    readonly lastTickAt?: string
+    /** Legacy fields retained for debug callers and existing tests. */
     readonly currentState: OverviewRalphState | undefined
     readonly pendingChanges: Array<{ kind: 'job' | 'group' | 'brainstorm'; slug: string }>
     readonly consecutiveFailures: Record<string, number>

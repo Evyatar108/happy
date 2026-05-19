@@ -105,6 +105,25 @@ function createHandle(lockPath, metadata) {
     }
 }
 
+/**
+ * Probe whether `pid` corresponds to a live process via the zero-signal trick.
+ *
+ * Returns true when:
+ *   - `process.kill(pid, 0)` succeeds (signal accepted — process exists and is reachable);
+ *   - the call throws with a non-`ESRCH` code (e.g., `EPERM` on Linux when the process
+ *     exists but is owned by another user). We treat EPERM as "alive" because the only
+ *     wrong-answer mode here (false-positive alive) preserves the existing lock —
+ *     conservative and safe for the watcher contention diagnostic.
+ *
+ * Returns false only on `ESRCH` (no such process) or when pid is invalid.
+ *
+ * Residual risk (documented in plan.md Risk Areas #2): PID reuse on the same OS after
+ * the watcher crashes can lead `isLiveProcess` to return true for an unrelated new
+ * process that happens to inherit the recycled PID. This is tolerated because the
+ * peer still sees the canonical fresh-lock diagnostic and a human operator can stat
+ * the lock to confirm. On Windows specifically, `process.kill(pid, 0)` may report
+ * success even when the wrong owner holds the PID — same residual.
+ */
 function isLiveProcess(pid) {
     if (!Number.isInteger(pid) || pid <= 0) {
         return false
