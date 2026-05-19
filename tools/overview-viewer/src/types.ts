@@ -33,6 +33,61 @@ export interface OverviewTask {
     command?: OverviewCommand
 }
 
+export type RalphStage =
+    | 'brainstorming'
+    | 'brainstorm-ready'
+    | 'planning'
+    | 'plan-ready'
+    | 'implementing'
+    | 'reviewing'
+    | 'review-fix'
+    | 'replan-pending'
+    | 'shipped'
+    | 'blocked'
+
+export type RalphEntryPath = 'brainstorm-first' | 'plan-direct' | 'manual-plan'
+
+export interface RalphArtifacts {
+    brainstormDir?: string
+    planDraftFile?: string
+    jobDir?: string
+    groupDir?: string
+    planFile?: string
+    prdFile?: string
+}
+
+export interface RalphPipelineState {
+    stage: RalphStage
+    entryPath?: RalphEntryPath
+    artifacts?: RalphArtifacts
+    jobSlug?: string
+    groupSlug?: string
+    isParallel?: boolean
+    matchSource?: 'overviewTaskId' | 'override' | 'slug-default'
+    storyCompletion?: { total: number; passed: number; blocked: number; remaining: number }
+    reviewOpenCount?: Record<string, number | undefined>
+    hasPrdWorthy?: boolean
+    terminalReason?: 'complete' | 'replan' | 'blocked'
+    lastUpdatedAt?: string
+    // Keep per-entry timestamps out of Plan 01 so sidecar idempotency strips only the top-level generatedAt.
+}
+
+export interface OverviewRalphState {
+    generatedAt: string
+    generatedFromCommit: string
+    byTaskId: Record<string, RalphPipelineState>
+    unmatched?: Array<{ kind: 'brainstorm' | 'job' | 'group'; slug: string; reason: string }>
+    unmatchedSummary?: Record<string, number>
+}
+
+export function getOverviewRalphState(): OverviewRalphState {
+    const emptyState = { generatedAt: '', generatedFromCommit: '', byTaskId: {} }
+    if (typeof window === 'undefined') {
+        return emptyState
+    }
+    return window.OVERVIEW_RALPH_STATE ?? emptyState
+}
+
 export interface PeriodicMeta {
     intervalDays?: number
     lastRunId?: string | null
@@ -86,6 +141,7 @@ export interface OverviewData {
     generatedAt?: string
     generatedFromCommit?: string
     tasks?: OverviewTask[]
+    ralphOverrides?: Record<string, string>
     phaseTree?: PhaseTreeEntry[]
     cadence?: Record<string, string>
     effort?: Record<string, number>
