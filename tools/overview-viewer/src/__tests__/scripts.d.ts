@@ -45,19 +45,34 @@ declare module '../../../../scripts/lib/derive-ralph-stage.mjs' {
 
 declare module '../../../../scripts/lib/sync-core.mjs' {
     import type { OverviewRalphState } from '../types'
+    import type { RalphOverviewConfig } from '../../../../scripts/lib/default-config.mjs'
+
+    export interface RalphArtifactBundle {
+        kind: 'job' | 'group' | 'brainstorm'
+        slug: string
+        taskId?: string
+        jobState?: unknown
+        prd?: unknown
+        brainstormJson?: unknown
+        reviewOpenCount?: Record<string, number | undefined>
+        jobDirMarker?: true
+        dirMtimeMs?: number
+    }
 
     export function walkRalphState(options: {
         repoRoot: string
-        config: unknown
+        config: RalphOverviewConfig
         generatedFromCommit: string
     }): Promise<OverviewRalphState>
 
     export function writeSidecar(options: {
         repoRoot: string
-        config: unknown
+        config: RalphOverviewConfig
         state: OverviewRalphState
     }): Promise<void>
 
-    export function resolveCrossKindPrecedence(bundles: unknown[]): { winner: unknown; shadowed: unknown[] }
-    export function pickMostRecentByMtime(candidates: unknown[]): unknown
+    export function resolveCrossKindPrecedence(
+        bundles: RalphArtifactBundle[],
+    ): { winner: RalphArtifactBundle; shadowed: RalphArtifactBundle[] }
+    export function pickMostRecentByMtime(candidates: RalphArtifactBundle[]): RalphArtifactBundle
 }
