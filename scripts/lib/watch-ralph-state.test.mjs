@@ -98,6 +98,101 @@ describe('watch-ralph-state activity events', () => {
         expect(handle.status.pendingChanges).toEqual([])
         await vi.waitFor(() => expect(onWrite).toHaveBeenCalledWith(expect.objectContaining({ changedTaskIds: ['task'] })))
     })
+
+    test('appends activityEvents before touching and releasing the lock', async () => {
+        vi.useFakeTimers()
+        const order = []
+        const fixture = makeRepoFixture({ tasks: ['task'] })
+        writeJson(path.join(fixture.repoRoot, '.ralph/jobs/task/job-state.json'), { orchestrator: { phase: '1', terminal: false } })
+        const activityEvents = [
+            {
+                ts: '2026-05-19T10:00:01.000Z',
+                slug: 'task',
+                taskId: 'task',
+                prevStage: 'plan-ready',
+                newStage: 'implementing',
+                changedFields: ['stage'],
+                reason: 'watch-event',
+            },
+            {
+                ts: '2026-05-19T10:00:02.000Z',
+                slug: 'task',
+                taskId: 'task',
+                prevStage: 'implementing',
+                newStage: 'reviewing',
+                changedFields: ['storyCompletion'],
+                reason: 'watch-event',
+            },
+        ]
+        const appendActivity = vi.fn((_repoRoot, event) => {
+            order.push(`append:${event.ts}`)
+        })
+        const mergeAndWrite = vi.fn(async (args) => {
+            order.push('mergeAndWrite')
+            return {
+                state: args.currentState,
+                writtenAt: '2026-05-19T10:00:03.000Z',
+                changedTaskIds: ['task'],
+                activityEvents,
+            }
+        })
+        mockLock(order)
+        vi.doMock('./emit-activity.mjs', () => ({ appendActivity, rotateActivity: vi.fn() }))
+        vi.doMock('./sync-core.mjs', async (importOriginal) => {
+            const actual = await importOriginal()
+            return { ...actual, mergeAndWrite }
+        })
+        const { start } = await import('./watch-ralph-state.mjs')
+        const handle = await start({ repoRoot: fixture.repoRoot, debounceMs: 10, processLabel: 'unit-test' })
+        openHandles.push(handle)
+        order.length = 0
+
+        lastWatcher.emit('all', 'change', path.join(fixture.repoRoot, '.ralph/jobs/task/job-state.json'))
+        await vi.advanceTimersByTimeAsync(10)
+        await vi.waitFor(() => expect(appendActivity).toHaveBeenCalledTimes(2))
+
+        expect(order).toEqual([
+            'mergeAndWrite',
+            'append:2026-05-19T10:00:01.000Z',
+            'append:2026-05-19T10:00:02.000Z',
+            'touch',
+        ])
+
+        await handle.stop()
+        expect(order).toEqual([
+            'mergeAndWrite',
+            'append:2026-05-19T10:00:01.000Z',
+            'append:2026-05-19T10:00:02.000Z',
+            'touch',
+            'release',
+        ])
+    })
+
+    test('does not append activityEvents when mergeAndWrite throws', async () => {
+        vi.useFakeTimers()
+        const fixture = makeRepoFixture({ tasks: ['task'] })
+        writeJson(path.join(fixture.repoRoot, '.ralph/jobs/task/job-state.json'), { orchestrator: { phase: '1', terminal: false } })
+        const appendActivity = vi.fn()
+        const mergeAndWrite = vi.fn(async () => {
+            throw new Error('merge failed')
+        })
+        vi.doMock('./emit-activity.mjs', () => ({ appendActivity, rotateActivity: vi.fn() }))
+        vi.doMock('./sync-core.mjs', async (importOriginal) => {
+            const actual = await importOriginal()
+            return { ...actual, mergeAndWrite }
+        })
+        const { start } = await import('./watch-ralph-state.mjs')
+        const onError = vi.fn()
+        const handle = await start({ repoRoot: fixture.repoRoot, debounceMs: 10, processLabel: 'unit-test', onError })
+        openHandles.push(handle)
+
+        lastWatcher.emit('all', 'change', path.join(fixture.repoRoot, '.ralph/jobs/task/job-state.json'))
+        await vi.advanceTimersByTimeAsync(10)
+        await vi.waitFor(() => expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: 'merge failed' })))
+
+        expect(mergeAndWrite).toHaveBeenCalled()
+        expect(appendActivity).not.toHaveBeenCalled()
+    })
 })
 
 function makeRepoFixture({ tasks }) {
@@ -122,4 +217,28 @@ function makeRepoFixture({ tasks }) {
 function writeJson(filePath, value) {
     fs.mkdirSync(path.dirname(filePath), { recursive: true })
     fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`)
+}
+
+function mockLock(order) {
+    vi.doMock('./sync-lock.mjs', () => ({
+        acquireLock: vi.fn(async ({ lockPath, processLabel }) => {
+            order.push('acquire')
+            return {
+                lockPath,
+                metadata: { process: processLabel },
+                touch: vi.fn(async () => {
+                    order.push('touch')
+                }),
+                release: vi.fn(async () => {
+                    order.push('release')
+                }),
+            }
+        }),
+        releaseLock: vi.fn(async (handle) => {
+            await handle?.release()
+        }),
+        touchLock: vi.fn(async (handle) => {
+            await handle?.touch()
+        }),
+    }))
 }
