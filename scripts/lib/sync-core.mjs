@@ -361,14 +361,25 @@ export async function writeSidecar({ repoRoot, config, state }) {
     await atomicWriteFile(resolveMaybeAbsolute(absoluteRepoRoot, outputs.sidecarJs), `window.OVERVIEW_RALPH_STATE = ${json};`)
 }
 
+function unwrapRecommendations(raw) {
+    if (Array.isArray(raw)) return raw
+    if (raw && typeof raw === 'object' && Array.isArray(raw.recommendations)) return raw.recommendations
+    return []
+}
+
+function unwrapDependencyGraph(raw) {
+    if (raw && typeof raw === 'object' && !Array.isArray(raw) && Array.isArray(raw.nodes) && Array.isArray(raw.edges)) return raw
+    return { nodes: [], edges: [] }
+}
+
 async function emitAgentArtifacts({ repoRoot, config, state }) {
     const outputs = config.outputs ?? {}
     const overviewData = loadOverviewData(resolveMaybeAbsolute(repoRoot, config.dataFile))
     const snapshot = buildSnapshot({
         ralphState: state,
         overviewData,
-        recommendations: readJsonFile(path.join(repoRoot, PLAN_04_RECOMMENDATIONS_PATH)).value ?? [],
-        dependencyGraph: readJsonFile(path.join(repoRoot, PLAN_04_DEPENDENCY_GRAPH_PATH)).value ?? { nodes: [], edges: [] },
+        recommendations: unwrapRecommendations(readJsonFile(path.join(repoRoot, PLAN_04_RECOMMENDATIONS_PATH)).value),
+        dependencyGraph: unwrapDependencyGraph(readJsonFile(path.join(repoRoot, PLAN_04_DEPENDENCY_GRAPH_PATH)).value),
         runDurations: state.runDurations ?? {},
     })
 

@@ -419,6 +419,52 @@ describe('mergeAndWrite activityEvents', () => {
     })
 })
 
+describe('writeSidecar Plan 04 conditional unwrap', () => {
+    function buildSidecarConfig(repoRoot) {
+        return buildConfig(repoRoot)
+    }
+
+    async function runSidecarAndReadSnapshot(repoRoot) {
+        const config = buildSidecarConfig(repoRoot)
+        const state = buildState({})
+        writeOverviewDataFile(repoRoot, { tasks: [], runs: [] })
+        await writeSidecar({ repoRoot, config, state })
+        return JSON.parse(fs.readFileSync(path.resolve(repoRoot, config.outputs.snapshot), 'utf8'))
+    }
+
+    test('recommendations: absent file yields empty array in snapshot', async () => {
+        const snapshot = await runSidecarAndReadSnapshot(tempRoot)
+        expect(snapshot.recommendations).toEqual([])
+    })
+
+    test('recommendations: raw array on disk is preserved as-is', async () => {
+        const recs = [{ taskId: 'A', score: 0.9 }]
+        writeJson(path.join(tempRoot, 'plans', 'overview-recommendations.json'), recs)
+        const snapshot = await runSidecarAndReadSnapshot(tempRoot)
+        expect(snapshot.recommendations).toEqual(recs)
+    })
+
+    test('recommendations: wrapper object { recommendations: [...] } is unwrapped to the array', async () => {
+        const recs = [{ taskId: 'B', score: 0.7 }]
+        writeJson(path.join(tempRoot, 'plans', 'overview-recommendations.json'), { recommendations: recs })
+        const snapshot = await runSidecarAndReadSnapshot(tempRoot)
+        expect(Array.isArray(snapshot.recommendations)).toBe(true)
+        expect(snapshot.recommendations).toEqual(recs)
+    })
+
+    test('dependencyGraph: absent file yields default { nodes: [], edges: [] }', async () => {
+        const snapshot = await runSidecarAndReadSnapshot(tempRoot)
+        expect(snapshot.dependencyGraph).toEqual({ nodes: [], edges: [] })
+    })
+
+    test('dependencyGraph: well-formed { nodes, edges } on disk is preserved', async () => {
+        const graph = { nodes: [{ id: 'A' }], edges: [{ from: 'A', to: 'B' }] }
+        writeJson(path.join(tempRoot, 'plans', 'overview-dependency-graph.json'), graph)
+        const snapshot = await runSidecarAndReadSnapshot(tempRoot)
+        expect(snapshot.dependencyGraph).toEqual(graph)
+    })
+})
+
 describe('writeSidecar', () => {
     test('emits durable agent artifacts once in schema snapshot data-twin tasks-index order', async () => {
         const config = buildConfig(tempRoot)
