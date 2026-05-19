@@ -2,6 +2,7 @@ import { parseTaskScope } from '../data/copyPreambles'
 import type { OverviewData, OverviewRalphState, OverviewTask } from '../types'
 import { filterBucketForTask } from './taskClassification'
 
+/** Sentinel for tasks with no ralph state entry. Intentionally outside the RalphStage union so it never collides with a real stage value. */
 const NO_RALPH_STAGE = '__no_ralph__'
 
 export type FilterAxis = 'status' | 'workstream' | 'cadence' | 'size' | 'scope' | 'ralphStage'
