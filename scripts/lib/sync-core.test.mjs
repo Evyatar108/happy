@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
-import { _resetUnknownPhaseWarnings, walkRalphState } from './sync-core.mjs'
+import { _resetUnknownPhaseWarnings, mergeAndWrite, walkRalphState } from './sync-core.mjs'
 import { IMPLEMENTING_PHASES, REVIEW_PHASES } from './derive-ralph-stage.mjs'
 
 const KNOWN_PHASES = [...REVIEW_PHASES, ...IMPLEMENTING_PHASES]
@@ -27,6 +27,10 @@ function buildConfig(repoRoot) {
             brainstorms: path.join(repoRoot, '.ralph', 'brainstorms'),
         },
         watcher: { ignored: [] },
+        outputs: {
+            sidecarJson: path.join(repoRoot, 'plans', 'overview-ralph-state.json'),
+            sidecarJs: path.join(repoRoot, 'plans', 'overview-ralph-state.js'),
+        },
     }
 }
 
@@ -239,3 +243,153 @@ describe('sync-core hasPrdWorthy derivation', () => {
         expect(Object.prototype.hasOwnProperty.call(state.byTaskId[slug] ?? {}, 'hasPrdWorthy')).toBe(false)
     })
 })
+
+describe('mergeAndWrite activityEvents', () => {
+    test('emits a stage change event', async () => {
+        const config = buildConfig(tempRoot)
+        const currentState = buildState({
+            TASK: { stage: 'planning', jobSlug: 'TASK', artifacts: { jobDir: '.ralph/jobs/TASK' } },
+        })
+
+        const result = await mergeAndWrite({
+            repoRoot: tempRoot,
+            config,
+            currentState,
+            updates: [buildUpsert('TASK', { stage: 'implementing', jobSlug: 'TASK', artifacts: { jobDir: '.ralph/jobs/TASK' } })],
+            generatedFromCommit: 'def5678',
+        })
+
+        expect(result.activityEvents).toEqual([
+            {
+                ts: result.writtenAt,
+                slug: 'TASK',
+                taskId: 'TASK',
+                prevStage: 'planning',
+                newStage: 'implementing',
+                changedFields: ['stage'],
+                reason: 'sync',
+            },
+        ])
+    })
+
+    test('emits a storyCompletion change event', async () => {
+        const config = buildConfig(tempRoot)
+        const currentState = buildState({
+            TASK: {
+                stage: 'implementing',
+                jobSlug: 'TASK',
+                storyCompletion: { total: 3, passed: 1, blocked: 0, remaining: 2 },
+            },
+        })
+
+        const result = await mergeAndWrite({
+            repoRoot: tempRoot,
+            config,
+            currentState,
+            updates: [
+                buildUpsert('TASK', {
+                    stage: 'implementing',
+                    jobSlug: 'TASK',
+                    storyCompletion: { total: 3, passed: 2, blocked: 0, remaining: 1 },
+                }),
+            ],
+        })
+
+        expect(result.activityEvents).toMatchObject([
+            {
+                slug: 'TASK',
+                taskId: 'TASK',
+                prevStage: 'implementing',
+                newStage: 'implementing',
+                changedFields: ['storyCompletion'],
+                reason: 'sync',
+            },
+        ])
+    })
+
+    test('emits a removal event with newStage null', async () => {
+        const config = buildConfig(tempRoot)
+        const currentState = buildState({
+            TASK: { stage: 'reviewing', jobSlug: 'TASK', artifacts: { jobDir: '.ralph/jobs/TASK' } },
+        })
+
+        const result = await mergeAndWrite({
+            repoRoot: tempRoot,
+            config,
+            currentState,
+            updates: [{ action: 'remove', taskId: 'TASK', kind: 'job', slug: 'TASK', touched: [], unmatchedFragment: [] }],
+        })
+
+        expect(result.activityEvents).toMatchObject([
+            {
+                slug: 'TASK',
+                taskId: 'TASK',
+                prevStage: 'reviewing',
+                newStage: null,
+                changedFields: ['stage'],
+                reason: 'sync',
+            },
+        ])
+    })
+
+    test('emits a first-observation event with prevStage null', async () => {
+        const config = buildConfig(tempRoot)
+
+        const result = await mergeAndWrite({
+            repoRoot: tempRoot,
+            config,
+            currentState: buildState({}),
+            updates: [buildUpsert('TASK', { stage: 'planning', jobSlug: 'TASK', artifacts: { jobDir: '.ralph/jobs/TASK' } })],
+        })
+
+        expect(result.activityEvents).toMatchObject([
+            {
+                slug: 'TASK',
+                taskId: 'TASK',
+                prevStage: null,
+                newStage: 'planning',
+                changedFields: ['stage'],
+                reason: 'sync',
+            },
+        ])
+    })
+
+    test('emits zero events for retain updates with no byTaskId diff', async () => {
+        const config = buildConfig(tempRoot)
+        const currentState = buildState({
+            TASK: { stage: 'implementing', jobSlug: 'TASK', artifacts: { jobDir: '.ralph/jobs/TASK' } },
+        })
+
+        const result = await mergeAndWrite({
+            repoRoot: tempRoot,
+            config,
+            currentState,
+            updates: [{ action: 'retain', taskId: 'TASK', kind: 'job', slug: 'TASK', touched: [], unmatchedFragment: [], error: 'parse failed' }],
+        })
+
+        expect(result.activityEvents).toEqual([])
+    })
+})
+
+function buildState(byTaskId) {
+    return {
+        generatedAt: '2026-05-19T00:00:00.000Z',
+        generatedFromCommit: 'abc1234',
+        byTaskId,
+        unmatched: [],
+        unmatchedSummary: {},
+    }
+}
+
+function buildUpsert(taskId, pipelineState) {
+    return {
+        action: 'upsert',
+        taskId,
+        kind: 'job',
+        slug: taskId,
+        touched: [],
+        byTaskId: { [taskId]: pipelineState },
+        newPipelineState: pipelineState,
+        unmatchedFragment: [],
+    }
+}

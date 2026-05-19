@@ -92,7 +92,7 @@ declare module '../../../../scripts/lib/derive-ralph-stage.mjs' {
 }
 
 declare module '../../../../scripts/lib/sync-core.mjs' {
-    import type { OverviewData, OverviewRalphState, RalphPipelineState } from '../types'
+    import type { ActivityEvent, OverviewData, OverviewRalphState, RalphPipelineState } from '../types'
     import type { RalphOverviewConfig } from '../../../../scripts/lib/default-config.mjs'
 
     export interface RalphArtifactBundle {
@@ -181,7 +181,7 @@ declare module '../../../../scripts/lib/sync-core.mjs' {
         currentState: OverviewRalphState
         updates: TaskUpdate[]
         generatedFromCommit?: string
-    }): Promise<{ state: OverviewRalphState; writtenAt: string; changedTaskIds: string[] }>
+    }): Promise<{ state: OverviewRalphState; writtenAt: string; changedTaskIds: string[]; activityEvents: ActivityEvent[] }>
 
     export function writeSidecar(options: {
         repoRoot: string

@@ -267,8 +267,55 @@ export async function mergeAndWrite({ repoRoot, config, currentState, updates, g
         unmatchedSummary: summarizeUnmatched(unmatched),
     }
     state.unmatchedSummary = summarizeUnmatched(state.unmatched)
+    const activityEvents = deriveActivityEvents({ previousByTaskId: currentState.byTaskId ?? {}, nextByTaskId: state.byTaskId, ts: state.generatedAt })
     await writeSidecar({ repoRoot, config, state })
-    return { state, writtenAt: state.generatedAt, changedTaskIds: [...changedTaskIds].sort() }
+    return { state, writtenAt: state.generatedAt, changedTaskIds: [...changedTaskIds].sort(), activityEvents }
+}
+
+function deriveActivityEvents({ previousByTaskId, nextByTaskId, ts }) {
+    const taskIds = new Set([...Object.keys(previousByTaskId), ...Object.keys(nextByTaskId)])
+    return [...taskIds].sort().flatMap((taskId) => {
+        const previous = previousByTaskId[taskId]
+        const next = nextByTaskId[taskId]
+        const changedFields = []
+
+        if (previous?.stage !== next?.stage) {
+            changedFields.push('stage')
+        }
+        if (previous && next && !sameStoryCompletion(previous.storyCompletion, next.storyCompletion)) {
+            changedFields.push('storyCompletion')
+        }
+        if (changedFields.length === 0) {
+            return []
+        }
+
+        return [
+            {
+                ts,
+                slug: activitySlug(next ?? previous, taskId),
+                taskId,
+                prevStage: previous?.stage ?? null,
+                newStage: next?.stage ?? null,
+                changedFields,
+                reason: 'sync',
+            },
+        ]
+    })
+}
+
+function sameStoryCompletion(previous, next) {
+    const previousValue = previous ?? null
+    const nextValue = next ?? null
+    return JSON.stringify(previousValue) === JSON.stringify(nextValue)
+}
+
+function activitySlug(entry, taskId) {
+    return entry?.jobSlug ?? entry?.groupSlug ?? slugFromArtifacts(entry?.artifacts) ?? taskId
+}
+
+function slugFromArtifacts(artifacts) {
+    const artifactPath = artifacts?.jobDir ?? artifacts?.groupDir ?? artifacts?.brainstormDir
+    return typeof artifactPath === 'string' ? artifactPath.split('/').filter(Boolean).at(-1) : undefined
 }
 
 export function resolveCrossKindPrecedence(bundles) {
