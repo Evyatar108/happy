@@ -1,8 +1,8 @@
-import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 
 import { watch } from 'chokidar'
 
+import { compileIgnoredPatterns, matchesIgnored, resolveHeadShortSha, splitPath } from './path-utils.mjs'
 import { loadConfig } from './resolve-config.mjs'
 import { deriveAffectedTaskUpdate, mergeAndWrite, walkRalphState, writeSidecar } from './sync-core.mjs'
 import { acquireLock, releaseLock } from './sync-lock.mjs'
@@ -11,6 +11,7 @@ const DEFAULT_DEBOUNCE_MS = 2_000
 const HEARTBEAT_MS = 30_000
 const RETAIN_WARNING_THRESHOLD = 10
 const HEAD_WARNING = 'watch-ralph-state: could not resolve HEAD short SHA, using unknown'
+const MAX_FLUSH_RETRIES = 3
 
 export async function start({ repoRoot, configPath, debounceMs = DEFAULT_DEBOUNCE_MS, processLabel = 'watcher', onWrite, onError } = {}) {
     if (!repoRoot) {
@@ -19,20 +20,47 @@ export async function start({ repoRoot, configPath, debounceMs = DEFAULT_DEBOUNC
 
     const absoluteRepoRoot = path.resolve(repoRoot)
     const config = loadConfig({ repoRoot: absoluteRepoRoot, configPath })
-    const generatedFromCommit = resolveHeadShortSha(absoluteRepoRoot)
+    const generatedFromCommit = resolveHeadShortSha(absoluteRepoRoot, {
+        onError: () => {
+            process.stderr.write(`${HEAD_WARNING}\n`)
+        },
+    })
     const lockHandle = await acquireLock({ lockPath: config.lockFile, processLabel })
     const roots = getWatchRoots(config)
+    // F-007: precompile ignored patterns once and reuse via the chokidar `ignored`
+    // callback + the in-process matchesIgnored helper.
+    const compiledIgnored = compileIgnoredPatterns(config.watcher?.ignored ?? [])
     const pendingChanges = new Map()
     const consecutiveFailures = new Map()
     const repeatedWarnings = new Set()
+    const flushRetryCounts = new Map()
     let currentState
     let debounceTimer
     let stopped = false
     let closing = false
     let watcher
     let heartbeatTimer
+    let lastTickAt
+    let coldStartReady = false
+    // Buffer events that arrive before cold-start completes (F-004 option B variant).
+    const earlyEventBuffer = []
 
     const status = {
+        // F-005/F-011: plan-AC shape { running, pendingSlugs, queueDepth, lastTickAt? }
+        // plus legacy fields kept for backwards compatibility with existing tests
+        // and downstream debug callers.
+        get running() {
+            return !stopped
+        },
+        get pendingSlugs() {
+            return [...pendingChanges.keys()]
+        },
+        get queueDepth() {
+            return pendingChanges.size
+        },
+        get lastTickAt() {
+            return lastTickAt
+        },
         get currentState() {
             return currentState
         },
@@ -65,6 +93,12 @@ export async function start({ repoRoot, configPath, debounceMs = DEFAULT_DEBOUNC
         if (stopped || pendingChanges.size === 0) {
             return
         }
+        // F-004: if cold-start has not completed yet, defer flush. The flush will be
+        // re-triggered after writeSidecar resolves in the cold-start path.
+        if (!coldStartReady || !currentState) {
+            scheduleFlush()
+            return
+        }
         const changes = [...pendingChanges.values()]
         pendingChanges.clear()
         try {
@@ -72,6 +106,7 @@ export async function start({ repoRoot, configPath, debounceMs = DEFAULT_DEBOUNC
                 deriveAffectedTaskUpdate({ repoRoot: absoluteRepoRoot, config, kind, slug, currentState, generatedFromCommit }),
             )
             const writableUpdates = []
+            const retainUpdates = []
             for (const update of updates) {
                 const key = changeKey(update.kind, update.slug)
                 if (update.action === 'retain') {
@@ -82,26 +117,60 @@ export async function start({ repoRoot, configPath, debounceMs = DEFAULT_DEBOUNC
                         repeatedWarnings.add(key)
                         process.stderr.write(`watcher: ${update.slug} failing repeatedly\n`)
                     }
+                    retainUpdates.push(update)
                     continue
                 }
                 consecutiveFailures.delete(key)
                 repeatedWarnings.delete(key)
                 writableUpdates.push(update)
             }
-            if (writableUpdates.length === 0) {
+            // F-001/F-013: retain updates still need to flow through mergeAndWrite so
+            // unmatched / unmatchedSummary refresh with the parse-error fragment even
+            // when byTaskId is unchanged.
+            const allUpdates = [...writableUpdates, ...retainUpdates]
+            if (allUpdates.length === 0) {
                 return
             }
             const result = await mergeAndWrite({
                 repoRoot: absoluteRepoRoot,
                 config,
                 currentState,
-                updates: writableUpdates,
+                updates: allUpdates,
                 generatedFromCommit,
             })
             currentState = result.state
+            lastTickAt = result.writtenAt
+            // Reset retry counter for changes that just landed.
+            for (const change of changes) {
+                flushRetryCounts.delete(changeKey(change.kind, change.slug))
+            }
             await lockHandle.touch()
-            onWrite?.({ writtenAt: result.writtenAt, changedTaskIds: result.changedTaskIds })
+            // Suppress onWrite if no taskIds actually changed (retain-only flush).
+            if (writableUpdates.length > 0 || result.changedTaskIds.length > 0) {
+                onWrite?.({ writtenAt: result.writtenAt, changedTaskIds: result.changedTaskIds })
+            }
         } catch (error) {
+            // F-010: re-enqueue failed changes so the next debounce retries; cap to
+            // MAX_FLUSH_RETRIES per (kind, slug) to avoid an infinite loop on persistent
+            // failures (e.g., disk full).
+            for (const change of changes) {
+                const key = changeKey(change.kind, change.slug)
+                const retries = (flushRetryCounts.get(key) ?? 0) + 1
+                if (retries > MAX_FLUSH_RETRIES) {
+                    flushRetryCounts.delete(key)
+                    process.stderr.write(
+                        `watcher: dropping ${change.kind}/${change.slug} after ${MAX_FLUSH_RETRIES} failed flush attempts: ${error?.message ?? error}\n`,
+                    )
+                    continue
+                }
+                flushRetryCounts.set(key, retries)
+                if (!pendingChanges.has(key)) {
+                    pendingChanges.set(key, change)
+                }
+            }
+            if (pendingChanges.size > 0) {
+                scheduleFlush()
+            }
             onError?.(error)
             if (!onError) {
                 process.stderr.write(`watcher: ${error?.message ?? error}\n`)
@@ -132,13 +201,18 @@ export async function start({ repoRoot, configPath, debounceMs = DEFAULT_DEBOUNC
 
     try {
         watcher = watch(roots, {
-            ignored: (filePath) => matchesIgnored(filePath, absoluteRepoRoot, config.watcher.ignored),
+            ignored: (filePath) => matchesIgnored(filePath, absoluteRepoRoot, compiledIgnored),
             awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
             ignoreInitial: true,
         })
-        watcher.on('all', (_eventName, changedPath) => {
-            const change = parseWatchedPath(changedPath, roots)
+        watcher.on('all', (eventName, changedPath) => {
+            const change = parseWatchedPath(changedPath, roots, eventName)
             if (!change) {
+                return
+            }
+            // F-004: if cold-start hasn't completed yet, buffer the event for replay.
+            if (!coldStartReady) {
+                earlyEventBuffer.push(change)
                 return
             }
             pendingChanges.set(changeKey(change.kind, change.slug), change)
@@ -158,7 +232,17 @@ export async function start({ repoRoot, configPath, debounceMs = DEFAULT_DEBOUNC
 
         currentState = await walkRalphState({ repoRoot: absoluteRepoRoot, config, generatedFromCommit })
         await writeSidecar({ repoRoot: absoluteRepoRoot, config, state: currentState })
+        lastTickAt = currentState.generatedAt
         await lockHandle.touch()
+        // F-004: cold-start complete — drain any events that arrived during walkRalphState
+        // / writeSidecar into pendingChanges and schedule a reconciling debounce tick.
+        coldStartReady = true
+        for (const change of earlyEventBuffer.splice(0)) {
+            pendingChanges.set(changeKey(change.kind, change.slug), change)
+        }
+        if (pendingChanges.size > 0) {
+            scheduleFlush()
+        }
         heartbeatTimer = setInterval(() => {
             void lockHandle.touch().catch((error) => {
                 onError?.(error)
@@ -176,7 +260,7 @@ function getWatchRoots(config) {
     return [config.ralphSubdirs.jobs, config.ralphSubdirs.jobGroups, config.ralphSubdirs.brainstorms].map((dir) => path.resolve(dir))
 }
 
-function parseWatchedPath(filePath, roots) {
+function parseWatchedPath(filePath, roots, eventName) {
     const absolutePath = path.resolve(filePath)
     const rootEntries = [
         { kind: 'job', root: roots[0] },
@@ -193,50 +277,22 @@ function parseWatchedPath(filePath, roots) {
         if (!slug || slug === '.staging') {
             return undefined
         }
-        if (kind === 'brainstorm' && parts[1] !== 'brainstorm.json') {
+        // F-003/F-014: directory-level events (unlinkDir, addDir) arrive with
+        // parts.length === 1. Allow them through for all kinds so brainstorm /
+        // job / group slug-directory deletions get re-derived. For nested file
+        // events under brainstorm, only enqueue when the touched file is
+        // brainstorm.json (selected-direction.md and other artefacts are ignored).
+        if (kind === 'brainstorm' && parts.length > 1 && parts[1] !== 'brainstorm.json') {
             return undefined
         }
+        // eventName is reserved for future filtering (e.g., add vs unlink) but is not
+        // persisted on the pendingChanges entry to keep its shape stable for callers.
+        void eventName
         return { kind, slug }
     }
     return undefined
 }
 
-function matchesIgnored(filePath, repoRoot, ignored) {
-    const relative = toPosix(path.relative(repoRoot, filePath))
-    return ignored.some((pattern) => globToRegExp(pattern).test(relative) || globToRegExp(pattern).test(`${relative}/`))
-}
-
-function globToRegExp(pattern) {
-    const doubleStar = '__RALPH_DOUBLE_STAR__'
-    const escaped = toPosix(pattern)
-        .replace(/\*\*/g, doubleStar)
-        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-        .replace(/\*/g, '[^/]*')
-        .replaceAll(doubleStar, '.*')
-    return new RegExp(`^${escaped}$`)
-}
-
-function splitPath(value) {
-    return value.split(/[\\/]+/).filter(Boolean)
-}
-
-function toPosix(value) {
-    return value.replace(/\\/g, '/')
-}
-
 function changeKey(kind, slug) {
     return `${kind}:${slug}`
-}
-
-function resolveHeadShortSha(repoRoot) {
-    try {
-        return execFileSync('git', ['rev-parse', '--short', 'HEAD'], {
-            cwd: repoRoot,
-            encoding: 'utf8',
-            stdio: ['ignore', 'pipe', 'ignore'],
-        }).trim()
-    } catch {
-        process.stderr.write(`${HEAD_WARNING}\n`)
-        return 'unknown'
-    }
 }

@@ -3,6 +3,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
+import { resolveHeadShortSha as sharedResolveHeadShortSha } from './lib/path-utils.mjs'
 import { loadConfig } from './lib/resolve-config.mjs'
 import { walkRalphState, writeSidecar } from './lib/sync-core.mjs'
 import { acquireLock, releaseLock } from './lib/sync-lock.mjs'
@@ -32,7 +33,7 @@ async function main() {
 
 async function runOneShot({ repoRoot, config }) {
     const generatedFromCommit = resolveHeadShortSha(repoRoot)
-    const lockHandle = await acquireLock({ lockPath: config.lockFile, processLabel: 'one-shot' })
+    const lockHandle = await acquireLock({ lockPath: config.lockFile, processLabel: 'standalone-oneshot' })
     try {
         const state = await walkRalphState({ repoRoot, config, generatedFromCommit })
 
@@ -107,16 +108,11 @@ function resolveRepoRoot() {
 }
 
 function resolveHeadShortSha(repoRoot) {
-    try {
-        return execFileSync('git', ['rev-parse', '--short', 'HEAD'], {
-            cwd: repoRoot,
-            encoding: 'utf8',
-            stdio: ['ignore', 'pipe', 'ignore'],
-        }).trim()
-    } catch {
-        console.error(HEAD_WARNING)
-        return 'unknown'
-    }
+    return sharedResolveHeadShortSha(repoRoot, {
+        onError: () => {
+            console.error(HEAD_WARNING)
+        },
+    })
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
