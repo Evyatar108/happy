@@ -8,6 +8,7 @@ Vite + React 18 + TypeScript renderer for the codexu roadmap dashboard. Consumes
 ## Source of truth
 
 - Task data lives in `plans/overview-data.js` (hand-edited by bookkeepers — never modify it from inside this package).
+- Ralph pipeline state lives in `plans/overview-ralph-state.js` and is served/inlined by `overviewRalphStatePlugin()` in `vite.config.ts`; do not add watcher ownership there because the Ralph state generator owns update emission.
 - Renderer behavior lives entirely in `src/` under this package.
 - `plans/overview.html` at the repo root is a generated artifact. **Never hand-edit it.** Renderer changes go in `src/`, then `pnpm overview:build` regenerates the artifact.
 
