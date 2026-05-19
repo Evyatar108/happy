@@ -25,7 +25,7 @@ Plan 02 is recommended (live updates make the histogram more useful) but not str
 ## Scope
 
 **In scope:**
-- New `tools/overview-viewer/src/components/PipelineOverview.tsx` — horizontal bar of 9 stage chips (one per stage) with `<stage> · <count>` labels.
+- New `tools/overview-viewer/src/components/PipelineOverview.tsx` — horizontal bar of 10 stage chips (one per stage) with `<stage> · <count>` labels.
 - Rendering integration in `tools/overview-viewer/src/App.tsx` — `<PipelineOverview>` between `<Toolbar>` and `<Kanban>`.
 - Click handler on each histogram chip → toggles `filters.ralphStage = {<stage>}` via the existing single-select pattern (or sets/clears if already set).
 - New `scripts/lib/score-recommendations.mjs` — pure function `scoreRecommendations(byTaskId, overviewData) -> Recommendation[]`. Imported by `sync-core.mjs`.
@@ -44,7 +44,7 @@ Plan 02 is recommended (live updates make the histogram more useful) but not str
 
 ### To create
 
-- **`tools/overview-viewer/src/components/PipelineOverview.tsx`** — props: `{ ralphState: OverviewRalphState; filters: ActiveFilters; setFilters: (next: ActiveFilters) => void }`. Renders a horizontal flex container of 9 stage chips. Click handler: if `filters.ralphStage.has(stage)`, remove it; else replace `filters.ralphStage` with `new Set([stage])` (single-select for the histogram surface; the Toolbar filter group retains multi-select capability). Empty state: when total count is 0, render `<div class="pipeline-overview-empty">No Ralph state tracked yet — run <code>pnpm sync-ralph-state</code> or check unmatched in stderr</div>`.
+- **`tools/overview-viewer/src/components/PipelineOverview.tsx`** — props: `{ ralphState: OverviewRalphState; filters: ActiveFilters; setFilters: (next: ActiveFilters) => void }`. Renders a horizontal flex container of 10 stage chips. Click handler: if `filters.ralphStage.has(stage)`, remove it; else replace `filters.ralphStage` with `new Set([stage])` (single-select for the histogram surface; the Toolbar filter group retains multi-select capability). Empty state: when total count is 0, render `<div class="pipeline-overview-empty">No Ralph state tracked yet — run <code>pnpm sync-ralph-state</code> or check unmatched in stderr</div>`.
 - **`scripts/lib/score-recommendations.mjs`** — pure function. Inputs: `byTaskId: Record<taskId, RalphPipelineState>`, `overviewData: OverviewData`, `weights?: { stageUrgency, dependencyState, freshness, priority }`. Output: `Recommendation[]` sorted by score descending.
 - **`scripts/lib/derive-dependency-graph.mjs`** — pure function building `{ nodes, edges }` from `userStories[].dependencies[]` across all jobs + `OverviewTask.spawnedFrom` + an optional `OverviewTask.blocks: string[]` field (define the field; bookkeepers add it in `overview-data.js` when needed).
 - **`tools/overview-viewer/src/__tests__/pipelineOverview.test.tsx`** — see test list under Acceptance.
@@ -72,7 +72,7 @@ Default weights (override via `recommendations.weights` block in `.ralph/overvie
 
 | Input | Weight | Mapping |
 |---|---|---|
-| **Stage urgency** | 40 | `review-fix` = 1.0, `plan-ready` = 0.9, `reviewing` = 0.7, `implementing` = 0.6, `blocked` = 0.5, `planning` = 0.4, `brainstorm-ready` = 0.3, `brainstorming` = 0.2, `shipped` = 0.0 |
+| **Stage urgency** | 40 | `review-fix` = 1.0, `replan-pending` = 0.95, `plan-ready` = 0.9, `reviewing` = 0.7, `implementing` = 0.6, `blocked` = 0.5, `planning` = 0.4, `brainstorm-ready` = 0.3, `brainstorming` = 0.2, `shipped` = 0.0 |
 | **Dependency state** | 30 | Unblocked = 1.0 (all `userStories[].dependencies[]` have `passes: true` in their referenced jobs), Partially blocked = 0.5, Fully blocked = 0.0 |
 | **Freshness** | 20 | Linear decay from 1.0 (touched today) to 0.0 (touched ≥14 days ago) based on `lastUpdatedAt` |
 | **Priority** | 10 | `OverviewTask.priority` if numeric (normalized 0..1) else 0.5 |
@@ -88,7 +88,7 @@ Each `Recommendation` carries `{ taskId, score, stage, reasons: string[] }` wher
 3. **Build `scripts/lib/derive-dependency-graph.mjs`**. Unit-test.
 4. **Wire into `scripts/lib/sync-core.mjs`** — emit `overview-recommendations.json` and `overview-dependency-graph.json` after the sidecar write. Same atomic tmp+rename pattern.
 5. **Compute `runDurations`** — walk `OverviewData.runs[]`; for each entry that has a corresponding completed Ralph cycle, compute hours from `job-state.json.createdAt` to `completedAt`. Store in `state.runDurations`.
-6. **Build `PipelineOverview.tsx`** — render 9 stage chips with counts. Add click-to-filter.
+6. **Build `PipelineOverview.tsx`** — render 10 stage chips with counts. Add click-to-filter.
 7. **Integrate in `App.tsx`** — place between `Toolbar` and `Kanban`.
 8. **CSS** — layout + active/hover/empty states.
 9. **Tests** — `pipelineOverview.test.tsx`: histogram count rendering, click-to-filter, empty state. Add 2-3 tests for `score-recommendations` and `derive-dependency-graph` in `ralphStage.test.ts` or a new `recommendations.test.ts`.
@@ -96,7 +96,7 @@ Each `Recommendation` carries `{ taskId, score, stage, reasons: string[] }` wher
 
 ## Acceptance criteria
 
-- [ ] `PipelineOverview` renders 9 stage chips with `<stage> · <count>` labels.
+- [ ] `PipelineOverview` renders 10 stage chips with `<stage> · <count>` labels.
 - [ ] Clicking a stage chip toggles `filters.ralphStage = {<stage>}` (single-select on this surface).
 - [ ] Empty state renders when total count is 0.
 - [ ] `scripts/lib/score-recommendations.mjs` produces a sorted list with `reasons[]` per entry.
