@@ -90,6 +90,25 @@ describe('walkRalphState', () => {
         expect(error).toHaveBeenCalledWith(expect.stringContaining('failed to parse'))
     })
 
+    it('skips malformed prd.json without deriving a stage from sibling files', async () => {
+        const fixture = makeRepoFixture({ tasks: ['broken-prd'] })
+        writeJson(path.join(fixture.repoRoot, '.ralph/jobs/broken-prd/job-state.json'), {
+            orchestrator: { phase: '1', terminal: false },
+        })
+        writeFileSync(path.join(fixture.repoRoot, '.ralph/jobs/broken-prd/prd.json'), '{ bad json')
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+        const state = await walkRalphState({
+            repoRoot: fixture.repoRoot,
+            config: fixture.config,
+            generatedFromCommit: 'abc1234',
+        })
+
+        expect(state.byTaskId['broken-prd']).toBeUndefined()
+        expect(state.unmatched).toContainEqual({ kind: 'job', slug: 'broken-prd', reason: 'parse-error' })
+        expect(error).toHaveBeenCalledWith(expect.stringContaining('failed to parse'))
+    })
+
     it('resolves slug-default and ralphOverrides matches', async () => {
         const fixture = makeRepoFixture({ tasks: ['direct', 'target'], ralphOverrides: { aliased: 'target' } })
         writeJson(path.join(fixture.repoRoot, '.ralph/jobs/direct/job-state.json'), {

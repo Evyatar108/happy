@@ -180,7 +180,21 @@ function readJobLikeBundles({ repoRoot, rootDir, ralphRoot, ignored, kind }) {
         }
 
         const prdResult = readJsonFile(path.join(dir, 'prd.json'))
-        const reviewOpenCount = readReviewOpenCount(dir)
+        if (prdResult.error) {
+            console.error(`sync-core: failed to parse ${path.join(dir, 'prd.json')}: ${prdResult.error.message}`)
+            bundles.push({ kind, slug, dir, dirMtimeMs: entry.mtimeMs, artifacts, parseError: true })
+            continue
+        }
+
+        const { counts: reviewOpenCount, parseErrors: reviewParseErrors } = readReviewOpenCount(dir)
+        for (const { fileName, error } of reviewParseErrors) {
+            console.error(`sync-core: failed to parse ${path.join(dir, fileName)}: ${error.message}`)
+            bundles.push({ kind, slug, dir, dirMtimeMs: entry.mtimeMs, artifacts, parseError: true, parseErrorFile: fileName })
+        }
+        if (reviewParseErrors.length > 0) {
+            continue
+        }
+
         const bundle = {
             kind,
             slug,
@@ -208,6 +222,18 @@ function readBrainstormBundles({ repoRoot, rootDir, ralphRoot, ignored }) {
     for (const entry of readDirectChildDirs({ repoRoot, rootDir, ralphRoot, ignored })) {
         const brainstormPath = path.join(entry.path, 'brainstorm.json')
         const brainstormResult = readJsonFile(brainstormPath)
+        if (brainstormResult.error) {
+            console.error(`sync-core: failed to parse ${brainstormPath}: ${brainstormResult.error.message}`)
+            bundles.push({
+                kind: 'brainstorm',
+                slug: entry.name,
+                dir: entry.path,
+                dirMtimeMs: entry.mtimeMs,
+                artifacts: { brainstormDir: relativePath(repoRoot, entry.path) },
+                parseError: true,
+            })
+            continue
+        }
         if (!brainstormResult.value) {
             continue
         }
@@ -242,14 +268,19 @@ function readDirectChildDirs({ repoRoot, rootDir, ralphRoot, ignored }) {
 
 function readReviewOpenCount(dir) {
     const counts = {}
+    const parseErrors = []
     for (const [key, fileName] of FINDINGS_FILES) {
         const result = readJsonFile(path.join(dir, fileName))
+        if (result.error) {
+            parseErrors.push({ fileName, error: result.error })
+            continue
+        }
         if (!result.value) {
             continue
         }
         counts[key] = countOpenMediumPlus(result.value)
     }
-    return counts
+    return { counts, parseErrors }
 }
 
 function countOpenMediumPlus(value) {
