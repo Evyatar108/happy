@@ -88,7 +88,7 @@ Each member's `manifest.json` exposes the canonical `sessionId` and `transcriptP
   3. Read the new member's `manifest.json` to extract `sessionId`, `transcriptPath`, `startedAt`.
   4. Call `node scripts/sync-ralph-state.mjs --update-crew-session <taskId> <stage> --json <ref>` to atomically record the spawn.
   5. Return to the bookkeeping agent (lead). The lead later monitors the member's mailbox and calls `--finalize-crew-session` when the member returns a `<|report kind="final" ...|>` tag.
-- **`tools/overview-viewer/src/components/RalphStageChip.tsx`** — extend the `tooltipExtras` content (added in Plan 03, populated by Plan 07) with crew sessions for the current stage. Each session row: member name, started/ended timestamps, outcome, clickable link to `transcriptPath` (rendered as `file://` so clicking opens the JSONL in the system viewer or VS Code).
+- **`tools/overview-viewer/src/components/TaskCommand.tsx`** — extend the `tooltipExtras` JSX passed to `RalphStageChip` (slot added in Plan 03, first populated by Plan 07) with crew sessions for the current stage. Each session row: member name, started/ended timestamps, outcome, clickable link to `transcriptPath` (rendered as `file://` so clicking opens the JSONL in the system viewer or VS Code). Keep `RalphStageChip.tsx` generic and unchanged unless the slot contract itself needs to change.
 - **`tools/overview-viewer/src/App.tsx`** — no changes (the type extension flows through transparently).
 
 ### Read for reference
@@ -140,7 +140,7 @@ Rule: explicit-write entries WIN over heuristic-discovered entries. Implementati
 5. **Extend `watch-ralph-state.mjs` watched paths** — add `.crews/` paths with appropriate excludes.
 6. **Add CLI subcommand modes** — `--update-crew-session`, `--finalize-crew-session`. Share the lock. Test concurrency: two subcommand invocations in parallel both eventually succeed without lost updates.
 7. **Update `/work-on` skill** — add `--via-crew` branch.
-8. **Extend `RalphStageChip` tooltip** — render crew sessions in the extras slot.
+8. **Extend chip tooltip extras** — append crew session rows to the `tooltipExtras` JSX composed in `TaskCommand.tsx` and passed to `RalphStageChip`.
 9. **Stale-member detection** — in `discoverCrewSessions`, mark `lastHeartbeatAt > 60min` ago as `outcome: 'stopped'` with `endedAt: lastHeartbeatAt`.
 
 ## Acceptance criteria

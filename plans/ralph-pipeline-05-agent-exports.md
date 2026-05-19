@@ -150,7 +150,7 @@ A. **Schema validation:** `npx ajv validate -s plans/overview-snapshot.schema.js
 
 B. **Snapshot structure:** `cat plans/overview-snapshot.json | jq '.tasks[0] | keys'` shows fields from both `OverviewTask` and `RalphPipelineState`. `cat plans/overview-snapshot.json | jq '.schemaVersion'` is 1.
 
-C. **JSON twin consistency:** `node -e "const a = require('./plans/overview-ralph-state.json'); const b = (() => { const fn = new Function(require('fs').readFileSync('./plans/overview-ralph-state.js','utf8') + '; return window.OVERVIEW_RALPH_STATE'); const w = {}; fn.call({ window: w }); return w.OVERVIEW_RALPH_STATE })(); console.log(JSON.stringify(a) === JSON.stringify(b))"` prints `true`.
+C. **JSON twin consistency:** `node -e "const fs = require('fs'); const a = require('./plans/overview-ralph-state.json'); const w = {}; const b = new Function('window', fs.readFileSync('./plans/overview-ralph-state.js','utf8') + '; return window.OVERVIEW_RALPH_STATE')(w); console.log(JSON.stringify(a) === JSON.stringify(b))"` prints `true`. Use the synthetic-window pattern from Plan 03; Node tests do not have a global `window`.
 
 D. **Activity tail:** modify a `.ralph/jobs/<test>/job-state.json` to flip its stage. Run `pnpm sync-ralph-state`. `tail -1 plans/overview-activity.jsonl | jq '.changedFields'` includes `"stage"` and shows `prevStage`/`newStage`.
 

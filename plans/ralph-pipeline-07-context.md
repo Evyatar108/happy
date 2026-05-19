@@ -25,7 +25,7 @@ Plans 01–06 give the user (and agents) a way to see and pick the right action 
 - Implement PR URL scraping in `scripts/lib/derive-pr-links.mjs`. Sources: `group.json.prUrl` for parallel groups; for single-job tasks, scrape the latest commit message in `prd.json.branch.name` for `Closes #N` / GitHub URL patterns.
 - Auto-append journal entries on stage transitions: `scripts/lib/append-journal.mjs`. Output: `tasks/<id>/journal.md` (new file per task on first transition).
 - New `tools/overview-viewer/src/components/RecentActivity.tsx` — collapsible right-side panel rendering the last N activity events. Reads `plans/overview-activity.jsonl` (the viewer needs a way to load it — see Implementation).
-- Tooltip extras for `RalphStageChip` — add `deferredQuestionsCount`, `prUrl` link, `branchName` copy as additional tooltip content via the `tooltipExtras` slot introduced in Plan 03.
+- Tooltip extras for `RalphStageChip` — compose `deferredQuestionsCount`, `prUrl` link, and `branchName` copy UI in the command-row layer and pass it through the `tooltipExtras` prop introduced in Plan 03. Keep the base chip generic: it owns stage/slug/timestamp rendering and renders the supplied slot below those rows.
 
 **Out of scope (other plans):**
 - Crews session list in the tooltip → Plan 08
@@ -57,7 +57,7 @@ Plans 01–06 give the user (and agents) a way to see and pick the right action 
   - Read `<jobDir>/notepad.md`. Call `parseNotepad(text)` to populate the new fields. Skip silently if the file is missing.
   - Call `derivePRLinks({ groupState, repoRoot, branchName: prd.branch.name })` to populate `branchName`, `prUrl`, `mergeCommit`.
   - When the watcher detects a stage transition, call `appendJournalEntry(...)` AFTER appending the activity event but BEFORE the sidecar write.
-- **`tools/overview-viewer/src/components/RalphStageChip.tsx`** — use the `tooltipExtras` slot introduced in Plan 03 to render:
+- **`tools/overview-viewer/src/components/TaskCommand.tsx`** — build the `tooltipExtras` JSX for the current task and pass it to `<RalphStageChip taskId={task.id} ralphState={ralphState} tooltipExtras={...} />`. Keep `RalphStageChip.tsx`'s slot contract unchanged while using it to render:
   - `deferredQuestionsCount` if > 0 (e.g. "📝 3 open questions")
   - `branchName` with a copy-to-clipboard quick-action (`git checkout <branchName>`)
   - `prUrl` as a clickable link if present
@@ -67,7 +67,8 @@ Plans 01–06 give the user (and agents) a way to see and pick the right action 
 ### Read for reference
 
 - `C:\Users\evmitran\.claude\plugins\cache\ai-developer-toolkit\ralph-orchestration\5.30.0\skills\implement-with-ralph\SKILL.md` Appendix B — Deferred Questions table format.
-- `tools/overview-viewer/src/components/RalphStageChip.tsx` from Plan 03 — `tooltipExtras` slot integration.
+- `tools/overview-viewer/src/components/RalphStageChip.tsx` from Plan 03 — base chip contract and `tooltipExtras` slot integration.
+- `tools/overview-viewer/src/components/TaskCommand.tsx` from Plan 03 — row-level composition point for passing tooltip extras into `RalphStageChip`.
 - `scripts/lib/emit-activity.mjs` from Plan 05 — activity events are the input to RecentActivity.
 - `scripts/lib/sync-core.mjs` from Plan 01 — extension point.
 
@@ -81,7 +82,7 @@ Plans 01–06 give the user (and agents) a way to see and pick the right action 
 6. **Build `RecentActivity.tsx`** — render last N events. Wire `setFocusedTaskId` to `navigateToCommand`.
 7. **Build `useActivityEvents.ts`** — fetch + parse JSONL. Refetch on HMR event.
 8. **Integrate `<RecentActivity>` in `App.tsx`** — collapsible right sidebar. Density-aware (collapsed by default in compact mode).
-9. **Add tooltip extras** in `RalphStageChip.tsx` for the new fields.
+9. **Add tooltip extras** at the `TaskCommand.tsx` composition point and pass them through `RalphStageChip`'s existing `tooltipExtras` prop.
 10. **End-to-end test:** populate a synthetic notepad with 3 deferred questions; run sync; verify the chip tooltip shows "3 open questions" and the question preview.
 
 ## Acceptance criteria
@@ -93,7 +94,7 @@ Plans 01–06 give the user (and agents) a way to see and pick the right action 
 - [ ] Sync output snapshot includes the new fields populated for any task whose Ralph job has a notepad / PR / branch.
 - [ ] Journal entries appear in `tasks/<id>/journal.md` on stage transitions.
 - [ ] `RecentActivity.tsx` renders the last 5–10 events from `plans/overview-activity.jsonl`. Clicking an entry scrolls to the task.
-- [ ] `RalphStageChip` tooltip shows deferred-questions count, branch name (with copy), PR URL (if present) via the `tooltipExtras` slot.
+- [ ] `TaskCommand` passes `tooltipExtras` to `RalphStageChip`, and the chip tooltip shows deferred-questions count, branch name (with copy), PR URL (if present) below the Plan 03 stage/slug/timestamp rows.
 - [ ] `pnpm --filter @codexu/overview-viewer test` passes including new tests for parse-notepad fixtures.
 - [ ] Existing tests unchanged.
 
@@ -124,7 +125,7 @@ H. **HMR refresh:** with Plan 02's watcher running, flip a stage. RecentActivity
 3. **`prUrl` from `group.json` wins over commit-message scrape.** Order matters: `group.json.prUrl` is authoritative (orchestrator-written); commit-message scrape is a fallback.
 4. **Journal is append-only and per-task, not per-job.** A task with multiple cycles has multiple journal entries spanning cycles; per-job notepads continue to live in `<jobDir>/notepad.md`.
 5. **RecentActivity reads JSONL, not JSON.** Each line is one event. Parse with `text.split('\n').filter(Boolean).map(JSON.parse)`. Handle the trailing newline edge case.
-6. **Tooltip extras slot is additive.** When Plan 08 adds crew sessions, it appends to the same slot — don't replace the slot's content.
+6. **Tooltip extras slot is additive.** Compose extras in `TaskCommand.tsx` and pass them through `RalphStageChip`'s existing prop. When Plan 08 adds crew sessions, it appends to the same slot content rather than replacing Plan 07 rows.
 7. **Notepad `## Deferred Questions` section is the structured one.** Don't try to surface `## Story Doctor Log` or `## Working Notes` in this plan; they're free-form and would need separate parsing logic.
 
 ## Hand-off to next plans
