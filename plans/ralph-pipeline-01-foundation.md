@@ -218,7 +218,7 @@ Evaluate predicates in this order; first match wins:
 | 3 | `jobState?.orchestrator?.terminal === true && jobState.orchestrator.terminalReason === 'replan'` | `replan-pending` |
 | 4 | `jobState?.orchestrator?.phase` in `['5a','5b','5.5','6']` AND `jobState.orchestrator.terminal !== true` AND at least one of `reviewOpenCount.code > 0` or `reviewOpenCount.docs > 0` | `review-fix` |
 | 5 | `jobState?.orchestrator?.phase` in `['5a','5b','5.5','6']` AND `jobState.orchestrator.terminal !== true` AND (missing findings file OR all present `reviewOpenCount.* === 0`) | `reviewing` |
-| 6 | `jobState` exists AND (orchestrator absent OR orchestrator.phase is implementing/unknown) AND `terminal !== true` | `implementing` |
+| 6 | `jobState` exists AND `orchestrator` present AND `orchestrator.terminal !== true` | `implementing` |
 | 7 | `prd` exists AND `jobState` absent | `plan-ready` |
 | 8 | `jobDirMarker === true` AND `prd` absent AND `jobState` absent | `planning` |
 | 9 | `brainstormJson?.recommendedDirection` is set AND no matching job/group bundle wins cross-kind precedence | `brainstorm-ready` |
