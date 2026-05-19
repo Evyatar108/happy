@@ -25,6 +25,7 @@ describe('density preference', () => {
         size: new Set<string>(),
         status: new Set<string>(),
         workstream: new Set<string>(),
+        ralphStage: new Set<string>(),
     }
 
     it('renders the toolbar density toggle with comfortable and compact states', () => {

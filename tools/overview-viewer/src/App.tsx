@@ -17,7 +17,8 @@ import { usePersistentExpanded } from './hooks/usePersistentExpanded'
 import { useToast } from './hooks/useToast'
 import { useUrlFilter } from './hooks/useUrlFilter'
 import { useWhatsNewSinceLastVisit } from './hooks/useWhatsNewSinceLastVisit'
-import type { OverviewData } from './types'
+import type { OverviewData, OverviewRalphState } from './types'
+import { getOverviewRalphState } from './types'
 import { navigateToCommand } from './utils/commandNavigation'
 
 function getOverviewData(): OverviewData {
@@ -32,16 +33,27 @@ async function reloadOverviewData(): Promise<void> {
 
 export function App() {
     const [data, setData] = useState(getOverviewData)
+    const [ralphState, setRalphState] = useState<OverviewRalphState>(getOverviewRalphState)
     const [helpOpen, setHelpOpen] = useState(false)
     const searchRef = useRef<HTMLInputElement>(null)
     const expandedControls = usePersistentExpanded()
     const taskIdFilter = useUrlFilter()
-    const filter = useMultiAxisFilter(data, taskIdFilter)
+    const filter = useMultiAxisFilter(data, taskIdFilter, ralphState)
     const bulkSelection = useBulkSelection(data.tasks ?? [])
     const density = useDensity()
     const whatsNew = useWhatsNewSinceLastVisit(data)
     const toast = useToast()
     useHashNav(expandedControls.setTaskExpanded)
+
+    const reloadRalphState = useCallback(async () => {
+        try {
+            const text = await fetch(`./overview-ralph-state.js?t=${Date.now()}`).then((response) => response.text())
+            new Function(text)()
+            setRalphState(getOverviewRalphState())
+        } catch (err) {
+            console.warn('[ralph-state] reload failed', err)
+        }
+    }, [])
 
     useEffect(() => {
         if (!import.meta.hot) {
@@ -58,6 +70,17 @@ export function App() {
             import.meta.hot?.off('overview-data:update', updateCount)
         }
     }, [])
+
+    useEffect(() => {
+        if (!import.meta.hot) {
+            return
+        }
+
+        import.meta.hot.on('overview-ralph-state:update', reloadRalphState)
+        return () => {
+            import.meta.hot?.off('overview-ralph-state:update', reloadRalphState)
+        }
+    }, [reloadRalphState])
 
     const taskIds = useMemo(() => (data.tasks ?? []).map((task) => task.id), [data.tasks])
     const setAllDetails = useCallback(
@@ -111,7 +134,7 @@ export function App() {
             <p className="mental-model">
                 <strong>Kanban</strong> to choose · <strong>Ralph commands</strong> to execute · <strong>Phase tree</strong> to orient
             </p>
-            <Kanban data={data} visibleTaskIds={filter.visibleKanbanTaskIds} onJumpToCommand={(taskId) => navigateToCommand(taskId, expandedControls.setTaskExpanded)} />
+            <Kanban data={data} ralphState={ralphState} visibleTaskIds={filter.visibleKanbanTaskIds} onJumpToCommand={(taskId) => navigateToCommand(taskId, expandedControls.setTaskExpanded)} />
             <CommandList
                 changedTaskIds={whatsNew.changedTaskIds}
                 data={data}
@@ -119,6 +142,7 @@ export function App() {
                 onActivateWorkstream={activateWorkstream}
                 onSelectTask={bulkSelection.toggleTask}
                 query={filter.query}
+                ralphState={ralphState}
                 selectedTaskIds={bulkSelection.selectedTaskIds}
                 showToast={toast.showToast}
                 taskIdFilter={taskIdFilter}

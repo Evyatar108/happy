@@ -5,13 +5,14 @@ import { parseTaskScope } from '../data/copyPreambles'
 import { useCopiedFeedback } from '../hooks/useCopiedFeedback'
 import { useTaskClassification } from '../hooks/useTaskClassification'
 import type { ShowToast } from '../hooks/useToast'
-import type { OverviewData, OverviewTask, OverviewWarning, RunRecord } from '../types'
+import type { OverviewData, OverviewRalphState, OverviewTask, OverviewWarning, RunRecord } from '../types'
 import { copyTextWithToast } from '../utils/copyFeedback'
 import { buildCopyCommandText } from '../utils/copyCommand'
 import { navigateToCommand } from '../utils/commandNavigation'
 import { highlightMatches } from '../utils/searchHighlighting'
 import { PHASE_TO_BADGE_TEXT } from '../utils/taskClassification'
 import { linkBlockedOnHtml } from '../utils/warnings'
+import { RalphStageChip } from './RalphStageChip'
 import { RunsLog } from './RunsLog'
 
 const SCOPE_LABELS: Record<string, { text: string; title: string }> = {
@@ -51,6 +52,7 @@ interface TaskCommandProps {
     onActivateWorkstream?: (workstream: string) => void
     onOpenChange: (id: string, open: boolean) => void
     onSelectTask?: (id: string, selected: boolean) => void
+    ralphState: OverviewRalphState
     showToast?: ShowToast
     query?: string
     selected?: boolean
@@ -354,7 +356,7 @@ export function SpawnedChildren({ taskId, childrenByParent }: { taskId: string; 
     )
 }
 
-export function TaskCommand({ task, data, taskIds, childrenByParent, changed = false, hidden = false, open, onActivateWorkstream, onOpenChange, onSelectTask, showToast, query = '', selected = false }: TaskCommandProps) {
+export function TaskCommand({ task, data, taskIds, childrenByParent, changed = false, hidden = false, open, onActivateWorkstream, onOpenChange, onSelectTask, ralphState, showToast, query = '', selected = false }: TaskCommandProps) {
     const { orderBucket } = useTaskClassification(task)
     const command = task.command
     const scopes = parseTaskScope(task.scope)
@@ -408,6 +410,7 @@ export function TaskCommand({ task, data, taskIds, childrenByParent, changed = f
                 </span>
                 <span className="cmd-desc" dangerouslySetInnerHTML={{ __html: descriptionHtml }} />
                 <WorkstreamPill task={task} data={data} onActivateWorkstream={onActivateWorkstream} />
+                <RalphStageChip taskId={task.id} ralphState={ralphState} />
                 {changed ? <span className="new-badge" title={`Changed since your last visit (${data.lastTouched?.[task.id] ?? task.lastTouchedAt ?? ''})`}>NEW</span> : null}
                 <SpawnedFromPill parentId={parentId} />
                 <QuickActions task={task} childrenByParent={childrenByParent} parentId={parentId} onOpenChange={onOpenChange} showToast={showToast} />

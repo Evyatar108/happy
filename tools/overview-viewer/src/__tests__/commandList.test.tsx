@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { CommandList, countVisibleTasksByOrderBucket } from '../components/CommandList'
 import { orderBucketForTask } from '../utils/taskClassification'
 import { linkBlockedOnHtml } from '../utils/warnings'
-import { loadOverviewData, readRepoFile } from './testData'
+import { loadOverviewData, NO_RALPH_STATE, readRepoFile } from './testData'
 
 const expandedControls = {
     expanded: {},
@@ -16,7 +16,7 @@ const expandedControls = {
 describe('CommandList', () => {
     it('renders one command row per task', () => {
         const data = loadOverviewData()
-        const html = renderToStaticMarkup(<CommandList data={data} expandedControls={expandedControls} />)
+        const html = renderToStaticMarkup(<CommandList data={data} expandedControls={expandedControls} ralphState={NO_RALPH_STATE} />)
         const rows = html.match(/<details class="cmd"/g) ?? []
         const bodies = html.match(/<div class="cmd-body"><div class="cmd-body-inner">/g) ?? []
 
@@ -30,7 +30,7 @@ describe('CommandList', () => {
         const visibleTasks = (data.tasks ?? []).filter((task) => orderBucketForTask(task) === 'ready').slice(0, 3)
         const visibleTaskIds = new Set(visibleTasks.map((task) => task.id))
         const counts = countVisibleTasksByOrderBucket(data.tasks ?? [], visibleTaskIds)
-        const html = renderToStaticMarkup(<CommandList data={data} expandedControls={expandedControls} visibleTaskIds={visibleTaskIds} />)
+        const html = renderToStaticMarkup(<CommandList data={data} expandedControls={expandedControls} ralphState={NO_RALPH_STATE} visibleTaskIds={visibleTaskIds} />)
 
         expect(counts.ready).toBe(3)
         expect(counts.brainstorm).toBe(0)
@@ -47,7 +47,7 @@ describe('CommandList', () => {
 
     it('renders workstream, cadence, size, warning links, and spawn relationships', () => {
         const data = loadOverviewData()
-        const html = renderToStaticMarkup(<CommandList data={data} expandedControls={expandedControls} />)
+        const html = renderToStaticMarkup(<CommandList data={data} expandedControls={expandedControls} ralphState={NO_RALPH_STATE} />)
 
         expect(html).toContain('data-workstream="perf"')
         expect(html).toContain('data-size-bucket="small"')
@@ -65,7 +65,7 @@ describe('CommandList', () => {
 
     it('renders per-row quick actions with accessible labels and conditional navigation buttons', () => {
         const data = loadOverviewData()
-        const html = renderToStaticMarkup(<CommandList data={data} expandedControls={expandedControls} />)
+        const html = renderToStaticMarkup(<CommandList data={data} expandedControls={expandedControls} ralphState={NO_RALPH_STATE} />)
         const taskIds = new Set((data.tasks ?? []).map((task) => task.id))
         const parentId = Object.entries(data.spawnedFrom ?? {}).find(([child, parent]) => taskIds.has(child) && taskIds.has(parent))?.[1] ?? ''
         const parentWithChildren = data.tasks?.find((task) => Object.values(data.spawnedFrom ?? {}).includes(task.id))?.id ?? ''
@@ -95,7 +95,7 @@ describe('CommandList', () => {
 
     it('highlights active search matches in command names and descriptions', () => {
         const data = loadOverviewData()
-        const html = renderToStaticMarkup(<CommandList data={data} expandedControls={expandedControls} query="perf" />)
+        const html = renderToStaticMarkup(<CommandList data={data} expandedControls={expandedControls} query="perf" ralphState={NO_RALPH_STATE} />)
 
         expect(html).toContain('<span class="cmd-name"><mark class="search-match">perf</mark>')
         expect(html).toContain('<span class="cmd-desc">Realtime <mark class="search-match">perf</mark>')
@@ -103,8 +103,30 @@ describe('CommandList', () => {
 
     it('removes search match markup when the query is cleared', () => {
         const data = loadOverviewData()
-        const html = renderToStaticMarkup(<CommandList data={data} expandedControls={expandedControls} query="" />)
+        const html = renderToStaticMarkup(<CommandList data={data} expandedControls={expandedControls} query="" ralphState={NO_RALPH_STATE} />)
 
         expect(html).not.toContain('class="search-match"')
+    })
+
+    it('renders Ralph stage chips for tracked tasks', () => {
+        const data = loadOverviewData()
+        const taskId = data.tasks?.[0]?.id ?? 'missing-task'
+        const html = renderToStaticMarkup(
+            <CommandList
+                data={data}
+                expandedControls={expandedControls}
+                ralphState={{
+                    generatedAt: '2026-05-19T11:00:00Z',
+                    generatedFromCommit: 'test',
+                    byTaskId: {
+                        [taskId]: { stage: 'implementing', jobSlug: 'chip-job' },
+                    },
+                }}
+            />,
+        )
+
+        expect(html).toContain(`data-task-id="${taskId}"`)
+        expect(html).toContain('class="ralph-stage-chip stage-implementing"')
+        expect(html).toContain('Ralph stage: implementing')
     })
 })

@@ -26,6 +26,18 @@ const FILTER_GROUPS: Array<{ axis: FilterAxis; title: string; chips: Array<{ val
         { value: 'tooling', label: '🛠 Tooling' },
     ] },
     { axis: 'cadence', title: 'Cadence', chips: [{ value: 'periodic', label: '🔄 Periodic only' }] },
+    { axis: 'ralphStage', title: 'Ralph stage', chips: [
+        { value: 'brainstorming', label: '🧠 brainstorming' },
+        { value: 'brainstorm-ready', label: '💡 brainstorm ready' },
+        { value: 'planning', label: '📝 planning' },
+        { value: 'plan-ready', label: '📋 plan ready' },
+        { value: 'implementing', label: '🛠 implementing' },
+        { value: 'reviewing', label: '🔎 reviewing' },
+        { value: 'review-fix', label: '🧰 review fix' },
+        { value: 'replan-pending', label: '↩ replan pending' },
+        { value: 'shipped', label: '✅ shipped' },
+        { value: 'blocked', label: '🔒 blocked' },
+    ] },
     { axis: 'size', title: 'Size', chips: [
         { value: 'quick', label: 'Quick (<1h)' },
         { value: 'small', label: 'Small (1–4h)' },
@@ -65,11 +77,11 @@ export function FilterChips({ activeFilters, onToggle }: { activeFilters: Active
             <summary>Filter</summary>
             <div className="filter-popover">
                 {FILTER_GROUPS.map((group) => (
-                    <div key={group.axis} className="filter-group">
+                    <div key={group.axis} className="filter-group" data-axis={group.axis}>
                         <h4>{group.title}</h4>
                         <div className="filter-chips" data-filter-axis={group.axis} aria-label={`Filter by ${group.axis}`}>
                             {group.chips.map((chip) => (
-                                <button key={chip.value} className={`filter-chip ${activeFilters[group.axis].has(chip.value) ? 'active' : ''}`} data-filter-value={chip.value} type="button" onClick={() => onToggle(group.axis, chip.value)}>
+                                <button key={chip.value} className={`chip filter-chip ${activeFilters[group.axis].has(chip.value) ? 'active' : ''}`} data-filter-value={chip.value} type="button" onClick={() => onToggle(group.axis, chip.value)}>
                                     {chip.label}
                                 </button>
                             ))}

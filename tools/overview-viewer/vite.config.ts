@@ -8,9 +8,11 @@ import { defineConfig } from 'vite'
 import { viteSingleFile as singleFile } from 'vite-plugin-singlefile'
 
 const overviewDataPath = resolve(__dirname, '../../plans/overview-data.js')
+const overviewRalphStatePath = resolve(__dirname, '../../plans/overview-ralph-state.js')
 const overviewHtmlPath = resolve(__dirname, '../../plans/overview.html')
 const overviewHtmlNextPath = resolve(__dirname, '../../plans/overview.html.next')
-const sidecarScriptTag = '<script src="./overview-data.js"></script>'
+const overviewDataScriptTag = '<script src="./overview-data.js"></script>'
+const overviewRalphStateScriptTag = '<script src="./overview-ralph-state.js"></script>'
 const repoRoot = resolve(__dirname, '../..')
 const ralphStateUpdateEvent = 'overview-ralph-state:update'
 
@@ -69,8 +71,8 @@ function overviewDataPlugin(): Plugin {
                     return html
                 }
 
-                if (!html.includes(sidecarScriptTag)) {
-                    this.error(`Expected ${sidecarScriptTag} in overview.html`)
+                if (!html.includes(overviewDataScriptTag)) {
+                    this.error(`Expected ${overviewDataScriptTag} in overview.html`)
                 }
 
                 const data = await readFile(overviewDataPath, 'utf8')
@@ -79,7 +81,7 @@ function overviewDataPlugin(): Plugin {
                     minify: true,
                     legalComments: 'none',
                 })
-                return html.replace(sidecarScriptTag, `<script>${minifiedData.code.replace(/<\/script/gi, '<\\/script')}</script>`)
+                return html.replace(overviewDataScriptTag, `<script>${minifiedData.code.replace(/<\/script/gi, '<\\/script')}</script>`)
             },
         },
         async closeBundle() {
@@ -93,6 +95,47 @@ function overviewDataPlugin(): Plugin {
             if (liveOverviewHtml) {
                 await writeFile(overviewHtmlPath, liveOverviewHtml)
             }
+        },
+    }
+}
+
+function overviewRalphStatePlugin(): Plugin {
+    return {
+        name: 'overview-ralph-state',
+        enforce: 'pre',
+        configureServer(server) {
+            server.middlewares.use('/overview-ralph-state.js', async (_req, res) => {
+                try {
+                    const data = await readFile(overviewRalphStatePath)
+                    res.setHeader('Content-Type', 'application/javascript')
+                    res.end(data)
+                } catch (error) {
+                    const message = error instanceof Error ? error.message : String(error)
+                    res.statusCode = 500
+                    res.setHeader('Content-Type', 'application/javascript')
+                    res.end(`/* Failed to read overview-ralph-state.js: ${message.replace(/\*\//g, '* /')} */`)
+                }
+            })
+        },
+        transformIndexHtml: {
+            order: 'pre',
+            async handler(html, ctx) {
+                if (ctx.server) {
+                    return html
+                }
+
+                if (!html.includes(overviewRalphStateScriptTag)) {
+                    this.error(`Expected ${overviewRalphStateScriptTag} in overview.html`)
+                }
+
+                const data = await readFile(overviewRalphStatePath, 'utf8')
+                const minifiedData = await transform(data, {
+                    loader: 'js',
+                    minify: true,
+                    legalComments: 'none',
+                })
+                return html.replace(overviewRalphStateScriptTag, `<script>${minifiedData.code.replace(/<\/script/gi, '<\\/script')}</script>`)
+            },
         },
     }
 }
@@ -133,7 +176,7 @@ export function ralphStateWatcherPlugin({
 export default defineConfig({
     root: __dirname,
     base: './',
-    plugins: [react(), singleFile(), overviewDataPlugin(), ralphStateWatcherPlugin()],
+    plugins: [react(), singleFile(), overviewDataPlugin(), overviewRalphStatePlugin(), ralphStateWatcherPlugin()],
     build: {
         outDir: '../../plans',
         emptyOutDir: false,

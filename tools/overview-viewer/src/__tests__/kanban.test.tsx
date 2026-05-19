@@ -3,12 +3,12 @@ import { describe, expect, it } from 'vitest'
 
 import { countVisibleKanbanCardsByColumn, Kanban } from '../components/Kanban'
 import { countKanbanCards, orderedKanbanCardsByColumn } from '../utils/kanbanOrdering'
-import { loadOverviewData } from './testData'
+import { loadOverviewData, NO_RALPH_STATE } from './testData'
 
 describe('Kanban', () => {
     it('renders the shipped kanban cards with metadata enrichments', () => {
         const data = loadOverviewData()
-        const html = renderToStaticMarkup(<Kanban data={data} onJumpToCommand={() => undefined} />)
+        const html = renderToStaticMarkup(<Kanban data={data} ralphState={NO_RALPH_STATE} onJumpToCommand={() => undefined} />)
         const firstTaskWithCard = data.tasks?.find((task) => (task.kanbanCards?.length ?? 0) > 0)
 
         expect(countKanbanCards(data.tasks ?? [])).toBe(33)
@@ -32,7 +32,7 @@ describe('Kanban', () => {
         const readyOnlyTaskIds = columns.ready.map((item) => item.task.id).filter((taskId) => !nonReadyTaskIds.has(taskId))
         const visibleTaskIds = new Set(readyOnlyTaskIds.slice(0, 2))
         const counts = countVisibleKanbanCardsByColumn(columns, visibleTaskIds)
-        const html = renderToStaticMarkup(<Kanban data={data} visibleTaskIds={visibleTaskIds} onJumpToCommand={() => undefined} />)
+        const html = renderToStaticMarkup(<Kanban data={data} ralphState={NO_RALPH_STATE} visibleTaskIds={visibleTaskIds} onJumpToCommand={() => undefined} />)
 
         expect(counts.ready).toBe(2)
         expect(counts.soon).toBe(0)
@@ -46,7 +46,7 @@ describe('Kanban', () => {
     it('preserves trusted card HTML fragments', () => {
         const data = loadOverviewData()
         const card = data.tasks?.flatMap((task) => task.kanbanCards ?? []).find((item) => item.html.includes('Realtime sync perf'))
-        const html = renderToStaticMarkup(<Kanban data={data} onJumpToCommand={() => undefined} />)
+        const html = renderToStaticMarkup(<Kanban data={data} ralphState={NO_RALPH_STATE} onJumpToCommand={() => undefined} />)
 
         expect(card).toBeDefined()
         expect(html).toContain('Realtime sync perf')

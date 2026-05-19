@@ -8,6 +8,7 @@ Vite + React 18 + TypeScript renderer for the codexu roadmap dashboard. Consumes
 ## Source of truth
 
 - Task data lives in `plans/overview-data.js` (hand-edited by bookkeepers — never modify it from inside this package).
+- Ralph pipeline state lives in `plans/overview-ralph-state.js` and is served/inlined by `overviewRalphStatePlugin()` in `vite.config.ts`; do not add watcher ownership there because the Ralph state generator owns update emission.
 - Renderer behavior lives entirely in `src/` under this package.
 - `plans/overview.html` at the repo root is a generated artifact. **Never hand-edit it.** Renderer changes go in `src/`, then `pnpm overview:build` regenerates the artifact.
 
@@ -15,7 +16,7 @@ Vite + React 18 + TypeScript renderer for the codexu roadmap dashboard. Consumes
 
 ```
 src/
-├── App.tsx               # top-level composition; reads window.OVERVIEW_DATA + owns the inline reloadOverviewData() HMR handler
+├── App.tsx               # top-level composition; reads window.OVERVIEW_DATA + window.OVERVIEW_RALPH_STATE and owns the inline reloadOverviewData() + reloadRalphState() HMR handlers
 ├── main.tsx              # React entry; imports styles.css
 ├── styles.css            # verbatim port of plans/overview.html:6-1060 CSS (no Tailwind, no CSS-in-JS)
 ├── components/           # TaskCommand, Kanban, PhaseTree, CommandList, Toolbar, TodayPanel, CopyToast, ...
@@ -27,7 +28,7 @@ src/
     ├── *.test.tsx        # node SSR tests (default project) via react-dom/server
     └── interactions/     # jsdom project: Radix surface tests (Tooltip, Dialog) via @testing-library/react
 overview.html             # Vite entry (NOT the build artifact in plans/)
-vite.config.ts            # includes the custom overviewDataPlugin (HMR sidecar watcher + serve + singleFile inline)
+vite.config.ts            # includes the custom overviewDataPlugin (HMR sidecar watcher + serve + singleFile inline for overview-data.js) and overviewRalphStatePlugin (serve + singleFile inline for overview-ralph-state.js; watcher owned externally)
 vitest.config.ts          # split projects: node SSR tests + jsdom interaction tests
 README.md                 # contributor-facing notes + intentional deviations
 ```
@@ -49,7 +50,9 @@ The custom Vite plugin in `vite.config.ts`:
 3. An effect in `App.tsx` subscribes via `import.meta.hot.on('overview-data:update')` and invokes the inline `reloadOverviewData()` helper (also in `App.tsx`), which re-fetches with a cache-busting query string and re-executes via `new Function(text)()` so `window.OVERVIEW_DATA` repopulates.
 4. React re-renders; reconciliation preserves DOM state (open `<details>`, scroll, search filter, bulk-select).
 
-The same config also starts `scripts/lib/watch-ralph-state.mjs` during dev-server startup. On debounced Ralph-state writes it emits `overview-ralph-state:update`; keep this as a custom websocket event and tolerate shared-lock contention by logging a warning instead of failing `pnpm overview` startup.
+The same config also starts `scripts/lib/watch-ralph-state.mjs` via `ralphStateWatcherPlugin()` during dev-server startup. On debounced Ralph-state writes it emits `overview-ralph-state:update`; keep this as a custom websocket event and tolerate shared-lock contention by logging a warning instead of failing `pnpm overview` startup. The serving/inlining side of the Ralph sidecar lives in `overviewRalphStatePlugin()` (sibling to `overviewDataPlugin`), not in the watcher plugin.
+
+Ralph state uses the same fetch + re-execute pattern in `App.tsx`, but with a separate additive subscription to `overview-ralph-state:update`. Keep both HMR handlers (`reloadOverviewData` for `overview-data:update`, `reloadRalphState` for `overview-ralph-state:update`) registered independently.
 
 **Do not switch the sidecar to async / module loading or fetch-only delivery.** The static build inlines the sidecar; the dev server serves it synchronously before the React bundle runs. Both depend on the `window.OVERVIEW_DATA` global being populated before React mounts.
 

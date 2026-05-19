@@ -79,6 +79,13 @@ The custom `overviewDataPlugin` in `vite.config.ts` wires three things:
 2. **Watcher** on `plans/overview-data.js` — emits a custom WebSocket event `overview-data:update` whenever the file mtime changes.
 3. **`transformIndexHtml`** — for `pnpm overview:build`, inlines the sidecar contents into the artifact at build time, escaping `</script` so a malicious task entry cannot terminate the bundle.
 
+A sibling `overviewRalphStatePlugin` in the same `vite.config.ts` wires the Ralph-pipeline state sidecar (`plans/overview-ralph-state.js`) with only **two** responsibilities — it intentionally does NOT own a watcher:
+
+1. **Serve middleware** at `/overview-ralph-state.js` — reads `plans/overview-ralph-state.js` from disk on every request, mirroring the overview-data behavior.
+2. **`transformIndexHtml`** — for `pnpm overview:build`, inlines the Ralph state sidecar into the artifact at build time, escaping `</script` with the same hardening as the overview-data inline path.
+
+The `overview-ralph-state:update` HMR event is emitted by an **external watcher** (owned by Plan 02, not by `overviewRalphStatePlugin`). An effect in `src/App.tsx` subscribes to that event via `import.meta.hot.on('overview-ralph-state:update')` and re-fetches `/overview-ralph-state.js` with the same fetch + re-execute pattern used for overview-data, mirroring the App.tsx subscription shape.
+
 Client side, an effect in `src/App.tsx` subscribes to the WS event via `import.meta.hot.on('overview-data:update')` and invokes the inline `reloadOverviewData()` helper, which fetches `/overview-data.js?t=<cache-bust>`, evaluates the response body with `new Function(text)()` so `window.OVERVIEW_DATA` repopulates, then triggers a React re-render. Reconciliation preserves DOM state (open `<details>`, scroll, search filter, bulk-select). The loader is intentionally NOT factored out into a `src/hooks/useOverviewData` hook — keeping it inline avoids cycles with `import.meta.hot` typing and the data is a global, not a hook-shaped resource.
 
 This is **option (c) — fetch + re-execute**. Do not switch to option (a) ws-payload (pushing the data through the WS message) or option (b) virtual-module (importing the sidecar as a module) without operator approval — option (c) is the only design that keeps the dev server, the static build, and the trusted-HTML semantics consistent.
