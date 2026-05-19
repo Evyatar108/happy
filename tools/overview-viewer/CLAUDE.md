@@ -56,7 +56,7 @@ Ralph state uses the same fetch + re-execute pattern in `App.tsx`, but with a se
 
 ## Ralph state sidecar
 
-Agent-readable Ralph state artifacts live at `plans/overview-snapshot.json`, `plans/overview-data.json`, `plans/overview-snapshot.schema.json`, `plans/overview-activity.jsonl`, and `tasks/INDEX.md`. They regenerate automatically through `scripts/sync-ralph-state.mjs --watch`, which is started by `pnpm overview`; do not hand-edit those generated files.
+Agent-readable Ralph state artifacts live at `plans/overview-snapshot.json`, `plans/overview-data.json`, `plans/overview-snapshot.schema.json`, `plans/overview-activity.jsonl`, and `tasks/INDEX.md`. They are emitted by the shared watcher in `scripts/lib/watch-ralph-state.mjs`, which is started inside the Vite dev server by `ralphStateWatcherPlugin()` in `vite.config.ts` during `pnpm overview`, or as a standalone process via `pnpm sync-ralph-state:watch` (`scripts/sync-ralph-state.mjs --watch`). Both paths share the same `.ralph/overview-sync.lock` and emit the same set of files; do not hand-edit those generated files.
 
 **Do not switch the sidecar to async / module loading or fetch-only delivery.** The static build inlines the sidecar; the dev server serves it synchronously before the React bundle runs. Both depend on the `window.OVERVIEW_DATA` global being populated before React mounts.
 
