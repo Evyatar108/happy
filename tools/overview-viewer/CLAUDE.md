@@ -54,6 +54,10 @@ The same config also starts `scripts/lib/watch-ralph-state.mjs` via `ralphStateW
 
 Ralph state uses the same fetch + re-execute pattern in `App.tsx`, but with a separate additive subscription to `overview-ralph-state:update`. Keep both HMR handlers (`reloadOverviewData` for `overview-data:update`, `reloadRalphState` for `overview-ralph-state:update`) registered independently.
 
+## Ralph state sidecar
+
+Agent-readable Ralph state artifacts live at `plans/overview-snapshot.json`, `plans/overview-data.json`, `plans/overview-snapshot.schema.json`, `plans/overview-activity.jsonl`, and `tasks/INDEX.md`. They regenerate automatically through `scripts/sync-ralph-state.mjs --watch`, which is started by `pnpm overview`; do not hand-edit those generated files.
+
 **Do not switch the sidecar to async / module loading or fetch-only delivery.** The static build inlines the sidecar; the dev server serves it synchronously before the React bundle runs. Both depend on the `window.OVERVIEW_DATA` global being populated before React mounts.
 
 Static builds minify the inlined `overview-data.js` sidecar with `esbuild` inside `vite.config.ts` to preserve the 500 KB single-file bundle budget. The source data file stays readable and unminified; do not hand-minify `plans/overview-data.js` or `plans/overview.html`.
