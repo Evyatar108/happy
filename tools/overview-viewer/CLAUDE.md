@@ -109,6 +109,8 @@ Typed config fixtures that construct `RalphOverviewConfig` directly should sprea
 
 Ralph overview sidecars are emitted by `scripts/lib/sync-core.mjs`. The `.js` and `.json` outputs must use the same `JSON.stringify(state)` payload after escaping `</script` as `<\/script`; the JS wrapper is only `window.OVERVIEW_RALPH_STATE = <json>;`.
 
+`writeSidecar()` is also the single integration point for durable Plan 05 agent artifacts: schema, snapshot, data JSON twin, and `tasks/INDEX.md`. Watcher code should not import those emitters directly; it only appends returned activity events after a successful merge.
+
 Use the exported `loadOverviewData(dataFile)` helper from `scripts/lib/sync-core.mjs` when script-side emitters need to parse `plans/overview-data.js`; it is the shared trusted parser for the dashboard sidecar.
 
 ## Cross-package

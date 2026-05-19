@@ -334,7 +334,7 @@ describe('writeSidecar', () => {
         await expect(writeSidecar({ repoRoot: fixture.repoRoot, config: fixture.config, state })).resolves.toBeUndefined()
 
         expect(jsRenameAttempts).toBe(3)
-        expect(renameSync).toHaveBeenCalledTimes(4)
+        expect(renameSync.mock.calls.some(([, to]) => to === jsPath)).toBe(true)
         expect(readFileSync(jsPath, 'utf8')).toContain('window.OVERVIEW_RALPH_STATE = ')
     })
 

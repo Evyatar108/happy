@@ -2,6 +2,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { deriveRalphStage, IMPLEMENTING_PHASES, REVIEW_PHASES } from './derive-ralph-stage.mjs'
+import { buildSnapshot } from './emit-snapshot.mjs'
+import { SNAPSHOT_SCHEMA } from './emit-snapshot-schema.mjs'
+import { buildTasksIndex } from './emit-tasks-index.mjs'
 import { matchesIgnored as sharedMatchesIgnored, toPosix as sharedToPosix } from './path-utils.mjs'
 
 const KNOWN_ORCHESTRATOR_PHASES = new Set([...REVIEW_PHASES, ...IMPLEMENTING_PHASES])
@@ -31,6 +34,8 @@ const MEDIUM_PLUS = new Set(['Medium', 'High', 'Critical'])
 const TRANSIENT_RENAME_ERRORS = new Set(['EBUSY', 'EACCES', 'EPERM'])
 const RENAME_RETRY_LIMIT = 3
 const RENAME_RETRY_DELAY_MS = 100
+const PLAN_04_RECOMMENDATIONS_PATH = 'plans/overview-recommendations.json'
+const PLAN_04_DEPENDENCY_GRAPH_PATH = 'plans/overview-dependency-graph.json'
 
 export async function walkRalphState({ repoRoot, config, generatedFromCommit }) {
     if (!repoRoot || !config) {
@@ -339,13 +344,41 @@ export async function writeSidecar({ repoRoot, config, state }) {
     }
 
     const absoluteRepoRoot = path.resolve(repoRoot)
+    await emitAgentArtifacts({ repoRoot: absoluteRepoRoot, config, state })
+
     const json = JSON.stringify(state).replace(/<\/(script)/gi, '<\\/$1')
     const outputs = config.outputs ?? {}
     await atomicWriteFile(resolveMaybeAbsolute(absoluteRepoRoot, outputs.sidecarJson), json)
     await atomicWriteFile(resolveMaybeAbsolute(absoluteRepoRoot, outputs.sidecarJs), `window.OVERVIEW_RALPH_STATE = ${json};`)
 }
 
-async function atomicWriteFile(finalPath, contents) {
+async function emitAgentArtifacts({ repoRoot, config, state }) {
+    const outputs = config.outputs ?? {}
+    const overviewData = loadOverviewData(resolveMaybeAbsolute(repoRoot, config.dataFile))
+    const snapshot = buildSnapshot({
+        ralphState: state,
+        overviewData,
+        recommendations: readJsonFile(path.join(repoRoot, PLAN_04_RECOMMENDATIONS_PATH)).value ?? [],
+        dependencyGraph: readJsonFile(path.join(repoRoot, PLAN_04_DEPENDENCY_GRAPH_PATH)).value ?? { nodes: [], edges: [] },
+        runDurations: state.runDurations ?? {},
+    })
+
+    await atomicWriteFile(resolveMaybeAbsolute(repoRoot, outputs.snapshotSchema), `${JSON.stringify(SNAPSHOT_SCHEMA, null, 2)}\n`)
+    await atomicWriteFile(resolveMaybeAbsolute(repoRoot, outputs.snapshot), `${JSON.stringify(snapshot, null, 2)}\n`)
+    await atomicWriteFile(resolveMaybeAbsolute(repoRoot, outputs.dataJson), `${JSON.stringify(overviewData, null, 2)}\n`)
+    await atomicWriteFile(resolveMaybeAbsolute(repoRoot, outputs.tasksIndex), buildTasksIndex(snapshot))
+    ensureEmptyFile(resolveMaybeAbsolute(repoRoot, outputs.activity))
+}
+
+function ensureEmptyFile(filePath) {
+    if (fs.existsSync(filePath)) {
+        return
+    }
+    fs.mkdirSync(path.dirname(filePath), { recursive: true })
+    fs.closeSync(fs.openSync(filePath, 'w'))
+}
+
+export async function atomicWriteFile(finalPath, contents) {
     if (!finalPath) {
         throw new Error('writeSidecar requires configured output paths')
     }

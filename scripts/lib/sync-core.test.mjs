@@ -3,8 +3,9 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
-import { _resetUnknownPhaseWarnings, mergeAndWrite, walkRalphState } from './sync-core.mjs'
+import { codexuDefaultConfig } from './default-config.mjs'
 import { IMPLEMENTING_PHASES, REVIEW_PHASES } from './derive-ralph-stage.mjs'
+import { _resetUnknownPhaseWarnings, mergeAndWrite, walkRalphState, writeSidecar } from './sync-core.mjs'
 
 const KNOWN_PHASES = [...REVIEW_PHASES, ...IMPLEMENTING_PHASES]
 
@@ -28,10 +29,17 @@ function buildConfig(repoRoot) {
         },
         watcher: { ignored: [] },
         outputs: {
+            ...codexuDefaultConfig.outputs,
             sidecarJson: path.join(repoRoot, 'plans', 'overview-ralph-state.json'),
             sidecarJs: path.join(repoRoot, 'plans', 'overview-ralph-state.js'),
         },
     }
+}
+
+function writeOverviewDataFile(repoRoot, overviewData) {
+    const dataFile = path.join(repoRoot, 'overview-data.js')
+    fs.mkdirSync(path.dirname(dataFile), { recursive: true })
+    fs.writeFileSync(dataFile, `window.OVERVIEW_DATA = ${JSON.stringify(overviewData)};`)
 }
 
 function writeOverviewData(repoRoot, slugs) {
@@ -368,6 +376,50 @@ describe('mergeAndWrite activityEvents', () => {
         })
 
         expect(result.activityEvents).toEqual([])
+    })
+})
+
+describe('writeSidecar', () => {
+    test('emits durable agent artifacts once in schema snapshot data-twin tasks-index order', async () => {
+        const config = buildConfig(tempRoot)
+        const overviewData = { tasks: [{ id: 'TASK', scope: 'pipeline' }], runs: [{ id: 'run-1', taskId: 'TASK', outcome: 'pass' }] }
+        const state = buildState({
+            TASK: { stage: 'implementing', jobSlug: 'TASK', artifacts: { jobDir: '.ralph/jobs/TASK' }, lastUpdatedAt: '2026-05-19T00:00:00Z' },
+        })
+        writeOverviewDataFile(tempRoot, overviewData)
+
+        const targets = [
+            path.resolve(tempRoot, config.outputs.snapshotSchema),
+            path.resolve(tempRoot, config.outputs.snapshot),
+            path.resolve(tempRoot, config.outputs.dataJson),
+            path.resolve(tempRoot, config.outputs.tasksIndex),
+        ]
+        const agentRenameTargets = []
+        const originalRenameSync = fs.renameSync.bind(fs)
+        vi.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
+            const finalPath = path.resolve(to)
+            if (targets.includes(finalPath)) {
+                agentRenameTargets.push(finalPath)
+            }
+            return originalRenameSync(from, to)
+        })
+
+        await writeSidecar({ repoRoot: tempRoot, config, state })
+
+        expect(agentRenameTargets).toEqual(targets)
+        expect(new Set(agentRenameTargets).size).toBe(4)
+        for (const target of targets) {
+            expect(fs.existsSync(target)).toBe(true)
+        }
+        const activityPath = path.resolve(tempRoot, config.outputs.activity)
+        expect(fs.existsSync(activityPath)).toBe(true)
+        expect(fs.statSync(activityPath).size).toBe(0)
+        expect(JSON.parse(fs.readFileSync(path.resolve(tempRoot, config.outputs.snapshot), 'utf8')).tasks[0]).toMatchObject({
+            id: 'TASK',
+            ralph: { stage: 'implementing' },
+        })
+        expect(JSON.parse(fs.readFileSync(path.resolve(tempRoot, config.outputs.dataJson), 'utf8'))).toEqual(overviewData)
+        expect(fs.readFileSync(path.resolve(tempRoot, config.outputs.tasksIndex), 'utf8')).toContain('## TASK')
     })
 })
 

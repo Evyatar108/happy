@@ -95,6 +95,8 @@ export function writeSidecar(options: {
     state: OverviewRalphState
 }): Promise<void>
 
+export function atomicWriteFile(finalPath: string, contents: string): Promise<void>
+
 export function resolveCrossKindPrecedence(
     bundles: RalphArtifactBundle[],
 ): { winner: RalphArtifactBundle; shadowed: RalphArtifactBundle[] }
