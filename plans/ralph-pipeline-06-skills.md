@@ -87,7 +87,7 @@ Body (the skill's own prose, written for Claude to execute):
 
 2. **Locate the snapshot:**
    - `repo_root = git rev-parse --show-toplevel`
-   - Read `<repo_root>/plans/overview-snapshot.json`. If missing or stale (>2 min old) and a watcher process is detected (lock file exists), warn that data may not be current. If missing entirely, suggest running `pnpm sync-ralph-state`.
+   - Read `<repo_root>/plans/overview-snapshot.json`. If missing or stale (>2 min old), inspect Plan 02's JSON sync lock at `config.lockFile` (`{ pid, process, startedAt }`, heartbeat via mtime) before warning. A fresh `standalone` or `vite-plugin` lock means the watcher should refresh soon; no lock or a stale/dead PID should suggest running `pnpm sync-ralph-state`.
 
 3. **Resolve the target task:**
    - Search `snapshot.tasks[]` for matching id / slug.

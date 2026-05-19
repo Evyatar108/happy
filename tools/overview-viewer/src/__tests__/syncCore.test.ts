@@ -4,7 +4,15 @@ import path from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { pickMostRecentByMtime, walkRalphState, writeSidecar } from '../../../../scripts/lib/sync-core.mjs'
+import {
+    assembleStateFromBundles,
+    deriveAffectedTaskUpdate,
+    mergeAndWrite,
+    pickMostRecentByMtime,
+    readBundleForSlug,
+    walkRalphState,
+    writeSidecar,
+} from '../../../../scripts/lib/sync-core.mjs'
 import type { RalphOverviewConfig } from '../../../../scripts/lib/default-config.mjs'
 
 const fixtureRoots: string[] = []
@@ -190,6 +198,85 @@ describe('walkRalphState', () => {
         expect(Object.keys(state.byTaskId)).toEqual(['visible'])
         expect(state.unmatched).toEqual([])
     })
+
+    it('assembles full state through the per-slug bundle reader', async () => {
+        const fixture = makeRepoFixture({ tasks: ['bundle'] })
+        writeJson(path.join(fixture.repoRoot, '.ralph/jobs/bundle/job-state.json'), {
+            orchestrator: { phase: '3', terminal: false },
+        })
+
+        const bundle = readBundleForSlug({ repoRoot: fixture.repoRoot, config: fixture.config, kind: 'job', slug: 'bundle' })
+        const state = assembleStateFromBundles({
+            repoRoot: fixture.repoRoot,
+            config: fixture.config,
+            bundles: bundle ? [bundle] : [],
+            generatedFromCommit: 'abc1234',
+        })
+
+        expect(bundle?.slug).toBe('bundle')
+        expect(state.byTaskId.bundle.stage).toBe('implementing')
+        expect(state.generatedFromCommit).toBe('abc1234')
+    })
+
+    it('derives retain instead of remove for malformed changed JSON', async () => {
+        const fixture = makeRepoFixture({ tasks: ['broken'] })
+        mkdirSync(path.join(fixture.repoRoot, '.ralph/jobs/broken'), { recursive: true })
+        writeFileSync(path.join(fixture.repoRoot, '.ralph/jobs/broken/job-state.json'), '{ bad json')
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+        const update = deriveAffectedTaskUpdate({
+            repoRoot: fixture.repoRoot,
+            config: fixture.config,
+            kind: 'job',
+            slug: 'broken',
+            currentState: makeSidecarState({ slug: 'old' }),
+        })
+
+        if (update.action !== 'retain') {
+            throw new Error(`expected retain update, got ${update.action}`)
+        }
+        expect(update.taskId).toBe('broken')
+        expect(update.unmatchedFragment).toContainEqual({ kind: 'job', slug: 'broken', reason: 'parse-error' })
+        expect(update.error).toContain('Expected')
+        expect(error).toHaveBeenCalledWith(expect.stringContaining('failed to parse'))
+    })
+
+    it('mergeAndWrite refreshes task state and unmatched slices to match a full walk', async () => {
+        const fixture = makeRepoFixture({ tasks: ['same'] })
+        writeJson(path.join(fixture.repoRoot, '.ralph/jobs/same/job-state.json'), {
+            orchestrator: { phase: '3', terminal: false },
+        })
+        const currentState = await walkRalphState({ repoRoot: fixture.repoRoot, config: fixture.config, generatedFromCommit: 'abc1234' })
+        rmSync(path.join(fixture.repoRoot, '.ralph/jobs/same'), { recursive: true, force: true })
+        writeJson(path.join(fixture.repoRoot, '.ralph/brainstorms/same/brainstorm.json'), {
+            recommendedDirection: 'plan',
+        })
+        writeJson(path.join(fixture.repoRoot, '.ralph/jobs/orphan/job-state.json'), {
+            orchestrator: { phase: '3', terminal: false },
+        })
+
+        const update = deriveAffectedTaskUpdate({
+            repoRoot: fixture.repoRoot,
+            config: fixture.config,
+            kind: 'job',
+            slug: 'same',
+            currentState,
+            generatedFromCommit: 'def5678',
+        })
+        const merged = await mergeAndWrite({
+            repoRoot: fixture.repoRoot,
+            config: fixture.config,
+            currentState,
+            updates: [update],
+            generatedFromCommit: 'def5678',
+        })
+        const full = await walkRalphState({ repoRoot: fixture.repoRoot, config: fixture.config, generatedFromCommit: 'def5678' })
+
+        expect(update.action).toBe('upsert')
+        expect(merged.changedTaskIds).toEqual(['same'])
+        expect(stripGeneratedAt(merged.state)).toEqual(stripGeneratedAt(full))
+        expect(JSON.parse(readFileSync(path.join(fixture.repoRoot, fixture.config.outputs.sidecarJson), 'utf8'))).toEqual(merged.state)
+    })
 })
 
 describe('writeSidecar', () => {
@@ -327,4 +414,9 @@ function makeSidecarState({ slug }: { slug: string }) {
         unmatched: [{ kind: 'job' as const, slug, reason: 'no-matching-task-id' }],
         unmatchedSummary: { 'no-matching-task-id': 1 },
     }
+}
+
+function stripGeneratedAt<T extends { generatedAt: string }>(state: T): Omit<T, 'generatedAt'> {
+    const { generatedAt: _generatedAt, ...rest } = state
+    return rest
 }
