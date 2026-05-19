@@ -93,6 +93,26 @@ describe('Ralph overview config', () => {
         expect(warn).toHaveBeenCalledWith(expect.stringContaining('missing ralphSubdirs.brainstorms directory'))
     })
 
+    it('passes through unknown root keys and unknown nested keys in outputs after resolution', () => {
+        const repoRoot = makeRepoFixture()
+        const committedPath = path.join(repoRoot, 'configs', 'future.json')
+        writeJson(committedPath, {
+            futureRootKey: 'root-value',
+            outputs: { snapshot: 'custom/snapshot.json' },
+        })
+        process.env.OVERVIEW_CONFIG_PATH = committedPath
+        vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+        const config = loadConfig({ repoRoot }) as Record<string, unknown> & {
+            outputs: Record<string, unknown>
+        }
+
+        expect(config.futureRootKey).toBe('root-value')
+        expect(config.outputs.snapshot).toBe('custom/snapshot.json')
+        expect(Object.isFrozen(config)).toBe(true)
+        expect(Object.isFrozen(config.outputs)).toBe(true)
+    })
+
     it('keeps the committed config as parseable JSON with a schema reference', () => {
         const config = JSON.parse(readFileSync(path.resolve(process.cwd(), '../..', '.ralph/overview-config.json'), 'utf8'))
         const schema = JSON.parse(readFileSync(path.resolve(process.cwd(), '../..', '.ralph/overview-config.schema.json'), 'utf8'))

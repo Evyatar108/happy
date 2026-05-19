@@ -75,20 +75,28 @@ function mergeObject(base, overlay) {
 
 function resolveConfigPaths(config, repoRoot) {
     const ralphRoot = resolvePath(repoRoot, config.ralphRoot)
+    const { dataFile: _df, ralphRoot: _rr, ralphSubdirs, outputs, lockFile: _lf, watcher, ...unknownRoot } = config
+    const { jobs: _jobs, jobGroups: _jg, brainstorms: _bs, ...unknownRalphSubdirs } = ralphSubdirs
+    const { sidecarJs: _sjs, sidecarJson: _sjson, ...unknownOutputs } = outputs
+    const { ignored: _ignored, ...unknownWatcher } = watcher
     return {
+        ...unknownRoot,
         dataFile: resolvePath(repoRoot, config.dataFile),
         ralphRoot,
         ralphSubdirs: {
+            ...unknownRalphSubdirs,
             jobs: resolvePath(ralphRoot, config.ralphSubdirs.jobs),
             jobGroups: resolvePath(ralphRoot, config.ralphSubdirs.jobGroups),
             brainstorms: resolvePath(ralphRoot, config.ralphSubdirs.brainstorms),
         },
         outputs: {
+            ...unknownOutputs,
             sidecarJs: resolvePath(repoRoot, config.outputs.sidecarJs),
             sidecarJson: resolvePath(repoRoot, config.outputs.sidecarJson),
         },
         lockFile: resolvePath(repoRoot, config.lockFile),
         watcher: {
+            ...unknownWatcher,
             ignored: [...config.watcher.ignored],
         },
     }
