@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { watch } from 'chokidar'
 
+import { appendActivity } from './emit-activity.mjs'
 import { compileIgnoredPatterns, matchesIgnored, resolveHeadShortSha, splitPath } from './path-utils.mjs'
 import { loadConfig } from './resolve-config.mjs'
 import { deriveAffectedTaskUpdate, mergeAndWrite, walkRalphState, writeSidecar } from './sync-core.mjs'
@@ -138,6 +139,13 @@ export async function start({ repoRoot, configPath, debounceMs = DEFAULT_DEBOUNC
                 updates: allUpdates,
                 generatedFromCommit,
             })
+            for (const event of result.activityEvents) {
+                appendActivity(absoluteRepoRoot, event, {
+                    activityPath: config.outputs.activity,
+                    activityBackupPath: config.outputs.activityBackup,
+                    maxLines: config.outputs.activityMaxLines,
+                })
+            }
             currentState = result.state
             lastTickAt = result.writtenAt
             // Reset retry counter for changes that just landed.
