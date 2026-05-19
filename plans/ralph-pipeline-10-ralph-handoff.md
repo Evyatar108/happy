@@ -1,6 +1,6 @@
 # Plan 10 — Ralph plugin handoff doc (`overviewTaskId` field)
 
-**Worktree:** main checkout at `D:\harness-efforts\codexu`. The doc itself lives in this repo; the actual Ralph plugin patches live elsewhere and are out of scope for this plan.
+**Worktree:** `/implement-with-ralph --from-plan` creates the worktree at `D:\harness-efforts\codexu\.ralph\jobs\ralph-pipeline-10-ralph-handoff\worktree\` on branch `ralph-pipeline-10-ralph-handoff`. The deliverable is a single markdown doc (`plans/ralph-overview-task-id.md`) — write it in the worktree, commit on the branch, merge to `main` after review. The actual Ralph plugin patches that the doc describes live in a different repo (`D:\ai-developer-toolkit\plugins\ralph\`) and are picked up by a SEPARATE `/plan-with-ralph` cycle there — that's out of scope for this plan's worktree.
 
 **Position in DAG:** standalone. Parallel-safe with all other plans. The output is a markdown doc that will be handed to a separate `/plan-with-ralph --improve` cycle targeting the Ralph plugin codebase.
 

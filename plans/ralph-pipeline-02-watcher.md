@@ -1,6 +1,6 @@
 # Plan 02 — Continuous watcher with debounce + incremental processing
 
-**Worktree:** main checkout at `D:\harness-efforts\codexu`.
+**Worktree:** `/implement-with-ralph --from-plan` creates the worktree at `D:\harness-efforts\codexu\.ralph\jobs\ralph-pipeline-02-watcher\worktree\` on branch `ralph-pipeline-02-watcher`. All file edits referenced in this plan happen in that worktree; commits land on the branch and are merged to `main` after Phase 6 review converges. Do NOT edit `main` directly.
 
 **Position in DAG:** depends on Plan 01. Optional but recommended early — unblocks live UI updates during the work on Plans 03+.
 

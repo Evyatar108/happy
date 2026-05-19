@@ -1,6 +1,6 @@
 # Plan 03 — UI: stage chip + filter axis + Vite sidecar plumbing
 
-**Worktree:** main checkout at `D:\harness-efforts\codexu`.
+**Worktree:** `/implement-with-ralph --from-plan` creates the worktree at `D:\harness-efforts\codexu\.ralph\jobs\ralph-pipeline-03-ui-chip\worktree\` on branch `ralph-pipeline-03-ui-chip`. All file edits referenced in this plan happen in that worktree; commits land on the branch and are merged to `main` after Phase 6 review converges. Do NOT edit `main` directly.
 
 **Position in DAG:** depends on Plan 01. Independent of Plan 02 (watcher) but pairs naturally — without 02 the user has to run `pnpm sync-ralph-state` manually to refresh.
 

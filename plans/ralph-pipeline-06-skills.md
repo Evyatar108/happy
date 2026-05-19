@@ -1,6 +1,6 @@
 # Plan 06 — Repo-local skills + `derive-next-command.mjs`
 
-**Worktree:** main checkout at `D:\harness-efforts\codexu`.
+**Worktree:** `/implement-with-ralph --from-plan` creates the worktree at `D:\harness-efforts\codexu\.ralph\jobs\ralph-pipeline-06-skills\worktree\` on branch `ralph-pipeline-06-skills`. All file edits referenced in this plan happen in that worktree; commits land on the branch and are merged to `main` after Phase 6 review converges. Do NOT edit `main` directly. Note: the new skills under `.claude/skills/{work-on,triage,blocker-report}/` are committed to this branch like any other file — they only become invokable in `main` after merge.
 
 **Position in DAG:** depends on Plan 05 (snapshot + recommendations files). Plan 04 highly recommended (recommendations file).
 

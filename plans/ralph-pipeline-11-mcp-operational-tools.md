@@ -1,6 +1,6 @@
 # Plan 11 — MCP operational tools: dev server, sync, build subprocess control
 
-**Worktree:** main checkout at `D:\harness-efforts\codexu`.
+**Worktree:** `/implement-with-ralph --from-plan` creates the worktree at `D:\harness-efforts\codexu\.ralph\jobs\ralph-pipeline-11-mcp-operational-tools\worktree\` on branch `ralph-pipeline-11-mcp-operational-tools`. All file edits referenced in this plan happen in that worktree; commits land on the branch and are merged to `main` after Phase 6 review converges. Do NOT edit `main` directly.
 
 **Position in DAG:** depends on Plan 09 (extends the same MCP server with new tools). Independent of all other plans for build/run order — but useless without 09's server scaffolding.
 

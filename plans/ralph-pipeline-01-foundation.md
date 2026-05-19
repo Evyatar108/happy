@@ -1,6 +1,6 @@
 # Plan 01 — Foundation: schema, sync core, one-shot sync, sidecar emit
 
-**Worktree:** main checkout at `D:\harness-efforts\codexu`. No separate worktree.
+**Worktree:** `/implement-with-ralph --from-plan` creates the worktree at `D:\harness-efforts\codexu\.ralph\jobs\ralph-pipeline-01-foundation\worktree\` on branch `ralph-pipeline-01-foundation` (Ralph's default branch name from the job slug). All file edits referenced in this plan happen in that worktree; commits land on the branch and are merged to `main` after Phase 6 review converges. Do NOT edit `main` directly.
 
 **Position in DAG:** root. No dependencies. Enables 02, 03, 05, 10.
 

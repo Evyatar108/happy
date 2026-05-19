@@ -1,6 +1,11 @@
 # Plan 12 — Package as reusable `@ralph/overview` plugin
 
-**Worktree:** the EXTRACTION work happens in two places — a new plugin source tree (recommended: `D:\ai-developer-toolkit\plugins\ralph-overview\` alongside existing plugins like `crews`, `ralph`) and a consumer-side migration in `D:\harness-efforts\codexu` to install + use the plugin.
+**Worktree:** the EXTRACTION work happens in **two places** with two separate worktrees / branches:
+
+1. **Plugin source tree:** `D:\ai-developer-toolkit\plugins\ralph-overview\` — new plugin alongside `crews`, `ralph`. The implementer creates a branch in the `ai-developer-toolkit` repo for this work (recommended name: `add-ralph-overview-plugin`). NOT a Ralph-orchestrated worktree — this is plain `git checkout -b` in the toolkit tree because the toolkit isn't using Ralph itself for its own development.
+2. **Codexu consumer-side migration:** `/implement-with-ralph --from-plan` creates the worktree at `D:\harness-efforts\codexu\.ralph\jobs\ralph-pipeline-12-package-as-plugin\worktree\` on branch `ralph-pipeline-12-package-as-plugin`. Removes the extracted files, updates `package.json` scripts, registers the installed plugin's MCP server in `.claude/settings.local.json` (per-machine, gitignored).
+
+The two changes ship as separate commits in separate repos. Land the plugin first (so the consumer migration can install + reference it); land the codexu migration second.
 
 **Position in DAG:** depends on all data plans (01, 05) + the MCP server (09, 11). Recommend shipping after 01–11 are all stable in codexu — extract from a working system, not a half-built one.
 

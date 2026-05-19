@@ -1,6 +1,6 @@
 # Plan 04 — Pipeline Overview header + recommendations + dependency graph
 
-**Worktree:** main checkout at `D:\harness-efforts\codexu`.
+**Worktree:** `/implement-with-ralph --from-plan` creates the worktree at `D:\harness-efforts\codexu\.ralph\jobs\ralph-pipeline-04-pipeline-overview\worktree\` on branch `ralph-pipeline-04-pipeline-overview`. All file edits referenced in this plan happen in that worktree; commits land on the branch and are merged to `main` after Phase 6 review converges. Do NOT edit `main` directly.
 
 **Position in DAG:** depends on Plan 03 (uses the same `ralphState` data and the new filter state introduced by 03's filter axis).
 

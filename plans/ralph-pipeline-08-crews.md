@@ -1,6 +1,6 @@
 # Plan 08 — Crews plugin integration: session tracking per phase
 
-**Worktree:** main checkout at `D:\harness-efforts\codexu`.
+**Worktree:** `/implement-with-ralph --from-plan` creates the worktree at `D:\harness-efforts\codexu\.ralph\jobs\ralph-pipeline-08-crews\worktree\` on branch `ralph-pipeline-08-crews`. All file edits referenced in this plan happen in that worktree; commits land on the branch and are merged to `main` after Phase 6 review converges. Do NOT edit `main` directly. Note: this plan reads from `.crews/` (which is shared workspace state, not branch state); cross-walk runs against the live `.crews/` directory regardless of which worktree the implementer is in.
 
 **Position in DAG:** depends on Plan 06 (`/work-on` skill, which gains the `--via-crew` flag here). Plan 07 recommended (tooltip extras slot for surfacing crew sessions).
 

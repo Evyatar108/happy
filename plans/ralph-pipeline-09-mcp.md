@@ -1,6 +1,6 @@
 # Plan 09 — MCP server at `tools/overview-mcp/`
 
-**Worktree:** main checkout at `D:\harness-efforts\codexu`.
+**Worktree:** `/implement-with-ralph --from-plan` creates the worktree at `D:\harness-efforts\codexu\.ralph\jobs\ralph-pipeline-09-mcp\worktree\` on branch `ralph-pipeline-09-mcp`. All file edits referenced in this plan happen in that worktree; commits land on the branch and are merged to `main` after Phase 6 review converges. Do NOT edit `main` directly. Note: MCP server registration in `.claude/settings.local.json` is per-machine and gitignored — the implementer documents the registration step in the README but does NOT commit the settings change.
 
 **Position in DAG:** depends on Plan 05 (snapshot input), Plan 06 (next-command derivation), Plan 08 (crews integration for `invoke_next` with `viaCrewMember`).
 
