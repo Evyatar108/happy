@@ -43,7 +43,7 @@ The comprehensive plan covered: schema additions, a continuous file watcher, a s
                                                        └──────────────────┘
 
            ┌─────────────────────┐
-           │ 05-agent-exports    │ ◄── depends on 01
+           │ 05-agent-exports    │ ◄── depends on 02
            │ (JSON twin,         │
            │  snapshot, activity,│
            │  schema, INDEX.md)  │
@@ -132,14 +132,15 @@ If you want a strict linear order (single agent, no parallelism), this minimizes
 If multiple agents run in parallel:
 
 - **Group A (Phase 1):** 01-foundation alone
-- **Group B (Phase 2):** 02-watcher + 03-ui-chip + 05-agent-exports + 10-ralph-handoff (all depend only on 01 or are standalone; mutually non-conflicting file footprints)
-- **Group C (Phase 3):** 04-pipeline-overview (depends on 03) + 06-skills (depends on 05) + 07-context (depends on 05)
-- **Group D (Phase 4):** 08-crews (depends on 06)
-- **Group E (Phase 5):** 09-mcp (depends on 05, 06, 08)
-- **Group F (Phase 6):** 11-mcp-operational-tools (depends on 09 + 02)
-- **Group G (Phase 7):** 12-package-as-plugin (depends on 01 + 05 + 09 + 11; ship after the system is stable in codexu)
+- **Group B (Phase 2):** 02-watcher + 03-ui-chip + 10-ralph-handoff (all depend only on 01 or are standalone; mutually non-conflicting file footprints)
+- **Group C (Phase 3):** 04-pipeline-overview (depends on 03) + 05-agent-exports (depends on 02)
+- **Group D (Phase 4):** 06-skills (depends on 05) + 07-context (depends on 05)
+- **Group E (Phase 5):** 08-crews (depends on 06)
+- **Group F (Phase 6):** 09-mcp (depends on 05, 06, 08)
+- **Group G (Phase 7):** 11-mcp-operational-tools (depends on 09 + 02)
+- **Group H (Phase 8):** 12-package-as-plugin (depends on 01 + 05 + 09 + 11; ship after the system is stable in codexu)
 
-That's 7 sequential groups with up to 4 plans running in parallel inside each group.
+That's 8 sequential groups with up to 3 plans running in parallel inside each group.
 
 ## What's NOT in any of these plans
 
@@ -186,9 +187,9 @@ These ESM modules are introduced in early plans and re-imported by later ones. D
 |---|---|---|---|
 | `scripts/lib/resolve-config.mjs` | 01 | `loadConfig({ repoRoot, configPath? })`; committed-path precedence is default `.ralph/overview-config.json` < `OVERVIEW_CONFIG_PATH` < explicit `configPath`; merge precedence is defaults < committed JSON < adjacent `.local.json`; returned paths are absolute and deep-frozen. | 02, 05, 07, 08, 09, 11 (all consumers go through this for paths/commands) |
 | `scripts/lib/default-config.mjs` | 01 | Frozen codexu-default Plan-01 config only: `dataFile`, `ralphRoot`, `ralphSubdirs`, `outputs`, `lockFile`, `watcher.ignored`. Downstream config fields are additive extensions, not Plan-01 schema keys. | `resolve-config.mjs` only |
-| `.ralph/overview-config.schema.json` | 01 | Trimmed Plan-01 JSON Schema matching the default config. Deferred output fields such as snapshot/activity/tasks index are downstream additive extensions. | 02, 05, 12 |
+| `.ralph/overview-config.schema.json` | 01 | Trimmed Plan-01 JSON Schema matching the default config. Plan 05 extends `outputs` with snapshot/activity/data JSON/schema/tasks-index paths and `activityMaxLines`. | 02, 05, 12 |
 | `scripts/lib/derive-ralph-stage.mjs` | 01 | Stateless `deriveRalphStage({ jobState?, prd?, brainstormJson?, reviewOpenCount?, jobDirMarker? })`; no filesystem access, no list inputs; unknown future phases map to `implementing`. | 02, 05, 06, 09 |
-| `scripts/lib/sync-core.mjs` | 01/02 | `walkRalphState({ repoRoot, config, generatedFromCommit })`, `writeSidecar({ repoRoot, config, state })`, plus Plan-02 helper exports `readBundleForSlug`, `assembleStateFromBundles`, `deriveAffectedTaskUpdate`, and `mergeAndWrite`. Owns direct-child Ralph walking, within-kind duplicate collapse, cross-kind precedence `job > group > brainstorm`, nested group-member suppression, malformed-JSON retain semantics, unmatched/unmatchedSummary refresh, and same-payload JS/JSON sidecar writes with `</script` escaping. | 02, 05, 07, 08 |
+| `scripts/lib/sync-core.mjs` | 01/02/05 | `walkRalphState({ repoRoot, config, generatedFromCommit })`, `writeSidecar({ repoRoot, config, state })`, plus Plan-02 helper exports `readBundleForSlug`, `assembleStateFromBundles`, `deriveAffectedTaskUpdate`, and `mergeAndWrite`. Owns direct-child Ralph walking, within-kind duplicate collapse, cross-kind precedence `job > group > brainstorm`, nested group-member suppression, malformed-JSON retain semantics, unmatched/unmatchedSummary refresh, same-payload JS/JSON sidecar writes with `</script` escaping, Plan 05 durable artifact emission, and `mergeAndWrite` activity-event derivation. | 02, 05, 07, 08 |
 | `scripts/lib/sync-lock.mjs` | 02 | Shared async lock helper. Writes JSON `{ pid, process, startedAt }` with `wx`, reports contention as `another sync in progress (pid <N>, process <label>, started <ts>)`, treats EPERM PID probes as alive, removes ESRCH/unparseable stale locks, and supports `touch()` heartbeats. | 02, 08, 11 |
 | `tools/overview-viewer/src/__tests__/scripts.d.ts` | 01 | Test-only explicit relative ambient declarations for root `.mjs` modules; no wildcard module patterns under bundler resolution. | overview-viewer tests |
 | `tools/overview-viewer/src/utils/filters.ts` | 03 | `FilterAxis` includes `ralphStage`; `ActiveFilters` is `Record<FilterAxis, Set<string>>`; `createEmptyFilters()` and `cloneFilters()` include `ralphStage`; `matchesTaskFilter` / `matchesKanbanFilter` require `OverviewRalphState` and apply the stage predicate. | 04 (`PipelineOverview`), 12 (data-driven toolbar migration) |
@@ -197,7 +198,14 @@ These ESM modules are introduced in early plans and re-imported by later ones. D
 | `tools/overview-viewer/vite.config.ts` `overviewRalphStatePlugin()` | 03 | Serves `/overview-ralph-state.js` in dev and inlines `plans/overview-ralph-state.js` into static `overview.html`; does not own file watching or call `server.watcher.add` for Ralph state. | 02 HMR watcher integration, 11 dev-server tooling, 12 plugin extraction |
 | `scripts/lib/derive-next-command.mjs` | 06 | Derives the next operator command from snapshot/task state. | 06 (skills), 09 (MCP) |
 | `scripts/lib/score-recommendations.mjs` | 04 | Scores dashboard recommendations from pipeline state and dependency graph. | 06 (`/triage`), 09 (`overview.list_recommendations`) |
-| `scripts/lib/watch-ralph-state.mjs` | 02 | Continuous watcher around the sync core. Resolves watch roots from `config.ralphSubdirs`, uses a long-lived shared lock with a 30s heartbeat, cold-starts once after chokidar is ready, debounces per `(kind, slug)` changes into `deriveAffectedTaskUpdate`/`mergeAndWrite`, ignores worktree paths and `brainstorms/<slug>/selected-direction.md`, and reports debounced writes through `onWrite({ writtenAt, changedTaskIds })`. | Vite plugin, standalone CLI, 05, 08, 11 |
+| `plans/overview-recommendations.json` | 04 | Conditional input to `plans/overview-snapshot.json`; when absent, Plan 05 emits `Snapshot.recommendations` as `[]`. | 05 snapshot, 06 compatibility fallback, 09 recommendations |
+| `plans/overview-dependency-graph.json` | 04 | Conditional input to `plans/overview-snapshot.json`; when absent, Plan 05 emits `Snapshot.dependencyGraph` as `{ nodes: [], edges: [] }`. | 05 snapshot, 09 dependency graph |
+| `scripts/lib/watch-ralph-state.mjs` | 02/05 | Continuous watcher around the sync core. Resolves watch roots from `config.ralphSubdirs`, uses a long-lived shared lock with a 30s heartbeat, cold-starts once after chokidar is ready, debounces per `(kind, slug)` changes into `deriveAffectedTaskUpdate`/`mergeAndWrite`, ignores worktree paths and `brainstorms/<slug>/selected-direction.md`, appends `result.activityEvents` inside the lock window, and reports debounced writes through `onWrite({ writtenAt, changedTaskIds })`. | Vite plugin, standalone CLI, 05, 08, 11 |
+| `plans/overview-snapshot.json` | 05 | Primary agent-readable state file. Merges overview tasks, Ralph pipeline state, runs, unmatched summaries, optional Plan 04 recommendations/dependency graph, and `runDurations` under `schemaVersion: 1`. | 06, 07, 08, 09, 12 |
+| `plans/overview-activity.jsonl` | 05 | Append-only activity tail written by watcher appends under the sync lock; readers must tolerate a torn final line and rotation to `plans/overview-activity.1.jsonl`. | 07 RecentActivity, operators, agents |
+| `plans/overview-snapshot.schema.json` | 05 | Hand-written JSON Schema for `plans/overview-snapshot.json`; `RalphPipelineState` allows additional properties for later plans. | 09 validation, 12 packaging |
+| `plans/overview-data.json` | 05 | Read-only JSON twin of hand-curated `plans/overview-data.js`, produced from the shared trusted parser. | 09, 12, agents that cannot eval JS |
+| `tasks/INDEX.md` | 05 | Generated markdown index with one section per task, stage, jobDir, last activity, and dashboard deep link. | Humans, agents, 12 packaging |
 
 If a downstream plan's consumer drifts from the introducing plan's contract, the predicate table goes out of sync silently. Every plan that imports these explicitly lists them under "Read for reference."
 
