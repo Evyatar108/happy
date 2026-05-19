@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { deriveRalphStage, IMPLEMENTING_PHASES, REVIEW_PHASES } from './derive-ralph-stage.mjs'
+import { rotateActivity } from './emit-activity.mjs'
 import { buildSnapshot } from './emit-snapshot.mjs'
 import { SNAPSHOT_SCHEMA } from './emit-snapshot-schema.mjs'
 import { buildTasksIndex } from './emit-tasks-index.mjs'
@@ -367,15 +368,33 @@ async function emitAgentArtifacts({ repoRoot, config, state }) {
     await atomicWriteFile(resolveMaybeAbsolute(repoRoot, outputs.snapshot), `${JSON.stringify(snapshot, null, 2)}\n`)
     await atomicWriteFile(resolveMaybeAbsolute(repoRoot, outputs.dataJson), `${JSON.stringify(overviewData, null, 2)}\n`)
     await atomicWriteFile(resolveMaybeAbsolute(repoRoot, outputs.tasksIndex), buildTasksIndex(snapshot))
-    ensureEmptyFile(resolveMaybeAbsolute(repoRoot, outputs.activity))
+    ensureActivityFile({
+        activityPath: resolveMaybeAbsolute(repoRoot, outputs.activity),
+        activityBackupPath: resolveMaybeAbsolute(repoRoot, outputs.activityBackup),
+        maxLines: outputs.activityMaxLines,
+    })
 }
 
-function ensureEmptyFile(filePath) {
-    if (fs.existsSync(filePath)) {
+function ensureActivityFile({ activityPath, activityBackupPath, maxLines }) {
+    if (countLines(activityPath) >= maxLines) {
+        rotateActivity(activityPath, activityBackupPath)
+    }
+    if (fs.existsSync(activityPath)) {
         return
     }
-    fs.mkdirSync(path.dirname(filePath), { recursive: true })
-    fs.closeSync(fs.openSync(filePath, 'w'))
+    fs.mkdirSync(path.dirname(activityPath), { recursive: true })
+    fs.closeSync(fs.openSync(activityPath, 'w'))
+}
+
+function countLines(filePath) {
+    if (!fs.existsSync(filePath)) {
+        return 0
+    }
+    const contents = fs.readFileSync(filePath, 'utf8')
+    if (!contents) {
+        return 0
+    }
+    return contents.split('\n').filter((line) => line.length > 0).length
 }
 
 export async function atomicWriteFile(finalPath, contents) {
