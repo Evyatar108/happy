@@ -94,7 +94,7 @@ export function KanbanColumn({ data, column, cards, onJumpToCommand, visibleTask
     )
 }
 
-export function Kanban({ data, onJumpToCommand, visibleTaskIds }: { data: OverviewData; ralphState: OverviewRalphState; onJumpToCommand: (taskId: string) => void; visibleTaskIds?: Set<string> }) {
+export function Kanban({ data, ralphState: _ralphState, onJumpToCommand, visibleTaskIds }: { data: OverviewData; ralphState: OverviewRalphState; onJumpToCommand: (taskId: string) => void; visibleTaskIds?: Set<string> }) {
     const tasks = data.tasks ?? []
     const columns = orderedKanbanCardsByColumn(tasks)
     const counts = countVisibleKanbanCardsByColumn(columns, visibleTaskIds)
