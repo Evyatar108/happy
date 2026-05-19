@@ -213,6 +213,9 @@ function readJobLikeBundles({ repoRoot, rootDir, ralphRoot, ignored, kind }) {
             continue
         }
 
+        const groupJsonPath = path.join(dir, 'group.json')
+        const groupJsonResult = kind === 'group' && fs.existsSync(groupJsonPath) ? readJsonFile(groupJsonPath) : {}
+
         const bundle = {
             kind,
             slug,
@@ -221,12 +224,13 @@ function readJobLikeBundles({ repoRoot, rootDir, ralphRoot, ignored, kind }) {
             artifacts: {
                 ...artifacts,
                 ...(prdResult.value ? { prdFile: relativePath(repoRoot, path.join(dir, 'prd.json')) } : {}),
-                ...(kind === 'group' && fs.existsSync(path.join(dir, 'group.json'))
-                    ? { planFile: relativePath(repoRoot, path.join(dir, 'group.json')) }
+                ...(kind === 'group' && fs.existsSync(groupJsonPath)
+                    ? { planFile: relativePath(repoRoot, groupJsonPath) }
                     : {}),
             },
             jobState: jobStateResult.value,
             prd: prdResult.value,
+            groupJson: groupJsonResult.value,
             reviewOpenCount,
             jobDirMarker: true,
         }
@@ -317,6 +321,18 @@ function resolveTaskMatch({ slug, ralphOverrides, taskIds }) {
     return null
 }
 
+function deriveIsParallel(groupJson) {
+    if (!groupJson || !Array.isArray(groupJson.jobs) || groupJson.jobs.length === 0) {
+        return true
+    }
+    const concurrency = groupJson.concurrency
+    if (typeof concurrency === 'number') {
+        return concurrency > 1
+    }
+    const phases = groupJson.jobs.map((j) => j.phase)
+    return phases.length !== new Set(phases).size
+}
+
 function toPipelineState(bundle) {
     const stage = deriveRalphStage({
         jobState: bundle.jobState,
@@ -337,7 +353,7 @@ function toPipelineState(bundle) {
         artifacts: bundle.artifacts,
         jobSlug: bundle.kind === 'job' ? bundle.slug : undefined,
         groupSlug: bundle.kind === 'group' ? bundle.slug : undefined,
-        isParallel: bundle.kind === 'group' ? true : undefined,
+        isParallel: bundle.kind === 'group' ? deriveIsParallel(bundle.groupJson) : undefined,
         matchSource: bundle.matchSource,
         storyCompletion: asRecord(bundle.jobState)?.storyCompletion,
         reviewOpenCount: bundle.reviewOpenCount,

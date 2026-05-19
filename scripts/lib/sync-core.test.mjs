@@ -42,6 +42,13 @@ function writeJobState(repoRoot, slug, jobState) {
     writeJson(path.join(jobDir, 'job-state.json'), jobState)
 }
 
+function writeGroupState(repoRoot, slug, groupJson) {
+    const groupDir = path.join(repoRoot, '.ralph', 'job-groups', slug)
+    fs.mkdirSync(groupDir, { recursive: true })
+    writeJson(path.join(groupDir, 'group.json'), groupJson)
+    writeJson(path.join(groupDir, 'job-state.json'), {})
+}
+
 let tempRoot
 let stderrLines
 
@@ -58,6 +65,79 @@ beforeEach(() => {
 afterEach(() => {
     vi.restoreAllMocks()
     fs.rmSync(tempRoot, { recursive: true, force: true })
+})
+
+describe('sync-core group isParallel derivation', () => {
+    test('serial group (concurrency 1) has isParallel === false', async () => {
+        const slug = 'serial-group'
+        writeOverviewData(tempRoot, [slug])
+        writeGroupState(tempRoot, slug, {
+            schemaVersion: 2,
+            name: slug,
+            concurrency: 1,
+            jobs: [{ name: 'step-a', phase: 1, dependsOn: [] }, { name: 'step-b', phase: 2, dependsOn: ['step-a'] }],
+        })
+
+        const config = buildConfig(tempRoot)
+        const state = await walkRalphState({ repoRoot: tempRoot, config, generatedFromCommit: 'abc1234' })
+
+        expect(state.byTaskId[slug]?.isParallel).toBe(false)
+    })
+
+    test('parallel group (concurrency > 1) has isParallel === true', async () => {
+        const slug = 'parallel-group'
+        writeOverviewData(tempRoot, [slug])
+        writeGroupState(tempRoot, slug, {
+            schemaVersion: 2,
+            name: slug,
+            concurrency: 4,
+            jobs: [
+                { name: 'job-a', phase: 2, dependsOn: ['job-base'] },
+                { name: 'job-b', phase: 2, dependsOn: ['job-base'] },
+            ],
+        })
+
+        const config = buildConfig(tempRoot)
+        const state = await walkRalphState({ repoRoot: tempRoot, config, generatedFromCommit: 'abc1234' })
+
+        expect(state.byTaskId[slug]?.isParallel).toBe(true)
+    })
+
+    test('group without concurrency but with shared phases has isParallel === true', async () => {
+        const slug = 'implicit-parallel-group'
+        writeOverviewData(tempRoot, [slug])
+        writeGroupState(tempRoot, slug, {
+            schemaVersion: 2,
+            name: slug,
+            jobs: [
+                { name: 'job-a', phase: 2, dependsOn: [] },
+                { name: 'job-b', phase: 2, dependsOn: [] },
+            ],
+        })
+
+        const config = buildConfig(tempRoot)
+        const state = await walkRalphState({ repoRoot: tempRoot, config, generatedFromCommit: 'abc1234' })
+
+        expect(state.byTaskId[slug]?.isParallel).toBe(true)
+    })
+
+    test('group without concurrency and all distinct phases has isParallel === false', async () => {
+        const slug = 'implicit-serial-group'
+        writeOverviewData(tempRoot, [slug])
+        writeGroupState(tempRoot, slug, {
+            schemaVersion: 2,
+            name: slug,
+            jobs: [
+                { name: 'job-a', phase: 1, dependsOn: [] },
+                { name: 'job-b', phase: 2, dependsOn: ['job-a'] },
+            ],
+        })
+
+        const config = buildConfig(tempRoot)
+        const state = await walkRalphState({ repoRoot: tempRoot, config, generatedFromCommit: 'abc1234' })
+
+        expect(state.byTaskId[slug]?.isParallel).toBe(false)
+    })
 })
 
 describe('sync-core unknown phase warning', () => {
