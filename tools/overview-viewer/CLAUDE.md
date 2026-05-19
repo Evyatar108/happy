@@ -28,7 +28,7 @@ src/
     ├── *.test.tsx        # node SSR tests (default project) via react-dom/server
     └── interactions/     # jsdom project: Radix surface tests (Tooltip, Dialog) via @testing-library/react
 overview.html             # Vite entry (NOT the build artifact in plans/)
-vite.config.ts            # includes the custom overviewDataPlugin (HMR sidecar watcher + serve + singleFile inline)
+vite.config.ts            # includes the custom overviewDataPlugin (HMR sidecar watcher + serve + singleFile inline for overview-data.js) and overviewRalphStatePlugin (serve + singleFile inline for overview-ralph-state.js; watcher owned externally)
 vitest.config.ts          # split projects: node SSR tests + jsdom interaction tests
 README.md                 # contributor-facing notes + intentional deviations
 ```
