@@ -38,9 +38,13 @@ export function rotateActivity(activityPath, activityBackupPath) {
         return
     }
 
-    fs.mkdirSync(path.dirname(activityBackupPath), { recursive: true })
-    fs.rmSync(activityBackupPath, { force: true })
-    fs.renameSync(activityPath, activityBackupPath)
+    try {
+        fs.mkdirSync(path.dirname(activityBackupPath), { recursive: true })
+        fs.rmSync(activityBackupPath, { force: true })
+        fs.renameSync(activityPath, activityBackupPath)
+    } catch (err) {
+        process.stderr.write(`[emit-activity] rotation skipped (${err.code ?? err.message})\n`)
+    }
 }
 
 function countLines(filePath) {
