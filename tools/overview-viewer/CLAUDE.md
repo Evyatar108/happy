@@ -16,7 +16,7 @@ Vite + React 18 + TypeScript renderer for the codexu roadmap dashboard. Consumes
 
 ```
 src/
-├── App.tsx               # top-level composition; reads window.OVERVIEW_DATA + owns the inline reloadOverviewData() HMR handler
+├── App.tsx               # top-level composition; reads window.OVERVIEW_DATA + window.OVERVIEW_RALPH_STATE and owns the inline reloadOverviewData() + reloadRalphState() HMR handlers
 ├── main.tsx              # React entry; imports styles.css
 ├── styles.css            # verbatim port of plans/overview.html:6-1060 CSS (no Tailwind, no CSS-in-JS)
 ├── components/           # TaskCommand, Kanban, PhaseTree, CommandList, Toolbar, TodayPanel, CopyToast, ...
