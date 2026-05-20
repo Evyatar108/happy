@@ -195,6 +195,52 @@ function QuickNavButton({ ariaLabel, children, onNavigate, title }: { ariaLabel:
     )
 }
 
+function RalphTooltipExtras({ ralph, showToast }: { ralph: OverviewRalphState['byTaskId'][string]; showToast?: ShowToast }) {
+    const hasOpenQuestions = (ralph.deferredQuestionsCount ?? 0) > 0
+    const hasBranch = Boolean(ralph.branchName)
+    const hasPrUrl = Boolean(ralph.prUrl)
+
+    if (!hasOpenQuestions && !hasBranch && !hasPrUrl) return null
+
+    return (
+        <div className="tooltip-extras">
+            {hasOpenQuestions ? (
+                <>
+                    <div className="tooltip-extras-row">
+                        <span>📝 {ralph.deferredQuestionsCount} open questions</span>
+                    </div>
+                    {ralph.deferredQuestionsPreview ? (
+                        <div className="tooltip-extras-subline" title={ralph.deferredQuestionsPreview}>
+                            {ralph.deferredQuestionsPreview}
+                        </div>
+                    ) : null}
+                </>
+            ) : null}
+            {ralph.branchName ? (
+                <div className="tooltip-extras-row">
+                    <span className="tooltip-extras-text">{ralph.branchName}</span>
+                    <QuickCopyButton
+                        ariaLabel={`Copy checkout command for ${ralph.branchName}`}
+                        title="Copy checkout command"
+                        label={ralph.branchName}
+                        text={`git checkout ${ralph.branchName}`}
+                        showToast={showToast}
+                    >
+                        ⎘
+                    </QuickCopyButton>
+                </div>
+            ) : null}
+            {ralph.prUrl ? (
+                <div className="tooltip-extras-row">
+                    <a href={ralph.prUrl} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
+                        PR ↗
+                    </a>
+                </div>
+            ) : null}
+        </div>
+    )
+}
+
 function QuickActions({ childrenByParent, onOpenChange, parentId, showToast, task }: { childrenByParent: Record<string, string[]>; onOpenChange: (id: string, open: boolean) => void; parentId?: string; showToast?: ShowToast; task: OverviewTask }) {
     const childIds = childrenByParent[task.id] ?? []
     const firstChildId = childIds[0]
@@ -366,6 +412,8 @@ export function TaskCommand({ task, data, taskIds, childrenByParent, changed = f
     const parentId = data.spawnedFrom?.[task.id]
     const commandNameHtml = highlightMatches(escapeHtml(command?.name || task.id), query)
     const descriptionHtml = highlightMatches(command?.descriptionHtml ?? '', query)
+    const ralph = ralphState.byTaskId[task.id]
+    const tooltipExtras = ralph ? <RalphTooltipExtras ralph={ralph} showToast={showToast} /> : undefined
 
     return (
         <details
@@ -410,7 +458,7 @@ export function TaskCommand({ task, data, taskIds, childrenByParent, changed = f
                 </span>
                 <span className="cmd-desc" dangerouslySetInnerHTML={{ __html: descriptionHtml }} />
                 <WorkstreamPill task={task} data={data} onActivateWorkstream={onActivateWorkstream} />
-                <RalphStageChip taskId={task.id} ralphState={ralphState} />
+                <RalphStageChip taskId={task.id} ralphState={ralphState} tooltipExtras={tooltipExtras} />
                 {changed ? <span className="new-badge" title={`Changed since your last visit (${data.lastTouched?.[task.id] ?? task.lastTouchedAt ?? ''})`}>NEW</span> : null}
                 <SpawnedFromPill parentId={parentId} />
                 <QuickActions task={task} childrenByParent={childrenByParent} parentId={parentId} onOpenChange={onOpenChange} showToast={showToast} />

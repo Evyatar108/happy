@@ -59,6 +59,8 @@ Ralph activity is served as raw JSONL at `/overview-activity.jsonl` by `overview
 
 When adding fields to `RalphPipelineState`, mirror them in `scripts/lib/emit-snapshot-schema.mjs` and add an Ajv regression in `scripts/lib/emit-snapshot-schema.test.mjs` so generated snapshots accept the new shape.
 
+Ralph task-specific tooltip extras are composed in `TaskCommand` and passed through `RalphStageChip.tooltipExtras`; keep `RalphStageChip` as the generic stage/slug/timestamp surface.
+
 ## Ralph state sidecar
 
 Agent-readable Ralph state artifacts live at `plans/overview-snapshot.json`, `plans/overview-data.json`, `plans/overview-snapshot.schema.json`, `plans/overview-activity.jsonl`, and `tasks/INDEX.md`. They are emitted by the shared watcher in `scripts/lib/watch-ralph-state.mjs`, which is started inside the Vite dev server by `ralphStateWatcherPlugin()` in `vite.config.ts` during `pnpm overview`, or as a standalone process via `pnpm sync-ralph-state:watch` (`scripts/sync-ralph-state.mjs --watch`). Both paths share the same `.ralph/overview-sync.lock` and emit the same set of files; do not hand-edit those generated files.
