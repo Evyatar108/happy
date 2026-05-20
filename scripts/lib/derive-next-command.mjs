@@ -9,13 +9,12 @@
  * @typedef {import('../../tools/overview-viewer/src/types').RalphPipelineState} RalphPipelineState
  *
  * @param {RalphPipelineState | undefined} state
- * @param {OverviewTask | undefined} task
+ * @param {OverviewTask | undefined} task - Reserved for task-level seed-prompt fallback; not yet read by the predicate.
  * @param {{ repoRoot?: string }} [options]
  * @returns {NextCommand | null}
  */
 export function deriveNextCommand(state, task, options = {}) {
-    void task
-
+    // task is reserved for future task-level seed-prompt fallback (implemented in /work-on skill body, not here)
     if (!state || typeof state !== 'object') {
         return null
     }
