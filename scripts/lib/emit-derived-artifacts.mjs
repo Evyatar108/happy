@@ -51,12 +51,30 @@ export async function emitDerivedArtifacts({ repoRoot, config, state, overviewDa
     return { runDurations }
 }
 
+/**
+ * Computes run durations keyed by runId.
+ *
+ * Only the most-recent run per taskId receives a duration entry. Older runs
+ * for the same task would map to the same job-state.json window, producing
+ * identical and misleading values. v1 choice: emit only the latest run per
+ * task rather than attempting to match older runs to historical job-state files.
+ */
 function computeRunDurations({ repoRoot, state, overviewData }) {
-    const durations = {}
+    const latestRunByTaskId = new Map()
     for (const run of overviewData.runs ?? []) {
         if (typeof run?.id !== 'string' || typeof run?.taskId !== 'string') {
             continue
         }
+        const existing = latestRunByTaskId.get(run.taskId)
+        const runTime = run.ranAt ? Date.parse(run.ranAt) : NaN
+        const existingTime = existing?.ranAt ? Date.parse(existing.ranAt) : NaN
+        if (!existing || (!Number.isNaN(runTime) && (Number.isNaN(existingTime) || runTime > existingTime))) {
+            latestRunByTaskId.set(run.taskId, run)
+        }
+    }
+
+    const durations = {}
+    for (const run of latestRunByTaskId.values()) {
         const jobState = readJobStateForTask(repoRoot, state.byTaskId?.[run.taskId])
         const hours = completedHours(jobState)
         if (hours !== undefined) {
