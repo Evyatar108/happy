@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-05-20T08:00:00.000Z",
+  "generatedFromCommit": "fixture",
+  "tasks": [
+    {
+      "id": "TASK-CLI",
+      "title": "Fixture CLI task",
+      "ralph": {
+        "stage": "implementing",
+        "jobSlug": "fixture-cli-job",
+        "artifacts": {
+          "jobDir": ".ralph/jobs/fixture-cli-job"
+        }
+      }
+    },
+    {
+      "id": "TASK-PARALLEL",
+      "title": "Fixture parallel group task",
+      "ralph": {
+        "stage": "implementing",
+        "isParallel": true,
+        "groupSlug": "fixture-group",
+        "artifacts": {
+          "groupDir": ".ralph/jobs/fixture-cli-job/groups/fixture-group"
+        }
+      }
+    }
+  ],
+  "recommendations": []
+}
