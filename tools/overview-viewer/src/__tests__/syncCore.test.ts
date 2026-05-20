@@ -387,6 +387,7 @@ function makeRepoFixture({
         config: {
             dataFile: 'plans/overview-data.js',
             ralphRoot: '.ralph',
+            crewsRoot: '.crews',
             ralphSubdirs: { jobs: 'jobs', jobGroups: 'job-groups', brainstorms: 'brainstorms' },
             outputs: { ...codexuDefaultConfig.outputs },
             recommendations: { ...codexuDefaultConfig.recommendations },

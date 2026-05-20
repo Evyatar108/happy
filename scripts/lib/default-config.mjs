@@ -1,6 +1,7 @@
 export const codexuDefaultConfig = deepFreeze({
     dataFile: 'plans/overview-data.js',
     ralphRoot: '.ralph',
+    crewsRoot: '.crews',
     ralphSubdirs: {
         jobs: 'jobs',
         jobGroups: 'job-groups',
@@ -38,6 +39,11 @@ export const codexuDefaultConfig = deepFreeze({
             '.ralph/telemetry/**',
             '.crews/logs/**',
             '.crews/spawn-launchers/**',
+            '.crews/crews/*/members/*/mailbox.json',
+            '.crews/crews/*/members/*/outbox.jsonl',
+            '.crews/crews/*/leads/*/mailbox.json',
+            '.crews/crews/*/leads/*/outbox.jsonl',
+            '.crews/crews/*/inbox-history.jsonl',
         ],
     },
 })

@@ -706,6 +706,7 @@ function normalizeConfigPaths(config, repoRoot) {
         ...config,
         dataFile: resolveMaybeAbsolute(repoRoot, config.dataFile),
         ralphRoot,
+        crewsRoot: resolveMaybeAbsolute(repoRoot, config.crewsRoot ?? '.crews'),
         ralphSubdirs: {
             jobs: resolveMaybeAbsolute(ralphRoot, config.ralphSubdirs.jobs),
             jobGroups: resolveMaybeAbsolute(ralphRoot, config.ralphSubdirs.jobGroups),

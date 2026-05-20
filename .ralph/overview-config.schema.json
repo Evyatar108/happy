@@ -8,6 +8,7 @@
     "$schema": { "type": "string" },
     "dataFile": { "type": "string" },
     "ralphRoot": { "type": "string" },
+    "crewsRoot": { "type": "string" },
     "ralphSubdirs": {
       "type": "object",
       "additionalProperties": false,

@@ -1,6 +1,7 @@
 export interface RalphOverviewConfig {
     dataFile: string
     ralphRoot: string
+    crewsRoot: string
     ralphSubdirs: {
         jobs: string
         jobGroups: string

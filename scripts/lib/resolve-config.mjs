@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -75,7 +76,8 @@ function mergeObject(base, overlay) {
 
 function resolveConfigPaths(config, repoRoot) {
     const ralphRoot = resolvePath(repoRoot, config.ralphRoot)
-    const { dataFile: _df, ralphRoot: _rr, ralphSubdirs, outputs, recommendations, lockFile: _lf, watcher, ...unknownRoot } = config
+    const crewsRoot = resolveCrewsRoot({ repoRoot, crewsRoot: config.crewsRoot })
+    const { dataFile: _df, ralphRoot: _rr, crewsRoot: _cr, ralphSubdirs, outputs, recommendations, lockFile: _lf, watcher, ...unknownRoot } = config
     const { jobs: _jobs, jobGroups: _jg, brainstorms: _bs, ...unknownRalphSubdirs } = ralphSubdirs
     const {
         sidecarJs: _sjs,
@@ -104,6 +106,7 @@ function resolveConfigPaths(config, repoRoot) {
         ...unknownRoot,
         dataFile: resolvePath(repoRoot, config.dataFile),
         ralphRoot,
+        crewsRoot,
         ralphSubdirs: {
             ...unknownRalphSubdirs,
             jobs: resolvePath(ralphRoot, config.ralphSubdirs.jobs),
@@ -141,6 +144,36 @@ function resolveConfigPaths(config, repoRoot) {
             ignored: [...config.watcher.ignored],
         },
     }
+}
+
+export function resolveCrewsRoot({ repoRoot, crewsRoot }) {
+    if (path.isAbsolute(crewsRoot)) {
+        return path.normalize(crewsRoot)
+    }
+
+    const base = crewsRoot === codexuDefaultConfig.crewsRoot ? resolveCommonRepoRoot(repoRoot) : repoRoot
+    return path.resolve(base, crewsRoot)
+}
+
+function resolveCommonRepoRoot(repoRoot) {
+    try {
+        const gitDir = execFileSync('git', ['-C', repoRoot, 'rev-parse', '--git-dir'], {
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim()
+        const commonDir = execFileSync('git', ['-C', repoRoot, 'rev-parse', '--git-common-dir'], {
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim()
+        const absoluteGitDir = path.resolve(repoRoot, gitDir)
+        const absoluteCommonDir = path.resolve(repoRoot, commonDir)
+        if (absoluteGitDir !== absoluteCommonDir) {
+            return path.resolve(repoRoot, commonDir, '..')
+        }
+    } catch {
+        // Non-git fixtures and packaged consumers resolve relative to repoRoot.
+    }
+    return repoRoot
 }
 
 function resolvePath(base, value) {
