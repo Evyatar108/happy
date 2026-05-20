@@ -85,9 +85,6 @@ The helper reads `plans/overview-snapshot.json`, resolves `repoRoot` via
 `NextCommand | null`. Parse stdout as JSON. If the command exits non-zero,
 surface stderr to the user.
 
-If `--dry-run` was passed, print the resolved command string and stop. If the
-JSON value is `null`, print `null` for dry-run output.
-
 ## Null Handling
 
 If the helper returns `null` and `task.ralph.stage === 'shipped'`, tell the user
@@ -98,6 +95,9 @@ If the helper returns `null` for any other stage, stop with:
 ```text
 cannot derive command for stage '<stage>' — required artifact (planFile / jobDir / brainstormDir) is missing from snapshot. Run `pnpm sync-ralph-state` and retry, or check the underlying job directory.
 ```
+
+If `--dry-run` was passed and the helper returned a non-null command, print the
+resolved command string and stop.
 
 ## Invoke
 
