@@ -43,4 +43,27 @@ describe('emit-snapshot-schema', () => {
         expect(SNAPSHOT_SCHEMA.$defs.DependencyGraph.properties.edges.items.additionalProperties).toBe(true)
         expect(validate(snapshot), JSON.stringify(validate.errors, null, 2)).toBe(true)
     })
+
+    test('accepts a legacy minimal snapshot without stage/reasons/type fields', () => {
+        const ajv = new Ajv()
+        const validate = ajv.compile(SNAPSHOT_SCHEMA)
+
+        const snapshot = {
+            generatedAt: '2026-05-19T00:00:00.000Z',
+            generatedFromCommit: 'abc0000',
+            schemaVersion: 1,
+            tasks: [],
+            runs: [],
+            recommendations: [{ taskId: 'X', score: 0.5 }],
+            dependencyGraph: {
+                nodes: [{ id: 'X' }],
+                edges: [{ from: 'A', to: 'B' }],
+            },
+            runDurations: {},
+            unmatched: [],
+            unmatchedSummary: {},
+        }
+
+        expect(validate(snapshot), JSON.stringify(validate.errors, null, 2)).toBe(true)
+    })
 })

@@ -162,7 +162,7 @@ export const SNAPSHOT_SCHEMA = {
         Recommendation: {
             type: 'object',
             additionalProperties: true,
-            required: ['taskId', 'score', 'stage', 'reasons'],
+            required: ['taskId', 'score'],
             properties: {
                 taskId: { type: 'string' },
                 score: { type: 'number' },
@@ -180,7 +180,7 @@ export const SNAPSHOT_SCHEMA = {
                     items: {
                         type: 'object',
                         additionalProperties: true,
-                        required: ['id', 'type'],
+                        required: ['id'],
                         properties: {
                             id: { type: 'string' },
                             type: { enum: ['task', 'story'] },
@@ -195,7 +195,7 @@ export const SNAPSHOT_SCHEMA = {
                     items: {
                         type: 'object',
                         additionalProperties: true,
-                        required: ['from', 'to', 'type'],
+                        required: ['from', 'to'],
                         properties: {
                             from: { type: 'string' },
                             to: { type: 'string' },
