@@ -82,8 +82,9 @@ Each member's `manifest.json` exposes the canonical `sessionId` and `transcriptP
   - `.crews/sessions-configs/*`
   Exclude `.crews/logs/`, `.crews/spawn-launchers/` (changes there are noise; manifest is the canonical source), mailbox files (`mailbox.json`, `outbox.jsonl` — high churn, not state). Preserve Plan 02's resolved-root behavior: Ralph paths come from `config.ralphSubdirs`, and any new `.crews/` root must be resolved from config or `repoRoot`, never from a worktree-local directory. Crew-tree events are emitted as slugless `{ kind: 'crews' }` changes; route them through `rescanCrewSessionsAndWrite()` after any Ralph-side `mergeAndWrite()` in the same debounce batch — do NOT pass crew-only changes through `deriveAffectedTaskUpdate()`.
 - **`scripts/sync-ralph-state.mjs`** — add CLI subcommand handlers:
-  - `--update-crew-session <taskId> <stage> --json <ref>` — acquires the same lock, applies the merge, exits.
+  - `--update-crew-session <taskId> <stage> --json <ref>` — acquires the same lock, loads `config.outputs.sidecarJson` (the Ralph sidecar at `plans/overview-ralph-state.json`), mutates `state.byTaskId[taskId].crewSessions[stage]`, then calls `writeSidecar()` and exits.
   - `--finalize-crew-session <taskId> <stage> --member <name> --outcome <s> [--summary <text>]` — same pattern.
+  - Both subcommands mutate the Ralph sidecar ONLY (`config.outputs.sidecarJson`). They do NOT directly edit the derived snapshot file (`plans/overview-snapshot.json`); `writeSidecar()` regenerates the snapshot downstream from the sidecar.
 - **`.claude/skills/work-on/SKILL.md`** — add the `--via-crew <crewName>` branch. When the flag is present:
   1. Derive the next command via `derive-next-command.mjs` as in the default path.
   2. Spawn a member by invoking the crews plugin's CLI mirror directly: `node D:/ai-developer-toolkit/plugins/crews/tools/spawn-member.js <generated-name> --crew <crewName> --cwd <main-repo-root> -- <derived-command-prompt>`. This is the canonical invocation path — Skill tool invocations of `/spawn-member` cannot fire the crews spawn hook, so the slash-command form is not viable from inside the `/work-on` skill. The CLI mirror is also the form Plan 09's MCP `overview.invoke_next` wraps for `viaCrewMember` (see "Hand-off to next plans").
@@ -114,6 +115,8 @@ When 0 signals match: do NOT add the member to any task. Log to stderr: `crews: 
 When multiple tasks match (rare — e.g. prompt mentions two task IDs): pick the first by file ordering and log the ambiguity.
 
 ## Subcommand-mode contract
+
+Both `--update-crew-session` and `--finalize-crew-session` operate on `config.outputs.sidecarJson` (the Ralph sidecar at `plans/overview-ralph-state.json`) — NOT on the derived snapshot at `plans/overview-snapshot.json`. The flow is: load the sidecar state, apply the mutation to `state.byTaskId[taskId].crewSessions[stage]`, refresh `generatedAt`, then call `writeSidecar()`. `writeSidecar()` is the single chokepoint that regenerates `overview-snapshot.json` (and any other downstream derived artifacts) from the sidecar; the subcommand must never write the snapshot file directly.
 
 Both `--update-crew-session` and `--finalize-crew-session` share the same `config.lockFile` (Plan 01 default: `.ralph/overview-sync.lock`) as the watcher (introduced in Plan 02) by calling `scripts/lib/sync-lock.mjs`. Plan 02's watcher holds that lock for its full lifetime and refreshes it with a 30s heartbeat; do not assume it releases between debounce ticks. If a watcher or one-shot sync already owns the lock, subcommands fail fast with the canonical diagnostic `another sync in progress (pid <N>, process <label>, started <ts>)` and make no partial snapshot write. If the lock is stale, reuse the shared helper's PID-liveness gate: ESRCH or unparseable metadata may be removed; EPERM/alive PIDs remain active.
 
