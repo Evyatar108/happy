@@ -1,6 +1,56 @@
 export interface OverviewTask {
   id: string;
+  scope?: string;
+  phase?: string;
+  status?: string;
+  lastTouchedAt?: string;
+  command?: {
+    name?: string;
+    descriptionHtml?: string;
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
+}
+
+export type RalphStage =
+  | 'brainstorming'
+  | 'brainstorm-ready'
+  | 'planning'
+  | 'plan-ready'
+  | 'implementing'
+  | 'reviewing'
+  | 'review-fix'
+  | 'replan-pending'
+  | 'shipped'
+  | 'blocked';
+
+export interface RalphPipelineState {
+  stage: RalphStage;
+  jobSlug?: string;
+  groupSlug?: string;
+  isParallel?: boolean;
+  deferredQuestionsCount?: number;
+  reviewOpenCount?: Record<string, number | undefined>;
+  lastUpdatedAt?: string;
+  [key: string]: unknown;
+}
+
+export interface SnapshotTask extends OverviewTask {
+  ralph?: RalphPipelineState;
+}
+
+export interface Recommendation {
+  taskId: string;
+  score: number;
+  stage: RalphStage;
+  reasons: string[];
+  [key: string]: unknown;
+}
+
+export interface NextCommand {
+  label: string;
+  command: string;
+  icon?: string;
 }
 
 export interface OverviewData {
@@ -24,9 +74,9 @@ export interface Snapshot extends OverviewData {
   generatedAt: string;
   generatedFromCommit: string;
   schemaVersion: 1;
-  tasks: OverviewTask[];
+  tasks: SnapshotTask[];
   runs: unknown[];
-  recommendations: unknown[];
+  recommendations?: Recommendation[];
   dependencyGraph: { nodes: unknown[]; edges: unknown[] };
   runDurations: Record<string, number>;
   unmatched: Array<{ kind: string; slug: string; reason: string }>;
