@@ -60,12 +60,14 @@ Each member's `manifest.json` exposes the canonical `sessionId` and `transcriptP
   export interface CrewSessionRef {
       crewName: string
       memberName: string
-      sessionId: string
-      transcriptPath: string
+      sessionId?: string
+      transcriptPath?: string
       startedAt: string
       endedAt?: string
       outcome?: 'completed' | 'handed-off' | 'stopped' | 'failed'
       summary?: string
+      cwd?: string
+      _isExplicit?: boolean
   }
 
   export interface RalphPipelineState {
@@ -123,9 +125,9 @@ After the subcommand updates `RalphPipelineState.crewSessions` and rewrites the 
 
 Rule: explicit-write entries WIN over heuristic-discovered entries. Implementation:
 
-- Each `CrewSessionRef` carries an internal `_source: 'explicit' | 'heuristic'` field (NOT serialized to the snapshot — it's an in-memory annotation during merging).
+- Each `CrewSessionRef` carries a serialized `_isExplicit?: boolean` flag. Entries written via `--update-crew-session` / `--finalize-crew-session` set `_isExplicit: true`; entries produced by the heuristic cross-walk omit it (or leave it falsy). The flag is persisted to the snapshot so subsequent ticks can preserve precedence across watcher restarts.
 - On merge, if two entries have the same `sessionId`:
-  - If one is `explicit` and one is `heuristic`: keep the `explicit` entry.
+  - If one has `_isExplicit: true` and the other does not: keep the explicit entry.
   - If both are explicit: keep the more recent `startedAt`.
   - If both are heuristic: keep the more recent `startedAt`.
 
@@ -184,7 +186,7 @@ I. **Conflict resolution:** add a session via subcommand mode (explicit). Then o
 1. **Don't watch `.crews/spawn-launchers/`.** Spawn launchers are write-once and read-once; watching them produces spurious events. The manifest is the canonical state source.
 2. **Don't watch mailbox/outbox files.** Mailboxes churn on every message; that's not pipeline state. Filter via chokidar's `ignored` pattern.
 3. **`cwd` filter is critical.** Crews state is workspace-scoped at the directory level, so members from unrelated repos may appear in `.crews/`. The cwd filter is the only safeguard against showing them in this repo's snapshot.
-4. **Explicit writes win over heuristic.** Without this rule, the heuristic cross-walk might overwrite an explicitly-recorded `summary` or `outcome` on the next tick. The `_source` annotation enforces precedence.
+4. **Explicit writes win over heuristic.** Without this rule, the heuristic cross-walk might overwrite an explicitly-recorded `summary` or `outcome` on the next tick. The serialized `_isExplicit` flag enforces precedence and survives watcher restarts.
 5. **`CrewSessionRef` is append-only, not authoritative.** The real-time member state (alive, idle, stopped) lives in `manifest.json`. The snapshot's `CrewSessionRef` reflects state as of the last tick. For live status, consult `manifest.json` directly (Plan 09's MCP tool re-reads manifests on demand).
 6. **Don't surface members from worktree-local `.crews/`.** Worktrees may have their own `.crews/` directory. The watch root is the main repo's `.crews/`, not `.worktrees/<name>/.crews/`.
 7. **Heuristic match by task ID, not stage.** A member spawned for "work on overview-vite-react: implement Story 3" is recorded under the task `overview-vite-react`, with `stage` derived from the task's current stage at spawn time (read from `byTaskId[<task>].stage`). Don't try to infer stage from the prompt text.
