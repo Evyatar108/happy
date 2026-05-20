@@ -33,7 +33,8 @@ Per the user's preference, the skills live in `D:\harness-efforts\codexu\.claude
 ### To create
 
 - **`scripts/lib/derive-next-command.mjs`** — pure function `deriveNextCommand(ralphPipelineState, task) -> NextCommand | null`. Returns `null` for stage `shipped` (unless `terminalReason === 'replan'`). Outputs `{ label, command, icon? }`.
-- **`scripts/lib/derive-next-command.test.mjs`** (one case per stage value, flat layout per repo convention) plus **`scripts/lib/derive-next-command-cli.test.mjs`** for the CLI wrapper — 10 stages. One case asserts that a task in the `replan-pending` stage (emitted by `derive-ralph-stage.mjs` when `orchestrator.terminal === true && terminalReason === 'replan'`) returns the `/plan-with-ralph --improve <jobDir>/plan.md` command.
+- **`scripts/lib/derive-next-command-cli.mjs`** — thin Node CLI wrapper around `deriveNextCommand`. Resolves `repoRoot` via `git rev-parse --show-toplevel`, reads `plans/overview-snapshot.json` (override path with `--snapshot <file>`), finds the task whose `id` matches the required `--task <id>` flag (case-insensitive), and prints the resulting `NextCommand | null` as JSON on stdout. Errors (missing flag, unknown task, unreadable snapshot, git failure) go to stderr with a non-zero exit. This is the integration shape skills consume — they shell out to this CLI rather than dynamically importing the ESM module from their markdown prose.
+- **`scripts/lib/derive-next-command.test.mjs`** (one case per stage value, flat layout per repo convention) plus **`scripts/lib/derive-next-command-cli.test.mjs`** for the CLI wrapper — 10 stages on the pure-function side. One case asserts that a task in the `replan-pending` stage (emitted by `derive-ralph-stage.mjs` when `orchestrator.terminal === true && terminalReason === 'replan'`) returns the `/plan-with-ralph --improve <jobDir>/plan.md` command. The CLI test spawns the wrapper against a fixture snapshot under `scripts/lib/fixtures/` and covers: happy path (prints `NextCommand` JSON), `null` result (stage `shipped`), missing `--task`, unknown task id, and unreadable snapshot path.
 - **`.claude/skills/work-on/SKILL.md`** — implementation details below.
 - **`.claude/skills/triage/SKILL.md`** — implementation details below.
 - **`.claude/skills/blocker-report/SKILL.md`** — implementation details below.
@@ -99,8 +100,8 @@ Body (the skill's own prose, written for Claude to execute):
    - If undefined and `OverviewTask.command.planPrompt` is set, fall back to the seed prompt (the bookkeeper-authored plan-with-ralph invocation). Inform the user this is the seed, not a resume.
    - If both are missing, error with guidance.
 
-5. **Derive next command via `scripts/lib/derive-next-command.mjs`:**
-   - Use the `Skill` tool with absolute path imports if needed, OR execute `node -e "import('./scripts/lib/derive-next-command.mjs').then(m => console.log(JSON.stringify(m.deriveNextCommand(...))))"` to get the result. The skill is a markdown file, so this is one of those cases where we shell out to Node from the skill's prose.
+5. **Derive next command via the CLI wrapper at `scripts/lib/derive-next-command-cli.mjs`:**
+   - Run `node scripts/lib/derive-next-command-cli.mjs --task <selected-task-id>` (from the repo root). The CLI resolves the snapshot path, looks up the task, and prints the `NextCommand | null` result as a single JSON line on stdout. Parse stdout as JSON to get the `{ label, command, icon? } | null` object. On non-zero exit, surface stderr to the user and stop. The skill is a markdown file, so this CLI is how it reaches the predicate without dynamically importing ESM from prose.
 
 6. **Invoke or print:**
    - If `--dry-run`: print the resolved command and exit.
@@ -189,7 +190,7 @@ I. **Version-pin sanity:** open `scripts/lib/derive-next-command.mjs`; confirm t
 
 1. **Single source of truth.** `derive-next-command.mjs` is THE predicate. The skills, the optional UI button, and the MCP server (Plan 09) all import it. Never re-implement the table.
 2. **Version-pin lives in code, not in the plan.** The comment at the top of `derive-next-command.mjs` is the contract. When the ralph plugin upgrades, audit the module and bump the version pin.
-3. **The skill is markdown; it doesn't import TS directly.** Skills are Claude-readable instructions, not code. To call `deriveNextCommand`, the skill's prose tells Claude to shell out to Node: `node -e "import('./scripts/lib/derive-next-command.mjs').then(...)"`. This is awkward but acceptable; Plan 09 (MCP) eliminates the shell-out by importing directly in TypeScript.
+3. **The skill is markdown; it doesn't import the ESM module directly.** Skills are Claude-readable instructions, not code. To call `deriveNextCommand`, the skill's prose tells Claude to shell out to the dedicated CLI wrapper `scripts/lib/derive-next-command-cli.mjs` (e.g. `node scripts/lib/derive-next-command-cli.mjs --task <task-id>`) and parse its stdout as JSON. The CLI is the integration shape skills consume; do NOT replace it with ad-hoc `node -e "import(...)"` snippets in the skill prose. Plan 09 (MCP) eliminates the shell-out entirely by importing `derive-next-command.mjs` directly in TypeScript, but for skills the CLI is the contract.
 4. **`/work-on` falls back to seed prompt when there's no ralph state.** Don't error in that case — the seed prompt is the bookkeeper-authored starting point for a never-started task.
 5. **Skill paths must be repo-local.** Putting them under `~/.claude/skills/` would make them user-global; the user explicitly chose repo-local so the skill can evolve with the codebase.
 6. **Don't auto-invoke without confirmation in `/work-on`.** Default behavior is invoke; `--dry-run` is the safety hatch. Some users may want a default `--confirm` flag; add a config option if so. For v1, invoke is default.
