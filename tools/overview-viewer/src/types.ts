@@ -163,6 +163,12 @@ export interface Recommendation {
     reasons: string[]
 }
 
+export interface NextCommand {
+    label: string
+    command: string
+    icon?: string
+}
+
 export interface DependencyGraph {
     nodes: Array<{
         id: string
