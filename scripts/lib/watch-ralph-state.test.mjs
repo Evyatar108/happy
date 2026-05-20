@@ -25,6 +25,7 @@ afterEach(async () => {
     vi.useRealTimers()
     vi.restoreAllMocks()
     vi.doUnmock('chokidar')
+    vi.doUnmock('./append-journal.mjs')
     vi.doUnmock('./emit-activity.mjs')
     vi.doUnmock('./sync-core.mjs')
     vi.resetModules()
@@ -60,12 +61,14 @@ describe('watch-ralph-state activity events', () => {
             },
         ]
         const appendActivity = vi.fn()
+        const appendJournalEntry = vi.fn()
         const mergeAndWrite = vi.fn(async (args) => ({
             state: args.currentState,
             writtenAt: '2026-05-19T10:00:03.000Z',
             changedTaskIds: ['task'],
             activityEvents,
         }))
+        vi.doMock('./append-journal.mjs', () => ({ appendJournalEntry }))
         vi.doMock('./emit-activity.mjs', () => ({ appendActivity, rotateActivity: vi.fn() }))
         vi.doMock('./sync-core.mjs', async (importOriginal) => {
             const actual = await importOriginal()
@@ -94,6 +97,15 @@ describe('watch-ralph-state activity events', () => {
             activityEvents[1],
             expect.objectContaining({ maxLines: 1000 }),
         )
+        expect(appendJournalEntry).toHaveBeenCalledTimes(1)
+        expect(appendJournalEntry).toHaveBeenCalledWith({
+            repoRoot: fixture.repoRoot,
+            taskId: 'task',
+            ts: '2026-05-19T10:00:01.000Z',
+            prevStage: 'plan-ready',
+            newStage: 'implementing',
+            slug: 'task',
+        })
         expect(mergeAndWrite).toHaveBeenCalledTimes(1)
         expect(handle.status.pendingChanges).toEqual([])
         await vi.waitFor(() => expect(onWrite).toHaveBeenCalledWith(expect.objectContaining({ changedTaskIds: ['task'] })))
@@ -127,6 +139,9 @@ describe('watch-ralph-state activity events', () => {
         const appendActivity = vi.fn((_repoRoot, event) => {
             order.push(`append:${event.ts}`)
         })
+        const appendJournalEntry = vi.fn((_entry) => {
+            order.push('journal')
+        })
         const mergeAndWrite = vi.fn(async (args) => {
             order.push('mergeAndWrite')
             return {
@@ -137,6 +152,7 @@ describe('watch-ralph-state activity events', () => {
             }
         })
         mockLock(order)
+        vi.doMock('./append-journal.mjs', () => ({ appendJournalEntry }))
         vi.doMock('./emit-activity.mjs', () => ({ appendActivity, rotateActivity: vi.fn() }))
         vi.doMock('./sync-core.mjs', async (importOriginal) => {
             const actual = await importOriginal()
@@ -154,6 +170,7 @@ describe('watch-ralph-state activity events', () => {
         expect(order).toEqual([
             'mergeAndWrite',
             'append:2026-05-19T10:00:01.000Z',
+            'journal',
             'append:2026-05-19T10:00:02.000Z',
             'touch',
         ])
@@ -162,6 +179,7 @@ describe('watch-ralph-state activity events', () => {
         expect(order).toEqual([
             'mergeAndWrite',
             'append:2026-05-19T10:00:01.000Z',
+            'journal',
             'append:2026-05-19T10:00:02.000Z',
             'touch',
             'release',

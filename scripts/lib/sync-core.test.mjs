@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -64,6 +65,20 @@ function writeGroupState(repoRoot, slug, groupJson) {
     fs.mkdirSync(groupDir, { recursive: true })
     writeJson(path.join(groupDir, 'group.json'), groupJson)
     writeJson(path.join(groupDir, 'job-state.json'), {})
+}
+
+function writePrd(repoRoot, slug, prd) {
+    writeJson(path.join(repoRoot, '.ralph', 'jobs', slug, 'prd.json'), prd)
+}
+
+function writeNotepad(repoRoot, slug, text) {
+    const notepadPath = path.join(repoRoot, '.ralph', 'jobs', slug, 'notepad.md')
+    fs.mkdirSync(path.dirname(notepadPath), { recursive: true })
+    fs.writeFileSync(notepadPath, text)
+}
+
+function runGit(repoRoot, args) {
+    return execFileSync('git', ['-C', repoRoot, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
 }
 
 let tempRoot
@@ -253,6 +268,85 @@ describe('sync-core hasPrdWorthy derivation', () => {
         const state = await walkRalphState({ repoRoot: tempRoot, config, generatedFromCommit: 'abc1234' })
 
         expect(Object.prototype.hasOwnProperty.call(state.byTaskId[slug] ?? {}, 'hasPrdWorthy')).toBe(false)
+    })
+})
+
+describe('sync-core Plan 07 context fields', () => {
+    test('populates notepad fields, branchName, prUrl, and shipped mergeCommit', async () => {
+        const slug = 'plan-07-job'
+        const branchName = 'feature/plan-07-context'
+        writeOverviewData(tempRoot, [slug])
+        writeJobState(tempRoot, slug, {
+            orchestrator: { terminal: true, terminalReason: 'complete' },
+        })
+        writePrd(tempRoot, slug, { branch: { name: branchName } })
+        writeNotepad(
+            tempRoot,
+            slug,
+            [
+                '# Notepad',
+                '',
+                '## Deferred Questions',
+                '',
+                '| Iter | Question | Answer |',
+                '|------|----------|--------|',
+                '| 1 | First unresolved question that should surface | |',
+                '| 2 | Already handled | Done |',
+                '| 3 | Also handled | Yes |',
+                '',
+                '## Story Doctor Log',
+                '',
+                '| When | Note |',
+                '|------|------|',
+                '| 2026-05-20 | Split story |',
+                '| 2026-05-20 | Tightened criteria |',
+            ].join('\n'),
+        )
+        runGit(tempRoot, ['init'])
+        runGit(tempRoot, ['remote', 'add', 'origin', 'https://github.com/slopus/happy.git'])
+        fs.writeFileSync(path.join(tempRoot, 'README.md'), 'fixture\n')
+        runGit(tempRoot, ['add', 'README.md'])
+        runGit(tempRoot, ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'Closes #77'])
+        const commit = runGit(tempRoot, ['rev-parse', 'HEAD'])
+        runGit(tempRoot, ['branch', branchName])
+
+        const config = buildConfig(tempRoot)
+        const state = await walkRalphState({ repoRoot: tempRoot, config, generatedFromCommit: 'abc1234' })
+
+        expect(state.byTaskId[slug]).toMatchObject({
+            stage: 'shipped',
+            branchName,
+            deferredQuestionsCount: 1,
+            deferredQuestionsPreview: 'First unresolved question that should surface',
+            storyDoctorInterventions: 2,
+            prUrl: 'https://github.com/slopus/happy/pull/77',
+            mergeCommit: commit.slice(0, 8),
+        })
+        await writeSidecar({ repoRoot: tempRoot, config, state })
+        expect(readJsonFile(path.resolve(tempRoot, config.outputs.snapshot)).tasks[0].ralph).toMatchObject({
+            branchName,
+            deferredQuestionsCount: 1,
+            deferredQuestionsPreview: 'First unresolved question that should surface',
+            storyDoctorInterventions: 2,
+            prUrl: 'https://github.com/slopus/happy/pull/77',
+            mergeCommit: commit.slice(0, 8),
+        })
+    })
+
+    test('keeps sync successful when the configured branch is absent', async () => {
+        const slug = 'missing-branch-job'
+        writeOverviewData(tempRoot, [slug])
+        writeJobState(tempRoot, slug, { orchestrator: { phase: '1', terminal: false } })
+        writePrd(tempRoot, slug, { branch: { name: 'deleted/branch' } })
+
+        const state = await walkRalphState({ repoRoot: tempRoot, config: buildConfig(tempRoot), generatedFromCommit: 'abc1234' })
+
+        expect(state.byTaskId[slug]).toMatchObject({
+            stage: 'implementing',
+            branchName: 'deleted/branch',
+        })
+        expect(state.byTaskId[slug].prUrl).toBeUndefined()
+        expect(state.byTaskId[slug].mergeCommit).toBeUndefined()
     })
 })
 

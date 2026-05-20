@@ -7,8 +7,8 @@ React + Vite port of `plans/overview.html`. The app reads the existing `window.O
 - `overview.html` is the Vite HTML entry. Keep the sidecar script tag as `./overview-data.js` so the build can inline it and file URLs stay relative.
 - `src/main.tsx` mounts the React app and imports the copied legacy CSS from `src/styles.css`.
 - `src/App.tsx` wires the top-level dashboard surfaces, filters, hash navigation, and HMR data reload.
-- `src/components/` contains the command rows, kanban, phase tree, Today panel, toolbar, and static sections.
-- `src/hooks/` and `src/utils/` hold testable behavior ported from the legacy static renderer.
+- `src/components/` contains the command rows, kanban, phase tree, Today panel, toolbar, static sections, and the `RecentActivity` sidebar rendered through the `Layout` component's right-side sidebar slot.
+- `src/hooks/` and `src/utils/` hold testable behavior ported from the legacy static renderer, including `useActivityEvents` which streams Ralph activity from `/overview-activity.jsonl`.
 
 ## Development
 

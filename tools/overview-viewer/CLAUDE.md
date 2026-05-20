@@ -53,6 +53,13 @@ The custom Vite plugin in `vite.config.ts`:
 The same config also starts `scripts/lib/watch-ralph-state.mjs` via `ralphStateWatcherPlugin()` during dev-server startup. On debounced Ralph-state writes it emits `overview-ralph-state:update`; keep this as a custom websocket event and tolerate shared-lock contention by logging a warning instead of failing `pnpm overview` startup. The serving/inlining side of the Ralph sidecar lives in `overviewRalphStatePlugin()` (sibling to `overviewDataPlugin`), not in the watcher plugin.
 
 Ralph state uses the same fetch + re-execute pattern in `App.tsx`, but with a separate additive subscription to `overview-ralph-state:update`. Keep both HMR handlers (`reloadOverviewData` for `overview-data:update`, `reloadRalphState` for `overview-ralph-state:update`) registered independently.
+When cleaning up HMR subscriptions, call `import.meta.hot?.off?.(...)`; Vitest's HMR shim can expose `on` without `off`.
+
+Ralph activity is served as raw JSONL at `/overview-activity.jsonl` by `overviewActivityPlugin()` and consumed by `useActivityEvents()`. Activity readers must parse line-by-line, skip a malformed final non-empty line as a torn write, warn only for malformed interior lines, and refetch on `overview-ralph-state:update`.
+
+When adding fields to `RalphPipelineState`, mirror them in `scripts/lib/emit-snapshot-schema.mjs` and add an Ajv regression in `scripts/lib/emit-snapshot-schema.test.mjs` so generated snapshots accept the new shape.
+
+Ralph task-specific tooltip extras are composed in `TaskCommand` and passed through `RalphStageChip.tooltipExtras`; keep `RalphStageChip` as the generic stage/slug/timestamp surface.
 
 ## Ralph state sidecar
 

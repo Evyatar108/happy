@@ -89,6 +89,11 @@ export function Legend() {
     )
 }
 
-export function Layout({ children }: { children: ReactNode }) {
-    return <main>{children}</main>
+export function Layout({ children, sidebar }: { children: ReactNode; sidebar?: ReactNode }) {
+    return (
+        <main className="overview-layout">
+            <div className="overview-main">{children}</div>
+            {sidebar ? <div className="overview-sidebar-column">{sidebar}</div> : null}
+        </main>
+    )
 }

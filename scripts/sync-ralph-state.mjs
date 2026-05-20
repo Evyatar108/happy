@@ -4,6 +4,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
+import { appendJournalEntry } from './lib/append-journal.mjs'
 import { appendActivity } from './lib/emit-activity.mjs'
 import { resolveHeadShortSha as sharedResolveHeadShortSha } from './lib/path-utils.mjs'
 import { loadConfig } from './lib/resolve-config.mjs'
@@ -57,6 +58,7 @@ async function runOneShot({ repoRoot, config }) {
                 activityBackupPath: config.outputs.activityBackup,
                 maxLines: config.outputs.activityMaxLines,
             })
+            appendJournalForStageEvent({ repoRoot, event })
         }
     } finally {
         await releaseLock(lockHandle)
@@ -141,6 +143,20 @@ function resolveHeadShortSha(repoRoot) {
         onError: () => {
             console.error(HEAD_WARNING)
         },
+    })
+}
+
+function appendJournalForStageEvent({ repoRoot, event }) {
+    if (!event?.changedFields?.includes('stage')) {
+        return
+    }
+    appendJournalEntry({
+        repoRoot,
+        taskId: event.taskId,
+        ts: event.ts,
+        prevStage: event.prevStage,
+        newStage: event.newStage,
+        slug: event.slug,
     })
 }
 

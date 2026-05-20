@@ -5,10 +5,12 @@ import { CopyToast } from './components/CopyToast'
 import { Kanban } from './components/Kanban'
 import { PhaseTree } from './components/PhaseTree'
 import { PipelineOverview } from './components/PipelineOverview'
+import { RecentActivity } from './components/RecentActivity'
 import { DependenciesSection, Footnote, ParallelismSection } from './components/StaticSections'
 import { FreshnessHint, Layout, WhatsNewBanner } from './components/TopLevelSurfaces'
 import { TodayPanel } from './components/TodayPanel'
 import { Toolbar } from './components/Toolbar'
+import { useActivityEvents } from './hooks/useActivityEvents'
 import { useBulkSelection } from './hooks/useBulkSelection'
 import { useDensity } from './hooks/useDensity'
 import { useHashNav } from './hooks/useHashNav'
@@ -42,6 +44,8 @@ export function App() {
     const filter = useMultiAxisFilter(data, taskIdFilter, ralphState)
     const bulkSelection = useBulkSelection(data.tasks ?? [])
     const density = useDensity()
+    const activityEvents = useActivityEvents()
+    const [recentActivityCollapsed, setRecentActivityCollapsed] = useState(() => density.density === 'compact')
     const whatsNew = useWhatsNewSinceLastVisit(data)
     const toast = useToast()
     useHashNav(expandedControls.setTaskExpanded)
@@ -68,7 +72,7 @@ export function App() {
 
         import.meta.hot.on('overview-data:update', updateCount)
         return () => {
-            import.meta.hot?.off('overview-data:update', updateCount)
+            import.meta.hot?.off?.('overview-data:update', updateCount)
         }
     }, [])
 
@@ -79,7 +83,7 @@ export function App() {
 
         import.meta.hot.on('overview-ralph-state:update', reloadRalphState)
         return () => {
-            import.meta.hot?.off('overview-ralph-state:update', reloadRalphState)
+            import.meta.hot?.off?.('overview-ralph-state:update', reloadRalphState)
         }
     }, [reloadRalphState])
 
@@ -112,7 +116,16 @@ export function App() {
     })
 
     return (
-        <Layout>
+        <Layout
+            sidebar={(
+                <RecentActivity
+                    activityEvents={activityEvents}
+                    setFocusedTaskId={(id) => navigateToCommand(id, expandedControls.setTaskExpanded)}
+                    collapsed={recentActivityCollapsed}
+                    onToggle={() => setRecentActivityCollapsed((collapsed) => !collapsed)}
+                />
+            )}
+        >
             <h1>codexu — plan overview</h1>
             <FreshnessHint data={data} />
             <TodayPanel data={data} />

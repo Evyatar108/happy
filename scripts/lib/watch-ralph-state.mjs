@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { watch } from 'chokidar'
 
+import { appendJournalEntry } from './append-journal.mjs'
 import { appendActivity } from './emit-activity.mjs'
 import { compileIgnoredPatterns, matchesIgnored, resolveHeadShortSha, splitPath } from './path-utils.mjs'
 import { loadConfig } from './resolve-config.mjs'
@@ -145,6 +146,7 @@ export async function start({ repoRoot, configPath, debounceMs = DEFAULT_DEBOUNC
                     activityBackupPath: config.outputs.activityBackup,
                     maxLines: config.outputs.activityMaxLines,
                 })
+                appendJournalForStageEvent({ repoRoot: absoluteRepoRoot, event })
             }
             currentState = result.state
             lastTickAt = result.writtenAt
@@ -303,4 +305,18 @@ function parseWatchedPath(filePath, roots, eventName) {
 
 function changeKey(kind, slug) {
     return `${kind}:${slug}`
+}
+
+function appendJournalForStageEvent({ repoRoot, event }) {
+    if (!event?.changedFields?.includes('stage')) {
+        return
+    }
+    appendJournalEntry({
+        repoRoot,
+        taskId: event.taskId,
+        ts: event.ts,
+        prevStage: event.prevStage,
+        newStage: event.newStage,
+        slug: event.slug,
+    })
 }

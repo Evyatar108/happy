@@ -9,6 +9,7 @@ import { viteSingleFile as singleFile } from 'vite-plugin-singlefile'
 
 const overviewDataPath = resolve(__dirname, '../../plans/overview-data.js')
 const overviewRalphStatePath = resolve(__dirname, '../../plans/overview-ralph-state.js')
+const overviewActivityPath = resolve(__dirname, '../../plans/overview-activity.jsonl')
 const overviewHtmlPath = resolve(__dirname, '../../plans/overview.html')
 const overviewHtmlNextPath = resolve(__dirname, '../../plans/overview.html.next')
 const overviewDataScriptTag = '<script src="./overview-data.js"></script>'
@@ -140,6 +141,33 @@ function overviewRalphStatePlugin(): Plugin {
     }
 }
 
+export function overviewActivityPlugin(activityPath = overviewActivityPath): Plugin {
+    return {
+        name: 'overview-activity',
+        enforce: 'pre',
+        configureServer(server) {
+            server.middlewares.use('/overview-activity.jsonl', async (_req, res) => {
+                try {
+                    const data = await readFile(activityPath)
+                    res.setHeader('Content-Type', 'application/x-ndjson')
+                    res.end(data)
+                } catch (error) {
+                    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+                        res.statusCode = 200
+                        res.setHeader('Content-Type', 'application/x-ndjson')
+                        res.end('')
+                        return
+                    }
+                    const message = error instanceof Error ? error.message : String(error)
+                    res.statusCode = 500
+                    res.setHeader('Content-Type', 'text/plain')
+                    res.end(`Failed to read overview-activity.jsonl: ${message}`)
+                }
+            })
+        },
+    }
+}
+
 export function ralphStateWatcherPlugin({
     repoRoot: watcherRepoRoot = repoRoot,
     configPath,
@@ -176,7 +204,7 @@ export function ralphStateWatcherPlugin({
 export default defineConfig({
     root: __dirname,
     base: './',
-    plugins: [react(), singleFile(), overviewDataPlugin(), overviewRalphStatePlugin(), ralphStateWatcherPlugin()],
+    plugins: [react(), singleFile(), overviewDataPlugin(), overviewRalphStatePlugin(), overviewActivityPlugin(), ralphStateWatcherPlugin()],
     build: {
         outDir: '../../plans',
         emptyOutDir: false,
