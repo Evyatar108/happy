@@ -18,6 +18,7 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   }
   closing = true;
   process.stderr.write(`overview-mcp: received ${signal}; shutting down\n`);
+  await context.snapshotReader.close();
   await server.close();
   process.exit(0);
 }
@@ -30,5 +31,6 @@ process.once('SIGTERM', () => {
   void shutdown('SIGTERM');
 });
 
+context.snapshotReader.start();
 await server.connect(transport);
 process.stderr.write('overview-mcp: connected\n');

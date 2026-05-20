@@ -3,17 +3,22 @@ import path from 'node:path';
 
 import { loadConfig } from '../../../scripts/lib/resolve-config.mjs';
 
+import { SnapshotReader } from './snapshot-reader.js';
+
 export interface ServerContext {
   repoRoot: string;
   config: ReturnType<typeof loadConfig>;
+  snapshotReader: SnapshotReader;
 }
 
 export function buildContext(repoRoot = resolveRepoRoot(process.cwd())): ServerContext {
   const resolvedRepoRoot = path.resolve(repoRoot);
+  const config = loadConfig({ repoRoot: resolvedRepoRoot });
 
   return {
     repoRoot: resolvedRepoRoot,
-    config: loadConfig({ repoRoot: resolvedRepoRoot }),
+    config,
+    snapshotReader: new SnapshotReader(config),
   };
 }
 
