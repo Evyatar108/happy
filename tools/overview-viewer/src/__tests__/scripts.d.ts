@@ -246,6 +246,21 @@ declare module '../../../../scripts/lib/load-prds-by-task-id.mjs' {
     }): Record<string, PrdCarrier>
 }
 
+declare module '../../../../scripts/lib/emit-derived-artifacts.mjs' {
+    import type { OverviewData, OverviewRalphState } from '../types'
+    import type { RalphOverviewConfig } from '../../../../scripts/lib/default-config.mjs'
+    import type { PrdCarrier } from '../../../../scripts/lib/load-prds-by-task-id.mjs'
+
+    export function emitDerivedArtifacts(options: {
+        repoRoot: string
+        config: RalphOverviewConfig
+        state: OverviewRalphState
+        overviewData: OverviewData
+        prdsByTaskId?: Record<string, PrdCarrier>
+        generatedFromCommit?: string
+    }): Promise<{ runDurations: Record<string, number> }>
+}
+
 declare module '../../../../scripts/lib/sync-lock.mjs' {
     export interface SyncLockMetadata {
         pid: number

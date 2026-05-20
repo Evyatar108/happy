@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { deriveRalphStage, IMPLEMENTING_PHASES, REVIEW_PHASES } from './derive-ralph-stage.mjs'
 import { rotateActivity } from './emit-activity.mjs'
+import { emitDerivedArtifacts } from './emit-derived-artifacts.mjs'
 import { buildSnapshot } from './emit-snapshot.mjs'
 import { SNAPSHOT_SCHEMA } from './emit-snapshot-schema.mjs'
 import { buildTasksIndex } from './emit-tasks-index.mjs'
@@ -37,8 +38,6 @@ const FINDINGS_FILES = Object.freeze([
 ])
 const KIND_PRECEDENCE = Object.freeze(['job', 'group', 'brainstorm'])
 const MEDIUM_PLUS = new Set(['Medium', 'High', 'Critical'])
-const PLAN_04_RECOMMENDATIONS_PATH = 'plans/overview-recommendations.json'
-const PLAN_04_DEPENDENCY_GRAPH_PATH = 'plans/overview-dependency-graph.json'
 
 export async function walkRalphState({ repoRoot, config, generatedFromCommit }) {
     if (!repoRoot || !config) {
@@ -355,7 +354,15 @@ export async function writeSidecar({ repoRoot, config, state }) {
     }
 
     const absoluteRepoRoot = path.resolve(repoRoot)
-    await emitAgentArtifacts({ repoRoot: absoluteRepoRoot, config, state })
+    const overviewData = loadOverviewData(resolveMaybeAbsolute(absoluteRepoRoot, config.dataFile))
+    const { runDurations } = await emitDerivedArtifacts({
+        repoRoot: absoluteRepoRoot,
+        config,
+        state,
+        overviewData,
+        generatedFromCommit: state.generatedFromCommit,
+    })
+    await emitAgentArtifacts({ repoRoot: absoluteRepoRoot, config, state, overviewData, runDurations })
 
     const json = JSON.stringify(state).replace(/<\/(script)/gi, '<\\/$1')
     const outputs = config.outputs ?? {}
@@ -374,20 +381,20 @@ function unwrapDependencyGraph(raw) {
     return { nodes: [], edges: [] }
 }
 
-async function emitAgentArtifacts({ repoRoot, config, state }) {
+async function emitAgentArtifacts({ repoRoot, config, state, overviewData, runDurations } = {}) {
     const outputs = config.outputs ?? {}
-    const overviewData = loadOverviewData(resolveMaybeAbsolute(repoRoot, config.dataFile))
+    const parsedOverviewData = overviewData ?? loadOverviewData(resolveMaybeAbsolute(repoRoot, config.dataFile))
     const snapshot = buildSnapshot({
         ralphState: state,
-        overviewData,
-        recommendations: unwrapRecommendations(readJsonFile(path.join(repoRoot, PLAN_04_RECOMMENDATIONS_PATH)).value),
-        dependencyGraph: unwrapDependencyGraph(readJsonFile(path.join(repoRoot, PLAN_04_DEPENDENCY_GRAPH_PATH)).value),
-        runDurations: state.runDurations ?? {},
+        overviewData: parsedOverviewData,
+        recommendations: unwrapRecommendations(readJsonFile(resolveMaybeAbsolute(repoRoot, outputs.recommendationsJson)).value),
+        dependencyGraph: unwrapDependencyGraph(readJsonFile(resolveMaybeAbsolute(repoRoot, outputs.dependencyGraphJson)).value),
+        runDurations: runDurations ?? {},
     })
 
     await atomicWriteFile(resolveMaybeAbsolute(repoRoot, outputs.snapshotSchema), `${JSON.stringify(SNAPSHOT_SCHEMA, null, 2)}\n`)
     await atomicWriteFile(resolveMaybeAbsolute(repoRoot, outputs.snapshot), `${JSON.stringify(snapshot, null, 2)}\n`)
-    await atomicWriteFile(resolveMaybeAbsolute(repoRoot, outputs.dataJson), `${JSON.stringify(overviewData, null, 2)}\n`)
+    await atomicWriteFile(resolveMaybeAbsolute(repoRoot, outputs.dataJson), `${JSON.stringify(parsedOverviewData, null, 2)}\n`)
     await atomicWriteFile(resolveMaybeAbsolute(repoRoot, outputs.tasksIndex), buildTasksIndex(snapshot))
     ensureActivityFile({
         activityPath: resolveMaybeAbsolute(repoRoot, outputs.activity),
