@@ -38,6 +38,7 @@ function buildConfig(repoRoot) {
             sidecarJson: path.join(repoRoot, 'plans', 'overview-ralph-state.json'),
             sidecarJs: path.join(repoRoot, 'plans', 'overview-ralph-state.js'),
         },
+        lockFile: path.join(repoRoot, '.ralph', 'overview-sync.lock'),
     }
 }
 
@@ -597,6 +598,105 @@ describe('sync-core crew session merge', () => {
             endedAt: '2026-05-20T11:00:00.000Z',
             outcome: 'handed-off',
             summary: 'explicit summary',
+            _isExplicit: true,
+        })
+    })
+
+    test('explicit subcommand entry survives a matching heuristic sessionId discovery', async () => {
+        const slug = 'TASK-123'
+        const config = buildConfig(tempRoot)
+        writeOverviewData(tempRoot, [slug])
+        writeJson(config.outputs.sidecarJson, buildState({ [slug]: { stage: 'implementing', jobSlug: slug } }))
+        const { runUpdateCrewSession } = await import('../sync-ralph-state.mjs')
+
+        await runUpdateCrewSession({
+            repoRoot: tempRoot,
+            config,
+            taskId: slug,
+            stage: 'implementing',
+            refJson: JSON.stringify({
+                crewName: 'crew-a',
+                memberName: 'alice',
+                startedAt: '2026-05-20T10:00:00.000Z',
+                sessionId: 'session-a',
+                endedAt: '2026-05-20T11:00:00.000Z',
+                outcome: 'handed-off',
+                summary: 'explicit summary',
+            }),
+        })
+        writeCrewManifest(tempRoot, 'crew-a', 'members', 'alice', {
+            name: 'alice',
+            crew: 'crew-a',
+            cwd: tempRoot,
+            startedAt: '2026-05-20T10:00:00.000Z',
+            sessionId: 'session-a',
+            transcriptPath: 'C:\\Users\\evmitran\\session-a.jsonl',
+            lastHeartbeatAt: '2026-05-20T10:05:00.000Z',
+            lastSummary: 'heuristic summary TASK-123',
+        })
+
+        const currentState = readJsonFile(config.outputs.sidecarJson)
+        const result = await rescanCrewSessionsAndWrite({
+            repoRoot: tempRoot,
+            config,
+            overviewData: { tasks: [{ id: slug }] },
+            currentState,
+        })
+        const entries = result.state.byTaskId[slug].crewSessions.implementing
+
+        expect(entries).toHaveLength(1)
+        expect(entries[0]).toMatchObject({
+            crewName: 'crew-a',
+            memberName: 'alice',
+            sessionId: 'session-a',
+            transcriptPath: 'C:\\Users\\evmitran\\session-a.jsonl',
+            endedAt: '2026-05-20T11:00:00.000Z',
+            outcome: 'handed-off',
+            summary: 'explicit summary',
+            _isExplicit: true,
+        })
+    })
+
+    test('partial explicit subcommand entry upgrades in place after heuristic discovery', async () => {
+        const slug = 'TASK-123'
+        const config = buildConfig(tempRoot)
+        writeOverviewData(tempRoot, [slug])
+        writeJson(config.outputs.sidecarJson, buildState({ [slug]: { stage: 'implementing', jobSlug: slug } }))
+        const { runUpdateCrewSession } = await import('../sync-ralph-state.mjs')
+
+        await runUpdateCrewSession({
+            repoRoot: tempRoot,
+            config,
+            taskId: slug,
+            stage: 'implementing',
+            refJson: JSON.stringify({ crewName: 'crew-a', memberName: 'alice', startedAt: '2026-05-20T10:00:00.000Z' }),
+        })
+        writeCrewManifest(tempRoot, 'crew-a', 'members', 'alice', {
+            name: 'alice',
+            crew: 'crew-a',
+            cwd: tempRoot,
+            startedAt: '2026-05-20T10:00:00.000Z',
+            sessionId: 'session-a',
+            transcriptPath: 'C:\\Users\\evmitran\\session-a.jsonl',
+            lastHeartbeatAt: '2026-05-20T10:05:00.000Z',
+            lastSummary: 'TASK-123',
+        })
+
+        const currentState = readJsonFile(config.outputs.sidecarJson)
+        const result = await rescanCrewSessionsAndWrite({
+            repoRoot: tempRoot,
+            config,
+            overviewData: { tasks: [{ id: slug }] },
+            currentState,
+        })
+        const entries = result.state.byTaskId[slug].crewSessions.implementing
+
+        expect(entries).toHaveLength(1)
+        expect(entries[0]).toMatchObject({
+            crewName: 'crew-a',
+            memberName: 'alice',
+            sessionId: 'session-a',
+            transcriptPath: 'C:\\Users\\evmitran\\session-a.jsonl',
             _isExplicit: true,
         })
     })
