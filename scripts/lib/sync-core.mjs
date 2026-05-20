@@ -1,11 +1,14 @@
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { derivePRLinks } from './derive-pr-links.mjs'
 import { deriveRalphStage, IMPLEMENTING_PHASES, REVIEW_PHASES } from './derive-ralph-stage.mjs'
 import { rotateActivity } from './emit-activity.mjs'
 import { emitDerivedArtifacts } from './emit-derived-artifacts.mjs'
 import { buildSnapshot } from './emit-snapshot.mjs'
 import { SNAPSHOT_SCHEMA } from './emit-snapshot-schema.mjs'
+import { parseNotepad } from './parse-notepad.mjs'
 import { buildTasksIndex } from './emit-tasks-index.mjs'
 import { atomicWriteFile } from './atomic-write.mjs'
 import { matchesIgnored as sharedMatchesIgnored, toPosix as sharedToPosix } from './path-utils.mjs'
@@ -125,13 +128,16 @@ export function assembleStateFromBundles({ bundles, repoRoot, config, generatedF
         }
     }
 
+    const originUrl = withinKindWinners.some((bundle) => typeof bundle.prd?.branch?.name === 'string' && bundle.prd.branch.name.trim())
+        ? resolveOriginUrl(absoluteRepoRoot)
+        : undefined
     const byTaskId = {}
     for (const sameTaskBundles of groupBy(withinKindWinners, (bundle) => bundle.taskId).values()) {
         const { winner, shadowed } = resolveCrossKindPrecedence(sameTaskBundles)
         for (const loser of shadowed) {
             unmatched.push(unmatchedEntry(loser, `shadowed-by-${winner.kind}`))
         }
-        byTaskId[winner.taskId] = toPipelineState(winner)
+        byTaskId[winner.taskId] = toPipelineState(winner, absoluteRepoRoot, originUrl)
     }
 
     return {
@@ -498,6 +504,7 @@ function readJobLikeBundles({ repoRoot, rootDir, ralphRoot, ignored, kind, slugs
 
         const groupJsonPath = path.join(dir, 'group.json')
         const groupJsonResult = kind === 'group' && fs.existsSync(groupJsonPath) ? readJsonFile(groupJsonPath) : {}
+        const notepadText = readTextFile(path.join(dir, 'notepad.md'))
 
         const bundle = {
             kind,
@@ -514,6 +521,7 @@ function readJobLikeBundles({ repoRoot, rootDir, ralphRoot, ignored, kind, slugs
             jobState: jobStateResult.value,
             prd: prdResult.value,
             groupJson: groupJsonResult.value,
+            notepadText,
             reviewOpenCount,
             jobDirMarker: true,
         }
@@ -609,7 +617,7 @@ function deriveIsParallel(groupJson) {
     return phases.length !== new Set(phases).size
 }
 
-function toPipelineState(bundle) {
+function toPipelineState(bundle, repoRoot, originUrl) {
     const stage = deriveRalphStage({
         jobState: bundle.jobState,
         prd: bundle.prd,
@@ -622,9 +630,20 @@ function toPipelineState(bundle) {
     if (phase !== undefined && !KNOWN_ORCHESTRATOR_PHASES.has(phase)) {
         warnUnknownPhase(bundle.slug, phase)
     }
+    const notepad = parseNotepad(bundle.notepadText ?? '')
+    const prLinks = derivePRLinks({
+        groupState: bundle.groupJson,
+        repoRoot,
+        branchName: bundle.prd?.branch?.name,
+        stage,
+        originUrl,
+    })
 
     return pruneUndefined({
         stage,
+        branchName: prLinks.branchName,
+        deferredQuestionsCount: notepad.deferredQuestionsCount,
+        deferredQuestionsPreview: notepad.deferredQuestionsPreview,
         entryPath: bundle.kind === 'brainstorm' ? 'brainstorm-first' : undefined,
         artifacts: bundle.artifacts,
         jobSlug: bundle.kind === 'job' ? bundle.slug : undefined,
@@ -636,6 +655,9 @@ function toPipelineState(bundle) {
         hasPrdWorthy: orchestrator?.hasPrdWorthy === true ? true : undefined,
         terminalReason: orchestrator?.terminalReason,
         lastUpdatedAt: asRecord(bundle.jobState)?.updatedAt,
+        mergeCommit: prLinks.mergeCommit,
+        prUrl: prLinks.prUrl,
+        storyDoctorInterventions: notepad.storyDoctorInterventions,
     })
 }
 
@@ -656,6 +678,25 @@ function readJsonFile(filePath) {
         return { value: JSON.parse(fs.readFileSync(filePath, 'utf8')) }
     } catch (error) {
         return { value: undefined, error }
+    }
+}
+
+function readTextFile(filePath) {
+    try {
+        return fs.readFileSync(filePath, 'utf8')
+    } catch {
+        return ''
+    }
+}
+
+function resolveOriginUrl(repoRoot) {
+    try {
+        return execFileSync('git', ['-C', repoRoot, 'remote', 'get-url', 'origin'], {
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+        }).trim()
+    } catch {
+        return undefined
     }
 }
 

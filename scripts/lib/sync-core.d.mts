@@ -7,6 +7,7 @@ export interface RalphArtifactBundle {
     taskId?: string
     jobState?: unknown
     prd?: unknown
+    notepadText?: string
     brainstormJson?: unknown
     reviewOpenCount?: Record<string, number | undefined>
     jobDirMarker?: true
