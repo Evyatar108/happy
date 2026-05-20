@@ -60,6 +60,12 @@ export interface RalphArtifacts {
 
 export interface RalphPipelineState {
     stage: RalphStage
+    branchName?: string
+    deferredQuestionsCount?: number
+    deferredQuestionsPreview?: string
+    mergeCommit?: string
+    prUrl?: string
+    storyDoctorInterventions?: number
     entryPath?: RalphEntryPath
     artifacts?: RalphArtifacts
     jobSlug?: string

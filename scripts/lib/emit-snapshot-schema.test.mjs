@@ -66,4 +66,37 @@ describe('emit-snapshot-schema', () => {
 
         expect(validate(snapshot), JSON.stringify(validate.errors, null, 2)).toBe(true)
     })
+
+    test('accepts Ralph state with Plan 07 optional context fields populated', () => {
+        const ajv = new Ajv()
+        const validate = ajv.compile(SNAPSHOT_SCHEMA)
+
+        const snapshot = {
+            generatedAt: '2026-05-20T08:40:00.000Z',
+            generatedFromCommit: 'def5678',
+            schemaVersion: 1,
+            tasks: [
+                {
+                    id: 'TASK-PLAN-07',
+                    ralph: {
+                        stage: 'shipped',
+                        branchName: 'ralph/overview-data-split/integration',
+                        deferredQuestionsCount: 1,
+                        deferredQuestionsPreview: 'Should the tooltip show the first unresolved question?',
+                        mergeCommit: '12345678',
+                        prUrl: 'https://github.com/slopus/happy/pull/77',
+                        storyDoctorInterventions: 2,
+                    },
+                },
+            ],
+            runs: [],
+            recommendations: [],
+            dependencyGraph: { nodes: [], edges: [] },
+            runDurations: {},
+            unmatched: [],
+            unmatchedSummary: {},
+        }
+
+        expect(validate(snapshot), JSON.stringify(validate.errors, null, 2)).toBe(true)
+    })
 })

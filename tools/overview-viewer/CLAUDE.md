@@ -54,6 +54,8 @@ The same config also starts `scripts/lib/watch-ralph-state.mjs` via `ralphStateW
 
 Ralph state uses the same fetch + re-execute pattern in `App.tsx`, but with a separate additive subscription to `overview-ralph-state:update`. Keep both HMR handlers (`reloadOverviewData` for `overview-data:update`, `reloadRalphState` for `overview-ralph-state:update`) registered independently.
 
+When adding fields to `RalphPipelineState`, mirror them in `scripts/lib/emit-snapshot-schema.mjs` and add an Ajv regression in `scripts/lib/emit-snapshot-schema.test.mjs` so generated snapshots accept the new shape.
+
 ## Ralph state sidecar
 
 Agent-readable Ralph state artifacts live at `plans/overview-snapshot.json`, `plans/overview-data.json`, `plans/overview-snapshot.schema.json`, `plans/overview-activity.jsonl`, and `tasks/INDEX.md`. They are emitted by the shared watcher in `scripts/lib/watch-ralph-state.mjs`, which is started inside the Vite dev server by `ralphStateWatcherPlugin()` in `vite.config.ts` during `pnpm overview`, or as a standalone process via `pnpm sync-ralph-state:watch` (`scripts/sync-ralph-state.mjs --watch`). Both paths share the same `.ralph/overview-sync.lock` and emit the same set of files; do not hand-edit those generated files.
