@@ -49,7 +49,7 @@ Each member's `manifest.json` exposes the canonical `sessionId` and `transcriptP
 
 ### To create
 
-- **`scripts/lib/crews-cross-walk.mjs`** — exports `discoverCrewSessions({ repoRoot, ralphState, overviewData }) -> Map<taskId, Record<stage, CrewSessionRef[]>>`. Walks `.crews/crews/*/members/*/manifest.json` and applies the heuristic match. Returns a sparse map.
+- **`scripts/lib/crews-cross-walk.mjs`** — exports `discoverCrewSessions({ repoRoot, ralphState, overviewData }) -> Map<taskId, Record<stage, CrewSessionRef[]>>`. Walks BOTH `.crews/crews/*/members/*/manifest.json` AND `.crews/crews/*/leads/*/manifest.json` and applies the heuristic match. Lead agents are included because they also occupy task slots (a lead running a `/work-on` session against a task is just as much a "session worked on this phase" as a spawned member), so the snapshot must track them too. Returns a sparse map.
 - **`scripts/lib/parse-spawn-launcher.mjs`** — exports `parseSpawnLauncher(path) -> { initialPrompt: string }`. PowerShell-script parser that extracts the `--` initial prompt argument. Used by `crews-cross-walk` to associate spawned members to tasks via the prompt's content.
 - Tests for the above two modules.
 
@@ -110,13 +110,15 @@ Each member's `manifest.json` exposes the canonical `sessionId` and `transcriptP
 
 ## Heuristic matching contract
 
-`discoverCrewSessions` matches member → task using:
+`discoverCrewSessions` walks BOTH `.crews/crews/*/members/*/manifest.json` AND `.crews/crews/*/leads/*/manifest.json`. Leads are included alongside members because a lead agent running a session against a task occupies a task slot in exactly the same sense that a spawned member does — the snapshot needs to track who worked on each phase, regardless of crew role. (This is also how `plans/ralph-pipeline-INDEX.md`'s source-of-truth row for `crews-cross-walk.mjs` describes the walk, and Plan 09's MCP hand-off assumes both roles are visible.)
+
+For each manifest (member or lead), `discoverCrewSessions` matches actor → task using:
 
 1. **Strong signal:** `manifest.lastSummary` contains a task ID (matched against `OverviewTask.id` case-sensitively). High confidence.
-2. **Medium signal:** the initial-prompt file at `.crews/spawn-launchers/<memberName>-<ts>.ps1` contains a task ID in the `--` initial prompt. Parse via `parseSpawnLauncher.mjs`.
-3. **Filter:** member's `cwd` MUST be inside `repo_root` (resolve via `path.resolve` and check `startsWith`). Members spawned in unrelated repos surface in `.crews/` but should NOT appear in this repo's snapshot — they cross workspace boundaries.
+2. **Medium signal:** the initial-prompt file at `.crews/spawn-launchers/<memberName>-<ts>.ps1` contains a task ID in the `--` initial prompt. Parse via `parseSpawnLauncher.mjs`. (Spawn launchers exist for spawned members; lead manifests typically match via the strong signal only.)
+3. **Filter:** the actor's `cwd` MUST be inside `repo_root` (resolve via `path.resolve` and check `startsWith`). Actors (members or leads) spawned in unrelated repos surface in `.crews/` but should NOT appear in this repo's snapshot — they cross workspace boundaries.
 
-When 0 signals match: do NOT add the member to any task. Log to stderr: `crews: member <crewName>/<memberName> (session <sessionId>) could not be associated with any task`.
+When 0 signals match: do NOT add the actor to any task. Log to stderr: `crews: <role> <crewName>/<actorName> (session <sessionId>) could not be associated with any task`.
 
 When multiple tasks match (rare — e.g. prompt mentions two task IDs): pick the first by file ordering and log the ambiguity.
 
