@@ -21,11 +21,27 @@ const DEFAULT_WEIGHTS = Object.freeze({
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 const FRESHNESS_DECAY_DAYS = 13
 
+const _warnedUnknownStages = new Set()
+
+export function _resetUnknownStageWarnings() {
+    _warnedUnknownStages.clear()
+}
+
+function warnUnknownStage(stage) {
+    if (_warnedUnknownStages.has(stage)) {
+        return
+    }
+    _warnedUnknownStages.add(stage)
+    process.stderr.write(
+        `[score-recommendations] unknown stage="${stage}" — urgency defaulting to 0 (schema drift?)\n`,
+    )
+}
+
 export function scoreRecommendations({ byTaskId = {}, overviewData = {}, prdsByTaskId = {}, weights, topN, now } = {}) {
     const mergedWeights = { ...DEFAULT_WEIGHTS, ...(weights ?? {}) }
     const timestamp = now instanceof Date ? now.getTime() : typeof now === 'number' ? now : Date.now()
     const tasksById = new Map((overviewData.tasks ?? []).filter((task) => task?.id).map((task) => [task.id, task]))
-    const limit = Number.isInteger(topN) && topN >= 0 ? topN : Number.POSITIVE_INFINITY
+    const limit = Number.isInteger(topN) && topN >= 0 ? topN : 20
 
     return Object.entries(byTaskId)
         .map(([taskId, ralph]) => {
@@ -46,11 +62,15 @@ export function scoreRecommendations({ byTaskId = {}, overviewData = {}, prdsByT
                 reasons: topReasons(components),
             }
         })
+        .filter((entry) => entry.stage !== 'shipped')
         .sort((a, b) => b.score - a.score || a.taskId.localeCompare(b.taskId))
         .slice(0, limit)
 }
 
 function buildStageComponent(stage, weight) {
+    if (!(stage in STAGE_URGENCY)) {
+        warnUnknownStage(stage)
+    }
     return {
         key: 'stageUrgency',
         weight: positiveWeight(weight),

@@ -23,10 +23,29 @@ describe('scoreRecommendations', () => {
         expect(recommendations.map((item) => [item.taskId, item.score])).toEqual([
             ['fix', 1],
             ['ready', 0.9],
-            ['shipped', 0],
         ])
         expect(recommendations[0]).toMatchObject({ taskId: 'fix', stage: 'review-fix' })
         expect(recommendations[0].reasons).toContain('review-fix stage')
+    })
+
+    test('excludes shipped tasks even when unblocked, fresh, and high priority', () => {
+        const recommendations = scoreRecommendations({
+            byTaskId: {
+                shipped_fresh: { stage: 'shipped', lastUpdatedAt: '2026-05-20T00:00:00Z' },
+                pending_stale: { stage: 'planning', lastUpdatedAt: '2026-05-01T00:00:00Z' },
+            },
+            overviewData: {
+                tasks: [
+                    { id: 'shipped_fresh', priority: 1 },
+                    { id: 'pending_stale', priority: 0 },
+                ],
+            },
+            now: NOW,
+        })
+
+        expect(recommendations.every((item) => item.stage !== 'shipped')).toBe(true)
+        expect(recommendations.map((item) => item.taskId)).toContain('pending_stale')
+        expect(recommendations.map((item) => item.taskId)).not.toContain('shipped_fresh')
     })
 
     test('derives dependency state from referenced story passes', () => {
@@ -124,6 +143,16 @@ describe('scoreRecommendations', () => {
         })
 
         expect(recommendations.map((item) => item.taskId)).toEqual(['alpha', 'beta'])
+    })
+
+    test('defaults topN to 20 when omitted', () => {
+        const byTaskId = Object.fromEntries(
+            Array.from({ length: 25 }, (_, i) => [`task-${String(i).padStart(2, '0')}`, { stage: 'planning' }]),
+        )
+
+        const recommendations = scoreRecommendations({ byTaskId, now: NOW })
+
+        expect(recommendations).toHaveLength(20)
     })
 
     test('handles no PRD case and stays side-effect free', () => {
