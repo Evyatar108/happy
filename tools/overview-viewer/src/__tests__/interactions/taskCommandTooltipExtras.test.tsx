@@ -87,6 +87,85 @@ describe('TaskCommand Ralph tooltip extras', () => {
         await waitFor(() => expect(writeText).toHaveBeenCalledWith('git checkout ralph/overview-data-split/integration'))
         expect(showToast).toHaveBeenCalledWith('Copied `ralph/overview-data-split/integration` (0.1 KB)')
     })
+
+    it('renders crew session rows for the current stage with transcript links', async () => {
+        renderTask({
+            stage: 'implementing',
+            crewSessions: {
+                ...emptyCrewSessions(),
+                implementing: [
+                    {
+                        crewName: 'frontend',
+                        memberName: 'alice',
+                        startedAt: '2026-05-20T10:00:00.000Z',
+                        endedAt: '2026-05-20T10:25:00.000Z',
+                        outcome: 'completed',
+                        transcriptPath: 'D:\\sessions\\alice run.jsonl',
+                    },
+                ],
+                reviewing: [
+                    {
+                        crewName: 'frontend',
+                        memberName: 'bob',
+                        startedAt: '2026-05-20T11:00:00.000Z',
+                    },
+                ],
+            },
+        })
+        await openTooltip()
+
+        const tooltip = visibleTooltip()
+        expect(tooltip.textContent).toContain('alice')
+        expect(tooltip.textContent).toContain('2026-05-20T10:00:00.000Z -> 2026-05-20T10:25:00.000Z')
+        expect(tooltip.textContent).toContain('completed')
+        expect(tooltip.textContent).toContain('transcript ↗')
+        expect(tooltip.textContent).not.toContain('bob')
+        expect(tooltip.querySelectorAll('.tooltip-extras-row')).toHaveLength(1)
+        expect(tooltip.querySelector('a')?.getAttribute('href')).toBe('file:///D:/sessions/alice%20run.jsonl')
+    })
+
+    it('URL-encodes transcript paths with spaces and hash characters', async () => {
+        renderTask({
+            stage: 'implementing',
+            crewSessions: {
+                ...emptyCrewSessions(),
+                implementing: [
+                    {
+                        crewName: 'frontend',
+                        memberName: 'alice',
+                        startedAt: '2026-05-20T10:00:00.000Z',
+                        transcriptPath: 'C:\\Users\\evmitran\\.claude\\projects\\with#hash\\session file.jsonl',
+                    },
+                ],
+            },
+        })
+        await openTooltip()
+
+        const link = visibleTooltip().querySelector<HTMLAnchorElement>('a[href^="file://"]')
+        expect(link?.getAttribute('href')).toBe('file:///C:/Users/evmitran/.claude/projects/with%23hash/session%20file.jsonl')
+    })
+
+    it('renders no crew rows when the current stage bucket is empty', async () => {
+        renderTask({
+            stage: 'implementing',
+            crewSessions: {
+                ...emptyCrewSessions(),
+                implementing: [],
+                reviewing: [
+                    {
+                        crewName: 'frontend',
+                        memberName: 'bob',
+                        startedAt: '2026-05-20T11:00:00.000Z',
+                    },
+                ],
+            },
+        })
+        await openTooltip()
+
+        const tooltip = visibleTooltip()
+        expect(tooltip.querySelectorAll('.tooltip-extras-row')).toHaveLength(0)
+        expect(tooltip.textContent).not.toContain('bob')
+    })
 })
 
 async function openTooltip() {
@@ -100,6 +179,21 @@ function visibleTooltip(): HTMLElement {
     const tooltip = document.querySelector<HTMLElement>('.tooltip-content > .ralph-stage-tooltip')
     expect(tooltip).toBeTruthy()
     return tooltip as HTMLElement
+}
+
+function emptyCrewSessions(): NonNullable<RalphPipelineState['crewSessions']> {
+    return {
+        brainstorming: [],
+        'brainstorm-ready': [],
+        planning: [],
+        'plan-ready': [],
+        implementing: [],
+        reviewing: [],
+        'review-fix': [],
+        'replan-pending': [],
+        shipped: [],
+        blocked: [],
+    }
 }
 
 function renderTask(ralph: RalphPipelineState, showToast?: (text: string) => void) {

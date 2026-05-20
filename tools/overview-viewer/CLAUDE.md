@@ -60,6 +60,7 @@ Ralph activity is served as raw JSONL at `/overview-activity.jsonl` by `overview
 When adding fields to `RalphPipelineState`, mirror them in `scripts/lib/emit-snapshot-schema.mjs` and add an Ajv regression in `scripts/lib/emit-snapshot-schema.test.mjs` so generated snapshots accept the new shape.
 
 Ralph task-specific tooltip extras are composed in `TaskCommand` and passed through `RalphStageChip.tooltipExtras`; keep `RalphStageChip` as the generic stage/slug/timestamp surface.
+Crew-session transcript links in `TaskCommand` run in the browser bundle, so encode Windows paths with a client-side `pathToFileURL` equivalent that preserves drive letters and percent-encodes path segments such as spaces and `#`.
 
 ## Ralph state sidecar
 

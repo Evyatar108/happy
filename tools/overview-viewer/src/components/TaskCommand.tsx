@@ -195,12 +195,38 @@ function QuickNavButton({ ariaLabel, children, onNavigate, title }: { ariaLabel:
     )
 }
 
+function filePathHref(filePath: string): string {
+    const normalized = filePath.replace(/\\/g, '/')
+    const windowsDrive = normalized.match(/^([A-Za-z]):\/?(.*)$/)
+    if (windowsDrive) {
+        const [, drive, rest] = windowsDrive
+        const encodedRest = rest
+            .split('/')
+            .filter((segment) => segment.length > 0)
+            .map((segment) => encodeURIComponent(segment))
+            .join('/')
+        return `file:///${drive}:/${encodedRest}`
+    }
+
+    if (normalized.startsWith('/')) {
+        return `file://${normalized.split('/').map((segment) => encodeURIComponent(segment)).join('/')}`
+    }
+
+    return `file://${normalized.split('/').map((segment) => encodeURIComponent(segment)).join('/')}`
+}
+
+function crewSessionTimeRange(startedAt: string, endedAt?: string): string {
+    return `${startedAt} -> ${endedAt || 'live'}`
+}
+
 function RalphTooltipExtras({ ralph, showToast }: { ralph: OverviewRalphState['byTaskId'][string]; showToast?: ShowToast }) {
     const hasOpenQuestions = (ralph.deferredQuestionsCount ?? 0) > 0
     const hasBranch = Boolean(ralph.branchName)
     const hasPrUrl = Boolean(ralph.prUrl)
+    const crewSessions = ralph.crewSessions?.[ralph.stage] ?? []
+    const hasCrewSessions = crewSessions.length > 0
 
-    if (!hasOpenQuestions && !hasBranch && !hasPrUrl) return null
+    if (!hasOpenQuestions && !hasBranch && !hasPrUrl && !hasCrewSessions) return null
 
     return (
         <div className="tooltip-extras">
@@ -237,6 +263,22 @@ function RalphTooltipExtras({ ralph, showToast }: { ralph: OverviewRalphState['b
                     </a>
                 </div>
             ) : null}
+            {crewSessions.map((session, index) => (
+                <div className="tooltip-extras-row" key={session.sessionId ?? `${session.crewName}:${session.memberName}:${index}`}>
+                    <span className="tooltip-extras-text" title={`${session.crewName}/${session.memberName}`}>
+                        {session.memberName}
+                    </span>
+                    <span className="tooltip-extras-text" title={crewSessionTimeRange(session.startedAt, session.endedAt)}>
+                        {crewSessionTimeRange(session.startedAt, session.endedAt)}
+                    </span>
+                    <span>{session.outcome || 'live'}</span>
+                    {session.transcriptPath ? (
+                        <a href={filePathHref(session.transcriptPath)} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()}>
+                            transcript ↗
+                        </a>
+                    ) : null}
+                </div>
+            ))}
         </div>
     )
 }
