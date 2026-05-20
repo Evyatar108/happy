@@ -3,10 +3,11 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createServer } from '../server.js';
 import { SnapshotReader } from '../snapshot-reader.js';
+import { addJournalEntry } from '../tools/add-journal-entry.js';
 import {
   getTask,
   listBlockers,
@@ -39,12 +40,48 @@ describe('read-only tool registration', () => {
     const server = createServer(context) as unknown as { _registeredTools: Record<string, unknown> };
 
     expect(Object.keys(server._registeredTools).sort()).toEqual([
+      'overview.add_journal_entry',
       'overview.get_task',
       'overview.list_blockers',
       'overview.list_recommendations',
       'overview.list_tasks',
       'overview.next_command',
     ]);
+  });
+});
+
+describe('overview.add_journal_entry', () => {
+  it('appends a note with an explicit timestamp and rejects unsafe task ids', async () => {
+    const context = await createContext();
+
+    expect(addJournalEntry(context, { taskId: 'TASK-1', ts: '2026-05-20T02:00:00.000Z', note: 'hello\nworld' })).toEqual({
+      ok: true,
+      data: { taskId: 'TASK-1', ts: '2026-05-20T02:00:00.000Z' },
+    });
+    expect(await readJournal(context.repoRoot, 'TASK-1')).toBe('- 2026-05-20T02:00:00.000Z  note: hello\n  world\n');
+
+    expect(addJournalEntry(context, { taskId: '../TASK-1', note: 'bad' })).toEqual({
+      ok: false,
+      error: 'invalid taskId: ../TASK-1',
+    });
+  });
+
+  it('defaults ts to the current ISO timestamp', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-20T03:04:05.006Z'));
+    try {
+      const context = await createContext();
+
+      expect(addJournalEntry(context, { taskId: 'TASK-2', note: 'default timestamp' })).toEqual({
+        ok: true,
+        data: { taskId: 'TASK-2', ts: '2026-05-20T03:04:05.006Z' },
+      });
+      expect(await readJournal(context.repoRoot, 'TASK-2')).toBe(
+        '- 2026-05-20T03:04:05.006Z  note: default timestamp\n',
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -206,6 +243,10 @@ async function writeFixtureConfig(repoRoot: string): Promise<RalphOverviewConfig
     lockFile: path.join(repoRoot, '.ralph', 'overview-sync.lock'),
     watcher: { ignored: [] },
   };
+}
+
+async function readJournal(repoRoot: string, taskId: string): Promise<string> {
+  return fs.readFile(path.join(repoRoot, 'tasks', taskId, 'journal.md'), 'utf8');
 }
 
 function snapshotWithTasks(): Snapshot {

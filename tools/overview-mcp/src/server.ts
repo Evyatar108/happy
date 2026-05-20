@@ -3,13 +3,15 @@ import type { ZodRawShapeCompat } from '@modelcontextprotocol/sdk/server/zod-com
 
 import type { ServerContext } from './context.js';
 import {
+  addJournalEntryInputSchema,
   getTaskInputSchema,
   listBlockersInputSchema,
   listRecommendationsInputSchema,
   listTasksInputSchema,
   nextCommandInputSchema,
 } from './schemas.js';
-import type { GetTaskInput, ListRecommendationsInput, ListTasksInput, NextCommandInput } from './schemas.js';
+import type { AddJournalEntryInput, GetTaskInput, ListRecommendationsInput, ListTasksInput, NextCommandInput } from './schemas.js';
+import { addJournalEntry } from './tools/add-journal-entry.js';
 import {
   getTask,
   listBlockers,
@@ -68,6 +70,15 @@ export function createServer(context: ServerContext): McpServer {
       inputSchema: asSdkInputSchema(listBlockersInputSchema),
     },
     async () => toToolResult(await listBlockers(context)),
+  );
+
+  server.registerTool(
+    'overview.add_journal_entry',
+    {
+      description: 'Append a free-form note to a Ralph task journal.',
+      inputSchema: asSdkInputSchema(addJournalEntryInputSchema),
+    },
+    async (input) => toToolResult(addJournalEntry(context, input as AddJournalEntryInput)),
   );
 
   return server;
