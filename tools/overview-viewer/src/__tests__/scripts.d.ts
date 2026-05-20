@@ -395,8 +395,35 @@ declare module '../../../../scripts/sync-ralph-state.mjs' {
         config?: string
         watch: boolean
         debounceMs?: number
+        command?: 'updateCrewSession' | 'finalizeCrewSession'
+        taskId?: string
+        stage?: string
+        refJson?: string
+        memberName?: string
+        crewName?: string
+        sessionId?: string
+        outcome?: string
+        summary?: string
     }
     export function parseDebounceMs(value: string): number
+    export function runUpdateCrewSession(options: {
+        repoRoot: string
+        config: RalphOverviewConfig
+        taskId: string
+        stage: string
+        refJson: string
+    }): Promise<void>
+    export function runFinalizeCrewSession(options: {
+        repoRoot: string
+        config: RalphOverviewConfig
+        taskId: string
+        stage: string
+        memberName: string
+        crewName?: string
+        sessionId?: string
+        outcome: string
+        summary?: string
+    }): Promise<void>
     export function runOneShot(options: { repoRoot: string; config: RalphOverviewConfig }): Promise<void>
     export function runWatchMode(options: { repoRoot: string; configPath?: string; debounceMs?: number }): Promise<void>
 }
