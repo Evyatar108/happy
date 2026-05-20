@@ -55,6 +55,13 @@ Each member's `manifest.json` exposes the canonical `sessionId` and `transcriptP
 
 ### To modify
 
+- **`scripts/lib/default-config.mjs`** — add a top-level `crewsRoot: '.crews'` field next to `ralphRoot`. This is the default location of the crews-plugin runtime state directory and is the single config knob downstream code consults for `.crews/` paths (no hard-coded `.crews` literals elsewhere).
+- **`.ralph/overview-config.schema.json`** — declare the new field with `"crewsRoot": { "type": "string" }` alongside `ralphRoot`. Required so consumers that ship `overview-config.json` (and the JSON Schema-driven local overlay) can override the directory without schema-validation errors.
+- **`scripts/lib/resolve-config.mjs`** — resolve `crewsRoot` via a new exported helper `resolveCrewsRoot({ repoRoot, crewsRoot })` and include the resolved absolute path on the frozen config returned by `loadConfig()`. The helper:
+  - Returns absolute `crewsRoot` values unchanged (after `path.normalize`).
+  - For relative values, resolves against the **common (main) repo root** rather than the caller's `repoRoot`. The helper shells out to `git -C <repoRoot> rev-parse --git-dir` and `--git-common-dir`; when those differ (linked worktree case) it resolves against the directory containing the common `.git` dir, otherwise it falls back to `repoRoot`. Non-git fixtures and packaged consumers fall through to `repoRoot`.
+  - This ensures every worktree of a checkout sees the same `.crews/` directory — required because crew sessions are workspace-scoped, not branch-scoped (see Common Mistakes #6 and #9).
+- **`scripts/lib/sync-core.mjs`** — invoke `discoverCrewSessions` during the per-tick merge, AFTER the per-slug Ralph-side derivation. Merge crew session entries into the in-memory state (preferring entries written via `--update-crew-session` over the heuristic cross-walk on conflict — see Common Mistakes). Also export a dedicated `rescanCrewSessionsAndWrite({ currentState, config, repoRoot, overviewData })` helper that re-runs `discoverCrewSessions`, merges results into `currentState.byTaskId[*].crewSessions` while preserving explicit entries and recorded stage buckets, refreshes `generatedAt`, and calls `writeSidecar()` without re-reading or re-deriving Ralph bundles. This is the crew-only flush path that bypasses `deriveAffectedTaskUpdate`. The local `normalizeConfigPaths(config, repoRoot)` helper used by sync-core's CLI entrypoints must also call `resolveCrewsRoot({ repoRoot, crewsRoot: config.crewsRoot ?? '.crews' })` so callers that pass a raw (unresolved) config — e.g. tests, one-shot subcommand invocations — see the same linked-worktree resolution behavior as `loadConfig()`.
 - **`tools/overview-viewer/src/types.ts`** — add `CrewSessionRef` interface and extend `RalphPipelineState`:
   ```ts
   export interface CrewSessionRef {
@@ -75,7 +82,6 @@ Each member's `manifest.json` exposes the canonical `sessionId` and `transcriptP
       crewSessions?: Record<RalphStage, CrewSessionRef[]>
   }
   ```
-- **`scripts/lib/sync-core.mjs`** — invoke `discoverCrewSessions` during the per-tick merge, AFTER the per-slug Ralph-side derivation. Merge crew session entries into the in-memory state (preferring entries written via `--update-crew-session` over the heuristic cross-walk on conflict — see Common Mistakes). Also export a dedicated `rescanCrewSessionsAndWrite({ currentState, config, repoRoot, overviewData })` helper that re-runs `discoverCrewSessions`, merges results into `currentState.byTaskId[*].crewSessions` while preserving explicit entries and recorded stage buckets, refreshes `generatedAt`, and calls `writeSidecar()` without re-reading or re-deriving Ralph bundles. This is the crew-only flush path that bypasses `deriveAffectedTaskUpdate`.
 - **`scripts/lib/watch-ralph-state.mjs`** — add to the watched paths:
   - `.crews/crews/*/members/*/manifest.json`
   - `.crews/crews/*/leads/*/manifest.json`
@@ -138,15 +144,20 @@ Rule: explicit-write entries WIN over heuristic-discovered entries. Implementati
 
 ## Implementation strategy
 
-1. **Add types** (`CrewSessionRef`, extend `RalphPipelineState`). Typecheck.
-2. **Build `parseSpawnLauncher.mjs`** — PowerShell-quoted-string extraction. Test against the real spawn-launcher files in `.crews/spawn-launchers/`.
-3. **Build `discoverCrewSessions.mjs`** — full walk + match. Test against `.crews/crews/smoke/` real data (5+ members across alice/bob).
-4. **Wire into `sync-core.mjs`** — merge crew sessions into `byTaskId` AFTER per-slug derivation, and export `rescanCrewSessionsAndWrite()` as the crew-only flush helper used by the watcher (bypassing `deriveAffectedTaskUpdate`).
-5. **Extend `watch-ralph-state.mjs` watched paths** — add `.crews/` paths with appropriate excludes. Emit crew-tree events as slugless `{ kind: 'crews' }` changes and route them through `rescanCrewSessionsAndWrite()` in the same debounce tick as any Ralph `mergeAndWrite()` work.
-6. **Add CLI subcommand modes** — `--update-crew-session`, `--finalize-crew-session`. Share the lock through `sync-lock.mjs`. Test that two subcommand invocations without a running watcher serialize without lost updates, and that either subcommand against a fresh watcher lock fails before writing with the canonical diagnostic.
-7. **Update `/work-on` skill** — add `--via-crew` branch.
-8. **Extend chip tooltip extras** — append crew session rows to the `tooltipExtras` JSX composed in `TaskCommand.tsx` and passed to `RalphStageChip`.
-9. **Stale-member detection** — in `discoverCrewSessions`, mark `lastHeartbeatAt > 60min` ago as `outcome: 'stopped'` with `endedAt: lastHeartbeatAt`.
+1. **Add `crewsRoot` config plumbing.** Land this first so every later step can read `config.crewsRoot` instead of hard-coding `.crews`:
+   - `scripts/lib/default-config.mjs` gains `crewsRoot: '.crews'` next to `ralphRoot`.
+   - `.ralph/overview-config.schema.json` declares `"crewsRoot": { "type": "string" }` so overrides validate.
+   - `scripts/lib/resolve-config.mjs` exports `resolveCrewsRoot({ repoRoot, crewsRoot })` that returns absolute values unchanged and resolves relative values against the **common (main) repo root** discovered via `git rev-parse --git-common-dir` (falling back to `repoRoot` for non-git fixtures). `loadConfig()` calls it during `resolveConfigPaths()`.
+   - `scripts/lib/sync-core.mjs`'s internal `normalizeConfigPaths()` reuses the same `resolveCrewsRoot()` helper so callers passing a raw config get identical linked-worktree resolution.
+2. **Add types** (`CrewSessionRef`, extend `RalphPipelineState`). Typecheck.
+3. **Build `parseSpawnLauncher.mjs`** — PowerShell-quoted-string extraction. Test against the real spawn-launcher files in `.crews/spawn-launchers/`.
+4. **Build `discoverCrewSessions.mjs`** — full walk + match against `config.crewsRoot`. Test against `.crews/crews/smoke/` real data (5+ members across alice/bob).
+5. **Wire into `sync-core.mjs`** — merge crew sessions into `byTaskId` AFTER per-slug derivation, and export `rescanCrewSessionsAndWrite()` as the crew-only flush helper used by the watcher (bypassing `deriveAffectedTaskUpdate`).
+6. **Extend `watch-ralph-state.mjs` watched paths** — add `.crews/` paths (rooted at `config.crewsRoot`) with appropriate excludes. Emit crew-tree events as slugless `{ kind: 'crews' }` changes and route them through `rescanCrewSessionsAndWrite()` in the same debounce tick as any Ralph `mergeAndWrite()` work.
+7. **Add CLI subcommand modes** — `--update-crew-session`, `--finalize-crew-session`. Share the lock through `sync-lock.mjs`. Test that two subcommand invocations without a running watcher serialize without lost updates, and that either subcommand against a fresh watcher lock fails before writing with the canonical diagnostic.
+8. **Update `/work-on` skill** — add `--via-crew` branch.
+9. **Extend chip tooltip extras** — append crew session rows to the `tooltipExtras` JSX composed in `TaskCommand.tsx` and passed to `RalphStageChip`.
+10. **Stale-member detection** — in `discoverCrewSessions`, mark `lastHeartbeatAt > 60min` ago as `outcome: 'stopped'` with `endedAt: lastHeartbeatAt`.
 
 ## Acceptance criteria
 
@@ -194,6 +205,7 @@ I. **Conflict resolution:** add a session via subcommand mode (explicit). Then o
 6. **Don't surface members from worktree-local `.crews/`.** Worktrees may have their own `.crews/` directory. The watch root is the main repo's `.crews/`, not `.worktrees/<name>/.crews/`.
 7. **Heuristic match by task ID, not stage.** A member spawned for "work on overview-vite-react: implement Story 3" is recorded under the task `overview-vite-react`, with `stage` derived from the task's current stage at spawn time (read from `byTaskId[<task>].stage`). Don't try to infer stage from the prompt text.
 8. **Plan 02 lock is long-lived.** The watcher does not release the sync lock between debounce ticks. Any Plan 08 write path that needs to coexist with a running watcher must add a queue/IPC handoff or stop the watcher; otherwise it should fail fast through `sync-lock.mjs`.
+9. **Risk area — `crewsRoot` resolution in linked worktrees.** A relative `crewsRoot` value (e.g. the default `.crews`) MUST resolve against the main checkout's repo root, never the linked-worktree directory. `resolveCrewsRoot()` in `scripts/lib/resolve-config.mjs` enforces this by calling `git rev-parse --git-common-dir`; `normalizeConfigPaths()` in `scripts/lib/sync-core.mjs` reuses the same helper so raw-config callers behave identically. Never re-implement `.crews` path joining in callers — always read `config.crewsRoot`. If you bypass the helper, agents running from `.ralph/jobs/<job>/worktree/` will silently watch and write a stale worktree-local `.crews/` instead of the shared workspace state, and crew sessions will vanish from the consumer-visible snapshot.
 
 ## Hand-off to next plans
 
