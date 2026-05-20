@@ -49,6 +49,19 @@ export type RalphStage =
 
 export type RalphEntryPath = 'brainstorm-first' | 'plan-direct' | 'manual-plan'
 
+export interface CrewSessionRef {
+    crewName: string
+    memberName: string
+    startedAt: string
+    sessionId?: string
+    transcriptPath?: string
+    endedAt?: string
+    outcome?: string
+    summary?: string
+    _isExplicit?: boolean
+    cwd?: string
+}
+
 export interface RalphArtifacts {
     brainstormDir?: string
     planDraftFile?: string
@@ -77,6 +90,7 @@ export interface RalphPipelineState {
     hasPrdWorthy?: boolean
     terminalReason?: 'complete' | 'replan' | 'blocked'
     lastUpdatedAt?: string
+    crewSessions?: Record<RalphStage, CrewSessionRef[]>
     // Keep per-entry timestamps out of Plan 01 so sidecar idempotency strips only the top-level generatedAt.
 }
 

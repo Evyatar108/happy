@@ -21,7 +21,22 @@ describe('emit-snapshot-schema', () => {
                         stage: 'implementing',
                         artifacts: { jobDir: '.ralph/jobs/task-one' },
                         storyCompletion: { total: 2, passed: 1, blocked: 0, remaining: 1 },
-                        crewSessions: [{ id: 'future-plan-extension' }],
+                        crewSessions: {
+                            implementing: [
+                                {
+                                    crewName: 'alpha',
+                                    memberName: 'alice',
+                                    startedAt: '2026-05-19T14:20:00.000Z',
+                                    sessionId: 'session-1',
+                                    transcriptPath: 'C:\\Users\\evmitran\\.claude\\projects\\session-1.jsonl',
+                                    endedAt: '2026-05-19T14:29:00.000Z',
+                                    outcome: 'completed',
+                                    summary: 'Implemented the task',
+                                    _isExplicit: true,
+                                    cwd: 'D:\\harness-efforts\\codexu',
+                                },
+                            ],
+                        },
                     },
                 },
             ],
@@ -42,6 +57,45 @@ describe('emit-snapshot-schema', () => {
         expect(SNAPSHOT_SCHEMA.$defs.DependencyGraph.properties.nodes.items.additionalProperties).toBe(true)
         expect(SNAPSHOT_SCHEMA.$defs.DependencyGraph.properties.edges.items.additionalProperties).toBe(true)
         expect(validate(snapshot), JSON.stringify(validate.errors, null, 2)).toBe(true)
+    })
+
+    test('rejects crew session refs missing memberName', () => {
+        const ajv = new Ajv()
+        const validate = ajv.compile(SNAPSHOT_SCHEMA)
+
+        const snapshot = {
+            generatedAt: '2026-05-20T12:00:00.000Z',
+            generatedFromCommit: 'abc1234',
+            schemaVersion: 1,
+            tasks: [
+                {
+                    id: 'TASK-001',
+                    ralph: {
+                        stage: 'implementing',
+                        crewSessions: {
+                            implementing: [{ crewName: 'alpha', startedAt: '2026-05-20T11:59:00.000Z' }],
+                        },
+                    },
+                },
+            ],
+            runs: [],
+            recommendations: [],
+            dependencyGraph: { nodes: [], edges: [] },
+            runDurations: {},
+            unmatched: [],
+            unmatchedSummary: {},
+        }
+
+        expect(validate(snapshot)).toBe(false)
+        expect(validate.errors).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    instancePath: '/tasks/0/ralph/crewSessions/implementing/0',
+                    keyword: 'required',
+                    params: { missingProperty: 'memberName' },
+                }),
+            ]),
+        )
     })
 
     test('accepts a legacy minimal snapshot without stage/reasons/type fields', () => {
