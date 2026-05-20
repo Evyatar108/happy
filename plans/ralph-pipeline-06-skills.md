@@ -114,7 +114,7 @@ Body (the skill's own prose, written for Claude to execute):
 
 Path: `D:\harness-efforts\codexu\.claude\skills\triage\SKILL.md`
 
-1. Read recommendation data from `plans/overview-snapshot.json` (`snapshot.recommendations`) and fall back to `plans/overview-recommendations.json` for compatibility with Plan 04-only checkouts. If both are missing or empty, suggest running `pnpm sync-ralph-state` (or that Plan 04 hasn't shipped).
+1. Read recommendation data from `plans/overview-snapshot.json` (`snapshot.recommendations`, an array of `{ taskId, score, stage, reasons }`) and fall back to `plans/overview-recommendations.json` (`{ recommendations, generatedAt, generatedFromCommit }`) for compatibility with Plan 04-only checkouts. If both are missing or empty, suggest running `pnpm sync-ralph-state` (or that Plan 04 hasn't shipped).
 2. Take top N (default 5; `--limit N` flag).
 3. Optional `--filter stage=<stage>` narrows by stage.
 4. Render a numbered list:
@@ -147,7 +147,7 @@ Path: `D:\harness-efforts\codexu\.claude\skills\blocker-report\SKILL.md`
 2. **Unit-test** the derive function — one case per row in the predicate table.
 3. **Add `NextCommand` type** to `tools/overview-viewer/src/types.ts`.
 4. **Write `/work-on` skill** at `.claude/skills/work-on/SKILL.md`. Manually test by typing `/work-on <task-id> --dry-run` and verifying the printed command matches the predicate table.
-5. **Write `/triage` skill** at `.claude/skills/triage/SKILL.md`. Test with empty recommendations file (`{ recommendations: [] }`) and with a populated one.
+5. **Write `/triage` skill** at `.claude/skills/triage/SKILL.md`. Test with empty recommendations file (`{ recommendations: [] }`) and with a populated Plan 04 wrapper containing `{ taskId, score, stage, reasons }` entries.
 6. **Write `/blocker-report` skill** at `.claude/skills/blocker-report/SKILL.md`. Test by creating a synthetic blocked task and confirming the skill surfaces it.
 7. **Optional UI integration:** add a "Copy next command" button in `TaskCommand.tsx`. Use `copyTextWithToast`. The button is rendered only when `deriveNextCommand` returns non-null.
 
@@ -159,7 +159,7 @@ Path: `D:\harness-efforts\codexu\.claude\skills\blocker-report\SKILL.md`
 - [ ] `.claude/skills/triage/SKILL.md` exists.
 - [ ] `.claude/skills/blocker-report/SKILL.md` exists.
 - [ ] `/work-on <task-id> --dry-run` prints the right command for each stage value (verifiable manually by setting a test task to each stage).
-- [ ] `/triage` produces a numbered list from snapshot recommendations, with `overview-recommendations.json` as a fallback, and chains into `/work-on` when the user picks a number.
+- [ ] `/triage` produces a numbered list from snapshot recommendations shaped as `{ taskId, score, stage, reasons }`, with `overview-recommendations.json` as a fallback, and chains into `/work-on` when the user picks a number.
 - [ ] `/blocker-report` surfaces tasks with `stage === 'blocked'` and proposes remediation commands.
 - [ ] If `--via-crew` flag is passed to `/work-on` in Plan 06, the skill errors gracefully with "wait for Plan 08." (Plan 08 will implement.)
 

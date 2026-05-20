@@ -42,7 +42,7 @@ Plans 02, 04, 07 are recommended but not strictly required (they enrich the snap
 | `overview.get_task` | `{ taskId }` | full merged `SnapshotTask` (OverviewTask + RalphPipelineState) + last 3 journal entries | no |
 | `overview.next_command` | `{ taskId }` | `NextCommand \| null` from `deriveNextCommand` | no |
 | `overview.invoke_next` | `{ taskId, viaCrewMember?: { crewName, memberName? } }` | `{ ok: true, sessionRef?: CrewSessionRef } \| { ok: false, error: string }` | yes (invokes a Ralph skill or spawns a crew member) |
-| `overview.list_recommendations` | `{ limit?: number, stageFilter?: RalphStage }` | reads `snapshot.recommendations` and applies the filter; may fall back to `plans/overview-recommendations.json` | no |
+| `overview.list_recommendations` | `{ limit?: number, stageFilter?: RalphStage }` | `Array<{ taskId, score, stage, reasons }>` read from `snapshot.recommendations`; applies the filter and may fall back to `plans/overview-recommendations.json` | no |
 | `overview.list_blockers` | `{}` | tasks with `stage === 'blocked'` OR `reviewOpenCount > 0` OR `deferredQuestionsCount > 0` | no |
 | `overview.set_override` | `{ slug, taskId }` | writes `OverviewData.ralphOverrides[slug] = taskId` in `overview-data.js` via structured edit | **yes — single field** |
 | `overview.add_journal_entry` | `{ taskId, note }` | appends to `tasks/<id>/journal.md` via `scripts/lib/append-journal.mjs` | yes (append-only) |
@@ -72,10 +72,11 @@ Plans 02, 04, 07 are recommended but not strictly required (they enrich the snap
 
 ### Read for reference
 
-- `scripts/lib/derive-ralph-stage.mjs`, `scripts/lib/derive-next-command.mjs`, `scripts/lib/score-recommendations.mjs`, `scripts/lib/append-journal.mjs`, `scripts/lib/derive-pr-links.mjs` — imported by the server as the single source of truth.
+- `scripts/lib/derive-ralph-stage.mjs`, `scripts/lib/derive-next-command.mjs`, `scripts/lib/score-recommendations.mjs`, `scripts/lib/append-journal.mjs`, `scripts/lib/derive-pr-links.mjs` — imported by the server as the single source of truth. `score-recommendations.mjs` exports `scoreRecommendations({ byTaskId, overviewData, prdsByTaskId, weights, topN, now? })` for callers that need to recompute, but `overview.list_recommendations` should prefer the precomputed snapshot field.
 - `plans/overview-snapshot.json` — primary data input, parsed as the TypeScript `Snapshot` shape from the shared overview types.
 - `plans/overview-snapshot.schema.json` — runtime validation contract for snapshot JSON. Do not import the schema as TypeScript types.
-- `plans/overview-recommendations.json` — compatibility fallback for `list_recommendations`; the snapshot field is primary when present.
+- `plans/overview-recommendations.json` — compatibility fallback for `list_recommendations`; the file is a Plan 04 wrapper `{ recommendations, generatedAt, generatedFromCommit }`, while the snapshot field is the primary array when present.
+- `plans/overview-dependency-graph.json` — Plan 04 unwrapped dependency graph `{ nodes, edges }`; story node ids are `${taskId}:${storyId}`, and all edge types use dependent -> prerequisite direction.
 - `.crews/crews/*/members/*/manifest.json` and `*/leads/*/manifest.json` — re-read live by `list_crew_sessions` for fresh status.
 - `D:\ai-developer-toolkit\plugins\seval\` (or any existing MCP server in the toolkit) — TypeScript pattern reference for stdio transport + tool registration.
 
