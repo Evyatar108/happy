@@ -10,6 +10,8 @@
         "overview": "pnpm --filter @codexu/overview-viewer dev",
         "overview:build": "pnpm --filter @codexu/overview-viewer build",
         "overview:build:preview": "cross-env OVERVIEW_BUILD_SAFE_NAME=1 pnpm --filter @codexu/overview-viewer build",
+        "overview-mcp:build": "pnpm --filter @codexu/overview-mcp build",
+        "overview-mcp:install": "pnpm --filter @codexu/overview-mcp exec overview-mcp-install",
         "sync-ralph-state": "node scripts/sync-ralph-state.mjs",
         "sync-ralph-state:watch": "node scripts/sync-ralph-state.mjs --watch",
         "app-logs": "pnpm --filter happy-app-logs start",
@@ -41,7 +43,8 @@
             "packages/codexu-plugin",
             "packages/codexu-options-mode-plugin",
             "packages/codium",
-            "tools/overview-viewer"
+            "tools/overview-viewer",
+            "tools/overview-mcp"
         ]
     },
     "devDependencies": {
