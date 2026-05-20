@@ -114,6 +114,32 @@
   .ralph-stage-chip.stage-shipped { color: var(--ok); border-color: rgba(158,206,106,0.45); background: rgba(158,206,106,0.10); }
   .ralph-stage-chip.stage-blocked { color: var(--bad); border-color: rgba(247,118,142,0.50); background: rgba(247,118,142,0.10); }
   .ralph-stage-chip.match-slug-default { border-style: dotted; }
+  .pipeline-overview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin: 10px 0 12px;
+    padding: 8px 0 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .pipeline-overview-chip {
+    min-height: 28px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .pipeline-overview-chip.active {
+    box-shadow: inset 0 0 0 1px currentColor;
+    background: var(--card-hover);
+  }
+  .pipeline-overview-empty {
+    width: 100%;
+    color: var(--muted);
+    font-size: 12px;
+    padding: 6px 0;
+  }
   .p-low { color: var(--ok); border-color: rgba(158,206,106,0.35); }
   .p-med { color: var(--warn); border-color: rgba(224,175,104,0.35); }
   .p-high { color: var(--bad); border-color: rgba(247,118,142,0.35); }
@@ -792,7 +818,7 @@
     .quick-action-btn { width: 36px; height: 36px; font-size: 13px; }
     .cmd-actions { gap: 4px; }
     .cmd-select { width: 22px; height: 22px; cursor: pointer; }
-    .filter-chip { padding: 8px 14px; font-size: 13px; min-height: 36px; }
+    .filter-chip, .pipeline-overview-chip { padding: 8px 14px; font-size: 13px; min-height: 36px; }
     .chip { padding: 6px 12px; font-size: 13px; }
     #search { padding: 10px 14px; font-size: 14px; min-height: 40px; }
     .kanban { grid-template-columns: 1fr; }

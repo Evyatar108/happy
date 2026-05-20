@@ -4,6 +4,7 @@ import { CommandList } from './components/CommandList'
 import { CopyToast } from './components/CopyToast'
 import { Kanban } from './components/Kanban'
 import { PhaseTree } from './components/PhaseTree'
+import { PipelineOverview } from './components/PipelineOverview'
 import { DependenciesSection, Footnote, ParallelismSection } from './components/StaticSections'
 import { FreshnessHint, Layout, WhatsNewBanner } from './components/TopLevelSurfaces'
 import { TodayPanel } from './components/TodayPanel'
@@ -130,6 +131,7 @@ export function App() {
                 toggleDensity={density.toggleDensity}
                 toggleFilter={filter.toggleFilter}
             />
+            <PipelineOverview ralphState={ralphState} filters={filter.filters} setFilters={filter.setFilters} />
             <CopyToast text={toast.currentToast} />
             <p className="mental-model">
                 <strong>Kanban</strong> to choose · <strong>Ralph commands</strong> to execute · <strong>Phase tree</strong> to orient

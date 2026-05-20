@@ -5,7 +5,21 @@ import type { Density } from '../hooks/useDensity'
 import type { ShowToast } from '../hooks/useToast'
 import { copyTextWithToast } from '../utils/copyFeedback'
 import type { ActiveFilters, FilterAxis } from '../utils/filters'
+import { RALPH_STAGE_ORDER } from '../utils/ralphStages'
 import { KeyboardHelp } from './TopLevelSurfaces'
+
+const RALPH_STAGE_LABELS: Record<string, string> = {
+    brainstorming: '🧠 brainstorming',
+    'brainstorm-ready': '💡 brainstorm ready',
+    planning: '📝 planning',
+    'plan-ready': '📋 plan ready',
+    implementing: '🛠 implementing',
+    reviewing: '🔎 reviewing',
+    'review-fix': '🧰 review fix',
+    'replan-pending': '↩ replan pending',
+    shipped: '✅ shipped',
+    blocked: '🔒 blocked',
+}
 
 const FILTER_GROUPS: Array<{ axis: FilterAxis; title: string; chips: Array<{ value: string; label: string }> }> = [
     { axis: 'status', title: 'Status', chips: [
@@ -26,18 +40,7 @@ const FILTER_GROUPS: Array<{ axis: FilterAxis; title: string; chips: Array<{ val
         { value: 'tooling', label: '🛠 Tooling' },
     ] },
     { axis: 'cadence', title: 'Cadence', chips: [{ value: 'periodic', label: '🔄 Periodic only' }] },
-    { axis: 'ralphStage', title: 'Ralph stage', chips: [
-        { value: 'brainstorming', label: '🧠 brainstorming' },
-        { value: 'brainstorm-ready', label: '💡 brainstorm ready' },
-        { value: 'planning', label: '📝 planning' },
-        { value: 'plan-ready', label: '📋 plan ready' },
-        { value: 'implementing', label: '🛠 implementing' },
-        { value: 'reviewing', label: '🔎 reviewing' },
-        { value: 'review-fix', label: '🧰 review fix' },
-        { value: 'replan-pending', label: '↩ replan pending' },
-        { value: 'shipped', label: '✅ shipped' },
-        { value: 'blocked', label: '🔒 blocked' },
-    ] },
+    { axis: 'ralphStage', title: 'Ralph stage', chips: RALPH_STAGE_ORDER.map((stage) => ({ value: stage, label: RALPH_STAGE_LABELS[stage] })) },
     { axis: 'size', title: 'Size', chips: [
         { value: 'quick', label: 'Quick (<1h)' },
         { value: 'small', label: 'Small (1–4h)' },

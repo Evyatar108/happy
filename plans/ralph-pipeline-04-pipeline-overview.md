@@ -38,7 +38,7 @@ Plan 02 is recommended (live updates make the histogram more useful) but not str
 - Snapshot file `plans/overview-snapshot.json` and activity tail → Plan 05
 - `/triage` skill that consumes recommendations → Plan 06
 - MCP `overview.list_recommendations` tool → Plan 09
-- Detail dialog showing the full DAG → out of scope; the inline tooltip DAG is sufficient
+- Detail dialog or inline tooltip showing the full DAG → out of scope; the dependency graph JSON is sufficient for downstream consumers
 
 ## Files
 
