@@ -1,0 +1,19 @@
+export interface AppendJournalEntryOptions {
+    repoRoot: string
+    taskId: string
+    ts: string
+    prevStage: string
+    newStage: string
+    slug: string
+}
+
+export interface FormatJournalLineOptions {
+    ts: string
+    prevStage: string
+    newStage: string
+    slug: string
+}
+
+export function appendJournalEntry(options: AppendJournalEntryOptions): void
+
+export function formatJournalLine(options: FormatJournalLineOptions): string
