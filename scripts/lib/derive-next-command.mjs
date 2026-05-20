@@ -27,21 +27,21 @@ export function deriveNextCommand(state, task, options = {}) {
             if (!brainstormSlug) {
                 return null
             }
-            return { label: 'Resume brainstorm', command: `/brainstorm-with-ralph ${brainstormSlug}` }
+            return { label: 'Resume brainstorm', command: `/brainstorm-with-ralph ${brainstormSlug}`, icon: '💡' }
         }
         case 'brainstorm-ready': {
             const brainstormDir = cleanPath(artifacts.brainstormDir)
             if (!brainstormDir) {
                 return null
             }
-            return { label: 'Plan from brainstorm', command: `/plan-with-ralph --from-brainstorm ${brainstormDir}` }
+            return { label: 'Plan from brainstorm', command: `/plan-with-ralph --from-brainstorm ${brainstormDir}`, icon: '📋' }
         }
         case 'planning': {
             const planFile = resolvePlanFile(artifacts)
             if (!planFile) {
                 return null
             }
-            return { label: 'Continue planning', command: `/plan-with-ralph --improve ${planFile}` }
+            return { label: 'Continue planning', command: `/plan-with-ralph --improve ${planFile}`, icon: '📝' }
         }
         case 'plan-ready': {
             const jobDir = cleanPath(artifacts.jobDir)
@@ -52,7 +52,7 @@ export function deriveNextCommand(state, task, options = {}) {
             if (state.isParallel === true) {
                 command += ` --parallel --suggested-decomposition ${joinPath(jobDir, 'suggested-decomposition.json')}`
             }
-            return { label: 'Start implementation', command }
+            return { label: 'Start implementation', command, icon: '🚀' }
         }
         case 'implementing': {
             if (state.isParallel === true && state.groupSlug) {
@@ -60,32 +60,32 @@ export function deriveNextCommand(state, task, options = {}) {
                 if (!groupDir) {
                     return null
                 }
-                return { label: 'Resume implementation', command: `/implement-with-ralph --run-only --job ${groupDir}` }
+                return { label: 'Resume implementation', command: `/implement-with-ralph --run-only --job ${groupDir}`, icon: '⚙️' }
             }
             if (!state.jobSlug) {
                 return null
             }
-            return { label: 'Resume implementation', command: `/implement-with-ralph resume ${state.jobSlug}` }
+            return { label: 'Resume implementation', command: `/implement-with-ralph resume ${state.jobSlug}`, icon: '⚙️' }
         }
         case 'reviewing':
         case 'review-fix': {
             if (!state.jobSlug) {
                 return null
             }
-            return { label: 'Continue review', command: `/implement-with-ralph resume ${state.jobSlug}` }
+            return { label: 'Continue review', command: `/implement-with-ralph resume ${state.jobSlug}`, icon: '🔍' }
         }
         case 'replan-pending': {
             const jobDir = cleanPath(artifacts.jobDir)
             if (!jobDir) {
                 return null
             }
-            return { label: 'Replan next cycle', command: `/plan-with-ralph --improve ${joinPath(jobDir, 'plan.md')}` }
+            return { label: 'Replan next cycle', command: `/plan-with-ralph --improve ${joinPath(jobDir, 'plan.md')}`, icon: '🔄' }
         }
         case 'blocked': {
             if (!state.jobSlug) {
                 return null
             }
-            return { label: 'Retry after fix', command: `/implement-with-ralph resume ${state.jobSlug}` }
+            return { label: 'Retry after fix', command: `/implement-with-ralph resume ${state.jobSlug}`, icon: '🛠' }
         }
         case 'shipped':
         default:

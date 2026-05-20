@@ -19,6 +19,7 @@ describe('derive-next-command-cli', () => {
         expect(JSON.parse(result.stdout)).toEqual({
             label: 'Resume implementation',
             command: '/implement-with-ralph resume fixture-cli-job',
+            icon: '⚙️',
         })
     })
 
@@ -47,6 +48,7 @@ describe('derive-next-command-cli', () => {
             expect(JSON.parse(result.stdout)).toEqual({
                 label: 'Start implementation',
                 command: '/implement-with-ralph --from-plan .ralph/jobs/custom-task/plan.md',
+                icon: '🚀',
             })
         } finally {
             fs.rmSync(tempDir, { recursive: true, force: true })
@@ -61,6 +63,7 @@ describe('derive-next-command-cli', () => {
         expect(JSON.parse(result.stdout)).toEqual({
             label: 'Resume implementation',
             command: `/implement-with-ralph --run-only --job ${repoRoot}/.ralph/jobs/fixture-cli-job/groups/fixture-group`,
+            icon: '⚙️',
         })
     })
 

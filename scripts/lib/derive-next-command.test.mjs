@@ -7,7 +7,7 @@ describe('deriveNextCommand', () => {
         {
             stage: 'brainstorming',
             state: { stage: 'brainstorming', artifacts: { brainstormDir: '.ralph/brainstorms/login-flow' } },
-            expected: { label: 'Resume brainstorm', command: '/brainstorm-with-ralph login-flow' },
+            expected: { label: 'Resume brainstorm', command: '/brainstorm-with-ralph login-flow', icon: '💡' },
         },
         {
             stage: 'brainstorm-ready',
@@ -15,6 +15,7 @@ describe('deriveNextCommand', () => {
             expected: {
                 label: 'Plan from brainstorm',
                 command: '/plan-with-ralph --from-brainstorm .ralph/brainstorms/login-flow',
+                icon: '📋',
             },
         },
         {
@@ -23,6 +24,7 @@ describe('deriveNextCommand', () => {
             expected: {
                 label: 'Continue planning',
                 command: '/plan-with-ralph --improve .ralph/jobs/login-flow/plan-draft.md',
+                icon: '📝',
             },
         },
         {
@@ -31,32 +33,33 @@ describe('deriveNextCommand', () => {
             expected: {
                 label: 'Start implementation',
                 command: '/implement-with-ralph --from-plan .ralph/jobs/login-flow/plan.md',
+                icon: '🚀',
             },
         },
         {
             stage: 'implementing',
             state: { stage: 'implementing', jobSlug: 'login-flow' },
-            expected: { label: 'Resume implementation', command: '/implement-with-ralph resume login-flow' },
+            expected: { label: 'Resume implementation', command: '/implement-with-ralph resume login-flow', icon: '⚙️' },
         },
         {
             stage: 'reviewing',
             state: { stage: 'reviewing', jobSlug: 'login-flow' },
-            expected: { label: 'Continue review', command: '/implement-with-ralph resume login-flow' },
+            expected: { label: 'Continue review', command: '/implement-with-ralph resume login-flow', icon: '🔍' },
         },
         {
             stage: 'review-fix',
             state: { stage: 'review-fix', jobSlug: 'login-flow' },
-            expected: { label: 'Continue review', command: '/implement-with-ralph resume login-flow' },
+            expected: { label: 'Continue review', command: '/implement-with-ralph resume login-flow', icon: '🔍' },
         },
         {
             stage: 'replan-pending',
             state: { stage: 'replan-pending', artifacts: { jobDir: '.ralph/jobs/login-flow' } },
-            expected: { label: 'Replan next cycle', command: '/plan-with-ralph --improve .ralph/jobs/login-flow/plan.md' },
+            expected: { label: 'Replan next cycle', command: '/plan-with-ralph --improve .ralph/jobs/login-flow/plan.md', icon: '🔄' },
         },
         {
             stage: 'blocked',
             state: { stage: 'blocked', jobSlug: 'login-flow' },
-            expected: { label: 'Retry after fix', command: '/implement-with-ralph resume login-flow' },
+            expected: { label: 'Retry after fix', command: '/implement-with-ralph resume login-flow', icon: '🛠' },
         },
     ])('derives the $stage command', ({ state, expected }) => {
         expect(deriveNextCommand(state, { id: 'TASK-001' })).toEqual(expected)
@@ -97,6 +100,7 @@ describe('deriveNextCommand', () => {
             label: 'Start implementation',
             command:
                 '/implement-with-ralph --from-plan .ralph/jobs/login-flow/plan.md --parallel --suggested-decomposition .ralph/jobs/login-flow/suggested-decomposition.json',
+            icon: '🚀',
         })
     })
 
@@ -116,6 +120,7 @@ describe('deriveNextCommand', () => {
             label: 'Resume implementation',
             command:
                 '/implement-with-ralph --run-only --job D:/harness-efforts/codexu/.ralph/jobs/login-flow/groups/login-flow-group',
+            icon: '⚙️',
         })
     })
 
