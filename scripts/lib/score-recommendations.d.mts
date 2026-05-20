@@ -28,3 +28,4 @@ export interface ScoreRecommendationsOptions {
 }
 
 export function scoreRecommendations(options?: ScoreRecommendationsOptions): Recommendation[]
+export function _resetUnknownStageWarnings(): void
