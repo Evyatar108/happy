@@ -34,9 +34,19 @@ describe('Ralph overview config', () => {
             'outputs',
             'ralphRoot',
             'ralphSubdirs',
+            'recommendations',
             'watcher',
         ])
         expect(codexuDefaultConfig.outputs.activityMaxLines).toBe(1000)
+        expect(codexuDefaultConfig.outputs.recommendationsJson).toBe('plans/overview-recommendations.json')
+        expect(codexuDefaultConfig.outputs.dependencyGraphJson).toBe('plans/overview-dependency-graph.json')
+        expect(codexuDefaultConfig.recommendations.weights).toEqual({
+            stageUrgency: 40,
+            dependencyState: 30,
+            freshness: 20,
+            priority: 10,
+        })
+        expect(codexuDefaultConfig.recommendations.topN).toBe(20)
     })
 
     it('loads committed config with local overlay and resolves paths absolutely', () => {
@@ -47,7 +57,13 @@ describe('Ralph overview config', () => {
             outputs: {
                 sidecarJs: 'custom/state.js',
                 snapshot: 'custom/overview-snapshot.json',
+                recommendationsJson: 'custom/recommendations.json',
+                dependencyGraphJson: 'custom/dependency-graph.json',
                 activityMaxLines: 25,
+            },
+            recommendations: {
+                weights: { stageUrgency: 70, dependencyState: 20, freshness: 5, priority: 5 },
+                topN: 7,
             },
             watcher: { ignored: ['committed/**'] },
         })
@@ -73,7 +89,11 @@ describe('Ralph overview config', () => {
         expect(config.outputs.dataJson).toBe(path.join(repoRoot, 'plans', 'overview-data.json'))
         expect(config.outputs.snapshotSchema).toBe(path.join(repoRoot, 'plans', 'overview-snapshot.schema.json'))
         expect(config.outputs.tasksIndex).toBe(path.join(repoRoot, 'tasks', 'INDEX.md'))
+        expect(config.outputs.recommendationsJson).toBe(path.join(repoRoot, 'custom', 'recommendations.json'))
+        expect(config.outputs.dependencyGraphJson).toBe(path.join(repoRoot, 'custom', 'dependency-graph.json'))
         expect(config.outputs.activityMaxLines).toBe(25)
+        expect(config.recommendations.weights).toEqual({ stageUrgency: 70, dependencyState: 20, freshness: 5, priority: 5 })
+        expect(config.recommendations.topN).toBe(7)
         expect(Number.isInteger(config.outputs.activityMaxLines)).toBe(true)
         expect(config.ralphRoot).toBe(path.join(repoRoot, '.ralph'))
         expect(config.ralphSubdirs.jobs).toBe(path.join(repoRoot, '.ralph', 'jobs'))
@@ -81,6 +101,8 @@ describe('Ralph overview config', () => {
         expect(Object.isFrozen(config)).toBe(true)
         expect(Object.isFrozen(config.outputs)).toBe(true)
         expect(Object.isFrozen(config.ralphSubdirs)).toBe(true)
+        expect(Object.isFrozen(config.recommendations)).toBe(true)
+        expect(Object.isFrozen(config.recommendations.weights)).toBe(true)
         expect(Object.isFrozen(config.watcher)).toBe(true)
         expect(warn).not.toHaveBeenCalled()
     })
@@ -140,13 +162,22 @@ describe('Ralph overview config', () => {
             dataJson: 'plans/overview-data.json',
             snapshotSchema: 'plans/overview-snapshot.schema.json',
             tasksIndex: 'tasks/INDEX.md',
+            recommendationsJson: 'plans/overview-recommendations.json',
+            dependencyGraphJson: 'plans/overview-dependency-graph.json',
             activityMaxLines: 1000,
+        })
+        expect(config.recommendations).toMatchObject({
+            weights: { stageUrgency: 40, dependencyState: 30, freshness: 20, priority: 10 },
+            topN: 20,
         })
         expect(schema.properties.outputs.properties.activityMaxLines).toMatchObject({
             type: 'integer',
             minimum: 1,
             default: 1000,
         })
+        expect(schema.properties.outputs.properties.recommendationsJson).toMatchObject({ type: 'string' })
+        expect(schema.properties.outputs.properties.dependencyGraphJson).toMatchObject({ type: 'string' })
+        expect(schema.properties.recommendations.properties.topN).toMatchObject({ type: 'integer', minimum: 1 })
     })
 
     it('keeps the committed config as parseable JSON with a schema reference', () => {

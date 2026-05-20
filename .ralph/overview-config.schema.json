@@ -29,7 +29,17 @@
         "dataJson": { "type": "string" },
         "snapshotSchema": { "type": "string" },
         "tasksIndex": { "type": "string" },
+        "recommendationsJson": { "type": "string" },
+        "dependencyGraphJson": { "type": "string" },
         "activityMaxLines": { "type": "integer", "minimum": 1, "default": 1000 }
+      }
+    },
+    "recommendations": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "weights": { "type": "object" },
+        "topN": { "type": "integer", "minimum": 1 }
       }
     },
     "lockFile": { "type": "string" },

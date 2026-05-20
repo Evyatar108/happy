@@ -6,7 +6,12 @@ import { rotateActivity } from './emit-activity.mjs'
 import { buildSnapshot } from './emit-snapshot.mjs'
 import { SNAPSHOT_SCHEMA } from './emit-snapshot-schema.mjs'
 import { buildTasksIndex } from './emit-tasks-index.mjs'
+import { atomicWriteFile } from './atomic-write.mjs'
 import { matchesIgnored as sharedMatchesIgnored, toPosix as sharedToPosix } from './path-utils.mjs'
+import { resolveTaskMatch } from './task-match.mjs'
+
+export { atomicWriteFile } from './atomic-write.mjs'
+export { resolveTaskMatch } from './task-match.mjs'
 
 const KNOWN_ORCHESTRATOR_PHASES = new Set([...REVIEW_PHASES, ...IMPLEMENTING_PHASES])
 const _warnedUnknownPhases = new Set()
@@ -32,9 +37,6 @@ const FINDINGS_FILES = Object.freeze([
 ])
 const KIND_PRECEDENCE = Object.freeze(['job', 'group', 'brainstorm'])
 const MEDIUM_PLUS = new Set(['Medium', 'High', 'Critical'])
-const TRANSIENT_RENAME_ERRORS = new Set(['EBUSY', 'EACCES', 'EPERM'])
-const RENAME_RETRY_LIMIT = 3
-const RENAME_RETRY_DELAY_MS = 100
 const PLAN_04_RECOMMENDATIONS_PATH = 'plans/overview-recommendations.json'
 const PLAN_04_DEPENDENCY_GRAPH_PATH = 'plans/overview-dependency-graph.json'
 
@@ -416,51 +418,6 @@ function countLines(filePath) {
     return contents.split('\n').filter((line) => line.length > 0).length
 }
 
-export async function atomicWriteFile(finalPath, contents) {
-    if (!finalPath) {
-        throw new Error('writeSidecar requires configured output paths')
-    }
-    fs.mkdirSync(path.dirname(finalPath), { recursive: true })
-    const tmpPath = `${finalPath}.tmp`
-    let fd
-    try {
-        fd = fs.openSync(tmpPath, 'w')
-        fs.writeFileSync(fd, contents)
-        fs.fsyncSync(fd)
-    } finally {
-        if (fd !== undefined) {
-            fs.closeSync(fd)
-        }
-    }
-
-    try {
-        await renameWithRetry(tmpPath, finalPath)
-    } catch (error) {
-        fs.rmSync(tmpPath, { force: true })
-        throw error
-    }
-}
-
-async function renameWithRetry(tmpPath, finalPath) {
-    for (let attempt = 1; attempt <= RENAME_RETRY_LIMIT; attempt += 1) {
-        try {
-            fs.renameSync(tmpPath, finalPath)
-            return
-        } catch (error) {
-            if (!TRANSIENT_RENAME_ERRORS.has(error?.code) || attempt === RENAME_RETRY_LIMIT) {
-                throw error
-            }
-            await delay(RENAME_RETRY_DELAY_MS)
-        }
-    }
-}
-
-function delay(ms) {
-    return new Promise((resolve) => {
-        setTimeout(resolve, ms)
-    })
-}
-
 function readAllBundles({ repoRoot, config }) {
     return [
         ...readJobLikeBundles({
@@ -631,17 +588,6 @@ function readReviewOpenCount(dir) {
 function countOpenMediumPlus(value) {
     const findings = Array.isArray(value?.findings) ? value.findings : Array.isArray(value) ? value : []
     return findings.filter((finding) => finding?.status === 'open' && MEDIUM_PLUS.has(finding?.severity)).length
-}
-
-function resolveTaskMatch({ slug, ralphOverrides, taskIds }) {
-    const overrideTaskId = ralphOverrides[slug]
-    if (overrideTaskId) {
-        return { taskId: overrideTaskId, matchSource: 'override' }
-    }
-    if (taskIds.has(slug)) {
-        return { taskId: slug, matchSource: 'slug-default' }
-    }
-    return null
 }
 
 function deriveIsParallel(groupJson) {

@@ -97,6 +97,12 @@ export function writeSidecar(options: {
 
 export function atomicWriteFile(finalPath: string, contents: string): Promise<void>
 
+export function resolveTaskMatch(options: {
+    slug: string
+    ralphOverrides: Record<string, string>
+    taskIds: Set<string>
+}): { taskId: string; matchSource: 'override' | 'slug-default' } | null
+
 export function resolveCrossKindPrecedence(
     bundles: RalphArtifactBundle[],
 ): { winner: RalphArtifactBundle; shadowed: RalphArtifactBundle[] }

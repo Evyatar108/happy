@@ -15,7 +15,18 @@ export const codexuDefaultConfig = deepFreeze({
         dataJson: 'plans/overview-data.json',
         snapshotSchema: 'plans/overview-snapshot.schema.json',
         tasksIndex: 'tasks/INDEX.md',
+        recommendationsJson: 'plans/overview-recommendations.json',
+        dependencyGraphJson: 'plans/overview-dependency-graph.json',
         activityMaxLines: 1000,
+    },
+    recommendations: {
+        weights: {
+            stageUrgency: 40,
+            dependencyState: 30,
+            freshness: 20,
+            priority: 10,
+        },
+        topN: 20,
     },
     lockFile: '.ralph/overview-sync.lock',
     watcher: {

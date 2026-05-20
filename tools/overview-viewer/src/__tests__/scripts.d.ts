@@ -18,7 +18,18 @@ declare module '../../../../scripts/lib/default-config.mjs' {
             dataJson: string
             snapshotSchema: string
             tasksIndex: string
+            recommendationsJson: string
+            dependencyGraphJson: string
             activityMaxLines: number
+        }
+        recommendations: {
+            weights: {
+                stageUrgency: number
+                dependencyState: number
+                freshness: number
+                priority: number
+            }
+            topN: number
         }
         lockFile: string
         watcher: {
@@ -190,10 +201,49 @@ declare module '../../../../scripts/lib/sync-core.mjs' {
 
     export function atomicWriteFile(finalPath: string, contents: string): Promise<void>
 
+    export function resolveTaskMatch(options: {
+        slug: string
+        ralphOverrides: Record<string, string>
+        taskIds: Set<string>
+    }): { taskId: string; matchSource: 'override' | 'slug-default' } | null
+
     export function resolveCrossKindPrecedence(
         bundles: RalphArtifactBundle[],
     ): { winner: RalphArtifactBundle; shadowed: RalphArtifactBundle[] }
     export function pickMostRecentByMtime(candidates: RalphArtifactBundle[]): RalphArtifactBundle
+}
+
+declare module '../../../../scripts/lib/atomic-write.mjs' {
+    export function atomicWriteFile(finalPath: string, contents: string): Promise<void>
+}
+
+declare module '../../../../scripts/lib/load-prds-by-task-id.mjs' {
+    export interface PrdStoryCarrier {
+        id: string
+        dependencies?: string[]
+        passes?: boolean | string
+    }
+
+    export interface PrdCarrier {
+        userStories: PrdStoryCarrier[]
+        dependencies?: string[]
+    }
+
+    export function loadPrdsByTaskId(options: {
+        repoRoot: string
+        config: {
+            dataFile: string
+            ralphRoot: string
+            ralphSubdirs: {
+                jobs: string
+                jobGroups: string
+            }
+        }
+        overviewData?: {
+            tasks?: Array<{ id?: string }>
+            ralphOverrides?: Record<string, string>
+        }
+    }): Record<string, PrdCarrier>
 }
 
 declare module '../../../../scripts/lib/sync-lock.mjs' {

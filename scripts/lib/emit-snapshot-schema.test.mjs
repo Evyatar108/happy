@@ -26,8 +26,11 @@ describe('emit-snapshot-schema', () => {
                 },
             ],
             runs: [{ id: 'run-1', taskId: 'TASK-001', ranAt: '2026-05-19T14:31:00.000Z', outcome: 'pass' }],
-            recommendations: [{ taskId: 'TASK-001', score: 0.9, rationale: 'ready' }],
-            dependencyGraph: { nodes: [{ id: 'TASK-001' }], edges: [{ from: 'TASK-001', to: 'TASK-002' }] },
+            recommendations: [{ taskId: 'TASK-001', score: 0.9, stage: 'implementing', reasons: ['active implementation'] }],
+            dependencyGraph: {
+                nodes: [{ id: 'TASK-001', type: 'task', taskId: 'TASK-001', stage: 'implementing' }],
+                edges: [{ from: 'TASK-001', to: 'TASK-002', type: 'depends-on-task' }],
+            },
             runDurations: { 'run-1': 42 },
             unmatched: [{ kind: 'job', slug: 'orphan-job', reason: 'no-matching-task-id' }],
             unmatchedSummary: { 'no-matching-task-id': 1 },
@@ -35,6 +38,9 @@ describe('emit-snapshot-schema', () => {
 
         expect(SNAPSHOT_SCHEMA.properties.schemaVersion.const).toBe(1)
         expect(SNAPSHOT_SCHEMA.$defs.RalphPipelineState.additionalProperties).toBe(true)
+        expect(SNAPSHOT_SCHEMA.$defs.Recommendation.additionalProperties).toBe(true)
+        expect(SNAPSHOT_SCHEMA.$defs.DependencyGraph.properties.nodes.items.additionalProperties).toBe(true)
+        expect(SNAPSHOT_SCHEMA.$defs.DependencyGraph.properties.edges.items.additionalProperties).toBe(true)
         expect(validate(snapshot), JSON.stringify(validate.errors, null, 2)).toBe(true)
     })
 })

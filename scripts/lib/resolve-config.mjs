@@ -75,7 +75,7 @@ function mergeObject(base, overlay) {
 
 function resolveConfigPaths(config, repoRoot) {
     const ralphRoot = resolvePath(repoRoot, config.ralphRoot)
-    const { dataFile: _df, ralphRoot: _rr, ralphSubdirs, outputs, lockFile: _lf, watcher, ...unknownRoot } = config
+    const { dataFile: _df, ralphRoot: _rr, ralphSubdirs, outputs, recommendations, lockFile: _lf, watcher, ...unknownRoot } = config
     const { jobs: _jobs, jobGroups: _jg, brainstorms: _bs, ...unknownRalphSubdirs } = ralphSubdirs
     const {
         sidecarJs: _sjs,
@@ -86,9 +86,19 @@ function resolveConfigPaths(config, repoRoot) {
         dataJson: _dataJson,
         snapshotSchema: _snapshotSchema,
         tasksIndex: _tasksIndex,
+        recommendationsJson: _recommendationsJson,
+        dependencyGraphJson: _dependencyGraphJson,
         activityMaxLines: _activityMaxLines,
         ...unknownOutputs
     } = outputs
+    const { weights: _weights, topN: _topN, ...unknownRecommendations } = recommendations ?? {}
+    const {
+        stageUrgency: _stageUrgency,
+        dependencyState: _dependencyState,
+        freshness: _freshness,
+        priority: _priority,
+        ...unknownWeights
+    } = recommendations?.weights ?? {}
     const { ignored: _ignored, ...unknownWatcher } = watcher
     return {
         ...unknownRoot,
@@ -110,7 +120,20 @@ function resolveConfigPaths(config, repoRoot) {
             dataJson: resolvePath(repoRoot, config.outputs.dataJson),
             snapshotSchema: resolvePath(repoRoot, config.outputs.snapshotSchema),
             tasksIndex: resolvePath(repoRoot, config.outputs.tasksIndex),
+            recommendationsJson: resolvePath(repoRoot, config.outputs.recommendationsJson),
+            dependencyGraphJson: resolvePath(repoRoot, config.outputs.dependencyGraphJson),
             activityMaxLines: config.outputs.activityMaxLines,
+        },
+        recommendations: {
+            ...unknownRecommendations,
+            weights: {
+                ...unknownWeights,
+                stageUrgency: recommendations.weights.stageUrgency,
+                dependencyState: recommendations.weights.dependencyState,
+                freshness: recommendations.weights.freshness,
+                priority: recommendations.weights.priority,
+            },
+            topN: recommendations.topN,
         },
         lockFile: resolvePath(repoRoot, config.lockFile),
         watcher: {

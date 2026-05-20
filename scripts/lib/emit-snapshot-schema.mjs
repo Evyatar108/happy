@@ -74,6 +74,8 @@ export const SNAPSHOT_SCHEMA = {
                 lastTouchedAt: { type: 'string' },
                 planOnly: { type: 'boolean' },
                 mergeCommit: { type: 'string' },
+                blocks: { type: 'array', items: { type: 'string' } },
+                priority: { type: 'number' },
                 kanbanCards: { type: 'array', items: { $ref: '#/$defs/KanbanCardData' } },
                 command: { $ref: '#/$defs/OverviewCommand' },
             },
@@ -160,10 +162,12 @@ export const SNAPSHOT_SCHEMA = {
         Recommendation: {
             type: 'object',
             additionalProperties: true,
+            required: ['taskId', 'score', 'stage', 'reasons'],
             properties: {
                 taskId: { type: 'string' },
                 score: { type: 'number' },
-                rationale: { type: 'string' },
+                stage: { $ref: '#/$defs/RalphPipelineState/properties/stage' },
+                reasons: { type: 'array', items: { type: 'string' } },
             },
         },
         DependencyGraph: {
@@ -176,8 +180,14 @@ export const SNAPSHOT_SCHEMA = {
                     items: {
                         type: 'object',
                         additionalProperties: true,
-                        required: ['id'],
-                        properties: { id: { type: 'string' } },
+                        required: ['id', 'type'],
+                        properties: {
+                            id: { type: 'string' },
+                            type: { enum: ['task', 'story'] },
+                            taskId: { type: 'string' },
+                            storyId: { type: 'string' },
+                            stage: { $ref: '#/$defs/RalphPipelineState/properties/stage' },
+                        },
                     },
                 },
                 edges: {
@@ -185,10 +195,11 @@ export const SNAPSHOT_SCHEMA = {
                     items: {
                         type: 'object',
                         additionalProperties: true,
-                        required: ['from', 'to'],
+                        required: ['from', 'to', 'type'],
                         properties: {
                             from: { type: 'string' },
                             to: { type: 'string' },
+                            type: { enum: ['blocks', 'depends-on-story', 'spawn', 'depends-on-task'] },
                         },
                     },
                 },

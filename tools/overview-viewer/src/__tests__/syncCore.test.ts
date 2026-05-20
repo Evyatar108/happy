@@ -389,6 +389,7 @@ function makeRepoFixture({
             ralphRoot: '.ralph',
             ralphSubdirs: { jobs: 'jobs', jobGroups: 'job-groups', brainstorms: 'brainstorms' },
             outputs: { ...codexuDefaultConfig.outputs },
+            recommendations: { ...codexuDefaultConfig.recommendations },
             lockFile: '.ralph/overview-sync.lock',
             watcher: {
                 ignored: [

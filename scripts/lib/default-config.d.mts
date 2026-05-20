@@ -15,7 +15,18 @@ export interface RalphOverviewConfig {
         dataJson: string
         snapshotSchema: string
         tasksIndex: string
+        recommendationsJson: string
+        dependencyGraphJson: string
         activityMaxLines: number
+    }
+    recommendations: {
+        weights: {
+            stageUrgency: number
+            dependencyState: number
+            freshness: number
+            priority: number
+        }
+        topN: number
     }
     lockFile: string
     watcher: {

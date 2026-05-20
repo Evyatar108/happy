@@ -58,6 +58,10 @@ describe('buildTasksIndex', () => {
 
         const fixturePath = path.join(__dirname, 'fixtures', 'emit-tasks-index.md')
 
-        expect(buildTasksIndex(snapshot)).toBe(fs.readFileSync(fixturePath, 'utf8'))
+        expect(normalizeLineEndings(buildTasksIndex(snapshot))).toBe(normalizeLineEndings(fs.readFileSync(fixturePath, 'utf8')))
     })
 })
+
+function normalizeLineEndings(value) {
+    return value.replace(/\r\n/g, '\n')
+}

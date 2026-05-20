@@ -29,6 +29,8 @@ export interface OverviewTask {
     lastTouchedAt?: string
     planOnly?: boolean
     mergeCommit?: string
+    blocks?: string[]
+    priority?: number
     kanbanCards?: KanbanCardData[]
     command?: OverviewCommand
 }
@@ -155,14 +157,25 @@ export interface OverviewData {
 }
 
 export interface Recommendation {
-    taskId?: string
-    score?: number
-    rationale?: string
+    taskId: string
+    score: number
+    stage: RalphStage
+    reasons: string[]
 }
 
 export interface DependencyGraph {
-    nodes: Array<{ id: string }>
-    edges: Array<{ from: string; to: string }>
+    nodes: Array<{
+        id: string
+        type: 'task' | 'story'
+        taskId?: string
+        storyId?: string
+        stage?: RalphStage
+    }>
+    edges: Array<{
+        from: string
+        to: string
+        type: 'blocks' | 'depends-on-story' | 'spawn' | 'depends-on-task'
+    }>
 }
 
 export interface SnapshotTask extends OverviewTask {
