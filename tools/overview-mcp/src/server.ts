@@ -6,6 +6,7 @@ import {
   addJournalEntryInputSchema,
   getTaskInputSchema,
   listBlockersInputSchema,
+  listCrewSessionsInputSchema,
   listRecommendationsInputSchema,
   listTasksInputSchema,
   nextCommandInputSchema,
@@ -14,12 +15,14 @@ import {
 import type {
   AddJournalEntryInput,
   GetTaskInput,
+  ListCrewSessionsInput,
   ListRecommendationsInput,
   ListTasksInput,
   NextCommandInput,
   SetOverrideInput,
 } from './schemas.js';
 import { addJournalEntry } from './tools/add-journal-entry.js';
+import { listCrewSessions } from './tools/list-crew-sessions.js';
 import {
   getTask,
   listBlockers,
@@ -79,6 +82,15 @@ export function createServer(context: ServerContext): McpServer {
       inputSchema: asSdkInputSchema(listBlockersInputSchema),
     },
     async () => toToolResult(await listBlockers(context)),
+  );
+
+  server.registerTool(
+    'overview.list_crew_sessions',
+    {
+      description: 'List live Ralph crew sessions by re-reading crew manifests with a short cache.',
+      inputSchema: asSdkInputSchema(listCrewSessionsInputSchema),
+    },
+    async (input) => toToolResult(await listCrewSessions(context, input as ListCrewSessionsInput)),
   );
 
   server.registerTool(

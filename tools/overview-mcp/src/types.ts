@@ -24,6 +24,19 @@ export type RalphStage =
   | 'shipped'
   | 'blocked';
 
+export interface CrewSessionRef {
+  crewName: string;
+  memberName: string;
+  startedAt: string;
+  sessionId?: string;
+  transcriptPath?: string;
+  endedAt?: string;
+  outcome?: string;
+  summary?: string;
+  _isExplicit?: boolean;
+  cwd?: string;
+}
+
 export interface RalphPipelineState {
   stage: RalphStage;
   jobSlug?: string;
@@ -32,7 +45,16 @@ export interface RalphPipelineState {
   deferredQuestionsCount?: number;
   reviewOpenCount?: Record<string, number | undefined>;
   lastUpdatedAt?: string;
+  crewSessions?: Partial<Record<RalphStage, CrewSessionRef[]>>;
   [key: string]: unknown;
+}
+
+export interface OverviewRalphState {
+  generatedAt: string;
+  generatedFromCommit: string;
+  byTaskId: Record<string, RalphPipelineState>;
+  unmatched?: Array<{ kind: string; slug: string; reason: string }>;
+  unmatchedSummary?: Record<string, number>;
 }
 
 export interface SnapshotTask extends OverviewTask {

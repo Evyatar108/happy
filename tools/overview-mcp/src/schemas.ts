@@ -40,6 +40,10 @@ export const listRecommendationsInputSchema = {
 
 export const listBlockersInputSchema = {};
 
+export const listCrewSessionsInputSchema = {
+  taskId: z.string().min(1).optional(),
+};
+
 export const addJournalEntryInputSchema = {
   taskId: z.string().min(1),
   note: z.string(),
@@ -56,6 +60,7 @@ export const getTaskSchema = z.object(getTaskInputSchema);
 export const nextCommandSchema = z.object(nextCommandInputSchema);
 export const listRecommendationsSchema = z.object(listRecommendationsInputSchema);
 export const listBlockersSchema = z.object(listBlockersInputSchema);
+export const listCrewSessionsSchema = z.object(listCrewSessionsInputSchema);
 export const addJournalEntrySchema = z.object(addJournalEntryInputSchema);
 export const setOverrideSchema = z.object(setOverrideInputSchema);
 
@@ -64,5 +69,6 @@ export type GetTaskInput = z.infer<typeof getTaskSchema>;
 export type NextCommandInput = z.infer<typeof nextCommandSchema>;
 export type ListRecommendationsInput = z.infer<typeof listRecommendationsSchema>;
 export type ListBlockersInput = z.infer<typeof listBlockersSchema>;
+export type ListCrewSessionsInput = z.infer<typeof listCrewSessionsSchema>;
 export type AddJournalEntryInput = z.infer<typeof addJournalEntrySchema>;
 export type SetOverrideInput = z.infer<typeof setOverrideSchema>;

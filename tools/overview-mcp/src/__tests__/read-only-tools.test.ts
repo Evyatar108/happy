@@ -43,6 +43,7 @@ describe('read-only tool registration', () => {
       'overview.add_journal_entry',
       'overview.get_task',
       'overview.list_blockers',
+      'overview.list_crew_sessions',
       'overview.list_recommendations',
       'overview.list_tasks',
       'overview.next_command',
