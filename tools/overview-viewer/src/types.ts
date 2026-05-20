@@ -90,7 +90,7 @@ export interface RalphPipelineState {
     hasPrdWorthy?: boolean
     terminalReason?: 'complete' | 'replan' | 'blocked'
     lastUpdatedAt?: string
-    crewSessions?: Record<RalphStage, CrewSessionRef[]>
+    crewSessions?: Partial<Record<RalphStage, CrewSessionRef[]>>
     // Keep per-entry timestamps out of Plan 01 so sidecar idempotency strips only the top-level generatedAt.
 }
 
