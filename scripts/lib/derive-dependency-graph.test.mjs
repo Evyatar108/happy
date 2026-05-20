@@ -111,6 +111,23 @@ describe('deriveDependencyGraph', () => {
         })
     })
 
+    test('ignores metadata keys prefixed with _ in spawnedFrom', () => {
+        const graph = deriveDependencyGraph({
+            overviewData: {
+                spawnedFrom: {
+                    _comment: 'Map of childTaskId -> parentTaskId. Populated when a research task lands.',
+                    child: 'parent',
+                },
+            },
+        })
+
+        const nodeIds = graph.nodes.map((n) => n.id)
+        expect(nodeIds).not.toContain('_comment')
+        expect(nodeIds).not.toContain('Map of childTaskId -> parentTaskId. Populated when a research task lands.')
+        expect(graph.edges.every((e) => e.from !== '_comment' && e.to !== '_comment')).toBe(true)
+        expect(graph.edges).toContainEqual({ from: 'child', to: 'parent', type: 'spawn' })
+    })
+
     test('stays side-effect free', () => {
         const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined)
         const graph = deriveDependencyGraph({ generatedFromCommit: 'abc123' })

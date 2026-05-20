@@ -45,7 +45,7 @@ export function deriveDependencyGraph({ byTaskId = {}, overviewData = {}, prdsBy
     }
 
     for (const [childTaskId, parentTaskId] of Object.entries(overviewData.spawnedFrom ?? {})) {
-        if (typeof parentTaskId !== 'string') {
+        if (childTaskId.startsWith('_') || typeof parentTaskId !== 'string') {
             continue
         }
         addTaskNode(nodes, childTaskId, byTaskId[childTaskId]?.stage)
@@ -70,6 +70,9 @@ export function deriveDependencyGraph({ byTaskId = {}, overviewData = {}, prdsBy
 function collectTaskIds(byTaskId, tasksById, prdsByTaskId, overviewData) {
     const taskIds = new Set([...Object.keys(byTaskId), ...tasksById.keys(), ...Object.keys(prdsByTaskId)])
     for (const [childTaskId, parentTaskId] of Object.entries(overviewData.spawnedFrom ?? {})) {
+        if (childTaskId.startsWith('_')) {
+            continue
+        }
         taskIds.add(childTaskId)
         if (typeof parentTaskId === 'string') {
             taskIds.add(parentTaskId)
