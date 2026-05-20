@@ -75,12 +75,12 @@ Each member's `manifest.json` exposes the canonical `sessionId` and `transcriptP
       crewSessions?: Record<RalphStage, CrewSessionRef[]>
   }
   ```
-- **`scripts/lib/sync-core.mjs`** — invoke `discoverCrewSessions` during the per-tick merge, AFTER the per-slug Ralph-side derivation. Merge crew session entries into the in-memory state (preferring entries written via `--update-crew-session` over the heuristic cross-walk on conflict — see Common Mistakes).
+- **`scripts/lib/sync-core.mjs`** — invoke `discoverCrewSessions` during the per-tick merge, AFTER the per-slug Ralph-side derivation. Merge crew session entries into the in-memory state (preferring entries written via `--update-crew-session` over the heuristic cross-walk on conflict — see Common Mistakes). Also export a dedicated `rescanCrewSessionsAndWrite({ currentState, config, repoRoot, overviewData })` helper that re-runs `discoverCrewSessions`, merges results into `currentState.byTaskId[*].crewSessions` while preserving explicit entries and recorded stage buckets, refreshes `generatedAt`, and calls `writeSidecar()` without re-reading or re-deriving Ralph bundles. This is the crew-only flush path that bypasses `deriveAffectedTaskUpdate`.
 - **`scripts/lib/watch-ralph-state.mjs`** — add to the watched paths:
   - `.crews/crews/*/members/*/manifest.json`
   - `.crews/crews/*/leads/*/manifest.json`
   - `.crews/sessions-configs/*`
-  Exclude `.crews/logs/`, `.crews/spawn-launchers/` (changes there are noise; manifest is the canonical source), mailbox files (`mailbox.json`, `outbox.jsonl` — high churn, not state). Preserve Plan 02's resolved-root behavior: Ralph paths come from `config.ralphSubdirs`, and any new `.crews/` root must be resolved from config or `repoRoot`, never from a worktree-local directory.
+  Exclude `.crews/logs/`, `.crews/spawn-launchers/` (changes there are noise; manifest is the canonical source), mailbox files (`mailbox.json`, `outbox.jsonl` — high churn, not state). Preserve Plan 02's resolved-root behavior: Ralph paths come from `config.ralphSubdirs`, and any new `.crews/` root must be resolved from config or `repoRoot`, never from a worktree-local directory. Crew-tree events are emitted as slugless `{ kind: 'crews' }` changes; route them through `rescanCrewSessionsAndWrite()` after any Ralph-side `mergeAndWrite()` in the same debounce batch — do NOT pass crew-only changes through `deriveAffectedTaskUpdate()`.
 - **`scripts/sync-ralph-state.mjs`** — add CLI subcommand handlers:
   - `--update-crew-session <taskId> <stage> --json <ref>` — acquires the same lock, applies the merge, exits.
   - `--finalize-crew-session <taskId> <stage> --member <name> --outcome <s> [--summary <text>]` — same pattern.
@@ -138,8 +138,8 @@ Rule: explicit-write entries WIN over heuristic-discovered entries. Implementati
 1. **Add types** (`CrewSessionRef`, extend `RalphPipelineState`). Typecheck.
 2. **Build `parseSpawnLauncher.mjs`** — PowerShell-quoted-string extraction. Test against the real spawn-launcher files in `.crews/spawn-launchers/`.
 3. **Build `discoverCrewSessions.mjs`** — full walk + match. Test against `.crews/crews/smoke/` real data (5+ members across alice/bob).
-4. **Wire into `sync-core.mjs`** — merge crew sessions into `byTaskId` AFTER per-slug derivation.
-5. **Extend `watch-ralph-state.mjs` watched paths** — add `.crews/` paths with appropriate excludes.
+4. **Wire into `sync-core.mjs`** — merge crew sessions into `byTaskId` AFTER per-slug derivation, and export `rescanCrewSessionsAndWrite()` as the crew-only flush helper used by the watcher (bypassing `deriveAffectedTaskUpdate`).
+5. **Extend `watch-ralph-state.mjs` watched paths** — add `.crews/` paths with appropriate excludes. Emit crew-tree events as slugless `{ kind: 'crews' }` changes and route them through `rescanCrewSessionsAndWrite()` in the same debounce tick as any Ralph `mergeAndWrite()` work.
 6. **Add CLI subcommand modes** — `--update-crew-session`, `--finalize-crew-session`. Share the lock through `sync-lock.mjs`. Test that two subcommand invocations without a running watcher serialize without lost updates, and that either subcommand against a fresh watcher lock fails before writing with the canonical diagnostic.
 7. **Update `/work-on` skill** — add `--via-crew` branch.
 8. **Extend chip tooltip extras** — append crew session rows to the `tooltipExtras` JSX composed in `TaskCommand.tsx` and passed to `RalphStageChip`.
