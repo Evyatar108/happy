@@ -14,7 +14,7 @@ This is the "north star" interface. Skills (Plan 06) remain the user-facing surf
 
 - **Plan 05 (Agent exports)** — required. The MCP server reads `plans/overview-snapshot.json` as primary input.
 - **Plan 06 (Skills)** — required. The server shares `scripts/lib/derive-next-command.mjs` with the skills.
-- **Plan 08 (Crews)** — required for `overview.invoke_next` with `viaCrewMember` and `overview.list_crew_sessions`. Without 08, those tools are stubs.
+- **Plan 08 (Crews)** — required for `overview.invoke_next` with `viaCrewMember` and `overview.list_crew_sessions`. It provides `CrewSessionRef`, `RalphPipelineState.crewSessions`, `.crews/` cross-walk discovery, the crews CLI mirror path, and lock-protected explicit sidecar subcommands. Without 08, those tools are stubs.
 
 Plans 02, 04, 07 are recommended but not strictly required (they enrich the snapshot the server consumes).
 
@@ -77,7 +77,9 @@ Plans 02, 04, 07 are recommended but not strictly required (they enrich the snap
 - `plans/overview-snapshot.schema.json` — runtime validation contract for snapshot JSON. Do not import the schema as TypeScript types.
 - `plans/overview-recommendations.json` — compatibility fallback for `list_recommendations`; the file is a Plan 04 wrapper `{ recommendations, generatedAt, generatedFromCommit }`, while the snapshot field is the primary array when present.
 - `plans/overview-dependency-graph.json` — Plan 04 unwrapped dependency graph `{ nodes, edges }`; story node ids are `${taskId}:${storyId}`, and all edge types use dependent -> prerequisite direction.
-- `.crews/crews/*/members/*/manifest.json` and `*/leads/*/manifest.json` — re-read live by `list_crew_sessions` for fresh status.
+- `.crews/crews/*/members/*/manifest.json` and `.crews/crews/*/leads/*/manifest.json` — re-read live by `list_crew_sessions` for fresh status.
+- `scripts/lib/crews-cross-walk.mjs` and `scripts/lib/parse-spawn-launcher.mjs` — Plan 08 crew-session discovery helpers; reuse their matching and launcher-parsing contracts instead of reimplementing task-id heuristics in the MCP package.
+- `scripts/sync-ralph-state.mjs --update-crew-session` and `--finalize-crew-session` — lock-protected explicit write/finalize surface for `CrewSessionRef` rows in `plans/overview-ralph-state.json`.
 - `D:\ai-developer-toolkit\plugins\seval\` (or any existing MCP server in the toolkit) — TypeScript pattern reference for stdio transport + tool registration.
 
 ## Tool implementation notes
@@ -88,7 +90,7 @@ Two modes:
 
 **Default (no `viaCrewMember`):** the server cannot directly invoke a Claude Code skill (MCP servers run as subprocesses, not in the Claude Code session). Instead, return the derived command with `{ ok: true, command: '<derived>', invocationGuidance: 'use the Skill tool to invoke this' }`. The caller (another agent) then uses the `Skill` tool itself.
 
-**`viaCrewMember`:** the server uses the crews plugin's CLI (assuming a `crews` CLI exists, or by writing the appropriate file structure under `.crews/`). The exact mechanism depends on how the crews plugin exposes spawn from an external process — read `D:\ai-developer-toolkit\plugins\crews\scripts/` for the canonical entry point. If no external entry exists, fall back to writing a queued spawn request to `.crews/pending-spawns/<ts>.json` that the lead agent's crew listener picks up. (This is a known gap; document it in the Common Mistakes and let Plan 08's bookkeeper-agent integration evolve the path.)
+**`viaCrewMember`:** use the Plan 08 `/work-on --via-crew` flow as the contract. Derive the prompt with `node scripts/lib/derive-next-command-cli.mjs <taskId>`, spawn with `node D:/ai-developer-toolkit/plugins/crews/tools/spawn-member.js <memberName> --crew <crewName> --cwd <main-repo-root> -- "<prompt>"`, poll the member/lead manifest briefly for `sessionId` and `transcriptPath`, then persist the row through `node scripts/sync-ralph-state.mjs --update-crew-session <taskId> <stage> --json <ref>`. Record a partial explicit ref with `crewName`, `memberName`, `cwd`, and `startedAt` if manifest polling times out; heuristic discovery upgrades it later.
 
 ### `overview.set_override`
 
@@ -104,7 +106,7 @@ If parsing fails (e.g. malformed JS), error with `{ ok: false, error: 'failed to
 
 ### `overview.list_crew_sessions`
 
-Re-reads `.crews/crews/*/members/*/manifest.json` on every call rather than relying on the snapshot's cached `CrewSessionRef`. This is the "live status" surface. Cache the directory scan for ~500ms to avoid hammering the filesystem on repeated calls.
+Re-reads `.crews/crews/*/{members,leads}/*/manifest.json` on every call rather than relying on the snapshot's cached `CrewSessionRef`. This is the "live status" surface. Cache the directory scan for ~500ms to avoid hammering the filesystem on repeated calls. Resolve `.crews/` through `config.crewsRoot` so linked worktrees read the main repo's shared crew state.
 
 ### `overview.get_transcript`
 
@@ -183,13 +185,13 @@ K. **`overview.add_journal_entry`:** appends a line. `tail tasks/<id>/journal.md
 
 1. **`set_override` writes a single field via structured edit.** NEVER overwrite the whole file. If parsing fails, error gracefully and tell the user to fix manually.
 2. **MCP server runs as a subprocess.** It cannot directly call Claude Code skills. `invoke_next` returns the command; the caller invokes via the `Skill` tool.
-3. **Live vs cached crew data.** `list_crew_sessions` re-reads manifests for live status; `get_task.crewSessions` is cached snapshot data (last tick's view). The MCP docstring for each tool makes this distinction explicit.
+3. **Live vs cached crew data.** `list_crew_sessions` re-reads member and lead manifests for live status; `get_task.crewSessions` is cached snapshot data (last tick's view). The MCP docstring for each tool makes this distinction explicit.
 4. **Settings.local.json, not settings.json.** Machine-specific paths shouldn't pollute committed config.
 5. **Don't import from `tools/overview-viewer/`.** The MCP server and the React viewer share `scripts/lib/` modules ONLY. Importing React/Vite code from the MCP server creates a circular workspace dep.
 6. **`SnapshotReader` cache invalidation.** chokidar fires on writes; the reader re-reads. Don't add additional polling — single source of cache invalidation.
 7. **Keep TypeScript types and JSON Schema roles separate.** Import TypeScript shapes from the shared overview types; use `plans/overview-snapshot.schema.json` only for runtime JSON validation and MCP schema composition.
 8. **Backwards compatibility.** v1 tool contracts are committed once shipped. Adding a tool is non-breaking; changing an existing tool's input or output is breaking and requires a new tool or a versioned variant (`overview.list_tasks_v2`).
-9. **`invoke_next` with `viaCrewMember`** assumes Plan 08 is shipped. Without Plan 08, the tool returns an error; document this dependency in the README.
+9. **`invoke_next` with `viaCrewMember`** assumes Plan 08 is shipped. Use the CLI mirror at `D:/ai-developer-toolkit/plugins/crews/tools/spawn-member.js` and persist refs through `scripts/sync-ralph-state.mjs --update-crew-session`; do not write ad-hoc queued spawn files. Without Plan 08, the tool returns an error; document this dependency in the README.
 
 ## Hand-off
 
