@@ -151,8 +151,7 @@ export function resolveCrewsRoot({ repoRoot, crewsRoot }) {
         return path.normalize(crewsRoot)
     }
 
-    const base = crewsRoot === codexuDefaultConfig.crewsRoot ? resolveCommonRepoRoot(repoRoot) : repoRoot
-    return path.resolve(base, crewsRoot)
+    return path.resolve(resolveCommonRepoRoot(repoRoot), crewsRoot)
 }
 
 function resolveCommonRepoRoot(repoRoot) {

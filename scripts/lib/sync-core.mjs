@@ -13,6 +13,7 @@ import { buildTasksIndex } from './emit-tasks-index.mjs'
 import { atomicWriteFile } from './atomic-write.mjs'
 import { discoverCrewSessions } from './crews-cross-walk.mjs'
 import { matchesIgnored as sharedMatchesIgnored, toPosix as sharedToPosix } from './path-utils.mjs'
+import { resolveCrewsRoot } from './resolve-config.mjs'
 import { resolveTaskMatch } from './task-match.mjs'
 
 export { atomicWriteFile } from './atomic-write.mjs'
@@ -854,7 +855,7 @@ function normalizeConfigPaths(config, repoRoot) {
         ...config,
         dataFile: resolveMaybeAbsolute(repoRoot, config.dataFile),
         ralphRoot,
-        crewsRoot: resolveMaybeAbsolute(repoRoot, config.crewsRoot ?? '.crews'),
+        crewsRoot: resolveCrewsRoot({ repoRoot, crewsRoot: config.crewsRoot ?? '.crews' }),
         ralphSubdirs: {
             jobs: resolveMaybeAbsolute(ralphRoot, config.ralphSubdirs.jobs),
             jobGroups: resolveMaybeAbsolute(ralphRoot, config.ralphSubdirs.jobGroups),

@@ -50,6 +50,18 @@ describe('resolve-config crewsRoot', () => {
 
         expect(loadConfig({ repoRoot: worktreeRoot }).crewsRoot).toBe(path.join(mainRoot, '.crews'))
     })
+
+    test('resolves relative crewsRoot overrides against the main repo root in a linked worktree', () => {
+        const mainRoot = makeRepoFixture('resolve-config-main-')
+        const worktreeRoot = path.join(os.tmpdir(), `resolve-config-worktree-${Date.now()}-${Math.random().toString(16).slice(2)}`)
+        fixtureRoots.push(worktreeRoot)
+        initializeGitRepo(mainRoot)
+        execFileSync('git', ['-C', mainRoot, 'worktree', 'add', '--detach', worktreeRoot, 'HEAD'], { stdio: 'ignore' })
+        ensureRalphSubdirs(worktreeRoot)
+        writeConfig(worktreeRoot, { crewsRoot: 'custom-crews' })
+
+        expect(loadConfig({ repoRoot: worktreeRoot }).crewsRoot).toBe(path.join(mainRoot, 'custom-crews'))
+    })
 })
 
 function makeRepoFixture(prefix = 'resolve-config-test-') {
