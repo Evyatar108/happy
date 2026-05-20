@@ -84,7 +84,7 @@ Each member's `manifest.json` exposes the canonical `sessionId` and `transcriptP
   - `--finalize-crew-session <taskId> <stage> --member <name> --outcome <s> [--summary <text>]` — same pattern.
 - **`.claude/skills/work-on/SKILL.md`** — add the `--via-crew <crewName>` branch. When the flag is present:
   1. Derive the next command via `derive-next-command.mjs` as in the default path.
-  2. Use the crews plugin's `/spawn-member` slash command to spawn a member: `/spawn-member <generated-name> --crew <crewName> --cwd <repo_root> -- <derived-command-prompt>`.
+  2. Spawn a member by invoking the crews plugin's CLI mirror directly: `node D:/ai-developer-toolkit/plugins/crews/tools/spawn-member.js <generated-name> --crew <crewName> --cwd <main-repo-root> -- <derived-command-prompt>`. This is the canonical invocation path — Skill tool invocations of `/spawn-member` cannot fire the crews spawn hook, so the slash-command form is not viable from inside the `/work-on` skill. The CLI mirror is also the form Plan 09's MCP `overview.invoke_next` wraps for `viaCrewMember` (see "Hand-off to next plans").
   3. Read the new member's `manifest.json` to extract `sessionId`, `transcriptPath`, `startedAt`.
   4. Call `node scripts/sync-ralph-state.mjs --update-crew-session <taskId> <stage> --json <ref>` to atomically record the spawn.
   5. Return to the bookkeeping agent (lead). The lead later monitors the member's mailbox and calls `--finalize-crew-session` when the member returns a `<|report kind="final" ...|>` tag.
