@@ -80,6 +80,59 @@ declare module '../../../../scripts/lib/emit-snapshot-schema.mjs' {
     export const SNAPSHOT_SCHEMA: JsonSchema
 }
 
+declare module '../../../../scripts/lib/parse-notepad.mjs' {
+    export interface ParsedNotepad {
+        deferredQuestionsCount: number
+        deferredQuestionsPreview?: string
+        storyDoctorInterventions: number
+    }
+
+    export function parseNotepad(text: string): ParsedNotepad
+}
+
+declare module '../../../../scripts/lib/derive-pr-links.mjs' {
+    import type { RalphStage } from '../types'
+
+    export interface DerivePRLinksOptions {
+        groupState?: { prUrl?: unknown }
+        repoRoot: string
+        branchName?: string
+        stage?: RalphStage
+        originUrl?: string
+    }
+
+    export interface DerivedPRLinks {
+        branchName?: string
+        prUrl?: string
+        mergeCommit?: string
+    }
+
+    export function derivePRLinks(options: DerivePRLinksOptions): DerivedPRLinks
+}
+
+declare module '../../../../scripts/lib/append-journal.mjs' {
+    import type { RalphStage } from '../types'
+
+    export interface AppendJournalEntryOptions {
+        repoRoot: string
+        taskId: string
+        ts: string
+        prevStage?: RalphStage | null
+        newStage?: RalphStage | null
+        slug: string
+    }
+
+    export interface FormatJournalLineOptions {
+        ts: string
+        prevStage?: RalphStage | null
+        newStage?: RalphStage | null
+        slug: string
+    }
+
+    export function appendJournalEntry(options: AppendJournalEntryOptions): void
+    export function formatJournalLine(options: FormatJournalLineOptions): string
+}
+
 declare module '../../../../scripts/lib/resolve-config.mjs' {
     import type { RalphOverviewConfig } from '../../../../scripts/lib/default-config.mjs'
 
@@ -114,6 +167,7 @@ declare module '../../../../scripts/lib/sync-core.mjs' {
         brainstormJson?: unknown
         reviewOpenCount?: Record<string, number | undefined>
         jobDirMarker?: true
+        notepadText?: string
         dirMtimeMs?: number
         parseError?: boolean
         parseErrorFile?: string

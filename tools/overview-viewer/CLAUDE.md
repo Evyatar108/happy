@@ -54,6 +54,8 @@ The same config also starts `scripts/lib/watch-ralph-state.mjs` via `ralphStateW
 
 Ralph state uses the same fetch + re-execute pattern in `App.tsx`, but with a separate additive subscription to `overview-ralph-state:update`. Keep both HMR handlers (`reloadOverviewData` for `overview-data:update`, `reloadRalphState` for `overview-ralph-state:update`) registered independently.
 
+Ralph activity is served as raw JSONL at `/overview-activity.jsonl` by `overviewActivityPlugin()` and consumed by `useActivityEvents()`. Activity readers must parse line-by-line, skip a malformed final non-empty line as a torn write, warn only for malformed interior lines, and refetch on `overview-ralph-state:update`.
+
 When adding fields to `RalphPipelineState`, mirror them in `scripts/lib/emit-snapshot-schema.mjs` and add an Ajv regression in `scripts/lib/emit-snapshot-schema.test.mjs` so generated snapshots accept the new shape.
 
 ## Ralph state sidecar
