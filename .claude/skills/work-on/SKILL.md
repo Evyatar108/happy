@@ -17,7 +17,7 @@ Parse `$ARGUMENTS` as:
 
 - Required positional `<task-id>`.
 - Optional `--dry-run` flag.
-- Optional `--via-crew <crewName>` flag. For Plan 06, stop immediately with the exact error: `crews delegation not yet implemented — wait for Plan 08.`
+- Optional `--via-crew <crewName>` flag.
 
 The `<task-id>` match is exact and case-insensitive. Do not use prefix or fuzzy
 matching.
@@ -98,6 +98,72 @@ cannot derive command for stage '<stage>' — required artifact (planFile / jobD
 
 If `--dry-run` was passed and the helper returned a non-null command, print the
 resolved command string and stop.
+
+## Via Crew
+
+When `--via-crew <crewName>` is present, do not invoke the Ralph Skill tool.
+Delegate through the crews CLI mirror and record the session ref atomically.
+
+Skill tool invocations cannot trigger the crews `/spawn-member` hook. The CLI
+mirror at `D:/ai-developer-toolkit/plugins/crews/tools/spawn-member.js` is
+required.
+
+Before spawning, perform a lock preflight against `config.lockFile` (default
+`.ralph/overview-sync.lock`): read the JSON lock metadata, check PID liveness
+with `process.kill(pid, 0)`, and if the live lock process is `standalone`,
+`vite-plugin`, or `watcher`, abort with the existing diagnostic format:
+
+```text
+another sync in progress (pid <N>, process <label>, started <ts>)
+```
+
+The preflight must happen before spawning so a watcher-held lock cannot leave an
+orphan crew member.
+
+Pseudocode:
+
+```text
+repoRoot = git rev-parse --show-toplevel
+config = loadConfig(repoRoot)
+task = resolve selected task from plans/overview-snapshot.json
+stage = task.ralph.stage
+
+lock = read JSON config.lockFile if present
+if lock process is watcher-owned and pid is live:
+  abort before spawn with "another sync in progress ..."
+
+promptJson = node scripts/lib/derive-next-command-cli.mjs <taskId>
+prompt = JSON.parse(promptJson).command
+
+memberName = unique slug from <taskId> + current timestamp
+mainRepoRoot = dirname(config.crewsRoot) when config.crewsRoot ends in .crews
+
+node D:/ai-developer-toolkit/plugins/crews/tools/spawn-member.js \
+  <memberName> --crew <crewName> --cwd <main-repo-root> -- "<prompt>"
+
+poll <config.crewsRoot>/crews/<crewName>/members/<memberName>/manifest.json
+  timeout: 10s
+  interval: 500ms
+  capture sessionId and transcriptPath when present
+
+ref = {
+  crewName,
+  memberName,
+  cwd: mainRepoRoot,
+  startedAt,
+  sessionId?,
+  transcriptPath?,
+}
+
+node scripts/sync-ralph-state.mjs \
+  --update-crew-session <taskId> <stage> --json JSON.stringify(ref)
+
+print "Spawned <crew>/<member> for <taskId>:<stage>; session=<id|pending>"
+```
+
+If the manifest polling window expires, still write the partial entry with
+`crewName`, `memberName`, `cwd`, and `startedAt`. The later cross-walk merge will
+upgrade the entry in place when `sessionId` and `transcriptPath` appear.
 
 ## Invoke
 

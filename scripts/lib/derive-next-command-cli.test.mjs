@@ -55,6 +55,15 @@ describe('derive-next-command-cli', () => {
         }
     })
 
+    test('accepts a positional task id for skill pseudocode callers', () => {
+        const result = runCli(['TASK-CLI', '--snapshot', fixturePath])
+
+        expect(result.status).toBe(0)
+        expect(JSON.parse(result.stdout)).toMatchObject({
+            command: '/implement-with-ralph resume fixture-cli-job',
+        })
+    })
+
     test('passes repoRoot to the predicate for parallel group commands', () => {
         const repoRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim().replace(/\\/g, '/')
         const result = runCli(['--task', 'TASK-PARALLEL', '--snapshot', fixturePath])

@@ -43,6 +43,10 @@ function parseArgs(argv) {
             index += 1
             continue
         }
+        if (!arg.startsWith('--') && !parsed.task) {
+            parsed.task = arg
+            continue
+        }
         fail(`unknown argument: ${arg}`)
     }
     return parsed
