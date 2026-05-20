@@ -45,9 +45,9 @@ Per the user's preference, the skills live in `D:\harness-efforts\codexu\.claude
 
 ### Read for reference
 
-- `C:\Users\evmitran\.claude\plugins\cache\ai-developer-toolkit\ralph-orchestration\5.30.0\skills\implement-with-ralph\SKILL.md` — for the resume / `--run-only` / `--from-plan` argument syntax current as of v5.30.0.
-- `C:\Users\evmitran\.claude\plugins\cache\ai-developer-toolkit\ralph-orchestration\5.30.0\skills\plan-with-ralph\SKILL.md` — for the `--improve` / `--from-brainstorm` syntax.
-- `C:\Users\evmitran\.claude\plugins\cache\ai-developer-toolkit\ralph-orchestration\5.30.0\skills\brainstorm-with-ralph\SKILL.md` — for resume semantics.
+- `C:\Users\evmitran\.claude\plugins\cache\ai-developer-toolkit\ralph-orchestration\5.41.0\skills\implement-with-ralph\SKILL.md` — for the resume / `--run-only` / `--from-plan` argument syntax current as of v5.41.0.
+- `C:\Users\evmitran\.claude\plugins\cache\ai-developer-toolkit\ralph-orchestration\5.41.0\skills\plan-with-ralph\SKILL.md` — for the `--improve` / `--from-brainstorm` syntax.
+- `C:\Users\evmitran\.claude\plugins\cache\ai-developer-toolkit\ralph-orchestration\5.41.0\skills\brainstorm-with-ralph\SKILL.md` — for resume semantics.
 
 ## `deriveNextCommand` predicate table
 
@@ -65,7 +65,7 @@ Per the user's preference, the skills live in `D:\harness-efforts\codexu\.claude
 | `replan-pending` | `{ label: 'Replan next cycle', command: '/plan-with-ralph --improve <jobDir>/plan.md', icon: '🔄' }` (emitted by `derive-ralph-stage.mjs` when `orchestrator.terminal === true && terminalReason === 'replan'`) |
 | `blocked` | `{ label: 'Retry after fix', command: '/implement-with-ralph resume <jobSlug>', icon: '🛠' }` |
 
-**Version-pin note:** the predicate table is keyed to ralph-orchestration v5.30.0. If Ralph's resume syntax changes in a future version, this module must be updated in lockstep. Add a comment at the top of `derive-next-command.mjs`: `// Tested against ralph-orchestration v5.30.0. If the orchestrator's resume syntax changes (e.g. --run-only canonicalization), update this table and re-test.`
+**Version-pin note:** the predicate table is keyed to ralph-orchestration v5.41.0. If Ralph's resume syntax changes in a future version, this module must be updated in lockstep. Add a comment at the top of `derive-next-command.mjs`: `// Tested against ralph-orchestration v5.41.0. If the orchestrator's resume syntax changes (e.g. --run-only canonicalization), update this table and re-test.`
 
 ## Skill: `/work-on <task-id>`
 
