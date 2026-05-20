@@ -147,7 +147,7 @@ describe('discoverCrewSessions', () => {
         expect(warnings.join('\n')).toContain('ambiguous task match')
     })
 
-    test('sets stale sessions to stopped once and preserves that outcome on later ticks', () => {
+    test('sets stale sessions to stopped once and preserves that outcome across stale and revived ticks', () => {
         writeManifest('crew-a', 'members', 'alice', {
             name: 'alice',
             crew: 'crew-a',
@@ -162,6 +162,10 @@ describe('discoverCrewSessions', () => {
         const firstEntry = first.get('TASK-123').implementing[0]
         expect(firstEntry).toMatchObject({ outcome: 'stopped', endedAt: '2026-05-20T10:59:00.000Z' })
 
+        const rerunSameManifest = discover({ existingCrewSessions: { implementing: [firstEntry] }, now: '2026-05-20T14:00:00.000Z' })
+
+        expect(rerunSameManifest.get('TASK-123').implementing[0]).toMatchObject({ outcome: 'stopped', endedAt: '2026-05-20T10:59:00.000Z' })
+
         writeManifest('crew-a', 'members', 'alice', {
             name: 'alice',
             crew: 'crew-a',
@@ -171,9 +175,9 @@ describe('discoverCrewSessions', () => {
             lastHeartbeatAt: '2026-05-20T12:59:00.000Z',
             lastSummary: 'TASK-123',
         })
-        const rerun = discover({ existingCrewSessions: { implementing: [firstEntry] }, now: '2026-05-20T13:00:00.000Z' })
+        const revived = discover({ existingCrewSessions: { implementing: [firstEntry] }, now: '2026-05-20T13:00:00.000Z' })
 
-        expect(rerun.get('TASK-123').implementing[0]).toMatchObject({ outcome: 'stopped', endedAt: '2026-05-20T10:59:00.000Z' })
+        expect(revived.get('TASK-123').implementing[0]).toMatchObject({ outcome: 'stopped', endedAt: '2026-05-20T10:59:00.000Z' })
     })
 
     test('keeps an existing entry in its recorded stage even when the task advances', () => {
