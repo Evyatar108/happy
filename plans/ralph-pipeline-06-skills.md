@@ -33,7 +33,7 @@ Per the user's preference, the skills live in `D:\harness-efforts\codexu\.claude
 ### To create
 
 - **`scripts/lib/derive-next-command.mjs`** — pure function `deriveNextCommand(ralphPipelineState, task) -> NextCommand | null`. Returns `null` for stage `shipped` (unless `terminalReason === 'replan'`). Outputs `{ label, command, icon? }`.
-- **`scripts/lib/__tests__/deriveNextCommand.test.mjs`** OR add cases to `tools/overview-viewer/src/__tests__/ralphStage.test.ts` — 10 stages. One case asserts that a task in the `replan-pending` stage (emitted by `derive-ralph-stage.mjs` when `orchestrator.terminal === true && terminalReason === 'replan'`) returns the `/plan-with-ralph --improve <jobDir>/plan.md` command.
+- **`scripts/lib/derive-next-command.test.mjs`** (one case per stage value, flat layout per repo convention) plus **`scripts/lib/derive-next-command-cli.test.mjs`** for the CLI wrapper — 10 stages. One case asserts that a task in the `replan-pending` stage (emitted by `derive-ralph-stage.mjs` when `orchestrator.terminal === true && terminalReason === 'replan'`) returns the `/plan-with-ralph --improve <jobDir>/plan.md` command.
 - **`.claude/skills/work-on/SKILL.md`** — implementation details below.
 - **`.claude/skills/triage/SKILL.md`** — implementation details below.
 - **`.claude/skills/blocker-report/SKILL.md`** — implementation details below.
@@ -167,7 +167,7 @@ Path: `D:\harness-efforts\codexu\.claude\skills\blocker-report\SKILL.md`
 
 ## Verification
 
-A. **Predicate table coverage:** `pnpm test scripts/lib/__tests__/deriveNextCommand.test.mjs` — all 10 cases pass.
+A. **Predicate table coverage:** `pnpm test scripts/lib/derive-next-command.test.mjs` — all 10 cases pass.
 
 B. **`/work-on` dry-run smoke:** for a task in `plan-ready` stage, `/work-on <taskId> --dry-run` prints `/implement-with-ralph --from-plan <jobDir>/plan.md`.
 
