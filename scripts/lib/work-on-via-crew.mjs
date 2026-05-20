@@ -81,7 +81,7 @@ export async function pollMemberManifest({ crewsRoot, crewName, memberName, time
     const deadline = Date.now() + timeoutMs
     do {
         const manifest = readManifest(manifestPath)
-        if (manifest?.sessionId || manifest?.transcriptPath) {
+        if (manifest?.sessionId && manifest?.transcriptPath) {
             return manifest
         }
         if (Date.now() >= deadline) {

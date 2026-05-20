@@ -91,6 +91,49 @@ describe('work-on via crew flow', () => {
         ).rejects.toThrow(`another sync in progress (pid ${process.pid}, process vite-plugin, started 2026-05-20T12:59:59.000Z)`)
     })
 
+    test('continues polling when only one of sessionId or transcriptPath is present', async () => {
+        const { repoRoot, config, mainRepoRoot } = makeFixture()
+        const calls = []
+        let tick = 0
+        const spawnSyncImpl = (command, args) => {
+            calls.push({ command, args })
+            if (args[0]?.endsWith('spawn-member.js')) {
+                writeManifest(config.crewsRoot, 'crew-a', 'member-a', { sessionId: 'session-b' })
+            }
+            return { status: 0, stdout: '', stderr: '' }
+        }
+        const sleep = async () => {
+            tick++
+            if (tick === 1) {
+                writeManifest(config.crewsRoot, 'crew-a', 'member-a', {
+                    sessionId: 'session-b',
+                    transcriptPath: 'C:\\Users\\evmitran\\session-b.jsonl',
+                })
+            }
+        }
+
+        const result = await runWorkOnViaCrew({
+            repoRoot,
+            config,
+            taskId: 'TASK-123',
+            stage: 'implementing',
+            crewName: 'crew-a',
+            memberName: 'member-a',
+            now: fixedNow,
+            execFileSyncImpl: mockDeriveCommand('/implement-with-ralph resume job-a'),
+            spawnSyncImpl,
+            sleep,
+            pollTimeoutMs: 10_000,
+            stdout: { write() {} },
+        })
+
+        expect(result.sessionId).toBe('session-b')
+        expect(JSON.parse(calls[1].args[5])).toMatchObject({
+            sessionId: 'session-b',
+            transcriptPath: 'C:\\Users\\evmitran\\session-b.jsonl',
+        })
+    })
+
     test('writes a partial crew ref when manifest polling times out', async () => {
         const { repoRoot, config, mainRepoRoot } = makeFixture()
         const calls = []
