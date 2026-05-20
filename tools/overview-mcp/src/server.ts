@@ -9,8 +9,16 @@ import {
   listRecommendationsInputSchema,
   listTasksInputSchema,
   nextCommandInputSchema,
+  setOverrideInputSchema,
 } from './schemas.js';
-import type { AddJournalEntryInput, GetTaskInput, ListRecommendationsInput, ListTasksInput, NextCommandInput } from './schemas.js';
+import type {
+  AddJournalEntryInput,
+  GetTaskInput,
+  ListRecommendationsInput,
+  ListTasksInput,
+  NextCommandInput,
+  SetOverrideInput,
+} from './schemas.js';
 import { addJournalEntry } from './tools/add-journal-entry.js';
 import {
   getTask,
@@ -20,6 +28,7 @@ import {
   nextCommand,
   toToolResult,
 } from './tools/read-only.js';
+import { setOverride } from './tools/set-override.js';
 
 export function createServer(context: ServerContext): McpServer {
   const server = new McpServer({
@@ -79,6 +88,15 @@ export function createServer(context: ServerContext): McpServer {
       inputSchema: asSdkInputSchema(addJournalEntryInputSchema),
     },
     async (input) => toToolResult(addJournalEntry(context, input as AddJournalEntryInput)),
+  );
+
+  server.registerTool(
+    'overview.set_override',
+    {
+      description: 'Set one ralphOverrides slug mapping in overview-data.js using AST-located source splicing.',
+      inputSchema: asSdkInputSchema(setOverrideInputSchema),
+    },
+    async (input) => toToolResult(await setOverride(context, input as SetOverrideInput)),
   );
 
   return server;

@@ -46,6 +46,7 @@ describe('read-only tool registration', () => {
       'overview.list_recommendations',
       'overview.list_tasks',
       'overview.next_command',
+      'overview.set_override',
     ]);
   });
 });
