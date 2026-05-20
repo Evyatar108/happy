@@ -73,6 +73,9 @@ async function runUpdateCrewSession({ repoRoot, config, taskId, stage, refJson }
     const lockHandle = await acquireLock({ lockPath: config.lockFile, processLabel: 'crew-session-update' })
     try {
         const state = readSidecarState({ repoRoot, config })
+        if (!state.byTaskId?.[taskId]) {
+            throw new Error(`unknown taskId: ${taskId}`)
+        }
         const taskState = ensureTaskState(state, taskId, stage)
         const crewSessions = { ...(taskState.crewSessions ?? {}) }
         const entries = [...(crewSessions[stage] ?? [])]
@@ -286,8 +289,8 @@ function validateParsedArgs(parsed) {
         throw new Error('--update-crew-session requires --json')
     }
     if (parsed.command === 'finalizeCrewSession') {
-        if (!parsed.memberName) {
-            throw new Error('--finalize-crew-session requires --member')
+        if (!parsed.memberName && !parsed.sessionId) {
+            throw new Error('--finalize-crew-session requires --member or --session-id')
         }
         if (!parsed.outcome) {
             throw new Error('--finalize-crew-session requires --outcome')
