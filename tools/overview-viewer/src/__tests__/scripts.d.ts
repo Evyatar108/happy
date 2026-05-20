@@ -4,6 +4,7 @@ declare module '../../../../scripts/lib/default-config.mjs' {
     export interface RalphOverviewConfig {
         dataFile: string
         ralphRoot: string
+        crewsRoot: string
         ralphSubdirs: {
             jobs: string
             jobGroups: string
@@ -155,7 +156,7 @@ declare module '../../../../scripts/lib/derive-ralph-stage.mjs' {
 }
 
 declare module '../../../../scripts/lib/sync-core.mjs' {
-    import type { ActivityEvent, OverviewData, OverviewRalphState, RalphPipelineState } from '../types'
+    import type { ActivityEvent, CrewSessionRef, OverviewData, OverviewRalphState, RalphPipelineState, RalphStage } from '../types'
     import type { RalphOverviewConfig } from '../../../../scripts/lib/default-config.mjs'
 
     export interface RalphArtifactBundle {
@@ -226,6 +227,7 @@ declare module '../../../../scripts/lib/sync-core.mjs' {
         repoRoot: string
         config: RalphOverviewConfig
         generatedFromCommit?: string
+        priorCrewSessions?: Record<string, Partial<Record<RalphStage, CrewSessionRef[]>>>
     }): OverviewRalphState
 
     export function loadOverviewData(dataFile: string): OverviewData
@@ -246,6 +248,13 @@ declare module '../../../../scripts/lib/sync-core.mjs' {
         updates: TaskUpdate[]
         generatedFromCommit?: string
     }): Promise<{ state: OverviewRalphState; writtenAt: string; changedTaskIds: string[]; activityEvents: ActivityEvent[] }>
+
+    export function rescanCrewSessionsAndWrite(options: {
+        repoRoot: string
+        config: RalphOverviewConfig
+        currentState: OverviewRalphState
+        overviewData?: OverviewData
+    }): Promise<{ state: OverviewRalphState; writtenAt: string }>
 
     export function writeSidecar(options: {
         repoRoot: string

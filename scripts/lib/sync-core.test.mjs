@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
 import { codexuDefaultConfig } from './default-config.mjs'
 import { IMPLEMENTING_PHASES, REVIEW_PHASES } from './derive-ralph-stage.mjs'
-import { _resetUnknownPhaseWarnings, mergeAndWrite, walkRalphState, writeSidecar } from './sync-core.mjs'
+import { _resetUnknownPhaseWarnings, mergeAndWrite, rescanCrewSessionsAndWrite, walkRalphState, writeSidecar } from './sync-core.mjs'
 
 const KNOWN_PHASES = [...REVIEW_PHASES, ...IMPLEMENTING_PHASES]
 
@@ -75,6 +75,10 @@ function writeNotepad(repoRoot, slug, text) {
     const notepadPath = path.join(repoRoot, '.ralph', 'jobs', slug, 'notepad.md')
     fs.mkdirSync(path.dirname(notepadPath), { recursive: true })
     fs.writeFileSync(notepadPath, text)
+}
+
+function writeCrewManifest(repoRoot, crewName, role, memberName, manifest) {
+    writeJson(path.join(repoRoot, '.crews', 'crews', crewName, role, memberName, 'manifest.json'), manifest)
 }
 
 function runGit(repoRoot, args) {
@@ -514,6 +518,231 @@ describe('mergeAndWrite activityEvents', () => {
         })
 
         expect(result.activityEvents[0]).toMatchObject({ kind: 'brainstorm' })
+    })
+})
+
+describe('sync-core crew session merge', () => {
+    test('walkRalphState adds heuristic crew sessions after Ralph derivation', async () => {
+        const slug = 'TASK-123'
+        writeOverviewData(tempRoot, [slug])
+        writeJobState(tempRoot, slug, { orchestrator: { phase: '3', terminal: false } })
+        writeCrewManifest(tempRoot, 'crew-a', 'members', 'alice', {
+            name: 'alice',
+            crew: 'crew-a',
+            cwd: tempRoot,
+            startedAt: '2026-05-20T10:00:00.000Z',
+            sessionId: 'session-a',
+            transcriptPath: 'C:\\Users\\evmitran\\session-a.jsonl',
+            lastHeartbeatAt: '2026-05-20T10:05:00.000Z',
+            lastSummary: 'Working on TASK-123.',
+        })
+
+        const state = await walkRalphState({ repoRoot: tempRoot, config: buildConfig(tempRoot), generatedFromCommit: 'abc1234' })
+
+        expect(state.byTaskId[slug].crewSessions).toEqual({
+            implementing: [
+                expect.objectContaining({
+                    crewName: 'crew-a',
+                    memberName: 'alice',
+                    sessionId: 'session-a',
+                    transcriptPath: 'C:\\Users\\evmitran\\session-a.jsonl',
+                }),
+            ],
+        })
+    })
+
+    test('walkRalphState preserves explicit prior entries from the sidecar', async () => {
+        const slug = 'TASK-123'
+        const config = buildConfig(tempRoot)
+        writeOverviewData(tempRoot, [slug])
+        writeJobState(tempRoot, slug, { orchestrator: { phase: '3', terminal: false } })
+        writeJson(config.outputs.sidecarJson, buildState({
+            [slug]: {
+                stage: 'implementing',
+                jobSlug: slug,
+                crewSessions: {
+                    implementing: [
+                        {
+                            crewName: 'crew-a',
+                            memberName: 'alice',
+                            startedAt: '2026-05-20T10:00:00.000Z',
+                            sessionId: 'session-a',
+                            endedAt: '2026-05-20T11:00:00.000Z',
+                            outcome: 'handed-off',
+                            summary: 'explicit summary',
+                            _isExplicit: true,
+                        },
+                    ],
+                },
+            },
+        }))
+        writeCrewManifest(tempRoot, 'crew-a', 'members', 'alice', {
+            name: 'alice',
+            crew: 'crew-a',
+            cwd: tempRoot,
+            startedAt: '2026-05-20T10:00:00.000Z',
+            sessionId: 'session-a',
+            transcriptPath: 'C:\\Users\\evmitran\\session-a.jsonl',
+            lastHeartbeatAt: '2026-05-20T10:05:00.000Z',
+            lastSummary: 'heuristic summary TASK-123',
+        })
+
+        const state = await walkRalphState({ repoRoot: tempRoot, config, generatedFromCommit: 'abc1234' })
+        const entry = state.byTaskId[slug].crewSessions.implementing[0]
+
+        expect(state.byTaskId[slug].crewSessions.implementing).toHaveLength(1)
+        expect(entry).toMatchObject({
+            sessionId: 'session-a',
+            transcriptPath: 'C:\\Users\\evmitran\\session-a.jsonl',
+            endedAt: '2026-05-20T11:00:00.000Z',
+            outcome: 'handed-off',
+            summary: 'explicit summary',
+            _isExplicit: true,
+        })
+    })
+
+    test('mergeAndWrite upgrades a partial explicit entry in place', async () => {
+        const slug = 'TASK-123'
+        const config = buildConfig(tempRoot)
+        writeOverviewData(tempRoot, [slug])
+        writeCrewManifest(tempRoot, 'crew-a', 'members', 'alice', {
+            name: 'alice',
+            crew: 'crew-a',
+            cwd: tempRoot,
+            startedAt: '2026-05-20T10:00:00.000Z',
+            sessionId: 'session-a',
+            transcriptPath: 'C:\\Users\\evmitran\\session-a.jsonl',
+            lastHeartbeatAt: '2026-05-20T10:05:00.000Z',
+            lastSummary: 'TASK-123',
+        })
+        const currentState = buildState({
+            [slug]: {
+                stage: 'implementing',
+                jobSlug: slug,
+                crewSessions: {
+                    implementing: [
+                        {
+                            crewName: 'crew-a',
+                            memberName: 'alice',
+                            startedAt: '2026-05-20T10:00:00.000Z',
+                            _isExplicit: true,
+                        },
+                    ],
+                },
+            },
+        })
+
+        const result = await mergeAndWrite({
+            repoRoot: tempRoot,
+            config,
+            currentState,
+            updates: [buildUpsert(slug, { stage: 'implementing', jobSlug: slug })],
+        })
+        const entries = result.state.byTaskId[slug].crewSessions.implementing
+
+        expect(entries).toHaveLength(1)
+        expect(entries[0]).toMatchObject({ sessionId: 'session-a', transcriptPath: 'C:\\Users\\evmitran\\session-a.jsonl', _isExplicit: true })
+    })
+
+    test('mergeAndWrite keeps an existing crew session in its recorded stage when the task advances', async () => {
+        const slug = 'TASK-123'
+        const config = buildConfig(tempRoot)
+        writeOverviewData(tempRoot, [slug])
+        writeCrewManifest(tempRoot, 'crew-a', 'members', 'alice', {
+            name: 'alice',
+            crew: 'crew-a',
+            cwd: tempRoot,
+            startedAt: '2026-05-20T10:00:00.000Z',
+            sessionId: 'session-a',
+            lastHeartbeatAt: '2026-05-20T10:05:00.000Z',
+            lastSummary: 'TASK-123',
+        })
+        const currentState = buildState({
+            [slug]: {
+                stage: 'implementing',
+                jobSlug: slug,
+                crewSessions: { implementing: [{ crewName: 'crew-a', memberName: 'alice', startedAt: '2026-05-20T10:00:00.000Z', sessionId: 'session-a' }] },
+            },
+        })
+
+        const result = await mergeAndWrite({
+            repoRoot: tempRoot,
+            config,
+            currentState,
+            updates: [buildUpsert(slug, { stage: 'reviewing', jobSlug: slug })],
+        })
+
+        expect(result.state.byTaskId[slug].stage).toBe('reviewing')
+        expect(result.state.byTaskId[slug].crewSessions).toHaveProperty('implementing')
+        expect(result.state.byTaskId[slug].crewSessions).not.toHaveProperty('reviewing')
+    })
+
+    test('rescanCrewSessionsAndWrite preserves stale stopped outcomes idempotently', async () => {
+        const slug = 'TASK-123'
+        const config = buildConfig(tempRoot)
+        writeOverviewData(tempRoot, [slug])
+        const staleHeartbeat = '2020-01-01T00:00:00.000Z'
+        writeCrewManifest(tempRoot, 'crew-a', 'members', 'alice', {
+            name: 'alice',
+            crew: 'crew-a',
+            cwd: tempRoot,
+            startedAt: staleHeartbeat,
+            sessionId: 'session-a',
+            lastHeartbeatAt: staleHeartbeat,
+            lastSummary: 'TASK-123',
+        })
+
+        const first = await rescanCrewSessionsAndWrite({
+            repoRoot: tempRoot,
+            config,
+            overviewData: { tasks: [{ id: slug }] },
+            currentState: buildState({ [slug]: { stage: 'implementing', jobSlug: slug } }),
+        })
+        expect(first.state.byTaskId[slug].crewSessions.implementing[0]).toMatchObject({ outcome: 'stopped', endedAt: staleHeartbeat })
+
+        writeCrewManifest(tempRoot, 'crew-a', 'members', 'alice', {
+            name: 'alice',
+            crew: 'crew-a',
+            cwd: tempRoot,
+            startedAt: staleHeartbeat,
+            sessionId: 'session-a',
+            lastHeartbeatAt: new Date().toISOString(),
+            lastSummary: 'TASK-123',
+        })
+        const second = await rescanCrewSessionsAndWrite({ repoRoot: tempRoot, config, overviewData: { tasks: [{ id: slug }] }, currentState: first.state })
+
+        expect(second.state.byTaskId[slug].crewSessions.implementing[0]).toMatchObject({ outcome: 'stopped', endedAt: staleHeartbeat })
+    })
+
+    test('rescanCrewSessionsAndWrite leaves non-crew Ralph fields unchanged', async () => {
+        const slug = 'TASK-123'
+        const config = buildConfig(tempRoot)
+        writeOverviewData(tempRoot, [slug])
+        writeCrewManifest(tempRoot, 'crew-a', 'members', 'alice', {
+            name: 'alice',
+            crew: 'crew-a',
+            cwd: tempRoot,
+            startedAt: '2026-05-20T10:00:00.000Z',
+            sessionId: 'session-a',
+            lastHeartbeatAt: '2026-05-20T10:05:00.000Z',
+            lastSummary: 'TASK-123',
+        })
+        const currentState = buildState({
+            [slug]: {
+                stage: 'implementing',
+                branchName: 'feature/test',
+                jobSlug: slug,
+                artifacts: { jobDir: '.ralph/jobs/TASK-123' },
+                storyCompletion: { total: 2, passed: 1, blocked: 0, remaining: 1 },
+            },
+        })
+
+        const result = await rescanCrewSessionsAndWrite({ repoRoot: tempRoot, config, overviewData: { tasks: [{ id: slug }] }, currentState })
+        const { crewSessions: _crewSessions, ...nonCrewFields } = result.state.byTaskId[slug]
+
+        expect(nonCrewFields).toEqual(currentState.byTaskId[slug])
+        expect(result.state.generatedFromCommit).toBe(currentState.generatedFromCommit)
+        expect(result.state.byTaskId[slug].crewSessions.implementing[0]).toMatchObject({ sessionId: 'session-a' })
     })
 })
 

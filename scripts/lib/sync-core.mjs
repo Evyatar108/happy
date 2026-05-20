@@ -11,6 +11,7 @@ import { SNAPSHOT_SCHEMA } from './emit-snapshot-schema.mjs'
 import { parseNotepad } from './parse-notepad.mjs'
 import { buildTasksIndex } from './emit-tasks-index.mjs'
 import { atomicWriteFile } from './atomic-write.mjs'
+import { discoverCrewSessions } from './crews-cross-walk.mjs'
 import { matchesIgnored as sharedMatchesIgnored, toPosix as sharedToPosix } from './path-utils.mjs'
 import { resolveTaskMatch } from './task-match.mjs'
 
@@ -50,8 +51,9 @@ export async function walkRalphState({ repoRoot, config, generatedFromCommit }) 
     const absoluteRepoRoot = path.resolve(repoRoot)
     const normalizedConfig = normalizeConfigPaths(config, absoluteRepoRoot)
     const bundles = readAllBundles({ repoRoot: absoluteRepoRoot, config: normalizedConfig })
+    const priorCrewSessions = readPriorCrewSessions({ repoRoot: absoluteRepoRoot, config: normalizedConfig })
 
-    return assembleStateFromBundles({ bundles, repoRoot: absoluteRepoRoot, config: normalizedConfig, generatedFromCommit })
+    return assembleStateFromBundles({ bundles, repoRoot: absoluteRepoRoot, config: normalizedConfig, generatedFromCommit, priorCrewSessions })
 }
 
 export function readBundleForSlug({ repoRoot, config, kind, slug }) {
@@ -93,7 +95,7 @@ export function readBundleForSlug({ repoRoot, config, kind, slug }) {
     return bundle
 }
 
-export function assembleStateFromBundles({ bundles, repoRoot, config, generatedFromCommit }) {
+export function assembleStateFromBundles({ bundles, repoRoot, config, generatedFromCommit, priorCrewSessions }) {
     const absoluteRepoRoot = path.resolve(repoRoot)
     const normalizedConfig = normalizeConfigPaths(config, absoluteRepoRoot)
     const overviewData = loadOverviewData(normalizedConfig.dataFile)
@@ -140,13 +142,14 @@ export function assembleStateFromBundles({ bundles, repoRoot, config, generatedF
         byTaskId[winner.taskId] = toPipelineState(winner, absoluteRepoRoot, originUrl)
     }
 
-    return {
+    const state = {
         generatedAt: new Date().toISOString(),
         generatedFromCommit,
         byTaskId: sortObjectByKey(byTaskId),
         unmatched: sortUnmatched(unmatched),
         unmatchedSummary: summarizeUnmatched(unmatched),
     }
+    return mergeDiscoveredCrewSessions({ state, repoRoot: absoluteRepoRoot, config: normalizedConfig, overviewData, priorCrewSessions })
 }
 
 export function deriveAffectedTaskUpdate({ repoRoot, config, kind, slug, currentState, generatedFromCommit }) {
@@ -195,6 +198,7 @@ export function deriveAffectedTaskUpdate({ repoRoot, config, kind, slug, current
         repoRoot: absoluteRepoRoot,
         config: normalizedConfig,
         generatedFromCommit: generatedFromCommit ?? currentState?.generatedFromCommit,
+        priorCrewSessions: collectCrewSessionsByTask(currentState),
     })
     for (const entry of fragment.unmatched ?? []) {
         addTouched(touched, entry)
@@ -280,9 +284,153 @@ export async function mergeAndWrite({ repoRoot, config, currentState, updates, g
         unmatchedSummary: summarizeUnmatched(unmatched),
     }
     state.unmatchedSummary = summarizeUnmatched(state.unmatched)
+    const overviewData = loadOverviewData(resolveMaybeAbsolute(repoRoot, config.dataFile))
+    const stateWithCrewSessions = mergeDiscoveredCrewSessions({
+        state,
+        repoRoot,
+        config,
+        overviewData,
+        priorCrewSessions: collectCrewSessionsByTask(currentState),
+    })
     const activityEvents = deriveActivityEvents({ previousByTaskId: currentState.byTaskId ?? {}, nextByTaskId: state.byTaskId, ts: state.generatedAt })
+    await writeSidecar({ repoRoot, config, state: stateWithCrewSessions })
+    return { state: stateWithCrewSessions, writtenAt: stateWithCrewSessions.generatedAt, changedTaskIds: [...changedTaskIds].sort(), activityEvents }
+}
+
+export async function rescanCrewSessionsAndWrite({ currentState, config, repoRoot, overviewData }) {
+    if (!repoRoot || !config || !currentState) {
+        throw new Error('rescanCrewSessionsAndWrite requires repoRoot, config, and currentState')
+    }
+
+    const generatedAt = new Date().toISOString()
+    const state = mergeDiscoveredCrewSessions({
+        state: { ...currentState, generatedAt, byTaskId: { ...(currentState.byTaskId ?? {}) } },
+        repoRoot,
+        config,
+        overviewData: overviewData ?? loadOverviewData(resolveMaybeAbsolute(path.resolve(repoRoot), config.dataFile)),
+        priorCrewSessions: collectCrewSessionsByTask(currentState),
+    })
     await writeSidecar({ repoRoot, config, state })
-    return { state, writtenAt: state.generatedAt, changedTaskIds: [...changedTaskIds].sort(), activityEvents }
+    return { state, writtenAt: state.generatedAt }
+}
+
+function readPriorCrewSessions({ repoRoot, config }) {
+    if (!config.outputs?.sidecarJson) {
+        return {}
+    }
+    const sidecarPath = resolveMaybeAbsolute(repoRoot, config.outputs?.sidecarJson)
+    const sidecar = readJsonFile(sidecarPath).value
+    return collectCrewSessionsByTask(sidecar)
+}
+
+function collectCrewSessionsByTask(state) {
+    const byTaskId = {}
+    for (const [taskId, entry] of Object.entries(state?.byTaskId ?? {})) {
+        if (entry?.crewSessions && Object.keys(entry.crewSessions).length > 0) {
+            byTaskId[taskId] = cloneCrewSessions(entry.crewSessions)
+        }
+    }
+    return byTaskId
+}
+
+function mergeDiscoveredCrewSessions({ state, repoRoot, config, overviewData, priorCrewSessions }) {
+    const absoluteRepoRoot = path.resolve(repoRoot)
+    const normalizedConfig = normalizeConfigPaths(config, absoluteRepoRoot)
+    const byTaskIdWithPrior = applyCrewSessionsMap(state.byTaskId ?? {}, priorCrewSessions ?? {})
+    const seededState = { ...state, byTaskId: byTaskIdWithPrior }
+    const discovered = discoverCrewSessions({
+        repoRoot: absoluteRepoRoot,
+        ralphState: seededState,
+        overviewData,
+        crewsRoot: normalizedConfig.crewsRoot,
+    })
+    return {
+        ...state,
+        byTaskId: sortObjectByKey(mergeCrewSessionDiscoveries(byTaskIdWithPrior, discovered)),
+    }
+}
+
+function applyCrewSessionsMap(byTaskId, crewSessionsByTask) {
+    const next = {}
+    for (const [taskId, entry] of Object.entries(byTaskId ?? {})) {
+        const crewSessions = crewSessionsByTask?.[taskId]
+        next[taskId] = crewSessions ? { ...entry, crewSessions: cloneCrewSessions(crewSessions) } : { ...entry }
+    }
+    return next
+}
+
+function mergeCrewSessionDiscoveries(byTaskId, discovered) {
+    const next = applyCrewSessionsMap(byTaskId, collectCrewSessionsByTask({ byTaskId }))
+    for (const [taskId, byStage] of discovered.entries()) {
+        const taskState = next[taskId]
+        if (!taskState) {
+            continue
+        }
+        const crewSessions = cloneCrewSessions(taskState.crewSessions ?? {})
+        for (const [stage, entries] of Object.entries(byStage ?? {})) {
+            for (const entry of entries ?? []) {
+                upsertCrewSession(crewSessions, stage, entry)
+            }
+        }
+        next[taskId] = { ...taskState, crewSessions: pruneEmptyCrewStages(crewSessions) }
+    }
+    return next
+}
+
+function upsertCrewSession(crewSessions, fallbackStage, incoming) {
+    const existing = findCrewSession(crewSessions, incoming)
+    const targetStage = existing?.stage ?? fallbackStage
+    const entries = crewSessions[targetStage] ?? []
+    if (!existing) {
+        crewSessions[targetStage] = [...entries, incoming]
+        return
+    }
+
+    crewSessions[existing.stage] = entries.map((entry, index) => {
+        if (index !== existing.index) {
+            return entry
+        }
+        return mergeCrewSessionEntry(entry, incoming)
+    })
+}
+
+function findCrewSession(crewSessions, identity) {
+    for (const [stage, entries] of Object.entries(crewSessions ?? {})) {
+        const index = (entries ?? []).findIndex((entry) => sameCrewSession(entry, identity))
+        if (index !== -1) {
+            return { stage, index }
+        }
+    }
+    return null
+}
+
+function sameCrewSession(entry, identity) {
+    if (entry.sessionId && identity.sessionId) {
+        return entry.sessionId === identity.sessionId
+    }
+    return entry.crewName === identity.crewName && entry.memberName === identity.memberName
+}
+
+function mergeCrewSessionEntry(existing, incoming) {
+    if (!existing?._isExplicit) {
+        return pruneUndefined({ ...existing, ...incoming })
+    }
+
+    return pruneUndefined({
+        ...incoming,
+        ...existing,
+        sessionId: existing.sessionId ?? incoming.sessionId,
+        transcriptPath: existing.transcriptPath ?? incoming.transcriptPath,
+        _isExplicit: true,
+    })
+}
+
+function cloneCrewSessions(crewSessions) {
+    return Object.fromEntries(Object.entries(crewSessions ?? {}).map(([stage, entries]) => [stage, (entries ?? []).map((entry) => ({ ...entry }))]))
+}
+
+function pruneEmptyCrewStages(crewSessions) {
+    return Object.fromEntries(Object.entries(crewSessions).filter(([, entries]) => entries.length > 0))
 }
 
 export function deriveActivityEvents({ previousByTaskId, nextByTaskId, ts }) {

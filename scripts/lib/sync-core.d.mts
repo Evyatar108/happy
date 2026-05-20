@@ -1,4 +1,4 @@
-import type { ActivityEvent, OverviewData, OverviewRalphState, RalphPipelineState } from '../../tools/overview-viewer/src/types'
+import type { ActivityEvent, CrewSessionRef, OverviewData, OverviewRalphState, RalphPipelineState, RalphStage } from '../../tools/overview-viewer/src/types'
 import type { RalphOverviewConfig } from './default-config.mjs'
 
 export interface RalphArtifactBundle {
@@ -69,6 +69,7 @@ export function assembleStateFromBundles(options: {
     repoRoot: string
     config: RalphOverviewConfig
     generatedFromCommit?: string
+    priorCrewSessions?: Record<string, Partial<Record<RalphStage, CrewSessionRef[]>>>
 }): OverviewRalphState
 
 export function loadOverviewData(dataFile: string): OverviewData
@@ -89,6 +90,13 @@ export function mergeAndWrite(options: {
     updates: TaskUpdate[]
     generatedFromCommit?: string
 }): Promise<{ state: OverviewRalphState; writtenAt: string; changedTaskIds: string[]; activityEvents: ActivityEvent[] }>
+
+export function rescanCrewSessionsAndWrite(options: {
+    repoRoot: string
+    config: RalphOverviewConfig
+    currentState: OverviewRalphState
+    overviewData?: OverviewData
+}): Promise<{ state: OverviewRalphState; writtenAt: string }>
 
 export function writeSidecar(options: {
     repoRoot: string
