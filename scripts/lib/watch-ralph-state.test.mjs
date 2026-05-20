@@ -28,6 +28,7 @@ afterEach(async () => {
     vi.doUnmock('./append-journal.mjs')
     vi.doUnmock('./emit-activity.mjs')
     vi.doUnmock('./sync-core.mjs')
+    vi.doUnmock('./resolve-config.mjs')
     vi.resetModules()
     lastWatcher = undefined
     for (const fixtureRoot of fixtureRoots.splice(0)) {
@@ -226,6 +227,18 @@ describe('watch-ralph-state crew events', () => {
         expect(options.ignored(path.join(fixture.repoRoot, '.crews/crews/alpha/members/bob/manifest.json'))).toBe(false)
     })
 
+    test('ignores crew mailbox files when .crews/ is above the worktree (linked-worktree mode)', async () => {
+        const fixture = makeLinkedWorktreeFixture({ tasks: ['task'] })
+        const { start } = await import('./watch-ralph-state.mjs')
+
+        const handle = await start({ repoRoot: fixture.worktreeRoot, processLabel: 'unit-test' })
+        openHandles.push(handle)
+
+        const options = watchMock.mock.calls[0][1]
+        expect(options.ignored(path.join(fixture.mainRoot, '.crews/crews/alpha/members/bob/mailbox.json'))).toBe(true)
+        expect(options.ignored(path.join(fixture.mainRoot, '.crews/crews/alpha/members/bob/manifest.json'))).toBe(false)
+    })
+
     test('routes manifest changes to a crew-only flush without Ralph derivation', async () => {
         vi.useFakeTimers()
         const fixture = makeRepoFixture({ tasks: ['task'] })
@@ -338,6 +351,37 @@ function makeRepoFixture({ tasks }) {
     })
     vi.doMock('chokidar', () => ({ watch: watchMock }))
     return { repoRoot }
+}
+
+function makeLinkedWorktreeFixture({ tasks }) {
+    const mainRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'watch-ralph-state-main-'))
+    fixtureRoots.push(mainRoot)
+    const worktreeRoot = path.join(mainRoot, '.worktrees', 'feature-branch')
+    for (const dir of ['plans', '.ralph/jobs', '.ralph/job-groups', '.ralph/brainstorms']) {
+        fs.mkdirSync(path.join(worktreeRoot, dir), { recursive: true })
+    }
+    fs.writeFileSync(
+        path.join(worktreeRoot, 'plans/overview-data.js'),
+        `window.OVERVIEW_DATA = ${JSON.stringify({ tasks: tasks.map((id) => ({ id })) }, null, 2)};\n`,
+    )
+    fs.mkdirSync(path.join(mainRoot, '.crews'), { recursive: true })
+    watchMock = vi.fn(() => {
+        lastWatcher = new MockWatcher()
+        queueMicrotask(() => lastWatcher.emit('ready'))
+        return lastWatcher
+    })
+    vi.doMock('chokidar', () => ({ watch: watchMock }))
+    vi.doMock('./resolve-config.mjs', async (importOriginal) => {
+        const actual = await importOriginal()
+        return {
+            ...actual,
+            loadConfig: ({ repoRoot, configPath }) => {
+                const config = actual.loadConfig({ repoRoot, configPath })
+                return { ...config, crewsRoot: path.join(mainRoot, '.crews') }
+            },
+        }
+    })
+    return { mainRoot, worktreeRoot }
 }
 
 function writeJson(filePath, value) {

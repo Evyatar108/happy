@@ -32,6 +32,10 @@ export async function start({ repoRoot, configPath, debounceMs = DEFAULT_DEBOUNC
     // F-007: precompile ignored patterns once and reuse via the chokidar `ignored`
     // callback + the in-process matchesIgnored helper.
     const compiledIgnored = compileIgnoredPatterns(config.watcher?.ignored ?? [])
+    // F-005: crewsRoot may be outside the worktree (linked-worktree mode). Relativize
+    // ignore patterns against the crewsRoot parent as a secondary base so that patterns
+    // like .crews/crews/*/members/*/mailbox.json match even when .crews/ is above repoRoot.
+    const crewsRootParent = path.dirname(config.crewsRoot)
     const pendingChanges = new Map()
     const consecutiveFailures = new Map()
     const repeatedWarnings = new Set()
@@ -232,7 +236,7 @@ export async function start({ repoRoot, configPath, debounceMs = DEFAULT_DEBOUNC
 
     try {
         watcher = watch(roots, {
-            ignored: (filePath) => matchesIgnored(filePath, absoluteRepoRoot, compiledIgnored),
+            ignored: (filePath) => matchesIgnored(filePath, absoluteRepoRoot, compiledIgnored, crewsRootParent),
             awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
             ignoreInitial: true,
         })

@@ -23,13 +23,26 @@ export function compileIgnoredPatterns(patterns) {
     return (patterns ?? []).map((pattern) => globToRegExp(pattern))
 }
 
-export function matchesIgnored(filePath, repoRoot, ignored) {
-    const relative = toPosix(path.relative(repoRoot, filePath))
-    const candidate = `${relative}/`
+export function matchesIgnored(filePath, repoRoot, ignored, altRoot) {
+    const roots = altRoot && altRoot !== repoRoot ? [repoRoot, altRoot] : [repoRoot]
     if (Array.isArray(ignored) && ignored.length > 0 && ignored[0] instanceof RegExp) {
-        return ignored.some((regex) => regex.test(relative) || regex.test(candidate))
+        return roots.some((root) => {
+            const relative = toPosix(path.relative(root, filePath))
+            if (relative.startsWith('..')) {
+                return false
+            }
+            const candidate = `${relative}/`
+            return ignored.some((regex) => regex.test(relative) || regex.test(candidate))
+        })
     }
-    return (ignored ?? []).some((pattern) => globToRegExp(pattern).test(relative) || globToRegExp(pattern).test(candidate))
+    return roots.some((root) => {
+        const relative = toPosix(path.relative(root, filePath))
+        if (relative.startsWith('..')) {
+            return false
+        }
+        const candidate = `${relative}/`
+        return (ignored ?? []).some((pattern) => globToRegExp(pattern).test(relative) || globToRegExp(pattern).test(candidate))
+    })
 }
 
 export function resolveHeadShortSha(repoRoot, { onError } = {}) {
