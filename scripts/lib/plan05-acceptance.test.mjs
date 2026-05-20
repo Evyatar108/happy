@@ -82,7 +82,7 @@ describe('Plan 05 end-to-end acceptance', () => {
 function makeRepoFixture({ taskId, phase }) {
     const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'plan05-acceptance-'))
     fixtureRoots.push(fixture)
-    for (const dir of ['plans', '.ralph/jobs', '.ralph/job-groups', '.ralph/brainstorms']) {
+    for (const dir of ['plans', '.ralph/jobs', '.ralph/job-groups', '.ralph/brainstorms', '.crews/crews', '.crews/sessions-configs']) {
         fs.mkdirSync(path.join(fixture, dir), { recursive: true })
     }
     fs.writeFileSync(

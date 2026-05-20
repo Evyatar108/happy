@@ -358,7 +358,7 @@ declare module '../../../../scripts/lib/watch-ralph-state.mjs' {
 
     export interface WatchStatus {
         readonly currentState: OverviewRalphState | undefined
-        readonly pendingChanges: Array<{ kind: 'job' | 'group' | 'brainstorm'; slug: string }>
+        readonly pendingChanges: Array<{ kind: 'job' | 'group' | 'brainstorm'; slug: string } | { kind: 'crews' }>
         readonly consecutiveFailures: Record<string, number>
         readonly stopped: boolean
     }
@@ -376,6 +376,14 @@ declare module '../../../../scripts/lib/watch-ralph-state.mjs' {
         onWrite?: (event: WatchWriteEvent) => void
         onError?: (error: unknown) => void
     }): Promise<WatchHandle>
+
+    export function getWatchRoots(config: { ralphSubdirs: { jobs: string; jobGroups: string; brainstorms: string }; crewsRoot: string }): string[]
+
+    export function parseWatchedPath(
+        filePath: string,
+        roots: string[],
+        eventName: string,
+    ): { kind: 'job' | 'group' | 'brainstorm'; slug: string } | { kind: 'crews' } | undefined
 }
 
 declare module '../../../../scripts/sync-ralph-state.mjs' {

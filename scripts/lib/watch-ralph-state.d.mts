@@ -13,7 +13,7 @@ export interface WatchStatus {
     readonly lastTickAt?: string
     /** Legacy fields retained for debug callers and existing tests. */
     readonly currentState: OverviewRalphState | undefined
-    readonly pendingChanges: Array<{ kind: 'job' | 'group' | 'brainstorm'; slug: string }>
+    readonly pendingChanges: Array<{ kind: 'job' | 'group' | 'brainstorm'; slug: string } | { kind: 'crews' }>
     readonly consecutiveFailures: Record<string, number>
     readonly stopped: boolean
 }
@@ -31,3 +31,11 @@ export function start(options: {
     onWrite?: (event: WatchWriteEvent) => void
     onError?: (error: unknown) => void
 }): Promise<WatchHandle>
+
+export function getWatchRoots(config: { ralphSubdirs: { jobs: string; jobGroups: string; brainstorms: string }; crewsRoot: string }): string[]
+
+export function parseWatchedPath(
+    filePath: string,
+    roots: string[],
+    eventName: string,
+): { kind: 'job' | 'group' | 'brainstorm'; slug: string } | { kind: 'crews' } | undefined

@@ -65,6 +65,8 @@ Ralph task-specific tooltip extras are composed in `TaskCommand` and passed thro
 
 Agent-readable Ralph state artifacts live at `plans/overview-snapshot.json`, `plans/overview-data.json`, `plans/overview-snapshot.schema.json`, `plans/overview-activity.jsonl`, and `tasks/INDEX.md`. They are emitted by the shared watcher in `scripts/lib/watch-ralph-state.mjs`, which is started inside the Vite dev server by `ralphStateWatcherPlugin()` in `vite.config.ts` during `pnpm overview`, or as a standalone process via `pnpm sync-ralph-state:watch` (`scripts/sync-ralph-state.mjs --watch`). Both paths share the same `.ralph/overview-sync.lock` and emit the same set of files; do not hand-edit those generated files.
 
+Watcher changes under `.crews/crews/` and `.crews/sessions-configs/` are represented as slugless `{ kind: 'crews' }` changes. Handle them with `rescanCrewSessionsAndWrite()` after any Ralph `mergeAndWrite()` work in the same debounce batch; do not route crew-only changes through `deriveAffectedTaskUpdate()`.
+
 `writeSidecar()` now also emits `overview-recommendations.json` and `overview-dependency-graph.json` via `emitDerivedArtifacts()` BEFORE `emitAgentArtifacts()`, so the snapshot picks up fresh derived artifacts in the same write.
 
 Use `src/utils/ralphStages.ts` as the single source of truth for canonical Ralph stage ordering in filters, overviews, and tests.

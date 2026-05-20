@@ -213,6 +213,114 @@ describe('watch-ralph-state activity events', () => {
     })
 })
 
+describe('watch-ralph-state crew events', () => {
+    test('ignores crew mailbox files through the chokidar ignored matcher', async () => {
+        const fixture = makeRepoFixture({ tasks: ['task'] })
+        const { start } = await import('./watch-ralph-state.mjs')
+
+        const handle = await start({ repoRoot: fixture.repoRoot, processLabel: 'unit-test' })
+        openHandles.push(handle)
+
+        const options = watchMock.mock.calls[0][1]
+        expect(options.ignored(path.join(fixture.repoRoot, '.crews/crews/alpha/members/bob/mailbox.json'))).toBe(true)
+        expect(options.ignored(path.join(fixture.repoRoot, '.crews/crews/alpha/members/bob/manifest.json'))).toBe(false)
+    })
+
+    test('routes manifest changes to a crew-only flush without Ralph derivation', async () => {
+        vi.useFakeTimers()
+        const fixture = makeRepoFixture({ tasks: ['task'] })
+        writeJson(path.join(fixture.repoRoot, '.ralph/jobs/task/job-state.json'), { orchestrator: { phase: '3', terminal: false } })
+        const onWrite = vi.fn()
+        const deriveAffectedTaskUpdate = vi.fn()
+        const rescanCrewSessionsAndWrite = vi.fn(async ({ currentState }) => ({
+            state: { ...currentState, generatedAt: '2026-05-20T13:00:00.000Z' },
+            writtenAt: '2026-05-20T13:00:00.000Z',
+        }))
+        vi.doMock('./sync-core.mjs', async (importOriginal) => {
+            const actual = await importOriginal()
+            return { ...actual, deriveAffectedTaskUpdate, rescanCrewSessionsAndWrite }
+        })
+        const { start } = await import('./watch-ralph-state.mjs')
+        const handle = await start({ repoRoot: fixture.repoRoot, debounceMs: 10, processLabel: 'unit-test', onWrite })
+        openHandles.push(handle)
+
+        lastWatcher.emit('all', 'change', path.join(fixture.repoRoot, '.crews/crews/alpha/members/bob/manifest.json'))
+        expect(handle.status.pendingChanges).toEqual([{ kind: 'crews' }])
+        await vi.advanceTimersByTimeAsync(10)
+
+        await vi.waitFor(() => expect(rescanCrewSessionsAndWrite).toHaveBeenCalledTimes(1))
+        expect(deriveAffectedTaskUpdate).not.toHaveBeenCalled()
+        expect(rescanCrewSessionsAndWrite).toHaveBeenCalledWith(
+            expect.objectContaining({ currentState: expect.objectContaining({ byTaskId: expect.any(Object) }) }),
+        )
+        expect(onWrite).toHaveBeenCalledWith({ writtenAt: '2026-05-20T13:00:00.000Z', changedTaskIds: [] })
+    })
+
+    test('debounces multiple crew events into one crew rescan', async () => {
+        vi.useFakeTimers()
+        const fixture = makeRepoFixture({ tasks: ['task'] })
+        const rescanCrewSessionsAndWrite = vi.fn(async ({ currentState }) => ({ state: currentState, writtenAt: '2026-05-20T13:00:00.000Z' }))
+        vi.doMock('./sync-core.mjs', async (importOriginal) => {
+            const actual = await importOriginal()
+            return { ...actual, rescanCrewSessionsAndWrite }
+        })
+        const { start } = await import('./watch-ralph-state.mjs')
+        const handle = await start({ repoRoot: fixture.repoRoot, debounceMs: 10, processLabel: 'unit-test' })
+        openHandles.push(handle)
+
+        lastWatcher.emit('all', 'change', path.join(fixture.repoRoot, '.crews/crews/alpha/members/bob/manifest.json'))
+        lastWatcher.emit('all', 'change', path.join(fixture.repoRoot, '.crews/sessions-configs/alpha.json'))
+        expect(handle.status.pendingChanges).toEqual([{ kind: 'crews' }])
+        await vi.advanceTimersByTimeAsync(10)
+
+        await vi.waitFor(() => expect(rescanCrewSessionsAndWrite).toHaveBeenCalledTimes(1))
+    })
+
+    test('applies Ralph merge before crew rescan for mixed batches', async () => {
+        vi.useFakeTimers()
+        const order = []
+        const fixture = makeRepoFixture({ tasks: ['task'] })
+        writeJson(path.join(fixture.repoRoot, '.ralph/jobs/task/job-state.json'), { orchestrator: { phase: '1', terminal: false } })
+        const deriveAffectedTaskUpdate = vi.fn(() => ({
+            action: 'upsert',
+            kind: 'job',
+            slug: 'task',
+            taskId: 'task',
+            touched: [{ kind: 'job', slug: 'task' }],
+            byTaskId: { task: { stage: 'reviewing' } },
+            unmatchedFragment: [],
+        }))
+        const mergeAndWrite = vi.fn(async (args) => {
+            order.push('merge')
+            return {
+                state: { ...args.currentState, generatedAt: '2026-05-20T13:00:00.000Z', byTaskId: { task: { stage: 'reviewing' } } },
+                writtenAt: '2026-05-20T13:00:00.000Z',
+                changedTaskIds: ['task'],
+                activityEvents: [],
+            }
+        })
+        const rescanCrewSessionsAndWrite = vi.fn(async ({ currentState }) => {
+            order.push('rescan')
+            expect(currentState.byTaskId.task.stage).toBe('reviewing')
+            return { state: { ...currentState, generatedAt: '2026-05-20T13:00:01.000Z' }, writtenAt: '2026-05-20T13:00:01.000Z' }
+        })
+        vi.doMock('./sync-core.mjs', async (importOriginal) => {
+            const actual = await importOriginal()
+            return { ...actual, deriveAffectedTaskUpdate, mergeAndWrite, rescanCrewSessionsAndWrite }
+        })
+        const { start } = await import('./watch-ralph-state.mjs')
+        const handle = await start({ repoRoot: fixture.repoRoot, debounceMs: 10, processLabel: 'unit-test' })
+        openHandles.push(handle)
+
+        lastWatcher.emit('all', 'change', path.join(fixture.repoRoot, '.ralph/jobs/task/job-state.json'))
+        lastWatcher.emit('all', 'change', path.join(fixture.repoRoot, '.crews/crews/alpha/members/bob/manifest.json'))
+        await vi.advanceTimersByTimeAsync(10)
+
+        await vi.waitFor(() => expect(rescanCrewSessionsAndWrite).toHaveBeenCalledTimes(1))
+        expect(order).toEqual(['merge', 'rescan'])
+    })
+})
+
 function makeRepoFixture({ tasks }) {
     const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'watch-ralph-state-test-'))
     fixtureRoots.push(repoRoot)

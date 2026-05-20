@@ -6,7 +6,7 @@ import { appendJournalEntry } from './append-journal.mjs'
 import { appendActivity } from './emit-activity.mjs'
 import { compileIgnoredPatterns, matchesIgnored, resolveHeadShortSha, splitPath } from './path-utils.mjs'
 import { loadConfig } from './resolve-config.mjs'
-import { deriveAffectedTaskUpdate, mergeAndWrite, walkRalphState, writeSidecar } from './sync-core.mjs'
+import { deriveAffectedTaskUpdate, loadOverviewData, mergeAndWrite, rescanCrewSessionsAndWrite, walkRalphState, writeSidecar } from './sync-core.mjs'
 import { acquireLock, releaseLock } from './sync-lock.mjs'
 
 const DEFAULT_DEBOUNCE_MS = 2_000
@@ -104,7 +104,9 @@ export async function start({ repoRoot, configPath, debounceMs = DEFAULT_DEBOUNC
         const changes = [...pendingChanges.values()]
         pendingChanges.clear()
         try {
-            const updates = changes.map(({ kind, slug }) =>
+            const ralphChanges = changes.filter((change) => change.kind !== 'crews')
+            const shouldRescanCrews = changes.some((change) => change.kind === 'crews')
+            const updates = ralphChanges.map(({ kind, slug }) =>
                 deriveAffectedTaskUpdate({ repoRoot: absoluteRepoRoot, config, kind, slug, currentState, generatedFromCommit }),
             )
             const writableUpdates = []
@@ -130,34 +132,53 @@ export async function start({ repoRoot, configPath, debounceMs = DEFAULT_DEBOUNC
             // unmatched / unmatchedSummary refresh with the parse-error fragment even
             // when byTaskId is unchanged.
             const allUpdates = [...writableUpdates, ...retainUpdates]
-            if (allUpdates.length === 0) {
-                return
-            }
-            const result = await mergeAndWrite({
-                repoRoot: absoluteRepoRoot,
-                config,
-                currentState,
-                updates: allUpdates,
-                generatedFromCommit,
-            })
-            for (const event of result.activityEvents) {
-                appendActivity(absoluteRepoRoot, event, {
-                    activityPath: config.outputs.activity,
-                    activityBackupPath: config.outputs.activityBackup,
-                    maxLines: config.outputs.activityMaxLines,
+            let wrote = false
+            let writableRalphChangeCount = 0
+            let changedTaskIds = []
+            let writtenAt
+            if (allUpdates.length > 0) {
+                const result = await mergeAndWrite({
+                    repoRoot: absoluteRepoRoot,
+                    config,
+                    currentState,
+                    updates: allUpdates,
+                    generatedFromCommit,
                 })
-                appendJournalForStageEvent({ repoRoot: absoluteRepoRoot, event })
+                for (const event of result.activityEvents) {
+                    appendActivity(absoluteRepoRoot, event, {
+                        activityPath: config.outputs.activity,
+                        activityBackupPath: config.outputs.activityBackup,
+                        maxLines: config.outputs.activityMaxLines,
+                    })
+                    appendJournalForStageEvent({ repoRoot: absoluteRepoRoot, event })
+                }
+                currentState = result.state
+                lastTickAt = result.writtenAt
+                wrote = true
+                writableRalphChangeCount = writableUpdates.length
+                changedTaskIds = result.changedTaskIds
+                writtenAt = result.writtenAt
             }
-            currentState = result.state
-            lastTickAt = result.writtenAt
+            if (shouldRescanCrews) {
+                const result = await rescanCrewSessionsAndWrite({
+                    currentState,
+                    config,
+                    repoRoot: absoluteRepoRoot,
+                    overviewData: loadOverviewData(config.dataFile),
+                })
+                currentState = result.state
+                lastTickAt = result.writtenAt
+                wrote = true
+                writtenAt = result.writtenAt
+            }
             // Reset retry counter for changes that just landed.
             for (const change of changes) {
                 flushRetryCounts.delete(changeKey(change.kind, change.slug))
             }
             await lockHandle.touch()
             // Suppress onWrite if no taskIds actually changed (retain-only flush).
-            if (writableUpdates.length > 0 || result.changedTaskIds.length > 0) {
-                onWrite?.({ writtenAt: result.writtenAt, changedTaskIds: result.changedTaskIds })
+            if (wrote && (shouldRescanCrews || writableRalphChangeCount > 0 || changedTaskIds.length > 0)) {
+                onWrite?.({ writtenAt, changedTaskIds })
             }
         } catch (error) {
             // F-010: re-enqueue failed changes so the next debounce retries; cap to
@@ -266,12 +287,29 @@ export async function start({ repoRoot, configPath, debounceMs = DEFAULT_DEBOUNC
     }
 }
 
-function getWatchRoots(config) {
-    return [config.ralphSubdirs.jobs, config.ralphSubdirs.jobGroups, config.ralphSubdirs.brainstorms].map((dir) => path.resolve(dir))
+export function getWatchRoots(config) {
+    return [
+        config.ralphSubdirs.jobs,
+        config.ralphSubdirs.jobGroups,
+        config.ralphSubdirs.brainstorms,
+        path.join(config.crewsRoot, 'crews'),
+        path.join(config.crewsRoot, 'sessions-configs'),
+    ].map((dir) => path.resolve(dir))
 }
 
-function parseWatchedPath(filePath, roots, eventName) {
+export function parseWatchedPath(filePath, roots, eventName) {
     const absolutePath = path.resolve(filePath)
+    for (const root of [roots[3], roots[4]]) {
+        if (!root) {
+            continue
+        }
+        const relative = path.relative(root, absolutePath)
+        if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+            continue
+        }
+        void eventName
+        return { kind: 'crews' }
+    }
     const rootEntries = [
         { kind: 'job', root: roots[0] },
         { kind: 'group', root: roots[1] },
@@ -304,6 +342,9 @@ function parseWatchedPath(filePath, roots, eventName) {
 }
 
 function changeKey(kind, slug) {
+    if (kind === 'crews') {
+        return 'crews'
+    }
     return `${kind}:${slug}`
 }
 

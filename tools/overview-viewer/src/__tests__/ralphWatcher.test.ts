@@ -62,6 +62,8 @@ describe('ralph watcher', () => {
                 path.join(fixture.repoRoot, '.custom-ralph/queued'),
                 path.join(fixture.repoRoot, '.custom-ralph/teams'),
                 path.join(fixture.repoRoot, '.custom-ralph/ideas'),
+                path.join(fixture.repoRoot, '.crews/crews'),
+                path.join(fixture.repoRoot, '.crews/sessions-configs'),
             ],
             expect.objectContaining({
                 awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
@@ -224,7 +226,9 @@ describe('ralph watcher', () => {
 
         const options = watchMock.mock.calls[0][1]
         expect(options.ignored(path.join(fixture.repoRoot, '.ralph/jobs/task/worktree/prd.json'))).toBe(true)
+        expect(options.ignored(path.join(fixture.repoRoot, '.crews/crews/alpha/members/bob/mailbox.json'))).toBe(true)
         expect(options.ignored(path.join(fixture.repoRoot, '.ralph/jobs/task/job-state.json'))).toBe(false)
+        expect(options.ignored(path.join(fixture.repoRoot, '.crews/crews/alpha/members/bob/manifest.json'))).toBe(false)
     })
 
     it('drops selected-direction.md brainstorm touches without scheduling a write', async () => {

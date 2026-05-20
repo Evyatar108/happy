@@ -29,6 +29,7 @@ describe('Ralph overview config', () => {
         expect(Object.isFrozen(codexuDefaultConfig.ralphSubdirs)).toBe(true)
         expect(Object.isFrozen(codexuDefaultConfig.watcher)).toBe(true)
         expect(Object.keys(codexuDefaultConfig).sort()).toEqual([
+            'crewsRoot',
             'dataFile',
             'lockFile',
             'outputs',
