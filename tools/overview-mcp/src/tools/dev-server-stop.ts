@@ -22,7 +22,7 @@ export function registerDevServerStopTool(server: McpServer, context: ServerCont
 export async function devServerStop(context: ServerContext): Promise<DevServerStopResult> {
   const stopped = await context.processManager.stop(DEV_SERVER_NAME);
   if (!stopped) {
-    return { ok: false, error: 'dev server is not running' };
+    return { ok: true, stoppedAt: new Date() };
   }
   return { ok: true, stoppedAt: new Date(), pid: stopped.pid };
 }

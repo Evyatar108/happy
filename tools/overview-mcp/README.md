@@ -97,7 +97,7 @@ Starts `pnpm overview` in the repo root and waits for Vite's `Local: http://...`
 
 Input: `{}`.
 
-Output: `{ ok: true, stoppedAt, pid? }` when a tracked dev server was stopped, or `{ ok: false, error: 'dev server is not running' }` when none was running.
+Output: `{ ok: true, stoppedAt, pid? }`. Idempotent — if no tracked dev server is running, returns `{ ok: true, stoppedAt }` without `pid`.
 
 Stops the tracked `dev-server` process with SIGTERM followed by SIGKILL escalation if it does not exit before the timeout.
 
