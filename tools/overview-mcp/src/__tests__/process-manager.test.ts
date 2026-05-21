@@ -4,7 +4,7 @@ import type { ChildProcess } from 'node:child_process';
 
 import { describe, expect, it } from 'vitest';
 
-import { AlreadyRunningError, ProcessManager } from '../process-manager.js';
+import { AlreadyRunningError, ProcessManager, StopFailedError } from '../process-manager.js';
 
 describe('ProcessManager', () => {
   it('spawns with isolated stdio and captures stdout/stderr logs', async () => {
@@ -242,6 +242,20 @@ describe('ProcessManager', () => {
     (child.stdout as PassThrough).write('a\r\nb\rc\n');
 
     expect(manager.logs('crlf')?.stdout).toEqual(['a', 'b', 'c']);
+  });
+
+  it('throws StopFailedError when process does not exit after SIGKILL', async () => {
+    const child = fakeChild(801);
+    const manager = new ProcessManager({
+      platform: 'linux',
+      spawn: () => child,
+      processKill: () => {
+        // intentionally does nothing — process never exits
+      },
+    });
+
+    manager.spawn({ name: 'hung', cmd: 'node' });
+    await expect(manager.stop('hung', { timeoutMs: 10 })).rejects.toThrow(StopFailedError);
   });
 });
 

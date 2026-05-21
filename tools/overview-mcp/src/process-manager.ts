@@ -76,6 +76,13 @@ export class AlreadyRunningError extends Error {
   }
 }
 
+export class StopFailedError extends Error {
+  constructor(name: string) {
+    super(`StopFailed: process "${name}" did not exit within timeout`);
+    this.name = 'StopFailedError';
+  }
+}
+
 export class ManagedProcess {
   readonly stdout: string[] = [];
   readonly stderr: string[] = [];
@@ -381,6 +388,9 @@ export class ProcessManager {
     await this.killAndWait(managed, 'SIGTERM', timeoutMs);
     if ((managed.status as ManagedProcessStatus) !== 'exited') {
       await this.killAndWait(managed, 'SIGKILL', timeoutMs);
+    }
+    if ((managed.status as ManagedProcessStatus) !== 'exited') {
+      throw new StopFailedError(managed.name);
     }
   }
 
