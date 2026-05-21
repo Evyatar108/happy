@@ -71,6 +71,7 @@ export const setOverrideInputSchema = {
   taskId: z.string().min(1),
 };
 
+export const buildInputSchema = {};
 export const devServerStartInputSchema = {};
 export const devServerStopInputSchema = {};
 export const devServerStatusInputSchema = {};
@@ -89,6 +90,7 @@ export const listCrewSessionsSchema = z.object(listCrewSessionsInputSchema);
 export const getTranscriptSchema = z.object(getTranscriptInputSchema);
 export const addJournalEntrySchema = z.object(addJournalEntryInputSchema);
 export const setOverrideSchema = z.object(setOverrideInputSchema);
+export const buildSchema = z.object(buildInputSchema);
 export const devServerStartSchema = z.object(devServerStartInputSchema);
 export const devServerStopSchema = z.object(devServerStopInputSchema);
 export const devServerStatusSchema = z.object(devServerStatusInputSchema);
@@ -104,6 +106,7 @@ export type ListCrewSessionsInput = z.infer<typeof listCrewSessionsSchema>;
 export type GetTranscriptInput = z.infer<typeof getTranscriptSchema>;
 export type AddJournalEntryInput = z.infer<typeof addJournalEntrySchema>;
 export type SetOverrideInput = z.infer<typeof setOverrideSchema>;
+export type BuildInput = z.infer<typeof buildSchema>;
 export type DevServerStartInput = z.infer<typeof devServerStartSchema>;
 export type DevServerStopInput = z.infer<typeof devServerStopSchema>;
 export type DevServerStatusInput = z.infer<typeof devServerStatusSchema>;

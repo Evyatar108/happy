@@ -26,6 +26,7 @@ import type {
   SetOverrideInput,
 } from './schemas.js';
 import { addJournalEntry } from './tools/add-journal-entry.js';
+import { registerBuildTool } from './tools/build.js';
 import { registerDevServerLogsTool } from './tools/dev-server-logs.js';
 import { registerDevServerStartTool } from './tools/dev-server-start.js';
 import { registerDevServerStatusTool } from './tools/dev-server-status.js';
@@ -143,6 +144,7 @@ export function createServer(context: ServerContext): McpServer {
   registerDevServerStopTool(server, context);
   registerDevServerStatusTool(server, context);
   registerDevServerLogsTool(server, context);
+  registerBuildTool(server, context);
 
   return server;
 }

@@ -7,12 +7,13 @@ const repoRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { encodin
 const serverEntry = path.join(repoRoot, 'tools', 'overview-mcp', 'dist', 'index.js');
 
 describe('stdio tools/list smoke test', () => {
-  it('returns 14 overview tools by exact name', async () => {
+  it('returns 15 overview tools by exact name', async () => {
     const response = await sendToolsList(serverEntry);
     const names: string[] = response.result.tools.map((t: { name: string }) => t.name);
 
     expect(names.sort()).toEqual([
       'overview.add_journal_entry',
+      'overview.build',
       'overview.dev_server.logs',
       'overview.dev_server.start',
       'overview.dev_server.status',
