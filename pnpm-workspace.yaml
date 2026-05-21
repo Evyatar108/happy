@@ -8,5 +8,3 @@ packages:
   - "packages/codexu-plugin"
   - "packages/codexu-options-mode-plugin"
   - "packages/codium"
-  - "tools/overview-viewer"
-  - "tools/overview-mcp"

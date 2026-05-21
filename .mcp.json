@@ -3,6 +3,11 @@
     "paper": {
       "type": "http",
       "url": "http://127.0.0.1:29979/mcp"
+    },
+    "ralph-overview": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["D:/ai-developer-toolkit/plugins/ralph-overview/launch.cjs"]
     }
   }
 }

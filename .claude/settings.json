@@ -1,11 +1,16 @@
 {
-    "permissions": {
-        "allow": [
-            "Bash(pnpm typecheck)",
-            "Bash(yarn typecheck)",
-            "Bash(git fetch*)",
-            "Bash(npm view *)",
-            "Bash(pnpm lint)"
-        ]
-    }
+  "permissions": {
+    "allow": [
+      "Bash(pnpm typecheck)",
+      "Bash(yarn typecheck)",
+      "Bash(git fetch*)",
+      "Bash(npm view *)",
+      "Bash(pnpm lint)"
+    ]
+  },
+  "enabledPlugins": {
+    "crews@ai-developer-toolkit": true
+  },
+  "extraKnownMarketplaces": {},
+  "enabledMcpjsonServers": ["paper", "ralph-overview"]
 }

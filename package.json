@@ -7,13 +7,11 @@
         "release": "node ./scripts/release.cjs",
         "web": "pnpm --filter happy-app web",
         "codium": "pnpm --filter codium dev",
-        "overview": "pnpm --filter @codexu/overview-viewer dev",
-        "overview:build": "pnpm --filter @codexu/overview-viewer build",
-        "overview:build:preview": "cross-env OVERVIEW_BUILD_SAFE_NAME=1 pnpm --filter @codexu/overview-viewer build",
-        "overview-mcp:build": "pnpm --filter @codexu/overview-mcp build",
-        "overview-mcp:install": "pnpm --filter @codexu/overview-mcp exec node dist/install-server.js",
-        "sync-ralph-state": "node scripts/sync-ralph-state.mjs",
-        "sync-ralph-state:watch": "node scripts/sync-ralph-state.mjs --watch",
+        "overview": "node bin/ralph-overview.mjs dev",
+        "overview:build": "node bin/ralph-overview.mjs build",
+        "overview:build:preview": "cross-env OVERVIEW_BUILD_SAFE_NAME=1 node bin/ralph-overview.mjs build",
+        "sync-ralph-state": "node bin/ralph-overview.mjs sync",
+        "sync-ralph-state:watch": "node bin/ralph-overview.mjs watch",
         "app-logs": "pnpm --filter happy-app-logs start",
         "postinstall": "node ./scripts/postinstall.cjs",
         "env:new": "tsx environments/environments.ts new",
@@ -42,9 +40,7 @@
             "packages/happy-app-logs",
             "packages/codexu-plugin",
             "packages/codexu-options-mode-plugin",
-            "packages/codium",
-            "tools/overview-viewer",
-            "tools/overview-mcp"
+            "packages/codium"
         ]
     },
     "devDependencies": {
