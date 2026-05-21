@@ -53,7 +53,7 @@ Plans 02, 04, 07 are recommended but not strictly required (they enrich the snap
 
 ### To create
 
-- **`tools/overview-mcp/package.json`** — declares `@codexu/overview-mcp`, depends on `@modelcontextprotocol/sdk`, `chokidar` (for snapshot watching), and dev-deps `typescript`, `tsx`. `bin` entry `overview-mcp` → `dist/index.js`.
+- **`tools/overview-mcp/package.json`** — declares `@codexu/overview-mcp`, depends on `@modelcontextprotocol/sdk`, `chokidar` (for snapshot watching), and dev-deps `typescript`, `tsx`. `bin` entry `overview-mcp-install` → `dist/install-server.js`. The MCP server entrypoint at `dist/index.js` is invoked directly via `node` (per the README's `mcpServers.codexu-overview.command = "node"` registration shape), not through a `bin`.
 - **`tools/overview-mcp/tsconfig.json`** — extends the workspace's TS config; output dir `dist`.
 - **`tools/overview-mcp/src/index.ts`** — MCP server entry. Sets up stdio transport, registers all 10 tools.
 - **`tools/overview-mcp/src/snapshot-reader.ts`** — `SnapshotReader` class. Watches `plans/overview-snapshot.json` via chokidar; reads on demand; validates against `plans/overview-snapshot.schema.json` when present; caches the parsed `Snapshot` object in memory. All tool handlers query through this.
