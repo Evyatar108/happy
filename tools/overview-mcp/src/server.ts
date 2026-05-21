@@ -138,6 +138,9 @@ export function createServer(context: ServerContext): McpServer {
   return server;
 }
 
+// Cast plain zod v4 shape objects to the SDK's ZodRawShapeCompat union type.
+// The SDK's internal z4.$ZodType (from zod/v4/core) is structurally distinct from
+// the public zod v4 API, so a cast is required to satisfy the inputSchema parameter.
 function asSdkInputSchema(schema: object): ZodRawShapeCompat {
   return schema as unknown as ZodRawShapeCompat;
 }
