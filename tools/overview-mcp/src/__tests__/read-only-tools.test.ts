@@ -364,19 +364,19 @@ function snapshotWithTasks(): Snapshot {
     {
       id: 'TASK-2',
       scope: 'app',
-      command: { name: 'blocked-task' },
+      command: { name: 'blocked-task', descriptionHtml: '' },
       ralph: { stage: 'blocked', jobSlug: 'job-blocked', reviewOpenCount: { docs: 0 }, deferredQuestionsCount: 0 },
     },
     {
       id: 'TASK-3',
       scope: 'server',
-      command: { name: 'questions-task' },
+      command: { name: 'questions-task', descriptionHtml: '' },
       ralph: { stage: 'planning', jobSlug: 'job-questions', deferredQuestionsCount: 2 },
     },
     {
       id: 'TASK-4',
       scope: 'server',
-      command: { name: 'clear-task' },
+      command: { name: 'clear-task', descriptionHtml: '' },
       ralph: { stage: 'shipped', jobSlug: 'job-clear', deferredQuestionsCount: 0 },
     },
   ];

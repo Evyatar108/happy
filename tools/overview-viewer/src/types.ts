@@ -102,6 +102,12 @@ export interface OverviewRalphState {
     unmatchedSummary?: Record<string, number>
 }
 
+declare global {
+    interface Window {
+        OVERVIEW_RALPH_STATE?: OverviewRalphState
+    }
+}
+
 export function getOverviewRalphState(): OverviewRalphState {
     const emptyState = { generatedAt: '', generatedFromCommit: '', byTaskId: {} }
     if (typeof window === 'undefined') {
