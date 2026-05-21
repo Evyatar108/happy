@@ -67,6 +67,28 @@ describe('SnapshotReader', () => {
     });
   });
 
+  it('succeeds when the parser fails twice then succeeds on the third attempt', async () => {
+    const config = await writeFixtureConfig();
+    const good = snapshotWithTask('TASK-RETRY');
+    await writeSnapshot(config.outputs.snapshot, good);
+    reader = new SnapshotReader(config);
+
+    let parseCalls = 0;
+    const originalParse = JSON.parse;
+    vi.spyOn(JSON, 'parse').mockImplementation((...args) => {
+      parseCalls++;
+      if (parseCalls < 3) {
+        throw new SyntaxError('simulated torn write');
+      }
+      return originalParse(...args);
+    });
+    vi.spyOn(fs, 'readFile').mockResolvedValue(JSON.stringify(good) as never);
+
+    const result = await reader.getSnapshot();
+    expect(result).toMatchObject({ tasks: [{ id: 'TASK-RETRY' }] });
+    expect(parseCalls).toBe(3);
+  });
+
   it('returns the cached snapshot on torn reads and recovers on the next valid write', async () => {
     const config = await writeFixtureConfig();
     const warning = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);

@@ -123,19 +123,22 @@ async function readWithRetry<T>({
     return missingValue;
   }
 
-  try {
-    return await parser();
-  } catch (firstError) {
-    await delay(100);
+  const maxRetries = 3;
+  let lastError: unknown;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    if (attempt > 0) {
+      await delay(100);
+    }
     try {
       return await parser();
-    } catch (secondError) {
-      process.stderr.write(
-        `overview-mcp: failed to read ${label} at ${filePath}; using ${previous ? 'cached value' : 'null'} (${formatError(secondError ?? firstError)})\n`,
-      );
-      return previous ?? null;
+    } catch (error) {
+      lastError = error;
     }
   }
+  process.stderr.write(
+    `overview-mcp: failed to read ${label} at ${filePath}; using ${previous ? 'cached value' : 'null'} (${formatError(lastError)})\n`,
+  );
+  return previous ?? null;
 }
 
 async function exists(filePath: string): Promise<boolean> {
