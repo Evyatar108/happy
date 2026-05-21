@@ -12,7 +12,7 @@ The comprehensive plan's R1 refinement settled on a three-tier matching strategy
 2. **`ralphOverrides` map in `overview-data.js`** — hand-edited override for slug mismatches.
 3. **Default slug equality** (`jobSlug === taskId`) — works for most cases day-one.
 
-Plans 01–09 build the system around tiers 2 and 3 with stderr-logged unmatched. Tier 1 — adding `overviewTaskId` natively to Ralph's PRD/group/brainstorm schemas — requires patching the ralph-orchestration plugin itself. This plan writes the requirements doc that a future Ralph plugin upgrade cycle picks up.
+Plans 01–09 build the system around tiers 2 and 3 with stderr-logged unmatched. Plan 09 also ships `tools/overview-mcp/`, which gives agents a typed `overview.set_override` mutation for tier-2 fixes and `overview.add_journal_entry` for recording context without hand-editing files. Tier 1 — adding `overviewTaskId` natively to Ralph's PRD/group/brainstorm schemas — requires patching the ralph-orchestration plugin itself. This plan writes the requirements doc that a future Ralph plugin upgrade cycle picks up.
 
 ## Dependencies
 
@@ -32,7 +32,7 @@ None for the doc itself. (The doc DESCRIBES patches that, once landed in ralph-o
 
 **Out of scope:**
 - The actual Ralph plugin patches. Those are picked up by a separate `/plan-with-ralph --improve plans/ralph-overview-task-id.md` cycle in the ralph-orchestration plugin's source tree (`D:\ai-developer-toolkit\plugins\ralph\`).
-- Backfilling existing PRDs in this repo. Handled either manually by the user or via the optional `scripts/backfill-overview-task-id.mjs` follow-up.
+- Backfilling existing PRDs in this repo. Handled either manually by the user, via the optional `scripts/backfill-overview-task-id.mjs` follow-up, or for slug mismatches through the Plan 09 MCP `overview.set_override` tool until native `overviewTaskId` support lands.
 
 ## Files
 
@@ -96,10 +96,11 @@ None for the doc itself. (The doc DESCRIBES patches that, once landed in ralph-o
   ## Back-compat
 
   Existing PRDs in `.ralph/jobs/*/prd.json` predate this field. The Plan 01 sync
-  currently falls back to `ralphOverrides` (hand-edited in `overview-data.js`) or
-  slug-equality; `overviewTaskId` is a documented future match tier, not an active
-  Plan 01 consumer yet. After the Ralph plugin writes the field, a small codexu sync
-  follow-up should make `prd.overviewTaskId` / `group.json.overviewTaskId` /
+  currently falls back to `ralphOverrides` (hand-edited in `overview-data.js`, or
+  updated through the Plan 09 MCP `overview.set_override` tool) or slug-equality;
+  `overviewTaskId` is a documented future match tier, not an active Plan 01 consumer
+  yet. After the Ralph plugin writes the field, a small codexu sync follow-up should
+  make `prd.overviewTaskId` / `group.json.overviewTaskId` /
   `brainstorm.json.overviewTaskId` the highest-confidence match before overrides.
   No automatic backfill — bookkeepers backfill manually as needed.
 

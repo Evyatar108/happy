@@ -73,10 +73,10 @@ The comprehensive plan covered: schema additions, a continuous file watcher, a s
            │
            ▼
         ┌─────────────────┐
-        │ 09-mcp          │ ◄── depends on 05, 06, 08
+        │ 09-mcp          │ ◄── depends on 05, 06, 07, 08
         │ (tools/overview-│
-        │  mcp/ + 10 MCP  │
-        │  data tools,    │
+        │  mcp/ + typed   │
+        │  data, journal, │
         │  crew tools)    │
         └──┬──────────────┘
            │
@@ -123,7 +123,7 @@ If you want a strict linear order (single agent, no parallelism), this minimizes
 6. **06-skills** — `/work-on`, `/triage`, `/blocker-report` + derive-next-command. Skill-driven daily workflow.
 7. **07-context** — notepad surfacing + journal + RecentActivity sidebar + PR/branch backlinks. Contextual depth.
 8. **08-crews** — crews-plugin session tracking + `--via-crew` mode. Multi-agent delegation.
-9. **09-mcp** — MCP server with 10 data tools (list_tasks, get_task, next_command, etc.). Agent-native programmatic read/state surface.
+9. **09-mcp** — MCP server with 10 typed tools (list_tasks, get_task, next_command, recommendations, blockers, journal append, override edit, crew sessions, transcripts, invoke-next). Depends on 05/06/07/08 for snapshot exports, command derivation, journal writes, and crew discovery.
 10. **11-mcp-operational-tools** — MCP subprocess control: `dev_server.start/stop/status/logs`, `build`, `sync.now`, `sync.watch_status`. Lets an agent drive the dev server lifecycle from MCP. *(Plan number is 11; comes after 09 in dependency order. Plan 10 ships independently — see below.)*
 11. **10-ralph-handoff** — write the doc that a separate `/plan-with-ralph` cycle picks up to patch Ralph itself with `overviewTaskId`. Can be done any time, including before any other plan.
 12. **12-package-as-plugin** — extract everything (sync core, watcher, MCP server, React viewer, skills) into a reusable plugin at `D:\ai-developer-toolkit\plugins\ralph-overview\`. Migrate codexu to consume the plugin. Make the pre-existing `Toolbar.tsx` filter chips data-driven (the last codexu-specific holdout). Ship after 01–11 are stable.
@@ -137,7 +137,7 @@ If multiple agents run in parallel:
 - **Group C (Phase 3):** 04-pipeline-overview (depends on 03) + 05-agent-exports (depends on 02)
 - **Group D (Phase 4):** 06-skills (depends on 05) + 07-context (depends on 05)
 - **Group E (Phase 5):** 08-crews (depends on 06)
-- **Group F (Phase 6):** 09-mcp (depends on 05, 06, 08)
+- **Group F (Phase 6):** 09-mcp (depends on 05, 06, 07, 08)
 - **Group G (Phase 7):** 11-mcp-operational-tools (depends on 09 + 02)
 - **Group H (Phase 8):** 12-package-as-plugin (depends on 01 + 05 + 09 + 11; ship after the system is stable in codexu)
 
@@ -196,7 +196,7 @@ These ESM modules are introduced in early plans and re-imported by later ones. D
 | `scripts/lib/parse-spawn-launcher.mjs` | 08 | `parseSpawnLauncher(absolutePath) -> { initialPrompt, memberName, crewName }`. Parses PowerShell single-quoted launcher commands, including `''` escapes and multi-line prompts, and returns the final quoted `claude ...` argument for task-id matching. | 08 `crews-cross-walk`, 09 crew tool reference, 12 packaging |
 | `scripts/lib/parse-notepad.mjs` | 07 | Pure `parseNotepad(text)` helper for Deferred Questions and Story Doctor Log markdown sections. Returns `{ deferredQuestionsCount, deferredQuestionsPreview, storyDoctorInterventions }`, treats malformed tables as zero-count warnings, and never performs I/O. | 07 sync-core integration, 08 tooltip extras, 09 MCP |
 | `scripts/lib/derive-pr-links.mjs` | 07 | Defensive `derivePRLinks({ groupState?, repoRoot, branchName, stage, originUrl? })` helper. Reads optional group PR URLs, discovers GitHub PR links from recent branch commits or `Closes #N`, skips git work without a branch, and resolves `mergeCommit` only for shipped stages. | 07 sync-core integration, 08 tooltip extras, 09 MCP |
-| `scripts/lib/append-journal.mjs` | 07 | Atomic per-task journal append helper. `appendJournalEntry({ repoRoot, taskId, ts, prevStage, newStage, slug })` formats semantic stage transitions internally and writes `tasks/<taskId>/journal.md`; `formatJournalLine(...)` exposes the exact line format for tests. | 07 watcher/one-shot sync, operators, agents |
+| `scripts/lib/append-journal.mjs` | 07/09 | Atomic per-task journal append helper. `appendJournalEntry({ repoRoot, taskId, ts, prevStage, newStage, slug })` formats semantic stage transitions internally and writes `tasks/<taskId>/journal.md`; `appendJournalNote({ repoRoot, taskId, ts, note })` appends free-form notes with multiline continuation; `assertSafeTaskId(taskId)` is exported for callers that touch `tasks/<taskId>/`; `formatJournalLine(...)` exposes the exact transition line format for tests. | 07 watcher/one-shot sync, 09 `overview.add_journal_entry` / task-id validation, operators, agents |
 | `scripts/lib/sync-lock.mjs` | 02 | Shared async lock helper. Writes JSON `{ pid, process, startedAt }` with `wx`, reports contention as `another sync in progress (pid <N>, process <label>, started <ts>)`, treats EPERM PID probes as alive, removes ESRCH/unparseable stale locks, and supports `touch()` heartbeats. | 02, 08, 11 |
 | `tools/overview-viewer/src/__tests__/scripts.d.ts` | 01 | Test-only explicit relative ambient declarations for root `.mjs` modules; no wildcard module patterns under bundler resolution. | overview-viewer tests |
 | `tools/overview-viewer/src/utils/filters.ts` | 03 | `FilterAxis` includes `ralphStage`; `ActiveFilters` is `Record<FilterAxis, Set<string>>`; `createEmptyFilters()` and `cloneFilters()` include `ralphStage`; `matchesTaskFilter` / `matchesKanbanFilter` require `OverviewRalphState` and apply the stage predicate. | 04 (`PipelineOverview`), 12 (data-driven toolbar migration) |
@@ -219,6 +219,7 @@ These ESM modules are introduced in early plans and re-imported by later ones. D
 | `plans/overview-snapshot.schema.json` | 05 | Hand-written JSON Schema for `plans/overview-snapshot.json`; `RalphPipelineState` allows additional properties for later plans. | 09 validation, 12 packaging |
 | `plans/overview-data.json` | 05 | Read-only JSON twin of hand-curated `plans/overview-data.js`, produced from the shared trusted parser. | 09, 12, agents that cannot eval JS |
 | `tasks/INDEX.md` | 05 | Generated markdown index with one section per task, stage, jobDir, last activity, and dashboard deep link. | Humans, agents, 12 packaging |
+| `tools/overview-mcp/` | 09 | MCP stdio package `@codexu/overview-mcp`. `src/context.ts` resolves repo/config and owns `SnapshotReader`; `src/server.ts` registers `overview.list_tasks`, `overview.get_task`, `overview.next_command`, `overview.invoke_next`, `overview.list_recommendations`, `overview.list_blockers`, `overview.list_crew_sessions`, `overview.get_transcript`, `overview.add_journal_entry`, and `overview.set_override`; `src/install-server.ts` installs the machine-local Claude Code MCP registration under `.claude/settings.local.json`. | Agents via MCP, 11 operational MCP tools, 12 packaging |
 
 If a downstream plan's consumer drifts from the introducing plan's contract, the predicate table goes out of sync silently. Every plan that imports these explicitly lists them under "Read for reference."
 
