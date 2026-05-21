@@ -4,6 +4,7 @@ import type { ZodRawShapeCompat } from '@modelcontextprotocol/sdk/server/zod-com
 import type { ServerContext } from './context.js';
 import {
   addJournalEntryInputSchema,
+  getTranscriptInputSchema,
   getTaskInputSchema,
   listBlockersInputSchema,
   listCrewSessionsInputSchema,
@@ -14,6 +15,7 @@ import {
 } from './schemas.js';
 import type {
   AddJournalEntryInput,
+  GetTranscriptInput,
   GetTaskInput,
   ListCrewSessionsInput,
   ListRecommendationsInput,
@@ -22,6 +24,7 @@ import type {
   SetOverrideInput,
 } from './schemas.js';
 import { addJournalEntry } from './tools/add-journal-entry.js';
+import { getTranscript } from './tools/get-transcript.js';
 import { listCrewSessions } from './tools/list-crew-sessions.js';
 import {
   getTask,
@@ -91,6 +94,15 @@ export function createServer(context: ServerContext): McpServer {
       inputSchema: asSdkInputSchema(listCrewSessionsInputSchema),
     },
     async (input) => toToolResult(await listCrewSessions(context, input as ListCrewSessionsInput)),
+  );
+
+  server.registerTool(
+    'overview.get_transcript',
+    {
+      description: 'Return the tail of a live crew session transcript by sessionId.',
+      inputSchema: asSdkInputSchema(getTranscriptInputSchema),
+    },
+    async (input) => toToolResult(await getTranscript(context, input as GetTranscriptInput)),
   );
 
   server.registerTool(

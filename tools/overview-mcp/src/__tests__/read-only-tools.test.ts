@@ -42,6 +42,7 @@ describe('read-only tool registration', () => {
     expect(Object.keys(server._registeredTools).sort()).toEqual([
       'overview.add_journal_entry',
       'overview.get_task',
+      'overview.get_transcript',
       'overview.list_blockers',
       'overview.list_crew_sessions',
       'overview.list_recommendations',
