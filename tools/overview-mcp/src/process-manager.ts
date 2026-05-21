@@ -19,7 +19,9 @@ export interface ManagedProcessSnapshot {
   name: string;
   status: ManagedProcessStatus;
   pid?: number;
+  url?: string;
   startedAt: Date;
+  lastReadyAt?: Date;
   exitedAt?: Date;
   exitCode?: number | null;
   signal?: NodeJS.Signals | null;
@@ -85,6 +87,8 @@ export class ManagedProcess {
   exitCode?: number | null;
   signal?: NodeJS.Signals | null;
   child?: ChildProcess;
+  readyInfo?: ReadyInfo;
+  lastReadyAt?: Date;
 
   private stdoutCarry = '';
   private stderrCarry = '';
@@ -155,7 +159,9 @@ export class ManagedProcess {
       name: this.name,
       status: this.status,
       pid: this.pid,
+      url: this.readyInfo?.url,
       startedAt: this.startedAt,
+      lastReadyAt: this.lastReadyAt,
       exitedAt: this.exitedAt,
       exitCode: this.exitCode,
       signal: this.signal,
@@ -240,6 +246,8 @@ export class ManagedProcess {
     if (this.status === 'starting') {
       this.status = 'running';
     }
+    this.readyInfo = ready;
+    this.lastReadyAt = new Date();
     if (!this.readySettled) {
       this.readySettled = true;
       this.resolveReady(ready);

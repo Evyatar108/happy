@@ -7,15 +7,27 @@ const repoRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { encodin
 const serverEntry = path.join(repoRoot, 'tools', 'overview-mcp', 'dist', 'index.js');
 
 describe('stdio tools/list smoke test', () => {
-  it('returns 10 tools with names beginning overview.', async () => {
+  it('returns 14 overview tools by exact name', async () => {
     const response = await sendToolsList(serverEntry);
     const names: string[] = response.result.tools.map((t: { name: string }) => t.name);
 
-    expect(names).toHaveLength(10);
-    for (const name of names) {
-      expect(name).toMatch(/^overview\./);
-    }
-  });
+    expect(names.sort()).toEqual([
+      'overview.add_journal_entry',
+      'overview.dev_server.logs',
+      'overview.dev_server.start',
+      'overview.dev_server.status',
+      'overview.dev_server.stop',
+      'overview.get_task',
+      'overview.get_transcript',
+      'overview.invoke_next',
+      'overview.list_blockers',
+      'overview.list_crew_sessions',
+      'overview.list_recommendations',
+      'overview.list_tasks',
+      'overview.next_command',
+      'overview.set_override',
+    ]);
+  }, 15_000);
 });
 
 function sendToolsList(entry: string): Promise<{ result: { tools: { name: string }[] } }> {

@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loadOverviewData } from '../../../../scripts/lib/sync-core.mjs';
 import { createServer } from '../server.js';
 import { SnapshotReader } from '../snapshot-reader.js';
+import { ProcessManager } from '../process-manager.js';
 import { setOverride } from '../tools/set-override.js';
 import { editOverrides } from '../utils/set-override-edit.js';
 
@@ -130,7 +131,7 @@ describe('setOverride', () => {
 async function createContext(name = 'repo'): Promise<ServerContext> {
   const repoRoot = path.join(tempRoot, name);
   const config = await writeFixtureConfig(repoRoot);
-  return { repoRoot, config, snapshotReader: new SnapshotReader(config) };
+  return { repoRoot, config, snapshotReader: new SnapshotReader(config), processManager: new ProcessManager() };
 }
 
 async function writeFixtureConfig(repoRoot: string): Promise<RalphOverviewConfig> {

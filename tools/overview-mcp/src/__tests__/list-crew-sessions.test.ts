@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SnapshotReader } from '../snapshot-reader.js';
+import { ProcessManager } from '../process-manager.js';
 import { listCrewSessions } from '../tools/list-crew-sessions.js';
 
 import type { ServerContext } from '../context.js';
@@ -127,7 +128,7 @@ async function createContext(name = 'repo'): Promise<ServerContext> {
   const repoRoot = path.join(tempRoot, name);
   const config = await writeFixtureConfig(repoRoot);
   reader = new SnapshotReader(config);
-  return { repoRoot, config, snapshotReader: reader };
+  return { repoRoot, config, snapshotReader: reader, processManager: new ProcessManager() };
 }
 
 async function writeFixtureConfig(repoRoot: string): Promise<RalphOverviewConfig> {

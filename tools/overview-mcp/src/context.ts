@@ -4,11 +4,13 @@ import path from 'node:path';
 import { loadConfig } from '../../../scripts/lib/resolve-config.mjs';
 
 import { SnapshotReader } from './snapshot-reader.js';
+import { ProcessManager } from './process-manager.js';
 
 export interface ServerContext {
   repoRoot: string;
   config: ReturnType<typeof loadConfig>;
   snapshotReader: SnapshotReader;
+  processManager: ProcessManager;
 }
 
 export function buildContext(repoRoot = resolveRepoRoot(process.cwd())): ServerContext {
@@ -19,6 +21,7 @@ export function buildContext(repoRoot = resolveRepoRoot(process.cwd())): ServerC
     repoRoot: resolvedRepoRoot,
     config,
     snapshotReader: new SnapshotReader(config),
+    processManager: new ProcessManager(),
   };
 }
 

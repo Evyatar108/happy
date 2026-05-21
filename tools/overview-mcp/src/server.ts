@@ -1,9 +1,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { ZodRawShapeCompat } from '@modelcontextprotocol/sdk/server/zod-compat.js';
 
 import type { ServerContext } from './context.js';
 import {
   addJournalEntryInputSchema,
+  asSdkInputSchema,
   getTranscriptInputSchema,
   getTaskInputSchema,
   invokeNextInputSchema,
@@ -26,6 +26,10 @@ import type {
   SetOverrideInput,
 } from './schemas.js';
 import { addJournalEntry } from './tools/add-journal-entry.js';
+import { registerDevServerLogsTool } from './tools/dev-server-logs.js';
+import { registerDevServerStartTool } from './tools/dev-server-start.js';
+import { registerDevServerStatusTool } from './tools/dev-server-status.js';
+import { registerDevServerStopTool } from './tools/dev-server-stop.js';
 import { getTranscript } from './tools/get-transcript.js';
 import { invokeNext } from './tools/invoke-next.js';
 import { listCrewSessions } from './tools/list-crew-sessions.js';
@@ -135,12 +139,10 @@ export function createServer(context: ServerContext): McpServer {
     async (input) => toToolResult(await setOverride(context, input as SetOverrideInput)),
   );
 
-  return server;
-}
+  registerDevServerStartTool(server, context);
+  registerDevServerStopTool(server, context);
+  registerDevServerStatusTool(server, context);
+  registerDevServerLogsTool(server, context);
 
-// Cast plain zod v4 shape objects to the SDK's ZodRawShapeCompat union type.
-// The SDK's internal z4.$ZodType (from zod/v4/core) is structurally distinct from
-// the public zod v4 API, so a cast is required to satisfy the inputSchema parameter.
-function asSdkInputSchema(schema: object): ZodRawShapeCompat {
-  return schema as unknown as ZodRawShapeCompat;
+  return server;
 }

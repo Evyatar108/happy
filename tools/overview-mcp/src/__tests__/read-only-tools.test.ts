@@ -26,12 +26,16 @@ afterEach(async () => {
 });
 
 describe('read-only tool registration', () => {
-  it('registers all five read-only tools', async () => {
+  it('registers read-only and dev-server tools', async () => {
     const context = await createContext();
     const server = createServer(context) as unknown as { _registeredTools: Record<string, unknown> };
 
     expect(Object.keys(server._registeredTools).sort()).toEqual([
       'overview.add_journal_entry',
+      'overview.dev_server.logs',
+      'overview.dev_server.start',
+      'overview.dev_server.status',
+      'overview.dev_server.stop',
       'overview.get_task',
       'overview.get_transcript',
       'overview.invoke_next',

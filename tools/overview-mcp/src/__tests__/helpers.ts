@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { SnapshotReader } from '../snapshot-reader.js';
+import { ProcessManager } from '../process-manager.js';
 
 import type { ServerContext } from '../context.js';
 import type { RalphOverviewConfig } from '../../../../scripts/lib/default-config.mjs';
@@ -108,11 +109,21 @@ export async function writeFixtureConfig(repoRoot: string): Promise<RalphOvervie
   };
 }
 
-export async function makeContext(tempRoot: string, readerRef: { current: SnapshotReader | null }, name = 'repo'): Promise<ServerContext> {
+export async function makeContext(
+  tempRoot: string,
+  readerRef: { current: SnapshotReader | null },
+  name = 'repo',
+  options: { processManager?: ProcessManager } = {},
+): Promise<ServerContext> {
   const contextRepoRoot = path.join(tempRoot, name);
   const config = await writeFixtureConfig(contextRepoRoot);
   readerRef.current = new SnapshotReader(config);
-  return { repoRoot: contextRepoRoot, config, snapshotReader: readerRef.current };
+  return {
+    repoRoot: contextRepoRoot,
+    config,
+    snapshotReader: readerRef.current,
+    processManager: options.processManager ?? new ProcessManager(),
+  };
 }
 
 export function makeTempDir(): { tempRoot: string } {
