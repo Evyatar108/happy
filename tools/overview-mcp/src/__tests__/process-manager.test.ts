@@ -140,6 +140,44 @@ describe('ProcessManager', () => {
     expect(manager.status()).toMatchObject([{ name: 'dev-server', status: 'exited' }]);
   });
 
+  it('stopAll continues stopping remaining processes when one rejects', async () => {
+    const childA = fakeChild(221);
+    const childB = fakeChild(222);
+    let spawnCount = 0;
+    const stoppedPids: number[] = [];
+    const manager = new ProcessManager({
+      platform: 'win32',
+      spawn: () => (spawnCount++ === 0 ? childA : childB),
+      treeKill: (pid, signal, callback) => {
+        if (pid === 221) {
+          callback?.(new Error('OS error stopping 221'));
+          return;
+        }
+        stoppedPids.push(pid);
+        if (signal === 'SIGKILL') {
+          queueMicrotask(() => childB.emit('exit', null, signal));
+        }
+        callback?.();
+      },
+    });
+
+    manager.spawn({ name: 'hanging', cmd: 'node' });
+    manager.spawn({ name: 'normal', cmd: 'node' });
+
+    const consoleErrors: unknown[] = [];
+    const originalError = console.error.bind(console);
+    console.error = (...args: unknown[]) => consoleErrors.push(args);
+    try {
+      const snapshots = await manager.stopAll({ timeoutMs: 20 });
+      expect(snapshots.map((s) => s.name).sort()).toEqual(['hanging', 'normal']);
+      expect(stoppedPids).toContain(222);
+      expect(consoleErrors.length).toBeGreaterThan(0);
+      expect(String(consoleErrors[0])).toMatch(/hanging/);
+    } finally {
+      console.error = originalError;
+    }
+  });
+
   it('guards already-running names and preserves the original handle', () => {
     const child = fakeChild(301);
     const manager = new ProcessManager({ spawn: () => child });

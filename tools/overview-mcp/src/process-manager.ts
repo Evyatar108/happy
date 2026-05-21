@@ -328,7 +328,7 @@ export class ProcessManager {
 
   async stopAll(options: StopOptions = {}): Promise<ManagedProcessSnapshot[]> {
     const managedProcesses = [...this.processes.values()];
-    const stopped = await Promise.all(
+    const results = await Promise.allSettled(
       managedProcesses.map(async (managed) => {
         await this.stopManagedProcess(managed, options.timeoutMs ?? DEFAULT_STOP_TIMEOUT_MS);
         return managed.snapshot();
@@ -339,7 +339,18 @@ export class ProcessManager {
         this.processes.delete(managed.name);
       }
     }
-    return stopped;
+    const snapshots: ManagedProcessSnapshot[] = [];
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      if (result.status === 'fulfilled') {
+        snapshots.push(result.value);
+      } else {
+        const managed = managedProcesses[i];
+        console.error(`[ProcessManager] stopAll: failed to stop "${managed.name}":`, result.reason);
+        snapshots.push(managed.snapshot());
+      }
+    }
+    return snapshots;
   }
 
   get(name: string): ManagedProcess | undefined {
