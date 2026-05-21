@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-const DEFAULT_STALE_AFTER_MS = 60_000
+export const DEFAULT_STALE_AFTER_MS = 60_000
 
 export async function acquireLock({ lockPath, processLabel, staleAfterMs = DEFAULT_STALE_AFTER_MS }) {
     if (!lockPath || !processLabel) {
@@ -45,7 +45,7 @@ async function acquireExistingLock({ lockPath, metadata, staleAfterMs }) {
         throw new Error(formatLockDiagnostic(existing.metadata))
     }
 
-    if (isLiveProcess(existing.metadata.pid)) {
+    if (isLockHolderAlive(existing.metadata.pid)) {
         throw new Error(formatLockDiagnostic(existing.metadata))
     }
 
@@ -72,9 +72,9 @@ async function readExistingLock(lockPath) {
     return { metadata: parseLockMetadata(contents), mtimeMs: stats.mtimeMs }
 }
 
-function parseLockMetadata(contents) {
+export function parseLockMetadata(contents) {
     try {
-        const parsed = JSON.parse(contents)
+        const parsed = JSON.parse(Buffer.isBuffer(contents) ? contents.toString('utf8') : String(contents))
         return {
             pid: Number.isInteger(parsed?.pid) ? parsed.pid : undefined,
             process: typeof parsed?.process === 'string' ? parsed.process : undefined,
@@ -83,6 +83,99 @@ function parseLockMetadata(contents) {
     } catch {
         return { pid: undefined, process: undefined, startedAt: undefined }
     }
+}
+
+export async function readLockStatus(lockPath, opts = {}) {
+    const absoluteLockPath = path.resolve(lockPath)
+    const staleAfterMs = opts.staleAfterMs ?? DEFAULT_STALE_AFTER_MS
+    const retryDelayMs = opts.retryDelayMs ?? 50
+    const now = opts.now ?? (() => Date.now())
+    const isAlive = opts.isLockHolderAlive ?? isLockHolderAlive
+
+    const firstRead = await readLockFileStatus(absoluteLockPath)
+    if (firstRead.state === 'missing') {
+        return { state: 'missing' }
+    }
+    if (firstRead.state === 'unparseable') {
+        await delay(retryDelayMs)
+        const retryRead = await readLockFileStatus(absoluteLockPath)
+        if (retryRead.state === 'missing') {
+            return { state: 'missing' }
+        }
+        if (retryRead.state === 'unparseable') {
+            return { state: 'stale', mtime: retryRead.mtime }
+        }
+        return classifyParsedLock(retryRead, { staleAfterMs, now, isAlive })
+    }
+    return classifyParsedLock(firstRead, { staleAfterMs, now, isAlive })
+}
+
+async function readLockFileStatus(lockPath) {
+    let stats
+    try {
+        stats = await fs.stat(lockPath)
+    } catch (error) {
+        if (error?.code === 'ENOENT') {
+            return { state: 'missing' }
+        }
+        throw error
+    }
+
+    const contents = await fs.readFile(lockPath)
+    const parsed = parseLockFile(contents)
+    if (!parsed.ok) {
+        return { state: 'unparseable', mtime: stats.mtime }
+    }
+    return { state: 'parsed', metadata: parsed.metadata, mtime: stats.mtime }
+}
+
+function classifyParsedLock(read, { staleAfterMs, now, isAlive }) {
+    const metadata = read.metadata
+    if (!hasCompleteLockMetadata(metadata)) {
+        return {
+            state: 'stale',
+            pid: metadata.pid,
+            process: metadata.process,
+            startedAt: metadata.startedAt,
+            mtime: read.mtime,
+        }
+    }
+
+    const ageMs = Math.max(0, now() - read.mtime.getTime())
+    const holderAlive = isAlive(metadata.pid)
+    if (ageMs < staleAfterMs || holderAlive) {
+        return {
+            state: 'active',
+            pid: metadata.pid,
+            process: metadata.process,
+            startedAt: metadata.startedAt,
+            mtime: read.mtime,
+        }
+    }
+    return {
+        state: 'stale',
+        pid: metadata.pid,
+        process: metadata.process,
+        startedAt: metadata.startedAt,
+        mtime: read.mtime,
+    }
+}
+
+function hasCompleteLockMetadata(metadata) {
+    return Number.isInteger(metadata.pid) && typeof metadata.process === 'string' && typeof metadata.startedAt === 'string'
+}
+
+function parseLockFile(contents) {
+    try {
+        JSON.parse(Buffer.isBuffer(contents) ? contents.toString('utf8') : String(contents))
+        return { ok: true, metadata: parseLockMetadata(contents) }
+    } catch {
+        return { ok: false }
+    }
+}
+
+function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 function createHandle(lockPath, metadata) {
@@ -118,13 +211,13 @@ function createHandle(lockPath, metadata) {
  * Returns false only on `ESRCH` (no such process) or when pid is invalid.
  *
  * Residual risk (documented in plan.md Risk Areas #2): PID reuse on the same OS after
- * the watcher crashes can lead `isLiveProcess` to return true for an unrelated new
+ * the watcher crashes can lead `isLockHolderAlive` to return true for an unrelated new
  * process that happens to inherit the recycled PID. This is tolerated because the
  * peer still sees the canonical fresh-lock diagnostic and a human operator can stat
  * the lock to confirm. On Windows specifically, `process.kill(pid, 0)` may report
  * success even when the wrong owner holds the PID — same residual.
  */
-function isLiveProcess(pid) {
+export function isLockHolderAlive(pid) {
     if (!Number.isInteger(pid) || pid <= 0) {
         return false
     }
