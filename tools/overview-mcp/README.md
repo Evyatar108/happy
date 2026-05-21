@@ -109,7 +109,7 @@ Output when running: `{ running: true, status, url?, pid?, startedAt, lastReadyA
 
 Output when stopped: `{ running: false, lastLogTail: { stdout: [], stderr: [] } }`.
 
-Returns the current `ProcessManager` snapshot and the last 30 lines from each stream.
+Returns the current `ProcessManager` snapshot and the last 10 lines from each stream.
 
 ### `overview.dev_server.logs`
 
