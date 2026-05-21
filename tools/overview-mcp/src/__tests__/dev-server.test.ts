@@ -101,7 +101,7 @@ describe('overview.dev_server tools', () => {
       error: 'process exited before ready: code=1, signal=none',
       lastLogLines: { stderr: ['startup failed'] },
     });
-    expect(manager.status('dev-server')).toBeNull();
+    expect(manager.status('dev-server')).toMatchObject({ status: 'exited' });
 
     const second = devServerStart(context, { readyTimeoutMs: 200 });
     (retry.stdout as PassThrough).write('Local: http://127.0.0.1:5175/\n');

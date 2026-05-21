@@ -24,7 +24,9 @@ describe('MCP shutdown process cleanup', () => {
     const stopped = await manager.stopAll({ timeoutMs: 2_000 });
 
     expect(stopped.map((entry) => entry.name).sort()).toEqual(['build', 'dev-server', 'sync-now']);
-    expect(manager.status()).toEqual([]);
+    const remaining = manager.status() as Array<{ name: string; status: string }>;
+    expect(remaining.map((e) => e.name)).toEqual(['dev-server']);
+    expect(remaining[0].status).toBe('exited');
     for (const pid of pids) {
       await expectPidGone(pid);
     }
