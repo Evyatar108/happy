@@ -49,5 +49,5 @@ export function devServerStatus(context: ServerContext): DevServerStatusResult {
 }
 
 function tailLogs(logs: { stdout: string[]; stderr: string[] }): { stdout: string[]; stderr: string[] } {
-  return { stdout: logs.stdout.slice(-30), stderr: logs.stderr.slice(-30) };
+  return { stdout: logs.stdout.slice(-10), stderr: logs.stderr.slice(-10) };
 }

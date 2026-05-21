@@ -118,6 +118,22 @@ describe('overview.dev_server tools', () => {
     expect(clampTail(0)).toBe(1);
     expect(clampTail(1001)).toBe(1000);
   });
+
+  it('lastLogTail in status contains at most 10 lines per stream', async () => {
+    const child = fakeChild(201);
+    const manager = managerWithChildren([child]);
+    const context = contextWithManager(manager);
+    const started = devServerStart(context, { readyTimeoutMs: 200 });
+
+    const lines = Array.from({ length: 15 }, (_, i) => `line${i + 1}`).join('\n') + '\n';
+    (child.stdout as PassThrough).write(lines + 'Local: http://127.0.0.1:5173/\n');
+
+    await started;
+
+    const result = devServerStatus(context);
+    expect(result.lastLogTail.stdout.length).toBeLessThanOrEqual(10);
+    expect(result.lastLogTail.stderr.length).toBeLessThanOrEqual(10);
+  });
 });
 
 function managerWithChildren(children: ChildProcess[], onSpawn?: () => void): ProcessManager {
