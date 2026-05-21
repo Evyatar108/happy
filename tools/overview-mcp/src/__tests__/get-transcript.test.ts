@@ -102,6 +102,31 @@ describe('overview.get_transcript', () => {
     });
   });
 
+  it('finds transcript when snapshot-cached ref lacks transcriptPath but manifest has it', async () => {
+    const context = await createContext();
+    const transcriptPath = path.join(context.repoRoot, 'transcripts', 'session-b.jsonl');
+    await fs.mkdir(path.dirname(transcriptPath), { recursive: true });
+    await writeTranscript(transcriptPath, mixedTranscriptEntries(10));
+    await writeOverviewData(context.config.dataFile, { tasks: [{ id: 'TASK-2' }] });
+    await writeRalphState(context.config.outputs.sidecarJson, ralphStateWithSessions({ 'TASK-2': 'implementing' }, [
+      { crewName: 'crew-b', memberName: 'bob', startedAt: '2026-05-20T10:00:00.000Z', sessionId: 'session-b' },
+    ]));
+    await writeManifest(context.config.crewsRoot, 'crew-b', 'members', 'bob', {
+      crew: 'crew-b',
+      name: 'bob',
+      cwd: context.repoRoot,
+      startedAt: '2026-05-20T10:00:00.000Z',
+      sessionId: 'session-b',
+      lastSummary: 'Working on TASK-2.',
+      transcriptPath: 'transcripts/session-b.jsonl',
+    });
+
+    await expect(getTranscript(context, { sessionId: 'session-b', lastN: 2 })).resolves.toMatchObject({
+      ok: true,
+      data: expect.arrayContaining([expect.objectContaining({ type: expect.any(String) })]),
+    });
+  });
+
   it('returns session not found for an unknown sessionId', async () => {
     const context = await createContext();
     await writeOverviewData(context.config.dataFile, { tasks: [{ id: 'TASK-1' }] });
@@ -172,6 +197,23 @@ function ralphState(stages: Record<string, OverviewRalphState['byTaskId'][string
     generatedAt: '2026-05-20T10:00:00.000Z',
     generatedFromCommit: 'fixture',
     byTaskId: Object.fromEntries(Object.entries(stages).map(([taskId, stage]) => [taskId, { stage }])),
+  };
+}
+
+function ralphStateWithSessions(
+  stages: Record<string, OverviewRalphState['byTaskId'][string]['stage']>,
+  sessions: Array<{ crewName: string; memberName: string; startedAt: string; sessionId?: string }>,
+): OverviewRalphState {
+  const [[taskId, stage]] = Object.entries(stages);
+  return {
+    generatedAt: '2026-05-20T10:00:00.000Z',
+    generatedFromCommit: 'fixture',
+    byTaskId: {
+      [taskId]: {
+        stage,
+        crewSessions: { [stage]: sessions.map(({ crewName, memberName, startedAt, sessionId }) => ({ crewName, memberName, startedAt, ...(sessionId ? { sessionId } : {}) })) },
+      },
+    },
   };
 }
 

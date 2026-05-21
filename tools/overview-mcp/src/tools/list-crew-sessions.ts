@@ -149,6 +149,7 @@ function liveFields(manifest: Record<string, unknown> | null): Partial<LiveCrewS
     return {};
   }
   return pruneUndefined({
+    transcriptPath: stringValue(manifest.transcriptPath),
     lastHeartbeatAt: stringValue(manifest.lastHeartbeatAt),
     lastSummary: stringValue(manifest.lastSummary),
     lastTurnAt: stringValue(manifest.lastTurnAt),
