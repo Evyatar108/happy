@@ -63,7 +63,6 @@ export const getTranscriptInputSchema = {
 export const addJournalEntryInputSchema = {
   taskId: z.string().min(1),
   note: z.string(),
-  ts: z.string().optional(),
 };
 
 export const setOverrideInputSchema = {

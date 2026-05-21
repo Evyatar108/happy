@@ -143,19 +143,25 @@ describe('overview.invoke_next', () => {
 });
 
 describe('overview.add_journal_entry', () => {
-  it('appends a note with an explicit timestamp and rejects unsafe task ids', async () => {
-    const context = await createContext();
+  it('appends a note with a server-derived timestamp and rejects unsafe task ids', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-20T02:00:00.000Z'));
+    try {
+      const context = await createContext();
 
-    expect(addJournalEntry(context, { taskId: 'TASK-1', ts: '2026-05-20T02:00:00.000Z', note: 'hello\nworld' })).toEqual({
-      ok: true,
-      data: { taskId: 'TASK-1', ts: '2026-05-20T02:00:00.000Z' },
-    });
-    expect(await readJournal(context.repoRoot, 'TASK-1')).toBe('- 2026-05-20T02:00:00.000Z  note: hello\n  world\n');
+      expect(addJournalEntry(context, { taskId: 'TASK-1', note: 'hello\nworld' })).toEqual({
+        ok: true,
+        data: { taskId: 'TASK-1', ts: '2026-05-20T02:00:00.000Z' },
+      });
+      expect(await readJournal(context.repoRoot, 'TASK-1')).toBe('- 2026-05-20T02:00:00.000Z  note: hello\n  world\n');
 
-    expect(addJournalEntry(context, { taskId: '../TASK-1', note: 'bad' })).toEqual({
-      ok: false,
-      error: 'invalid taskId: ../TASK-1',
-    });
+      expect(addJournalEntry(context, { taskId: '../TASK-1', note: 'bad' })).toEqual({
+        ok: false,
+        error: 'invalid taskId: ../TASK-1',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('defaults ts to the current ISO timestamp', async () => {
@@ -220,7 +226,7 @@ describe('overview.get_task', () => {
       data: { id: 'TASK-1', recentJournal: ['- two', '- three', '- four'] },
     });
 
-    await expect(getTask(context, { taskId: '../TASK-1' })).resolves.toEqual({ ok: false, error: 'unknown task' });
+    await expect(getTask(context, { taskId: '../TASK-1' })).resolves.toEqual({ ok: false, error: 'invalid taskId: ../TASK-1' });
   });
 });
 

@@ -19,7 +19,7 @@ export function addJournalEntry(
     return { ok: false, error: error instanceof Error ? error.message : 'invalid taskId' };
   }
 
-  const ts = input.ts ?? new Date().toISOString();
+  const ts = new Date().toISOString();
   appendJournalNote({ repoRoot: context.repoRoot, taskId: input.taskId, ts, note: input.note });
   return { ok: true, data: { taskId: input.taskId, ts } };
 }
