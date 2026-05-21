@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+import { assertSafeTaskId } from '../../../../scripts/lib/append-journal.mjs';
 import { deriveNextCommand } from '../../../../scripts/lib/derive-next-command.mjs';
 
 import type { ServerContext } from '../context.js';
@@ -54,6 +55,12 @@ export async function listTasks(context: ServerContext, input: ListTasksInput): 
 }
 
 export async function getTask(context: ServerContext, input: GetTaskInput): Promise<ToolEnvelope<GetTaskResult>> {
+  try {
+    assertSafeTaskId(input.taskId);
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : 'invalid taskId' };
+  }
+
   const snapshot = await context.snapshotReader.getSnapshot();
   if (!snapshot) {
     return { ok: false, error: 'missing snapshot' };
