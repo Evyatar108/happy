@@ -43,6 +43,8 @@ import {
   toToolResult,
 } from './tools/read-only.js';
 import { setOverride } from './tools/set-override.js';
+import { registerSyncNowTool } from './tools/sync-now.js';
+import { registerSyncWatchStatusTool } from './tools/sync-watch-status.js';
 
 export function createServer(context: ServerContext): McpServer {
   const server = new McpServer({
@@ -145,6 +147,8 @@ export function createServer(context: ServerContext): McpServer {
   registerDevServerStatusTool(server, context);
   registerDevServerLogsTool(server, context);
   registerBuildTool(server, context);
+  registerSyncNowTool(server, context);
+  registerSyncWatchStatusTool(server, context);
 
   return server;
 }

@@ -72,6 +72,8 @@ export const setOverrideInputSchema = {
 };
 
 export const buildInputSchema = {};
+export const syncNowInputSchema = {};
+export const syncWatchStatusInputSchema = {};
 export const devServerStartInputSchema = {};
 export const devServerStopInputSchema = {};
 export const devServerStatusInputSchema = {};
@@ -91,6 +93,8 @@ export const getTranscriptSchema = z.object(getTranscriptInputSchema);
 export const addJournalEntrySchema = z.object(addJournalEntryInputSchema);
 export const setOverrideSchema = z.object(setOverrideInputSchema);
 export const buildSchema = z.object(buildInputSchema);
+export const syncNowSchema = z.object(syncNowInputSchema);
+export const syncWatchStatusSchema = z.object(syncWatchStatusInputSchema);
 export const devServerStartSchema = z.object(devServerStartInputSchema);
 export const devServerStopSchema = z.object(devServerStopInputSchema);
 export const devServerStatusSchema = z.object(devServerStatusInputSchema);
@@ -107,6 +111,8 @@ export type GetTranscriptInput = z.infer<typeof getTranscriptSchema>;
 export type AddJournalEntryInput = z.infer<typeof addJournalEntrySchema>;
 export type SetOverrideInput = z.infer<typeof setOverrideSchema>;
 export type BuildInput = z.infer<typeof buildSchema>;
+export type SyncNowInput = z.infer<typeof syncNowSchema>;
+export type SyncWatchStatusInput = z.infer<typeof syncWatchStatusSchema>;
 export type DevServerStartInput = z.infer<typeof devServerStartSchema>;
 export type DevServerStopInput = z.infer<typeof devServerStopSchema>;
 export type DevServerStatusInput = z.infer<typeof devServerStatusSchema>;

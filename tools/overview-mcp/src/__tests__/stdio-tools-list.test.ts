@@ -7,7 +7,7 @@ const repoRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], { encodin
 const serverEntry = path.join(repoRoot, 'tools', 'overview-mcp', 'dist', 'index.js');
 
 describe('stdio tools/list smoke test', () => {
-  it('returns 15 overview tools by exact name', async () => {
+  it('returns 17 overview tools by exact name', async () => {
     const response = await sendToolsList(serverEntry);
     const names: string[] = response.result.tools.map((t: { name: string }) => t.name);
 
@@ -27,6 +27,8 @@ describe('stdio tools/list smoke test', () => {
       'overview.list_tasks',
       'overview.next_command',
       'overview.set_override',
+      'overview.sync.now',
+      'overview.sync.watch_status',
     ]);
   }, 15_000);
 });
