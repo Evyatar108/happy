@@ -309,7 +309,7 @@ export class ProcessManager {
       return null;
     }
     await this.stopManagedProcess(managed, options.timeoutMs ?? DEFAULT_STOP_TIMEOUT_MS);
-    if (options.remove !== false) {
+    if (options.remove === true) {
       this.processes.delete(name);
     }
     return managed.snapshot();
@@ -334,7 +334,7 @@ export class ProcessManager {
         return managed.snapshot();
       }),
     );
-    if (options.remove !== false) {
+    if (options.remove === true) {
       for (const managed of managedProcesses) {
         this.processes.delete(managed.name);
       }

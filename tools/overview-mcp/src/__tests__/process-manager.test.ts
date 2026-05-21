@@ -137,7 +137,7 @@ describe('ProcessManager', () => {
 
     expect(stopped.map((entry) => entry.name).sort()).toEqual(['build', 'dev-server', 'sync-now']);
     expect(killed.sort()).toEqual([201, 202, 203]);
-    expect(manager.status()).toEqual([]);
+    expect(manager.status()).toMatchObject([{ name: 'dev-server', status: 'exited' }]);
   });
 
   it('guards already-running names and preserves the original handle', () => {
