@@ -83,11 +83,17 @@ export class StopFailedError extends Error {
   }
 }
 
+export interface ExitEvent {
+  exitCode: number | null;
+  signal: NodeJS.Signals | null;
+}
+
 export class ManagedProcess {
   readonly stdout: string[] = [];
   readonly stderr: string[] = [];
   readonly startedAt = new Date();
   readonly readyPromise: Promise<ReadyInfo>;
+  readonly exitPromise: Promise<ExitEvent>;
   status: ManagedProcessStatus = 'starting';
   pid?: number;
   exitedAt?: Date;
@@ -103,6 +109,7 @@ export class ManagedProcess {
   private resolveReady!: (ready: ReadyInfo) => void;
   private rejectReady!: (err: Error) => void;
   private readySettled = false;
+  resolveExit!: (event: ExitEvent) => void;
 
   constructor(
     readonly name: string,
@@ -116,6 +123,9 @@ export class ManagedProcess {
       this.rejectReady = reject;
     });
     this.readyPromise.catch(() => undefined);
+    this.exitPromise = new Promise<ExitEvent>((resolve) => {
+      this.resolveExit = resolve;
+    });
   }
 
   attachChild(child: ChildProcess): void {
@@ -298,10 +308,11 @@ export class ProcessManager {
     try {
       const child = this.spawnImpl(options.cmd, options.args ?? [], this.toSpawnOptions(options));
       managed.attachChild(child);
-      child.on('exit', () => {
+      child.on('exit', (code, signal) => {
         if (managed.oneShot) {
           this.processes.delete(managed.name);
         }
+        managed.resolveExit({ exitCode: code, signal: signal as NodeJS.Signals | null });
       });
       return managed;
     } catch (err) {

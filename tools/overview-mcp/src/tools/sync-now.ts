@@ -1,4 +1,3 @@
-import { once } from 'node:events';
 import path from 'node:path';
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -65,7 +64,7 @@ export async function syncNow(context: ServerContext): Promise<SyncNowResult> {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
 
-  const [code] = (await once(managed.child!, 'exit')) as [number | null, NodeJS.Signals | null];
+  const { exitCode: code } = await managed.exitPromise;
   const logs = managed.logs();
 
   if (code === 0) {

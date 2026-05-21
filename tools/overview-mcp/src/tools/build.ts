@@ -1,4 +1,3 @@
-import { once } from 'node:events';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -54,7 +53,7 @@ export async function overviewBuild(context: ServerContext): Promise<BuildResult
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
 
-  const [code] = (await once(managed.child!, 'exit')) as [number | null, NodeJS.Signals | null];
+  const { exitCode: code } = await managed.exitPromise;
   const durationMs = Date.now() - startedAt;
 
   if (code === 0) {
