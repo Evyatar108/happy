@@ -6,6 +6,7 @@ import {
   addJournalEntryInputSchema,
   getTranscriptInputSchema,
   getTaskInputSchema,
+  invokeNextInputSchema,
   listBlockersInputSchema,
   listCrewSessionsInputSchema,
   listRecommendationsInputSchema,
@@ -17,6 +18,7 @@ import type {
   AddJournalEntryInput,
   GetTranscriptInput,
   GetTaskInput,
+  InvokeNextInput,
   ListCrewSessionsInput,
   ListRecommendationsInput,
   ListTasksInput,
@@ -25,6 +27,7 @@ import type {
 } from './schemas.js';
 import { addJournalEntry } from './tools/add-journal-entry.js';
 import { getTranscript } from './tools/get-transcript.js';
+import { invokeNext } from './tools/invoke-next.js';
 import { listCrewSessions } from './tools/list-crew-sessions.js';
 import {
   getTask,
@@ -67,6 +70,15 @@ export function createServer(context: ServerContext): McpServer {
       inputSchema: asSdkInputSchema(nextCommandInputSchema),
     },
     async (input) => toToolResult(await nextCommand(context, input as NextCommandInput)),
+  );
+
+  server.registerTool(
+    'overview.invoke_next',
+    {
+      description: 'Return the next Ralph command or spawn a crew member to run it.',
+      inputSchema: asSdkInputSchema(invokeNextInputSchema),
+    },
+    async (input) => toToolResult(await invokeNext(context, input as InvokeNextInput)),
   );
 
   server.registerTool(

@@ -33,6 +33,16 @@ export const nextCommandInputSchema = {
   taskId: z.string().min(1),
 };
 
+export const invokeNextInputSchema = {
+  taskId: z.string().min(1),
+  viaCrewMember: z
+    .object({
+      crewName: z.string().min(1),
+      memberName: z.string().min(1).optional(),
+    })
+    .optional(),
+};
+
 export const listRecommendationsInputSchema = {
   limit: z.number().int().min(0).max(100).optional(),
   stageFilter: ralphStageSchema.optional(),
@@ -64,6 +74,7 @@ export const setOverrideInputSchema = {
 export const listTasksSchema = z.object(listTasksInputSchema);
 export const getTaskSchema = z.object(getTaskInputSchema);
 export const nextCommandSchema = z.object(nextCommandInputSchema);
+export const invokeNextSchema = z.object(invokeNextInputSchema);
 export const listRecommendationsSchema = z.object(listRecommendationsInputSchema);
 export const listBlockersSchema = z.object(listBlockersInputSchema);
 export const listCrewSessionsSchema = z.object(listCrewSessionsInputSchema);
@@ -74,6 +85,7 @@ export const setOverrideSchema = z.object(setOverrideInputSchema);
 export type ListTasksInput = z.infer<typeof listTasksSchema>;
 export type GetTaskInput = z.infer<typeof getTaskSchema>;
 export type NextCommandInput = z.infer<typeof nextCommandSchema>;
+export type InvokeNextInput = z.infer<typeof invokeNextSchema>;
 export type ListRecommendationsInput = z.infer<typeof listRecommendationsSchema>;
 export type ListBlockersInput = z.infer<typeof listBlockersSchema>;
 export type ListCrewSessionsInput = z.infer<typeof listCrewSessionsSchema>;
