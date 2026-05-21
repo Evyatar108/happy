@@ -139,7 +139,7 @@ Output on lock-held failure: `{ ok: false, error: 'sync lock held by <process>',
 
 Output on other failures: `{ ok: false, error, lastLogLines?: string[] }`.
 
-Runs `node scripts/sync-ralph-state.mjs --repo <repoRoot>` as transient process name `sync-now`, then parses the one-shot stdout line `sync: matched=<N>, unmatched=<N>, duration=<N>ms`. Concurrent calls return `{ ok: false, error: 'sync already in progress' }`. If the script reports a held sync lock, the tool re-reads `readLockStatus(config.lockFile)` and returns the current holder metadata.
+Runs `node scripts/sync-ralph-state.mjs --repo <repoRoot>` as transient process name `sync-now`, then parses the one-shot stdout line `sync: matched=<N>, unmatched=<N>, duration=<N>ms`. Concurrent calls return `{ ok: false, error: 'another sync in progress' }`. If the script reports a held sync lock, the tool re-reads `readLockStatus(config.lockFile)` and returns the current holder metadata.
 
 ### `overview.sync.watch_status`
 
