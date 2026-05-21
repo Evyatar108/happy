@@ -129,6 +129,7 @@ async function runFinalizeCrewSession({ repoRoot, config, taskId, stage, memberN
 }
 
 async function runOneShot({ repoRoot, config }) {
+    const startTime = Date.now()
     const generatedFromCommit = resolveHeadShortSha(repoRoot)
     const lockHandle = await acquireLock({ lockPath: config.lockFile, processLabel: 'standalone-oneshot' })
     try {
@@ -140,6 +141,10 @@ async function runOneShot({ repoRoot, config }) {
         }
 
         await writeSidecar({ repoRoot, config, state })
+        const matched = Object.keys(state.byTaskId ?? {}).length
+        const unmatched = (state.unmatched ?? []).length
+        const durationMs = Date.now() - startTime
+        console.log(`sync: matched=${matched}, unmatched=${unmatched}, duration=${durationMs}ms`)
 
         const activityEvents = deriveActivityEvents({
             previousByTaskId: priorByTaskId,
