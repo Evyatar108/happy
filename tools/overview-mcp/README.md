@@ -164,3 +164,9 @@ pnpm --filter @codexu/overview-mcp test
 ```
 
 Use `scripts/lib/resolve-config.mjs` for paths. Do not hardcode overview artifact locations in new tools.
+
+### Build layout note
+
+`src/` imports from `../../../scripts/lib/*.mjs` (cross-package). Because tsc resolves those paths outside `tools/overview-mcp/`, it widens the implicit `rootDir` to the repo root and emits into `dist/overview-mcp/src/` instead of `dist/` directly. The `build` script flattens this with `cpSync('dist/overview-mcp/src', 'dist', { recursive: true })`. The `postbuild` script immediately verifies that `dist/index.js` exists so build failures surface at compile time rather than silently at MCP server startup.
+
+If you add a new `src/` file that removes **all** `../../../scripts/lib/` imports, tsc may shrink rootDir and the nested output path will change — run `pnpm --filter @codexu/overview-mcp build` and confirm `dist/index.js` is present before committing.
