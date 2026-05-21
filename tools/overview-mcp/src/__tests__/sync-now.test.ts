@@ -84,7 +84,7 @@ describe('overview.sync.now tool', () => {
 
     await expect(syncNow(contextWithManager(fixture, manager))).resolves.toEqual({
       ok: false,
-      error: 'sync already in progress',
+      error: 'another sync in progress',
     });
 
     child.emit('exit', 1, null);

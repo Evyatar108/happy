@@ -60,7 +60,7 @@ export async function syncNow(context: ServerContext): Promise<SyncNowResult> {
     });
   } catch (error) {
     if (error instanceof AlreadyRunningError) {
-      return { ok: false, error: 'sync already in progress' };
+      return { ok: false, error: 'another sync in progress' };
     }
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }
