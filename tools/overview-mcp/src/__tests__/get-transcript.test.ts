@@ -127,6 +127,26 @@ describe('overview.get_transcript', () => {
     });
   });
 
+  it('returns ok:false when transcript file is missing (ENOENT)', async () => {
+    const context = await createContext();
+    await writeOverviewData(context.config.dataFile, { tasks: [{ id: 'TASK-1' }] });
+    await writeRalphState(context.config.outputs.sidecarJson, ralphState({ 'TASK-1': 'implementing' }));
+    await writeManifest(context.config.crewsRoot, 'crew-a', 'members', 'alice', {
+      crew: 'crew-a',
+      name: 'alice',
+      cwd: context.repoRoot,
+      startedAt: '2026-05-20T10:00:00.000Z',
+      sessionId: 'session-missing',
+      transcriptPath: 'transcripts/does-not-exist.jsonl',
+      lastSummary: 'Working on TASK-1.',
+    });
+
+    const result = await getTranscript(context, { sessionId: 'session-missing' });
+
+    expect(result.ok).toBe(false);
+    expect((result as { ok: false; error: string }).error).toMatch(/failed to read transcript/);
+  });
+
   it('returns session not found for an unknown sessionId', async () => {
     const context = await createContext();
     await writeOverviewData(context.config.dataFile, { tasks: [{ id: 'TASK-1' }] });

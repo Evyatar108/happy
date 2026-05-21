@@ -21,14 +21,18 @@ export async function getTranscript(
     return { ok: false, error: 'session not found' };
   }
 
-  return {
-    ok: true,
-    data: tailTranscript({
-      transcriptPath: resolveTranscriptPath(context.repoRoot, session.transcriptPath),
-      lastN: input.lastN,
-      includeToolEvents: input.includeToolEvents,
-    }),
-  };
+  try {
+    return {
+      ok: true,
+      data: tailTranscript({
+        transcriptPath: resolveTranscriptPath(context.repoRoot, session.transcriptPath),
+        lastN: input.lastN,
+        includeToolEvents: input.includeToolEvents,
+      }),
+    };
+  } catch (error) {
+    return { ok: false, error: `failed to read transcript: ${error instanceof Error ? error.message : String(error)}` };
+  }
 }
 
 function resolveTranscriptPath(repoRoot: string, transcriptPath: string): string {
