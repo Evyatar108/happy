@@ -19,6 +19,12 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   closing = true;
   process.stderr.write(`overview-mcp: received ${signal}; shutting down\n`);
   await context.snapshotReader.close();
+  try {
+    await context.processManager.stopAll();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`overview-mcp: failed to stop child processes: ${message}\n`);
+  }
   await server.close();
   process.exit(0);
 }

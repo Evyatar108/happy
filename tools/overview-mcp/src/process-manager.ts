@@ -396,6 +396,10 @@ export class ProcessManager {
       return new Promise((resolve, reject) => {
         this.treeKillImpl(pid, signal, (err) => {
           if (err) {
+            if (isMissingProcessError(err)) {
+              resolve();
+              return;
+            }
             reject(err);
             return;
           }
@@ -413,4 +417,9 @@ export class ProcessManager {
     }
     return Promise.resolve();
   }
+}
+
+function isMissingProcessError(err: Error): boolean {
+  const code = (err as NodeJS.ErrnoException).code;
+  return code === 'ESRCH' || /not found|no running instance|does not exist/i.test(err.message);
 }

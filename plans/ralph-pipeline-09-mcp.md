@@ -55,13 +55,13 @@ Plans 02, 04, 07 are recommended but not strictly required (they enrich the snap
 
 - **`tools/overview-mcp/package.json`** — declares `@codexu/overview-mcp`, depends on `@modelcontextprotocol/sdk`, `chokidar` (for snapshot watching), and dev-deps `typescript`, `tsx`. `bin` entry `overview-mcp-install` → `dist/install-server.js`. The MCP server entrypoint at `dist/index.js` is invoked directly via `node` (per the README's `mcpServers.codexu-overview.command = "node"` registration shape), not through a `bin`.
 - **`tools/overview-mcp/tsconfig.json`** — extends the workspace's TS config; output dir `dist`.
-- **`tools/overview-mcp/src/index.ts`** — MCP server entry. Sets up stdio transport, registers all 10 tools.
+- **`tools/overview-mcp/src/index.ts`** — MCP server entry. Sets up stdio transport and owns the existing SIGINT/SIGTERM shutdown hooks. Plan 11 extends this shutdown path to call `context.processManager.stopAll()` between `snapshotReader.close()` and `server.close()`.
 - **`tools/overview-mcp/src/snapshot-reader.ts`** — `SnapshotReader` class. Watches `plans/overview-snapshot.json` via chokidar; reads on demand; validates against `plans/overview-snapshot.schema.json` when present; caches the parsed `Snapshot` object in memory. All tool handlers query through this.
 - **`tools/overview-mcp/src/tools/list-tasks.ts`**, **`get-task.ts`**, **`next-command.ts`**, **`invoke-next.ts`**, **`list-recommendations.ts`**, **`list-blockers.ts`**, **`set-override.ts`**, **`add-journal-entry.ts`**, **`list-crew-sessions.ts`**, **`get-transcript.ts`** — one file per tool, each exporting a registration function.
 - **`tools/overview-mcp/src/utils/set-override-edit.ts`** — structured edit for `overview-data.js`. Parses the JS object literal via a permissive parser (e.g. `@babel/parser` or hand-written for the simple object-literal grammar), mutates only the `ralphOverrides` key, serializes back with the surrounding code byte-identical.
 - **`tools/overview-mcp/src/install-server.ts`** — adds the server entry to `.claude/settings.local.json` (or prints the JSON for manual addition).
 - **`tools/overview-mcp/src/__tests__/*.test.ts`** — one test file per tool covering the happy path.
-- **`tools/overview-mcp/README.md`** — installation + registration instructions.
+- **`tools/overview-mcp/README.md`** — installation + registration instructions, data-tool contracts, and Plan 11 operational-tool contracts.
 
 ### To modify
 
@@ -195,4 +195,4 @@ K. **`overview.add_journal_entry`:** appends a line. `tail tasks/<id>/journal.md
 
 ## Hand-off
 
-This is the deepest plan in the DAG. After it ships, the agent-facing programmatic surface is complete. The only remaining work is Plan 10 (Ralph plugin handoff doc), which is decoupled and can ship independently at any time.
+After Plan 09 ships, the data-query and narrow mutation surface is complete. Plan 11 extends the same MCP package with operational subprocess tools (`overview.dev_server.*`, `overview.build`, `overview.sync.*`) and shared `ProcessManager` shutdown cleanup; Plan 10 remains decoupled and can ship independently at any time.
