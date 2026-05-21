@@ -60,7 +60,7 @@ Plans 02, 04, 07 are recommended but not strictly required (they enrich the snap
 - **`tools/overview-mcp/src/tools/list-tasks.ts`**, **`get-task.ts`**, **`next-command.ts`**, **`invoke-next.ts`**, **`list-recommendations.ts`**, **`list-blockers.ts`**, **`set-override.ts`**, **`add-journal-entry.ts`**, **`list-crew-sessions.ts`**, **`get-transcript.ts`** — one file per tool, each exporting a registration function.
 - **`tools/overview-mcp/src/utils/set-override-edit.ts`** — structured edit for `overview-data.js`. Parses the JS object literal via a permissive parser (e.g. `@babel/parser` or hand-written for the simple object-literal grammar), mutates only the `ralphOverrides` key, serializes back with the surrounding code byte-identical.
 - **`tools/overview-mcp/src/install-server.ts`** — adds the server entry to `.claude/settings.local.json` (or prints the JSON for manual addition).
-- **`tools/overview-mcp/tests/*.test.ts`** — one test file per tool covering the happy path.
+- **`tools/overview-mcp/src/__tests__/*.test.ts`** — one test file per tool covering the happy path.
 - **`tools/overview-mcp/README.md`** — installation + registration instructions.
 
 ### To modify
