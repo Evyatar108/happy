@@ -68,7 +68,7 @@ Plans 02, 04, 07 are recommended but not strictly required (they enrich the snap
 - **`pnpm-workspace.yaml`** — add `tools/overview-mcp` to `packages`.
 - **`package.json`** (root) — add to `workspaces.packages` and add scripts:
   - `"overview-mcp:build": "pnpm --filter @codexu/overview-mcp build"`
-  - `"overview-mcp:install": "pnpm --filter @codexu/overview-mcp install-server"`
+  - `"overview-mcp:install": "pnpm --filter @codexu/overview-mcp exec overview-mcp-install"`
 
 ### Read for reference
 
