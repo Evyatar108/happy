@@ -6,7 +6,7 @@
     "overview-mcp-install": "dist/install-server.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node -e \"const fs=require('node:fs');const opts=Object.create(null);opts.recursive=true;fs.cpSync('dist/overview-mcp/src','dist',opts)\"",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --passWithNoTests"
   },
@@ -14,6 +14,7 @@
     "@babel/parser": "^7.28.5",
     "@modelcontextprotocol/sdk": "^1.23.0",
     "chokidar": "^5.0.0",
+    "tree-kill": "^1.2.2",
     "zod": "^4.1.13"
   },
   "devDependencies": {
