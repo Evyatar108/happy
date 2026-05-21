@@ -94,12 +94,12 @@ Two modes:
 
 ### `overview.set_override`
 
-The ONLY tool that writes `overview-data.js`. Uses a structured edit:
+The ONLY tool that writes `overview-data.js`. Uses an AST-locate + source-string splice edit (see `tools/overview-mcp/src/utils/set-override-edit.ts`):
 
 1. Read the file.
-2. Parse via `@babel/parser` with `errorRecovery: true`. Locate the `window.OVERVIEW_DATA = {...}` assignment.
-3. Find the `ralphOverrides` property. If absent, insert as a new property at the same indentation level as `tasks: [`. If present, modify in place.
-4. Serialize via `@babel/generator` configured to preserve whitespace and quoting.
+2. Parse via `@babel/parser` to locate the `window.OVERVIEW_DATA = {...}` assignment and capture the byte ranges (`start`/`end`) of the `ralphOverrides` property — or its individual entries — within the original source.
+3. Find the `ralphOverrides` property. If absent, insert a new property at the same indentation as `tasks: [`. If present and the slug already exists, splice the new task-id value into the existing value's byte range; otherwise, splice a new `"<slug>": "<taskId>",` entry at the end of the existing object literal.
+4. Construct the new file contents by string-slicing the original source around the located byte range and splicing in the formatted replacement. Indentation and quoting are derived from the surrounding source. NEVER call `@babel/generator` — it reformats whitespace and quoting across the whole file and breaks the byte-range confinement test that asserts the edit only touches the located range.
 5. Write atomically (tmp + rename).
 
 If parsing fails (e.g. malformed JS), error with `{ ok: false, error: 'failed to parse overview-data.js — fix manually' }`. NEVER overwrite the whole file.
